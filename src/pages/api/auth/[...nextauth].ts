@@ -29,6 +29,9 @@ export const authOptions: NextAuthOptions = {
     },
     // Configure one or more authentication providers
     adapter: PrismaAdapter(prisma),
+    pages: {
+        signIn: "/?signIn=true",
+    },
     providers: [
         GoogleProvider({
             clientId: env.GOOGLE_CLIENT_ID,
@@ -49,10 +52,6 @@ export const authOptions: NextAuthOptions = {
         AtlassianProvider({
             clientId: env.ATLASSIAN_CLIENT_ID,
             clientSecret: env.ATLASSIAN_CLIENT_SECRET,
-        }),
-        DiscordProvider({
-            clientId: env.DISCORD_CLIENT_ID,
-            clientSecret: env.DISCORD_CLIENT_SECRET,
         }),
     ],
 };

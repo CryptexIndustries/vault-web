@@ -4,7 +4,6 @@ import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
 import GithubProvider from "next-auth/providers/github";
 import GitlabProvider from "next-auth/providers/gitlab";
-import AtlassianProvider from "next-auth/providers/atlassian";
 import DiscordProvider from "next-auth/providers/discord";
 
 // Prisma adapter for NextAuth, optional and can be removed
@@ -30,7 +29,7 @@ export const authOptions: NextAuthOptions = {
     // Configure one or more authentication providers
     adapter: PrismaAdapter(prisma),
     pages: {
-        signIn: "/?signIn=true",
+        signIn: "/login",
     },
     providers: [
         GoogleProvider({
@@ -48,10 +47,6 @@ export const authOptions: NextAuthOptions = {
         GitlabProvider({
             clientId: env.GITLAB_CLIENT_ID,
             clientSecret: env.GITLAB_CLIENT_SECRET,
-        }),
-        AtlassianProvider({
-            clientId: env.ATLASSIAN_CLIENT_ID,
-            clientSecret: env.ATLASSIAN_CLIENT_SECRET,
         }),
     ],
 };

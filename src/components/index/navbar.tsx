@@ -1,8 +1,8 @@
-export type NavBarProps = {
-    showLoginModalFn: () => void;
-};
+import Link from "next/link";
 
-const NavBar: React.FC<NavBarProps> = ({ showLoginModalFn }) => {
+export type NavBarProps = {};
+
+const NavBar: React.FC<NavBarProps> = ({}) => {
     return (
         <nav className="flex items-center justify-between flex-wrap bg-gray-900 p-6">
             <div className="flex items-center flex-shrink-0 text-white mr-6">
@@ -53,12 +53,11 @@ const NavBar: React.FC<NavBarProps> = ({ showLoginModalFn }) => {
                     </a>
                 </div>
                 <div>
-                    <button
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                        onClick={showLoginModalFn}
-                    >
-                        Sign In
-                    </button>
+                    <Link href={"/login"}>
+                        <a className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            Start
+                        </a>
+                    </Link>
                 </div>
             </div>
         </nav>

@@ -19,7 +19,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
     hideModalFn,
     providers,
 }) => {
-    const cancelButtonRef = useRef(null);
+    // const cancelButtonRef = useRef(null);
 
     return (
         <Transition.Root show={visible} as={Fragment}>
@@ -38,7 +38,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+                    <div className="fixed inset-0 bg-black bg-opacity-75 transition-opacity" />
                 </Transition.Child>
 
                 <div className="fixed inset-0 z-10 overflow-y-auto">
@@ -83,7 +83,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
                                                 ))}
                                                 <SignInCard
                                                     serviceName="Cryptex Vault"
-                                                    serviceLogo="cryptexvault"
+                                                    serviceLogo="cryptex"
                                                     serviceID="#"
                                                     available={false}
                                                 />
@@ -132,17 +132,21 @@ const SignInCard: React.FC<SignInCardProps> = ({
 }) => {
     return (
         <button
-            className={`font-bold w-96 my-2 py-2 px-4 rounded inline-flex items-center border-black ${
-                available ? "hover:bg-gray-600" : ""
+            className={`font-bold w-96 my-2 py-2 px-4 rounded inline-flex items-center border-black 
+            bg-gray-600${available ? "" : "/100"} ${
+                available ? "hover:bg-gray-400" : ""
             }`}
-            disabled={!available}
+            // disabled={!available}
             onClick={() => signIn(serviceID)}
         >
-            <div className="flex flex-row w-full justify-between">
+            <div className="flex flex-row w-full justify-between items-center ">
                 <div>
-                    <img src={`images/brand_images/${serviceLogo}.svg`} />
+                    <img
+                        src={`images/brand_images/${serviceLogo}.svg`}
+                        style={{ width: 50, height: 50 }}
+                    />
                 </div>
-                <div>Sign In with {serviceName}</div>
+                <p className="text-gray-200">Sign In with {serviceName}</p>
                 <div></div>
             </div>
         </button>

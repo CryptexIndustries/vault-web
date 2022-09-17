@@ -2,8 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('http://fonts.cdnfonts.com/css/red-hat-display-2');
+
 body {
-    font-family: Rota, sans-serif;
+    font-family: 'Guaruja Neue', sans-serif;
     font-size: 18px;
     font-weight: 400;
 }
@@ -12,9 +14,8 @@ body {
     color: #FF5668;
 }
 
-.gradientFromGreenToPrimary {
+.gradientFromWhiteToPrimary {
     --tw-gradient-from: #ff9497;
     --tw-gradient-to: #FF5668;
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
-
 }

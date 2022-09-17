@@ -1,13 +1,7 @@
 import { BuiltInProviderType } from "next-auth/providers";
-import {
-    ClientSafeProvider,
-    getProviders,
-    LiteralUnion,
-} from "next-auth/react";
-import { useRouter } from "next/router";
-import { useState } from "react";
+import { ClientSafeProvider, LiteralUnion } from "next-auth/react";
+import Head from "next/head";
 import NavBar from "../components/index/navbar";
-import LoginModal from "../components/login/loginModal";
 
 type IndexProps = {
     providers: Record<
@@ -17,15 +11,21 @@ type IndexProps = {
 };
 
 const index: React.FC<IndexProps> = ({ providers }) => {
-    const { query } = useRouter();
-
     return (
         <>
-            <NavBar />
+            <Head>
+                <title>Cryptex Vault</title>
+                <meta name="description" content="" />
+                <link rel="icon" href="/favicon.ico" />
+            </Head>
 
-            <div className="content">
-                <h1>Buy our awesome product!</h1>
-            </div>
+            <main>
+                <NavBar />
+
+                <div className="content">
+                    <h1>Buy our awesome product!</h1>
+                </div>
+            </main>
         </>
     );
 };

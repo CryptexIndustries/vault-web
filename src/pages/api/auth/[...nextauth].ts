@@ -1,10 +1,16 @@
-import NextAuth, { type NextAuthOptions } from "next-auth";
+import NextAuth, {
+    Awaitable,
+    RequestInternal,
+    User,
+    type NextAuthOptions,
+} from "next-auth";
 
 import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
 import GithubProvider from "next-auth/providers/github";
 import GitlabProvider from "next-auth/providers/gitlab";
-import DiscordProvider from "next-auth/providers/discord";
+// import DiscordProvider from "next-auth/providers/discord";
+import CredentialsProvider from "next-auth/providers/credentials";
 
 // Prisma adapter for NextAuth, optional and can be removed
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
@@ -36,10 +42,10 @@ export const authOptions: NextAuthOptions = {
             clientId: env.GOOGLE_CLIENT_ID,
             clientSecret: env.GOOGLE_CLIENT_SECRET,
         }),
-        AppleProvider({
-            clientId: env.APPLE_CLIENT_ID,
-            clientSecret: env.APPLE_CLIENT_SECRET,
-        }),
+        // AppleProvider({
+        //     clientId: env.APPLE_CLIENT_ID,
+        //     clientSecret: env.APPLE_CLIENT_SECRET,
+        // }),
         GithubProvider({
             clientId: env.GITHUB_CLIENT_ID,
             clientSecret: env.GITHUB_CLIENT_SECRET,
@@ -47,6 +53,35 @@ export const authOptions: NextAuthOptions = {
         GitlabProvider({
             clientId: env.GITLAB_CLIENT_ID,
             clientSecret: env.GITLAB_CLIENT_SECRET,
+        }),
+        CredentialsProvider({
+            id: "cryptex",
+            name: "Cryptex Authentication",
+            credentials: {
+                email: {
+                    label: "Username",
+                    type: "text ",
+                    placeholder: "jsmith",
+                },
+                "2fa-key": { label: "2FA Key" },
+            },
+            authorize: function (
+                credentials:
+                    | Record<string | number | symbol, string>
+                    | undefined,
+                req: Pick<
+                    RequestInternal,
+                    "query" | "headers" | "body" | "method"
+                >
+            ): Awaitable<
+                Omit<User, "id"> | { id?: string | undefined } | null
+            > {
+                // throw new Error("Function not implemented.");
+                const user = {
+                    /* add function to get user */
+                };
+                return user;
+            },
         }),
     ],
 };

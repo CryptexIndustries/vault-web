@@ -25,23 +25,24 @@ const Login: React.FC<LoginProps> = ({ providers }) => {
                     <h1>Sign In</h1>
                 </div>
                 <div className="flex flex-col items-center">
-                    {Object.values(providers ?? []).map((provider) => (
-                        <SignInCard
-                            key={provider.name}
-                            serviceName={provider.name}
-                            serviceLogo={provider.name.toLowerCase()}
-                            serviceID={provider.id}
-                        />
-                    ))}
-
-                    <hr className="w-9/12 my-5 bg-black border-2" />
-
-                    <SignInCard
-                        serviceName="Cryptex Vault"
-                        serviceLogo="cryptex"
-                        serviceID="#"
-                        available={false}
-                    />
+                    {Object.values(providers ?? []).map((provider) => {
+                        return (
+                            <div key={provider.name + "-container"}>
+                                {provider.id !== "cryptex" ? null : (
+                                    <hr
+                                        key={provider.name + "-divider"}
+                                        className="w-9/12 my-5 bg-black border-2"
+                                    />
+                                )}
+                                <SignInCard
+                                    key={provider.name}
+                                    serviceName={provider.name}
+                                    serviceLogo={provider.id}
+                                    serviceID={provider.id}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>

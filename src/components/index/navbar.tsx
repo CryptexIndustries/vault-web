@@ -4,20 +4,12 @@ export type NavBarProps = {};
 
 const NavBar: React.FC<NavBarProps> = ({}) => {
     return (
-        <nav className="flex items-center justify-between flex-wrap bg-gray-900 p-6">
+        <nav className="flex items-center justify-evenly flex-wrap absolute p-6 w-screen h">
             <div className="flex items-center flex-shrink-0 text-white mr-6">
-                <svg
-                    className="fill-current h-8 w-8 mr-2 text-red-600"
-                    width="54"
-                    height="54"
-                    viewBox="0 0 54 54"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path d="M13.5 22.1c1.8-7.2 6.3-10.8 13.5-10.8 10.8 0 12.15 8.1 17.55 9.45 3.6.9 6.75-.45 9.45-4.05-1.8 7.2-6.3 10.8-13.5 10.8-10.8 0-12.15-8.1-17.55-9.45-3.6-.9-6.75.45-9.45 4.05zM0 38.3c1.8-7.2 6.3-10.8 13.5-10.8 10.8 0 12.15 8.1 17.55 9.45 3.6.9 6.75-.45 9.45-4.05-1.8 7.2-6.3 10.8-13.5 10.8-10.8 0-12.15-8.1-17.55-9.45-3.6-.9-6.75.45-9.45 4.05z" />
-                </svg>
-                <span className="font-semibold text-xl tracking-tight">
+                <img src="/images/logo/cryptex_logo.svg" style={{height:60, width:120}} ></img>
+                {/* <span className="font-semibold text-xl tracking-tight">
                     Cryptex Vault
-                </span>
+                </span> */}
             </div>
             <div className="block lg:hidden">
                 <button className="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">
@@ -31,34 +23,33 @@ const NavBar: React.FC<NavBarProps> = ({}) => {
                     </svg>
                 </button>
             </div>
-            <div className="w-full block flex-grow lg:flex lg:items-center hidden lg:w-auto">
-                <div className="text-sm lg:flex-grow">
-                    <a
-                        href="#responsive-header"
-                        className="block mt-4 lg:inline-block lg:mt-0 text-teal-200 hover:text-white mr-4"
-                    >
-                        Docs
+
+            <div className="text-lg">
+                <a
+                    href="#responsive-header"
+                    className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 mr-4"
+                >
+                    Home
+                </a>
+                <a
+                    href="#responsive-header"
+                    className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                >
+                    Pricing
+                </a>
+                <a
+                    href="#responsive-header"
+                    className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors"
+                >
+                    About
+                </a>
+            </div>
+            <div>
+                <Link href={"/login"}>
+                    <a className="bg-gradient-to-r gradientFromGreenToPrimary hover:opacity-70 text-white font-bold py-3 px-8 rounded-full transition-opacity ">
+                    Sign In
                     </a>
-                    <a
-                        href="#responsive-header"
-                        className="block mt-4 lg:inline-block lg:mt-0 text-teal-200 hover:text-white mr-4"
-                    >
-                        Examples
-                    </a>
-                    <a
-                        href="#responsive-header"
-                        className="block mt-4 lg:inline-block lg:mt-0 text-teal-200 hover:text-white"
-                    >
-                        Blog
-                    </a>
-                </div>
-                <div>
-                    <Link href={"/login"}>
-                        <a className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                            Start
-                        </a>
-                    </Link>
-                </div>
+                </Link>
             </div>
         </nav>
     );

@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+    font-family: Rota, sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+}
+
+.colorPrimary {
+    color: #FF5668;
+}
+
+.gradientFromGreenToPrimary {
+    --tw-gradient-from: #ff9497;
+    --tw-gradient-to: #FF5668;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+
+}

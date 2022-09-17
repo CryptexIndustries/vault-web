@@ -5,11 +5,8 @@ export type NavBarProps = {};
 const NavBar: React.FC<NavBarProps> = ({}) => {
     return (
         <nav className="flex items-center justify-evenly flex-wrap absolute p-6 w-screen h">
-            <div className="flex items-center flex-shrink-0 text-white mr-6">
-                <img src="/images/logo/cryptex_logo.svg" style={{height:60, width:120}} ></img>
-                {/* <span className="font-semibold text-xl tracking-tight">
-                    Cryptex Vault
-                </span> */}
+            <div className="flex items-center flex-shrink-0 text-white">
+                <img src="/images/logo/cryptex_logo.png" style={{height:50, width:200}} ></img>
             </div>
             <div className="block lg:hidden">
                 <button className="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">
@@ -46,7 +43,7 @@ const NavBar: React.FC<NavBarProps> = ({}) => {
             </div>
             <div>
                 <Link href={"/login"}>
-                    <a className="bg-gradient-to-r gradientFromGreenToPrimary hover:opacity-70 text-white font-bold py-3 px-8 rounded-full transition-opacity ">
+                    <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-3 px-8 rounded-full transition-opacity ">
                     Sign In
                     </a>
                 </Link>

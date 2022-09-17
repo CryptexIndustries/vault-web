@@ -1,5 +1,11 @@
-.mainContent {
+.main {
     background-color: #181d2b;
     @apply text-white;
     /* padding-top: 110px; */
+    height: 100vh;
+}
+
+.content{
+    padding-top: 108px;
+    height: 100%;
 }

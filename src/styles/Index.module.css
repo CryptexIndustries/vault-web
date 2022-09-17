@@ -1,0 +1,5 @@
+.mainContent {
+    background-color: #181d2b;
+    @apply text-white;
+    /* padding-top: 110px; */
+}

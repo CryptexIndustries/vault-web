@@ -1,10 +1,11 @@
+import { GetStaticProps, NextPage } from "next";
 import Head from "next/head";
 import NavBar from "../components/index/navbar";
 import IndexStyles from "../styles/Index.module.css";
 
 type IndexProps = {};
 
-const index: React.FC<IndexProps> = ({}) => {
+const Index: NextPage<IndexProps> = ({}) => {
     return (
         <>
             <Head>
@@ -42,19 +43,27 @@ const index: React.FC<IndexProps> = ({}) => {
                                 </div>
                             </div>
                             <div>
-                                <img  style={{width:512}} src="/images/logo/Welcome_Banner.png"></img>
+                                <img
+                                    style={{ width: 512 }}
+                                    src="/images/logo/Welcome_Banner.png"
+                                ></img>
                             </div>
                         </div>
                     </section>
 
                     <section>
-                        <p style={{color:"red"}}> Hello workld</p>
+                        <p style={{ color: "red" }}> Hello workld</p>
                     </section>
-
                 </div>
             </main>
         </>
     );
 };
 
-export default index;
+export const getStaticProps: GetStaticProps = async () => {
+    return {
+        props: {},
+    };
+};
+
+export default Index;

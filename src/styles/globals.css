@@ -14,6 +14,10 @@ body {
     color: #FF5668;
 }
 
+.bg-colorPrimary {
+    background-color: #FF5668;
+}
+
 .gradientFromWhiteToPrimary {
     --tw-gradient-from: #ff9497;
     --tw-gradient-to: #FF5668;

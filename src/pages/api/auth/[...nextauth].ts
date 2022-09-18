@@ -35,7 +35,7 @@ export const authOptions: NextAuthOptions = {
     // Configure one or more authentication providers
     adapter: PrismaAdapter(prisma),
     pages: {
-        signIn: "/login",
+        // signIn: "/login",
     },
     providers: [
         GoogleProvider({
@@ -59,11 +59,15 @@ export const authOptions: NextAuthOptions = {
             name: "Cryptex Authentication",
             credentials: {
                 email: {
-                    label: "Username",
-                    type: "text ",
-                    placeholder: "jsmith",
+                    label: "Email",
+                    type: "text",
+                    placeholder: "example@example.com",
                 },
-                "2fa-key": { label: "2FA Key" },
+                totp: {
+                    label: "Token",
+                    type: "text",
+                    placeholder: "123456",
+                },
             },
             authorize: function (
                 credentials:
@@ -76,6 +80,7 @@ export const authOptions: NextAuthOptions = {
             ): Awaitable<
                 Omit<User, "id"> | { id?: string | undefined } | null
             > {
+                return null;
                 // throw new Error("Function not implemented.");
                 const user = {
                     /* add function to get user */

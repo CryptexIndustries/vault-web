@@ -1,6 +1,6 @@
 // src/pages/login
 
-import { GetServerSidePropsContext } from "next";
+import { GetServerSidePropsContext, NextPage } from "next";
 import { BuiltInProviderType } from "next-auth/providers";
 import {
     ClientSafeProvider,
@@ -8,6 +8,9 @@ import {
     LiteralUnion,
     signIn,
 } from "next-auth/react";
+import Head from "next/head";
+import { useState } from "react";
+import LoginModal, { FormMode } from "../components/login/loginModal";
 import { getServerAuthSession } from "../server/common/get-server-auth-session";
 
 export type LoginProps = {
@@ -17,35 +20,61 @@ export type LoginProps = {
     > | null;
 };
 
-const Login: React.FC<LoginProps> = ({ providers }) => {
+const Login: NextPage<LoginProps> = ({ providers }) => {
+    const [cryptexAuthModalVisible, setCryptexAuthModelVisible] =
+        useState(false);
+    const showCryptexAuthModal = () => setCryptexAuthModelVisible(true);
+    const hideCryptexAuthModal = () => setCryptexAuthModelVisible(false);
+
     return (
-        <div className="flex w-screen h-screen justify-center items-center drop-shadow-lg">
-            <div className="flex flex-col items-center border-2 p-4 rounded-lg bg-gray-100">
-                <div className="text-2xl py-5">
-                    <h1>Sign In</h1>
+        <>
+            <Head>
+                <title>Cryptex Vault - Login</title>
+                <meta name="description" content="" />
+                <link rel="icon" href="/favicon.ico" />
+            </Head>
+
+            <main>
+                <div className="flex w-screen h-screen justify-center items-center drop-shadow-lg">
+                    <div className="flex flex-col items-center border-2 p-4 rounded-lg bg-gray-100">
+                        <div className="text-2xl py-5">
+                            <h1>Sign In</h1>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            {Object.values(providers ?? []).map((provider) => {
+                                return (
+                                    <div
+                                        key={provider.name + "-container"}
+                                        className="flex flex-col items-center"
+                                    >
+                                        {provider.id !== "cryptex" ? null : (
+                                            <hr
+                                                key={provider.name + "-divider"}
+                                                className="w-9/12 my-5 bg-black border-2"
+                                            />
+                                        )}
+                                        <SignInCard
+                                            key={provider.name}
+                                            serviceName={provider.name}
+                                            serviceLogo={provider.id}
+                                            serviceID={provider.id}
+                                            cryptexLoginModalTriggerFn={
+                                                showCryptexAuthModal
+                                            }
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center">
-                    {Object.values(providers ?? []).map((provider) => {
-                        return (
-                            <div key={provider.name + "-container"}>
-                                {provider.id !== "cryptex" ? null : (
-                                    <hr
-                                        key={provider.name + "-divider"}
-                                        className="w-9/12 my-5 bg-black border-2"
-                                    />
-                                )}
-                                <SignInCard
-                                    key={provider.name}
-                                    serviceName={provider.name}
-                                    serviceLogo={provider.id}
-                                    serviceID={provider.id}
-                                />
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
+                <LoginModal
+                    visible={cryptexAuthModalVisible}
+                    hideModalFn={hideCryptexAuthModal}
+                    formMode={FormMode.Any}
+                />
+            </main>
+        </>
     );
 };
 
@@ -54,6 +83,7 @@ type SignInCardProps = {
     serviceName: string;
     serviceID: string;
     serviceLogo: string;
+    cryptexLoginModalTriggerFn?: () => void;
 };
 
 const SignInCard: React.FC<SignInCardProps> = ({
@@ -61,6 +91,7 @@ const SignInCard: React.FC<SignInCardProps> = ({
     serviceName,
     serviceLogo,
     serviceID,
+    cryptexLoginModalTriggerFn,
 }) => {
     const iconSize = serviceID === "gitlab" ? 50 : 30;
     const marginLeft = serviceID === "gitlab" ? 0 : 10;
@@ -71,7 +102,14 @@ const SignInCard: React.FC<SignInCardProps> = ({
                 available ? "cursor-pointer" : "cursor-default"
             } h-16`}
             disabled={!available}
-            onClick={() => signIn(serviceID)}
+            onClick={() => {
+                if (serviceID !== "cryptex") {
+                    signIn(serviceID);
+                } else {
+                    if (cryptexLoginModalTriggerFn != null)
+                        cryptexLoginModalTriggerFn();
+                }
+            }}
         >
             <div className="flex flex-row w-full justify-between items-center ">
                 <div>

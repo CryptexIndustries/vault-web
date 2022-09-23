@@ -1,11 +1,15 @@
-.main {
-    background-color: #181d2b;
-    @apply text-white;
-    /* padding-top: 110px; */
-    height: 100vh;
-}
-
-.content{
-    padding-top: 108px;
-    height: 100%;
+.pricingCard {
+    background-image: -webkit-gradient(
+        linear,
+        left top,
+        left bottom,
+        from(#262e43),
+        to(#191f31)
+    );
+    background-image: linear-gradient(180deg, #262e43, #191f31);
+    border-radius: 1rem; /* 16px */
+    --tw-border-opacity: 1;
+    border-color: rgb(75 85 99 / var(--tw-border-opacity));
+    border-style: solid;
+    border-width: 1px;
 }

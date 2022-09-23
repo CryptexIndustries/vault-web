@@ -10,6 +10,16 @@ body {
     font-weight: 400;
 }
 
+.main {
+    background-color: #181d2b;
+    @apply text-white;
+}
+
+.content{
+    padding-top: 108px;
+    height: 100%;
+}
+
 .colorPrimary {
     color: #FF5668;
 }

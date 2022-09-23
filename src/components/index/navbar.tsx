@@ -4,7 +4,7 @@ export type NavBarProps = {};
 
 const NavBar: React.FC<NavBarProps> = ({}) => {
     return (
-        <nav className="flex items-center justify-evenly flex-wrap absolute p-6 w-screen h">
+        <nav className="flex items-center justify-evenly flex-wrap absolute p-6 w-full">
             <div className="flex items-center flex-shrink-0 text-white">
                 <img src="/images/logo/cryptex_logo.png" style={{height:50, width:200}} ></img>
             </div>

@@ -7,7 +7,7 @@ import { Fragment, memo, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Spinner from "../general/spinner";
 import { trpc } from "../../utils/trpc";
-import { useRouter } from "next/router";
+import { NextRouter, useRouter } from "next/router";
 
 // https://next-auth.js.org/configuration/pages
 
@@ -209,7 +209,7 @@ const QRCode: React.FC<QRCodeProps> = ({ value }) => {
     );
 };
 
-// #region SignUpForm
+// #region Sign Up
 type SignUpFormProps = {
     submitButtonRef: React.RefObject<HTMLButtonElement>;
     userEmail?: string | null;
@@ -227,6 +227,8 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
     userEmail,
     hideModalFn,
 }) => {
+    const router = useRouter();
+
     const [otpURI, setOtpURI] = useState("");
     const [secret, setSecret] = useState("");
 
@@ -258,21 +260,24 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
     const { mutate: registerUser, error } = trpc.useMutation(
         ["credentials.register-user"],
         {
-            onSuccess: () => {
+            onSuccess: async (_data, variables) => {
                 if (userEmail == null) {
-                    // TODO: Sign in user after registration
-                    toast.success(
-                        "User successfully registered. Redirecting...",
-                        {
-                            autoClose: 2000,
-                        }
+                    toast.success("User successfully registered.", {
+                        autoClose: 2000,
+                    });
+
+                    // Sign in user after registration
+                    await signInUser(
+                        { email: variables.email, token: variables.token },
+                        router
                     );
                 } else {
                     toast.success("Account successfully linked!", {
                         autoClose: 2000,
                     });
+
+                    hideModalFn();
                 }
-                hideModalFn();
             },
             onError(error) {
                 toast.error(error.message);
@@ -424,7 +429,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
 };
 // #endregion
 
-// #region SignInForm
+// #region Sign In
 type SignInFormProps = {
     submitButtonRef: React.RefObject<HTMLButtonElement>;
 };
@@ -433,6 +438,32 @@ interface SignInFormValues {
     email: string;
     token: string;
 }
+
+/**
+ * This function signs in the user and redirects them to the login page so that they can be redirected where needed.
+ * @param values Sign in form values
+ * @param router NextJS router instance
+ */
+const signInUser = async (values: SignInFormValues, router: NextRouter) => {
+    const result = await signIn("cryptex", {
+        redirect: false,
+        email: values.email,
+        token: values.token,
+    });
+
+    if (result?.ok) {
+        toast.success("Authentication successful. Redirecting...", {
+            autoClose: 2000,
+        });
+        setTimeout(() => {
+            // Reload the page so that the login page can take us to the protected page
+            router.push("/login");
+        }, 2000);
+    } else {
+        toast.error("Authentication failed. Please try again.");
+        console.error(result);
+    }
+};
 
 const SignInForm: React.FC<SignInFormProps> = ({ submitButtonRef }) => {
     const router = useRouter();
@@ -458,24 +489,7 @@ const SignInForm: React.FC<SignInFormProps> = ({ submitButtonRef }) => {
                 return errors;
             }}
             onSubmit={async (values: SignInFormValues, { setSubmitting }) => {
-                const result = await signIn("cryptex", {
-                    redirect: false,
-                    email: values.email,
-                    token: values.token,
-                });
-
-                if (result?.ok) {
-                    toast.success("Authentication successful. Redirecting...", {
-                        autoClose: 2000,
-                    });
-                    setTimeout(() => {
-                        // Reload the page so that the login page can take us to the protected page
-                        router.push("/login");
-                    }, 2000);
-                } else {
-                    toast.error("Authentication failed. Please try again.");
-                    console.error(result);
-                }
+                await signInUser(values, router);
                 setSubmitting(false);
             }}
         >

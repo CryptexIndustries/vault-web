@@ -15,7 +15,7 @@ body {
     @apply text-white;
 }
 
-.content{
+.content {
     padding-top: 108px;
     height: 100%;
 }
@@ -26,6 +26,11 @@ body {
 
 .bg-colorPrimary {
     background-color: #FF5668;
+}
+
+.card {
+    background-color: #262e43;
+    border-color: #181d2b;
 }
 
 .gradientFromWhiteToPrimary {

@@ -9,10 +9,21 @@ import { env } from "./src/env/server.mjs";
  * @constraint {{import('next').NextConfig}}
  */
 function defineNextConfig(config) {
-  return config;
+    return config;
 }
 
+// const withBundleAnalyzer = require("@next/bundle-analyzer")({
+//     enabled: process.env.ANALYZE === "true",
+// });
+
+// module.exports = withBundleAnalyzer(
+//     defineNextConfig({
+//         reactStrictMode: true,
+//         swcMinify: true,
+//     })
+// );
+
 export default defineNextConfig({
-  reactStrictMode: true,
-  swcMinify: true,
+    reactStrictMode: true,
+    swcMinify: true,
 });

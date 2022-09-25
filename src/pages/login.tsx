@@ -10,8 +10,12 @@ import {
 } from "next-auth/react";
 import Head from "next/head";
 import { useState } from "react";
+import { toast, ToastContainer } from "react-toastify";
 import LoginModal, { FormMode } from "../components/login/loginModal";
 import { getServerAuthSession } from "../server/common/get-server-auth-session";
+import { useRouter } from "next/router";
+import NotificationContainer from "../components/general/notificationContainer";
+import Image from "next/image";
 
 export type LoginProps = {
     providers: Record<
@@ -21,25 +25,47 @@ export type LoginProps = {
 };
 
 const Login: NextPage<LoginProps> = ({ providers }) => {
+    const queryString = useRouter();
+
     const [cryptexAuthModalVisible, setCryptexAuthModelVisible] =
         useState(false);
     const showCryptexAuthModal = () => setCryptexAuthModelVisible(true);
     const hideCryptexAuthModal = () => setCryptexAuthModelVisible(false);
 
+    // If the error query parameter is set, display an error message in nextjs
+    const error = queryString.query.error;
+    if (error) {
+        toast.error("Authentication failed. Please try again.", {
+            toastId: "auth-error",
+            onClose() {
+                // Only show the console message once
+                console.error(error);
+                // Then remove the query parameter from the URL
+                queryString.replace(queryString.pathname);
+            },
+        });
+    }
+
     return (
         <>
             <Head>
                 <title>Cryptex Vault - Login</title>
-                <meta name="description" content="" />
+                <meta
+                    name="description"
+                    content="Log into your Cryptex Vault account using various Identity Providers."
+                />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
 
-            <main>
-                <div className="flex w-screen h-screen justify-center items-center drop-shadow-lg">
-                    <div className="flex flex-col items-center border-2 p-4 rounded-lg bg-gray-100">
-                        <div className="text-2xl py-5">
-                            <h1>Sign In</h1>
-                        </div>
+            <main className="main">
+                <div className="flex flex-col w-screen h-screen justify-center items-center drop-shadow-lg">
+                    <Image
+                        src={"/images/logo/Welcome_Banner.png"}
+                        width={400}
+                        height={400}
+                    />
+                    <div className="flex flex-col items-center border-2 p-4 rounded-lg card">
+                        <h1 className="text-3xl pt-2 pb-7">Sign In</h1>
                         <div className="flex flex-col items-center">
                             {Object.values(providers ?? []).map((provider) => {
                                 return (
@@ -50,7 +76,7 @@ const Login: NextPage<LoginProps> = ({ providers }) => {
                                         {provider.id !== "cryptex" ? null : (
                                             <hr
                                                 key={provider.name + "-divider"}
-                                                className="w-9/12 my-5 bg-black border-2"
+                                                className="w-9/12 my-5 bg-black border-2 border-gray-700"
                                             />
                                         )}
                                         <SignInCard
@@ -68,12 +94,13 @@ const Login: NextPage<LoginProps> = ({ providers }) => {
                         </div>
                     </div>
                 </div>
-                <LoginModal
-                    visible={cryptexAuthModalVisible}
-                    hideModalFn={hideCryptexAuthModal}
-                    formMode={FormMode.Any}
-                />
             </main>
+            <LoginModal
+                visible={cryptexAuthModalVisible}
+                hideModalFn={hideCryptexAuthModal}
+                formMode={FormMode.Any}
+            />
+            <NotificationContainer />
         </>
     );
 };
@@ -97,7 +124,7 @@ const SignInCard: React.FC<SignInCardProps> = ({
     const marginLeft = serviceID === "gitlab" ? 0 : 10;
     return (
         <button
-            className={`font-bold w-96 my-2 py-2 px-4 rounded inline-flex items-center border-black 
+            className={`font-bold w-96 my-2 py-2 px-4 rounded inline-flex items-center border-black transition-colors
             bg-gray-600 ${available ? "hover:bg-gray-500" : "opacity-50"} ${
                 available ? "cursor-pointer" : "cursor-default"
             } h-16`}
@@ -122,7 +149,8 @@ const SignInCard: React.FC<SignInCardProps> = ({
                         }}
                     />
                 </div>
-                <p className={`text-gray-200`}>Sign In with {serviceName}</p>
+                <p className="text-gray-200">Sign In with {serviceName}</p>
+                {/* This empty element is needed so we can center the text */}
                 <div></div>
             </div>
         </button>
@@ -132,6 +160,7 @@ const SignInCard: React.FC<SignInCardProps> = ({
 export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
     const session = await getServerAuthSession(ctx);
 
+    // If the user already has a session, redirect them to the account page
     if (session) {
         return {
             redirect: {

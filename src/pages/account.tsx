@@ -1,5 +1,4 @@
-import { IncomingMessage, ServerResponse } from "http";
-import { GetServerSideProps, GetServerSidePropsContext } from "next";
+import { GetServerSidePropsContext } from "next";
 import { BuiltInProviderType } from "next-auth/providers";
 import {
     ClientSafeProvider,
@@ -10,7 +9,10 @@ import {
 } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import LoginModal from "../components/login/loginModal";
+import { useRouter } from "next/router";
+import { useState } from "react";
+import NotificationContainer from "../components/general/notificationContainer";
+import LoginModal, { FormMode } from "../components/login/loginModal";
 import { getServerAuthSession } from "../server/common/get-server-auth-session";
 
 export type AccountProps = {
@@ -23,7 +25,15 @@ export type AccountProps = {
 const Account: React.FC<AccountProps> = ({ providers }) => {
     const { data: session } = useSession();
 
+    const [cryptexAuthModalVisible, setCryptexAuthModelVisible] =
+        useState(false);
+    const showCryptexAuthModal = () => setCryptexAuthModelVisible(true);
+    const hideCryptexAuthModal = () => setCryptexAuthModelVisible(false);
+
+    // if the user has no session, redirect them to the login page
     if (!session) {
+        const router = useRouter();
+        router.push("/login");
         return null;
     }
 
@@ -37,7 +47,7 @@ const Account: React.FC<AccountProps> = ({ providers }) => {
                 />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
-            <main className="w-screen">
+            <main className="main min-h-screen w-screen">
                 <div className="flex justify-evenly pt-2 mb-5">
                     <p>
                         Hi, {session.user?.name} ({session.user?.email}) ID:
@@ -56,12 +66,24 @@ const Account: React.FC<AccountProps> = ({ providers }) => {
                         <SignInCard
                             key={provider.name}
                             serviceName={provider.name}
-                            serviceLogo={provider.name.toLowerCase()}
+                            serviceLogo={provider.id}
                             serviceID={provider.id}
+                            cryptexConnectFn={
+                                provider.id === "cryptex"
+                                    ? showCryptexAuthModal
+                                    : undefined
+                            }
                         />
                     ))}
                 </div>
             </main>
+            <LoginModal
+                visible={cryptexAuthModalVisible}
+                hideModalFn={hideCryptexAuthModal}
+                formMode={FormMode.SignUp}
+                userEmail={session.user?.email}
+            />
+            <NotificationContainer />
         </>
     );
 };
@@ -71,6 +93,7 @@ type SignInCardProps = {
     serviceName: string;
     serviceID: string;
     serviceLogo: string;
+    cryptexConnectFn?: () => void;
 };
 
 const SignInCard: React.FC<SignInCardProps> = ({
@@ -78,6 +101,7 @@ const SignInCard: React.FC<SignInCardProps> = ({
     serviceName,
     serviceLogo,
     serviceID,
+    cryptexConnectFn,
 }) => {
     const iconSize = serviceID === "gitlab" ? 50 : 30;
     const marginLeft = serviceID === "gitlab" ? 0 : 10;
@@ -88,7 +112,13 @@ const SignInCard: React.FC<SignInCardProps> = ({
                 available ? "cursor-pointer" : "cursor-default"
             } h-16`}
             disabled={!available}
-            onClick={() => signIn(serviceID)}
+            onClick={() => {
+                if (cryptexConnectFn) {
+                    cryptexConnectFn();
+                } else {
+                    signIn(serviceID);
+                }
+            }}
         >
             <div className="flex flex-row w-full justify-between items-center ">
                 <div>
@@ -110,7 +140,6 @@ const SignInCard: React.FC<SignInCardProps> = ({
 
 export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
     const session = await getServerAuthSession(ctx);
-
     const providers = await getProviders();
     return {
         props: {

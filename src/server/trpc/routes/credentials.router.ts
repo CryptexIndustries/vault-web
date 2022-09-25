@@ -81,8 +81,6 @@ export const credentialsRouter = createRouter().mutation("register-user", {
                     },
                 });
 
-            // TODO: Auto
-
             return userObj?.user?.email;
         } catch (e) {
             if (e instanceof PrismaClientKnownRequestError) {

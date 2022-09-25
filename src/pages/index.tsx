@@ -5,9 +5,7 @@ import IndexStyles from "../styles/Index.module.css";
 
 import { CheckIcon } from "@heroicons/react/24/outline";
 
-type IndexProps = {};
-
-const Index: NextPage<IndexProps> = ({}) => {
+const Index: NextPage = ({}) => {
     return (
         <>
             <Head>
@@ -90,7 +88,9 @@ const Index: NextPage<IndexProps> = ({}) => {
                     <section className="h-full">
                         <div className="flex w-full justify-center">
                             <h1 className="text-7xl leading-snug">
-                                Pricing for all types of <br /> <span className="text-rose-400">companies</span> and <span className="text-rose-400">needs</span>
+                                Pricing for all types of <br />{" "}
+                                <span className="text-rose-400">companies</span>{" "}
+                                and <span className="text-rose-400">needs</span>
                             </h1>
                         </div>
 
@@ -117,7 +117,7 @@ const Index: NextPage<IndexProps> = ({}) => {
                                     <div className="mt-12">
                                         <div className="mb-6">
                                             <div className="text-gray-200 font-bold">
-                                                What's included:
+                                                What&apos;s included:
                                             </div>
                                         </div>
                                         <div className="flex flex-col space-y-4">
@@ -158,7 +158,7 @@ const Index: NextPage<IndexProps> = ({}) => {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className={IndexStyles.pricingCard}>
                                 <div className="flex flex-col max-w-md px-10 py-16">
                                     <div className="mb-4">
@@ -181,7 +181,7 @@ const Index: NextPage<IndexProps> = ({}) => {
                                     <div className="mt-12">
                                         <div className="mb-6">
                                             <div className="text-gray-200 font-bold">
-                                                What's included:
+                                                What&apos;s included:
                                             </div>
                                         </div>
                                         <div className="flex flex-col space-y-4">
@@ -207,7 +207,8 @@ const Index: NextPage<IndexProps> = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Data Science and Infrastructure
+                                                    Data Science and
+                                                    Infrastructure
                                                 </div>
                                             </div>
                                             <div className="flex">

@@ -1,12 +1,15 @@
 import Link from "next/link";
 
-export type NavBarProps = {};
+// export type NavBarProps = {};
 
-const NavBar: React.FC<NavBarProps> = ({}) => {
+const NavBar: React.FC = ({}) => {
     return (
         <nav className="flex items-center justify-evenly flex-wrap absolute p-6 w-full">
             <div className="flex items-center flex-shrink-0 text-white">
-                <img src="/images/logo/cryptex_logo.png" style={{height:50, width:200}} ></img>
+                <img
+                    src="/images/logo/cryptex_logo.png"
+                    style={{ height: 50, width: 200 }}
+                ></img>
             </div>
             <div className="block lg:hidden">
                 <button className="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">
@@ -44,7 +47,7 @@ const NavBar: React.FC<NavBarProps> = ({}) => {
             <div>
                 <Link href={"/login"}>
                     <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-3 px-8 rounded-full transition-opacity ">
-                    Sign In
+                        Sign In
                     </a>
                 </Link>
             </div>

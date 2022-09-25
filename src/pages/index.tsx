@@ -4,6 +4,8 @@ import NavBar from "../components/index/navbar";
 import IndexStyles from "../styles/Index.module.css";
 
 import { CheckIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
+import Link from "next/link";
 
 const Index: NextPage = ({}) => {
     return (
@@ -18,40 +20,62 @@ const Index: NextPage = ({}) => {
                 <NavBar />
 
                 <div className="content">
-                    <section className="h-screen">
+                    <section id="section-home" className="h-screen">
                         <div className="h-full flex items-center justify-evenly">
                             <div>
-                                <h1 className="text-7xl">
-                                    We are{" "}
-                                    <span className=" text-7xl text-rose-400">
-                                        {" "}
-                                        Cryptex!
+                                <h1 className="font-medium text-7xl">
+                                    Fully{" "}
+                                    <span className="text-7xl text-rose-400">
+                                        Decentralized
                                     </span>
+                                    <br />
+                                    Identity Manager
                                 </h1>
-                                <p className="pt-5">
-                                    Cryptex provides you with the best security
-                                    system in the world!
+                                <p className="ml-2 pt-5 text-gray-300">
+                                    No need to depend on any service that holds
+                                    your passwords, secrets or other
+                                    credentials.
                                 </p>
-                                <p>The best password manager out there.</p>
-                                <div className="mt-10">
-                                    <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7">
-                                        Sign In
-                                    </a>
-                                    <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:from-pink-500 hover:to-yellow-500 text-white font-bold py-5 px-10 rounded-full transition-opacity">
-                                        Log In
-                                    </a>
+                                <p className="ml-2 text-gray-300">
+                                    It's your data and nobody should be able to
+                                    read it, except <b>you</b>.
+                                </p>
+                                <br />
+                                <p className="ml-2 text-gray-300">
+                                    That's why we built{" "}
+                                    <b className="text-rose-400">
+                                        Cryptex Vault
+                                    </b>
+                                    .
+                                </p>
+                                <p className="ml-2 text-gray-300">
+                                    We can't even know what you store in your
+                                    vault. Your data does not touch our servers.
+                                </p>
+                                <p className="ml-2 text-gray-300">
+                                    Our job is to make sure your devices are
+                                    connected and synchronized. That's it.
+                                </p>
+                                <div className="mt-20">
+                                    <Link href={"/login"}>
+                                        <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7">
+                                            Start Now!
+                                        </a>
+                                    </Link>
                                 </div>
                             </div>
                             <div>
-                                <img
-                                    style={{ width: 512 }}
+                                <Image
+                                    width={512}
+                                    height={512}
+                                    priority={true}
                                     src="/images/logo/Welcome_Banner.png"
-                                ></img>
+                                ></Image>
                             </div>
                         </div>
                     </section>
 
-                    <section className="h-screen">
+                    <section id="section-about" className="h-screen">
                         <div className="h-full flex items-center justify-evenly">
                             <div className="max-w-lg">
                                 <h1 className="text-3xl">
@@ -85,7 +109,7 @@ const Index: NextPage = ({}) => {
                         </div>
                     </section>
 
-                    <section className="h-full">
+                    <section id="section-pricing" className="h-full">
                         <div className="flex w-full justify-center">
                             <h1 className="text-7xl leading-snug">
                                 Pricing for all types of <br />{" "}

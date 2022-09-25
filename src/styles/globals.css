@@ -2,12 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('http://fonts.cdnfonts.com/css/red-hat-display-2');
-
 body {
-    font-family: 'Guaruja Neue', sans-serif;
+    font-family: 'Red Hat Display', sans-serif;
     font-size: 18px;
     font-weight: 400;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 .main {

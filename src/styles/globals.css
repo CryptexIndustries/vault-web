@@ -40,3 +40,10 @@ html {
     --tw-gradient-to: #FF5668;
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
+
+.vertical-line {
+    width: 1px;
+    opacity: 0.3;
+    background-color: #25C472;
+    height: 40%;
+}

@@ -74,6 +74,8 @@ const Index: NextPage = ({}) => {
                             </div>
                         </div>
                     </section>
+                    
+                <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
                     <section id="section-about" className="h-screen">
                         <div className="h-full flex items-center justify-evenly">
@@ -88,6 +90,7 @@ const Index: NextPage = ({}) => {
                             </div>
                             {/* Roses are red, violets are blue, we're here
                                     to protect you. */}
+                            <div className="vertical-line"></div>
                             <div className="max-w-lg">
                                 <p className="text-gray-500 mb-2">
                                     What are we?
@@ -124,7 +127,7 @@ const Index: NextPage = ({}) => {
                                 <p className="text-gray-500  mt-10 mb-2">
                                     Available platforms
                                 </p>
-                                <div className="flex">
+                                <div className="flex items-center">
                                     <a href="https://play.google.com/store/apps/details?id=com.lastpass.lpandroid&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">
                                         <img
                                             width={200}
@@ -133,13 +136,16 @@ const Index: NextPage = ({}) => {
                                             src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
                                         />
                                     </a>
+                                    <p>... coming soon to Apple App Store!</p>
                                 </div>
                             </div>
                         </div>
                     </section>
 
+                    <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
+
                     <section id="section-pricing" className="h-full">
-                        <div className="flex w-full justify-center">
+                        <div className="flex w-full justify-center mt-20">
                             <h1 className="text-7xl leading-snug">
                                 Pricing for all types of <br />
                                 <span className="text-rose-400">

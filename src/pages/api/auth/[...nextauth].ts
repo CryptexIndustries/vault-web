@@ -1,7 +1,7 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
 
 import GoogleProvider from "next-auth/providers/google";
-import AppleProvider from "next-auth/providers/apple";
+// import AppleProvider from "next-auth/providers/apple";
 import GithubProvider from "next-auth/providers/github";
 import GitlabProvider from "next-auth/providers/gitlab";
 // import DiscordProvider from "next-auth/providers/discord";
@@ -126,12 +126,13 @@ export const authOptions: NextAuthOptions = {
                     });
 
                     // If account does not exist, return false
-                    if (!account) return null;
+                    if (!account || account.totp_secret == null) return null;
+
                     // If account exists, return user object
                     if (
                         await checkTOTP(
                             credentials.token,
-                            account.totp_secret!,
+                            account.totp_secret,
                             env.NEXTAUTH_SECRET
                         )
                     ) {

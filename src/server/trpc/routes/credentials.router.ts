@@ -2,7 +2,6 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime";
 import * as trpc from "@trpc/server";
 import { randomUUID } from "crypto";
 import { User } from "next-auth";
-import { signIn } from "next-auth/react/index.js";
 import { z } from "zod";
 import { env } from "../../../env/server.mjs";
 import { createUserSchema } from "../../../schemes/user.schema";
@@ -29,20 +28,24 @@ export const credentialsRouter = createRouter().mutation("register-user", {
                 });
             }
 
-            let user: User | null = null;
-            // If the user has no session (i.e. they are not logged in), create a new user
-            if (!ctx.session) {
-                // Create the user
-                user = await ctx.prisma.user.create({
+            const existingSession =
+                ctx.session != null && ctx.session.user != null;
+
+            let userID = "";
+
+            if (!existingSession) {
+                // If the user has no session (i.e. they are not logged in), create a new user
+                const user = await ctx.prisma.user.create({
                     data: {
                         email: inputData.email,
                         name: inputData.email.split("@")[0],
                     },
                 });
-            }
 
-            // If the user already has a session and the account is already created, throw an error
-            if (ctx.session && ctx.session?.user?.id) {
+                // Set the user ID to the newly created user's ID
+                userID = user.id;
+            } else if (ctx.session && ctx.session.user) {
+                // If the user already has a session and the account is already created, throw an error
                 const account = await ctx.prisma.account.findFirst({
                     where: {
                         userId: ctx.session.user.id,
@@ -52,22 +55,24 @@ export const credentialsRouter = createRouter().mutation("register-user", {
                         id: true,
                     },
                 });
+
+                // If the account already exists, throw an error
                 if (account) {
                     throw new trpc.TRPCError({
                         code: "BAD_REQUEST",
                         message: "Account already linked",
                     });
                 }
+
+                // Set the user ID to the user's ID taken from the session
+                userID = ctx.session.user.id;
             }
 
             // Create an account for this user
             const userObj: { user: User | null } =
                 await ctx.prisma.account.create({
                     data: {
-                        userId:
-                            ctx.session && ctx.session?.user?.id
-                                ? ctx.session.user.id
-                                : user!.id,
+                        userId: userID,
                         provider: "cryptex",
                         type: "credentials",
                         providerAccountId: randomUUID(),

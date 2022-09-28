@@ -257,7 +257,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
         if (!secret) getOtp();
     }, [secret]);
 
-    const { mutate: registerUser, error } = trpc.useMutation(
+    const { mutate: registerUser } = trpc.useMutation(
         ["credentials.register-user"],
         {
             onSuccess: async (_data, variables) => {

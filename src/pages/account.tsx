@@ -9,6 +9,7 @@ import {
 } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import NotificationContainer from "../components/general/notificationContainer";
@@ -23,6 +24,7 @@ export type AccountProps = {
 };
 
 const Account: React.FC<AccountProps> = ({ providers }) => {
+    const router = useRouter();
     const { data: session } = useSession();
 
     const [cryptexAuthModalVisible, setCryptexAuthModelVisible] =
@@ -32,7 +34,6 @@ const Account: React.FC<AccountProps> = ({ providers }) => {
 
     // if the user has no session, redirect them to the login page
     if (!session) {
-        const router = useRouter();
         router.push("/login");
         return null;
     }
@@ -122,11 +123,20 @@ const SignInCard: React.FC<SignInCardProps> = ({
         >
             <div className="flex flex-row w-full justify-between items-center ">
                 <div>
-                    <img
+                    {/* <img
                         src={`images/brand_images/${serviceLogo}.svg`}
                         style={{
                             width: iconSize,
                             height: iconSize,
+                            marginLeft: marginLeft,
+                        }}
+                    /> */}
+                    <Image
+                        src={`images/brand_images/${serviceLogo}.svg`}
+                        alt={serviceLogo}
+                        width={iconSize}
+                        height={iconSize}
+                        style={{
                             marginLeft: marginLeft,
                         }}
                     />

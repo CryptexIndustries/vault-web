@@ -8,6 +8,15 @@ export const decryptTOTPSecret = async (
     secret: string
 ) => {
     const [encrypted, iv] = encryptedSecretIVPair.split(":");
+
+    if (encrypted == null || iv == null) {
+        throw new Error(
+            "Could not find encrypted secret or initialization vector in encrypted secret. Pair: ".concat(
+                encryptedSecretIVPair
+            )
+        );
+    }
+
     const crypto = await import("crypto");
     const algorithm = "aes-256-cbc";
 
@@ -18,11 +27,11 @@ export const decryptTOTPSecret = async (
     const decipher = crypto.createDecipheriv(
         algorithm,
         Buffer.from(hash),
-        Buffer.from(iv!, "hex")
+        Buffer.from(iv, "hex")
     );
 
     // Return decrypted data as a string
-    let decrypted = decipher.update(encrypted!, "hex", "utf8");
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
     decrypted += decipher.final("utf8");
     return decrypted;
 };

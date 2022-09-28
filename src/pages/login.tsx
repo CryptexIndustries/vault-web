@@ -10,7 +10,7 @@ import {
 } from "next-auth/react";
 import Head from "next/head";
 import { useState } from "react";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import LoginModal, { FormMode } from "../components/login/loginModal";
 import { getServerAuthSession } from "../server/common/get-server-auth-session";
 import { useRouter } from "next/router";
@@ -61,6 +61,7 @@ const Login: NextPage<LoginProps> = ({ providers }) => {
                 <div className="flex flex-col w-screen h-screen justify-center items-center drop-shadow-lg">
                     <Image
                         src={"/images/logo/Welcome_Banner.png"}
+                        alt=""
                         width={400}
                         height={400}
                     />
@@ -140,13 +141,20 @@ const SignInCard: React.FC<SignInCardProps> = ({
         >
             <div className="flex flex-row w-full justify-between items-center ">
                 <div>
-                    <img
+                    {/* <img
                         src={`images/brand_images/${serviceLogo}.svg`}
                         style={{
                             width: iconSize,
                             height: iconSize,
                             marginLeft: marginLeft,
                         }}
+                    /> */}
+                    <Image
+                        src={`/images/brand_images/${serviceLogo}.svg`}
+                        alt={serviceLogo}
+                        width={iconSize}
+                        height={iconSize}
+                        style={{ marginLeft: marginLeft }}
                     />
                 </div>
                 <p className="text-gray-200">Sign In with {serviceName}</p>

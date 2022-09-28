@@ -20,7 +20,7 @@ const Index: NextPage = ({}) => {
                 <NavBar />
 
                 <div className="content">
-                    <section id="section-home" className="h-screen">
+                    <section id="section-home" className="h-screen snap-center">
                         <div className="h-full flex items-center justify-evenly">
                             <div>
                                 <h1 className="font-medium text-7xl">
@@ -37,24 +37,25 @@ const Index: NextPage = ({}) => {
                                     credentials.
                                 </p>
                                 <p className="ml-2 text-gray-300">
-                                    It's your data and nobody should be able to
-                                    read it, except <b>you</b>.
+                                    It&apos;s your data and nobody should be
+                                    able to read it, except <b>you</b>.
                                 </p>
                                 <br />
                                 <p className="ml-2 text-gray-300">
-                                    That's why we built{" "}
+                                    That&apos;s why we built{" "}
                                     <b className="text-rose-400">
                                         Cryptex Vault
                                     </b>
                                     .
                                 </p>
                                 <p className="ml-2 text-gray-300">
-                                    We can't even know what you store in your
-                                    vault. Your data does not touch our servers.
+                                    We can&apos;t even know what you store in
+                                    your vault. Your data does not touch our
+                                    servers.
                                 </p>
                                 <p className="ml-2 text-gray-300">
                                     Our job is to make sure your devices are
-                                    connected and synchronized. That's it.
+                                    connected and synchronized. That&apos;s it.
                                 </p>
                                 <div className="mt-20">
                                     <Link href={"/login"}>
@@ -69,15 +70,19 @@ const Index: NextPage = ({}) => {
                                     width={512}
                                     height={512}
                                     priority={true}
+                                    alt=""
                                     src="/images/logo/Welcome_Banner.png"
                                 ></Image>
                             </div>
                         </div>
                     </section>
-                    
-                <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section id="section-about" className="h-screen">
+                    <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
+
+                    <section
+                        id="section-about"
+                        className="h-screen snap-center"
+                    >
                         <div className="h-full flex items-center justify-evenly">
                             <div className="max-w-lg">
                                 <h1 className="text-5xl text-gray-300">
@@ -110,16 +115,17 @@ const Index: NextPage = ({}) => {
                                     centralized. They store your data on their
                                     servers, which means that they can read it.
                                     They can also sell your data to third
-                                    parties. We don't want that. We want to give
-                                    you the power to control your data.
+                                    parties. We don&apos;t want that. We want to
+                                    give you the power to control your data.
                                 </p>
                                 <p className="text-gray-500 mt-4 mb-2">
                                     How we do it.
                                 </p>
                                 <p className="ml-3 text-gray-300">
                                     Unlike other password managers, Cryptex
-                                    Vault doesn't store your data. It's only
-                                    stored on your devices, not servers.
+                                    Vault doesn&apos;t store your data.
+                                    It&apos;s only stored on your devices, not
+                                    servers.
                                     <br /> You can use it on any supported
                                     platform.
                                 </p>
@@ -129,14 +135,22 @@ const Index: NextPage = ({}) => {
                                 </p>
                                 <div className="flex items-center">
                                     <a href="https://play.google.com/store/apps/details?id=com.lastpass.lpandroid&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">
-                                        <img
+                                        {/* <img
+                                            width={200}
+                                            height={80}
+                                            alt="Get it on Google Play"
+                                            src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
+                                        /> */}
+                                        <Image
                                             width={200}
                                             height={80}
                                             alt="Get it on Google Play"
                                             src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
                                         />
                                     </a>
-                                    <p>... coming soon to Apple App Store!</p>
+                                    <p>
+                                        ... coming soon to the Apple App Store!
+                                    </p>
                                 </div>
                             </div>
                         </div>

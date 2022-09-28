@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 // export type NavBarProps = {};
 
@@ -6,10 +7,12 @@ const NavBar: React.FC = ({}) => {
     return (
         <nav className="flex items-center justify-evenly flex-wrap absolute p-6 w-full">
             <div className="flex items-center flex-shrink-0 text-white">
-                <img
+                <Image
                     src="/images/logo/cryptex_logo.png"
-                    style={{ height: 50, width: 200 }}
-                ></img>
+                    alt="Cryptex Logo"
+                    width={200}
+                    height={50}
+                />
             </div>
             <div className="block lg:hidden">
                 <button className="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">

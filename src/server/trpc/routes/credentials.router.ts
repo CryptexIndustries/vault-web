@@ -2,8 +2,8 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime";
 import * as trpc from "@trpc/server";
 import { randomUUID } from "crypto";
 import { User } from "next-auth";
-import { z } from "zod";
 import { env } from "../../../env/server.mjs";
+import type { CreateUserSchema } from "../../../schemes/user.schema";
 import { createUserSchema } from "../../../schemes/user.schema";
 import { checkTOTP, encryptTOTPSecret } from "../../../utils/data_security";
 import { createRouter } from "../context";
@@ -11,7 +11,7 @@ import { createRouter } from "../context";
 export const credentialsRouter = createRouter().mutation("register-user", {
     input: createUserSchema,
     async resolve({ ctx, input }) {
-        const inputData: z.TypeOf<typeof createUserSchema> = input;
+        const inputData: CreateUserSchema = input;
 
         try {
             // Check if the token that the user provided is valid

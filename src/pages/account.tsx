@@ -11,7 +11,7 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NotificationContainer from "../components/general/notificationContainer";
 import LoginModal, { FormMode } from "../components/login/loginModal";
 import { getServerAuthSession } from "../server/common/get-server-auth-session";
@@ -32,11 +32,14 @@ const Account: React.FC<AccountProps> = ({ providers }) => {
     const showCryptexAuthModal = () => setCryptexAuthModelVisible(true);
     const hideCryptexAuthModal = () => setCryptexAuthModelVisible(false);
 
-    // if the user has no session, redirect them to the login page
-    if (!session) {
-        router.push("/login");
-        return null;
-    }
+    useEffect(() => {
+        // if the user has no session, redirect them to the login page
+        if (!session) {
+            router.push("/login");
+        }
+    }, []);
+
+    if (!session) return null;
 
     return (
         <>
@@ -132,7 +135,7 @@ const SignInCard: React.FC<SignInCardProps> = ({
                         }}
                     /> */}
                     <Image
-                        src={`images/brand_images/${serviceLogo}.svg`}
+                        src={`/images/brand_images/${serviceLogo}.svg`}
                         alt={serviceLogo}
                         width={iconSize}
                         height={iconSize}

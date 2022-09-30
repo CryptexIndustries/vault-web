@@ -50,8 +50,8 @@ const Index: NextPage = ({}) => {
                                 </p>
                                 <p className="ml-2 text-gray-300">
                                     We can&apos;t even know what you store in
-                                    your vault. Your data does not touch our
-                                    servers.
+                                    your vault and that is because your data
+                                    does not touch our servers.
                                 </p>
                                 <p className="ml-2 text-gray-300">
                                     Our job is to make sure your devices are
@@ -131,7 +131,7 @@ const Index: NextPage = ({}) => {
                                 </p>
 
                                 <p className="text-gray-500  mt-10 mb-2">
-                                    Available platforms
+                                    Supported platforms
                                 </p>
                                 <div className="flex items-center">
                                     <a href="https://play.google.com/store/apps/details?id=com.lastpass.lpandroid&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">

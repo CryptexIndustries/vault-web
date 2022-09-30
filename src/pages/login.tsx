@@ -1,6 +1,6 @@
 // src/pages/login
 
-import { GetServerSidePropsContext, NextPage } from "next";
+import { NextApiRequest, NextApiResponse, NextPage } from "next";
 import { BuiltInProviderType } from "next-auth/providers";
 import {
     ClientSafeProvider,
@@ -165,8 +165,11 @@ const SignInCard: React.FC<SignInCardProps> = ({
     );
 };
 
-export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
-    const session = await getServerAuthSession(ctx);
+export const getServerSideProps = async (ctx: {
+    req: NextApiRequest;
+    res: NextApiResponse;
+}) => {
+    const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
     // If the user already has a session, redirect them to the account page
     if (session) {

@@ -45,6 +45,7 @@ export function requestWrapper(
             session({ session, user }) {
                 if (session.user) {
                     session.user.id = user.id;
+                    session.user_agent = req.headers["user-agent"];
                 }
                 return session;
             },
@@ -62,10 +63,29 @@ export function requestWrapper(
                             opts.session?.maxAge ?? defaultSessionExpiery
                         );
 
-                        await adapter.createSession({
+                        const newSession = await adapter.createSession({
                             sessionToken: sessionToken,
                             userId: user.id,
                             expires: sessionExpiry,
+                        });
+
+                        // Or x-vercel-forwarded-for?
+                        const forwarded = req.headers[
+                            "x-forwarded-for"
+                        ] as string;
+                        const ip = forwarded
+                            ? forwarded.split(/, /)[0]
+                            : req.socket.remoteAddress;
+
+                        // Set the user agent field in the current session
+                        await prisma.session.update({
+                            data: {
+                                user_agent: req.headers["user-agent"],
+                                ip: ip,
+                            },
+                            where: {
+                                id: newSession.id,
+                            },
                         });
 
                         setCookie(
@@ -75,6 +95,10 @@ export function requestWrapper(
                             { ...opts.cookies?.sessionToken?.options, req, res }
                         );
                     }
+                } else if (req.method === "POST") {
+                    // This is a handler for the other authentication types
+                    // TODO: Set the user agent field in the session table
+                    // TODO: Set the ip field in the session table
                 }
 
                 return true;

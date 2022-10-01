@@ -6,6 +6,7 @@ import IndexStyles from "../styles/Index.module.css";
 import { CheckIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
+import { Accordion, AccordionItem } from "../components/general/accordion";
 
 const Index: NextPage = ({}) => {
     return (
@@ -79,10 +80,7 @@ const Index: NextPage = ({}) => {
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section
-                        id="section-about"
-                        className="h-screen snap-center"
-                    >
+                    <section id="section-about" className="h-screen">
                         <div className="h-full flex items-center justify-evenly">
                             <div className="max-w-lg">
                                 <h1 className="text-5xl text-gray-300">
@@ -142,11 +140,30 @@ const Index: NextPage = ({}) => {
                                             src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
                                         />
                                     </a>
-                                    <p>
+                                    <p className="text-gray-300">
                                         ... coming soon to the Apple App Store!
                                     </p>
                                 </div>
                             </div>
+                            {/* <Accordion>
+                                <h1 className="text-2xl font-medium leading-6 w-full text-center mt-2 mb-3">
+                                    Frequently Asked Questions (FAQ)
+                                </h1>
+                                <AccordionItem title="Lorem ipsum dolor sit, amet consectetur adipisicing elit. Facilis temporibus, aliquam iste distinctio dicta ducimus quis suscipit odio velit, non animi quaerat rerum aperiam sapiente veniam voluptatem sunt inventore dolorum!">
+                                    Lorem ipsum dolor sit amet consectetur,
+                                    adipisicing elit. Praesentium a odio sit
+                                    esse dolorum? Ut quos, tempore corrupti modi
+                                    deserunt nulla eaque eos, reprehenderit,
+                                    eligendi iste mollitia laborum harum hic?
+                                </AccordionItem>
+                                <AccordionItem title="What is Cryptex Vault?">
+                                    It is a fully decentralized identity
+                                    manager. It allows you to store your
+                                    credentials, secrets and other information
+                                    in a secure way using mobile applications
+                                    and browser extensions.
+                                </AccordionItem>
+                            </Accordion> */}
                         </div>
                     </section>
 

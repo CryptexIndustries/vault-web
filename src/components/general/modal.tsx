@@ -122,13 +122,11 @@ export type TitleProps = {
     children: React.ReactNode;
 };
 
-export const Title: React.FC<TitleProps> = ({ children }) => {
-    return (
-        <Dialog.Title
-            as="h2"
-            className="text-2xl font-medium leading-6 text-gray-900"
-        >
-            {children}
-        </Dialog.Title>
-    );
-};
+export const Title: React.FC<TitleProps> = ({ children }) => (
+    <Dialog.Title
+        as="h2"
+        className="text-2xl font-medium leading-6 text-gray-900"
+    >
+        {children}
+    </Dialog.Title>
+);

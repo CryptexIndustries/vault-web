@@ -27,10 +27,8 @@ const Account: React.FC<AccountProps> = ({ providers }) => {
     const router = useRouter();
     const { data: session } = useSession();
 
-    const [cryptexAuthModalVisible, setCryptexAuthModelVisible] =
-        useState(false);
-    const showCryptexAuthModal = () => setCryptexAuthModelVisible(true);
-    const hideCryptexAuthModal = () => setCryptexAuthModelVisible(false);
+    const cryptexAuthModal = useState(false);
+    const showCryptexAuthModal = () => cryptexAuthModal[1](true);
 
     useEffect(() => {
         // if the user has no session, redirect them to the login page
@@ -82,8 +80,7 @@ const Account: React.FC<AccountProps> = ({ providers }) => {
                 </div>
             </main>
             <LoginModal
-                visible={cryptexAuthModalVisible}
-                hideModalFn={hideCryptexAuthModal}
+                visibleState={cryptexAuthModal}
                 formMode={FormMode.SignUp}
                 userEmail={session.user?.email}
             />

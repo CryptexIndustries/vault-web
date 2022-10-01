@@ -1,15 +1,21 @@
-import { Dialog, Transition } from "@headlessui/react";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { Field, Form, Formik } from "formik";
 import { signIn } from "next-auth/react";
 import dynamic from "next/dynamic";
-import { Fragment, memo, Suspense, useEffect, useRef, useState } from "react";
+import {
+    Dispatch,
+    memo,
+    SetStateAction,
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { toast } from "react-toastify";
 import Spinner from "../general/spinner";
 import { trpc } from "../../utils/trpc";
 import { NextRouter, useRouter } from "next/router";
-
-// https://next-auth.js.org/configuration/pages
+import { GenericModal } from "../general/modal";
 
 export enum FormMode {
     SignIn = "Login",
@@ -18,15 +24,13 @@ export enum FormMode {
 }
 
 export type LoginModalProps = {
-    visible: boolean;
-    hideModalFn: () => void;
+    visibleState: [boolean, Dispatch<SetStateAction<boolean>>];
     formMode: FormMode;
     userEmail?: string | null;
 };
 
 const LoginModal: React.FC<LoginModalProps> = ({
-    visible,
-    hideModalFn,
+    visibleState,
     formMode,
     userEmail,
 }) => {
@@ -39,121 +43,48 @@ const LoginModal: React.FC<LoginModalProps> = ({
     const signInButtonRef = useRef<HTMLButtonElement>(null);
     const signUpButtonRef = useRef<HTMLButtonElement>(null);
 
-    return (
-        <Transition.Root show={visible} as={Fragment}>
-            <Dialog as="div" className="relative z-10" onClose={hideModalFn}>
-                <Transition.Child
-                    as={Fragment}
-                    enter="ease-out duration-300"
-                    enterFrom="opacity-0"
-                    enterTo="opacity-100"
-                    leave="ease-in duration-200"
-                    leaveFrom="opacity-100"
-                    leaveTo="opacity-0"
-                >
-                    <div className="fixed inset-0 bg-black backdrop-blur-sm bg-opacity-10 transition-opacity duration-150" />
-                </Transition.Child>
+    const onConfirm = () => {
+        if (
+            currentFormMode === FormMode.SignIn &&
+            !signInButtonRef.current?.disabled
+        ) {
+            signInButtonRef.current?.click();
+        } else if (
+            currentFormMode === FormMode.SignUp &&
+            !signUpButtonRef.current?.disabled
+        ) {
+            signUpButtonRef.current?.click();
+        }
+    };
 
-                <div className="fixed inset-0 z-10 overflow-y-auto">
-                    <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                        <Transition.Child
-                            as={Fragment}
-                            enter="ease-out duration-300"
-                            enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                            enterTo="opacity-100 translate-y-0 sm:scale-100"
-                            leave="ease-in duration-200"
-                            leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-                            leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                        >
-                            <Dialog.Panel className="relative transform overflow-hidden rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <div className="flex justify-center">
-                                        {/* <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                            <ExclamationTriangleIcon
-                                                className="h-6 w-6 text-red-600"
-                                                aria-hidden="true"
-                                            />
-                                        </div> */}
-                                        <div className="flex flex-col items-center mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                            {/* <Dialog.Title
-                                                as="h2"
-                                                className="text-2xl font-medium leading-6 text-gray-900 mb-9"
-                                            >
-                                                {currentFormMode}
-                                            </Dialog.Title> */}
-                                            {formMode === FormMode.Any ? (
-                                                <div className="mt-2">
-                                                    <TabBar
-                                                        currentFormMode={
-                                                            currentFormMode
-                                                        }
-                                                        changeFormMode={
-                                                            changeFormMode
-                                                        }
-                                                    />
-                                                </div>
-                                            ) : null}
-                                            <div className="flex flex-col">
-                                                {currentFormMode ===
-                                                FormMode.SignIn ? (
-                                                    <SignInForm
-                                                        submitButtonRef={
-                                                            signInButtonRef
-                                                        }
-                                                    />
-                                                ) : (
-                                                    <SignUpForm
-                                                        submitButtonRef={
-                                                            signUpButtonRef
-                                                        }
-                                                        userEmail={userEmail}
-                                                        hideModalFn={
-                                                            hideModalFn
-                                                        }
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                                    <button
-                                        type="button"
-                                        className="inline-flex w-full justify-center rounded-md border border-transparent bg-colorPrimary px-4 py-2 text-base font-medium text-white shadow-sm hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm"
-                                        onClick={() => {
-                                            if (
-                                                currentFormMode ===
-                                                    FormMode.SignIn &&
-                                                !signInButtonRef.current
-                                                    ?.disabled
-                                            ) {
-                                                signInButtonRef.current?.click();
-                                            } else if (
-                                                currentFormMode ===
-                                                    FormMode.SignUp &&
-                                                !signUpButtonRef.current
-                                                    ?.disabled
-                                            ) {
-                                                signUpButtonRef.current?.click();
-                                            }
-                                        }}
-                                    >
-                                        {currentFormMode}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                        onClick={hideModalFn}
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </Dialog.Panel>
-                        </Transition.Child>
-                    </div>
+    return (
+        <GenericModal
+            visibleState={visibleState}
+            confirmButtonText={currentFormMode}
+            onConfirm={onConfirm}
+        >
+            {formMode === FormMode.Any ? (
+                <div className="mt-2">
+                    <TabBar
+                        currentFormMode={currentFormMode}
+                        changeFormMode={changeFormMode}
+                    />
                 </div>
-            </Dialog>
-        </Transition.Root>
+            ) : null}
+            <div className="flex flex-col items-center mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <div className="flex flex-col">
+                    {currentFormMode === FormMode.SignIn ? (
+                        <SignInForm submitButtonRef={signInButtonRef} />
+                    ) : (
+                        <SignUpForm
+                            submitButtonRef={signUpButtonRef}
+                            userEmail={userEmail}
+                            hideModalFn={() => visibleState[1](false)}
+                        />
+                    )}
+                </div>
+            </div>
+        </GenericModal>
     );
 };
 
@@ -260,7 +191,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
     const { mutate: registerUser } = trpc.useMutation(
         ["credentials.register-user"],
         {
-            onSuccess: async (_data, variables) => {
+            onSuccess: async (_, variables) => {
                 if (userEmail == null) {
                     toast.success("User successfully registered.", {
                         autoClose: 2000,

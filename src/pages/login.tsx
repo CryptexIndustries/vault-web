@@ -27,10 +27,8 @@ export type LoginProps = {
 const Login: NextPage<LoginProps> = ({ providers }) => {
     const queryString = useRouter();
 
-    const [cryptexAuthModalVisible, setCryptexAuthModelVisible] =
-        useState(false);
-    const showCryptexAuthModal = () => setCryptexAuthModelVisible(true);
-    const hideCryptexAuthModal = () => setCryptexAuthModelVisible(false);
+    const cryptexAuthModal = useState(false);
+    const showCryptexAuthModal = () => cryptexAuthModal[1](true);
 
     // If the error query parameter is set, display an error message in nextjs
     const error = queryString.query.error;
@@ -97,8 +95,7 @@ const Login: NextPage<LoginProps> = ({ providers }) => {
                 </div>
             </main>
             <LoginModal
-                visible={cryptexAuthModalVisible}
-                hideModalFn={hideCryptexAuthModal}
+                visibleState={cryptexAuthModal}
                 formMode={FormMode.Any}
             />
             <NotificationContainer />

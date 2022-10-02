@@ -180,7 +180,7 @@ const Index: NextPage = ({}) => {
                             </h1>
                         </div>
 
-                        <div className="flex w-full justify-center mt-10 space-x-4 pb-14">
+                        <div className="flex w-full justify-center flex-col sm:flex-row mt-10 space-y-2 sm:space-y-0 space-x-0 sm:space-x-4 pb-14">
                             <div className={IndexStyles.pricingCard}>
                                 <div className="flex flex-col max-w-md px-10 py-16">
                                     <div className="mb-4">

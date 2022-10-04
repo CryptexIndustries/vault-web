@@ -6,9 +6,26 @@ import IndexStyles from "../styles/Index.module.css";
 import { CheckIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
-import { Accordion, AccordionItem } from "../components/general/accordion";
+import { useRef, useState } from "react";
+import { GenericModal } from "../components/general/modal";
+import { ErrorMessage, Field, Form, Formik } from "formik";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
+import { toast } from "react-toastify";
+import NotificationContainer from "../components/general/notificationContainer";
+import { trpc } from "../utils/trpc";
 
 const Index: NextPage = ({}) => {
+    const notifyMeModalVisibility = useState(false);
+    const contactUsModalVisibility = useState(false);
+
+    const showNotifyMeModal = () => notifyMeModalVisibility[1](true);
+    const hideNotifyMeModal = () => notifyMeModalVisibility[1](false);
+    const showContactUsModal = () => contactUsModalVisibility[1](true);
+    const hideContactUsModal = () => contactUsModalVisibility[1](false);
+
+    const notifyMeSubmitBtnRef = useRef<HTMLButtonElement>(null);
+    const contactUsSubmitBtnRef = useRef<HTMLButtonElement>(null);
+
     return (
         <>
             <Head>
@@ -311,9 +328,386 @@ const Index: NextPage = ({}) => {
                             </div>
                         </div>
                     </section>
+
+                    <section
+                        id="notify-launch"
+                        className="h-full bg-colorPrimary flex flex-col justify-center py-10 px-2"
+                    >
+                        <h1 className="text-4xl font-bold text-center text-gray-200">
+                            Get notified when we launch!
+                        </h1>
+                        <div className="flex flex-col sm:flex-row justify-center mt-6">
+                            {/* <input
+                                type="text"
+                                placeholder="Enter your email"
+                                className="bg-gray-700 text-gray-200 rounded-md px-4 py-2"
+                            /> */}
+                            <div>
+                                <button
+                                    className="bg-rose-400 hover:opacity-70 text-white font-bold py-2 px-4 w-full sm:w-fit rounded-md transition-opacity sm:ml-4 mt-2 sm:mt-0"
+                                    onClick={showNotifyMeModal}
+                                >
+                                    Notify me
+                                </button>
+                            </div>
+                        </div>
+                    </section>
                 </div>
+
+                <footer className="bg-gray-900 pt-10 pb-5 px-2 flex flex-col items-center w-full">
+                    <div className="flex flex-col sm:flex-row justify-around w-full mb-4">
+                        <div>
+                            <h1 className="text-4xl font-bold text-gray-200">
+                                Get in touch
+                            </h1>
+                            <p className="text-gray-300 mt-1">
+                                Feel free to contact us for any questions or to
+                                learn more about our service.
+                            </p>
+                        </div>
+                        <div className="flex flex-col sm:ml-4 mt-4 sm:mt-0 justify-center text-center sm:text-left">
+                            <button
+                                className="bg-rose-400 hover:opacity-70 text-white font-bold py-2 px-4 w-full w-full rounded-md transition-opacity"
+                                onClick={showContactUsModal}
+                            >
+                                Contact us
+                            </button>
+                            <p className="text-gray-300">
+                                We care about the protection of your data.
+                                <br /> Read our {""}
+                                <Link href="/privacy">
+                                    <a className="underline font-bold">
+                                        Privacy Policy
+                                    </a>
+                                </Link>
+                                .
+                            </p>
+                        </div>
+                    </div>
+                    <div className="text-center mt-4">
+                        <h1 className="text-sm text-gray-400">
+                            Made with ❤️ by the team at Cryptex Vault.
+                        </h1>
+                        <h1 className="text-sm text-gray-400">
+                            All rights reserved. © {new Date().getFullYear()}
+                            Cryptex Vault
+                        </h1>
+                    </div>
+                </footer>
             </main>
+
+            <GenericModal
+                key="notify-me-modal"
+                visibleState={notifyMeModalVisibility}
+                confirmButtonText={"Notify Me"}
+                onConfirm={() => notifyMeSubmitBtnRef.current?.click()}
+            >
+                <div className="flex flex-col items-center text-center">
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        Get notified when we&apos;re launching!
+                    </h1>
+                    <p className="text-gray-700 mt-2">
+                        Enter your email below to get notified when we&apos;re
+                        launching.
+                    </p>
+                    <NotifyMeForm
+                        hideModalFn={hideNotifyMeModal}
+                        submitButtonRef={notifyMeSubmitBtnRef}
+                    />
+                </div>
+            </GenericModal>
+
+            <GenericModal
+                key="contact-us-modal"
+                visibleState={contactUsModalVisibility}
+                confirmButtonText={"Send"}
+                onConfirm={() => contactUsSubmitBtnRef.current?.click()}
+            >
+                <div className="flex flex-col items-center text-center">
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        Contact us
+                    </h1>
+
+                    <p className="text-gray-700 mt-2">
+                        Feel free to contact us for any questions or to learn
+                        more about our service.
+                    </p>
+                    <ContactUsForm
+                        hideModalFn={hideContactUsModal}
+                        submitButtonRef={contactUsSubmitBtnRef}
+                    />
+                </div>
+            </GenericModal>
+            <NotificationContainer />
         </>
+    );
+};
+
+type NotifyMeFormProps = {
+    submitButtonRef: React.RefObject<HTMLButtonElement>;
+    hideModalFn: () => void;
+};
+
+// Notify me Formik Form
+const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
+    submitButtonRef,
+    hideModalFn,
+}) => {
+    const captchaTokenFieldName = "captchaToken";
+
+    const { mutate: notifyMeRegister } = trpc.useMutation(
+        ["notifyme.register"],
+        {
+            onSuccess: async (data) => {
+                if (data.success === true) {
+                    hideModalFn();
+                    toast.success("You will be notified when we're launching!");
+                } else {
+                    toast.error(
+                        "Something went wrong. Please try again later."
+                    );
+                    if (data != null && data.message != null)
+                        console.error(data.message);
+                }
+            },
+            onError(error) {
+                toast.error("Something went wrong. Please try again later.");
+                console.error(error);
+            },
+        }
+    );
+
+    return (
+        <Formik
+            initialValues={{ email: "", captchaToken: "" }}
+            validate={(values: { email: string; captchaToken: string }) => {
+                const errors: { email?: string; captchaToken?: string } = {};
+                if (!values.email) {
+                    errors.email = "This is a required field.";
+                } else if (
+                    !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(
+                        values.email
+                    )
+                ) {
+                    errors.email = "Invalid email address.";
+                }
+
+                if (
+                    values.captchaToken == null ||
+                    values.captchaToken.length === 0
+                ) {
+                    errors.captchaToken = "This is a required field.";
+                }
+                return errors;
+            }}
+            onSubmit={async (values, { setSubmitting }) => {
+                setTimeout(async () => {
+                    const payload = {
+                        email: values.email,
+                        "h-captcha-response": values.captchaToken,
+                    };
+                    notifyMeRegister(payload, {
+                        onSettled: () => {
+                            setSubmitting(false);
+                        },
+                    });
+                }, 500);
+            }}
+        >
+            {({ isSubmitting, setFieldValue, setFieldError }) => (
+                <Form>
+                    <div className="flex flex-col space-y-4 w-full">
+                        <div className="flex flex-col text-left">
+                            <Field
+                                name="email"
+                                type="email"
+                                placeholder="Enter your email"
+                                className="bg-gray-200 text-gray-900 rounded-md px-4 py-2 mt-4"
+                            />
+                            <div className="text-red-500">
+                                <ErrorMessage name="email" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col text-left">
+                            <HCaptcha
+                                theme="light"
+                                sitekey={
+                                    process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ??
+                                    ""
+                                }
+                                onVerify={(token) => {
+                                    setFieldValue(captchaTokenFieldName, token);
+                                }}
+                                onError={(err) => {
+                                    console.error(err);
+                                    setFieldError(captchaTokenFieldName, err);
+                                }}
+                                onExpire={() => {
+                                    console.debug("Captcha expired");
+                                    setFieldValue(captchaTokenFieldName, "");
+                                }}
+                            />
+                            <div className="text-red-500">
+                                <ErrorMessage name={captchaTokenFieldName} />
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="submit"
+                        ref={submitButtonRef}
+                        hidden={true}
+                        disabled={isSubmitting}
+                    ></button>
+                </Form>
+            )}
+        </Formik>
+    );
+};
+
+type ContactUsFormProps = {
+    submitButtonRef: React.RefObject<HTMLButtonElement>;
+    hideModalFn: () => void;
+};
+
+// Notify me Formik Form
+const ContactUsForm: React.FC<ContactUsFormProps> = ({
+    submitButtonRef,
+    hideModalFn,
+}) => {
+    const captchaTokenFieldName = "captchaToken";
+
+    const { mutate: sendMessage } = trpc.useMutation(["notifyme.contact"], {
+        onSuccess: async (data) => {
+            if (data.success === true) {
+                hideModalFn();
+                toast.success("Successfully sent!");
+            } else {
+                toast.error("Something went wrong. Please try again later.");
+                if (data != null && data.message != null)
+                    console.error(data.message);
+            }
+        },
+        onError(error) {
+            toast.error("Something went wrong. Please try again later.");
+            console.error(error);
+        },
+    });
+
+    return (
+        <Formik
+            initialValues={{ email: "", message: "", captchaToken: "" }}
+            validate={(values: {
+                email: string;
+                message: string;
+                captchaToken: string;
+            }) => {
+                const errors: {
+                    email?: string;
+                    message?: string;
+                    captchaToken?: string;
+                } = {};
+                if (!values.email) {
+                    errors.email = "This is a required field.";
+                } else if (
+                    !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(
+                        values.email
+                    )
+                ) {
+                    errors.email = "Invalid email address.";
+                }
+
+                if (values.message == null || values.message.length === 0) {
+                    errors.message = "This is a required field.";
+                }
+
+                if (
+                    values.captchaToken == null ||
+                    values.captchaToken.length === 0
+                ) {
+                    errors.captchaToken = "This is a required field.";
+                }
+                return errors;
+            }}
+            onSubmit={async (values, { setSubmitting }) => {
+                setTimeout(async () => {
+                    const payload = {
+                        email: values.email,
+                        message: values.message,
+                        "h-captcha-response": values.captchaToken,
+                    };
+                    sendMessage(payload, {
+                        onSettled: () => {
+                            setSubmitting(false);
+                        },
+                    });
+                }, 500);
+            }}
+        >
+            {({ isSubmitting, setFieldValue, setFieldError }) => (
+                <Form>
+                    <div className="flex flex-col space-y-4 w-full">
+                        <div className="flex flex-col text-left">
+                            <Field
+                                name="email"
+                                type="email"
+                                placeholder="Enter your email"
+                                className="bg-gray-200 text-gray-900 rounded-md px-4 py-2 mt-4"
+                            />
+                            <div className="text-red-500">
+                                <ErrorMessage name="email" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col text-left">
+                            <Field name="message">
+                                {({
+                                    field, // { name, value, onChange, onBlur }
+                                }: {
+                                    field: object;
+                                }) => (
+                                    <textarea
+                                        {...field}
+                                        placeholder="Enter your message"
+                                        className="bg-gray-200 text-gray-900 rounded-md px-4 py-2 mt-4"
+                                    />
+                                )}
+                            </Field>
+                            <div className="text-red-500">
+                                <ErrorMessage name="message" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col text-left">
+                            <HCaptcha
+                                theme="light"
+                                sitekey={
+                                    process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ??
+                                    ""
+                                }
+                                onVerify={(token) => {
+                                    setFieldValue(captchaTokenFieldName, token);
+                                }}
+                                onError={(err) => {
+                                    console.error(err);
+                                    setFieldError(captchaTokenFieldName, err);
+                                }}
+                                onExpire={() => {
+                                    console.debug("Captcha expired");
+                                    setFieldValue(captchaTokenFieldName, "");
+                                }}
+                            />
+                            <div className="text-red-500">
+                                <ErrorMessage name={captchaTokenFieldName} />
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="submit"
+                        ref={submitButtonRef}
+                        hidden={true}
+                        disabled={isSubmitting}
+                    ></button>
+                </Form>
+            )}
+        </Formik>
     );
 };
 

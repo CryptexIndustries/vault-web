@@ -14,8 +14,10 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Example {
-    id String @id @default(cuid())
+model NotifyMeUsers {
+    id    String   @id @default(cuid())
+    email String   @unique
+    date  DateTime @default(now())
 }
 
 // Necessary for Next auth
@@ -61,10 +63,10 @@ model User {
     sessions      Session[]
 }
 
-model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+// model VerificationToken {
+//     identifier String
+//     token      String   @unique
+//     expires    DateTime
 
-    @@unique([identifier, token])
-}
+//     @@unique([identifier, token])
+// }

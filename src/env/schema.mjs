@@ -14,16 +14,26 @@ export const serverSchema = z.object({
     /* Authentication ENV Vars */
     GOOGLE_CLIENT_ID: z.string(),
     GOOGLE_CLIENT_SECRET: z.string(),
-    APPLE_CLIENT_ID: z.string(),
-    APPLE_CLIENT_SECRET: z.string(),
+    // APPLE_CLIENT_ID: z.string(),
+    // APPLE_CLIENT_SECRET: z.string(),
     GITHUB_CLIENT_ID: z.string(),
     GITHUB_CLIENT_SECRET: z.string(),
     GITLAB_CLIENT_ID: z.string(),
     GITLAB_CLIENT_SECRET: z.string(),
-    ATLASSIAN_CLIENT_ID: z.string(),
-    ATLASSIAN_CLIENT_SECRET: z.string(),
-    DISCORD_CLIENT_ID: z.string(),
-    DISCORD_CLIENT_SECRET: z.string(),
+    // ATLASSIAN_CLIENT_ID: z.string(),
+    // ATLASSIAN_CLIENT_SECRET: z.string(),
+    // DISCORD_CLIENT_ID: z.string(),
+    // DISCORD_CLIENT_SECRET: z.string(),
+
+    // HCaptcha
+    HCAPTCHA_SECRET: z.string(),
+
+    /* Email ENV Vars */
+    SMTP_HOST: z.string(),
+    SMTP_PORT: z.string(),
+    SMTP_USER: z.string(),
+    SMTP_PASS: z.string(),
+    SMTP_RECEIVER: z.string(),
 });
 
 /**
@@ -33,6 +43,7 @@ export const serverSchema = z.object({
  */
 export const clientSchema = z.object({
     // NEXT_PUBLIC_BAR: z.string(),
+    NEXT_PUBLIC_HCAPTCHA_SITE_KEY: z.string(),
 });
 
 /**
@@ -43,4 +54,5 @@ export const clientSchema = z.object({
  */
 export const clientEnv = {
     // NEXT_PUBLIC_BAR: process.env.NEXT_PUBLIC_BAR,
+    NEXT_PUBLIC_HCAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY,
 };

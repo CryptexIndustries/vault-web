@@ -14,3 +14,23 @@
     border-style: solid;
     border-width: 1px;
 }
+
+.zmBrowserImgChrome {
+    background-image: url(/images/badges/chrome_extension.svg);
+    background-position: 50%;
+    background-repeat: no-repeat;
+    background-size: contain;
+    cursor: pointer;
+    flex: 1 0 50%;
+    height: 4rem;
+}
+
+/* .zmBrowserImgFox {
+    background-image: url(../wp-images/firefoxAddon.1bfac44….svg);
+    background-position: 50%;
+    background-repeat: no-repeat;
+    background-size: contain;
+    cursor: pointer;
+    flex: 1 0 50%;
+    height: 2.5rem;
+} */

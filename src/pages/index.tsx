@@ -13,6 +13,7 @@ import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { toast } from "react-toastify";
 import NotificationContainer from "../components/general/notificationContainer";
 import { trpc } from "../utils/trpc";
+import { Accordion, AccordionItem } from "../components/general/accordion";
 
 const Index: NextPage = ({}) => {
     const notifyMeModalVisibility = useState(false);
@@ -38,7 +39,7 @@ const Index: NextPage = ({}) => {
                 <NavBar />
 
                 <div className="content">
-                    <section id="section-home" className="h-screen snap-center">
+                    <section id="section-home" className="h-full snap-center py-16">
                         <div className="h-full flex items-center justify-evenly">
                             <div>
                                 <h1 className="font-medium text-7xl">
@@ -85,8 +86,8 @@ const Index: NextPage = ({}) => {
                             </div>
                             <div>
                                 <Image
-                                    width={512}
-                                    height={512}
+                                    width={650}
+                                    height={650}
                                     priority={true}
                                     alt=""
                                     src="/images/logo/Welcome_Banner.png"
@@ -97,7 +98,7 @@ const Index: NextPage = ({}) => {
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section id="section-about" className="h-screen">
+                    <section id="section-about" className="h-full py-16">
                         <div className="h-full flex items-center justify-evenly">
                             <div className="max-w-lg">
                                 <h1 className="text-5xl text-gray-300">
@@ -148,7 +149,7 @@ const Index: NextPage = ({}) => {
                                 <p className="text-gray-500  mt-10 mb-2">
                                     Supported platforms
                                 </p>
-                                <div className="flex items-center">
+                                <div className="flex flex-wrap items-center">
                                     <a href="https://play.google.com/store/apps/details?id=com.lastpass.lpandroid&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">
                                         <Image
                                             width={200}
@@ -157,37 +158,35 @@ const Index: NextPage = ({}) => {
                                             src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
                                         />
                                     </a>
+                                    <div className={IndexStyles.zmBrowserImgChrome}></div>
+                                    {/* <div className={IndexStyles.zmBrowserImgFox}></div> */}
                                     <p className="text-gray-300">
                                         ... coming soon to the Apple App Store!
                                     </p>
                                 </div>
                             </div>
-                            {/* <Accordion>
+                        </div>
+                    </section>
+
+                    <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
+                    
+                    <section id="section-faq" className="h-full w-full py-16">
+                        <div className="mb-16">
+                            <Accordion>
                                 <h1 className="text-2xl font-medium leading-6 w-full text-center mt-2 mb-3">
-                                    Frequently Asked Questions (FAQ)
+                                    Frequently Asked Questions
                                 </h1>
-                                <AccordionItem title="Lorem ipsum dolor sit, amet consectetur adipisicing elit. Facilis temporibus, aliquam iste distinctio dicta ducimus quis suscipit odio velit, non animi quaerat rerum aperiam sapiente veniam voluptatem sunt inventore dolorum!">
-                                    Lorem ipsum dolor sit amet consectetur,
-                                    adipisicing elit. Praesentium a odio sit
-                                    esse dolorum? Ut quos, tempore corrupti modi
-                                    deserunt nulla eaque eos, reprehenderit,
-                                    eligendi iste mollitia laborum harum hic?
-                                </AccordionItem>
-                                <AccordionItem title="What is Cryptex Vault?">
-                                    It is a fully decentralized identity
-                                    manager. It allows you to store your
-                                    credentials, secrets and other information
-                                    in a secure way using mobile applications
-                                    and browser extensions.
-                                </AccordionItem>
-                            </Accordion> */}
+                                <AccordionItem title="What is a Vault?">A vault is a place to safely store your credentials and other stuff in the near future.</AccordionItem>
+                                <AccordionItem title="Where is my data?">Your data is only stored on your devices.</AccordionItem>
+                                <AccordionItem title="Will Cryptex Vault be open source?">What do you mean?</AccordionItem>
+                            </Accordion>
                         </div>
                     </section>
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section id="section-pricing" className="h-full">
-                        <div className="flex w-full justify-center mt-20">
+                    <section id="section-pricing" className="h-full py-16">
+                        <div className="flex w-full justify-center">
                             <h1 className="text-7xl leading-snug">
                                 Pricing for all types of <br />
                                 <span className="text-rose-400">
@@ -205,16 +204,17 @@ const Index: NextPage = ({}) => {
                                             Standard
                                         </h2>
                                         <div className="text-3xl font-bold">
-                                            €5,000 EUR
+                                            Free
                                         </div>
                                     </div>
 
                                     <p className="text-lg text-gray-300 mb-10">
-                                        A plan created for small developments
-                                        tasks and simple feature additions.
+                                        A tier created for users who doesn't use product constantly. 
                                     </p>
 
-                                    <a className="bg-gray-700 hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
+                                    {/* <a className="bg-gray-700 hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center"> */}
+                                    
+                                    <a className="bg-gray-700 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
                                         Get started
                                     </a>
                                     <div className="mt-12">
@@ -229,8 +229,7 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    200 Hours of Development
-                                                    Time
+                                                    Personal secure credentials storage
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -238,7 +237,7 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Extra hours at $50/hr
+                                                    Stores unlimited credentials per vault
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -246,7 +245,7 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Frontend and Backend only
+                                                    A secure vault
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -254,7 +253,15 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Normal Support
+                                                    Encrypted backups to external services
+                                                </div>
+                                            </div>
+                                            <div className="flex">
+                                                <div className="mr-3.5 text-2xl">
+                                                    <CheckIcon className="h-6 w-6" />
+                                                </div>
+                                                <div className="text-gray-200">
+                                                    Data sync (with 1 device)
                                                 </div>
                                             </div>
                                         </div>
@@ -269,16 +276,17 @@ const Index: NextPage = ({}) => {
                                             Premium
                                         </h2>
                                         <div className="text-3xl font-bold">
-                                            €10,000 EUR
+                                            € ???
                                         </div>
                                     </div>
 
                                     <p className="text-lg text-gray-300 mb-10">
-                                        A plan created for small developments
-                                        tasks and simple feature additions.
+                                        A tier created for users who wants more accesability.  
                                     </p>
 
-                                    <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
+                                    {/* <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center"> */}
+
+                                    <a className="bg-gray-700 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
                                         Get started
                                     </a>
                                     <div className="mt-12">
@@ -293,8 +301,7 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    500 Hours of Development
-                                                    Time
+                                                    Mutiple secure vaults
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -302,7 +309,7 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Extra hours at $45/hr
+                                                    Automated encrypted backups to external services
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -310,8 +317,7 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Data Science and
-                                                    Infrastructure
+                                                    Feature Voting
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -319,7 +325,23 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Dedicated Support
+                                                    Credentials borrowing (password sharing)
+                                                </div>
+                                            </div>
+                                            <div className="flex">
+                                                <div className="mr-3.5 text-2xl">
+                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
+                                                </div>
+                                                <div className="text-gray-200">
+                                                    Data sync (with unlimited devices)
+                                                </div>
+                                            </div>
+                                            <div className="flex">
+                                                <div className="mr-3.5 text-2xl">
+                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
+                                                </div>
+                                                <div className="text-gray-200">
+                                                    Everything from the standard plan
                                                 </div>
                                             </div>
                                         </div>

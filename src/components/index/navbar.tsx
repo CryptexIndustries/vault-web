@@ -41,6 +41,12 @@ const NavBar: React.FC = ({}) => {
                     About
                 </a>
                 <a
+                    href="#section-faq"
+                    className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                >
+                    FAQ
+                </a>
+                <a
                     href="#section-pricing"
                     className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors"
                 >

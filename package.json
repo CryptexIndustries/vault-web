@@ -24,6 +24,7 @@
     "formik": "^2.2.9",
     "next": "12.2.5",
     "next-auth": "4.10.3",
+    "nodemailer": "^6.8.0",
     "otpauth": "^8.0.3",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "18.0.0",
+    "@types/nodemailer": "^6.4.6",
     "@types/react": "18.0.14",
     "@types/react-dom": "18.0.5",
     "@typescript-eslint/eslint-plugin": "^5.33.0",

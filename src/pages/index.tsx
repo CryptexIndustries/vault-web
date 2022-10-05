@@ -453,6 +453,8 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
     submitButtonRef,
     hideModalFn,
 }) => {
+    const [inProgress, setInProgress] = useState(false);
+
     const captchaTokenFieldName = "captchaToken";
 
     const { mutate: notifyMeRegister } = trpc.useMutation(
@@ -501,6 +503,9 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
                 return errors;
             }}
             onSubmit={async (values, { setSubmitting }) => {
+                if (inProgress) return;
+                setInProgress(true);
+
                 setTimeout(async () => {
                     const payload = {
                         email: values.email,
@@ -509,6 +514,7 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
                     notifyMeRegister(payload, {
                         onSettled: () => {
                             setSubmitting(false);
+                            setInProgress(false);
                         },
                     });
                 }, 500);
@@ -574,6 +580,8 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
     submitButtonRef,
     hideModalFn,
 }) => {
+    const [inProgress, setInProgress] = useState(false);
+
     const captchaTokenFieldName = "captchaToken";
 
     const { mutate: sendMessage } = trpc.useMutation(["notifyme.contact"], {
@@ -629,18 +637,20 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
                 return errors;
             }}
             onSubmit={async (values, { setSubmitting }) => {
-                setTimeout(async () => {
-                    const payload = {
-                        email: values.email,
-                        message: values.message,
-                        "h-captcha-response": values.captchaToken,
-                    };
-                    sendMessage(payload, {
-                        onSettled: () => {
-                            setSubmitting(false);
-                        },
-                    });
-                }, 500);
+                if (inProgress == true) return;
+                setInProgress(true);
+
+                const payload = {
+                    email: values.email,
+                    message: values.message,
+                    "h-captcha-response": values.captchaToken,
+                };
+                sendMessage(payload, {
+                    onSettled: () => {
+                        setSubmitting(false);
+                        setInProgress(false);
+                    },
+                });
             }}
         >
             {({ isSubmitting, setFieldValue, setFieldError }) => (

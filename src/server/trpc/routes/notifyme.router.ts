@@ -27,19 +27,6 @@ export const notifyMeRouter = createRouter()
                 }
 
                 // Send a request to the HCaptcha API to verify the user's response
-                // const verification = await fetch(
-                //     "https://hcaptcha.com/siteverify",
-                //     {
-                //         method: "POST",
-                //         headers: {
-                //             "Content-Type": "application/x-www-form-urlencoded",
-                //         },
-                //         body: new URLSearchParams({
-                //             secret: process.env.HCAPTCHA_SECRET ?? "",
-                //             response: input["h-captcha-response"] ?? "",
-                //         }),
-                //     }
-                // ).then((res) => res.json());
                 const verification = await gethCaptchaConfirmation(
                     input["h-captcha-response"]
                 );
@@ -79,10 +66,6 @@ export const notifyMeRouter = createRouter()
             "h-captcha-response": z.string(),
         }),
         async resolve({ input }) {
-            return {
-                success: true,
-                message: "",
-            };
             try {
                 if (!process.env.HCAPTCHA_SECRET) {
                     throw new Error("HCAPTCHA_SECRET is not defined");
@@ -99,31 +82,37 @@ export const notifyMeRouter = createRouter()
                     throw new Error("Invalid hCaptcha response");
                 }
 
-                // Send an email over the zoho email api
-                // TODO: https://www.zoho.com/mail/help/api/post-send-an-email.html
-                const response = await fetch(
-                    "https://mail.zoho.com/api/accounts/100000000000000001/messages",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Zoho-oauthtoken ${process.env.ZOHO_TOKEN}`,
-                        },
-                        body: JSON.stringify({
-                            fromAddress: "",
-                            toAddress: "",
-                            subject: "Contact Form Submission",
-                            content: `
-                                Email: ${input.email}
-                                Message: ${input.message}
-                            `,
-                        }),
-                    }
-                );
+                const nodemailer = await import("nodemailer");
+                // Send email using the nodemailer package
+                const transporter = nodemailer.createTransport({
+                    host: process.env.SMTP_HOST,
+                    port: Number(process.env.SMTP_PORT),
+                    secureConnection: false,
+                    tls: {
+                        ciphers: "SSLv3",
+                    },
+                    auth: {
+                        user: process.env.SMTP_USER,
+                        pass: process.env.SMTP_PASS,
+                    },
+                });
 
-                if (response.status !== 200) {
-                    throw new Error("Something went wrong");
-                }
+                await transporter.sendMail({
+                    from: `"CryptexVaultRouter " <${process.env.SMTP_USER}>`,
+                    to: process.env.SMTP_RECEIVER,
+                    subject: "Contact form submission",
+                    html: `
+                        <h1>Contact form submission</h1>
+                        <p><strong>From:</strong> ${input.email}</p>
+                        <br />
+                        <hr />
+                        <br />
+                        <p>${input.message}</p>
+                    `,
+                    headers: {
+                        "Reply-To": input.email,
+                    },
+                });
 
                 return {
                     success: true,

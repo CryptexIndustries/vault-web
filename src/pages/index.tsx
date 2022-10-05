@@ -389,7 +389,7 @@ const Index: NextPage = ({}) => {
                             Made with ❤️ by the team at Cryptex Vault.
                         </h1>
                         <h1 className="text-sm text-gray-400">
-                            All rights reserved. © {new Date().getFullYear()}
+                            All rights reserved. © {new Date().getFullYear()}{" "}
                             Cryptex Vault
                         </h1>
                     </div>
@@ -569,7 +569,7 @@ type ContactUsFormProps = {
     hideModalFn: () => void;
 };
 
-// Notify me Formik Form
+// Contact us Formik Form
 const ContactUsForm: React.FC<ContactUsFormProps> = ({
     submitButtonRef,
     hideModalFn,

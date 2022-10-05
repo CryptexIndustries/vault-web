@@ -36,10 +36,13 @@ const Index: NextPage = ({}) => {
             </Head>
 
             <main className="main">
-                <NavBar />
+                <NavBar linksShown={true} />
 
                 <div className="content">
-                    <section id="section-home" className="h-full snap-center py-16">
+                    <section
+                        id="section-home"
+                        className="h-full snap-center py-16"
+                    >
                         <div className="h-full flex items-center justify-evenly">
                             <div>
                                 <h1 className="font-medium text-7xl">
@@ -158,7 +161,11 @@ const Index: NextPage = ({}) => {
                                             src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
                                         />
                                     </a>
-                                    <div className={IndexStyles.zmBrowserImgChrome}></div>
+                                    <div
+                                        className={
+                                            IndexStyles.zmBrowserImgChrome
+                                        }
+                                    ></div>
                                     {/* <div className={IndexStyles.zmBrowserImgFox}></div> */}
                                     <p className="text-gray-300">
                                         ... coming soon to the Apple App Store!
@@ -169,16 +176,24 @@ const Index: NextPage = ({}) => {
                     </section>
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
-                    
+
                     <section id="section-faq" className="h-full w-full py-16">
                         <div className="mb-16">
                             <Accordion>
                                 <h1 className="text-2xl font-medium leading-6 w-full text-center mt-2 mb-3">
                                     Frequently Asked Questions
                                 </h1>
-                                <AccordionItem title="What is a Vault?">A vault is a place to safely store your credentials and other stuff in the near future.</AccordionItem>
-                                <AccordionItem title="Where is my data?">Your data is only stored on your devices.</AccordionItem>
-                                <AccordionItem title="Will Cryptex Vault be open source?">What do you mean?</AccordionItem>
+                                <AccordionItem title="What is a Vault?">
+                                    A vault is a place to safely store your
+                                    credentials and other stuff in the near
+                                    future.
+                                </AccordionItem>
+                                <AccordionItem title="Where is my data?">
+                                    Your data is only stored on your devices.
+                                </AccordionItem>
+                                <AccordionItem title="Will Cryptex Vault be open source?">
+                                    What do you mean?
+                                </AccordionItem>
                             </Accordion>
                         </div>
                     </section>
@@ -209,11 +224,12 @@ const Index: NextPage = ({}) => {
                                     </div>
 
                                     <p className="text-lg text-gray-300 mb-10">
-                                        A tier created for users who doesn't use product constantly. 
+                                        A tier created for users who doesn't use
+                                        product constantly.
                                     </p>
 
                                     {/* <a className="bg-gray-700 hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center"> */}
-                                    
+
                                     <a className="bg-gray-700 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
                                         Get started
                                     </a>
@@ -229,7 +245,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Personal secure credentials storage
+                                                    Personal secure credentials
+                                                    storage
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -237,7 +254,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Stores unlimited credentials per vault
+                                                    Stores unlimited credentials
+                                                    per vault
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -253,7 +271,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Encrypted backups to external services
+                                                    Encrypted backups to
+                                                    external services
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -281,7 +300,8 @@ const Index: NextPage = ({}) => {
                                     </div>
 
                                     <p className="text-lg text-gray-300 mb-10">
-                                        A tier created for users who wants more accesability.  
+                                        A tier created for users who wants more
+                                        accesability.
                                     </p>
 
                                     {/* <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center"> */}
@@ -309,7 +329,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Automated encrypted backups to external services
+                                                    Automated encrypted backups
+                                                    to external services
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -325,7 +346,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Credentials borrowing (password sharing)
+                                                    Credentials borrowing
+                                                    (password sharing)
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -333,7 +355,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Data sync (with unlimited devices)
+                                                    Data sync (with unlimited
+                                                    devices)
                                                 </div>
                                             </div>
                                             <div className="flex">
@@ -341,7 +364,8 @@ const Index: NextPage = ({}) => {
                                                     <CheckIcon className="h-6 w-6 text-rose-400" />
                                                 </div>
                                                 <div className="text-gray-200">
-                                                    Everything from the standard plan
+                                                    Everything from the standard
+                                                    plan
                                                 </div>
                                             </div>
                                         </div>

@@ -30,7 +30,7 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
     <Disclosure>
         {({ open }) => (
             <>
-                <Disclosure.Button className="flex w-full justify-between rounded-lg bg-colorPrimary px-4 py-2 text-left text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring focus-visible:opacity-90 focus-visible:ring-opacity-75">
+                <Disclosure.Button className="flex w-full justify-between rounded-lg bg-colorPrimary px-4 py-2 text-left text-md font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring focus-visible:opacity-90 focus-visible:ring-opacity-75">
                     <span className="w-full">{title}</span>
                     <ChevronUpIcon
                         className={`${
@@ -46,7 +46,7 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
                     leaveFrom="transform scale-100 opacity-100"
                     leaveTo="transform scale-95 opacity-0"
                 >
-                    <Disclosure.Panel className="px-4 pt-2 pb-2 text-sm text-gray-200">
+                    <Disclosure.Panel className="px-4 pt-2 pb-2 text-md text-gray-200">
                         {children}
                     </Disclosure.Panel>
                 </Transition>

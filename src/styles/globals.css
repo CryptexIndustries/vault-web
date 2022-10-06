@@ -47,3 +47,11 @@ html {
     background-color: #25C472;
     height: 40%;
 }
+
+.bg-grid {
+    background-image: url(/images/logo/CV_Web-Background_3D_Grid.png);
+    background-size: contain;
+    background-position-x: right;
+    background-repeat: no-repeat;
+    background-position-y: bottom;
+}

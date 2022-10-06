@@ -3,7 +3,7 @@ import { MouseEvent } from "react";
 
 export type FullRoundButtonProps = {
     text: string;
-    onClick?: (e: MouseEvent<HTMLAnchorElement, any>) => void;
+    onClick?: (e: MouseEvent<HTMLAnchorElement, unknown>) => void;
     className?: string;
     disabled?: boolean;
 };
@@ -14,11 +14,11 @@ export const AnchorFullRoundFade: React.FC<FullRoundButtonProps> = ({
     className,
     disabled,
 }) => {
-    let disabledClass = disabled
+    const disabledClass = disabled
         ? "bg-gray-800 text-gray-500 cursor-auto"
         : "bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white transition-opacity cursor-pointer";
 
-    let paddingClasses =
+    const paddingClasses =
         className?.includes("px") ||
         className?.includes("py") ||
         className?.includes("p-")

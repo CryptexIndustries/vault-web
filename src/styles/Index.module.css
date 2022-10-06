@@ -20,17 +20,17 @@
     background-position: 50%;
     background-repeat: no-repeat;
     background-size: contain;
-    cursor: pointer;
+    /* cursor: pointer; */
     flex: 1 0 50%;
     height: 4rem;
 }
 
-/* .zmBrowserImgFox {
-    background-image: url(../wp-images/firefoxAddon.1bfac44….svg);
+.zmBrowserImgFox {
+    background-image: url(/images/badges/firefox_extension.svg);
     background-position: 50%;
     background-repeat: no-repeat;
     background-size: contain;
-    cursor: pointer;
-    flex: 1 0 50%;
+    /* cursor: pointer; */
+    flex: 1 0 25%;
     height: 2.5rem;
-} */
+}

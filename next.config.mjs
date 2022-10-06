@@ -12,21 +12,20 @@ function defineNextConfig(config) {
     return config;
 }
 
-// const withBundleAnalyzer = require("@next/bundle-analyzer")({
-//     enabled: process.env.ANALYZE === "true",
-// });
-
-// module.exports = withBundleAnalyzer(
-//     defineNextConfig({
-//         reactStrictMode: true,
-//         swcMinify: true,
-//     })
-// );
-
-export default defineNextConfig({
+const nextConfig = {
     reactStrictMode: true,
     swcMinify: true,
     images: {
         domains: ["play.google.com"],
     },
-});
+    typescript: {
+        ignoreBuildErrors: true,
+    },
+};
+
+// const withBundleAnalyzer = require("@next/bundle-analyzer")({
+//     enabled: process.env.ANALYZE === "true",
+// });
+// module.exports = withBundleAnalyzer(defineNextConfig(nextConfig));
+
+export default defineNextConfig(nextConfig);

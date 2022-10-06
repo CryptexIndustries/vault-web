@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { NextPage } from "next/types";
-import NavBar from "../components/index/navbar";
+import NavBar from "../components/navbar";
 
 const PrivacyPolicy: NextPage = () => {
     return (
@@ -39,7 +39,7 @@ const PrivacyPolicy: NextPage = () => {
                             <p>
                                 We collect as little information about the user
                                 as possible. The only information we collect is
-                                the user's email address, which is used to
+                                the user&apos;s email address, which is used to
                                 identify the user and to send them emails
                                 regarding their account. We do not collect any
                                 other information about the user.

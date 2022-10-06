@@ -1,6 +1,6 @@
 import { GetStaticProps, NextPage } from "next";
 import Head from "next/head";
-import NavBar from "../components/index/navbar";
+import NavBar from "../components/navbar";
 import IndexStyles from "../styles/Index.module.css";
 
 import { CheckIcon } from "@heroicons/react/24/outline";
@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 import NotificationContainer from "../components/general/notificationContainer";
 import { trpc } from "../utils/trpc";
 import { Accordion, AccordionItem } from "../components/general/accordion";
+import { AnchorFullRoundFade } from "../components/buttons/full_round";
 
 const Index: NextPage = ({}) => {
     const notifyMeModalVisibility = useState(false);
@@ -36,7 +37,41 @@ const Index: NextPage = ({}) => {
             </Head>
 
             <main className="main">
-                <NavBar linksShown={true} />
+                <NavBar>
+                    <div className="text-lg">
+                        <a
+                            href="#section-home"
+                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                        >
+                            Home
+                        </a>
+                        <a
+                            href="#section-about"
+                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                        >
+                            About
+                        </a>
+                        <a
+                            href="#section-faq"
+                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                        >
+                            FAQ
+                        </a>
+                        <a
+                            href="#section-pricing"
+                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors"
+                        >
+                            Pricing
+                        </a>
+                    </div>
+                    <div>
+                        <Link href={"/login"}>
+                            <div>
+                                <AnchorFullRoundFade text="Sign In" />
+                            </div>
+                        </Link>
+                    </div>
+                </NavBar>
 
                 <div className="content">
                     <section
@@ -81,9 +116,12 @@ const Index: NextPage = ({}) => {
                                 </p>
                                 <div className="mt-20">
                                     <Link href={"/login"}>
-                                        <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7">
-                                            Start Now!
-                                        </a>
+                                        <div>
+                                            <AnchorFullRoundFade
+                                                text="Start Now!"
+                                                className="py-5 px-10 mr-7"
+                                            />
+                                        </div>
                                     </Link>
                                 </div>
                             </div>
@@ -224,15 +262,15 @@ const Index: NextPage = ({}) => {
                                     </div>
 
                                     <p className="text-lg text-gray-300 mb-10">
-                                        A tier created for users who doesn't use
-                                        product constantly.
+                                        A tier created for users who
+                                        doesn&apos;t use product constantly.
                                     </p>
 
-                                    {/* <a className="bg-gray-700 hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center"> */}
-
-                                    <a className="bg-gray-700 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
-                                        Get started
-                                    </a>
+                                    <AnchorFullRoundFade
+                                        text="Get Started"
+                                        className="py-5 px-10"
+                                        disabled={true}
+                                    />
                                     <div className="mt-12">
                                         <div className="mb-6">
                                             <div className="text-gray-200 font-bold">
@@ -304,11 +342,11 @@ const Index: NextPage = ({}) => {
                                         accesability.
                                     </p>
 
-                                    {/* <a className="bg-gradient-to-r gradientFromWhiteToPrimary hover:opacity-70 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center"> */}
-
-                                    <a className="bg-gray-700 text-white font-bold py-5 px-10 rounded-full transition-opacity mr-7 w-full text-center">
-                                        Get started
-                                    </a>
+                                    <AnchorFullRoundFade
+                                        text="Get Started"
+                                        className="py-5 px-10"
+                                        disabled={true}
+                                    />
                                     <div className="mt-12">
                                         <div className="mb-6">
                                             <div className="text-gray-200 font-bold">

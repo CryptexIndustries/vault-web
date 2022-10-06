@@ -81,7 +81,7 @@ const Index: NextPage = ({}) => {
                 <div className="content">
                     <section
                         id="section-home"
-                        className="h-full snap-center py-16"
+                        className="h-full snap-center py-16 bg-grid"
                     >
                         <div className="h-full flex items-center justify-evenly">
                             <div>
@@ -130,13 +130,14 @@ const Index: NextPage = ({}) => {
                                     </Link>
                                 </div>
                             </div>
-                            <div>
+                            <div className="">
                                 <Image
-                                    width={650}
-                                    height={650}
+                                    width={986}
+                                    height={1326}
                                     priority={true}
                                     alt=""
-                                    src="/images/logo/Welcome_Banner.png"
+                                    src="/images/logo/CV_Web-Background_3D_CUT.png"
+                                    quality={50}
                                 ></Image>
                             </div>
                         </div>
@@ -252,7 +253,7 @@ const Index: NextPage = ({}) => {
                                 <span className="text-rose-400 font-medium">
                                     Choose{" "}
                                 </span>
-                                Your Own Plan
+                                Your Plan
                             </h1>
                         </div>
 

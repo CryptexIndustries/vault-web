@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { NextPage } from "next/types";
+import { GetStaticProps, NextPage } from "next/types";
 import NavBar from "../components/navbar";
 
 const PrivacyPolicy: NextPage = () => {
@@ -62,6 +62,12 @@ const PrivacyPolicy: NextPage = () => {
             </main>
         </>
     );
+};
+
+export const getStaticProps: GetStaticProps = async () => {
+    return {
+        props: {},
+    };
 };
 
 export default PrivacyPolicy;

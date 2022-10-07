@@ -21,7 +21,7 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
-    headers: [
+    headers: async () => [
         {
             key: "X-DNS-Prefetch-Control",
             value: "on",

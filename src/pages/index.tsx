@@ -139,12 +139,12 @@ const Index: NextPage = ({}) => {
                             </div>
                             <div className="hidden lg:block">
                                 <Image
-                                    width={986}
-                                    height={1105}
+                                    width={986 / 1.5}
+                                    height={1105 / 1.5}
                                     priority={true}
                                     alt=""
                                     src="/images/logo/CV_Web-Background_3D_CUT.png"
-                                    quality={50}
+                                    quality={80}
                                 ></Image>
                             </div>
                         </div>

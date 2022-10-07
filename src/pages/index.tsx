@@ -36,14 +36,22 @@ const Index: NextPage = ({}) => {
     return (
         <>
             <Head>
-                <title>Cryptex Vault</title>
-                <meta name="description" content="" />
+                <meta
+                    name="viewport"
+                    content="width=device-width, initial-scale=1"
+                />
+                <meta charSet="utf-8" />
+                <title>Cryptex Vault - Decentralized Identity Manager</title>
+                <meta
+                    name="description"
+                    content="No need to depend on any service that holds your passwords, secrets or other credentials."
+                />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
 
             <main className="main">
                 <NavBar>
-                    <div className="text-lg">
+                    <div className="text-lg hidden lg:block">
                         <a
                             href="#section-home"
                             className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
@@ -69,25 +77,24 @@ const Index: NextPage = ({}) => {
                             Pricing
                         </a>
                     </div>
-                    <div>
-                        <Link href={"/login"}>
-                            <div>
-                                <AnchorFullRoundFade text="Sign In" />
-                            </div>
-                        </Link>
+                    <div className="hidden md:block">
+                        <AnchorFullRoundFade
+                            text="Notify me"
+                            onClick={showNotifyMeModal}
+                        />
                     </div>
                 </NavBar>
 
                 <div className="content">
                     <section
                         id="section-home"
-                        className="h-full snap-center py-16 bg-grid"
+                        className="h-full snap-center pb-16 bg-grid pt-0 md:pt-10 sm:pt-0 px-5"
                     >
                         <div className="h-full flex items-center justify-evenly">
                             <div>
-                                <h1 className="font-medium text-7xl">
+                                <h1 className="font-medium text-5xl md:text-7xl text-center md:text-start">
                                     Fully{" "}
-                                    <span className="text-7xl text-rose-400">
+                                    <span className="text-5xl md:text-7xl text-rose-400">
                                         Decentralized
                                     </span>
                                     <br />
@@ -120,17 +127,17 @@ const Index: NextPage = ({}) => {
                                     connected and synchronized. That&apos;s it.
                                 </p>
                                 <div className="mt-20">
-                                    <Link href={"/login"}>
+                                    <Link href={"#section-about"}>
                                         <div>
                                             <AnchorFullRoundFade
-                                                text="Start Now!"
+                                                text="Tell me more!"
                                                 className="py-5 px-10 mr-7"
                                             />
                                         </div>
                                     </Link>
                                 </div>
                             </div>
-                            <div className="">
+                            <div className="hidden lg:block">
                                 <Image
                                     width={986}
                                     height={1105}
@@ -145,10 +152,13 @@ const Index: NextPage = ({}) => {
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section id="section-about" className="h-full py-16">
-                        <div className="h-full flex items-center justify-evenly">
-                            <div className="max-w-lg">
-                                <h1 className="text-5xl text-gray-300">
+                    <section
+                        id="section-about"
+                        className="h-full py-16 px-5 sm:px-0"
+                    >
+                        <div className="h-full flex flex-col sm:flex-row items-center justify-evenly">
+                            <div className="max-w-lg mb-7 sm:mb-0">
+                                <h1 className="text-5xl text-gray-300 text-center sm:text-start">
                                     What is{" "}
                                     <b className="text-rose-400">
                                         Cryptex Vault{" "}
@@ -158,12 +168,12 @@ const Index: NextPage = ({}) => {
                             </div>
                             {/* Roses are red, violets are blue, we're here
                                     to protect you. */}
-                            <div className="vertical-line"></div>
+                            <div className="vertical-line hidden sm:block"></div>
                             <div className="max-w-lg">
                                 <p className="text-gray-500 mb-2">
                                     What are we?
                                 </p>
-                                <p className="ml-4 text-gray-300">
+                                <p className="ml-4 text-gray-300 text-justify sm:text-start">
                                     Cryptex Vault is a fully decentralized
                                     identity manager. It allows you to store
                                     your credentials, secrets and other
@@ -173,7 +183,7 @@ const Index: NextPage = ({}) => {
                                 <p className="text-gray-500 mt-4 mb-2">
                                     How the rest of the industry works?
                                 </p>
-                                <p className="ml-4 text-gray-300">
+                                <p className="ml-4 text-gray-300 text-justify sm:text-start">
                                     Most of the password managers out there are
                                     centralized. They store your data on their
                                     servers, which means that they can read it.
@@ -184,7 +194,7 @@ const Index: NextPage = ({}) => {
                                 <p className="text-gray-500 mt-4 mb-2">
                                     How we do it.
                                 </p>
-                                <p className="ml-3 text-gray-300">
+                                <p className="ml-3 text-gray-300 text-justify sm:text-start">
                                     Unlike other password managers, Cryptex
                                     Vault doesn&apos;t store your data.
                                     It&apos;s only stored on your devices, not
@@ -196,15 +206,7 @@ const Index: NextPage = ({}) => {
                                 <p className="text-gray-500  mt-10 mb-2">
                                     Supported platforms (on launch)
                                 </p>
-                                <div className="flex flex-wrap items-center">
-                                    <a>
-                                        <Image
-                                            width={200}
-                                            height={80}
-                                            alt="Get it on Google Play"
-                                            src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
-                                        />
-                                    </a>
+                                <div className="flex flex-wrap justify-center items-center space-x-2">
                                     <div
                                         className={
                                             IndexStyles.zmBrowserImgChrome
@@ -213,6 +215,14 @@ const Index: NextPage = ({}) => {
                                     <div
                                         className={IndexStyles.zmBrowserImgFox}
                                     ></div>
+                                    <a>
+                                        <Image
+                                            width={200}
+                                            height={80}
+                                            alt="Get it on Google Play"
+                                            src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
+                                        />
+                                    </a>
                                     <p className="text-gray-300">
                                         ... coming soon to the Apple App Store!
                                     </p>
@@ -223,7 +233,10 @@ const Index: NextPage = ({}) => {
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section id="section-faq" className="h-full w-full py-16">
+                    <section
+                        id="section-faq"
+                        className="h-full w-full sm:py-16"
+                    >
                         <div className="mb-16">
                             <Accordion>
                                 <h1 className="text-2xl font-medium leading-6 w-full text-center mt-2 mb-3">
@@ -251,9 +264,12 @@ const Index: NextPage = ({}) => {
 
                     <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
 
-                    <section id="section-pricing" className="h-full py-16">
+                    <section
+                        id="section-pricing"
+                        className="h-full pt-16 pb-5 px-5 sm:px-0"
+                    >
                         <div className="flex w-full justify-center">
-                            <h1 className="text-7xl leading-snug text-center">
+                            <h1 className="text-5xl sm:text-7xl leading-snug text-center">
                                 <span className="text-rose-400 font-medium">
                                     Choose{" "}
                                 </span>
@@ -261,9 +277,9 @@ const Index: NextPage = ({}) => {
                             </h1>
                         </div>
 
-                        <div className="flex w-full justify-center flex-col sm:flex-row mt-10 space-y-2 sm:space-y-0 space-x-0 sm:space-x-4 pb-14">
+                        <div className="flex w-full justify-center flex-col sm:flex-row mt-10 space-y-5 sm:space-y-0 space-x-0 sm:space-x-4 pb-14">
                             <div className={IndexStyles.pricingCard}>
-                                <div className="flex flex-col max-w-md px-10 py-16">
+                                <div className="flex flex-col max-w-md px-10 py-8 sm:py-16">
                                     <div className="mb-4">
                                         <h2 className="font-bold text-lg text-gray-400">
                                             Standard
@@ -283,7 +299,7 @@ const Index: NextPage = ({}) => {
                                         className="py-5 px-10"
                                         disabled={true}
                                     />
-                                    <div className="mt-12">
+                                    <div className="mt-5 sm:mt-12">
                                         <div className="mb-6">
                                             <div className="text-gray-200 font-bold">
                                                 What&apos;s included:
@@ -339,7 +355,7 @@ const Index: NextPage = ({}) => {
                             </div>
 
                             <div className={IndexStyles.pricingCard}>
-                                <div className="flex flex-col max-w-md px-10 py-16">
+                                <div className="flex flex-col max-w-md px-10 py-8 sm:py-16">
                                     <div className="mb-4">
                                         <h2 className="font-bold text-lg text-gray-400">
                                             Premium
@@ -367,7 +383,7 @@ const Index: NextPage = ({}) => {
                                         className="py-5 px-10"
                                         disabled={true}
                                     />
-                                    <div className="mt-12">
+                                    <div className="mt-5 sm:mt-12">
                                         <div className="mb-6">
                                             <div className="text-gray-200 font-bold">
                                                 What&apos;s included:

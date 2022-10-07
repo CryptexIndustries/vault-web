@@ -168,7 +168,7 @@ const Index: NextPage = ({}) => {
                             </div>
                             {/* Roses are red, violets are blue, we're here
                                     to protect you. */}
-                            <div className="vertical-line hidden sm:block"></div>
+                            <div className="vertical-line h-96 hidden lg:block"></div>
                             <div className="max-w-lg">
                                 <p className="text-gray-500 mb-2">
                                     What are we?

@@ -133,7 +133,7 @@ const Index: NextPage = ({}) => {
                             <div className="">
                                 <Image
                                     width={986}
-                                    height={1326}
+                                    height={1105}
                                     priority={true}
                                     alt=""
                                     src="/images/logo/CV_Web-Background_3D_CUT.png"
@@ -194,7 +194,7 @@ const Index: NextPage = ({}) => {
                                 </p>
 
                                 <p className="text-gray-500  mt-10 mb-2">
-                                    Supported platforms
+                                    Supported platforms (on launch)
                                 </p>
                                 <div className="flex flex-wrap items-center">
                                     <a>
@@ -240,6 +240,10 @@ const Index: NextPage = ({}) => {
                                 <AccordionItem title="Will Cryptex Vault be open source?">
                                     There are plans to open source the project
                                     later in development. Stay tuned.
+                                </AccordionItem>
+                                <AccordionItem title="Why can't I see the pricing?">
+                                    The pricing will be announced on product
+                                    launch.
                                 </AccordionItem>
                             </Accordion>
                         </div>

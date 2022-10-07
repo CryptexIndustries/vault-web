@@ -33,7 +33,7 @@ export const AnchorFullRoundFade: React.FC<FullRoundButtonProps> = ({
                 }
             }}
             className={
-                "font-bold rounded-full text-center " +
+                "font-bold rounded-full text-center select-none " +
                 disabledClass +
                 " " +
                 className +

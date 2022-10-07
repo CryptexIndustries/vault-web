@@ -20,7 +20,7 @@ const NavBar: React.FC<NavBarProps> = ({
                     <Link href={overrideLogoUrl ?? "/"}>
                         <a>
                             <Image
-                                src="/images/logo/cryptex_logo.png"
+                                src="/images/logo/cryptex_logo.svg"
                                 alt="Cryptex Logo"
                                 width={200}
                                 height={50}

@@ -244,8 +244,8 @@ const Index: NextPage = ({}) => {
                                 </h1>
                                 <AccordionItem title="What is a Vault?">
                                     A vault is a place to safely store your
-                                    credentials and other stuff in the near
-                                    future.
+                                    credentials and other secrets locally, on
+                                    your devices.
                                 </AccordionItem>
                                 <AccordionItem title="Where is my data?">
                                     Your data is only stored on your devices.

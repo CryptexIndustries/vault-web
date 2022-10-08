@@ -7,10 +7,14 @@ import { CheckIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useRef, useState } from "react";
-import { GenericModal } from "../components/general/modal";
+import { Body, Footer, GenericModal } from "../components/general/modal";
 import NotificationContainer from "../components/general/notificationContainer";
 import { Accordion, AccordionItem } from "../components/general/accordion";
-import { AnchorFullRoundFade } from "../components/buttons/full_round";
+import {
+    AnchorFullRoundFade,
+    ButtonFlat,
+    ButtonType,
+} from "../components/general/buttons";
 import React from "react";
 import Spinner from "../components/general/spinner";
 
@@ -23,7 +27,12 @@ const ContactUsForm = React.lazy(
 
 const Index: NextPage = ({}) => {
     const notifyMeModalVisibility = useState(false);
+    const notifyMeModalSubmitting = useState(false);
     const contactUsModalVisibility = useState(false);
+    const contactUsModalSubmitting = useState(false);
+
+    const isNotifyMeModalSubmitting = notifyMeModalSubmitting[0];
+    const isContactUsModalSubmitting = contactUsModalSubmitting[0];
 
     const showNotifyMeModal = () => notifyMeModalVisibility[1](true);
     const hideNotifyMeModal = () => notifyMeModalVisibility[1](false);
@@ -514,49 +523,78 @@ const Index: NextPage = ({}) => {
             <GenericModal
                 key="notify-me-modal"
                 visibleState={notifyMeModalVisibility}
-                confirmButtonText={"Notify Me"}
-                onConfirm={() => notifyMeSubmitBtnRef.current?.click()}
             >
-                <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Get notified when we&apos;re launching!
-                    </h1>
-                    <p className="text-gray-700 mt-2">
-                        Enter your email below to get notified when we&apos;re
-                        launching.
-                    </p>
+                <Body>
+                    <div className="flex flex-col items-center text-center">
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            Get notified when we&apos;re launching!
+                        </h1>
+                        <p className="text-gray-700 mt-2">
+                            Enter your email below to get notified when
+                            we&apos;re launching.
+                        </p>
 
-                    <Suspense fallback={<Spinner />}>
-                        <NotifyMeForm
-                            hideModalFn={hideNotifyMeModal}
-                            submitButtonRef={notifyMeSubmitBtnRef}
-                        />
-                    </Suspense>
-                </div>
+                        <Suspense fallback={<Spinner />}>
+                            <NotifyMeForm
+                                hideModalFn={hideNotifyMeModal}
+                                submitButtonRef={notifyMeSubmitBtnRef}
+                                submittingState={notifyMeModalSubmitting}
+                            />
+                        </Suspense>
+                    </div>
+                </Body>
+                <Footer className="space-y-3 sm:space-y-0">
+                    <ButtonFlat
+                        text="Notify Me"
+                        onClick={() => notifyMeSubmitBtnRef.current?.click()}
+                        disabled={isNotifyMeModalSubmitting}
+                        loading={isNotifyMeModalSubmitting}
+                    />
+                    <ButtonFlat
+                        text="Close"
+                        type={ButtonType.Secondary}
+                        onClick={hideNotifyMeModal}
+                    />
+                </Footer>
             </GenericModal>
 
             <GenericModal
                 key="contact-us-modal"
                 visibleState={contactUsModalVisibility}
-                confirmButtonText={"Send"}
-                onConfirm={() => contactUsSubmitBtnRef.current?.click()}
             >
-                <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Contact us
-                    </h1>
+                <Body>
+                    <div className="flex flex-col items-center text-center">
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            Contact us
+                        </h1>
 
-                    <p className="text-gray-700 mt-2">
-                        Feel free to contact us for any questions or to learn
-                        more about our service.
-                    </p>
-                    <Suspense fallback={<Spinner />}>
-                        <ContactUsForm
-                            hideModalFn={hideContactUsModal}
-                            submitButtonRef={contactUsSubmitBtnRef}
-                        />
-                    </Suspense>
-                </div>
+                        <p className="text-gray-700 mt-2">
+                            Feel free to contact us for any questions or to
+                            learn more about our service.
+                        </p>
+                        <Suspense fallback={<Spinner />}>
+                            <ContactUsForm
+                                hideModalFn={hideContactUsModal}
+                                submitButtonRef={contactUsSubmitBtnRef}
+                                submittingState={contactUsModalSubmitting}
+                            />
+                        </Suspense>
+                    </div>
+                </Body>
+
+                <Footer className="space-y-3 sm:space-y-0">
+                    <ButtonFlat
+                        text="Send"
+                        onClick={() => contactUsSubmitBtnRef.current?.click()}
+                        disabled={isContactUsModalSubmitting}
+                        loading={isContactUsModalSubmitting}
+                    />
+                    <ButtonFlat
+                        text="Close"
+                        type={ButtonType.Secondary}
+                        onClick={hideContactUsModal}
+                    />
+                </Footer>
             </GenericModal>
             <NotificationContainer />
         </>

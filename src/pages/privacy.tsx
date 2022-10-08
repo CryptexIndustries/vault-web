@@ -15,16 +15,16 @@ const PrivacyPolicy: NextPage = () => {
                 <NavBar />
 
                 <div className="content min-h-screen">
-                    <div className="flex flex-col items-center w-full mt-10 px-5 md:px-0">
+                    <div className="flex flex-col items-center w-full mt-0 md:mt-10 px-5 md:px-0">
                         <h1 className="text-4xl font-bold">Privacy Policy</h1>
-                        <div className="max-w-lg">
+                        <div className="max-w-lg mb-5">
                             <h2 className="text-2xl font-bold mt-10">
                                 1. Data collection and usage
                             </h2>
                             <h3 className="text-xl font-bold mt-5">
                                 1.1. Personal data (Visiting our website)
                             </h3>
-                            <p className="pt-2">
+                            <p className="pt-2 text-justify">
                                 The only personal data we collect is the users
                                 email address when the contact form is filled
                                 out. We use this data to contact the user if
@@ -36,7 +36,7 @@ const PrivacyPolicy: NextPage = () => {
                                 1.2. Personal data (Creating and using an
                                 account)
                             </h3>
-                            <p className="pt-2">
+                            <p className="pt-2 text-justify">
                                 We collect as little information about the user
                                 as possible. The only information we collect is
                                 the user&apos;s email address, which is used to
@@ -47,7 +47,7 @@ const PrivacyPolicy: NextPage = () => {
                             <h3 className="text-xl font-bold mt-5">
                                 1.3. Payment Information
                             </h3>
-                            <p className="pt-2">
+                            <p className="pt-2 text-justify">
                                 We rely on third parties to process credit card,
                                 debit card, and other payment information. We do
                                 not store or collect your payment card number or

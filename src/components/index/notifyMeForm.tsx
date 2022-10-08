@@ -1,19 +1,20 @@
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { ErrorMessage, Field, Form, Formik } from "formik";
-import { useState } from "react";
 import { toast } from "react-toastify";
 import { trpc } from "../../utils/trpc";
 
 export type NotifyMeFormProps = {
     submitButtonRef: React.RefObject<HTMLButtonElement>;
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     hideModalFn: () => void;
 };
 
 const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
     submitButtonRef,
+    submittingState,
     hideModalFn,
 }) => {
-    const [inProgress, setInProgress] = useState(false);
+    const [inProgress, setInProgress] = submittingState;
 
     const captchaTokenFieldName = "captchaToken";
 

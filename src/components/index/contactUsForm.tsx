@@ -1,19 +1,20 @@
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { ErrorMessage, Field, Form, Formik } from "formik";
-import { useState } from "react";
 import { toast } from "react-toastify";
 import { trpc } from "../../utils/trpc";
 
 export type ContactUsFormProps = {
     submitButtonRef: React.RefObject<HTMLButtonElement>;
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     hideModalFn: () => void;
 };
 
 const ContactUsForm: React.FC<ContactUsFormProps> = ({
     submitButtonRef,
+    submittingState,
     hideModalFn,
 }) => {
-    const [inProgress, setInProgress] = useState(false);
+    const [inProgress, setInProgress] = submittingState;
 
     const captchaTokenFieldName = "captchaToken";
 
@@ -110,7 +111,7 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
                                     <textarea
                                         {...field}
                                         placeholder="Enter your message"
-                                        className="bg-gray-200 text-gray-900 rounded-md px-4 py-2 mt-4"
+                                        className="bg-gray-200 text-gray-900 rounded-md px-4 py-2"
                                     />
                                 )}
                             </Field>

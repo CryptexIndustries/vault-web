@@ -4,6 +4,7 @@ import NavBar from "../components/navbar";
 import IndexStyles from "../styles/Index.module.css";
 
 import { CheckIcon } from "@heroicons/react/24/outline";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useRef, useState } from "react";
@@ -25,6 +26,55 @@ const ContactUsForm = React.lazy(
     () => import("../components/index/contactUsForm")
 );
 
+type PricingFeatureItemProps = {
+    title: string;
+    description: string;
+    descriptionVisible: boolean;
+    toggleFn: () => void;
+    isPaid?: boolean;
+};
+
+const PricingFeatureItem: React.FC<PricingFeatureItemProps> = ({
+    title,
+    description,
+    descriptionVisible,
+    toggleFn,
+    isPaid = false,
+}) => {
+    let checkIconClass = "h-6 w-6";
+    if (isPaid) {
+        checkIconClass += " text-rose-400";
+    }
+
+    return (
+        <div className="flex flex-col items-start">
+            <div className="flex items-center">
+                <div className="mr-3.5">
+                    <CheckIcon className={checkIconClass} />
+                </div>
+                <div className="text-gray-200">{title}</div>
+                <div className="ml-2" title="Show more information">
+                    <InformationCircleIcon
+                        className="h-6 w-6 hover:text-gray-300 cursor-pointer"
+                        onClick={toggleFn}
+                    />
+                </div>
+            </div>
+            <div
+                id="test-container"
+                className={
+                    "transition-all overflow-hidden " +
+                    (descriptionVisible ? "min-h-full" : "max-h-0")
+                }
+            >
+                <p className="border-l pl-2 text-gray-400 text-sm ml-10">
+                    {description}
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const Index: NextPage = ({}) => {
     const notifyMeModalVisibility = useState(false);
     const notifyMeModalSubmitting = useState(false);
@@ -41,6 +91,38 @@ const Index: NextPage = ({}) => {
 
     const notifyMeSubmitBtnRef = useRef<HTMLButtonElement>(null);
     const contactUsSubmitBtnRef = useRef<HTMLButtonElement>(null);
+
+    const [tierCardDetailsVisible, setTierCardDetailsVisible] = useState([
+        // Free tier
+        false,
+        false,
+        false,
+        false,
+        false,
+        // Paid tier
+        false,
+        false,
+        false,
+        false,
+        false,
+    ]);
+
+    const toggleTierCardDetails = (index: number) => {
+        const newFreeTierCardDetails = [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ];
+        newFreeTierCardDetails[index] = !tierCardDetailsVisible[index];
+        setTierCardDetailsVisible(newFreeTierCardDetails);
+    };
 
     return (
         <>
@@ -152,7 +234,7 @@ const Index: NextPage = ({}) => {
                                     height={1105 / 1.5}
                                     priority={true}
                                     alt=""
-                                    src="/images/logo/CV_Web-Background_3D_CUT.png"
+                                    src="/images/logo/CV_Web-Background_3D_CUT.webp"
                                     quality={80}
                                 ></Image>
                             </div>
@@ -315,49 +397,56 @@ const Index: NextPage = ({}) => {
                                             </div>
                                         </div>
                                         <div className="flex flex-col space-y-4">
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Personal secure credentials
-                                                    storage
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Stores unlimited credentials
-                                                    per vault
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    A secure vault
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Encrypted backups to
-                                                    external services
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Data sync (with 1 device)
-                                                </div>
-                                            </div>
+                                            <PricingFeatureItem
+                                                title="Personal secure credentials storage"
+                                                description="You can save secrets in the form of passwords, credit cards, etc."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[0] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(0)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Stores unlimited credentials per vault"
+                                                description="We don't limit the amount of passwords (or other secrets) that you can save!"
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[1] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(1)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="A Secure Vault"
+                                                description="This is where you save your credentials (passwords and other secrets)."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[2] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(2)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Create encrypted backups"
+                                                description="Create an encrypted backup then upload it to your Google Drive, OneDrive, GitHub, GitLab, with a single press of a button."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[3] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(3)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Data sync (with 1 device)"
+                                                description="Connect your vault to your browser! Which makes it easy to use your credentials within the browser."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[4] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(4)
+                                                }
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -399,58 +488,72 @@ const Index: NextPage = ({}) => {
                                             </div>
                                         </div>
                                         <div className="flex flex-col space-y-4">
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Mutiple secure vaults
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Automated encrypted backups
-                                                    to external services
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Feature Voting
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Credentials borrowing
-                                                    (password sharing)
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Data sync (with unlimited
-                                                    devices)
-                                                </div>
-                                            </div>
-                                            <div className="flex">
-                                                <div className="mr-3.5 text-2xl">
-                                                    <CheckIcon className="h-6 w-6 text-rose-400" />
-                                                </div>
-                                                <div className="text-gray-200">
-                                                    Everything from the standard
-                                                    plan
-                                                </div>
-                                            </div>
+                                            <PricingFeatureItem
+                                                title="Everything from the standard plan"
+                                                isPaid={true}
+                                                description="This tier includes everything from the free tier."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[10] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(10)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Unlimited secure vaults"
+                                                isPaid={true}
+                                                description="You get unlimited vaults in which you can save credentials."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[5] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(5)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Automated encrypted backups to external services"
+                                                isPaid={true}
+                                                description="Automatically creates and encrypts your vault backup then uploads it to your Google Drive, OneDrive, GitHub, GitLab - every time you make a change."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[6] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(6)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Feature Voting"
+                                                isPaid={true}
+                                                description="Have the power to decide on the future of Cryptex Vault! Vote up the features you want to see implemented."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[7] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(7)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Credentials borrowing (password sharing)"
+                                                isPaid={true}
+                                                description="Share a password with a buddy or your family, securely - inside Cryptex Vault!"
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[8] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(8)
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Data sync (with unlimited devices)"
+                                                isPaid={true}
+                                                description="Connect your vaults to your desktop, laptop and your buddies laptop browser - you have it all."
+                                                descriptionVisible={
+                                                    tierCardDetailsVisible[9] as boolean
+                                                }
+                                                toggleFn={() =>
+                                                    toggleTierCardDetails(9)
+                                                }
+                                            />
                                         </div>
                                     </div>
                                 </div>

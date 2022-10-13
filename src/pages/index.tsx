@@ -232,7 +232,6 @@ const Index: NextPage = ({}) => {
                                 <Image
                                     width={986 / 1.5}
                                     height={1105 / 1.5}
-                                    priority={true}
                                     alt=""
                                     src="/images/logo/CV_Web-Background_3D_CUT.webp"
                                     quality={80}

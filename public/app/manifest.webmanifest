@@ -1,0 +1,38 @@
+{
+    "name": "Cryptex Vault",
+    "short_name": "CryptexVault",
+    "description": "CryptexVault is a decentralized and secure credentials manager that allows you to store your passwords and other sensitive information in a secure and encrypted vault.",
+    "icons": [
+        {
+            "src": "/images/pwa/manifest-icon-192.maskable.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/images/pwa/manifest-icon-192.maskable.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/images/pwa/manifest-icon-512.maskable.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/images/pwa/manifest-icon-512.maskable.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "id": "/app/",
+    "start_url": "/app/",
+    "scope": "/app/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#000000",
+    "background_color": "#181d2b"
+}

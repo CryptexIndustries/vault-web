@@ -1,13 +1,17 @@
 import { GetStaticProps, NextPage } from "next";
-import Head from "next/head";
 import NavBar from "../components/navbar";
 import IndexStyles from "../styles/Index.module.css";
+// import DownloadBadges from "../styles/DownloadBadges.module.css";
 
 import { CheckIcon } from "@heroicons/react/24/outline";
-import { InformationCircleIcon } from "@heroicons/react/24/outline";
+import { InformationCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
+
+import React, { useMemo } from "react";
+import { Suspense, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useRef, useState } from "react";
+import { clsx } from "clsx";
+
 import { Body, Footer, GenericModal } from "../components/general/modal";
 import NotificationContainer from "../components/general/notificationContainer";
 import { Accordion, AccordionItem } from "../components/general/accordion";
@@ -16,8 +20,12 @@ import {
     ButtonFlat,
     ButtonType,
 } from "../components/general/buttons";
-import React from "react";
 import Spinner from "../components/general/spinner";
+import PageFooter from "../components/general/footer";
+import HTMLHeader from "../components/html_header";
+import HTMLMain from "../components/html_main";
+import { PAYMENT_TIERS } from "../utils/subscription";
+import { NotifyMeReference } from "../components/index/notifyMeForm";
 
 const NotifyMeForm = React.lazy(
     () => import("../components/index/notifyMeForm")
@@ -26,48 +34,89 @@ const ContactUsForm = React.lazy(
     () => import("../components/index/contactUsForm")
 );
 
+enum FeatureState {
+    AvailableFree,
+    AvailablePaid,
+    NotAvailable,
+}
 type PricingFeatureItemProps = {
     title: string;
     description: string;
-    descriptionVisible: boolean;
-    toggleFn: () => void;
-    isPaid?: boolean;
+    visibleID: string | null;
+    toggleFn: (id: string) => void;
+    state?: FeatureState;
 };
-
 const PricingFeatureItem: React.FC<PricingFeatureItemProps> = ({
     title,
     description,
-    descriptionVisible,
+    visibleID,
     toggleFn,
-    isPaid = false,
+    state = FeatureState.AvailableFree,
 }) => {
-    let checkIconClass = "h-6 w-6";
-    if (isPaid) {
-        checkIconClass += " text-rose-400";
+    // Generate a random internal ID for this component
+    const internalID = useMemo(() => {
+        return `feature-${Math.random().toString(36)}`;
+    }, []);
+
+    const checkIconClass = clsx({
+        "h-6 w-6": true,
+        "text-rose-400":
+            state === FeatureState.AvailablePaid ||
+            state === FeatureState.AvailableFree,
+        "text-gray-400": state === FeatureState.NotAvailable,
+    });
+
+    const containerClasses = clsx({
+        "flex flex-col items-start": true,
+        "text-gray-400": state === FeatureState.NotAvailable,
+        "opacity-50": state === FeatureState.NotAvailable,
+    });
+
+    const descriptionIconClass = clsx({
+        "h-6 w-6 cursor-pointer": true,
+        "hover:text-gray-300": state !== FeatureState.NotAvailable,
+        "cursor-default": state === FeatureState.NotAvailable,
+        "text-gray-400": state === FeatureState.NotAvailable,
+    });
+
+    // If the feature is not available, we don't want to toggle the description
+    if (state === FeatureState.NotAvailable) {
+        toggleFn = () => {
+            // Do nothing
+        };
     }
 
+    const descriptionVisible = visibleID === internalID;
+
     return (
-        <div className="flex flex-col items-start">
-            <div className="flex items-center">
-                <div className="mr-3.5">
-                    <CheckIcon className={checkIconClass} />
+        <div className={containerClasses}>
+            <div className="flex w-full items-center justify-between">
+                <div className="flex items-center">
+                    <div className="mr-3.5">
+                        {state !== FeatureState.NotAvailable && (
+                            <CheckIcon className={checkIconClass} />
+                        )}
+                        {state === FeatureState.NotAvailable && (
+                            <ClockIcon className={checkIconClass} />
+                        )}
+                    </div>
+                    <div className="text-gray-200">{title}</div>
                 </div>
-                <div className="text-gray-200">{title}</div>
                 <div className="ml-2" title="Show more information">
                     <InformationCircleIcon
-                        className="h-6 w-6 hover:text-gray-300 cursor-pointer"
-                        onClick={toggleFn}
+                        className={descriptionIconClass}
+                        onClick={() => toggleFn(internalID)}
                     />
                 </div>
             </div>
             <div
                 id="test-container"
                 className={
-                    "transition-all overflow-hidden " +
+                    "overflow-hidden transition-all " +
                     (descriptionVisible ? "min-h-full" : "max-h-0")
                 }
             >
-                <p className="border-l pl-2 text-gray-400 text-sm ml-10">
+                <p className="ml-10 border-l pl-2 text-sm text-gray-400">
                     {description}
                 </p>
             </div>
@@ -75,15 +124,41 @@ const PricingFeatureItem: React.FC<PricingFeatureItemProps> = ({
     );
 };
 
+type BannerProps = {
+    title: string;
+    subtitle?: string;
+    children?: React.ReactNode;
+};
+const Banner: React.FC<BannerProps> = ({ title, subtitle, children }) => {
+    return (
+        <section className="bg-colorPrimary flex flex-col py-9 text-center">
+            <p className="text-md break-normal px-2 font-bold sm:text-2xl">
+                {title}
+            </p>
+            {subtitle && (
+                <caption>
+                    <p className="text-sm font-bold sm:text-2xl">{subtitle}</p>
+                </caption>
+            )}
+            <div className="pt-4">{children}</div>
+        </section>
+    );
+};
+
 const Index: NextPage = ({}) => {
     const notifyMeModalVisibility = useState(false);
+    const notifyMeModalReference = useState<NotifyMeReference>(null);
     const notifyMeModalSubmitting = useState(false);
     const contactUsModalVisibility = useState(false);
     const contactUsModalSubmitting = useState(false);
 
     const isNotifyMeModalSubmitting = notifyMeModalSubmitting[0];
+    const currNotifyMeModalReference = notifyMeModalReference[0];
     const isContactUsModalSubmitting = contactUsModalSubmitting[0];
 
+    const setNotifyMeModalReference = (ref: NotifyMeReference) => {
+        notifyMeModalReference[1](ref);
+    };
     const showNotifyMeModal = () => notifyMeModalVisibility[1](true);
     const hideNotifyMeModal = () => notifyMeModalVisibility[1](false);
     const showContactUsModal = () => contactUsModalVisibility[1](true);
@@ -92,115 +167,91 @@ const Index: NextPage = ({}) => {
     const notifyMeSubmitBtnRef = useRef<HTMLButtonElement>(null);
     const contactUsSubmitBtnRef = useRef<HTMLButtonElement>(null);
 
-    const [tierCardDetailsVisible, setTierCardDetailsVisible] = useState([
-        // Free tier
-        false,
-        false,
-        false,
-        false,
-        false,
-        // Paid tier
-        false,
-        false,
-        false,
-        false,
-        false,
-    ]);
-
-    const toggleTierCardDetails = (index: number) => {
-        const newFreeTierCardDetails = [
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-        ];
-        newFreeTierCardDetails[index] = !tierCardDetailsVisible[index];
-        setTierCardDetailsVisible(newFreeTierCardDetails);
+    const [tierCardFeatureInfoVisible, setTierCardFeatureInfoVisible] =
+        useState<string | null>(null);
+    const toggleTierCardFeatureInfo = (tierFeatureID: string) => {
+        if (tierCardFeatureInfoVisible === tierFeatureID) {
+            setTierCardFeatureInfoVisible(null);
+        } else {
+            setTierCardFeatureInfoVisible(tierFeatureID);
+        }
     };
 
     return (
         <>
-            <Head>
-                <meta
-                    name="viewport"
-                    content="width=device-width, initial-scale=1"
-                />
-                <meta charSet="utf-8" />
-                <title>Cryptex Vault - Decentralized Identity Manager</title>
-                <meta
-                    name="description"
-                    content="No need to depend on any service that holds your passwords, secrets or other credentials."
-                />
-                <link rel="icon" href="/favicon.ico" />
-            </Head>
+            <HTMLHeader
+                title="Cryptex Vault - Decentralized Identity Manager"
+                description="No need to depend on any service that holds your passwords, secrets or other credentials."
+            />
 
-            <main className="main">
+            <HTMLMain>
+                <div className="bg-colorPrimary top-0 z-10 flex w-full justify-center px-2 text-center sm:sticky">
+                    <p>
+                        <b>CRYPTEX VAULT</b> is currently in <b>BETA</b>! If you
+                        would like to suggest a feature or report a bug, please{" "}
+                        <a
+                            className="cursor-pointer underline hover:text-rose-200"
+                            onClick={showContactUsModal}
+                        >
+                            <b>contact us</b>
+                        </a>
+                        .
+                    </p>
+                </div>
                 <NavBar>
-                    <div className="text-lg hidden lg:block">
+                    <div className="hidden text-lg lg:block">
                         <a
                             href="#section-home"
-                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                            className="mr-4 mt-4 block text-white transition-colors hover:text-rose-400 lg:mt-0 lg:inline-block"
                         >
                             Home
                         </a>
                         <a
                             href="#section-about"
-                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                            className="mr-4 mt-4 block text-white transition-colors hover:text-rose-400 lg:mt-0 lg:inline-block"
                         >
                             About
                         </a>
                         <a
                             href="#section-faq"
-                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors mr-4"
+                            className="mr-4 mt-4 block text-white transition-colors hover:text-rose-400 lg:mt-0 lg:inline-block"
                         >
                             FAQ
                         </a>
                         <a
                             href="#section-pricing"
-                            className="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-rose-400 transition-colors"
+                            className="mt-4 block text-white transition-colors hover:text-rose-400 lg:mt-0 lg:inline-block"
                         >
                             Pricing
                         </a>
                     </div>
                     <div className="hidden md:block">
-                        <AnchorFullRoundFade
-                            text="Notify me"
-                            onClick={showNotifyMeModal}
-                        />
+                        <Link href={"/app"}>
+                            <AnchorFullRoundFade text="Open Vault" />
+                        </Link>
                     </div>
                 </NavBar>
 
                 <div className="content">
                     <section
                         id="section-home"
-                        className="h-full snap-center pb-16 bg-grid pt-0 md:pt-10 sm:pt-0 px-5"
+                        className="bg-grid h-full snap-center px-5 pb-16 pt-0 sm:pt-0 md:pt-10"
                     >
-                        <div className="h-full flex items-center justify-evenly">
+                        <div className="flex h-full items-center justify-evenly">
                             <div>
-                                <h1 className="font-medium text-5xl md:text-7xl text-center md:text-start">
+                                <h1 className="pb-5 text-center text-5xl font-medium md:text-start md:text-7xl">
                                     Fully{" "}
-                                    <span className="text-5xl md:text-7xl text-rose-400">
+                                    <span className="text-5xl text-rose-400 md:text-7xl">
                                         Decentralized
                                     </span>
                                     <br />
                                     Identity Manager
                                 </h1>
-                                <p className="ml-2 pt-5 text-gray-300">
-                                    No need to depend on any service that holds
-                                    your passwords, secrets or other
-                                    credentials.
-                                </p>
                                 <p className="ml-2 text-gray-300">
-                                    It&apos;s your data and nobody should be
-                                    able to read it, except <b>you</b>.
+                                    We believe that your data is yours,
+                                    encrypted or not, nobody should be able to
+                                    read it, except <b>you</b>.
                                 </p>
-                                <br />
                                 <p className="ml-2 text-gray-300">
                                     That&apos;s why we built{" "}
                                     <b className="text-rose-400">
@@ -208,27 +259,38 @@ const Index: NextPage = ({}) => {
                                     </b>
                                     .
                                 </p>
+                                <br />
                                 <p className="ml-2 text-gray-300">
-                                    We can&apos;t even know what you store in
-                                    your vault and that is because your data
-                                    does not touch our servers.
+                                    At Cryptex Vault, we deeply believe in
+                                    empowering you to take full control of your
+                                    digital identity. <br />
+                                    {/* We understand the importance of keeping your
+                                    passwords, secrets, and credentials safe,{" "}
+                                    <br /> without relying on external services
+                                    that might compromise your privacy. */}
                                 </p>
+                                {/* <p className="ml-2 text-gray-300">
+                                    Our commitment to privacy means your data
+                                    remains exclusively yours, encrypted or not.{" "}
+                                    <br />
+                                    By keeping your information off our servers,
+                                    the security of your data is guaranteed at
+                                    the highest level.
+                                </p> */}
                                 <p className="ml-2 text-gray-300">
                                     Our job is to make sure your devices are
-                                    connected and synchronized. That&apos;s it.
+                                    connected and synchronized, that&apos;s it.
                                 </p>
                                 <div className="mt-20">
-                                    <Link href={"#section-about"}>
-                                        <div>
-                                            <AnchorFullRoundFade
-                                                text="Tell me more!"
-                                                className="py-5 px-10 mr-7"
-                                            />
-                                        </div>
+                                    <Link href={"#section-pricing"}>
+                                        <AnchorFullRoundFade
+                                            text="Start Now!"
+                                            className="mr-7 px-10 py-5"
+                                        />
                                     </Link>
                                 </div>
                             </div>
-                            <div className="hidden lg:block">
+                            <div className="hidden select-none lg:block">
                                 <Image
                                     width={986 / 1.5}
                                     height={1105 / 1.5}
@@ -240,15 +302,15 @@ const Index: NextPage = ({}) => {
                         </div>
                     </section>
 
-                    <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
+                    <hr className="mb-auto ml-auto mr-auto mt-auto w-3/4 opacity-20"></hr>
 
                     <section
                         id="section-about"
-                        className="h-full py-16 px-5 sm:px-0"
+                        className="h-full px-5 py-16 sm:px-0"
                     >
-                        <div className="h-full flex flex-col sm:flex-row items-center justify-evenly">
-                            <div className="max-w-lg mb-7 sm:mb-0">
-                                <h1 className="text-5xl text-gray-300 text-center sm:text-start">
+                        <div className="flex h-full flex-col items-center justify-evenly sm:flex-row">
+                            <div className="mb-7 max-w-lg sm:mb-0">
+                                <h1 className="text-center text-5xl text-gray-300 sm:text-start">
                                     What is{" "}
                                     <b className="text-rose-400">
                                         Cryptex Vault{" "}
@@ -258,70 +320,80 @@ const Index: NextPage = ({}) => {
                             </div>
                             {/* Roses are red, violets are blue, we're here
                                     to protect you. */}
-                            <div className="vertical-line h-96 hidden lg:block"></div>
+                            <div className="vertical-line hidden h-96 lg:block"></div>
                             <div className="max-w-lg">
-                                <p className="text-gray-500 mb-2">
+                                <p className="mb-2 text-gray-500">
                                     What are we?
                                 </p>
-                                <p className="ml-4 text-gray-300 text-justify sm:text-start">
+                                <p className="ml-4 text-justify text-gray-300 sm:text-start">
                                     Cryptex Vault is a fully decentralized
-                                    identity manager. It allows you to store
-                                    your credentials, secrets and other
-                                    information in a secure way using mobile
-                                    applications and browser extensions.
+                                    identity manager. It allows you to store and
+                                    use your credentials, secrets and other
+                                    information in a secure way using the web
+                                    application and browser extensions. The web
+                                    application can easily be used offline as it
+                                    is a PWA (Progressive Web App).
                                 </p>
-                                <p className="text-gray-500 mt-4 mb-2">
+                                <p className="mb-2 mt-4 text-gray-500">
                                     How the rest of the industry works?
                                 </p>
-                                <p className="ml-4 text-gray-300 text-justify sm:text-start">
+                                <p className="ml-4 text-justify text-gray-300 sm:text-start">
                                     Most of the password managers out there are
                                     centralized. They store your data on their
                                     servers, which means that they can read it.
-                                    They can also sell your data to third
-                                    parties. We don&apos;t want that. We want to
-                                    give you the power to control your data.
+                                    They can also sell some of your data to
+                                    third parties. We don&apos;t want that. We
+                                    want to give you the power to control your
+                                    data.
                                 </p>
-                                <p className="text-gray-500 mt-4 mb-2">
+                                <p className="mb-2 mt-4 text-gray-500">
                                     How we do it.
                                 </p>
-                                <p className="ml-3 text-gray-300 text-justify sm:text-start">
+                                <p className="ml-3 text-justify text-gray-300 sm:text-start">
                                     Unlike other password managers, Cryptex
-                                    Vault doesn&apos;t store your data.
-                                    It&apos;s only stored on your devices, not
-                                    servers.
-                                    <br /> You can use it on any supported
-                                    platform.
+                                    Vault doesn&apos;t store your data in the
+                                    cloud. It&apos;s only stored on your
+                                    devices, not servers. By keeping your
+                                    information off our servers, the security of
+                                    your data is guaranteed at the highest
+                                    level.
+                                    <br /> All modern browsers are supported,
+                                    with browser extensions coming soon.
                                 </p>
 
-                                <p className="text-gray-500  mt-10 mb-2">
+                                {/* <p className="mb-2 mt-10 hidden text-gray-500">
                                     Supported platforms (on launch)
-                                </p>
-                                <div className="flex flex-wrap justify-center items-center space-x-2">
+                                </p> */}
+                                {/* flex */}
+                                {/* <div className="hidden flex-wrap items-center justify-center space-x-2">
                                     <div
                                         className={
-                                            IndexStyles.zmBrowserImgChrome
+                                            DownloadBadges.zmBrowserImgChrome
                                         }
                                     ></div>
                                     <div
-                                        className={IndexStyles.zmBrowserImgFox}
+                                        className={
+                                            DownloadBadges.zmBrowserImgFox
+                                        }
                                     ></div>
-                                    <a>
-                                        <Image
-                                            width={200}
-                                            height={80}
-                                            alt="Get it on Google Play"
-                                            src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
-                                        />
-                                    </a>
-                                    <p className="text-gray-300">
-                                        ... coming soon to the Apple App Store!
+                                    // <a href="">
+                                    //     <Image
+                                    //         width={200}
+                                    //         height={80}
+                                    //         alt="Get it on Google Play"
+                                    //         src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
+                                    //     />
+                                    // </a> 
+                                    <p className="text-center text-gray-300">
+                                        ... coming soon to the <br /> Google
+                                        Play store & Apple App Store!
                                     </p>
-                                </div>
+                                </div> */}
                             </div>
                         </div>
                     </section>
 
-                    <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
+                    <hr className="mb-auto ml-auto mr-auto mt-auto w-3/4 opacity-20"></hr>
 
                     <section
                         id="section-faq"
@@ -329,22 +401,27 @@ const Index: NextPage = ({}) => {
                     >
                         <div className="mb-16">
                             <Accordion>
-                                <h1 className="text-2xl font-medium leading-6 w-full text-center mt-2 mb-3">
+                                <h1 className="mb-3 mt-2 w-full text-center text-2xl font-medium leading-6">
                                     Frequently Asked Questions
                                 </h1>
                                 <AccordionItem title="What is a Vault?">
-                                    A vault is a place to safely store your
-                                    credentials and other secrets locally, on
-                                    your devices.
+                                    A vault is much like a safe. It is a place
+                                    to store your credentials and other secrets
+                                    locally, on your devices.
                                 </AccordionItem>
                                 <AccordionItem title="Where is my data?">
-                                    Your data is only stored on your devices.
+                                    The only copy of your data is stored on your
+                                    devices. When you&apos;re synchronizing your
+                                    vault, it is encrypted and sent directly to
+                                    your other devices.
                                 </AccordionItem>
-                                <AccordionItem title="Will Cryptex Vault be open source?">
+                                <AccordionItem title="Will Cryptex Vault be open sourced?">
                                     There are plans to open source the project
-                                    later in development. Stay tuned.
+                                    later in development. We believe that by
+                                    doing so we can create a more secure and
+                                    trustworthy product. Stay tuned.
                                 </AccordionItem>
-                                <AccordionItem title="Why can't I see the pricing?">
+                                <AccordionItem title="Why can't I see the pricing for the Enterprise tier?">
                                     The pricing will be announced on product
                                     launch.
                                 </AccordionItem>
@@ -352,26 +429,26 @@ const Index: NextPage = ({}) => {
                         </div>
                     </section>
 
-                    <hr className="opacity-20 w-3/4 ml-auto mr-auto mt-auto mb-auto"></hr>
+                    <hr className="mb-auto ml-auto mr-auto mt-auto w-3/4 opacity-20"></hr>
 
                     <section
                         id="section-pricing"
-                        className="h-full pt-16 pb-5 px-5 sm:px-0"
+                        className="flex h-full flex-col px-5 pb-5 pt-16 sm:px-0"
                     >
                         <div className="flex w-full justify-center">
-                            <h1 className="text-5xl sm:text-7xl leading-snug text-center">
-                                <span className="text-rose-400 font-medium">
+                            <h1 className="text-center text-5xl leading-snug sm:text-7xl">
+                                <span className="font-medium text-rose-400">
                                     Choose{" "}
                                 </span>
                                 Your Plan
                             </h1>
                         </div>
 
-                        <div className="flex w-full justify-center flex-col sm:flex-row mt-10 space-y-5 sm:space-y-0 space-x-0 sm:space-x-4 pb-14">
-                            <div className={IndexStyles.pricingCard}>
-                                <div className="flex flex-col max-w-md px-10 py-8 sm:py-16">
+                        <div className="mt-10 flex w-full flex-col items-center justify-center space-x-0 pb-5 sm:scale-100 sm:space-x-5 md:flex-row lg:pb-14">
+                            <div className={IndexStyles.pricingCardScaled}>
+                                <div className="flex max-w-md flex-col px-10 py-8 sm:py-16">
                                     <div className="mb-4">
-                                        <h2 className="font-bold text-lg text-gray-400">
+                                        <h2 className="text-lg font-bold text-gray-400">
                                             Standard
                                         </h2>
                                         <div className="text-3xl font-bold">
@@ -379,19 +456,20 @@ const Index: NextPage = ({}) => {
                                         </div>
                                     </div>
 
-                                    <p className="text-lg text-gray-300 mb-10">
+                                    <p className="mb-10 text-center text-lg text-gray-300">
                                         A good starting point for those who want
-                                        to try out the product.
+                                        to try out CryptexVault.
                                     </p>
 
-                                    <AnchorFullRoundFade
-                                        text="Get Started"
-                                        className="py-5 px-10"
-                                        disabled={true}
-                                    />
+                                    <Link href={"/app"}>
+                                        <AnchorFullRoundFade
+                                            text="Start Now"
+                                            className="w-full px-10 py-5"
+                                        />
+                                    </Link>
                                     <div className="mt-5 sm:mt-12">
                                         <div className="mb-6">
-                                            <div className="text-gray-200 font-bold">
+                                            <div className="font-bold text-gray-200">
                                                 What&apos;s included:
                                             </div>
                                         </div>
@@ -399,75 +477,90 @@ const Index: NextPage = ({}) => {
                                             <PricingFeatureItem
                                                 title="Personal secure credentials storage"
                                                 description="You can save secrets in the form of passwords, credit cards, etc."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[0] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(0)
+                                                state={
+                                                    FeatureState.AvailableFree
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
                                             <PricingFeatureItem
                                                 title="Stores unlimited credentials per vault"
                                                 description="We don't limit the amount of passwords (or other secrets) that you can save!"
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[1] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(1)
+                                                state={
+                                                    FeatureState.AvailableFree
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
                                             <PricingFeatureItem
                                                 title="A Secure Vault"
                                                 description="This is where you save your credentials (passwords and other secrets)."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[2] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(2)
+                                                state={
+                                                    FeatureState.AvailableFree
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
                                             <PricingFeatureItem
                                                 title="Create encrypted backups"
                                                 description="Create an encrypted backup then upload it to your Google Drive, OneDrive, GitHub, GitLab, with a single press of a button."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[3] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(3)
+                                                state={
+                                                    FeatureState.AvailableFree
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
-                                            <PricingFeatureItem
+                                            {/* <PricingFeatureItem
                                                 title="Data sync (with 1 device)"
                                                 description="Connect your vault to your browser! Which makes it easy to use your credentials within the browser."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[4] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(4)
+                                                state={
+                                                    FeatureState.AvailableFree
                                                 }
-                                            />
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            /> */}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div className={IndexStyles.pricingCard}>
-                                <div className="flex flex-col max-w-md px-10 py-8 sm:py-16">
+                                <div className="flex max-w-md flex-col px-10 py-8 sm:py-16">
                                     <div className="mb-4">
-                                        <h2 className="font-bold text-lg text-gray-400">
+                                        <h2 className="text-lg font-bold text-gray-400">
                                             Premium
                                         </h2>
                                         <div className="flex items-end">
                                             <div className="text-3xl font-bold">
-                                                € ???
+                                                €4,99
                                             </div>
-                                            <div className="text-xl ml-1">
+                                            <div className="ml-1 text-xl">
                                                 / month
                                             </div>
                                         </div>
                                     </div>
 
-                                    <p className="text-lg text-gray-300 mb-10">
+                                    <p className="mb-10 text-center text-lg text-gray-300">
                                         For those who want{" "}
                                         <span className="text-red-400">
                                             more{" "}
@@ -475,82 +568,188 @@ const Index: NextPage = ({}) => {
                                         than just a secure password manager.
                                     </p>
 
-                                    <AnchorFullRoundFade
-                                        text="Get Started"
-                                        className="py-5 px-10"
-                                        disabled={true}
-                                    />
+                                    <Link
+                                        href={`/app/?checkout=${PAYMENT_TIERS.premiumMonthly}`}
+                                    >
+                                        <AnchorFullRoundFade
+                                            text="Buy Now"
+                                            type={ButtonType.FadeGreen}
+                                            className="w-full px-10 py-5"
+                                        />
+                                    </Link>
                                     <div className="mt-5 sm:mt-12">
                                         <div className="mb-6">
-                                            <div className="text-gray-200 font-bold">
+                                            <div className="font-bold text-gray-200">
                                                 What&apos;s included:
                                             </div>
                                         </div>
                                         <div className="flex flex-col space-y-4">
                                             <PricingFeatureItem
                                                 title="Everything from the standard plan"
-                                                isPaid={true}
                                                 description="This tier includes everything from the free tier."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[10] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(10)
+                                                state={
+                                                    FeatureState.AvailablePaid
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
                                             <PricingFeatureItem
                                                 title="Unlimited secure vaults"
-                                                isPaid={true}
                                                 description="You get unlimited vaults in which you can save credentials."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[5] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(5)
+                                                state={
+                                                    FeatureState.AvailablePaid
                                                 }
-                                            />
-                                            <PricingFeatureItem
-                                                title="Automated encrypted backups to external services"
-                                                isPaid={true}
-                                                description="Automatically creates and encrypts your vault backup then uploads it to your Google Drive, OneDrive, GitHub, GitLab - every time you make a change."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[6] as boolean
-                                                }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(6)
-                                                }
-                                            />
-                                            <PricingFeatureItem
-                                                title="Feature Voting"
-                                                isPaid={true}
-                                                description="Have the power to decide on the future of Cryptex Vault! Vote up the features you want to see implemented."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[7] as boolean
-                                                }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(7)
-                                                }
-                                            />
-                                            <PricingFeatureItem
-                                                title="Credentials borrowing (password sharing)"
-                                                isPaid={true}
-                                                description="Share a password with a buddy or your family, securely - inside Cryptex Vault!"
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[8] as boolean
-                                                }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(8)
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
                                             <PricingFeatureItem
                                                 title="Data sync (with unlimited devices)"
-                                                isPaid={true}
                                                 description="Connect your vaults to your desktop, laptop and your buddies laptop browser - you have it all."
-                                                descriptionVisible={
-                                                    tierCardDetailsVisible[9] as boolean
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
                                                 }
-                                                toggleFn={() =>
-                                                    toggleTierCardDetails(9)
+                                                state={
+                                                    FeatureState.AvailablePaid
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Feature Voting"
+                                                description="Have the power to decide on the future of Cryptex Vault! Vote up the features you want to see implemented."
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
+                                                }
+                                                state={
+                                                    FeatureState.AvailablePaid
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Automated encrypted backups to external services"
+                                                description="Automatically creates and encrypts your vault backup then uploads it to your Google Drive, OneDrive, GitHub, GitLab - every time you make a change."
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
+                                                }
+                                                state={
+                                                    FeatureState.NotAvailable
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Credentials borrowing (password sharing)"
+                                                description="Share a password with a buddy or your family, securely - inside Cryptex Vault!"
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
+                                                }
+                                                state={
+                                                    FeatureState.NotAvailable
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={IndexStyles.pricingCardScaled}>
+                                <div className="flex max-w-md flex-col px-10 py-8 sm:py-16">
+                                    <div className="mb-4">
+                                        <h2 className="text-lg font-bold text-gray-400">
+                                            Enterprise
+                                        </h2>
+                                        <div className="flex items-end">
+                                            <div className="text-3xl font-bold">
+                                                € TBA
+                                            </div>
+                                            <div className="ml-1 hidden text-xl">
+                                                / month
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p className="mb-10 text-center text-lg text-gray-300">
+                                        For organizations seeking {""}
+                                        <span className="text-red-400">
+                                            advanced features
+                                        </span>
+                                        {""} and {""}
+                                        <span className="text-red-400">
+                                            robust security
+                                        </span>
+                                        , ensuring seamless team collaboration
+                                        and efficient credential management.
+                                    </p>
+
+                                    <AnchorFullRoundFade
+                                        text="Get Notified"
+                                        className="px-10 py-5"
+                                        onClick={() => {
+                                            setNotifyMeModalReference(
+                                                "enterprise-tier"
+                                            );
+                                            showNotifyMeModal();
+                                        }}
+                                    />
+                                    <div className="mt-5 sm:mt-12">
+                                        <div className="mb-6">
+                                            <div className="font-bold text-gray-200">
+                                                What&apos;s included:
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col space-y-4">
+                                            <PricingFeatureItem
+                                                title="Everything from the standard and premium plan"
+                                                description="This tier includes everything from the free tier."
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
+                                                }
+                                                state={
+                                                    FeatureState.AvailablePaid
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="User account management and organization"
+                                                description="Create and manage user accounts for your team members. Add users to a particular group for easy management."
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
+                                                }
+                                                state={
+                                                    FeatureState.AvailablePaid
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
+                                                }
+                                            />
+                                            <PricingFeatureItem
+                                                title="Credentials management"
+                                                description="Provision and control vaults and credentials for your team members, on a per user or group basis."
+                                                visibleID={
+                                                    tierCardFeatureInfoVisible
+                                                }
+                                                state={
+                                                    FeatureState.AvailablePaid
+                                                }
+                                                toggleFn={
+                                                    toggleTierCardFeatureInfo
                                                 }
                                             />
                                         </div>
@@ -560,40 +759,37 @@ const Index: NextPage = ({}) => {
                         </div>
                     </section>
 
-                    <section
-                        id="notify-launch"
-                        className="h-full bg-colorPrimary flex flex-col justify-center py-10 px-2"
+                    <Banner
+                        title={"We are in beta, give us a try and let us know what you think!".toUpperCase()}
                     >
-                        <h1 className="text-4xl font-bold text-center text-gray-200">
-                            Get notified when we launch!
-                        </h1>
-                        <div className="flex flex-col sm:flex-row justify-center mt-6">
-                            <div>
-                                <button
-                                    className="bg-rose-400 hover:opacity-70 text-white font-bold py-2 px-4 w-full sm:w-fit rounded-md transition-opacity sm:ml-4 mt-2 sm:mt-0"
-                                    onClick={showNotifyMeModal}
-                                >
-                                    Notify me
-                                </button>
-                            </div>
-                        </div>
-                    </section>
+                        <Link href={"/app"}>
+                            <ButtonFlat
+                                text="GET STARTED"
+                                className="font-semibold"
+                                inhibitAutoWidth
+                                type={ButtonType.Flat}
+                            />
+                        </Link>
+                    </Banner>
                 </div>
 
-                <footer className="bg-gray-900 pt-10 pb-5 px-2 flex flex-col items-center w-full">
-                    <div className="flex flex-col sm:flex-row justify-around w-full mb-4">
+                <PageFooter>
+                    <div
+                        id="section-contact"
+                        className="mb-4 flex w-full flex-col justify-around pt-10 sm:flex-row"
+                    >
                         <div>
                             <h1 className="text-4xl font-bold text-gray-200">
                                 Get in touch
                             </h1>
-                            <p className="text-gray-300 mt-1">
+                            <p className="mt-1 text-gray-300">
                                 Feel free to contact us for any questions or to
                                 learn more about our service.
                             </p>
                         </div>
-                        <div className="flex flex-col sm:ml-4 mt-4 sm:mt-0 justify-center text-center sm:text-left">
+                        <div className="mt-4 flex flex-col justify-center text-center sm:ml-4 sm:mt-0 sm:text-left">
                             <button
-                                className="bg-rose-400 hover:opacity-70 text-white font-bold py-2 px-4 w-full w-full rounded-md transition-opacity"
+                                className="w-full rounded-md bg-rose-400 px-4 py-2 font-bold text-white transition-opacity hover:opacity-70"
                                 onClick={showContactUsModal}
                             >
                                 Contact us
@@ -601,26 +797,28 @@ const Index: NextPage = ({}) => {
                             <p className="text-gray-300">
                                 We care about the protection of your data.
                                 <br /> Read our {""}
-                                <Link href="/privacy">
-                                    <a className="underline font-bold">
-                                        Privacy Policy
-                                    </a>
+                                <Link
+                                    href="/privacy"
+                                    className="font-bold underline"
+                                >
+                                    Privacy Policy
+                                </Link>
+                                .
+                            </p>
+                            <p className="text-gray-300">
+                                Also check out our {""}
+                                <Link
+                                    href="/refund-policy"
+                                    className="font-bold underline"
+                                >
+                                    Refund Policy
                                 </Link>
                                 .
                             </p>
                         </div>
                     </div>
-                    <div className="text-center mt-4">
-                        <h1 className="text-sm text-gray-400">
-                            Made with ❤️ by the team at Cryptex Vault.
-                        </h1>
-                        <h1 className="text-sm text-gray-400">
-                            All rights reserved. © {new Date().getFullYear()}{" "}
-                            Cryptex Vault
-                        </h1>
-                    </div>
-                </footer>
-            </main>
+                </PageFooter>
+            </HTMLMain>
 
             <GenericModal
                 key="notify-me-modal"
@@ -629,11 +827,11 @@ const Index: NextPage = ({}) => {
                 <Body>
                     <div className="flex flex-col items-center text-center">
                         <h1 className="text-2xl font-bold text-gray-900">
-                            Get notified when we&apos;re launching!
+                            Get notified
                         </h1>
-                        <p className="text-gray-700 mt-2">
-                            Enter your email below to get notified when
-                            we&apos;re launching.
+                        <p className="mt-2 text-gray-700">
+                            Enter your email below and we will notify you when
+                            it&apos;s ready.
                         </p>
 
                         <Suspense fallback={<Spinner />}>
@@ -641,13 +839,15 @@ const Index: NextPage = ({}) => {
                                 hideModalFn={hideNotifyMeModal}
                                 submitButtonRef={notifyMeSubmitBtnRef}
                                 submittingState={notifyMeModalSubmitting}
+                                reference={currNotifyMeModalReference}
                             />
                         </Suspense>
                     </div>
                 </Body>
-                <Footer className="space-y-3 sm:space-y-0">
+                <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
                     <ButtonFlat
                         text="Notify Me"
+                        className="sm:ml-2"
                         onClick={() => notifyMeSubmitBtnRef.current?.click()}
                         disabled={isNotifyMeModalSubmitting}
                         loading={isNotifyMeModalSubmitting}
@@ -670,7 +870,7 @@ const Index: NextPage = ({}) => {
                             Contact us
                         </h1>
 
-                        <p className="text-gray-700 mt-2">
+                        <p className="mt-2 text-gray-700">
                             Feel free to contact us for any questions or to
                             learn more about our service.
                         </p>
@@ -684,9 +884,10 @@ const Index: NextPage = ({}) => {
                     </div>
                 </Body>
 
-                <Footer className="space-y-3 sm:space-y-0">
+                <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
                     <ButtonFlat
                         text="Send"
+                        className="sm:ml-2"
                         onClick={() => contactUsSubmitBtnRef.current?.click()}
                         disabled={isContactUsModalSubmitting}
                         loading={isContactUsModalSubmitting}

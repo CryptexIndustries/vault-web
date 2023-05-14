@@ -1,27 +1,27 @@
-import Head from "next/head";
 import { GetStaticProps, NextPage } from "next/types";
+import HTMLHeader from "../components/html_header";
+import HTMLMain from "../components/html_main";
 import NavBar from "../components/navbar";
 
 const PrivacyPolicy: NextPage = () => {
     return (
         <>
-            <Head>
-                <title>Cryptex Vault</title>
-                <meta name="description" content="" />
-                <link rel="icon" href="/favicon.ico" />
-            </Head>
+            <HTMLHeader
+                title="Cryptex Vault - Privacy Policy"
+                description="Cryptex Vault's privacy policy."
+            />
 
-            <main className="main">
+            <HTMLMain>
                 <NavBar />
 
-                <div className="content min-h-screen">
-                    <div className="flex flex-col items-center w-full mt-0 md:mt-10 px-5 md:px-0">
+                <div className="content">
+                    <div className="mt-0 flex w-full flex-col items-center px-5 md:mt-10 md:px-0">
                         <h1 className="text-4xl font-bold">Privacy Policy</h1>
-                        <div className="max-w-lg mb-5">
-                            <h2 className="text-2xl font-bold mt-10">
+                        <div className="mb-5 max-w-lg">
+                            <h2 className="mt-10 text-2xl font-bold">
                                 1. Data collection and usage
                             </h2>
-                            <h3 className="text-xl font-bold mt-5">
+                            <h3 className="mt-5 text-xl font-bold">
                                 1.1. Personal data (Visiting our website)
                             </h3>
                             <p className="pt-2 text-justify">
@@ -32,19 +32,22 @@ const PrivacyPolicy: NextPage = () => {
                                 user information about new features. We do not
                                 share this data with any third parties.
                             </p>
-                            <h3 className="text-xl font-bold mt-5">
+                            <h3 className="mt-5 text-xl font-bold">
                                 1.2. Personal data (Creating and using an
-                                account)
+                                account or the application itself)
                             </h3>
                             <p className="pt-2 text-justify">
                                 We collect as little information about the user
                                 as possible. The only information we collect is
-                                the user&apos;s email address, which is used to
-                                identify the user and to send them emails
-                                regarding their account. We do not collect any
-                                other information about the user.
+                                the user&apos;s email address and browser user
+                                agent, the email is used to identify the user
+                                and to send them emails regarding their account,
+                                and the browser user agent is used to help the
+                                user identify the other devices they have logged
+                                in from. We do not collect nor share this data
+                                or any other data to any third parties.
                             </p>
-                            <h3 className="text-xl font-bold mt-5">
+                            <h3 className="mt-5 text-xl font-bold">
                                 1.3. Payment Information
                             </h3>
                             <p className="pt-2 text-justify">
@@ -59,7 +62,7 @@ const PrivacyPolicy: NextPage = () => {
                         </div>
                     </div>
                 </div>
-            </main>
+            </HTMLMain>
         </>
     );
 };

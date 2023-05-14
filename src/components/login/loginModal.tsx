@@ -15,7 +15,8 @@ import { toast } from "react-toastify";
 import Spinner from "../general/spinner";
 import { trpc } from "../../utils/trpc";
 import { NextRouter, useRouter } from "next/router";
-import { GenericModal } from "../general/modal";
+import { Body, Footer, GenericModal } from "../general/modal";
+import { ButtonFlat, ButtonType } from "../general/buttons";
 
 export enum FormMode {
     SignIn = "Login",
@@ -26,22 +27,33 @@ export enum FormMode {
 export type LoginModalProps = {
     visibleState: [boolean, Dispatch<SetStateAction<boolean>>];
     formMode: FormMode;
-    userEmail?: string | null;
+    userInitialMode?: FormMode;
+    accountLinkMode?: boolean;
+    emailPrefill?: string | null;
 };
 
 const LoginModal: React.FC<LoginModalProps> = ({
     visibleState,
     formMode,
-    userEmail,
+    userInitialMode,
+    accountLinkMode,
+    emailPrefill,
 }) => {
     const initialFormMode: FormMode =
         formMode === FormMode.Any ? FormMode.SignIn : formMode;
-    const [currentFormMode, setCurrentFormMode] = useState(initialFormMode);
+    const [currentFormMode, setCurrentFormMode] = useState(
+        userInitialMode ?? initialFormMode
+    );
     const changeFormMode = (newFormMode: FormMode.SignIn | FormMode.SignUp) =>
         setCurrentFormMode(newFormMode);
 
     const signInButtonRef = useRef<HTMLButtonElement>(null);
     const signUpButtonRef = useRef<HTMLButtonElement>(null);
+
+    const hideModal = () => visibleState[1](false);
+
+    const isSubmitting = useState(false);
+    const [inProgress] = isSubmitting;
 
     const onConfirm = () => {
         if (
@@ -58,32 +70,50 @@ const LoginModal: React.FC<LoginModalProps> = ({
     };
 
     return (
-        <GenericModal
-            visibleState={visibleState}
-            confirmButtonText={currentFormMode}
-            onConfirm={onConfirm}
-        >
-            {formMode === FormMode.Any ? (
-                <div className="mt-2">
-                    <TabBar
-                        currentFormMode={currentFormMode}
-                        changeFormMode={changeFormMode}
-                    />
-                </div>
-            ) : null}
-            <div className="flex flex-col items-center mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                <div className="flex flex-col">
-                    {currentFormMode === FormMode.SignIn ? (
-                        <SignInForm submitButtonRef={signInButtonRef} />
-                    ) : (
-                        <SignUpForm
-                            submitButtonRef={signUpButtonRef}
-                            userEmail={userEmail}
-                            hideModalFn={() => visibleState[1](false)}
+        <GenericModal visibleState={visibleState}>
+            <Body>
+                {formMode === FormMode.Any ? (
+                    <div className="mt-2">
+                        <TabBar
+                            currentFormMode={currentFormMode}
+                            changeFormMode={changeFormMode}
                         />
-                    )}
+                    </div>
+                ) : null}
+                <div className="mt-3 flex flex-col items-center text-center sm:ml-4 sm:mt-0 sm:text-left">
+                    <div className="flex flex-col">
+                        {currentFormMode === FormMode.SignIn ? (
+                            <SignInForm
+                                submittingState={isSubmitting}
+                                submitButtonRef={signInButtonRef}
+                                emailPrefill={emailPrefill}
+                            />
+                        ) : (
+                            <SignUpForm
+                                submittingState={isSubmitting}
+                                submitButtonRef={signUpButtonRef}
+                                hideModalFn={hideModal}
+                                emailPrefill={emailPrefill}
+                                linkingMode={accountLinkMode}
+                            />
+                        )}
+                    </div>
                 </div>
-            </div>
+            </Body>
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text={currentFormMode}
+                    className="sm:ml-2"
+                    onClick={onConfirm}
+                    disabled={inProgress}
+                    loading={inProgress}
+                />
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    onClick={hideModal}
+                />
+            </Footer>
         </GenericModal>
     );
 };
@@ -95,15 +125,16 @@ type TabBarProps = {
 
 const TabBar: React.FC<TabBarProps> = ({ currentFormMode, changeFormMode }) => {
     return (
-        <div className="flex flex-row justify-center mb-9">
+        <div className="mb-9 flex flex-row justify-center">
             <button
                 type="button"
                 className={`${
                     currentFormMode === FormMode.SignIn
                         ? "bg-gray-100 text-gray-900"
                         : "text-gray-500 hover:text-gray-700"
-                } w-auto py-3 px-4 border border-gray-300 rounded-l-md text-sm font-medium`}
+                } w-auto rounded-l-md border border-gray-300 px-4 py-3 text-sm font-medium`}
                 onClick={() => changeFormMode(FormMode.SignIn)}
+                autoFocus={currentFormMode === FormMode.SignIn}
             >
                 {FormMode.SignIn}
             </button>
@@ -113,8 +144,9 @@ const TabBar: React.FC<TabBarProps> = ({ currentFormMode, changeFormMode }) => {
                     currentFormMode === FormMode.SignUp
                         ? "bg-gray-100 text-gray-900"
                         : "text-gray-500 hover:text-gray-700"
-                } -ml-px w-auto py-3 px-4 border border-gray-300 rounded-r-md text-sm font-medium`}
+                } w-auto rounded-r-md border border-gray-300 px-4 py-3 text-sm font-medium`}
                 onClick={() => changeFormMode(FormMode.SignUp)}
+                autoFocus={currentFormMode === FormMode.SignUp}
             >
                 {FormMode.SignUp}
             </button>
@@ -124,9 +156,10 @@ const TabBar: React.FC<TabBarProps> = ({ currentFormMode, changeFormMode }) => {
 
 type QRCodeProps = {
     value: string;
+    clickCallback?: () => void;
 };
 
-const QRCode: React.FC<QRCodeProps> = ({ value }) => {
+const QRCode: React.FC<QRCodeProps> = ({ value, clickCallback }) => {
     const DynamicQRCode = dynamic(() => import("react-qr-code"), {
         suspense: true,
     });
@@ -134,7 +167,7 @@ const QRCode: React.FC<QRCodeProps> = ({ value }) => {
     return (
         <>
             <Suspense fallback={<Spinner />}>
-                <DynamicQRCode value={value} />
+                <DynamicQRCode value={value} onClick={clickCallback} />
             </Suspense>
         </>
     );
@@ -142,9 +175,11 @@ const QRCode: React.FC<QRCodeProps> = ({ value }) => {
 
 // #region Sign Up
 type SignUpFormProps = {
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     submitButtonRef: React.RefObject<HTMLButtonElement>;
-    userEmail?: string | null;
     hideModalFn: () => void;
+    emailPrefill?: string | null;
+    linkingMode?: boolean;
 };
 
 interface SignUpFormValues {
@@ -154,17 +189,43 @@ interface SignUpFormValues {
 }
 
 const SignUpForm: React.FC<SignUpFormProps> = ({
+    submittingState,
     submitButtonRef,
-    userEmail,
     hideModalFn,
+    linkingMode,
+    emailPrefill,
 }) => {
     const router = useRouter();
 
     const [otpURI, setOtpURI] = useState("");
     const [secret, setSecret] = useState("");
 
+    const setIsSubmitting = (isSubmitting: boolean) => {
+        submittingState[1](isSubmitting);
+    };
+
     function _QrCode() {
-        return <QRCode value={otpURI} />;
+        return (
+            <QRCode
+                value={otpURI}
+                clickCallback={async () => {
+                    // Copy TOTP secret to clipboard
+                    try {
+                        await navigator.clipboard.writeText(secret);
+                        toast.info("Copied to clipboard!", {
+                            autoClose: 2000,
+                        });
+                    } catch {
+                        toast.warn(
+                            "Failed to copy to clipboard, please update your browser.",
+                            {
+                                autoClose: 2000,
+                            }
+                        );
+                    }
+                }}
+            />
+        );
     }
     // TODO: This component rerenders four times on initial render and on token refresh
     const QrCode = memo(_QrCode);
@@ -189,10 +250,16 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
     }, [secret]);
 
     const { mutate: registerUser } = trpc.useMutation(
-        ["credentials.register-user"],
+        ["credentials.register-user-legacy"],
         {
             onSuccess: async (_, variables) => {
-                if (userEmail == null) {
+                if (linkingMode) {
+                    toast.success("Account successfully linked!", {
+                        autoClose: 2000,
+                    });
+
+                    hideModalFn();
+                } else {
                     toast.success("User successfully registered.", {
                         autoClose: 2000,
                     });
@@ -202,16 +269,12 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
                         { email: variables.email, token: variables.token },
                         router
                     );
-                } else {
-                    toast.success("Account successfully linked!", {
-                        autoClose: 2000,
-                    });
-
-                    hideModalFn();
                 }
+                setIsSubmitting(false);
             },
             onError(error) {
                 toast.error(error.message);
+                setIsSubmitting(false);
             },
         }
     );
@@ -219,7 +282,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
     return (
         <Formik
             initialValues={{
-                email: userEmail ?? "",
+                email: emailPrefill ?? "",
                 secret: secret,
                 token: "",
             }}
@@ -242,6 +305,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
                 return errors;
             }}
             onSubmit={(values: SignUpFormValues, { setSubmitting }) => {
+                setIsSubmitting(true);
                 registerUser(values);
                 setSubmitting(false);
             }}
@@ -270,13 +334,13 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
                             type="email"
                             name="email"
                             placeholder="Enter your email"
-                            className={`border border-gray-300 rounded-md px-3 py-2 disabled:text-gray-300 ${
+                            className={`rounded-md border border-gray-300 px-3 py-2 disabled:text-gray-300 ${
                                 errors.email && touched.email
                                     ? "invalid:border-2 invalid:border-rose-500"
                                     : ""
                             } `}
                             required={true}
-                            disabled={userEmail != null}
+                            disabled={linkingMode != null}
                             onChange={handleChange}
                             onBlur={handleBlur}
                             value={values.email}
@@ -293,17 +357,27 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
                     </div>
 
                     <div className="flex flex-col">
-                        <label className="mb-2 text-sm font-medium text-gray-600 flex">
+                        <label className="mb-2 flex justify-center text-sm font-medium text-gray-600 sm:justify-start">
                             TOTP Key
                             <ArrowPathIcon
                                 onClick={() => {
                                     setSecret("");
                                     setOtpURI("");
                                 }}
-                                className="ml-1 w-5 h-5 text-gray-500 hover:text-gray-700"
+                                className="ml-1 h-5 w-5 text-gray-500 hover:text-gray-700"
                             />
                         </label>
                         <QrCode />
+                        <label className="flex justify-center text-sm text-gray-500">
+                            Press QR code to copy TOTP to clipboard.
+                            <br />
+                            Or copy the key below:
+                        </label>
+                        <input
+                            className="flex justify-center text-sm text-gray-500"
+                            readOnly={true}
+                            value={secret}
+                        ></input>
                         <Field
                             type="password"
                             name="secret"
@@ -326,7 +400,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
                             name="token"
                             id="token"
                             placeholder="Generated Token"
-                            className={`border border-gray-300 rounded-md px-3 py-2 ${
+                            className={`rounded-md border border-gray-300 px-3 py-2 ${
                                 errors.token && touched.token
                                     ? "invalid:border-2 invalid:border-rose-500"
                                     : ""
@@ -362,7 +436,9 @@ const SignUpForm: React.FC<SignUpFormProps> = ({
 
 // #region Sign In
 type SignInFormProps = {
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     submitButtonRef: React.RefObject<HTMLButtonElement>;
+    emailPrefill?: string | null;
 };
 
 interface SignInFormValues {
@@ -376,6 +452,8 @@ interface SignInFormValues {
  * @param router NextJS router instance
  */
 const signInUser = async (values: SignInFormValues, router: NextRouter) => {
+    const signInDelay = 2000;
+
     const result = await signIn("cryptex", {
         redirect: false,
         email: values.email,
@@ -384,23 +462,46 @@ const signInUser = async (values: SignInFormValues, router: NextRouter) => {
 
     if (result?.ok) {
         toast.success("Authentication successful. Redirecting...", {
-            autoClose: 2000,
+            autoClose: signInDelay,
         });
         setTimeout(() => {
             // Reload the page so that the login page can take us to the protected page
-            router.push("/login");
-        }, 2000);
+            // Push the route instead of reloading to avoid the flash of the login page
+            router.push(router.asPath);
+        }, parseInt(`${signInDelay / 2}`));
     } else {
         toast.error("Authentication failed. Please try again.");
         console.error(result);
     }
 };
 
-const SignInForm: React.FC<SignInFormProps> = ({ submitButtonRef }) => {
+const SignInForm: React.FC<SignInFormProps> = ({
+    submittingState,
+    submitButtonRef,
+    emailPrefill,
+}) => {
     const router = useRouter();
+
+    const setIsSubmitting = (value: boolean) => {
+        submittingState[1](value);
+    };
+
+    useEffect(() => {
+        // Get the token field and focus it
+        const tokenField = document.getElementById("token");
+        if (tokenField && emailPrefill) {
+            tokenField.focus();
+        } else {
+            const emailField = document.getElementById("email-signin");
+            if (emailField) {
+                emailField.focus();
+            }
+        }
+    }, []);
+
     return (
         <Formik
-            initialValues={{ email: "", token: "" }}
+            initialValues={{ email: emailPrefill ?? "", token: "" }}
             enableReinitialize={true}
             validate={(values: SignInFormValues) => {
                 const errors: { email?: string; token?: string } = {};
@@ -420,8 +521,10 @@ const SignInForm: React.FC<SignInFormProps> = ({ submitButtonRef }) => {
                 return errors;
             }}
             onSubmit={async (values: SignInFormValues, { setSubmitting }) => {
+                setIsSubmitting(true);
                 await signInUser(values, router);
                 setSubmitting(false);
+                setIsSubmitting(false);
             }}
         >
             {({
@@ -447,8 +550,9 @@ const SignInForm: React.FC<SignInFormProps> = ({ submitButtonRef }) => {
                         <Field
                             type="email"
                             name="email"
+                            id="email-signin"
                             placeholder="Enter your email"
-                            className={`border border-gray-300 rounded-md px-3 py-2 ${
+                            className={`rounded-md border border-gray-300 px-3 py-2 ${
                                 errors.email && touched.email
                                     ? "invalid:border-2 invalid:border-rose-500"
                                     : ""
@@ -481,7 +585,7 @@ const SignInForm: React.FC<SignInFormProps> = ({ submitButtonRef }) => {
                             name="token"
                             id="token"
                             placeholder="Generated Token"
-                            className={`border border-gray-300 rounded-md px-3 py-2 ${
+                            className={`rounded-md border border-gray-300 px-3 py-2 ${
                                 errors.token && touched.token
                                     ? "invalid:border-2 invalid:border-rose-500"
                                     : ""

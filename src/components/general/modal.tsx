@@ -2,18 +2,44 @@ import { Dialog, Transition } from "@headlessui/react";
 import { Dispatch, Fragment, SetStateAction } from "react";
 
 export type ModalProps = {
+    /**
+     * The state of the modal.
+     * @returns [boolean, Dispatch<SetStateAction<boolean>>]
+     * @example const modalState = useState(false);
+     */
     visibleState: [boolean, Dispatch<SetStateAction<boolean>>];
-    titleText?: string;
-    onHide?: () => void;
+
+    /**
+     * This only triggers if the modal is dismissed by clicking outside of the modal.
+     * Only triggers if inhibitDismissOnClickOutside is false.
+     * @returns void
+     */
+    onDismissed?: () => void;
+
+    /**
+     * If true, the modal will not be dismissed when clicking outside of the modal.
+     */
+    inhibitDismissOnClickOutside?: boolean;
+
+    /**
+     * The title of the modal.
+     * @returns React.ReactNode
+     */
     childrenTitle?: React.ReactNode;
+
+    /**
+     * The content of the modal.
+     * @returns React.ReactNode
+     */
     children?: React.ReactNode;
 };
 
 export const GenericModal: React.FC<ModalProps> = ({
     visibleState,
-    onHide = () => {
-        // Default function
+    onDismissed = () => {
+        // No-op
     },
+    inhibitDismissOnClickOutside = false,
     childrenTitle,
     children,
 }) => {
@@ -22,16 +48,24 @@ export const GenericModal: React.FC<ModalProps> = ({
     const hideModal = () => setIsVisible(false);
 
     /**
-     * This function is triggered on modal hide.
+     * This function is triggered when the user clicks outside of the modal.
      */
-    const _onHide = () => {
+    const _onDismiss = () => {
         hideModal();
-        onHide();
+        onDismissed();
+    };
+
+    const dummyFn = () => {
+        // No-op
     };
 
     return (
         <Transition.Root show={isVisible} as={Fragment}>
-            <Dialog as="div" className="relative z-10" onClose={_onHide}>
+            <Dialog
+                as="div"
+                className="relative z-10"
+                onClose={inhibitDismissOnClickOutside ? dummyFn : _onDismiss}
+            >
                 <Transition.Child
                     as={Fragment}
                     enter="ease-out duration-300"
@@ -41,11 +75,11 @@ export const GenericModal: React.FC<ModalProps> = ({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 bg-black backdrop-blur-sm bg-opacity-10 transition-opacity duration-150" />
+                    <div className="fixed inset-0 bg-black bg-opacity-10 backdrop-blur-sm transition-opacity duration-150" />
                 </Transition.Child>
 
                 <div className="fixed inset-0 z-10 overflow-y-auto">
-                    <div className="flex md:min-h-full sm:items-center justify-center p-4 text-center sm:p-0">
+                    <div className="mt-4 flex justify-center text-center sm:mt-0 sm:items-center md:min-h-full">
                         <Transition.Child
                             as={Fragment}
                             enter="ease-out duration-300"
@@ -57,7 +91,7 @@ export const GenericModal: React.FC<ModalProps> = ({
                         >
                             <Dialog.Panel className="relative transform overflow-hidden rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
                                 {childrenTitle ? (
-                                    <div className="bg-gray-50 flex px-4 py-3 justify-center sm:justify-start py-6">
+                                    <div className="flex justify-center bg-gray-50 px-4 py-3 sm:justify-start">
                                         {childrenTitle}
                                     </div>
                                 ) : null}
@@ -86,7 +120,9 @@ export const Title: React.FC<GeneralProps> = ({ children, className }) => (
 );
 
 export const Body: React.FC<GeneralProps> = ({ children, className }) => (
-    <div className={"bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 " + className}>
+    <div
+        className={"bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 " + className ?? ""}
+    >
         {children}
     </div>
 );

@@ -2,12 +2,7 @@
 
 import { NextApiRequest, NextApiResponse, NextPage } from "next";
 import { BuiltInProviderType } from "next-auth/providers";
-import {
-    ClientSafeProvider,
-    getProviders,
-    LiteralUnion,
-    signIn,
-} from "next-auth/react";
+import { ClientSafeProvider, LiteralUnion } from "next-auth/react";
 import { useState } from "react";
 import { toast } from "react-toastify";
 import LoginModal, { FormMode } from "../components/login/loginModal";

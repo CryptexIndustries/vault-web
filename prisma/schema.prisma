@@ -2,25 +2,39 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider = "prisma-client-js"
+    provider      = "prisma-client-js"
+    binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-    provider = "postgresql"
+    // Use "sqlite" for local development (offline), "mysql" for production or development (online)
+    provider = "mysql"
+
     // NOTE: When using postgresql, mysql or sqlserver, uncomment the @db.text annotations in model Account below
     // Further reading: 
     // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
     // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_URL")
+    url          = env("DATABASE_URL")
+    relationMode = "prisma"
 }
 
-model NotifyMeUsers {
-    id    String   @id @default(cuid())
-    email String   @unique
-    date  DateTime @default(now())
+model User {
+    id                  String               @id @default(cuid())
+    name                String?              @db.VarChar(255)
+    email               String               @unique
+    emailVerified       String?              @map("email_verified")
+    email_verified_at   DateTime?
+    created_at          DateTime             @default(now())
+    image               String?
+    payment_customer_id String?
+    accounts            Account[]
+    sessions            Session[]
+    verification_tokens VerificationToken[]
+    subscription        Subscription[]
+    api_keys            APIKey[]
+    FeatureVotingVotes  FeatureVotingVotes[]
 }
 
-// Necessary for Next auth
 model Account {
     id                String   @id @default(cuid())
     userId            String
@@ -29,7 +43,8 @@ model Account {
     providerAccountId String
     refresh_token     String?  @db.Text
     access_token      String?  @db.Text
-    totp_secret       String?  @db.Text
+    totp_secret       String?  @db.Text // OBSOLETE
+    public_key        String?  @db.Text
     created_at        DateTime @default(now())
     expires_at        Int?
     token_type        String?
@@ -38,35 +53,116 @@ model Account {
     session_state     String?
     user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([provider, providerAccountId])
+    @@unique([providerAccountId])
+    @@index([userId])
 }
 
 model Session {
     id           String   @id @default(cuid())
-    sessionToken String   @unique
     userId       String
+    sessionToken String   @unique
     expires      DateTime
     created_at   DateTime @default(now())
-    user_agent   String?
+    user_agent   String?  @db.VarChar(255)
     ip           String?
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
 }
 
-model User {
-    id            String    @id @default(cuid())
-    name          String?
-    email         String?   @unique
-    emailVerified DateTime?
-    created_at    DateTime  @default(now())
-    image         String?
-    accounts      Account[]
-    sessions      Session[]
+model VerificationToken {
+    id      String
+    user_id String
+    token   String   @unique
+    expires DateTime
+    user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+    @@unique([id, token, user_id])
+    @@index([user_id])
 }
 
-// model VerificationToken {
-//     identifier String
-//     token      String   @unique
-//     expires    DateTime
+model Subscription {
+    id                   String                @id @default(cuid())
+    user_id              String                @unique
+    customer_id          String                @unique
+    created_at           DateTime?
+    expires_at           DateTime?
+    status               String?
+    payment_status       String?
+    cancel_at_period_end Boolean?
+    product_id           String?
+    user                 User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    configuration        ProductConfiguration? @relation(fields: [product_id], references: [product_id], onDelete: NoAction)
 
-//     @@unique([identifier, token])
-// }
+    @@index([product_id])
+}
+
+// AKA plan settings
+model ProductConfiguration {
+    id                    String         @id @default(cuid())
+    product_id            String         @unique
+    allowed_api_keys      Int            @default(0) // OBSOLETE
+    linking_allowed       Boolean        @default(false)
+    max_links             Int            @default(1) // This includes the current account
+    always_connected      Boolean        @default(false) // Always connected to the WS server - from vault decryption
+    feature_voting        Boolean        @default(false)
+    credentials_borrowing Boolean        @default(false)
+    automated_backups     Boolean        @default(false)
+    subscriptions         Subscription[]
+}
+
+model APIKey {
+    id         String    @id @default(cuid())
+    user_id    String
+    name       String
+    created_at DateTime  @default(now())
+    last_used  DateTime?
+    key        String    @unique
+    user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+    @@index([user_id])
+}
+
+model NotifyMeUsers {
+    id    String   @id @default(cuid())
+    email String   @unique @db.VarChar(255)
+    ref   String?  @db.VarChar(100)
+    date  DateTime @default(now())
+}
+
+model FeatureVotingRounds {
+    id          String               @id @default(cuid())
+    title       String               @unique @db.VarChar(255)
+    description String?              @db.Text
+    start       DateTime             @default(now())
+    end         DateTime
+    visible     Boolean              @default(false)
+    items       FeatureVotingItems[]
+    votes       FeatureVotingVotes[]
+}
+
+model FeatureVotingItems {
+    id          String               @id @default(cuid())
+    title       String               @unique @db.VarChar(255)
+    description String?              @db.Text
+    round_id    String
+    round       FeatureVotingRounds  @relation(fields: [round_id], references: [id], onDelete: Cascade)
+    votes       FeatureVotingVotes[]
+
+    @@index([round_id])
+}
+
+model FeatureVotingVotes {
+    id         String              @id @default(cuid())
+    user_id    String
+    user       User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    round_id   String
+    round      FeatureVotingRounds @relation(fields: [round_id], references: [id], onDelete: Cascade)
+    item_id    String
+    item       FeatureVotingItems  @relation(fields: [item_id], references: [id], onDelete: Cascade)
+    created_at DateTime            @default(now())
+
+    @@index([user_id])
+    @@index([item_id])
+    @@index([round_id])
+}

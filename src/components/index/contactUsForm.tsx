@@ -1,7 +1,20 @@
 import HCaptcha from "@hcaptcha/react-hcaptcha";
-import { ErrorMessage, Field, Form, Formik } from "formik";
 import { toast } from "react-toastify";
 import { trpc } from "../../utils/trpc";
+import { z } from "zod";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const formSchema = z.object({
+    Email: z.string().email("This is a required field."),
+    Message: z
+        .string()
+        .min(10, "Message needs to be larger than 10 characters.")
+        .max(500, "This is required field."),
+    CaptchaResponse: z.string().min(1, "This is a required field."),
+});
+
+type FormSchemaType = z.infer<typeof formSchema>;
 
 export type ContactUsFormProps = {
     submitButtonRef: React.RefObject<HTMLButtonElement>;
@@ -14,9 +27,21 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
     submittingState,
     hideModalFn,
 }) => {
-    const [inProgress, setInProgress] = submittingState;
+    const [, setInProgress] = submittingState;
 
-    const captchaTokenFieldName = "captchaToken";
+    const {
+        control,
+        handleSubmit,
+        formState: { errors },
+        setError: setFormError,
+    } = useForm<FormSchemaType>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            Email: "",
+            Message: "",
+            CaptchaResponse: "",
+        },
+    });
 
     const { mutate: sendMessage } = trpc.useMutation(["notifyme.contact"], {
         onSuccess: async (data) => {
@@ -35,123 +60,104 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
         },
     });
 
+    const onSubmit = async (formData: FormSchemaType) => {
+        setInProgress(true);
+
+        const payload = {
+            email: formData.Email,
+            message: formData.Message,
+            "h-captcha-response": formData.CaptchaResponse,
+        };
+        sendMessage(payload, {
+            onSettled: () => {
+                setInProgress(false);
+            },
+        });
+    };
+
     return (
-        <Formik
-            initialValues={{ email: "", message: "", captchaToken: "" }}
-            validate={(values: {
-                email: string;
-                message: string;
-                captchaToken: string;
-            }) => {
-                const errors: {
-                    email?: string;
-                    message?: string;
-                    captchaToken?: string;
-                } = {};
-                if (!values.email) {
-                    errors.email = "This is a required field.";
-                } else if (
-                    !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(
-                        values.email
-                    )
-                ) {
-                    errors.email = "Invalid email address.";
-                }
-
-                if (values.message == null || values.message.length === 0) {
-                    errors.message = "This is a required field.";
-                }
-
-                if (
-                    values.captchaToken == null ||
-                    values.captchaToken.length === 0
-                ) {
-                    errors.captchaToken = "This is a required field.";
-                }
-                return errors;
-            }}
-            onSubmit={async (values, { setSubmitting }) => {
-                if (inProgress == true) return;
-                setInProgress(true);
-
-                const payload = {
-                    email: values.email,
-                    message: values.message,
-                    "h-captcha-response": values.captchaToken,
-                };
-                sendMessage(payload, {
-                    onSettled: () => {
-                        setSubmitting(false);
-                        setInProgress(false);
-                    },
-                });
-            }}
-        >
-            {({ isSubmitting, setFieldValue, setFieldError }) => (
-                <Form>
-                    <div className="flex flex-col space-y-4 w-full">
-                        <div className="flex flex-col text-left">
-                            <Field
-                                name="email"
+        <div className="flex w-full flex-col items-center space-y-4 text-center">
+            <div className="flex w-full flex-col text-left">
+                <Controller
+                    control={control}
+                    name="Email"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <>
+                            <input
                                 type="email"
+                                autoCapitalize="none"
                                 placeholder="Enter your email"
-                                className="bg-gray-200 text-gray-900 rounded-md px-4 py-2 mt-4"
+                                className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-900"
+                                onChange={onChange}
+                                onBlur={onBlur}
+                                value={value}
                             />
-                            <div className="text-red-500">
-                                <ErrorMessage name="email" />
-                            </div>
-                        </div>
-                        <div className="flex flex-col text-left">
-                            <Field name="message">
-                                {({
-                                    field, // { name, value, onChange, onBlur }
-                                }: {
-                                    field: object;
-                                }) => (
-                                    <textarea
-                                        {...field}
-                                        placeholder="Enter your message"
-                                        className="bg-gray-200 text-gray-900 rounded-md px-4 py-2"
-                                    />
-                                )}
-                            </Field>
-                            <div className="text-red-500">
-                                <ErrorMessage name="message" />
-                            </div>
-                        </div>
-                        <div className="flex flex-col text-left">
-                            <HCaptcha
-                                theme="light"
-                                sitekey={
-                                    process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ??
-                                    ""
-                                }
-                                onVerify={(token) => {
-                                    setFieldValue(captchaTokenFieldName, token);
-                                }}
-                                onError={(err) => {
-                                    console.error(err);
-                                    setFieldError(captchaTokenFieldName, err);
-                                }}
-                                onExpire={() => {
-                                    console.debug("Captcha expired");
-                                    setFieldValue(captchaTokenFieldName, "");
-                                }}
+                        </>
+                    )}
+                />
+                {errors.Email && (
+                    <p className="text-red-500">{errors.Email.message}</p>
+                )}
+            </div>
+            <div className="flex w-full flex-col text-left">
+                <Controller
+                    control={control}
+                    name="Message"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <>
+                            <textarea
+                                autoCapitalize="sentences"
+                                placeholder="Enter your message"
+                                className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-900"
+                                onChange={onChange}
+                                onBlur={onBlur}
+                                value={value}
                             />
-                            <div className="text-red-500">
-                                <ErrorMessage name={captchaTokenFieldName} />
-                            </div>
-                        </div>
-                    </div>
-                    <button
-                        type="submit"
-                        ref={submitButtonRef}
-                        hidden={true}
-                        disabled={isSubmitting}
-                    ></button>
-                </Form>
-            )}
-        </Formik>
+                        </>
+                    )}
+                />
+                {errors.Message && (
+                    <p className="text-red-500">{errors.Message.message}</p>
+                )}
+            </div>
+            <div className="flex flex-col">
+                <Controller
+                    control={control}
+                    name="CaptchaResponse"
+                    render={({ field: { onChange } }) => (
+                        <HCaptcha
+                            theme="light"
+                            sitekey={
+                                process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ?? ""
+                            }
+                            onVerify={(token) => {
+                                onChange(token);
+                            }}
+                            onError={(err) => {
+                                console.error(err);
+                                setFormError("CaptchaResponse", {
+                                    message: err,
+                                });
+                            }}
+                            onExpire={() => {
+                                console.debug("Captcha expired");
+                                onChange("");
+                            }}
+                        />
+                    )}
+                />
+                {errors.CaptchaResponse && (
+                    <p className="text-red-500">
+                        {errors.CaptchaResponse.message}
+                    </p>
+                )}
+                <button
+                    ref={submitButtonRef}
+                    hidden={true}
+                    onClick={handleSubmit(onSubmit)}
+                ></button>
+            </div>
+        </div>
     );
 };
 

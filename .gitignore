@@ -38,3 +38,15 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# PWA
+**/public/app/precache.*.*.js
+**/public/app/service-worker.js
+**/public/app/workbox-*.js
+**/public/app/worker-*.js
+**/public/app/fallback-*.js
+**/public/app/precache.*.*.js.map
+**/public/app/service-worker.js.map
+**/public/app/workbox-*.js.map
+**/public/app/worker-*.js.map
+**/public/app/fallback-*.js

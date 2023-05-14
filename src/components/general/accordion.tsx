@@ -1,5 +1,6 @@
 import { Disclosure, Transition } from "@headlessui/react";
 import { ChevronUpIcon } from "@heroicons/react/20/solid";
+import { clsx } from "clsx";
 import React from "react";
 
 export type AccordionProps = {
@@ -11,7 +12,7 @@ export type AccordionProps = {
 export const Accordion: React.FC<AccordionProps> = ({ children }) => {
     return (
         <div className="w-full px-4 pt-16 transition-all">
-            <div className="mx-auto w-full max-w-md rounded-2xl bg-gray-700 p-2 flex flex-col space-y-2">
+            <div className="mx-auto flex w-full max-w-md flex-col space-y-2 rounded-2xl bg-gray-700 p-2">
                 {children}
             </div>
         </div>
@@ -21,21 +22,32 @@ export const Accordion: React.FC<AccordionProps> = ({ children }) => {
 export type AccordionItemProps = {
     title: string;
     children: React.ReactNode;
+    buttonClassName?: string;
+    innerClassName?: string | null;
 };
 
 export const AccordionItem: React.FC<AccordionItemProps> = ({
     title,
     children,
+    buttonClassName = "bg-colorPrimary",
+    innerClassName = "text-md px-4 pb-2 text-gray-200",
 }) => (
     <Disclosure>
         {({ open }) => (
             <>
-                <Disclosure.Button className="flex w-full justify-between rounded-lg bg-colorPrimary px-4 py-2 text-left text-md font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring focus-visible:opacity-90 focus-visible:ring-opacity-75">
+                <Disclosure.Button
+                    className={clsx({
+                        "text-md flex w-full items-center justify-between rounded-lg px-4 py-2 text-left font-medium text-white hover:opacity-90 focus:outline-none focus-visible:opacity-90 focus-visible:ring focus-visible:ring-opacity-75":
+                            true,
+                        [buttonClassName]: true,
+                    })}
+                >
                     <span className="w-full">{title}</span>
                     <ChevronUpIcon
-                        className={`${
-                            open ? "rotate-180 transform" : ""
-                        } h-5 w-5 text-gray-100`}
+                        className={clsx({
+                            "h-5 w-5 text-gray-100 transition-all": true,
+                            "rotate-180 transform": open,
+                        })}
                     />
                 </Disclosure.Button>
                 <Transition
@@ -46,7 +58,7 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
                     leaveFrom="transform scale-100 opacity-100"
                     leaveTo="transform scale-95 opacity-0"
                 >
-                    <Disclosure.Panel className="px-4 pt-2 pb-2 text-md text-gray-200">
+                    <Disclosure.Panel className={`${innerClassName}`}>
                         {children}
                     </Disclosure.Panel>
                 </Transition>

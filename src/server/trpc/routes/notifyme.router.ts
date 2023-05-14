@@ -18,6 +18,7 @@ export const notifyMeRouter = createRouter()
     .mutation("register", {
         input: z.object({
             email: z.string().email(),
+            ref: z.enum(["enterprise-tier"]).nullable(),
             "h-captcha-response": z.string(),
         }),
         async resolve({ input, ctx }) {
@@ -42,6 +43,7 @@ export const notifyMeRouter = createRouter()
                     await ctx.prisma.notifyMeUsers.create({
                         data: {
                             email: input.email,
+                            ref: input.ref?.toString() ?? null,
                         },
                     });
                 } catch (_) {}
@@ -62,7 +64,7 @@ export const notifyMeRouter = createRouter()
     .mutation("contact", {
         input: z.object({
             email: z.string().email(),
-            message: z.string(),
+            message: z.string().max(500),
             "h-captcha-response": z.string(),
         }),
         async resolve({ input }) {
@@ -84,6 +86,7 @@ export const notifyMeRouter = createRouter()
 
                 const nodemailer = await import("nodemailer");
                 // Send email using the nodemailer package
+                // Cast the object as any because the types are wrong...
                 const transporter = nodemailer.createTransport({
                     host: process.env.SMTP_HOST,
                     port: Number(process.env.SMTP_PORT),
@@ -95,7 +98,7 @@ export const notifyMeRouter = createRouter()
                         user: process.env.SMTP_USER,
                         pass: process.env.SMTP_PASS,
                     },
-                });
+                } as any);
 
                 await transporter.sendMail({
                     from: `"CryptexVaultRouter " <${process.env.SMTP_USER}>`,

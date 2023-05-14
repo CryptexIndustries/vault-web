@@ -1,21 +1,18 @@
-import NextAuth, { type NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import GithubProvider from "next-auth/providers/github";
-import GitlabProvider from "next-auth/providers/gitlab";
+import NextAuth, { DefaultSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "../../../server/db/client";
-import { env } from "../../../env/server.mjs";
 import { NextApiRequest, NextApiResponse } from "next";
 import { randomUUID } from "crypto";
 import { getCookie, setCookie } from "cookies-next";
 import { decode, encode } from "next-auth/jwt";
-import { checkTOTP } from "../../../utils/data_security";
+import { Redis } from "@upstash/redis";
+import { prisma } from "../../../server/db/client";
+import { env } from "../../../env/server.mjs";
+import { checkTOTP, validateSignature } from "../../../utils/data_security";
+import { initUserSubscriptionTier } from "../../../utils/subscription";
 
-export enum CREDENTIAL_PROVIDERS {
-    CryptexTOTP = "cryptex",
-}
+// Used for nonce generation and verification
+const redis = Redis.fromEnv();
 
 export const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     const data = requestWrapper(req, res);
@@ -24,14 +21,44 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
 export default handler;
 
+//#region Available Auth Providers
+export enum CREDENTIAL_PROVIDERS {
+    CryptexTOTP = "cryptex",
+    CryptexKeyBased = "cryptex-key-based",
+}
+export const AvailableAuthProvidersList = [
+    "cryptex",
+    "cryptex-key-based",
+] as const;
+export type AvailableAuthProviders = "cryptex" | "cryptex-key-based";
+//#endregion
+
+// Extend the built-in session type
+declare module "next-auth" {
+    interface Session {
+        user?: {
+            id: string;
+            // accountId?: string;
+            agent?: string;
+        } & DefaultSession["user"];
+    }
+}
+
+// Extend the built-in token type
+// declare module "next-auth/jwt" {
+//     interface JWT {
+//         accountId?: string;
+//     }
+// }
+
 export function requestWrapper(
     req: NextApiRequest,
     res: NextApiResponse
 ): [req: NextApiRequest, res: NextApiResponse, opts: NextAuthOptions] {
-    const generateSessionToken = () => randomUUID();
+    // const generateSessionToken = () => randomUUID();
 
-    const defaultSessionExpiery = 60 * 60 * 24 * 30; // 30 days
-    const defaultSessionTokenName = "auth.session-token";
+    const defaultSessionExpiery = 60 * 60 * 24 * 1; // 1 day
+    // const defaultSessionTokenName = "auth.session-token";
 
     const fromDate = (time: number, date = Date.now()) =>
         new Date(date + time * 1000);
@@ -39,112 +66,148 @@ export function requestWrapper(
     const adapter = PrismaAdapter(prisma);
 
     const opts: NextAuthOptions = {
-        // Include user.id on session
         adapter: adapter,
         callbacks: {
-            session({ session, user }) {
-                if (session.user) {
-                    session.user.id = user.id;
-                    session.user_agent = req.headers["user-agent"];
+            session({ session, token, user }) {
+                // console.log("SESS", session);
+                // console.log("token", token);
+                // console.log("USER", user);
+                if (session.user && token.sub) {
+                    // console.log("SESS", session);
+                    // console.log("TOKEN", token);
+                    // Include user.id and user.agent in the session object
+                    session.user.id = token.sub;
+                    // session.user.accountId = token.accountId;
+                    session.user.agent = req.headers["user-agent"];
                 }
                 return session;
             },
+            // jwt: async ({ token, user, account, profile, isNewUser }) => {
+            //     // if (user) {
+            //     //     token.id = user.id;
+            //     // }
+            //     if (account) {
+            //         console.log("JWT ACCOUNT", account);
+            //         token.accountId = account.id_token;
+            //     }
+            //     return token;
+            // },
             async signIn({ user }) {
                 // Check if this sign in callback is being called in the credentials authentication flow
                 // If so, use the next-auth adapter to create a session entry in the database (SignIn is called after authorize so we can safely assume the user is valid and already authenticated)
-                if (
-                    req.query.nextauth?.includes("callback") &&
-                    req.query.nextauth?.includes("cryptex") &&
-                    req.method === "POST"
-                ) {
-                    if (user) {
-                        const sessionToken = generateSessionToken();
-                        const sessionExpiry = fromDate(
-                            opts.session?.maxAge ?? defaultSessionExpiery
-                        );
+                // if (
+                //     req.query.nextauth?.includes("callback") &&
+                //     (req.query.nextauth?.includes(
+                //         CREDENTIAL_PROVIDERS.CryptexTOTP
+                //     ) ||
+                //         req.query.nextauth?.includes(
+                //             CREDENTIAL_PROVIDERS.CryptexKeyBased
+                //         )) &&
+                //     req.method === "POST"
+                // ) {
+                //     if (user) {
+                //         const sessionToken = generateSessionToken();
+                //         const sessionExpiry = fromDate(
+                //             opts.session?.maxAge ?? defaultSessionExpiery
+                //         );
 
-                        const newSession = await adapter.createSession({
-                            sessionToken: sessionToken,
-                            userId: user.id,
-                            expires: sessionExpiry,
-                        });
+                //         const newSession = await adapter.createSession({
+                //             sessionToken: sessionToken,
+                //             userId: user.id,
+                //             expires: sessionExpiry,
+                //         });
 
-                        // Or x-vercel-forwarded-for?
-                        const forwarded = req.headers[
-                            "x-forwarded-for"
-                        ] as string;
-                        const ip = forwarded
-                            ? forwarded.split(/, /)[0]
-                            : req.socket.remoteAddress;
+                //         // Or x-vercel-forwarded-for?
+                //         const forwarded = req.headers[
+                //             "x-forwarded-for"
+                //         ] as string;
+                //         const ip = forwarded
+                //             ? forwarded.split(/, /)[0]
+                //             : req.socket.remoteAddress;
 
-                        // Set the user agent field in the current session
-                        await prisma.session.update({
-                            data: {
-                                user_agent: req.headers["user-agent"],
-                                ip: ip,
-                            },
-                            where: {
-                                id: newSession.id,
-                            },
-                        });
+                //         // Set the user agent field in the current session
+                //         await prisma.session.update({
+                //             data: {
+                //                 user_agent: req.headers["user-agent"],
+                //                 ip: ip,
+                //             },
+                //             where: {
+                //                 sessionToken: newSession.sessionToken,
+                //             },
+                //         });
 
-                        setCookie(
-                            opts.cookies?.sessionToken?.name ??
-                                defaultSessionTokenName,
-                            sessionToken,
-                            { ...opts.cookies?.sessionToken?.options, req, res }
-                        );
-                    }
-                } else if (req.method === "POST") {
-                    // This is a handler for the other authentication types
-                    // TODO: Set the user agent field in the session table
-                    // TODO: Set the ip field in the session table
-                }
+                //         setCookie(
+                //             opts.cookies?.sessionToken?.name ??
+                //                 defaultSessionTokenName,
+                //             sessionToken,
+                //             { ...opts.cookies?.sessionToken?.options, req, res }
+                //         );
+                //     }
+                // }
+
+                // Check whether or not a subscription exists for the user, if it doesn't then create one for the free plan
+                initUserSubscriptionTier(prisma, user.id);
 
                 return true;
             },
         },
-        jwt: {
-            encode: async ({ token, secret, maxAge }) => {
-                if (
-                    req.query.nextauth?.includes("callback") &&
-                    req.query.nextauth.includes("cryptex") &&
-                    req.method === "POST"
-                ) {
-                    const cookie = getCookie(
-                        opts.cookies?.sessionToken?.name ??
-                            defaultSessionTokenName
-                    )?.toString();
+        // jwt: {
+        //     encode: async ({ token, secret, maxAge }) => {
+        //         if (
+        //             req.query.nextauth?.includes("callback") &&
+        //             (req.query.nextauth.includes(
+        //                 CREDENTIAL_PROVIDERS.CryptexTOTP
+        //             ) ||
+        //                 req.query.nextauth.includes(
+        //                     CREDENTIAL_PROVIDERS.CryptexKeyBased
+        //                 )) &&
+        //             req.method === "POST"
+        //         ) {
+        //             const cookie = getCookie(
+        //                 opts.cookies?.sessionToken?.name ??
+        //                     defaultSessionTokenName
+        //             )?.toString();
 
-                    if (cookie) return cookie;
-                    else return "";
-                }
+        //             if (cookie) return cookie;
+        //             else return "";
+        //         }
 
-                // Revert to default behaviour when not in the credentials provider callback flow
-                return encode({ token, secret, maxAge });
-            },
-            decode: async ({ token, secret }) => {
-                if (
-                    req.query.nextauth?.includes("callback") &&
-                    req.query.nextauth.includes("cryptex") &&
-                    req.method === "POST"
-                ) {
-                    return null;
-                }
+        //         // Revert to default behaviour when not in the credentials provider callback flow
+        //         return encode({ token, secret, maxAge });
+        //     },
+        //     decode: async ({ token, secret }) => {
+        //         if (
+        //             req.query.nextauth?.includes("callback") &&
+        //             (req.query.nextauth.includes(
+        //                 CREDENTIAL_PROVIDERS.CryptexTOTP
+        //             ) ||
+        //                 req.query.nextauth.includes(
+        //                     CREDENTIAL_PROVIDERS.CryptexKeyBased
+        //                 )) &&
+        //             req.method === "POST"
+        //         ) {
+        //             // Skip the jwt verification for the Cryptex Vault credentials provider
+        //             return null;
+        //         }
 
-                // Revert to default behaviour when not in the credentials provider callback flow
-                return decode({ token, secret });
-            },
-        },
+        //         // Revert to default behaviour when not in the credentials provider callback flow
+        //         return decode({ token, secret });
+        //     },
+        // },
         session: {
             // strategy: "database",
+            strategy: "jwt",
             maxAge: defaultSessionExpiery,
             updateAge: 24 * 60 * 60, // 24 hours
         },
+        theme: {
+            colorScheme: "dark",
+            brandColor: "#FF5668",
+        },
         pages: {
-            signIn: "/login",
+            signIn: "/app",
             error: "",
-            verifyRequest: "",
+            verifyRequest: "/confirm",
             newUser: "",
         },
         cookies: {
@@ -154,28 +217,12 @@ export function requestWrapper(
                     httpOnly: true,
                     sameSite: "lax",
                     path: "/",
-                    secure: true,
+                    secure: process.env.NODE_ENV !== "development",
                 },
             },
         },
         secret: env.NEXTAUTH_SECRET,
         providers: [
-            GoogleProvider({
-                clientId: env.GOOGLE_CLIENT_ID,
-                clientSecret: env.GOOGLE_CLIENT_SECRET,
-            }),
-            // AppleProvider({
-            //     clientId: env.APPLE_CLIENT_ID,
-            //     clientSecret: env.APPLE_CLIENT_SECRET,
-            // }),
-            GithubProvider({
-                clientId: env.GITHUB_CLIENT_ID,
-                clientSecret: env.GITHUB_CLIENT_SECRET,
-            }),
-            GitlabProvider({
-                clientId: env.GITLAB_CLIENT_ID,
-                clientSecret: env.GITLAB_CLIENT_SECRET,
-            }),
             CredentialsProvider({
                 id: CREDENTIAL_PROVIDERS.CryptexTOTP,
                 name: "Cryptex Auth",
@@ -238,6 +285,96 @@ export function requestWrapper(
                     }
 
                     return null;
+                },
+            }),
+
+            CredentialsProvider({
+                id: CREDENTIAL_PROVIDERS.CryptexKeyBased,
+                name: "Cryptex Key Based Auth",
+                credentials: {
+                    userID: {
+                        label: "User ID",
+                        name: "userID",
+                        type: "text",
+                    },
+                    nonce: {
+                        label: "Nonce",
+                        name: "nonce",
+                        type: "text",
+                    },
+                    signature: {
+                        label: "Signature",
+                        name: "signature",
+                        type: "text",
+                    },
+                },
+                authorize: async (
+                    credentials:
+                        | Record<string | number | symbol, string>
+                        | undefined
+                ) => {
+                    // Validate data format
+                    if (
+                        !credentials?.userID ||
+                        !credentials?.nonce ||
+                        !credentials?.signature
+                    ) {
+                        return null;
+                    }
+
+                    // Check if there is an account with the provided userID
+                    const account = await prisma.account.findFirst({
+                        where: {
+                            providerAccountId: credentials.userID,
+                            provider: CREDENTIAL_PROVIDERS.CryptexKeyBased,
+                        },
+                        select: {
+                            public_key: true,
+                            userId: true,
+                        },
+                    });
+
+                    // If account does not exist, return false
+                    if (
+                        !account ||
+                        !account.public_key ||
+                        !account.public_key.length
+                    )
+                        return null;
+
+                    // If account exists, check if nonce exists in the redis cache (validate it)
+                    const isProd = env.NODE_ENV === "production";
+                    const nonce = isProd
+                        ? await redis.get<string>(
+                              `auth-nonce-${credentials.nonce}`
+                          )
+                        : null;
+
+                    // If the nonce is not valid, return false
+                    if (!nonce && isProd) return null;
+
+                    // Remove the nonce from the redis cache
+                    if (isProd)
+                        await redis.del(
+                            `auth-nonce-${credentials.signedNonce}`
+                        );
+
+                    // Verify the nonce signature
+                    // If the signature is not valid, return false
+                    // If the signature is valid, return the user object
+                    const signatureValid = await validateSignature(
+                        credentials.signature,
+                        account.public_key
+                    );
+
+                    if (!signatureValid) return null;
+
+                    // If the signature is valid, return the user object
+                    return await prisma.user.findUnique({
+                        where: {
+                            id: account.userId,
+                        },
+                    });
                 },
             }),
         ],

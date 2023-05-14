@@ -1,3 +1,5 @@
+import * as sodium from "libsodium-wrappers-sumo";
+
 /**
  * @param encryptedSecretIVPair The encrypted secret and IV pair
  * @param secret The encryption secret
@@ -99,4 +101,60 @@ export const checkTOTP = async (
         }) === 0;
 
     return isValid;
+};
+
+/**
+ * Hashes the provided string using SHA512.
+ * @param key The API key to hash
+ * @returns The hashed API key as a string
+ */
+export const hashAPIKey = async (key: string): Promise<string> => {
+    const crypto = await import("crypto");
+    return crypto.createHash("sha512").update(key).digest("hex");
+};
+
+/**
+ * Generates a random API key and its hashed version.
+ * Uses the crypto module under the hood.
+ * Currently creates a 32 byte key and hashes it using SHA512.
+ * @returns An object containing the key and its hashed version
+ */
+export const generateAPIKey = async (): Promise<{
+    key: string;
+    hash: string;
+}> => {
+    const crypto = await import("crypto");
+    const key = crypto.randomBytes(32).toString("hex");
+    const hashedKey = await hashAPIKey(key);
+
+    // Return the key and the hashed version of the key
+    return {
+        key,
+        hash: hashedKey,
+    };
+};
+
+/**
+ * Verifies the signature of the provided nonce using the provided public key.
+ * @param signedNonce
+ * @param publicKey
+ * @returns A boolean indicating if the signature is valid or not
+ */
+export const validateSignature = async (
+    signedNonce: string,
+    publicKey: string
+): Promise<boolean> => {
+    await sodium.ready;
+
+    // Verify the nonce signature using libsodium-wrapper-sumo
+    const signature = await new Promise((resolve) =>
+        resolve(
+            sodium.crypto_sign_open(
+                sodium.from_base64(signedNonce),
+                sodium.from_base64(publicKey)
+            )
+        )
+    );
+
+    return signature !== null;
 };

@@ -12,18 +12,22 @@ export const serverSchema = z.object({
     NEXTAUTH_URL: z.string().url(),
 
     /* Authentication ENV Vars */
-    GOOGLE_CLIENT_ID: z.string(),
-    GOOGLE_CLIENT_SECRET: z.string(),
+    // GOOGLE_CLIENT_ID: z.string(),
+    // GOOGLE_CLIENT_SECRET: z.string(),
+    // GITHUB_CLIENT_ID: z.string(),
+    // GITHUB_CLIENT_SECRET: z.string(),
+    // GITLAB_CLIENT_ID: z.string(),
+    // GITLAB_CLIENT_SECRET: z.string(),
     // APPLE_CLIENT_ID: z.string(),
     // APPLE_CLIENT_SECRET: z.string(),
-    GITHUB_CLIENT_ID: z.string(),
-    GITHUB_CLIENT_SECRET: z.string(),
-    GITLAB_CLIENT_ID: z.string(),
-    GITLAB_CLIENT_SECRET: z.string(),
     // ATLASSIAN_CLIENT_ID: z.string(),
     // ATLASSIAN_CLIENT_SECRET: z.string(),
     // DISCORD_CLIENT_ID: z.string(),
     // DISCORD_CLIENT_SECRET: z.string(),
+
+    // Upstash Redis
+    UPSTASH_REDIS_REST_URL: z.string().url(),
+    UPSTASH_REDIS_REST_TOKEN: z.string(),
 
     // HCaptcha
     HCAPTCHA_SECRET: z.string(),
@@ -34,6 +38,13 @@ export const serverSchema = z.object({
     SMTP_USER: z.string(),
     SMTP_PASS: z.string(),
     SMTP_RECEIVER: z.string(),
+
+    /* Pusher ENV Vars */
+    PUSHER_APP_SECRET: z.string(),
+
+    /* Stripe ENV Vars */
+    STRIPE_SECRET_KEY: z.string(),
+    STRIPE_WEBHOOK_SECRET: z.string(),
 });
 
 /**
@@ -44,6 +55,17 @@ export const serverSchema = z.object({
 export const clientSchema = z.object({
     // NEXT_PUBLIC_BAR: z.string(),
     NEXT_PUBLIC_HCAPTCHA_SITE_KEY: z.string(),
+
+    NEXT_PUBLIC_PUSHER_APP_ID: z.string(),
+    NEXT_PUBLIC_PUSHER_APP_KEY: z.string(),
+    NEXT_PUBLIC_PUSHER_APP_HOST: z.string(),
+    NEXT_PUBLIC_PUSHER_APP_PORT: z.string(),
+    NEXT_PUBLIC_PUSHER_APP_TLS: z.boolean(),
+
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string(),
+    NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: z.string(),
+    NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: z.string(),
+    NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: z.string(),
 });
 
 /**
@@ -55,4 +77,20 @@ export const clientSchema = z.object({
 export const clientEnv = {
     // NEXT_PUBLIC_BAR: process.env.NEXT_PUBLIC_BAR,
     NEXT_PUBLIC_HCAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY,
+
+    NEXT_PUBLIC_PUSHER_APP_ID: process.env.NEXT_PUBLIC_PUSHER_APP_ID,
+    NEXT_PUBLIC_PUSHER_APP_KEY: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
+    NEXT_PUBLIC_PUSHER_APP_HOST: process.env.NEXT_PUBLIC_PUSHER_APP_HOST,
+    NEXT_PUBLIC_PUSHER_APP_PORT: process.env.NEXT_PUBLIC_PUSHER_APP_PORT,
+    NEXT_PUBLIC_PUSHER_APP_TLS:
+        process.env.NEXT_PUBLIC_PUSHER_APP_TLS?.toLowerCase() === "true",
+
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:
+        process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:
+        process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID,
+    NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:
+        process.env.NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:
+        process.env.NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID,
 };

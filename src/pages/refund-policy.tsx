@@ -22,20 +22,20 @@ const RefundPolicy: NextPage = () => {
                                 1. Refund terms
                             </h2>
                             <p className="pt-2 text-justify">
-                                We offer a 14 days full refund policy. If you're
-                                not satisfied with our product, you can request
-                                a full refund within the first 14 days of your
-                                purchase.
+                                We offer a 14 days full refund policy. If
+                                you&apos;re not satisfied with our product, you
+                                can request a full refund within the first 14
+                                days of your purchase.
                             </p>
                             <h2 className="mt-10 text-2xl font-bold">
                                 2. Refund request
                             </h2>
                             <p className="pt-2 text-justify">
                                 Refunds can be requested by accessing the Stripe
-                                Customer Portal inside the Vault. In case you're
-                                unable to access the Stripe Customer Portal,
-                                please contact us via our contact form or email
-                                us{" "}
+                                Customer Portal inside the Vault. In case
+                                you&apos;re unable to access the Stripe Customer
+                                Portal, please contact us via our contact form
+                                or email us{" "}
                                 <a
                                     href="mailto:contact@cryptex-vault.com"
                                     className="text-blue-500 underline"

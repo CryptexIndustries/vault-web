@@ -4711,13 +4711,14 @@ const VaultTitle: React.FC<{ title: string }> = ({ title }) => {
 
 //#region Vault account management
 enum AccountDialogMode {
-    SignIn = "Sign In",
+    // SignIn = "Sign In",
     SignUp = "Sign Up",
 }
 type AccountDialogTabBarProps = {
     currentFormMode: AccountDialogMode;
     changeFormMode: (
-        newFormMode: AccountDialogMode.SignIn | AccountDialogMode.SignUp
+        // newFormMode: AccountDialogMode.SignIn | AccountDialogMode.SignUp
+        newFormMode: AccountDialogMode.SignUp
     ) => void;
 };
 
@@ -4776,10 +4777,11 @@ const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
     );
 
     const changeFormMode = (
-        newFormMode: AccountDialogMode.SignIn | AccountDialogMode.SignUp
+        // newFormMode: AccountDialogMode.SignIn | AccountDialogMode.SignUp
+        newFormMode: AccountDialogMode.SignUp
     ) => {
         // Clear the submit function reference
-        signInSubmitFnRef.current = null;
+        // signInSubmitFnRef.current = null;
 
         setCurrentFormMode(newFormMode);
     };
@@ -4787,21 +4789,21 @@ const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
     const isSubmitting = useState(false);
     const isFormSubmitting = isSubmitting[0];
 
-    const signInSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
+    // const signInSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
     const signUpSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
 
     const onConfirm = async () => {
-        if (
-            currentFormMode === AccountDialogMode.SignIn &&
-            signInSubmitFnRef.current
-        ) {
-            await signInSubmitFnRef.current();
-        } else if (
-            currentFormMode === AccountDialogMode.SignUp &&
-            signUpSubmitFnRef.current
-        ) {
-            await signUpSubmitFnRef.current();
-        }
+        // if (
+        //     currentFormMode === AccountDialogMode.SignIn &&
+        //     signInSubmitFnRef.current
+        // ) {
+        //     await signInSubmitFnRef.current();
+        // } else if (
+        //     currentFormMode === AccountDialogMode.SignUp &&
+        //     signUpSubmitFnRef.current
+        // ) {
+        await signUpSubmitFnRef.current?.();
+        // }
     };
 
     const bindAccount = async (

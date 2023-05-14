@@ -1844,7 +1844,7 @@ const VaultLinkingDialog: React.FC<{
         );
 
         localConnection.ondatachannel = (event) => {
-            console.debug("Received WebRTC data channel:", event);
+            // console.debug("Received WebRTC data channel:", event);
 
             const receiveChannel = event.channel;
             receiveChannel.onmessage = async (event) => {

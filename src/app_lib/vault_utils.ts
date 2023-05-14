@@ -570,10 +570,10 @@ export namespace VaultEncryption {
             );
             const m1 = Buffer.from(r1.message).toString("utf-8");
 
-            console.debug(
-                `Decrypted blob with XChaCha20Poly1305: ${m1.length} bytes`,
-                m1
-            );
+            // console.debug(
+            //     `Decrypted blob with XChaCha20Poly1305: ${m1.length} bytes`,
+            //     m1
+            // );
 
             return m1;
         }

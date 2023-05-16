@@ -46,6 +46,11 @@ const headers = () => {
                     key: "Permissions-Policy",
                     value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
                 },
+                {
+                    // Allow the service worker to be loaded from all domains
+                    key: "Service-Worker-Allowed",
+                    value: "/",
+                },
             ],
         },
     ];
@@ -55,13 +60,14 @@ const _withPWA = withPWA({
     dest: "public",
     // disable: process.env.NODE_ENV === "development",
     register: true,
-    scope: "/app",
+    scope: "/",
     sw: "/app/service-worker.js",
+    reloadOnOnline: false,
+    skipWaiting: true,
 });
 
 const nextConfig = {
     reactStrictMode: true,
-    trailingSlash: true, // This is required for the service worker to work
     swcMinify: true,
     images: {
         domains: ["play.google.com"],

@@ -48,6 +48,9 @@ import {
     LinkIcon,
     Cog8ToothIcon,
     PhoneIcon,
+    ShareIcon,
+    HandThumbUpIcon,
+    ArrowUturnUpIcon,
 } from "@heroicons/react/20/solid";
 
 import { trpc } from "../../utils/trpc";
@@ -2178,7 +2181,7 @@ const WelcomeScreen: React.FC<{
                         </div>
                         <div className="mt-4 flex w-full flex-col items-center justify-center gap-2 sm:flex-row sm:gap-4">
                             <div
-                                className="flex h-12 w-3/4 cursor-pointer flex-col items-center justify-center rounded-lg bg-gray-700 p-4 shadow-md transition-colors hover:bg-gray-600 sm:h-56 sm:w-56"
+                                className="flex h-12 w-3/4 cursor-pointer flex-col items-center justify-center rounded-lg bg-gray-700 p-4 shadow-lg transition-shadow hover:shadow-[#F5F5F5] sm:h-56 sm:w-56"
                                 onClick={() => showRestoreVaultDialog()}
                             >
                                 <p className="text-md font-bold sm:text-2xl">
@@ -2911,40 +2914,42 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                 <p>linked devices</p>
                             </div>
                         )}
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-2">
                         <ArrowPathIcon className="mr-2 inline-block h-5 w-5" />
                         <p>Unlimited credentials per vault</p>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-2">
+                        <KeyIcon className="mr-2 inline-block h-5 w-5" />
                         {subscriptionData.nonFree ? (
                             <p>Unlimited secure vaults</p>
                         ) : (
-                            <>
-                                <KeyIcon className="mr-2 inline-block h-5 w-5" />
-                                <p>A secure vault</p>
-                            </>
+                            <p>A secure vault</p>
                         )}
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-2">
                         <CloudArrowUpIcon className="mr-2 inline-block h-5 w-5" />
                         <p>Create encrypted backups</p>
                     </div>
                     {subscriptionData.nonFree &&
                         subscriptionData.configuration?.automated_backups && (
-                            <div className="flex space-x-2">
+                            <div className="flex items-center space-x-2">
+                                {/* Show an icon next to the text */}
+                                <ArrowUturnUpIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Automated encrypted backups</p>
                             </div>
                         )}
                     {subscriptionData.nonFree &&
                         subscriptionData.configuration?.feature_voting && (
-                            <div className="flex space-x-2">
+                            <div className="flex items-center space-x-2">
+                                <HandThumbUpIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Feature voting</p>
                             </div>
                         )}
                     {subscriptionData.nonFree &&
                         subscriptionData.configuration
                             ?.credentials_borrowing && (
-                            <div className="flex space-x-2">
+                            <div className="flex items-center space-x-2">
+                                <ShareIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Credentials borrowing</p>
                             </div>
                         )}
@@ -6252,6 +6257,10 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                     <div className="mt-5 flex gap-5">
                         <div className="flex w-full flex-col gap-2">
                             <p className="text-sm text-slate-500">
+                                Synchronization
+                            </p>
+                            <DashboardSidebarSynchronization />
+                            <p className="text-sm text-slate-500">
                                 CryptexVault
                             </p>
                             <DashboardSidebarMenuFeatureVoting
@@ -6259,10 +6268,6 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                                     showFeatureVotingDialogRef.current?.()
                                 }
                             />
-                            <p className="text-sm text-slate-500">
-                                Synchronization
-                            </p>
-                            <DashboardSidebarSynchronization />
                             <p className="text-sm text-slate-500">Vault</p>
                             <DashboardSidebarMenuItem
                                 Icon={Cog8ToothIcon}
@@ -6305,8 +6310,8 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                                 </p>
                                 <p className="text-center text-slate-400">
                                     {" "}
-                                    Press the &quot;New Item&quot; button above
-                                    to add a new credential.
+                                    Press the &quot;New Item&quot; button in the
+                                    sidebar to add a new credential.
                                 </p>
                             </div>
                         )}

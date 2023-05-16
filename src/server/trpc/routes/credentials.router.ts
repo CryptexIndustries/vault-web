@@ -1,4 +1,4 @@
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import * as trpc from "@trpc/server";
 import { randomUUID } from "crypto";
 import { User } from "next-auth";

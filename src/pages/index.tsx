@@ -281,13 +281,23 @@ const Index: NextPage = ({}) => {
                                     Our job is to make sure your devices are
                                     connected and synchronized, that&apos;s it.
                                 </p>
-                                <div className="mt-20">
-                                    <Link href={"#section-pricing"}>
-                                        <AnchorFullRoundFade
-                                            text="Start Now!"
-                                            className="mr-7 px-10 py-5"
-                                        />
-                                    </Link>
+                                <div className="flex items-start">
+                                    <div className="flex flex-col text-center">
+                                        <div className="mt-10 md:mt-20">
+                                            <Link href={"#section-pricing"}>
+                                                <AnchorFullRoundFade
+                                                    text="Start Now!"
+                                                    className="px-8 py-3 md:mr-7 md:px-10 md:py-5"
+                                                />
+                                            </Link>
+                                        </div>
+                                        <p className="md:hidden mt-4 mb-4">OR</p>
+                                        <div className="md:hidden">
+                                            <Link href={"/app"}>
+                                                <AnchorFullRoundFade text="Open Vault" />
+                                            </Link>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div className="hidden select-none lg:block">
@@ -611,8 +621,8 @@ const Index: NextPage = ({}) => {
                                                 }
                                             />
                                             <PricingFeatureItem
-                                                title="Data sync (with unlimited devices)"
-                                                description="Connect your vaults to your desktop, laptop and your buddies laptop browser - you have it all."
+                                                title="Data synchronization"
+                                                description="Connect your vaults to your desktop, laptop, and your buddy's laptop browser to have access to the same credentials across multiple devices."
                                                 visibleID={
                                                     tierCardFeatureInfoVisible
                                                 }

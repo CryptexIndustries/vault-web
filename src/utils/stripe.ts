@@ -39,6 +39,9 @@ export const createCheckoutSession = async (
                 quantity: 1,
             },
         ],
+        automatic_tax: {
+            enabled: true,
+        },
         customer_email: userEmail,
         metadata: {
             userId: userId,

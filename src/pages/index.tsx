@@ -191,6 +191,7 @@ const Index: NextPage = ({}) => {
                         would like to suggest a feature or report a bug, please{" "}
                         <a
                             className="cursor-pointer underline hover:text-rose-200"
+                            href="#"
                             onClick={showContactUsModal}
                         >
                             <b>contact us</b>
@@ -291,7 +292,9 @@ const Index: NextPage = ({}) => {
                                                 />
                                             </Link>
                                         </div>
-                                        <p className="md:hidden mt-4 mb-4">OR</p>
+                                        <p className="mb-4 mt-4 md:hidden">
+                                            OR
+                                        </p>
                                         <div className="md:hidden">
                                             <Link href={"/app"}>
                                                 <AnchorFullRoundFade text="Open Vault" />
@@ -579,7 +582,7 @@ const Index: NextPage = ({}) => {
                                     </p>
 
                                     <Link
-                                        href={`/app/?checkout=${PAYMENT_TIERS.premiumMonthly}`}
+                                        href={`/app?checkout=${PAYMENT_TIERS.premiumMonthly}`}
                                     >
                                         <AnchorFullRoundFade
                                             text="Buy Now"

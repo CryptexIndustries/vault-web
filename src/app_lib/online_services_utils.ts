@@ -49,6 +49,19 @@ const signData = async (data: string, privateKey: string): Promise<string> => {
 };
 //#endregion Encryption
 
+/**
+ * A function to check if cryptex-vault.com/app is available.
+ */
+export const isOriginAvailable = async (): Promise<boolean> => {
+    try {
+        const res = await fetch("/api/health");
+        return res.status === 200;
+    } catch (e) {
+        console.debug("Application origin is unreachable or is offline.", e);
+        return false;
+    }
+};
+
 //#region Session managements - Authentication
 const getNonce = async (): Promise<string> => {
     // Fetch the nonce from the server using trpc from outside the component
@@ -96,6 +109,7 @@ const handleSignIn = async (
 
 interface CryptexSignInResponse {
     success: boolean;
+    offline: boolean;
     authResponse: SignInResponse | undefined;
 }
 
@@ -111,6 +125,20 @@ export const cryptexAccountSignIn = async (
     userID: string,
     privateKey: string
 ): Promise<CryptexSignInResponse> => {
+    // If we're offline, don't try to sign in
+    if (!(await isOriginAvailable())) {
+        console.debug("Cannot sign in while offline.");
+        toast.info("Offline mode enabled.", {
+            autoClose: 3000,
+            closeButton: true,
+        });
+        return {
+            success: false,
+            authResponse: undefined,
+            offline: true,
+        };
+    }
+
     try {
         const signinRes = await handleSignIn(userID, privateKey);
 
@@ -121,6 +149,7 @@ export const cryptexAccountSignIn = async (
         return {
             success: signinRes.ok,
             authResponse: signinRes,
+            offline: false,
         };
     } catch (e) {
         console.error("Failed to sign in.", e);
@@ -133,6 +162,7 @@ export const cryptexAccountSignIn = async (
     return {
         success: false,
         authResponse: undefined,
+        offline: false,
     };
 };
 
@@ -163,6 +193,7 @@ export const cryptexAccountInit = async (
     return {
         success: false,
         authResponse: undefined,
+        offline: false,
     };
 };
 //#endregion Session management - Authentication

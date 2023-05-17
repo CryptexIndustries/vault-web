@@ -31,31 +31,29 @@ const RefundPolicy: NextPage = () => {
                                 2. Refund request
                             </h2>
                             <p className="pt-2 text-justify">
-                                Refunds can be requested by accessing the Stripe
-                                Customer Portal inside the Vault. In case
-                                you&apos;re unable to access the Stripe Customer
-                                Portal, please contact us via our contact form
-                                or email us{" "}
+                                To request a refund, please contact us via our
+                                contact form or email us{" "}
                                 <a
                                     href="mailto:contact@cryptex-vault.com"
                                     className="text-blue-500 underline"
                                 >
                                     directly
                                 </a>
-                                .
+                                . We will process your refund as soon as
+                                possible.
                             </p>
                             <h2 className="mt-10 text-2xl font-bold">
                                 3. Refund process
                             </h2>
                             <p className="pt-2 text-justify">
-                                Once your refund request is initiated through
-                                the Stripe Customer Portal, the refund will be
-                                processed automatically. A credit will be
-                                applied to your original method of payment
-                                within a certain number of days. In cases where
-                                assistance from our support team is required, we
-                                will follow the same process once the refund
-                                request is approved.
+                                Once your refund request is received and
+                                inspected, we will send you an email to notify
+                                you of the approval or rejection of your refund.
+                                If approved, your refund will be processed, and
+                                a credit will automatically be applied to your
+                                original method of payment within a certain
+                                number of days (depending on the type of payment
+                                and our Payment Processor).
                             </p>
                         </div>
                     </div>

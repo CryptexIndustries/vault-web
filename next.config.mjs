@@ -64,6 +64,26 @@ const _withPWA = withPWA({
     sw: "/app/service-worker.js",
     reloadOnOnline: false,
     skipWaiting: true,
+    buildExcludes: ["app-build-manifest.json"],
+    dynamicStartUrl: false,
+    cacheStartUrl: false,
+    runtimeCaching: [
+        {
+            urlPattern: ({ url }) => url.pathname.startsWith("/api"),
+            handler: "NetworkOnly",
+        },
+        // Make sure we update /app when we're online but still cache it
+        {
+            urlPattern: ({ url }) => url.pathname.startsWith("/app"),
+            handler: "NetworkFirst",
+            options: {
+                cacheName: "app-cache",
+                cacheableResponse: {
+                    statuses: [0, 200],
+                },
+            },
+        },
+    ],
 });
 
 const nextConfig = {

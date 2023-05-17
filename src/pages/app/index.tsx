@@ -51,6 +51,7 @@ import {
     ShareIcon,
     HandThumbUpIcon,
     ArrowUturnUpIcon,
+    CalendarIcon,
 } from "@heroicons/react/20/solid";
 
 import { trpc } from "../../utils/trpc";
@@ -2876,7 +2877,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                 </p>
                 <div className="mt-2 p-2">
                     <div className="flex space-x-2">
-                        <ClockIcon className="mr-2 inline-block h-5 w-5" />
+                        <CalendarIcon className="mr-2 inline-block h-5 w-5" />
                         <p>Started on</p>
                         <p className="text-slate-700">
                             {subscriptionData.created_at?.toLocaleDateString()}
@@ -2884,6 +2885,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                     </div>
                     {subscriptionData.expires_at && (
                         <div className="flex space-x-2">
+                            <ClockIcon className="mr-2 inline-block h-5 w-5" />
                             <p>
                                 {subscriptionData.cancel_at_period_end
                                     ? "Expires on"
@@ -2933,7 +2935,6 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                     {subscriptionData.nonFree &&
                         subscriptionData.configuration?.automated_backups && (
                             <div className="flex items-center space-x-2">
-                                {/* Show an icon next to the text */}
                                 <ArrowUturnUpIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Automated encrypted backups</p>
                             </div>

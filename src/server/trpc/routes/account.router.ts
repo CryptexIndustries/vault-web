@@ -244,14 +244,13 @@ export const accountRouter = createProtectedRouter()
                 },
             });
 
-            if (subscription) {
+            if (subscription && subscription.subscription.length > 0) {
                 const id = subscription.subscription[0]?.customer_id;
-                // FIXME: We're calling this even if the user never had a subscription
-                //      This is because we don't have a way to check if the user had a subscription.
-                //      customer_id is set to the user's ID if the user never had a subscription
-                //      And when the user subscribes, the customer_id is set to the user's ID
-                //      which is provided when creating the customer.
-                if (id) {
+
+                // Call the Stripe API to delete the customer only if the user had a subscription
+                // The actual customer_id is set to the user's ID when they don't have a subscription
+                // When they do have a subscription, the customer_id is set to the actual customer ID (payment processor's)
+                if (id && id !== ctx.session.user.id) {
                     try {
                         const res = await stripe.customers.del(id);
                         console.debug(

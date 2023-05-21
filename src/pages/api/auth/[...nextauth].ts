@@ -60,8 +60,8 @@ export function requestWrapper(
     const defaultSessionExpiery = 60 * 60 * 24 * 1; // 1 day
     // const defaultSessionTokenName = "auth.session-token";
 
-    const fromDate = (time: number, date = Date.now()) =>
-        new Date(date + time * 1000);
+    // const fromDate = (time: number, date = Date.now()) =>
+    //     new Date(date + time * 1000);
 
     const adapter = PrismaAdapter(prisma);
 
@@ -146,7 +146,8 @@ export function requestWrapper(
                 // }
 
                 // Check whether or not a subscription exists for the user, if it doesn't then create one for the free plan
-                initUserSubscriptionTier(prisma, user.id);
+                if (user.email)
+                    initUserSubscriptionTier(prisma, user.id, user.email);
 
                 return true;
             },

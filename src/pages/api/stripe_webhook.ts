@@ -21,10 +21,14 @@ const stripe = new Stripe(
 
 const prisma = new PrismaClient();
 
-const webhook = async (req: NextApiRequest, res: NextApiResponse) => {
+// Docs: https://stripe.com/docs/api
+export default async function handler(
+    req: NextApiRequest,
+    res: NextApiResponse
+) {
     await NextCors(req, res, {
         // Options
-        methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
+        methods: ["POST"],
         origin: "*",
         optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
     });
@@ -35,7 +39,7 @@ const webhook = async (req: NextApiRequest, res: NextApiResponse) => {
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
 
         if (!sig || !webhookSecret) {
-            res.status(400).send(`Missing signature`);
+            res.status(400).send("Missing signature");
             return;
         }
 
@@ -43,268 +47,265 @@ const webhook = async (req: NextApiRequest, res: NextApiResponse) => {
 
         try {
             event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
-            // } catch (err: Stripe.errors.StripeSignatureVerificationError) {
-        } catch (err: any) {
+        } catch (err) {
             // On error, log and return the error message
-            console.error(
-                `❌ Failed to parse stripe webhook event. Error message: ${err.message}`
-            );
-            res.status(400).send(`Webhook Error: ${err.message}`);
+            if (err instanceof Stripe.errors.StripeSignatureVerificationError) {
+                console.error(
+                    `[Stripe] Failed to parse webhook event. Error message: ${err.message}`
+                );
+                res.status(400).send("Bad signature");
+            } else {
+                // Unknown server error
+                console.error(
+                    `[Stripe] Failed to parse webhook event. Error: ${err}`
+                );
+                res.status(500).send("Internal server error");
+            }
+
             return;
         }
 
-        // Successfully constructed event
-        // console.log("✅ Success:", event.id, event.type);
-        switch (event.type) {
-            case "checkout.session.completed":
-                // Here we get the metadata from the checkout session
-                // The metadata contains the userId which we're going to use to connect the user to the subscription
+        // Successfully constructed event - verified the signature
+        if (
+            event.type === "invoice.paid" ||
+            event.type === "invoice.payment_failed"
+        ) {
+            // Here we get the invoice.paid event
+            // Update the subscription status in the database
 
-                const session = event.data.object as Stripe.Checkout.Session;
-                const userId = session.metadata?.userId;
-                const customerId = session.customer as string;
+            const invoice = event.data.object as Stripe.Invoice;
 
-                if (!userId || !customerId) {
-                    console.error(
-                        `❌ [checkout.session.completed] || UserID: ${userId} CustomerID: ${customerId} || Error: Missing userId or customerId`
-                    );
-                    res.status(400).send("Missing userId or customerId");
-                    return;
-                }
+            if (!invoice?.id?.length) {
+                console.error(
+                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} || Error: Invalid invoice ID`
+                );
 
-                // Here we create the subscription in the database
-                await prisma.subscription.upsert({
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            const customerId = invoice.customer as string;
+            const customerEmail = invoice.customer_email;
+
+            // Early exit if the invoice is invalid
+            if (
+                !invoice?.subscription ||
+                typeof invoice?.subscription !== "string"
+            ) {
+                console.error(
+                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Invalid invoice`
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            // Early exit if the customer email is invalid
+            if (!customerEmail?.length) {
+                console.error(
+                    `[Stripe] [${event.type}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Invalid customerEmail`
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            // console.log(
+            //     event.type + " -----",
+            //     customerId,
+            //     customerEmail,
+            //     invoice
+            // );
+
+            await updateSubscription(
+                event.type,
+                customerId,
+                customerEmail,
+                invoice.subscription,
+                res
+            );
+        } else if (
+            event.type === "customer.subscription.created" ||
+            event.type === "customer.subscription.updated"
+        ) {
+            // Here we get the customer.subscription.created event
+            // Update the dates and status in the database
+
+            const _subscription = event.data.object as Stripe.Subscription;
+            const customerId = _subscription.customer as string;
+
+            if (!customerId?.length) {
+                console.error(
+                    `[Stripe] [${event.type}] || CustomerID: ${customerId} || Error: Missing customerId`
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            // Get the customer from stripe
+            const customer = await stripe.customers.retrieve(customerId);
+
+            // console.log(event.type + " -----", customerId, _subscription);
+
+            // If the customer was deleted, escape early
+            if (customer.deleted) {
+                console.debug(
+                    `[Stripe] [${event.type}] || CustomerID: ${customerId} || Error: Customer was deleted, cannot upsert subscription`
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            const customerEmail = customer.email;
+
+            // Early exit if the customer email is invalid
+            if (!customerEmail?.length) {
+                console.error(
+                    `[Stripe] [${event.type}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Invalid customerEmail`
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            await updateSubscription(
+                event.type,
+                customerId,
+                customerEmail,
+                _subscription.id as string,
+                res
+            );
+        } else if (event.type === "customer.subscription.deleted") {
+            // Here we get the customer.subscription.deleted event
+            // Remove the subscription from the database
+
+            const subscription = event.data.object as Stripe.Subscription;
+            const customerId = subscription.customer as string;
+
+            if (!customerId?.length) {
+                console.error(
+                    `[Stripe] [customer.subscription.deleted] || CustomerID: ${customerId} || Error: Missing customerId`
+                );
+
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            // console.log(
+            //     "customer.subscription.deleted -----",
+            //     customerId,
+            //     subscription
+            // );
+
+            // Here we find the subscription that was deleted
+            const deletedSubscription = await prisma.subscription.findFirst({
+                where: {
+                    customer_id: customerId,
+                },
+                select: {
+                    user_id: true,
+                    email: true,
+                },
+            });
+
+            if (deletedSubscription) {
+                // Here we delete all user API keys in the database
+                await prisma.aPIKey.deleteMany({
                     where: {
-                        user_id: userId,
+                        user_id: deletedSubscription.user_id,
                     },
-                    create: {
-                        user_id: userId,
+                });
+
+                // Initialize the users tier only if the user ID is provided (we have to know which user to initialize the tier data for)
+                await initUserSubscriptionTier(
+                    prisma,
+                    deletedSubscription.user_id,
+                    deletedSubscription.email,
+                    true
+                );
+            }
+        } else if (event.type === "customer.deleted") {
+            // Here we get the customer.deleted event
+            // Remove the subscription from the database
+
+            const customer = event.data.object as Stripe.Customer;
+            const customerEmail = customer.email;
+            const customerId = customer.id;
+
+            if (!customerEmail?.length) {
+                console.error(
+                    `[Stripe] [customer.deleted] || CustomerID: ${customerId} || Error: Invalid customerEmail`
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+
+            // console.log("customer.deleted -----", customerId, customer);
+
+            // Here we try to find the subscription of the deleted customer
+            const deletedSubscription = await prisma.subscription.findFirst({
+                where: {
+                    OR: [
+                        {
+                            customer_id: customerId,
+                        },
+                        {
+                            email: customerEmail,
+                        },
+                    ],
+                },
+                select: {
+                    user_id: true,
+                    email: true,
+                },
+            });
+
+            if (deletedSubscription) {
+                // Update the subsction customer_id field to point to the user ID - since the customer was deleted from the payment processor
+                await prisma.subscription.update({
+                    where: {
                         customer_id: customerId,
                     },
-                    update: {
-                        customer_id: customerId,
-                    },
-                });
-
-                // Here we upsert the subscription
-                // console.log(event);
-                break;
-            case "invoice.paid":
-                // Here we get the invoice.paid event
-                // Update the subscription status in the database
-
-                const invoice = event.data.object as Stripe.Invoice;
-                const customerId_ = invoice.customer as string;
-
-                const userId_ = (
-                    await prisma.subscription.findFirst({
-                        where: {
-                            customer_id: customerId_,
-                        },
-                        select: {
-                            user_id: true,
-                        },
-                    })
-                )?.user_id;
-
-                if (!userId_ || !customerId_) {
-                    console.error(
-                        `❌ [invoice.paid] || UserID: ${userId_} CustomerID: ${customerId_} || Error: Missing userId or customerId`
-                    );
-                    res.status(400).send("Missing userId or customerId");
-                    return;
-                }
-
-                // Here we update the subscription in the database
-                await prisma.subscription.update({
-                    where: {
-                        user_id: userId_,
-                    },
                     data: {
-                        payment_status: invoice.status?.toString(),
-                    },
-                });
-
-                // console.log(event);
-                break;
-            case "invoice.payment_failed":
-                // Here we get the invoice.payment_failed event
-                // Update the subscription status in the database
-
-                const invoice_ = event.data.object as Stripe.Invoice;
-                const customerId_____ = invoice_.customer as string;
-
-                const userId_____ = (
-                    await prisma.subscription.findFirst({
-                        where: {
-                            customer_id: customerId_____,
-                        },
-                        select: {
-                            user_id: true,
-                        },
-                    })
-                )?.user_id;
-
-                if (!userId_____ || !customerId_____) {
-                    console.error(
-                        `❌ [invoice.payment_failed] || UserID: ${userId_____} CustomerID: ${customerId_____} || Error: Missing userId or customerId`
-                    );
-                    res.status(400).send("Missing userId or customerId");
-                    return;
-                }
-
-                // Here we update the subscription in the database
-                await prisma.subscription.update({
-                    where: {
-                        user_id: userId_____,
-                    },
-                    data: {
-                        payment_status: invoice_.status?.toString(),
-                    },
-                });
-
-                // console.log(event);
-                break;
-            case "customer.subscription.created":
-                // Here we get the customer.subscription.created event
-                // Update the dates and status in the database
-
-                const subscription = event.data.object as Stripe.Subscription;
-                const customerId__ = subscription.customer as string;
-
-                const userId__ = (
-                    await prisma.subscription.findFirst({
-                        where: {
-                            customer_id: customerId__,
-                        },
-                        select: {
-                            user_id: true,
-                        },
-                    })
-                )?.user_id;
-
-                if (!userId__ || !customerId__) {
-                    console.error(
-                        `❌ [customer.subscription.created] || UserID: ${userId__} CustomerID: ${customerId__} || Error: Missing userId or customerId`
-                    );
-                    res.status(400).send("Missing userId or customerId");
-                    return;
-                }
-
-                // Here we update the subscription in the database
-                await prisma.subscription.update({
-                    where: {
-                        user_id: userId__,
-                    },
-                    data: {
-                        created_at: new Date(
-                            subscription.current_period_start * 1000
-                        ),
-                        expires_at: new Date(
-                            subscription.current_period_end * 1000
-                        ),
-                        status: subscription.status.toString(),
-                        product_id:
-                            subscription.items.data[0]?.plan.product?.toString(),
-                    },
-                });
-                break;
-            case "customer.subscription.updated":
-                // Here we get the customer.subscription.updated event
-                // Update the dates and status in the database
-
-                const subscription_ = event.data.object as Stripe.Subscription;
-                const customerId___ = subscription_.customer as string;
-
-                const userId___ = (
-                    await prisma.subscription.findFirst({
-                        where: {
-                            customer_id: customerId___,
-                        },
-                        select: {
-                            user_id: true,
-                        },
-                    })
-                )?.user_id;
-
-                if (!userId___ || !customerId___) {
-                    console.error(
-                        `❌ [customer.subscription.updated] || UserID: ${userId___} CustomerID: ${customerId___} || Error: Missing userId or customerId`
-                    );
-                    res.status(400).send("Missing userId or customerId");
-                    return;
-                }
-
-                // Here we update the subscription in the database
-                await prisma.subscription.update({
-                    where: {
-                        user_id: userId___,
-                    },
-                    data: {
-                        created_at: new Date(
-                            subscription_.current_period_start * 1000
-                        ),
-                        expires_at: new Date(
-                            subscription_.current_period_end * 1000
-                        ),
-                        status: subscription_.status.toString(),
-                        cancel_at_period_end:
-                            subscription_.cancel_at_period_end,
-                        product_id:
-                            subscription_.items.data[0]?.plan.product?.toString(),
-                    },
-                });
-
-                // console.log(event);
-                break;
-            case "customer.subscription.deleted":
-                // Here we get the customer.subscription.deleted event
-                // Remove the subscription from the database
-
-                const subscription__ = event.data.object as Stripe.Subscription;
-                const customerId____ = subscription__.customer as string;
-
-                const userId____ = (
-                    await prisma.subscription.findFirst({
-                        where: {
-                            customer_id: customerId____,
-                        },
-                        select: {
-                            user_id: true,
-                        },
-                    })
-                )?.user_id;
-
-                if (!userId____ || !customerId____) {
-                    console.error(
-                        `❌ [customer.subscription.deleted] || UserID: ${userId____} CustomerID: ${customerId____} || Error: Missing userId or customerId`
-                    );
-                    res.status(400).send("Missing userId or customerId");
-                    return;
-                }
-
-                // Here we delete the subscription in the database
-                await prisma.subscription.delete({
-                    where: {
-                        user_id: userId____,
+                        customer_id: deletedSubscription.user_id,
                     },
                 });
 
                 // Here we delete all user API keys in the database
                 await prisma.aPIKey.deleteMany({
                     where: {
-                        user_id: userId____,
+                        user_id: deletedSubscription.user_id,
                     },
                 });
 
-                // Init the free tier for the user
-                initUserSubscriptionTier(prisma, userId____);
+                // Initialize the users tier only if the user ID is provided (we have to know which user to initialize the tier data for)
+                await initUserSubscriptionTier(
+                    prisma,
+                    deletedSubscription.user_id,
+                    deletedSubscription.email,
+                    true
+                );
+            } else {
+                // console.debug(
+                //     `[Stripe] [customer.deleted] || CustomerID: ${customerId} Customer email: ${customerEmail} || Silent warning: Could not find subscription of deleted customer, was probably deleted before the webhook event triggered.`
+                // );
 
-                // console.log(event);
-                break;
-            default:
-                // Unhandled event type
-                break;
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
+        } else {
+            // Unhandled event type
         }
     } else {
         res.setHeader("Allow", "POST");
@@ -313,6 +314,81 @@ const webhook = async (req: NextApiRequest, res: NextApiResponse) => {
     }
 
     res.status(200).send({ received: true });
-};
+}
 
-export default webhook;
+const updateSubscription = async (
+    eventType: string,
+    customerId: string,
+    customerEmail: string,
+    subscriptionId: string,
+    res: NextApiResponse
+) => {
+    // Get user_id with the email
+    const userId = (
+        await prisma.user.findFirst({
+            where: {
+                email: customerEmail,
+            },
+            select: {
+                id: true,
+            },
+        })
+    )?.id;
+
+    if (!userId?.length) {
+        console.error(
+            `[Stripe] [${eventType}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Could not find user with email in database`
+        );
+
+        // Don't send an error, because we don't want to retry the webhook
+        res.status(200).send({ received: true });
+        return;
+    }
+
+    // Get the customers subscription from stripe
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    // Validate the Stripe subscription object
+    if (!subscription) {
+        console.error(
+            `[Stripe] [${eventType}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Could not find users subscription`
+        );
+
+        // Don't send an error, because we don't want to retry the webhook
+        res.status(200).send({ received: true });
+        return;
+    }
+
+    // NOTE: THIS MIGHT BE UNNECESSARY
+    // Fetch the latest invoice from stripe
+    const invoice = await stripe.invoices.retrieve(
+        subscription.latest_invoice as string
+    );
+
+    // Here we update the subscription in the database
+    await prisma.subscription.upsert({
+        create: {
+            user_id: userId,
+            customer_id: customerId,
+            email: customerEmail,
+            created_at: new Date(subscription.current_period_start * 1000),
+            expires_at: new Date(subscription.current_period_end * 1000),
+            status: subscription.status.toString(),
+            payment_status: invoice.status?.toString(),
+            cancel_at_period_end: subscription.cancel_at_period_end,
+            product_id: subscription.items.data[0]?.plan.product?.toString(),
+        },
+        update: {
+            customer_id: customerId,
+            created_at: new Date(subscription.current_period_start * 1000),
+            expires_at: new Date(subscription.current_period_end * 1000),
+            status: subscription.status.toString(),
+            payment_status: invoice.status?.toString(),
+            cancel_at_period_end: subscription.cancel_at_period_end,
+            product_id: subscription.items.data[0]?.plan.product?.toString(),
+        },
+        where: {
+            email: customerEmail, // This is a reliable way to find the subscription since we got the user ID using the email
+        },
+    });
+};

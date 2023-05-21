@@ -46,7 +46,6 @@ export const paymentRouter = createProtectedRouter()
             try {
                 return await createCheckoutSession(
                     ctx.session.user.email,
-                    ctx.session.user.id,
                     input.priceId
                 );
             } catch (error) {
@@ -73,7 +72,6 @@ export const paymentRouter = createProtectedRouter()
             try {
                 const id = await createCheckoutSession(
                     ctx.session.user.email,
-                    ctx.session.user.id,
                     priceId
                 );
 

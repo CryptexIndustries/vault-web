@@ -85,7 +85,8 @@ model Subscription {
     id                   String                @id @default(cuid())
     user_id              String                @unique
     customer_id          String                @unique
-    created_at           DateTime?
+    email                String                @unique
+    created_at           DateTime
     expires_at           DateTime?
     status               String?
     payment_status       String?

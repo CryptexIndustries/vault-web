@@ -27,7 +27,6 @@ const stripeBackend = new Stripe(
 );
 export const createCheckoutSession = async (
     userEmail: string,
-    userId: string,
     priceId: string
 ): Promise<string> => {
     // NOTE: If we're using the customer id, we can't pass the email
@@ -43,9 +42,6 @@ export const createCheckoutSession = async (
             enabled: true,
         },
         customer_email: userEmail,
-        metadata: {
-            userId: userId,
-        },
         // customer: currentCustomerId,
         success_url: `${
             process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"

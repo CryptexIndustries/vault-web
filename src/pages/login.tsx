@@ -221,7 +221,6 @@ export const getServerSideProps = async (ctx: {
                 ) {
                     const checkoutSession = await createCheckoutSession(
                         session.user.email,
-                        session.user.id,
                         GetPriceID(checkoutPlan as PRICE_ID_KEY)
                     );
 

@@ -2876,7 +2876,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                     {subscriptionData.product_name}
                 </p>
                 <div className="mt-2 p-2">
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-2">
                         <CalendarIcon className="mr-2 inline-block h-5 w-5" />
                         <p>Started on</p>
                         <p className="text-slate-700">
@@ -2884,7 +2884,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                         </p>
                     </div>
                     {subscriptionData.expires_at && (
-                        <div className="flex space-x-2">
+                        <div className="flex items-center space-x-2">
                             <ClockIcon className="mr-2 inline-block h-5 w-5" />
                             <p>
                                 {subscriptionData.cancel_at_period_end
@@ -2898,7 +2898,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                     )}
                     {subscriptionData.configuration &&
                         subscriptionData.configuration.linking_allowed && (
-                            <div className="flex space-x-2">
+                            <div className="flex items-center space-x-2">
                                 <DevicePhoneMobileIcon className="mr-2 inline-block h-5 w-5" />
                                 <p className="text-slate-700">
                                     {
@@ -4184,9 +4184,9 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
             visibleState={[isDialogVisible, setIsDialogVisible]}
             inhibitDismissOnClickOutside={true}
         >
-            <Body>
-                <div className="flex flex-col items-center text-center">
-                    <p className="text-2xl font-bold text-gray-900">
+            <Body className="flex w-full flex-col items-center gap-3">
+                <>
+                    <p className="text-center text-2xl font-bold text-gray-900">
                         Credentials
                     </p>
 
@@ -4455,7 +4455,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                             )}
                         </div>
                     </div>
-                </div>
+                </>
                 <TOTPDialog
                     visibleState={TOTPDialogVisible}
                     submitCallback={setTOTPFormValue}

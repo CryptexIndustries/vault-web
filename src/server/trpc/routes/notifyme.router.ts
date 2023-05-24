@@ -7,7 +7,7 @@ export const notifyMeRouter = createRouter()
         input: z.object({
             email: z.string().email(),
             ref: z.enum(["enterprise-tier"]).nullable(),
-            captchaToken: z.string().max(256),
+            captchaToken: z.string(),
         }),
         async resolve({ input, ctx }) {
             try {
@@ -47,7 +47,7 @@ export const notifyMeRouter = createRouter()
         input: z.object({
             email: z.string().email(),
             message: z.string().max(500),
-            captchaToken: z.string().max(256),
+            captchaToken: z.string(),
         }),
         async resolve({ input }) {
             // Send a request to the Captcha API to verify the user's response

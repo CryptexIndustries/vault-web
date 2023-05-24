@@ -43,7 +43,7 @@ export const credentialsRouter = createRouter()
         input: z.object({
             email: z.string().email(),
             publicKey: z.string().max(256, "Invalid public key"),
-            captchaToken: z.string().max(256),
+            captchaToken: z.string(),
         }),
         output: z.string(),
         async resolve({ ctx, input }) {

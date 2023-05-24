@@ -1,16 +1,15 @@
-import React, { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { GetStaticProps, NextApiRequest, NextApiResponse } from "next";
-import { Session } from "next-auth";
-import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
+import { GetStaticProps } from "next";
+import { SessionProvider, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { toast } from "react-toastify";
-import { Controller, set, useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
-import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { atom, useAtomValue, useSetAtom } from "jotai";
 import * as OTPAuth from "otpauth";
 import { shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
@@ -44,15 +43,14 @@ import {
     CloudArrowUpIcon,
     KeyIcon,
     WifiIcon,
-    EyeIcon,
     LinkIcon,
     Cog8ToothIcon,
-    PhoneIcon,
     ShareIcon,
     HandThumbUpIcon,
     ArrowUturnUpIcon,
     CalendarIcon,
 } from "@heroicons/react/20/solid";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 import { trpc } from "../../utils/trpc";
 import { TRPCClientError } from "@trpc/client";
@@ -88,6 +86,7 @@ import { WarningDialog } from "../../components/dialog/warning";
 import { AccordionItem } from "../../components/general/accordion";
 import { GetSubscriptionOutputSchemaType } from "../../schemes/payment_router";
 import Spinner from "../../components/general/spinner";
+import { env } from "../../env/client.mjs";
 
 dayjs.extend(RelativeTime);
 
@@ -95,10 +94,10 @@ const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 const unlockedVaultAtom = atom<Vault | null>(null);
 
 const onlineServicesEndpointConfiguration: PusherOptions.Options = {
-    wsHost: process.env.NEXT_PUBLIC_PUSHER_APP_HOST ?? "",
-    wsPort: parseInt(process.env.NEXT_PUBLIC_PUSHER_APP_PORT ?? "") ?? 6001,
-    wssPort: parseInt(process.env.NEXT_PUBLIC_PUSHER_APP_PORT ?? "") ?? 6001,
-    forceTLS: process.env.NEXT_PUBLIC_PUSHER_APP_TLS?.toLowerCase() === "true",
+    wsHost: env.NEXT_PUBLIC_PUSHER_APP_HOST,
+    wsPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
+    wssPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
+    forceTLS: env.NEXT_PUBLIC_PUSHER_APP_TLS,
     // encrypted: true,
     disableStats: true,
     enabledTransports: ["ws", "wss"],
@@ -644,10 +643,12 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
             opsLimit:
                 VaultEncryption.KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
         },
+        captchaToken: "",
     };
     const {
         handleSubmit,
         control,
+        setError: setFormError,
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
         watch,
@@ -686,11 +687,18 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                 formData.vaultEncryptionConfig
             );
 
-            // Initialize the vault account
-            await cryptexAccountInit(
-                vault.OnlineServices.UserID,
+            if (
+                vault.OnlineServices.isBound() &&
+                vault.OnlineServices.UserID &&
                 vault.OnlineServices.PrivateKey
-            );
+            ) {
+                // Initialize the vault account
+                await cryptexAccountInit(
+                    vault.OnlineServices.UserID,
+                    vault.OnlineServices.PrivateKey,
+                    formData.captchaToken
+                );
+            }
 
             // Set the vault metadata and vault atoms
             setUnlockedVaultMetadata(selected.current);
@@ -745,6 +753,7 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                     selected.current.Blob.keyDerivationFunc,
                 vaultEncryptionConfig:
                     selected.current.Blob.keyDerivationFuncConfig,
+                captchaToken: "",
             });
 
             // If we're in development, automatically unlock the vault
@@ -1007,6 +1016,41 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                 )}
                             </AccordionItem>
                         </div>
+
+                        {env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA && (
+                            <div className="mt-4 flex flex-col items-center">
+                                <Controller
+                                    control={control}
+                                    name="captchaToken"
+                                    render={({ field: { onChange } }) => (
+                                        <Turnstile
+                                            options={{
+                                                theme: "light",
+                                                size: "normal",
+                                                language: "auto",
+                                            }}
+                                            siteKey={
+                                                env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+                                            }
+                                            onError={() => {
+                                                setFormError("captchaToken", {
+                                                    message: "Captcha error",
+                                                });
+                                            }}
+                                            onExpire={() => onChange("")}
+                                            onSuccess={(token) =>
+                                                onChange(token)
+                                            }
+                                        />
+                                    )}
+                                />
+                                {errors.captchaToken && (
+                                    <p className="text-red-500">
+                                        {errors.captchaToken.message}
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </Body>
@@ -1660,6 +1704,9 @@ const VaultLinkingDialog: React.FC<{
     const vaultLinkingFormSchema = z.object({
         encryptedData: z.string().nonempty(),
         decryptionPassphrase: z.string().nonempty(),
+        captchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
+            ? z.string().nonempty("Captcha is required.")
+            : z.string(),
     });
     type VaultLinkingFormSchemaType = z.infer<typeof vaultLinkingFormSchema>;
     const {
@@ -1675,6 +1722,7 @@ const VaultLinkingDialog: React.FC<{
         defaultValues: {
             encryptedData: "",
             decryptionPassphrase: "",
+            captchaToken: "",
         },
     });
 
@@ -1767,7 +1815,8 @@ const VaultLinkingDialog: React.FC<{
         try {
             const response = await cryptexAccountSignIn(
                 decryptedData.UserID,
-                decryptedData.PrivateKey
+                decryptedData.PrivateKey,
+                formData.captchaToken
             );
 
             // Validate the auth data
@@ -1797,7 +1846,7 @@ const VaultLinkingDialog: React.FC<{
         // TODO: Access the WS server (provide the signed nonce) - subscribe to own channel
         // TODO: Wait for a WebRTC offer from the other device
         const onlineServicesEndpoint = new Pusher(
-            process.env.NEXT_PUBLIC_PUSHER_APP_KEY ?? "",
+            env.NEXT_PUBLIC_PUSHER_APP_KEY,
             onlineServicesEndpointConfiguration
         );
 
@@ -2007,6 +2056,44 @@ const VaultLinkingDialog: React.FC<{
                                 <p className="text-red-500">
                                     {errors.decryptionPassphrase.message}
                                 </p>
+                            )}
+                            {env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA && (
+                                <div className="mt-5 flex flex-col items-center">
+                                    <Controller
+                                        control={control}
+                                        name="captchaToken"
+                                        render={({ field: { onChange } }) => (
+                                            <Turnstile
+                                                options={{
+                                                    theme: "light",
+                                                    size: "normal",
+                                                    language: "auto",
+                                                }}
+                                                siteKey={
+                                                    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+                                                }
+                                                onError={() => {
+                                                    setFormError(
+                                                        "captchaToken",
+                                                        {
+                                                            message:
+                                                                "Captcha error",
+                                                        }
+                                                    );
+                                                }}
+                                                onExpire={() => onChange("")}
+                                                onSuccess={(token) =>
+                                                    onChange(token)
+                                                }
+                                            />
+                                        )}
+                                    />
+                                    {errors.captchaToken && (
+                                        <p className="text-red-500">
+                                            {errors.captchaToken.message}
+                                        </p>
+                                    )}
+                                </div>
                             )}
                         </>
                     )}
@@ -4772,6 +4859,7 @@ const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
     vaultMetadata,
     vault,
 }) => {
+    // TODO: Show this dialog only if the user is actually online
     const [visible, setVisible] = useState(!vault.OnlineServices.isBound());
     showDialogFnRef.current = () => setVisible(true);
     const hideDialog = () => setVisible(false);
@@ -4958,19 +5046,19 @@ const AccountDialogSignInForm: React.FC<{
                 setIsSubmitting(true);
 
                 // Try to sign in with the data from the file
-                const signInRes = await cryptexAccountSignIn(
-                    decryptedData.UserID,
-                    decryptedData.PrivateKey
-                );
+                // const signInRes = await cryptexAccountSignIn(
+                //     decryptedData.UserID,
+                //     decryptedData.PrivateKey
+                // );
 
                 // If successful, save the credentials to the vault
-                if (signInRes) {
-                    bindAccountFn(
-                        decryptedData.UserID,
-                        decryptedData.PrivateKey,
-                        decryptedData.PublicKey
-                    );
-                }
+                // if (signInRes) {
+                //     bindAccountFn(
+                //         decryptedData.UserID,
+                //         decryptedData.PrivateKey,
+                //         decryptedData.PublicKey
+                //     );
+                // }
 
                 setIsSubmitting(false);
             };
@@ -5112,11 +5200,13 @@ const AccountDialogSignUpForm: React.FC<{
     const {
         control,
         handleSubmit,
+        setError: setFormError,
         formState: { errors },
     } = useForm<SignUpFormSchemaType>({
         resolver: zodResolver(signUpFormSchema),
         defaultValues: {
             email: "",
+            captchaToken: "",
         },
     });
 
@@ -5149,6 +5239,7 @@ const AccountDialogSignUpForm: React.FC<{
             const userID = await register_user({
                 email: formData.email,
                 publicKey: keyPair.publicKey,
+                captchaToken: formData.captchaToken,
             });
 
             // Save the UserID, public/private key to the vault
@@ -5162,7 +5253,11 @@ const AccountDialogSignUpForm: React.FC<{
             });
 
             // Sign in - NOTE: don't await this, we don't want to wait for the server to respond
-            cryptexAccountSignIn(userID, keyPair.privateKey);
+            cryptexAccountSignIn(
+                userID,
+                keyPair.privateKey,
+                formData.captchaToken
+            );
 
             // Hide the dialog
             hideDialogFn();
@@ -5224,6 +5319,34 @@ const AccountDialogSignUpForm: React.FC<{
                     We will send you a confirmation email to verify your email
                     address.
                 </p>
+            </div>
+            <div className="mt-2 flex flex-col items-center">
+                <Controller
+                    control={control}
+                    name="captchaToken"
+                    render={({ field: { onChange } }) => (
+                        <Turnstile
+                            options={{
+                                theme: "light",
+                                size: "normal",
+                                language: "auto",
+                            }}
+                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                            onError={() => {
+                                setFormError("captchaToken", {
+                                    message: "Captcha error",
+                                });
+                            }}
+                            onExpire={() => onChange("")}
+                            onSuccess={(token) => onChange(token)}
+                        />
+                    )}
+                />
+                {errors.captchaToken && (
+                    <p className="text-red-500">
+                        {errors.captchaToken.message}
+                    </p>
+                )}
             </div>
         </div>
     );
@@ -5418,7 +5541,7 @@ const LinkDeviceDialog: React.FC<{
 
         // Connect to WS and wait for the other device
         const onlineServicesEndpoint = new Pusher(
-            process.env.NEXT_PUBLIC_PUSHER_APP_KEY ?? "",
+            env.NEXT_PUBLIC_PUSHER_APP_KEY,
             onlineServicesEndpointConfiguration
         );
         // client.signin();

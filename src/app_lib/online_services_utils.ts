@@ -9,6 +9,7 @@ import type { AppRouter } from "../server/trpc";
 //#region Sign up
 export const signUpFormSchema = z.object({
     email: z.string().email(),
+    captchaToken: z.string().nonempty("Captcha is required."),
 });
 export type SignUpFormSchemaType = z.infer<typeof signUpFormSchema>;
 //#endregion Sign up
@@ -92,7 +93,8 @@ const getNonce = async (): Promise<string> => {
  */
 const handleSignIn = async (
     userID: string,
-    privateKey: string
+    privateKey: string,
+    captchaToken: string
 ): Promise<SignInResponse | undefined> => {
     const authNonce = await getNonce();
 
@@ -104,6 +106,7 @@ const handleSignIn = async (
         userID,
         nonce: authNonce,
         signature,
+        captchaToken,
     });
 };
 
@@ -123,7 +126,8 @@ interface CryptexSignInResponse {
  */
 export const cryptexAccountSignIn = async (
     userID: string,
-    privateKey: string
+    privateKey: string,
+    captchaToken: string
 ): Promise<CryptexSignInResponse> => {
     // If we're offline, don't try to sign in
     if (!(await isOriginAvailable())) {
@@ -140,7 +144,7 @@ export const cryptexAccountSignIn = async (
     }
 
     try {
-        const signinRes = await handleSignIn(userID, privateKey);
+        const signinRes = await handleSignIn(userID, privateKey, captchaToken);
 
         if (!signinRes) {
             throw new Error("Failed to sign in.");
@@ -174,8 +178,9 @@ export const cryptexAccountSignIn = async (
  * @throws Does not throw an error, but logs and toasts an error message in case sign in fails
  */
 export const cryptexAccountInit = async (
-    userID?: string,
-    privateKey?: string
+    userID: string,
+    privateKey: string,
+    captchaToken: string
 ): Promise<CryptexSignInResponse> => {
     try {
         await signOut({
@@ -186,15 +191,15 @@ export const cryptexAccountInit = async (
     }
 
     // Perform the sign in if the user ID and private key are provided
-    if (userID && privateKey) {
-        return cryptexAccountSignIn(userID, privateKey);
-    }
+    // if (userID && privateKey) {
+    return cryptexAccountSignIn(userID, privateKey, captchaToken);
+    // }
 
-    return {
-        success: false,
-        authResponse: undefined,
-        offline: false,
-    };
+    // return {
+    //     success: false,
+    //     authResponse: undefined,
+    //     offline: false,
+    // };
 };
 //#endregion Session management - Authentication
 

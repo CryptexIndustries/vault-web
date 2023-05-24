@@ -4,6 +4,7 @@ import Dexie from "dexie";
 import * as OTPAuth from "otpauth";
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
+import { env } from "../env/client.mjs";
 
 const requiredFieldError = "This is a required field";
 
@@ -124,6 +125,9 @@ export namespace VaultEncryption {
         vaultEncryptionKeyDerivationFunction:
             vaultEncryptionKeyDerivationFunctionFormElement,
         vaultEncryptionConfig: vaultEncryptionConfigurationsFormElement,
+        captchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
+            ? z.string().nonempty("Captcha is required.")
+            : z.string(),
     });
     export type UnlockVaultFormSchemaType = z.infer<
         typeof unlockVaultFormSchema

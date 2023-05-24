@@ -32,7 +32,7 @@
         "**/*.cjs",
         "**/*.mjs",
         "next.config.cjs",
-        ".next/types/**/*.ts"
+        ".next/types/**/*.ts",
     ],
     "exclude": [
         "node_modules"

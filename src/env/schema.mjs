@@ -29,8 +29,8 @@ export const serverSchema = z.object({
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string(),
 
-    // HCaptcha
-    HCAPTCHA_SECRET: z.string(),
+    // Captcha - Turnstile
+    TURNSTILE_SECRET: z.string(),
 
     /* Email ENV Vars */
     SMTP_HOST: z.string(),
@@ -53,8 +53,10 @@ export const serverSchema = z.object({
  * To expose them to the client, prefix them with `NEXT_PUBLIC_`.
  */
 export const clientSchema = z.object({
-    // NEXT_PUBLIC_BAR: z.string(),
-    NEXT_PUBLIC_HCAPTCHA_SITE_KEY: z.string(),
+    // Make captcha mandatory for the Sign in endpoint
+    NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA: z.boolean().default(false),
+
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string(),
 
     NEXT_PUBLIC_PUSHER_APP_ID: z.string(),
     NEXT_PUBLIC_PUSHER_APP_KEY: z.string(),
@@ -75,8 +77,11 @@ export const clientSchema = z.object({
  * @type {{ [k in keyof z.infer<typeof clientSchema>]: z.infer<typeof clientSchema>[k] | undefined }}
  */
 export const clientEnv = {
-    // NEXT_PUBLIC_BAR: process.env.NEXT_PUBLIC_BAR,
-    NEXT_PUBLIC_HCAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY,
+    NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA:
+        process.env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA?.toLowerCase() ===
+        "true",
+
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
 
     NEXT_PUBLIC_PUSHER_APP_ID: process.env.NEXT_PUBLIC_PUSHER_APP_ID,
     NEXT_PUBLIC_PUSHER_APP_KEY: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,

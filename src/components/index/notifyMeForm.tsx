@@ -1,15 +1,15 @@
-import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { toast } from "react-toastify";
 import { trpc } from "../../utils/trpc";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 export type NotifyMeReference = "enterprise-tier" | null;
 
 const formSchema = z.object({
-    Email: z.string().email("This is a required field."),
-    CaptchaResponse: z.string().min(1, "This is a required field."),
+    email: z.string().email("This is a required field."),
+    captchaToken: z.string().nonempty("Captcha is required."),
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -37,8 +37,8 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
     } = useForm<FormSchemaType>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            Email: "",
-            CaptchaResponse: "",
+            email: "",
+            captchaToken: "",
         },
     });
 
@@ -68,9 +68,9 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
         setInProgress(true);
 
         const payload = {
-            email: formData.Email,
+            email: formData.email,
             ref: reference,
-            "h-captcha-response": formData.CaptchaResponse,
+            captchaToken: formData.captchaToken,
         };
         notifyMeRegister(payload, {
             onSettled: () => {
@@ -84,7 +84,7 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
             <div className="flex w-full flex-col text-left">
                 <Controller
                     control={control}
-                    name="Email"
+                    name="email"
                     render={({ field: { onChange, onBlur, value } }) => (
                         <>
                             <input
@@ -99,39 +99,37 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
                         </>
                     )}
                 />
-                {errors.Email && (
-                    <p className="text-red-500">{errors.Email.message}</p>
+                {errors.email && (
+                    <p className="text-red-500">{errors.email.message}</p>
                 )}
             </div>
             <div className="flex flex-col">
                 <Controller
                     control={control}
-                    name="CaptchaResponse"
+                    name="captchaToken"
                     render={({ field: { onChange } }) => (
-                        <HCaptcha
-                            theme="light"
-                            sitekey={
-                                process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ?? ""
-                            }
-                            onVerify={(token) => {
-                                onChange(token);
+                        <Turnstile
+                            options={{
+                                theme: "light",
+                                size: "normal",
+                                language: "auto",
                             }}
-                            onError={(err) => {
-                                console.error(err);
-                                setFormError("CaptchaResponse", {
-                                    message: err,
+                            siteKey={
+                                process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
+                            }
+                            onError={() => {
+                                setFormError("captchaToken", {
+                                    message: "Captcha error",
                                 });
                             }}
-                            onExpire={() => {
-                                console.debug("Captcha expired");
-                                onChange("");
-                            }}
+                            onExpire={() => onChange("")}
+                            onSuccess={(token) => onChange(token)}
                         />
                     )}
                 />
-                {errors.CaptchaResponse && (
+                {errors.captchaToken && (
                     <p className="text-red-500">
-                        {errors.CaptchaResponse.message}
+                        {errors.captchaToken.message}
                     </p>
                 )}
                 <button

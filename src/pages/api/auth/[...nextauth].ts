@@ -2,14 +2,15 @@ import NextAuth, { DefaultSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { NextApiRequest, NextApiResponse } from "next";
-import { randomUUID } from "crypto";
-import { getCookie, setCookie } from "cookies-next";
-import { decode, encode } from "next-auth/jwt";
+// import { randomUUID } from "crypto";
+// import { getCookie, setCookie } from "cookies-next";
+// import { decode, encode } from "next-auth/jwt";
 import { Redis } from "@upstash/redis";
 import { prisma } from "../../../server/db/client";
 import { env } from "../../../env/server.mjs";
-import { checkTOTP, validateSignature } from "../../../utils/data_security";
+import { validateSignature } from "../../../utils/data_security";
 import { initUserSubscriptionTier } from "../../../utils/subscription";
+import validateCaptcha from "../../../utils/captcha";
 
 // Used for nonce generation and verification
 const redis = Redis.fromEnv();
@@ -23,14 +24,10 @@ export default handler;
 
 //#region Available Auth Providers
 export enum CREDENTIAL_PROVIDERS {
-    CryptexTOTP = "cryptex",
     CryptexKeyBased = "cryptex-key-based",
 }
-export const AvailableAuthProvidersList = [
-    "cryptex",
-    "cryptex-key-based",
-] as const;
-export type AvailableAuthProviders = "cryptex" | "cryptex-key-based";
+export const AvailableAuthProvidersList = ["cryptex-key-based"] as const;
+export type AvailableAuthProviders = "cryptex-key-based";
 //#endregion
 
 // Extend the built-in session type
@@ -68,7 +65,7 @@ export function requestWrapper(
     const opts: NextAuthOptions = {
         adapter: adapter,
         callbacks: {
-            session({ session, token, user }) {
+            session({ session, token }) {
                 // console.log("SESS", session);
                 // console.log("token", token);
                 // console.log("USER", user);
@@ -224,70 +221,70 @@ export function requestWrapper(
         },
         secret: env.NEXTAUTH_SECRET,
         providers: [
-            CredentialsProvider({
-                id: CREDENTIAL_PROVIDERS.CryptexTOTP,
-                name: "Cryptex Auth",
-                credentials: {
-                    email: {
-                        label: "Email",
-                        name: "email",
-                        type: "text",
-                    },
-                    token: {
-                        label: "Token",
-                        name: "token",
-                        type: "text",
-                    },
-                },
-                authorize: async (
-                    credentials:
-                        | Record<string | number | symbol, string>
-                        | undefined
-                ) => {
-                    // Validate data format
-                    if (!credentials?.email || !credentials?.token) {
-                        return null;
-                    }
+            // CredentialsProvider({
+            //     id: CREDENTIAL_PROVIDERS.CryptexTOTP,
+            //     name: "Cryptex Auth",
+            //     credentials: {
+            //         email: {
+            //             label: "Email",
+            //             name: "email",
+            //             type: "text",
+            //         },
+            //         token: {
+            //             label: "Token",
+            //             name: "token",
+            //             type: "text",
+            //         },
+            //     },
+            //     authorize: async (
+            //         credentials:
+            //             | Record<string | number | symbol, string>
+            //             | undefined
+            //     ) => {
+            //         // Validate data format
+            //         if (!credentials?.email || !credentials?.token) {
+            //             return null;
+            //         }
 
-                    // Use prisma to check if user exists by email
-                    // If user exists, return user object
-                    // If user does not exist, return null
-                    const user = await prisma.user.findUnique({
-                        where: {
-                            email: credentials.email,
-                        },
-                    });
+            //         // Use prisma to check if user exists by email
+            //         // If user exists, return user object
+            //         // If user does not exist, return null
+            //         const user = await prisma.user.findUnique({
+            //             where: {
+            //                 email: credentials.email,
+            //             },
+            //         });
 
-                    if (user) {
-                        const account = await prisma.account.findFirst({
-                            where: {
-                                userId: user.id,
-                                provider: CREDENTIAL_PROVIDERS.CryptexTOTP,
-                            },
-                            select: {
-                                totp_secret: true,
-                            },
-                        });
+            //         if (user) {
+            //             const account = await prisma.account.findFirst({
+            //                 where: {
+            //                     userId: user.id,
+            //                     provider: CREDENTIAL_PROVIDERS.CryptexTOTP,
+            //                 },
+            //                 select: {
+            //                     totp_secret: true,
+            //                 },
+            //             });
 
-                        // If account does not exist, return false
-                        if (!account || account.totp_secret == null)
-                            return null;
+            //             // If account does not exist, return false
+            //             if (!account || account.totp_secret == null)
+            //                 return null;
 
-                        // If account exists, return user object
-                        if (
-                            await checkTOTP(
-                                credentials.token,
-                                account.totp_secret,
-                                env.NEXTAUTH_SECRET
-                            )
-                        ) {
-                            return user;
-                        }
-                    }
+            //             // If account exists, return user object
+            //             if (
+            //                 await checkTOTP(
+            //                     credentials.token,
+            //                     account.totp_secret,
+            //                     env.NEXTAUTH_SECRET
+            //                 )
+            //             ) {
+            //                 return user;
+            //             }
+            //         }
 
-                    return null;
-                },
-            }),
+            //         return null;
+            //     },
+            // }),
 
             CredentialsProvider({
                 id: CREDENTIAL_PROVIDERS.CryptexKeyBased,
@@ -308,6 +305,11 @@ export function requestWrapper(
                         name: "signature",
                         type: "text",
                     },
+                    captchaToken: {
+                        label: "Captcha Token",
+                        name: "captchaToken",
+                        type: "text",
+                    },
                 },
                 authorize: async (
                     credentials:
@@ -321,6 +323,17 @@ export function requestWrapper(
                         !credentials?.signature
                     ) {
                         return null;
+                    }
+
+                    // Validate captcha token
+                    if (env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA) {
+                        if (!credentials?.captchaToken) return null;
+
+                        const response = await validateCaptcha(
+                            credentials.captchaToken
+                        );
+
+                        if (!response.success) return null;
                     }
 
                     // Check if there is an account with the provided userID

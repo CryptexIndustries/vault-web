@@ -1,41 +1,23 @@
 import { z } from "zod";
 import { createRouter } from "../context";
-
-const gethCaptchaConfirmation = async (token: string) => {
-    return await fetch("https://hcaptcha.com/siteverify", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-            secret: process.env.HCAPTCHA_SECRET ?? "",
-            response: token,
-        }),
-    }).then((res) => res.json());
-};
+import validateCaptcha from "../../../utils/captcha";
 
 export const notifyMeRouter = createRouter()
     .mutation("register", {
         input: z.object({
             email: z.string().email(),
             ref: z.enum(["enterprise-tier"]).nullable(),
-            "h-captcha-response": z.string(),
+            captchaToken: z.string().max(256),
         }),
         async resolve({ input, ctx }) {
             try {
-                if (!process.env.HCAPTCHA_SECRET) {
-                    throw new Error("HCAPTCHA_SECRET is not defined");
-                }
-
-                // Send a request to the HCaptcha API to verify the user's response
-                const verification = await gethCaptchaConfirmation(
-                    input["h-captcha-response"]
-                );
+                // Send a request to the Captcha API to verify the user's response
+                const verification = await validateCaptcha(input.captchaToken);
 
                 // If the user's response was invalid, return an error
                 if (!verification.success) {
-                    console.log(`hCaptcha err: ${verification["error-codes"]}`);
-                    throw new Error("Invalid hCaptcha response");
+                    // console.log(`Captcha err: ${verification["error-codes"]}`);
+                    throw new Error("Failed to validate captcha");
                 }
 
                 // Save the email to the DB. Don't throw an error if the email is already in the database
@@ -65,25 +47,19 @@ export const notifyMeRouter = createRouter()
         input: z.object({
             email: z.string().email(),
             message: z.string().max(500),
-            "h-captcha-response": z.string(),
+            captchaToken: z.string().max(256),
         }),
         async resolve({ input }) {
+            // Send a request to the Captcha API to verify the user's response
+            const verification = await validateCaptcha(input.captchaToken);
+
+            // If the user's response was invalid, return an error
+            if (!verification.success) {
+                // console.log(`Captcha err: ${verification["error-codes"]}`);
+                throw new Error("Failed to validate captcha");
+            }
+
             try {
-                if (!process.env.HCAPTCHA_SECRET) {
-                    throw new Error("HCAPTCHA_SECRET is not defined");
-                }
-
-                // Send a request to the HCaptcha API to verify the user's response
-                const verification = await gethCaptchaConfirmation(
-                    input["h-captcha-response"]
-                );
-
-                // If the user's response was invalid, return an error
-                if (!verification.success) {
-                    console.log(`hCaptcha err: ${verification["error-codes"]}`);
-                    throw new Error("Invalid hCaptcha response");
-                }
-
                 const nodemailer = await import("nodemailer");
                 // Send email using the nodemailer package
                 // Cast the object as any because the types are wrong...
@@ -122,7 +98,9 @@ export const notifyMeRouter = createRouter()
                     message: "",
                 };
             } catch (error: unknown) {
-                console.log(error);
+                console.error(
+                    `[notifyme.contact] Error sending email: ${error}`
+                );
                 return {
                     success: false,
                     message: "Something went wrong.",

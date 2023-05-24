@@ -1,19 +1,19 @@
 // src/pages/login
 
 import { NextApiRequest, NextApiResponse, NextPage } from "next";
-import { BuiltInProviderType } from "next-auth/providers";
-import { ClientSafeProvider, LiteralUnion } from "next-auth/react";
-import { useState } from "react";
-import { toast } from "react-toastify";
-import LoginModal, { FormMode } from "../components/login/loginModal";
+// import { BuiltInProviderType } from "next-auth/providers";
+// import { ClientSafeProvider, LiteralUnion } from "next-auth/react";
+// import { useState } from "react";
+// import { toast } from "react-toastify";
+// import LoginModal, { FormMode } from "../components/login/loginModal";
 import { getServerAuthSession } from "../server/common/get-server-auth-session";
-import { useRouter } from "next/router";
-import NotificationContainer from "../components/general/notificationContainer";
-import Image from "next/image";
-import PageFooter from "../components/general/footer";
-import HTMLHeader from "../components/html_header";
-import HTMLMain from "../components/html_main";
-import NavBar from "../components/navbar";
+// import { useRouter } from "next/router";
+// import NotificationContainer from "../components/general/notificationContainer";
+// import Image from "next/image";
+// import PageFooter from "../components/general/footer";
+// import HTMLHeader from "../components/html_header";
+// import HTMLMain from "../components/html_main";
+// import NavBar from "../components/navbar";
 import {
     GetPriceID,
     PAYMENT_TIERS_LABELS,
@@ -21,19 +21,12 @@ import {
 } from "../utils/subscription";
 import { createCheckoutSession, getCheckoutUrl } from "../utils/stripe";
 
-enum CryptexAuthModalMode {
-    SignIn = "signin",
-    SignUp = "signup",
-}
+// enum CryptexAuthModalMode {
+//     SignIn = "signin",
+//     SignUp = "signup",
+// }
 
-export type LoginProps = {
-    providers: Record<
-        LiteralUnion<BuiltInProviderType, string>,
-        ClientSafeProvider
-    > | null;
-};
-
-const Login: NextPage<LoginProps> = ({ providers }) => {
+const Login: NextPage = () => {
     return null;
 
     // const queryString = useRouter();

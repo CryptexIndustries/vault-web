@@ -1,17 +1,17 @@
-import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { toast } from "react-toastify";
 import { trpc } from "../../utils/trpc";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 const formSchema = z.object({
-    Email: z.string().email("This is a required field."),
-    Message: z
+    email: z.string().email("This is a required field."),
+    message: z
         .string()
         .min(10, "Message needs to be larger than 10 characters.")
-        .max(500, "This is required field."),
-    CaptchaResponse: z.string().min(1, "This is a required field."),
+        .max(500, "Message needs to be smaller than 500 characters."),
+    captchaToken: z.string().nonempty("Captcha is required."),
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -37,9 +37,9 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
     } = useForm<FormSchemaType>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            Email: "",
-            Message: "",
-            CaptchaResponse: "",
+            email: "",
+            message: "",
+            captchaToken: "",
         },
     });
 
@@ -64,9 +64,9 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
         setInProgress(true);
 
         const payload = {
-            email: formData.Email,
-            message: formData.Message,
-            "h-captcha-response": formData.CaptchaResponse,
+            email: formData.email,
+            message: formData.message,
+            captchaToken: formData.captchaToken,
         };
         sendMessage(payload, {
             onSettled: () => {
@@ -80,7 +80,7 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
             <div className="flex w-full flex-col text-left">
                 <Controller
                     control={control}
-                    name="Email"
+                    name="email"
                     render={({ field: { onChange, onBlur, value } }) => (
                         <>
                             <input
@@ -95,14 +95,14 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
                         </>
                     )}
                 />
-                {errors.Email && (
-                    <p className="text-red-500">{errors.Email.message}</p>
+                {errors.email && (
+                    <p className="text-red-500">{errors.email.message}</p>
                 )}
             </div>
             <div className="flex w-full flex-col text-left">
                 <Controller
                     control={control}
-                    name="Message"
+                    name="message"
                     render={({ field: { onChange, onBlur, value } }) => (
                         <>
                             <textarea
@@ -116,39 +116,37 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
                         </>
                     )}
                 />
-                {errors.Message && (
-                    <p className="text-red-500">{errors.Message.message}</p>
+                {errors.message && (
+                    <p className="text-red-500">{errors.message.message}</p>
                 )}
             </div>
             <div className="flex flex-col">
                 <Controller
                     control={control}
-                    name="CaptchaResponse"
+                    name="captchaToken"
                     render={({ field: { onChange } }) => (
-                        <HCaptcha
-                            theme="light"
-                            sitekey={
-                                process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ?? ""
-                            }
-                            onVerify={(token) => {
-                                onChange(token);
+                        <Turnstile
+                            options={{
+                                theme: "light",
+                                size: "normal",
+                                language: "auto",
                             }}
-                            onError={(err) => {
-                                console.error(err);
-                                setFormError("CaptchaResponse", {
-                                    message: err,
+                            siteKey={
+                                process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
+                            }
+                            onError={() => {
+                                setFormError("captchaToken", {
+                                    message: "Captcha error",
                                 });
                             }}
-                            onExpire={() => {
-                                console.debug("Captcha expired");
-                                onChange("");
-                            }}
+                            onExpire={() => onChange("")}
+                            onSuccess={(token) => onChange(token)}
                         />
                     )}
                 />
-                {errors.CaptchaResponse && (
+                {errors.captchaToken && (
                     <p className="text-red-500">
-                        {errors.CaptchaResponse.message}
+                        {errors.captchaToken.message}
                     </p>
                 )}
                 <button

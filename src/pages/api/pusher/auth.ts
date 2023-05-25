@@ -3,15 +3,16 @@ import NextCors from "nextjs-cors";
 import Pusher from "pusher";
 import { getServerAuthSession } from "../../../server/common/get-server-auth-session";
 import { PrismaClient } from "@prisma/client";
+import { env } from "../../../env/client.mjs";
+import { env as serverEnv } from "../../../env/server.mjs";
 
-// const pusher = new Pusher
 const pusher = new Pusher({
-    appId: process.env.NEXT_PUBLIC_PUSHER_APP_ID!,
-    key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
-    secret: process.env.PUSHER_APP_SECRET!,
-    useTLS: process.env.NEXT_PUBLIC_PUSHER_APP_TLS?.toLowerCase() === "true",
-    host: process.env.NEXT_PUBLIC_PUSHER_APP_HOST!,
-    port: process.env.NEXT_PUBLIC_PUSHER_APP_PORT!,
+    appId: env.NEXT_PUBLIC_PUSHER_APP_ID,
+    key: env.NEXT_PUBLIC_PUSHER_APP_KEY,
+    secret: serverEnv.PUSHER_APP_SECRET,
+    useTLS: env.NEXT_PUBLIC_PUSHER_APP_TLS,
+    host: env.NEXT_PUBLIC_PUSHER_APP_HOST,
+    port: env.NEXT_PUBLIC_PUSHER_APP_PORT,
     // encryptionMasterKeyBase64: ENCRYPTION_MASTER_KEY, // a base64 string which encodes 32 bytes, used to derive the per-channel encryption keys (see below!)
 });
 

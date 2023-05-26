@@ -26,6 +26,7 @@
         "@trpc/next": "^9.27.2",
         "@trpc/react": "^9.27.2",
         "@trpc/server": "^9.27.2",
+        "@upstash/ratelimit": "^0.4.3",
         "@upstash/redis": "^1.20.6",
         "clsx": "^1.2.1",
         "cookies-next": "^2.1.1",

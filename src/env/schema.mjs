@@ -29,6 +29,50 @@ export const serverSchema = z.object({
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string(),
 
+    // Upstash Ratelimitting
+    UPSTASH_RATELIMIT_ENABLE_AUTH: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_AUTH: z.number().default(2),
+    UPSTASH_RATELIMIT_DURATION_AUTH: z.string().default("5s"),
+
+    UPSTASH_RATELIMIT_ENABLE_REGISTER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_REGISTER: z.number().default(1),
+    UPSTASH_RATELIMIT_DURATION_REGISTER: z.string().default("1m"),
+
+    UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_DB: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_PAYMENTROUTER_DB: z.number().default(3),
+    UPSTASH_RATELIMIT_DURATION_PAYMENTROUTER_DB: z.string().default("5s"),
+    UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_NODB: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_PAYMENTROUTER_NODB: z.number().default(3),
+    UPSTASH_RATELIMIT_DURATION_PAYMENTROUTER_NODB: z.string().default("5s"),
+
+    UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_FEATUREVOTINGROUTER: z.number().default(3),
+    UPSTASH_RATELIMIT_DURATION_FEATUREVOTINGROUTER: z.string().default("10s"),
+    UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER_MUTATION: z
+        .boolean()
+        .default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_FEATUREVOTINGROUTER_MUTATION: z
+        .number()
+        .default(1),
+    UPSTASH_RATELIMIT_DURATION_FEATUREVOTINGROUTER_MUTATION: z
+        .string()
+        .default("1m"),
+
+    UPSTASH_RATELIMIT_ENABLE_NOTIFYMEROUTER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_NOTIFYMEROUTER: z.number().default(5),
+    UPSTASH_RATELIMIT_DURATION_NOTIFYMEROUTER: z.string().default("1m"),
+
+    UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_QUERY: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_ACCOUNTROUTER_QUERY: z.number().default(4),
+    UPSTASH_RATELIMIT_DURATION_ACCOUNTROUTER_QUERY: z.string().default("10s"),
+    UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_MUTATION: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_ACCOUNTROUTER_MUTATION: z.number().default(5),
+    UPSTASH_RATELIMIT_DURATION_ACCOUNTROUTER_MUTATION: z.string().default("5s"),
+
+    UPSTASH_RATELIMIT_ENABLE_API_PUSHER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_N_REQUESTS_API_PUSHER: z.number().default(5),
+    UPSTASH_RATELIMIT_DURATION_API_PUSHER: z.string().default("30s"),
+
     // Captcha - Turnstile
     TURNSTILE_SECRET: z.string(),
 

@@ -4,6 +4,10 @@ import { createProtectedRouter } from "../custom-router";
 import { StripeConfiguration } from "../../../utils/stripe";
 import Stripe from "stripe";
 import { randomUUID } from "crypto";
+import {
+    checkRatelimitAccountRouter,
+    trpcRatelimitError,
+} from "../../common/ratelimiting";
 
 const stripe = new Stripe(
     process.env.STRIPE_SECRET_KEY ?? "",
@@ -18,6 +22,10 @@ export const accountRouter = createProtectedRouter()
             always_connected: z.boolean(),
         }),
         async resolve({ ctx }) {
+            if (!checkRatelimitAccountRouter(ctx.userIP, false)) {
+                throw trpcRatelimitError;
+            }
+
             const user = await ctx.prisma.user.findFirst({
                 where: {
                     id: ctx.session?.user.id,
@@ -74,6 +82,10 @@ export const accountRouter = createProtectedRouter()
         }),
         output: z.string(),
         async resolve({ ctx, input }) {
+            if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
+                throw trpcRatelimitError;
+            }
+
             // Get the user and check whether they can link devices and how many devices they can link
             const user = await ctx.prisma.user.findFirst({
                 where: {
@@ -171,6 +183,10 @@ export const accountRouter = createProtectedRouter()
         }),
         output: z.boolean(),
         async resolve({ ctx, input }) {
+            if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
+                throw trpcRatelimitError;
+            }
+
             // Check if the account (device) the user is trying to unlink isn't the last one
             const linkedDevices = await ctx.prisma.account.count({
                 where: {
@@ -219,6 +235,10 @@ export const accountRouter = createProtectedRouter()
             })
         ),
         async resolve({ ctx }) {
+            if (!checkRatelimitAccountRouter(ctx.userIP, false)) {
+                throw trpcRatelimitError;
+            }
+
             const devices = await ctx.prisma.account.findMany({
                 where: {
                     userId: ctx.session.user.id,
@@ -235,6 +255,10 @@ export const accountRouter = createProtectedRouter()
     .mutation("deleteUser", {
         output: z.boolean(),
         async resolve({ ctx }) {
+            if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
+                throw trpcRatelimitError;
+            }
+
             const subscription = await ctx.prisma.user.delete({
                 where: {
                     id: ctx.session.user.id,

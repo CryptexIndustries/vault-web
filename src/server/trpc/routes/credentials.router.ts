@@ -8,13 +8,22 @@ import { env } from "../../../env/server.mjs";
 import { createRouter } from "../context";
 import { Redis } from "@upstash/redis";
 import validateCaptcha from "../../../utils/captcha";
+import {
+    checkAuthRatelimit,
+    checkRatelimitRegisterUser,
+    trpcRatelimitError,
+} from "../../common/ratelimiting";
 
 const redis = Redis.fromEnv();
 
 export const credentialsRouter = createRouter()
     .query("generateAuthNonce", {
         output: z.string(),
-        async resolve() {
+        async resolve({ ctx }) {
+            if (!checkAuthRatelimit(ctx.userIP)) {
+                throw trpcRatelimitError;
+            }
+
             // Use the crypto module to generate a nonce
             const nonce = randomUUID();
 
@@ -47,6 +56,10 @@ export const credentialsRouter = createRouter()
         }),
         output: z.string(),
         async resolve({ ctx, input }) {
+            if (!checkRatelimitRegisterUser(ctx.userIP)) {
+                throw trpcRatelimitError;
+            }
+
             // Send a request to the Captcha API to verify the user's response
             const verification = await validateCaptcha(input.captchaToken);
 

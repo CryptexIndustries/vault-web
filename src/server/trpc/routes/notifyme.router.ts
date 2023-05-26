@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { createRouter } from "../context";
 import validateCaptcha from "../../../utils/captcha";
+import {
+    checkRatelimitNotifyme,
+    trpcRatelimitError,
+} from "../../common/ratelimiting";
 
 export const notifyMeRouter = createRouter()
     .mutation("register", {
@@ -9,17 +13,21 @@ export const notifyMeRouter = createRouter()
             ref: z.enum(["enterprise-tier"]).nullable(),
             captchaToken: z.string(),
         }),
-        async resolve({ input, ctx }) {
+        async resolve({ ctx, input }) {
+            if (!checkRatelimitNotifyme(ctx.userIP)) {
+                throw trpcRatelimitError;
+            }
+
+            // Send a request to the Captcha API to verify the user's response
+            const verification = await validateCaptcha(input.captchaToken);
+
+            // If the user's response was invalid, return an error
+            if (!verification.success) {
+                // console.log(`Captcha err: ${verification["error-codes"]}`);
+                throw new Error("Failed to validate captcha");
+            }
+
             try {
-                // Send a request to the Captcha API to verify the user's response
-                const verification = await validateCaptcha(input.captchaToken);
-
-                // If the user's response was invalid, return an error
-                if (!verification.success) {
-                    // console.log(`Captcha err: ${verification["error-codes"]}`);
-                    throw new Error("Failed to validate captcha");
-                }
-
                 // Save the email to the DB. Don't throw an error if the email is already in the database
                 try {
                     await ctx.prisma.notifyMeUsers.create({
@@ -49,7 +57,11 @@ export const notifyMeRouter = createRouter()
             message: z.string().max(500),
             captchaToken: z.string(),
         }),
-        async resolve({ input }) {
+        async resolve({ ctx, input }) {
+            if (!checkRatelimitNotifyme(ctx.userIP)) {
+                throw trpcRatelimitError;
+            }
+
             // Send a request to the Captcha API to verify the user's response
             const verification = await validateCaptcha(input.captchaToken);
 

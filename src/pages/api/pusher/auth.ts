@@ -5,6 +5,7 @@ import { getServerAuthSession } from "../../../server/common/get-server-auth-ses
 import { PrismaClient } from "@prisma/client";
 import { env } from "../../../env/client.mjs";
 import { env as serverEnv } from "../../../env/server.mjs";
+import { checkRatelimitPusher } from "../../../server/common/ratelimiting";
 
 const pusher = new Pusher({
     appId: env.NEXT_PUBLIC_PUSHER_APP_ID,
@@ -27,6 +28,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         origin: process.env.NEXT_PUBLIC_APP_URL,
         optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
     });
+
+    const ip: string = (req.headers?.["x-forwarded-for"] ??
+        "127.0.0.1") as string;
+    if (!checkRatelimitPusher(ip)) {
+        res.status(429).send("Too Many Requests");
+        return;
+    }
 
     // Get the user session
     const session = await getServerAuthSession({

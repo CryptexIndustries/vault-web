@@ -11,6 +11,7 @@ import { env } from "../../../env/server.mjs";
 import { validateSignature } from "../../../utils/data_security";
 import { initUserSubscriptionTier } from "../../../utils/subscription";
 import validateCaptcha from "../../../utils/captcha";
+import { checkAuthRatelimit } from "../../../server/common/ratelimiting";
 
 // Used for nonce generation and verification
 const redis = Redis.fromEnv();
@@ -314,14 +315,23 @@ export function requestWrapper(
                 authorize: async (
                     credentials:
                         | Record<string | number | symbol, string>
-                        | undefined
+                        | undefined,
+                    req
                 ) => {
-                    // Validate data format
+                    // Get the ip address of the request
+                    const ip: string =
+                        req.headers?.["x-forwarded-for"] ?? "127.0.0.1";
+
+                    if (!checkAuthRatelimit(ip)) {
+                        return null;
+                    }
+
                     if (
                         !credentials?.userID ||
                         !credentials?.nonce ||
                         !credentials?.signature
                     ) {
+                        // Validate data format
                         return null;
                     }
 

@@ -17,6 +17,10 @@ import {
     GetSubscriptionOutputSchemaType,
     getSubscriptionOutputSchema,
 } from "../../../schemes/payment_router";
+import {
+    checkRatelimitPaymentRouter,
+    trpcRatelimitError,
+} from "../../common/ratelimiting";
 
 // const StripeSubscriptionStatusZod: z.ZodType<Stripe.Subscription.Status> =
 //     z.enum([
@@ -36,6 +40,10 @@ export const paymentRouter = createProtectedRouter()
         }),
         output: z.string().nullable(),
         async resolve({ ctx, input }) {
+            if (!checkRatelimitPaymentRouter(ctx.userIP, false)) {
+                throw trpcRatelimitError;
+            }
+
             if (!ctx.session.user.email) {
                 console.error(
                     `[TRPC - payment.getCheckoutSession] User ID: |${ctx.session.user.id}| - doesn't have an email`
@@ -60,6 +68,10 @@ export const paymentRouter = createProtectedRouter()
     .query("getCheckoutURL", {
         output: z.string().nullable(),
         async resolve({ ctx }) {
+            if (!checkRatelimitPaymentRouter(ctx.userIP, false)) {
+                throw trpcRatelimitError;
+            }
+
             if (!ctx.session.user.email) {
                 console.error(
                     `[TRPC - payment.getCheckoutURL] User ID: |${ctx.session.user.id}| - doesn't have an email`
@@ -88,6 +100,10 @@ export const paymentRouter = createProtectedRouter()
     .query("getSubscription", {
         output: getSubscriptionOutputSchema,
         async resolve({ ctx }) {
+            if (!checkRatelimitPaymentRouter(ctx.userIP, true)) {
+                throw trpcRatelimitError;
+            }
+
             const subscriptionData = await ctx.prisma.subscription.findFirst({
                 where: {
                     user_id: ctx.session.user.id,
@@ -157,6 +173,10 @@ export const paymentRouter = createProtectedRouter()
     .query("getCustomerPortal", {
         output: z.string().nullable(),
         async resolve({ ctx }) {
+            if (!checkRatelimitPaymentRouter(ctx.userIP, true)) {
+                throw trpcRatelimitError;
+            }
+
             const subscription = await ctx.prisma.subscription.findFirst({
                 where: {
                     user_id: ctx.session.user.id,

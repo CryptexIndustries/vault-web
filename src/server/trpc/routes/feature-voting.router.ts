@@ -1,6 +1,10 @@
 import { z } from "zod";
 import * as trpc from "@trpc/server";
 import { createProtectedRouter } from "../custom-router";
+import {
+    checkRatelimitFeatureVoting,
+    trpcRatelimitError,
+} from "../../common/ratelimiting";
 
 export const featureVotingRouter = createProtectedRouter()
     .query("openRoundExists", {
@@ -8,6 +12,10 @@ export const featureVotingRouter = createProtectedRouter()
             result: z.boolean(),
         }),
         async resolve({ ctx }) {
+            if (!checkRatelimitFeatureVoting(ctx.userIP, false)) {
+                throw trpcRatelimitError;
+            }
+
             // Check the end date of the round and compare it to the current date
             const openRound = await ctx.prisma.featureVotingRounds.findFirst({
                 where: {
@@ -62,6 +70,10 @@ export const featureVotingRouter = createProtectedRouter()
             incorrectTier: z.boolean(), // If the user is logged in but has a tier that does not allow voting
         }),
         async resolve({ ctx }) {
+            if (!checkRatelimitFeatureVoting(ctx.userIP, false)) {
+                throw trpcRatelimitError;
+            }
+
             // Return the latest two rounds
             const rounds: {
                 id: string;
@@ -195,17 +207,14 @@ export const featureVotingRouter = createProtectedRouter()
             success: z.boolean(),
         }),
         async resolve({ ctx, input }) {
-            // Check if the user is logged in and has a tier that allows voting
-            if (!ctx.session?.user) {
-                throw new trpc.TRPCError({
-                    code: "UNAUTHORIZED",
-                    message: "You must be logged in to vote",
-                });
+            if (!checkRatelimitFeatureVoting(ctx.userIP, true)) {
+                throw trpcRatelimitError;
             }
 
+            // Check if the user has a tier that allows voting
             const tierFeatureFlags = await ctx.prisma.user.findUnique({
                 where: {
-                    id: ctx.session?.user?.id,
+                    id: ctx.session.user.id,
                 },
                 select: {
                     subscription: {

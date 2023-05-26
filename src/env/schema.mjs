@@ -1,6 +1,19 @@
 // @ts-check
 import { z } from "zod";
 
+export const booleanString = (
+    /** @type {z.ZodDefault<z.ZodTypeAny>} */ schema
+) =>
+    z.preprocess((a) => {
+        if (typeof a === "string") {
+            return a.toLowerCase() === "true";
+        } else if (typeof a === "boolean") {
+            return a;
+        } else {
+            return false;
+        }
+    }, schema);
+
 /**
  * Specify your server-side environment variables schema here.
  * This way you can ensure the app isn't built with invalid env vars.
@@ -30,22 +43,30 @@ export const serverSchema = z.object({
     UPSTASH_REDIS_REST_TOKEN: z.string(),
 
     // Upstash Ratelimitting
-    UPSTASH_RATELIMIT_ENABLE_AUTH: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_AUTH: booleanString(z.boolean().default(false)),
     UPSTASH_RATELIMIT_N_REQUESTS_AUTH: z.number().default(2),
     UPSTASH_RATELIMIT_DURATION_AUTH: z.string().default("5s"),
 
-    UPSTASH_RATELIMIT_ENABLE_REGISTER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_REGISTER: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_REGISTER: z.number().default(1),
     UPSTASH_RATELIMIT_DURATION_REGISTER: z.string().default("1m"),
 
-    UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_DB: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_DB: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_PAYMENTROUTER_DB: z.number().default(3),
     UPSTASH_RATELIMIT_DURATION_PAYMENTROUTER_DB: z.string().default("5s"),
-    UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_NODB: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_NODB: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_PAYMENTROUTER_NODB: z.number().default(3),
     UPSTASH_RATELIMIT_DURATION_PAYMENTROUTER_NODB: z.string().default("5s"),
 
-    UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_FEATUREVOTINGROUTER: z.number().default(3),
     UPSTASH_RATELIMIT_DURATION_FEATUREVOTINGROUTER: z.string().default("10s"),
     UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER_MUTATION: z
@@ -58,18 +79,26 @@ export const serverSchema = z.object({
         .string()
         .default("1m"),
 
-    UPSTASH_RATELIMIT_ENABLE_NOTIFYMEROUTER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_NOTIFYMEROUTER: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_NOTIFYMEROUTER: z.number().default(5),
     UPSTASH_RATELIMIT_DURATION_NOTIFYMEROUTER: z.string().default("1m"),
 
-    UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_QUERY: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_QUERY: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_ACCOUNTROUTER_QUERY: z.number().default(4),
     UPSTASH_RATELIMIT_DURATION_ACCOUNTROUTER_QUERY: z.string().default("10s"),
-    UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_MUTATION: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_MUTATION: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_ACCOUNTROUTER_MUTATION: z.number().default(5),
     UPSTASH_RATELIMIT_DURATION_ACCOUNTROUTER_MUTATION: z.string().default("5s"),
 
-    UPSTASH_RATELIMIT_ENABLE_API_PUSHER: z.boolean().default(false),
+    UPSTASH_RATELIMIT_ENABLE_API_PUSHER: booleanString(
+        z.boolean().default(false)
+    ),
     UPSTASH_RATELIMIT_N_REQUESTS_API_PUSHER: z.number().default(5),
     UPSTASH_RATELIMIT_DURATION_API_PUSHER: z.string().default("30s"),
 

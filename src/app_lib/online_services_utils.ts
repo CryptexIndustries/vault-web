@@ -175,15 +175,15 @@ export const cryptexAccountSignIn = async (
 
 /**
  * Provides a nice interface for clearing the session and signing in.
- * This is triggered when the user unlocks the vault.
+ * This is triggered when the user unlocks the vault - whether or not they have a bound account.
  * @param userID The user's ID - generated at signup
  * @param privateKey The user's private key - generated at signup
  * @throws Does not throw an error, but logs and toasts an error message in case sign in fails
  */
 export const cryptexAccountInit = async (
-    userID: string,
-    privateKey: string,
-    captchaToken: string
+    captchaToken: string,
+    userID?: string,
+    privateKey?: string
 ): Promise<CryptexSignInResponse> => {
     try {
         await signOut({
@@ -194,15 +194,17 @@ export const cryptexAccountInit = async (
     }
 
     // Perform the sign in if the user ID and private key are provided
-    // if (userID && privateKey) {
-    return cryptexAccountSignIn(userID, privateKey, captchaToken);
-    // }
+    if (userID && privateKey) {
+        return cryptexAccountSignIn(userID, privateKey, captchaToken);
+    }
 
-    // return {
-    //     success: false,
-    //     authResponse: undefined,
-    //     offline: false,
-    // };
+    // We return this in case the user ID and private key are not provided
+    // AKA we just cleaned up the last session
+    return {
+        success: false,
+        authResponse: undefined,
+        offline: false,
+    };
 };
 //#endregion Session management - Authentication
 

@@ -687,31 +687,25 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                 formData.vaultEncryptionConfig
             );
 
-            if (
-                vault.OnlineServices.isBound() &&
-                vault.OnlineServices.UserID &&
+            // Initialize the vault account
+            const res = await cryptexAccountInit(
+                formData.captchaToken,
+                vault.OnlineServices.UserID,
                 vault.OnlineServices.PrivateKey
-            ) {
-                // Initialize the vault account
-                const res = await cryptexAccountInit(
-                    vault.OnlineServices.UserID,
-                    vault.OnlineServices.PrivateKey,
-                    formData.captchaToken
-                );
+            );
 
-                if (!res.success && !res.offline) {
-                    toast.error(
-                        `Failed to authenticate with CryptexVault services. ${res.authResponse?.error}`,
-                        {
-                            autoClose: false,
-                            closeButton: true,
-                        }
-                    );
-                    console.error(
-                        "Failed to authenticate with CryptexVault services.",
-                        res.authResponse?.error
-                    );
-                }
+            if (!res.success && !res.offline && res.authResponse) {
+                toast.error(
+                    `Failed to authenticate with CryptexVault services. ${res.authResponse.error}`,
+                    {
+                        autoClose: false,
+                        closeButton: true,
+                    }
+                );
+                console.error(
+                    "Failed to authenticate with CryptexVault services.",
+                    res.authResponse.error
+                );
             }
 
             // Set the vault metadata and vault atoms
@@ -5447,8 +5441,9 @@ const AccountDialogSignUpForm: React.FC<{
 const EmailNotVerifiedDialog: React.FC = () => {
     const { data: session } = useSession();
 
+    // If we have a session and the confirmed flag is false, show the dialog
     const [visibleState, setVisibleState] = useState<boolean>(
-        session?.user?.confirmed ? false : true
+        session?.user != null && session.user.confirmed == null
     );
     const hideDialogFn = () => setVisibleState(false);
 

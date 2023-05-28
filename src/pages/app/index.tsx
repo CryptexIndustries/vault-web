@@ -5317,7 +5317,8 @@ const AccountDialogSignUpForm: React.FC<{
                 )}
                 <p className="text-xs text-gray-500">
                     We will send you a confirmation email to verify your email
-                    address.
+                    address. Verify your email address to complete the
+                    registration. The token will expire after 24 hours.
                 </p>
             </div>
             <div className="mt-2 flex flex-col items-center">

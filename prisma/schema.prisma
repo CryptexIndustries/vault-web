@@ -71,8 +71,8 @@ model Session {
 }
 
 model VerificationToken {
-    id      String
-    user_id String
+    id      String   @id @default(cuid())
+    user_id String   @unique
     token   String   @unique
     expires DateTime
     user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)

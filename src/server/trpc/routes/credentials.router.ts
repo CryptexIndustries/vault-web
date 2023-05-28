@@ -13,6 +13,10 @@ import {
     checkRatelimitRegisterUser,
     trpcRatelimitError,
 } from "../../common/ratelimiting";
+import {
+    confirmVerificationToken,
+    createVerificationToken,
+} from "../../common/identity-confirmation";
 
 const redis = Redis.fromEnv();
 
@@ -86,6 +90,8 @@ export const credentialsRouter = createRouter()
                 });
             }
 
+            let userId: string;
+            let accountId: string;
             try {
                 // Create a new user
                 const user = await ctx.prisma.user.create({
@@ -106,7 +112,8 @@ export const credentialsRouter = createRouter()
                     },
                 });
 
-                return account.providerAccountId;
+                userId = user.id;
+                accountId = account.providerAccountId;
             } catch (e) {
                 console.error(
                     "[TRPC - credentials.register-user] Failed to register user.",
@@ -115,6 +122,48 @@ export const credentialsRouter = createRouter()
                 throw new trpc.TRPCError({
                     code: "INTERNAL_SERVER_ERROR",
                     message: "Something went wrong",
+                });
+            }
+
+            // Create a new confirmation token
+            const token = createVerificationToken(ctx.prisma, userId);
+
+            // TODO: Generate a new confirmation link
+            // TODO: Craft a confirmation email
+            // TODO: Send the confirmation email
+
+            return accountId;
+        },
+    })
+    .mutation("confirm", {
+        input: z.object({
+            captchaToken: z.string(),
+            token: z.string(),
+        }),
+        async resolve({ ctx, input }) {
+            // TODO: Add rate limiting
+
+            // throw new Error("Working on it");
+
+            // Send a request to the Captcha API to verify the user's response
+            const verification = await validateCaptcha(input.captchaToken);
+
+            // If the user's response was invalid, return an error
+            if (!verification.success) {
+                throw new Error("Failed to validate captcha");
+            }
+
+            // Check if the token that the user provided is valid
+            const isTokenValid = await confirmVerificationToken(
+                ctx.prisma,
+                input.token
+            );
+
+            // If the token is invalid, throw an error
+            if (!isTokenValid) {
+                throw new trpc.TRPCError({
+                    code: "BAD_REQUEST",
+                    message: "Invalid token",
                 });
             }
         },

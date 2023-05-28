@@ -3,6 +3,7 @@ import {
     credentialsRouterGenerateAuthNonce,
     credentialsRouterRegisterUser,
     credentialsRouterConfirm,
+    credentialsRouterResendVerificationEmail,
 } from "./routes/credentials.router";
 import {
     notifyMeRouterRegister,
@@ -37,6 +38,7 @@ const mainRouter = router({
         generateAuthNonce: credentialsRouterGenerateAuthNonce,
         registerUser: credentialsRouterRegisterUser,
         confirm: credentialsRouterConfirm,
+        resendVerificationEmail: credentialsRouterResendVerificationEmail,
     }),
     account: router({
         getLinkingConfiguration: accountRouterGetLinkingConfiguration,

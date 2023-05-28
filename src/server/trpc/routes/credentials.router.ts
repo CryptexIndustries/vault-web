@@ -6,17 +6,21 @@ import { z } from "zod";
 import { env } from "../../../env/server.mjs";
 // import { checkTOTP, encryptTOTPSecret } from "../../../utils/data_security";
 import { Redis } from "@upstash/redis";
-import validateCaptcha from "../../../utils/captcha";
+import validateCaptcha, { trpcCaptchaError } from "../../../utils/captcha";
 import {
     checkAuthRatelimit,
     checkRatelimitRegisterUser,
+    checkRatelimitUserVerification,
     trpcRatelimitError,
 } from "../../common/ratelimiting";
 import {
     confirmVerificationToken,
-    createVerificationToken,
+    issueNewVerificationToken,
+    updateUserIdentityConfirmationExpiery,
+    verificationTemplate,
 } from "../../common/identity-confirmation";
-import { publicProcedure } from "../trpc";
+import { protectedProcedure, publicProcedure } from "../trpc";
+import { sendVerificationEmail } from "../../common/email";
 
 const redis = Redis.fromEnv();
 
@@ -70,7 +74,7 @@ export const credentialsRouterRegisterUser = publicProcedure
 
         // If the user's response was invalid, return an error
         if (!verification.success) {
-            throw new Error("Failed to validate captcha");
+            throw trpcCaptchaError;
         }
 
         // Check if the user already exists (by email)
@@ -126,34 +130,44 @@ export const credentialsRouterRegisterUser = publicProcedure
             });
         }
 
-        // Create a new confirmation token
-        const token = createVerificationToken(ctx.prisma, userId);
+        await updateUserIdentityConfirmationExpiery(ctx.prisma, userId);
 
-        // TODO: Generate a new confirmation link
-        // TODO: Craft a confirmation email
-        // TODO: Send the confirmation email
+        try {
+            // Create a new confirmation link
+            const link = await issueNewVerificationToken(ctx.prisma, userId);
 
+            //  Send the confirmation email
+            await sendVerificationEmail(
+                input.email,
+                verificationTemplate(link)
+            );
+        } catch (e) {
+            console.error(
+                "[TRPC - credentials.register-user] Failed to send verification email.",
+                e
+            );
+        }
         return accountId;
     });
 
 export const credentialsRouterConfirm = publicProcedure
     .input(
         z.object({
-            captchaToken: z.string(),
+            captchaToken: z.string().nonempty(),
             token: z.string(),
         })
     )
     .mutation(async ({ ctx, input }) => {
-        // TODO: Add rate limiting
-
-        // throw new Error("Working on it");
+        if (!checkRatelimitUserVerification(ctx.userIP)) {
+            throw trpcRatelimitError;
+        }
 
         // Send a request to the Captcha API to verify the user's response
         const verification = await validateCaptcha(input.captchaToken);
 
         // If the user's response was invalid, return an error
         if (!verification.success) {
-            throw new Error("Failed to validate captcha");
+            throw trpcCaptchaError;
         }
 
         // Check if the token that the user provided is valid
@@ -170,6 +184,42 @@ export const credentialsRouterConfirm = publicProcedure
             });
         }
     });
+
+export const credentialsRouterResendVerificationEmail =
+    protectedProcedure.mutation(async ({ ctx }) => {
+        if (!checkRatelimitUserVerification(ctx.userIP)) {
+            throw trpcRatelimitError;
+        }
+
+        // Check if the user is already verified
+        const user = await ctx.prisma.user.findUnique({
+            where: {
+                id: ctx.session.user.id,
+            },
+            select: {
+                email: true,
+                email_verified_at: true,
+            },
+        });
+
+        // If the user is already verified, throw an error
+        if (!user || user?.email_verified_at) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "User is already verified",
+            });
+        }
+
+        // Create a new confirmation link
+        const link = await issueNewVerificationToken(
+            ctx.prisma,
+            ctx.session.user.id
+        );
+
+        //  Send the confirmation email
+        await sendVerificationEmail(user.email, verificationTemplate(link));
+    });
+
 // .mutation("register-user-legacy", {
 //     input: z.object({
 //         email: z.string().email().trim(),

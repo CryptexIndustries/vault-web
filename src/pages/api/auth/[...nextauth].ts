@@ -38,6 +38,7 @@ declare module "next-auth" {
             id: string;
             // accountId?: string;
             agent?: string;
+            confirmed: Date | null;
         } & DefaultSession["user"];
     }
 }
@@ -66,7 +67,7 @@ export function requestWrapper(
     const opts: NextAuthOptions = {
         adapter: adapter,
         callbacks: {
-            session({ session, token }) {
+            async session({ session, token }) {
                 // console.log("SESS", session);
                 // console.log("token", token);
                 // console.log("USER", user);
@@ -77,6 +78,20 @@ export function requestWrapper(
                     session.user.id = token.sub;
                     // session.user.accountId = token.accountId;
                     session.user.agent = req.headers["user-agent"];
+
+                    const confirmed =
+                        (
+                            await prisma.user.findUnique({
+                                where: {
+                                    id: token.sub,
+                                },
+                                select: {
+                                    email_verified_at: true,
+                                },
+                            })
+                        )?.email_verified_at ?? null;
+
+                    session.user.confirmed = confirmed;
                 }
                 return session;
             },
@@ -393,12 +408,27 @@ export function requestWrapper(
 
                     if (!signatureValid) return null;
 
-                    // If the signature is valid, return the user object
-                    return await prisma.user.findUnique({
+                    const user = await prisma.user.findUnique({
                         where: {
                             id: account.userId,
                         },
                     });
+
+                    if (!user) return null;
+
+                    // Check if the user has confirmed their email
+                    if (!user.email_verified_at) {
+                        // Check if the verification expiry has passed
+                        if (user.email_verification_expires_at < new Date()) {
+                            // If it the expiry has passed, disable the account
+                            throw new Error(
+                                "Your email verification period has expired and the account has been disabled. Please contact support to re-enable your account."
+                            );
+                        }
+                    }
+
+                    // If the signature is valid, return the user object
+                    return user;
                 },
             }),
         ],

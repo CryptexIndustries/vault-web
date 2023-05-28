@@ -19,20 +19,19 @@ datasource db {
 }
 
 model User {
-    id                  String               @id @default(cuid())
-    name                String?              @db.VarChar(255)
-    email               String               @unique
-    emailVerified       String?              @map("email_verified")
-    email_verified_at   DateTime?
-    created_at          DateTime             @default(now())
-    image               String?
-    payment_customer_id String?
-    accounts            Account[]
-    sessions            Session[]
-    verification_tokens VerificationToken[]
-    subscription        Subscription[]
-    api_keys            APIKey[]
-    FeatureVotingVotes  FeatureVotingVotes[]
+    id                            String               @id @default(cuid())
+    name                          String?              @db.VarChar(255)
+    email                         String               @unique
+    emailVerified                 String?              @map("email_verified")
+    email_verified_at             DateTime?
+    email_verification_expires_at DateTime             @default(now())
+    created_at                    DateTime             @default(now())
+    accounts                      Account[]
+    sessions                      Session[]
+    verification_tokens           VerificationToken[]
+    subscription                  Subscription[]
+    api_keys                      APIKey[]
+    FeatureVotingVotes            FeatureVotingVotes[]
 }
 
 model Account {

@@ -34,6 +34,30 @@ export const checkAuthRatelimit = async (ip: string) => {
 };
 //#endregion Auth
 
+//#region User Verification
+/**
+ * Ratelimit for user verification
+ * @param ip IP address of the user
+ * @returns Whether the request is allowed or not
+ */
+export const checkRatelimitUserVerification = async (ip: string) => {
+    if (!env.UPSTASH_RATELIMIT_ENABLE_USER_VERIFICATION) return true;
+
+    const ratelimitUserVerification: Ratelimit = new Ratelimit({
+        redis: Redis.fromEnv(),
+        limiter: Ratelimit.slidingWindow(
+            env.UPSTASH_RATELIMIT_N_REQUESTS_USER_VERIFICATION,
+            env.UPSTASH_RATELIMIT_DURATION_USER_VERIFICATION as Duration
+        ),
+        analytics: true,
+        ephemeralCache,
+        prefix: "@upstash/ratelimit/user-verification",
+    });
+
+    const result = await ratelimitUserVerification.limit(ip);
+    return result.success;
+};
+
 //#region Register User
 /**
  * Ratelimit for registering a new user

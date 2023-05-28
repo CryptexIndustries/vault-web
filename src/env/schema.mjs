@@ -61,6 +61,14 @@ export const serverSchema = z.object({
     UPSTASH_RATELIMIT_N_REQUESTS_AUTH: numberString(z.number().default(2)),
     UPSTASH_RATELIMIT_DURATION_AUTH: z.string().default("5s"),
 
+    UPSTASH_RATELIMIT_ENABLE_USER_VERIFICATION: booleanString(
+        z.boolean().default(false)
+    ),
+    UPSTASH_RATELIMIT_N_REQUESTS_USER_VERIFICATION: numberString(
+        z.number().default(3)
+    ),
+    UPSTASH_RATELIMIT_DURATION_USER_VERIFICATION: z.string().default("10m"),
+
     UPSTASH_RATELIMIT_ENABLE_REGISTER: booleanString(
         z.boolean().default(false)
     ),
@@ -133,12 +141,16 @@ export const serverSchema = z.object({
     // Captcha - Turnstile
     TURNSTILE_SECRET: z.string(),
 
-    /* Email ENV Vars */
+    /* Email */
     SMTP_HOST: z.string(),
     SMTP_PORT: z.string(),
     SMTP_USER: z.string(),
     SMTP_PASS: z.string(),
     SMTP_RECEIVER: z.string(),
+
+    INFOBIP_BASE_URL: z.string().optional(),
+    INFOBIP_API_KEY: z.string().optional(),
+    EMAIL_SENDER: z.string().optional(),
 
     /* Pusher ENV Vars */
     PUSHER_APP_SECRET: z.string(),
@@ -154,6 +166,8 @@ export const serverSchema = z.object({
  * To expose them to the client, prefix them with `NEXT_PUBLIC_`.
  */
 export const clientSchema = z.object({
+    NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+
     // Make captcha mandatory for the Sign in endpoint
     NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA: z.boolean().default(false),
 
@@ -178,6 +192,8 @@ export const clientSchema = z.object({
  * @type {{ [k in keyof z.infer<typeof clientSchema>]: z.infer<typeof clientSchema>[k] | undefined }}
  */
 export const clientEnv = {
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+
     NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA:
         process.env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA?.toLowerCase() ===
         "true",

@@ -3,8 +3,20 @@ import { signIn, signOut } from "next-auth/react";
 import { z } from "zod";
 import * as sodium from "libsodium-wrappers-sumo";
 import { toast } from "react-toastify";
-import { createTRPCClient } from "@trpc/client";
+import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import superjson from "superjson";
 import type { AppRouter } from "../server/trpc";
+
+const createTRPCClient = () => {
+    return createTRPCProxyClient<AppRouter>({
+        links: [
+            httpBatchLink({
+                url: "/api/trpc",
+            }),
+        ],
+        transformer: superjson,
+    });
+};
 
 //#region Sign up
 export const signUpFormSchema = z.object({
@@ -66,24 +78,15 @@ export const isOriginAvailable = async (): Promise<boolean> => {
 //#region Session managements - Authentication
 const getNonce = async (): Promise<string> => {
     // Fetch the nonce from the server using trpc from outside the component
-    const trpcClient = createTRPCClient<AppRouter>({
-        url: "/api/trpc",
-    });
+    const trpcClient = createTRPCClient();
 
-    type AuthNonceResponse = {
-        json: string;
-    };
+    const authNonceRes = await trpcClient.credentials.generateAuthNonce.query();
 
-    // NOTE: Had to override the type here because the type returned by trpc is not correct
-    const authNonceRes = (await trpcClient.query(
-        "credentials.generateAuthNonce"
-    )) as unknown as AuthNonceResponse;
-
-    if (!authNonceRes || !authNonceRes.json || authNonceRes.json === "") {
+    if (!authNonceRes?.length) {
         throw new Error("Failed to fetch auth nonce.");
     }
 
-    return authNonceRes.json;
+    return authNonceRes;
 };
 
 /**
@@ -213,31 +216,15 @@ export const navigateToCheckout = async (): Promise<void> => {
     // }
 
     // Get the checkout session from the server using trpc
-    const trpcClient = createTRPCClient<AppRouter>({
-        url: "/api/trpc",
-    });
+    const trpcClient = createTRPCClient();
 
-    type CheckoutSessionResponse = {
-        json: string;
-    };
+    const checkoutSessionURL = await trpcClient.payment.getCheckoutURL.query();
 
-    // NOTE: Had to override the type here because the type returned by trpc is not correct
-    const checkoutSessionURLRes = (await trpcClient.query(
-        "payment.getCheckoutURL"
-        // {
-        // priceId: stripePriceID,
-        // }
-    )) as unknown as CheckoutSessionResponse;
+    debugger;
 
-    if (
-        !checkoutSessionURLRes ||
-        !checkoutSessionURLRes.json ||
-        checkoutSessionURLRes.json === ""
-    ) {
+    if (!checkoutSessionURL?.length) {
         throw new Error("Failed to fetch checkout session URL.");
     }
-
-    const checkoutSessionURL = checkoutSessionURLRes.json;
 
     // Navigate to the checkout session URL
     location.replace(checkoutSessionURL);

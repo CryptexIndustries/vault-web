@@ -1,6 +1,5 @@
 import { z } from "zod";
 import * as trpc from "@trpc/server";
-import { createProtectedRouter } from "../custom-router";
 import { StripeConfiguration } from "../../../utils/stripe";
 import Stripe from "stripe";
 import { randomUUID } from "crypto";
@@ -8,289 +7,296 @@ import {
     checkRatelimitAccountRouter,
     trpcRatelimitError,
 } from "../../common/ratelimiting";
+import { protectedProcedure } from "../trpc";
 
 const stripe = new Stripe(
     process.env.STRIPE_SECRET_KEY ?? "",
     StripeConfiguration
 );
 
-export const accountRouter = createProtectedRouter()
-    .query("getLinkingConfiguration", {
-        output: z.object({
+export const accountRouterGetLinkingConfiguration = protectedProcedure
+    .output(
+        z.object({
             can_link: z.boolean(),
             max_links: z.number(),
             always_connected: z.boolean(),
-        }),
-        async resolve({ ctx }) {
-            if (!checkRatelimitAccountRouter(ctx.userIP, false)) {
-                throw trpcRatelimitError;
-            }
+        })
+    )
+    .query(async ({ ctx }) => {
+        if (!checkRatelimitAccountRouter(ctx.userIP, false)) {
+            throw trpcRatelimitError;
+        }
 
-            const user = await ctx.prisma.user.findFirst({
-                where: {
-                    id: ctx.session?.user.id,
-                },
-                select: {
-                    subscription: {
-                        select: {
-                            configuration: {
-                                select: {
-                                    linking_allowed: true,
-                                    max_links: true,
-                                    always_connected: true,
-                                },
+        const user = await ctx.prisma.user.findFirst({
+            where: {
+                id: ctx.session?.user.id,
+            },
+            select: {
+                subscription: {
+                    select: {
+                        configuration: {
+                            select: {
+                                linking_allowed: true,
+                                max_links: true,
+                                always_connected: true,
                             },
                         },
                     },
                 },
+            },
+        });
+
+        if (user == null) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "User not found.",
             });
+        }
 
-            if (user == null) {
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "User not found.",
-                });
-            }
+        if (
+            user.subscription == null ||
+            user.subscription.length === 0 ||
+            user.subscription[0] == null ||
+            user.subscription[0].configuration == null
+        ) {
+            console.warn(
+                `[TRPC - account.getLinkingConfiguration] User ID: ${ctx.session.user.id} has no subscription`
+            );
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Something went wrong.",
+            });
+        }
 
-            if (
-                user.subscription == null ||
-                user.subscription.length === 0 ||
-                user.subscription[0] == null ||
-                user.subscription[0].configuration == null
-            ) {
-                console.warn(
-                    `[TRPC - account.getLinkingConfiguration] User ID: ${ctx.session.user.id} has no subscription`
-                );
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "Something went wrong.",
-                });
-            }
+        const subscriptionConfig = user.subscription[0].configuration;
 
-            const subscriptionConfig = user.subscription[0].configuration;
+        return {
+            can_link: subscriptionConfig.linking_allowed,
+            max_links: subscriptionConfig.max_links,
+            always_connected: subscriptionConfig.always_connected,
+        };
+    });
 
-            return {
-                can_link: subscriptionConfig.linking_allowed,
-                max_links: subscriptionConfig.max_links,
-                always_connected: subscriptionConfig.always_connected,
-            };
-        },
-    })
-    .mutation("linkDevice", {
-        input: z.object({
+export const accountRouterLinkDevice = protectedProcedure
+    .input(
+        z.object({
             publicKey: z.string().max(256, "Invalid public key"),
-        }),
-        output: z.string(),
-        async resolve({ ctx, input }) {
-            if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
-                throw trpcRatelimitError;
-            }
+        })
+    )
+    .output(z.string())
+    .mutation(async ({ ctx, input }) => {
+        if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
+            throw trpcRatelimitError;
+        }
 
-            // Get the user and check whether they can link devices and how many devices they can link
-            const user = await ctx.prisma.user.findFirst({
-                where: {
-                    id: ctx.session?.user.id,
-                },
-                select: {
-                    subscription: {
-                        select: {
-                            configuration: {
-                                select: {
-                                    linking_allowed: true,
-                                    max_links: true,
-                                },
+        // Get the user and check whether they can link devices and how many devices they can link
+        const user = await ctx.prisma.user.findFirst({
+            where: {
+                id: ctx.session?.user.id,
+            },
+            select: {
+                subscription: {
+                    select: {
+                        configuration: {
+                            select: {
+                                linking_allowed: true,
+                                max_links: true,
                             },
                         },
                     },
                 },
+            },
+        });
+
+        if (user == null) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "User not found.",
             });
+        }
 
-            if (user == null) {
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "User not found.",
-                });
-            }
+        if (
+            user.subscription == null ||
+            user.subscription.length === 0 ||
+            user.subscription[0] == null ||
+            user.subscription[0].configuration == null
+        ) {
+            console.warn(
+                `[TRPC - account.linkDevice] User ID: ${ctx.session.user.id} has no subscription`
+            );
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Something went wrong.",
+            });
+        }
 
-            if (
-                user.subscription == null ||
-                user.subscription.length === 0 ||
-                user.subscription[0] == null ||
-                user.subscription[0].configuration == null
-            ) {
-                console.warn(
-                    `[TRPC - account.linkDevice] User ID: ${ctx.session.user.id} has no subscription`
-                );
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "Something went wrong.",
-                });
-            }
+        const subscriptionConfig = user.subscription[0].configuration;
 
-            const subscriptionConfig = user.subscription[0].configuration;
+        // Check if the user can link devices
+        if (!subscriptionConfig.linking_allowed) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Linking devices is not allowed.",
+            });
+        }
 
-            // Check if the user can link devices
-            if (!subscriptionConfig.linking_allowed) {
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "Linking devices is not allowed.",
-                });
-            }
+        // Check if the user has reached the maximum number of linked devices
+        const linkedDevices = await ctx.prisma.account.count({
+            where: {
+                userId: ctx.session.user.id,
+            },
+        });
 
-            // Check if the user has reached the maximum number of linked devices
-            const linkedDevices = await ctx.prisma.account.count({
-                where: {
+        if (linkedDevices >= subscriptionConfig.max_links) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                    "Maximum number of linked devices reached. Upgrade your subscription or unlink an existing device.",
+            });
+        }
+
+        try {
+            // Create an account for this user
+            const account = await ctx.prisma.account.create({
+                data: {
                     userId: ctx.session.user.id,
+                    provider: "cryptex-key-based",
+                    type: "credentials",
+                    providerAccountId: randomUUID(),
+                    public_key: input.publicKey,
                 },
             });
 
-            if (linkedDevices >= subscriptionConfig.max_links) {
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message:
-                        "Maximum number of linked devices reached. Upgrade your subscription or unlink an existing device.",
-                });
-            }
+            return account.providerAccountId;
+        } catch (e) {
+            console.error(
+                `[TRPC - account.linkDevice] Failed to register user for user ID: ${ctx.session.user.id}.`,
+                e
+            );
+            throw new trpc.TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Something went wrong",
+            });
+        }
+    });
 
-            try {
-                // Create an account for this user
-                const account = await ctx.prisma.account.create({
-                    data: {
-                        userId: ctx.session.user.id,
-                        provider: "cryptex-key-based",
-                        type: "credentials",
-                        providerAccountId: randomUUID(),
-                        public_key: input.publicKey,
-                    },
-                });
-
-                return account.providerAccountId;
-            } catch (e) {
-                console.error(
-                    `[TRPC - account.linkDevice] Failed to register user for user ID: ${ctx.session.user.id}.`,
-                    e
-                );
-                throw new trpc.TRPCError({
-                    code: "INTERNAL_SERVER_ERROR",
-                    message: "Something went wrong",
-                });
-            }
-        },
-    })
-    .mutation("unlinkDevice", {
-        input: z.object({
+export const accountRouterUnlinkDevice = protectedProcedure
+    .input(
+        z.object({
             id: z.string(),
-        }),
-        output: z.boolean(),
-        async resolve({ ctx, input }) {
-            if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
-                throw trpcRatelimitError;
-            }
+        })
+    )
+    .output(z.boolean())
+    .mutation(async ({ ctx, input }) => {
+        if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
+            throw trpcRatelimitError;
+        }
 
-            // Check if the account (device) the user is trying to unlink isn't the last one
-            const linkedDevices = await ctx.prisma.account.count({
-                where: {
-                    userId: ctx.session.user.id,
-                },
+        // Check if the account (device) the user is trying to unlink isn't the last one
+        const linkedDevices = await ctx.prisma.account.count({
+            where: {
+                userId: ctx.session.user.id,
+            },
+        });
+
+        if (linkedDevices <= 1) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "You cannot unlink your last device.",
             });
+        }
 
-            if (linkedDevices <= 1) {
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "You cannot unlink your last device.",
-                });
-            }
+        const account = await ctx.prisma.account.findFirst({
+            where: {
+                id: input.id,
+                userId: ctx.session.user.id,
+            },
+            select: {
+                id: true,
+            },
+        });
 
-            const account = await ctx.prisma.account.findFirst({
-                where: {
-                    id: input.id,
-                    userId: ctx.session.user.id,
-                },
-                select: {
-                    id: true,
-                },
+        if (account == null) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Device not found",
             });
+        }
 
-            if (account == null) {
-                throw new trpc.TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "Device not found",
-                });
-            }
+        await ctx.prisma.account.delete({
+            where: {
+                id: account.id,
+            },
+        });
 
-            await ctx.prisma.account.delete({
-                where: {
-                    id: account.id,
-                },
-            });
+        return true;
+    });
 
-            return true;
-        },
-    })
-    .query("getLinkedDevices", {
-        output: z.array(
+export const accountRouterGetLinkedDevices = protectedProcedure
+    .output(
+        z.array(
             z.object({
                 id: z.string(),
                 created_at: z.date(),
             })
-        ),
-        async resolve({ ctx }) {
-            if (!checkRatelimitAccountRouter(ctx.userIP, false)) {
-                throw trpcRatelimitError;
-            }
+        )
+    )
+    .query(async ({ ctx }) => {
+        if (!checkRatelimitAccountRouter(ctx.userIP, false)) {
+            throw trpcRatelimitError;
+        }
 
-            const devices = await ctx.prisma.account.findMany({
-                where: {
-                    userId: ctx.session.user.id,
-                },
-                select: {
-                    id: true,
-                    created_at: true,
-                },
-            });
+        const devices = await ctx.prisma.account.findMany({
+            where: {
+                userId: ctx.session.user.id,
+            },
+            select: {
+                id: true,
+                created_at: true,
+            },
+        });
 
-            return devices;
-        },
-    })
-    .mutation("deleteUser", {
-        output: z.boolean(),
-        async resolve({ ctx }) {
-            if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
-                throw trpcRatelimitError;
-            }
+        return devices;
+    });
 
-            const subscription = await ctx.prisma.user.delete({
-                where: {
-                    id: ctx.session.user.id,
-                },
-                select: {
-                    subscription: true,
-                },
-            });
+export const accountRouterDeleteUser = protectedProcedure
+    .output(z.boolean())
+    .mutation(async ({ ctx }) => {
+        if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
+            throw trpcRatelimitError;
+        }
 
-            if (subscription && subscription.subscription.length > 0) {
-                const id = subscription.subscription[0]?.customer_id;
+        const subscription = await ctx.prisma.user.delete({
+            where: {
+                id: ctx.session.user.id,
+            },
+            select: {
+                subscription: true,
+            },
+        });
 
-                // Call the Stripe API to delete the customer only if the user had a subscription
-                // The actual customer_id is set to the user's ID when they don't have a subscription
-                // When they do have a subscription, the customer_id is set to the actual customer ID (payment processor's)
-                if (id && id !== ctx.session.user.id) {
-                    try {
-                        const res = await stripe.customers.del(id);
-                        console.debug(
-                            `[TRPC - account.deleteUser] Deleted customer for user ID: ${ctx.session.user.id}}`,
-                            res
-                        );
-                    } catch (e) {
-                        // Ignore error, the customer might have been deleted already or the ID is invalid
-                        console.debug(
-                            `[TRPC - account.deleteUser] Error deleting customer for user ID: ${ctx.session.user.id}}`,
-                            e
-                        );
-                    }
+        if (subscription && subscription.subscription.length > 0) {
+            const id = subscription.subscription[0]?.customer_id;
+
+            // Call the Stripe API to delete the customer only if the user had a subscription
+            // The actual customer_id is set to the user's ID when they don't have a subscription
+            // When they do have a subscription, the customer_id is set to the actual customer ID (payment processor's)
+            if (id && id !== ctx.session.user.id) {
+                try {
+                    const res = await stripe.customers.del(id);
+                    console.debug(
+                        `[TRPC - account.deleteUser] Deleted customer for user ID: ${ctx.session.user.id}}`,
+                        res
+                    );
+                } catch (e) {
+                    // Ignore error, the customer might have been deleted already or the ID is invalid
+                    console.debug(
+                        `[TRPC - account.deleteUser] Error deleting customer for user ID: ${ctx.session.user.id}}`,
+                        e
+                    );
                 }
             }
+        }
 
-            return true;
-        },
+        return true;
     });

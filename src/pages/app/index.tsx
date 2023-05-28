@@ -2654,7 +2654,7 @@ const FeatureVotingDialog: React.FC<{
         isLoading: isLoadingRounds,
         refetch: refetchRounds,
         remove: removeRoundsData,
-    } = trpc.useQuery(["featureVoting.getRounds"], {
+    } = trpc.featureVoting.getRounds.useQuery(undefined, {
         retryDelay: 10000,
         enabled: hasSession,
         refetchOnWindowFocus: false,
@@ -2665,7 +2665,7 @@ const FeatureVotingDialog: React.FC<{
 
     // A mutation for featureVoting.placeVote
     const { mutate: placeVote, isLoading: isPlacingVoteInProgress } =
-        trpc.useMutation("featureVoting.placeVote", {
+        trpc.featureVoting.placeVote.useMutation({
             retryDelay: 10000,
         });
 
@@ -2917,19 +2917,17 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
     const unlockedVault = useAtomValue(unlockedVaultAtom);
 
     // Prepare the user deletion trpc call
-    const deleteUser = trpc.useMutation("account.deleteUser");
+    const deleteUser = trpc.account.deleteUser.useMutation();
 
     const SubscriptionMenu: React.FC = () => {
         const router = useRouter();
 
-        const { data: customerPortalURL } = trpc.useQuery(
-            ["payment.getCustomerPortal"],
-            {
+        const { data: customerPortalURL } =
+            trpc.payment.getCustomerPortal.useQuery(undefined, {
                 refetchOnWindowFocus: false,
                 enabled:
                     (subscriptionData && subscriptionData.nonFree) ?? false,
-            }
-        );
+            });
 
         if (dataLoading) {
             return (
@@ -3066,11 +3064,11 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 
     const LinkedDevices: React.FC = () => {
         const { data: linkedDevices, refetch: refetchLinkedDevices } =
-            trpc.useQuery(["account.getLinkedDevices"], {
+            trpc.account.getLinkedDevices.useQuery(undefined, {
                 refetchOnWindowFocus: false,
                 enabled: !!session,
             });
-        const unlinkDevice = trpc.useMutation("account.unlinkDevice");
+        const unlinkDevice = trpc.account.unlinkDevice.useMutation();
 
         if (!linkedDevices) {
             // Something went wrong
@@ -3319,7 +3317,7 @@ const AccountHeaderWidget: React.FC<{
         data: subscriptionData,
         isLoading: isSubscriptionDataLoading,
         isError: hasSubscriptionDataError,
-    } = trpc.useQuery(["payment.getSubscription"], {
+    } = trpc.payment.getSubscription.useQuery(undefined, {
         refetchOnWindowFocus: false,
         enabled:
             !!session &&
@@ -5210,9 +5208,8 @@ const AccountDialogSignUpForm: React.FC<{
         },
     });
 
-    const { mutateAsync: register_user } = trpc.useMutation(
-        "credentials.register-user"
-    );
+    const { mutateAsync: register_user } =
+        trpc.credentials.registerUser.useMutation();
 
     const onSubmit = async (formData: SignUpFormSchemaType) => {
         setIsSubmitting(true);
@@ -5414,7 +5411,7 @@ const LinkDeviceDialog: React.FC<{
     const {
         data: linkingAccountConfiguration,
         isError: linkingAccountConfigurationError,
-    } = trpc.useQuery(["account.getLinkingConfiguration"], {
+    } = trpc.account.getLinkingConfiguration.useQuery(undefined, {
         refetchOnWindowFocus: false,
         enabled:
             !!session &&
@@ -5423,7 +5420,7 @@ const LinkDeviceDialog: React.FC<{
     });
 
     const { mutateAsync: linkNewDevice } =
-        trpc.useMutation("account.linkDevice");
+        trpc.account.linkDevice.useMutation();
 
     const saveNewLinkedDevice = async (userID: string): Promise<void> => {
         // Save the UserID and device name to the vault as a new linked device
@@ -6135,14 +6132,12 @@ const DashboardSidebarMenuFeatureVoting: React.FC<{
     // If the TRPC call resolves to a different value
 
     // Fetch the featureVoting.openRound trpc query if we're logged in (have a session)
-    const { data: openRoundExists } = trpc.useQuery(
-        ["featureVoting.openRoundExists"],
-        {
+    const { data: openRoundExists } =
+        trpc.featureVoting.openRoundExists.useQuery(undefined, {
             retry: false,
             enabled: !!session && !!session.data,
             refetchOnWindowFocus: false,
-        }
-    );
+        });
 
     return (
         <DashboardSidebarMenuItem

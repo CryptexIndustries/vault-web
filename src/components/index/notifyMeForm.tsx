@@ -42,8 +42,7 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
         },
     });
 
-    const { mutate: notifyMeRegister } = trpc.useMutation(
-        ["notifyme.register"],
+    const { mutate: notifyMeRegister } = trpc.notifyme.register.useMutation(
         {
             onSuccess: async (data) => {
                 if (data.success === true) {

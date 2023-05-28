@@ -43,7 +43,7 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
         },
     });
 
-    const { mutate: sendMessage } = trpc.useMutation(["notifyme.contact"], {
+    const { mutate: sendMessage } = trpc.notifyme.contact.useMutation({
         onSuccess: async (data) => {
             if (data.success === true) {
                 hideModalFn();

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { env } from "../../env/client.mjs";
 
 export type NotifyMeReference = "enterprise-tier" | null;
 
@@ -42,26 +43,22 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
         },
     });
 
-    const { mutate: notifyMeRegister } = trpc.notifyme.register.useMutation(
-        {
-            onSuccess: async (data) => {
-                if (data.success === true) {
-                    hideModalFn();
-                    toast.success("You will be notified when we're launching!");
-                } else {
-                    toast.error(
-                        "Something went wrong. Please try again later."
-                    );
-                    if (data != null && data.message != null)
-                        console.error(data.message);
-                }
-            },
-            onError(error) {
+    const { mutate: notifyMeRegister } = trpc.notifyme.register.useMutation({
+        onSuccess: async (data) => {
+            if (data.success === true) {
+                hideModalFn();
+                toast.success("You will be notified when we're launching!");
+            } else {
                 toast.error("Something went wrong. Please try again later.");
-                console.error(error);
-            },
-        }
-    );
+                if (data != null && data.message != null)
+                    console.error(data.message);
+            }
+        },
+        onError(error) {
+            toast.error("Something went wrong. Please try again later.");
+            console.error(error);
+        },
+    });
 
     const onSubmit = async (formData: FormSchemaType) => {
         setInProgress(true);
@@ -113,9 +110,7 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
                                 size: "normal",
                                 language: "auto",
                             }}
-                            siteKey={
-                                process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
-                            }
+                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                             onError={() => {
                                 setFormError("captchaToken", {
                                     message: "Captcha error",

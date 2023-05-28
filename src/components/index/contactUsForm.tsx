@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { env } from "../../env/client.mjs";
 
 const formSchema = z.object({
     email: z.string().email("This is a required field."),
@@ -131,9 +132,7 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
                                 size: "normal",
                                 language: "auto",
                             }}
-                            siteKey={
-                                process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
-                            }
+                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                             onError={() => {
                                 setFormError("captchaToken", {
                                     message: "Captcha error",

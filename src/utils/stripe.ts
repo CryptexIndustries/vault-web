@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { Stripe as StripeNS } from "stripe";
 import { Stripe as StripeJS, loadStripe } from "@stripe/stripe-js";
+import { env } from "../env/server.mjs";
 
 // This is a frontend helper function, so we can use the publishable key
 let stripePromiseFrontend: Promise<StripeJS | null>;
@@ -43,12 +44,8 @@ export const createCheckoutSession = async (
         },
         customer_email: userEmail,
         // customer: currentCustomerId,
-        success_url: `${
-            process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-        }/app?checkout_success=true`,
-        cancel_url: `${
-            process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-        }/app?checkout_success=false`,
+        success_url: `${env.NEXT_PUBLIC_APP_URL}/app?checkout_success=true`,
+        cancel_url: `${env.NEXT_PUBLIC_APP_URL}/app?checkout_success=false`,
     });
 
     return checkoutSession.id;

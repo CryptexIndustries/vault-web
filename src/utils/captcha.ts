@@ -1,3 +1,5 @@
+import { TRPCError } from "@trpc/server";
+
 // Type that gets returned when the "success" property is true
 /*
 {
@@ -61,3 +63,8 @@ export default async function validateCaptcha(
         }
     ).then((res) => res.json());
 }
+
+export const trpcCaptchaError = new TRPCError({
+    code: "BAD_REQUEST",
+    message: "Failed to validate captcha.",
+});

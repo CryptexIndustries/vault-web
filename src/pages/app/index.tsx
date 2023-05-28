@@ -196,7 +196,7 @@ const VaultListItem: React.FC<VaultListItemProps> = ({
 
     const removeVault = () => {
         showWarningDialogCallback(
-            "You are about to delete this vault, irreversibly.",
+            "You are about to delete this vault, irreversibly. If you haven't made a backup, you will lose all your data from this vault - including access to the account bound inside this vault.",
             async () => {
                 toast.info("Removing vault...", {
                     autoClose: false,
@@ -693,11 +693,25 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                 vault.OnlineServices.PrivateKey
             ) {
                 // Initialize the vault account
-                await cryptexAccountInit(
+                const res = await cryptexAccountInit(
                     vault.OnlineServices.UserID,
                     vault.OnlineServices.PrivateKey,
                     formData.captchaToken
                 );
+
+                if (!res.success && !res.offline) {
+                    toast.error(
+                        `Failed to authenticate with CryptexVault services. ${res.authResponse?.error}`,
+                        {
+                            autoClose: false,
+                            closeButton: true,
+                        }
+                    );
+                    console.error(
+                        "Failed to authenticate with CryptexVault services.",
+                        res.authResponse?.error
+                    );
+                }
             }
 
             // Set the vault metadata and vault atoms
@@ -3191,6 +3205,78 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
         );
     };
 
+    const Account: React.FC = () => {
+        const {
+            mutateAsync: sendVerificationEmail,
+            isLoading: isSendingEmail,
+        } = trpc.credentials.resendVerificationEmail.useMutation();
+
+        return (
+            <>
+                {" "}
+                <div className="mt-2 flex flex-col">
+                    <div className="flex items-center gap-2">
+                        <p className="text-left text-base text-gray-600">
+                            Status:
+                        </p>
+                        {session?.user?.confirmed ? (
+                            <p className="text-green-500">Verified</p>
+                        ) : (
+                            <p className="text-red-500">Not Verified</p>
+                        )}
+                    </div>
+                    {session?.user?.confirmed && (
+                        <p className="text-left text-base text-gray-600">
+                            Last verification:{" "}
+                            {new Date(
+                                session.user.confirmed
+                            ).toLocaleDateString()}
+                        </p>
+                    )}
+                </div>
+                {!session?.user?.confirmed && (
+                    <div className="mt-2 flex flex-col">
+                        <ButtonFlat
+                            type={ButtonType.Secondary}
+                            text="Resend Confirmation Email"
+                            onClick={async () => {
+                                if (!session) return;
+
+                                setOngoingOperation(true);
+
+                                try {
+                                    await sendVerificationEmail();
+
+                                    toast.success("Verification email sent.", {
+                                        autoClose: 3000,
+                                    });
+                                } catch (error) {
+                                    console.error(
+                                        "Error sending verification email:",
+                                        error
+                                    );
+                                    if (error instanceof TRPCClientError) {
+                                        console.error(error.message);
+                                    }
+                                    toast.error(
+                                        "Error sending verification email. Please try again later.",
+                                        {
+                                            autoClose: 3000,
+                                        }
+                                    );
+                                }
+
+                                setOngoingOperation(false);
+                            }}
+                            disabled={isSendingEmail}
+                            loading={isSendingEmail}
+                        />
+                    </div>
+                )}
+            </>
+        );
+    };
+
     return (
         <GenericModal
             key="account-management-modal"
@@ -3216,6 +3302,14 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 
                     {!hasDataLoadingError && (
                         <div className="mt-2 flex w-full flex-col text-left">
+                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Account
+                                </p>
+
+                                <Account />
+                            </div>
+
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Subscription
@@ -5350,6 +5444,51 @@ const AccountDialogSignUpForm: React.FC<{
     );
 };
 
+const EmailNotVerifiedDialog: React.FC = () => {
+    const { data: session } = useSession();
+
+    const [visibleState, setVisibleState] = useState<boolean>(
+        session?.user?.confirmed ? false : true
+    );
+    const hideDialogFn = () => setVisibleState(false);
+
+    return (
+        <GenericModal
+            key="verify-email-dialog"
+            visibleState={[visibleState, setVisibleState]}
+        >
+            <Body>
+                <div className="flex flex-col items-center text-center">
+                    <ExclamationTriangleIcon
+                        className="h-10 w-10 text-red-500"
+                        aria-hidden="true"
+                    />
+                    <p className="text-2xl font-bold text-gray-900">Warning</p>
+                    <br />
+                    <p className="mt-2 text-center text-base text-gray-600">
+                        Your email address has not been verified.
+                    </p>
+                    <p className="mt-2 text-center text-base text-gray-600">
+                        Please check your email and verify your email address.
+                    </p>
+                    <p className="mt-2 text-center text-base text-gray-600">
+                        The account will be deactivated in 7 days if you do not
+                        verify your email address.
+                    </p>
+                </div>
+            </Body>
+
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    onClick={hideDialogFn}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+
 //#endregion Vault account management
 
 //#region Linking vaults
@@ -6489,6 +6628,7 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                 vaultMetadata={vaultMetadata}
                 vault={vault}
             />
+            <EmailNotVerifiedDialog />
         </>
     );
 };

@@ -39,6 +39,8 @@ declare module "next-auth" {
             // accountId?: string;
             agent?: string;
             confirmed: Date | null;
+            email: string;
+            image: never;
         } & DefaultSession["user"];
     }
 }

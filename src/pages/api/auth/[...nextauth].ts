@@ -419,7 +419,11 @@ export function requestWrapper(
                     if (!user) return null;
 
                     // Check if the user has confirmed their email
-                    if (!user.email_verified_at) {
+                    // For dx reasons, we don't want to check this in dev
+                    if (
+                        !user.email_verified_at &&
+                        env.NODE_ENV === "production"
+                    ) {
                         // Check if the verification expiry has passed
                         if (user.email_verification_expires_at < new Date()) {
                             // If it the expiry has passed, disable the account

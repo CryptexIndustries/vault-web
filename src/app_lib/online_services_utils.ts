@@ -136,7 +136,6 @@ export const cryptexAccountSignIn = async (
     if (!(await isOriginAvailable())) {
         console.debug("Cannot sign in while offline.");
         toast.info("Offline mode enabled.", {
-            autoClose: 3000,
             closeButton: true,
         });
         return {
@@ -162,7 +161,6 @@ export const cryptexAccountSignIn = async (
         console.error("Failed to sign in.", e);
 
         toast.error("Failed to sign in.", {
-            autoClose: 3000,
             closeButton: true,
         });
     }

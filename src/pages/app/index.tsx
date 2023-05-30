@@ -2686,15 +2686,11 @@ const FeatureVotingDialog: React.FC<{
             {
                 onSuccess: () => {
                     refetchRounds();
-                    toast.success("Vote placed.", {
-                        autoClose: 3000,
-                    });
+                    toast.success("Vote placed.");
                 },
                 onError: (error) => {
                     console.error("Error placing vote.", error);
-                    toast.error("Error placing vote.", {
-                        autoClose: 3000,
-                    });
+                    toast.error("Error placing vote.");
                 },
             }
         );
@@ -3169,10 +3165,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                                             error
                                                         );
                                                         toast.error(
-                                                            "Error unlinking device.",
-                                                            {
-                                                                autoClose: 3000,
-                                                            }
+                                                            "Error unlinking device."
                                                         );
                                                     }
                                                     setOngoingOperation(false);
@@ -3233,9 +3226,9 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                 Verify before:{" "}
                                 {new Date(
                                     session.user.confirmation_period_expires_at
-                            ).toLocaleDateString()}
-                        </p>
-                    )}
+                                ).toLocaleDateString()}
+                            </p>
+                        )}
                 </div>
                 {!session?.user?.confirmed_at && (
                     <div className="mt-2 flex flex-col">
@@ -3250,9 +3243,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                 try {
                                     await sendVerificationEmail();
 
-                                    toast.success("Verification email sent.", {
-                                        autoClose: 3000,
-                                    });
+                                    toast.success("Verification email sent.");
                                 } catch (error) {
                                     console.error(
                                         "Error sending verification email:",
@@ -3262,10 +3253,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                         console.error(error.message);
                                     }
                                     toast.error(
-                                        "Error sending verification email. Please try again later.",
-                                        {
-                                            autoClose: 3000,
-                                        }
+                                        "Error sending verification email. Please try again later."
                                     );
                                 }
 
@@ -5010,7 +4998,6 @@ const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
         } catch (e) {
             console.error("Failed to save vault.", e);
             toast.error("Failed to save vault.", {
-                autoClose: 3000,
                 closeButton: true,
             });
         }
@@ -5160,7 +5147,6 @@ const AccountDialogSignInForm: React.FC<{
         } catch (error) {
             console.error(`Failed to load account from file. ${error}`);
             toast.error("Failed to load account from file.", {
-                autoClose: 3000,
                 closeButton: true,
             });
         }
@@ -5594,7 +5580,6 @@ const LinkDeviceDialog: React.FC<{
         hideDialog();
 
         toast.success("Successfully linked device.", {
-            autoClose: 3000,
             closeButton: true,
         });
     };
@@ -5826,7 +5811,6 @@ const LinkDeviceDialog: React.FC<{
             }
 
             toast.error(message, {
-                autoClose: 3000,
                 closeButton: true,
             });
 
@@ -6695,10 +6679,7 @@ const AppIndex: React.FC = () => {
                     )
                 }
             </HTMLMain>
-            <NotificationContainer
-                position="bottom-right"
-                pauseOnHover={false}
-            />
+            <NotificationContainer pauseOnHover={false} />
         </SessionProvider>
     );
 };

@@ -5493,7 +5493,6 @@ const EmailNotVerifiedDialog: React.FC = () => {
                     <p className="mt-2 text-center text-base text-gray-600">
                         The account will be deactivated <b>{timeToExpiry}</b>,
                         if you don&apos;t verify your email address.
-                        verify your email address.
                     </p>
                 </div>
             </Body>

@@ -38,7 +38,8 @@ declare module "next-auth" {
             id: string;
             // accountId?: string;
             agent?: string;
-            confirmed: Date | null;
+            confirmed_at: Date | null;
+            confirmation_period_expires_at: Date | null;
             email: string;
             image: never;
         } & DefaultSession["user"];
@@ -81,19 +82,21 @@ export function requestWrapper(
                     // session.user.accountId = token.accountId;
                     session.user.agent = req.headers["user-agent"];
 
-                    const confirmed =
-                        (
-                            await prisma.user.findUnique({
-                                where: {
-                                    id: token.sub,
-                                },
-                                select: {
-                                    email_verified_at: true,
-                                },
-                            })
-                        )?.email_verified_at ?? null;
+                    const accountConfirmation = await prisma.user.findUnique({
+                        where: {
+                            id: token.sub,
+                        },
+                        select: {
+                            email_verified_at: true,
+                            email_verification_expires_at: true,
+                        },
+                    });
 
-                    session.user.confirmed = confirmed;
+                    session.user.confirmed_at =
+                        accountConfirmation?.email_verified_at ?? null;
+                    session.user.confirmation_period_expires_at =
+                        accountConfirmation?.email_verification_expires_at ??
+                        null;
                 }
                 return session;
             },

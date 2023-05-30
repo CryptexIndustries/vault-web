@@ -3213,22 +3213,31 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                         <p className="text-left text-base text-gray-600">
                             Status:
                         </p>
-                        {session?.user?.confirmed ? (
+                        {session?.user?.confirmed_at ? (
                             <p className="text-green-500">Verified</p>
                         ) : (
                             <p className="text-red-500">Not Verified</p>
                         )}
                     </div>
-                    {session?.user?.confirmed && (
+                    {session?.user?.confirmed_at && (
                         <p className="text-left text-base text-gray-600">
                             Last verification:{" "}
                             {new Date(
-                                session.user.confirmed
+                                session.user.confirmed_at
+                            ).toLocaleDateString()}
+                        </p>
+                    )}
+                    {!session?.user?.confirmed_at &&
+                        session?.user?.confirmation_period_expires_at && (
+                            <p className="text-left text-base text-gray-600">
+                                Verify before:{" "}
+                                {new Date(
+                                    session.user.confirmation_period_expires_at
                             ).toLocaleDateString()}
                         </p>
                     )}
                 </div>
-                {!session?.user?.confirmed && (
+                {!session?.user?.confirmed_at && (
                     <div className="mt-2 flex flex-col">
                         <ButtonFlat
                             type={ButtonType.Secondary}
@@ -5441,9 +5450,23 @@ const AccountDialogSignUpForm: React.FC<{
 const EmailNotVerifiedDialog: React.FC = () => {
     const { data: session } = useSession();
 
-    // If we have a session and the confirmed flag is false, show the dialog
+    // Check if the verification period has expired
+    // The same condition is used in the server to check if the verification period has expired
+    const didVerificationPeriodExpire =
+        session?.user &&
+        session.user.confirmation_period_expires_at &&
+        new Date(session.user.confirmation_period_expires_at) < new Date();
+
+    // Show time to expiery if didVerificationPeriodExpire is false using dayjs
+    const timeToExpiry = didVerificationPeriodExpire
+        ? null
+        : dayjs(session?.user?.confirmation_period_expires_at).fromNow();
+
+    // If we have a session and confirmed_at is null and the verification period has not expired, show the dialog
     const [visibleState, setVisibleState] = useState<boolean>(
-        session?.user != null && session.user.confirmed == null
+        session?.user != null &&
+            session.user.confirmed_at == null &&
+            !didVerificationPeriodExpire
     );
     const hideDialogFn = () => setVisibleState(false);
 
@@ -5464,10 +5487,12 @@ const EmailNotVerifiedDialog: React.FC = () => {
                         Your email address has not been verified.
                     </p>
                     <p className="mt-2 text-center text-base text-gray-600">
-                        Please check your email and verify your email address.
+                        Please check your email inbox and verify your email
+                        address.
                     </p>
                     <p className="mt-2 text-center text-base text-gray-600">
-                        The account will be deactivated in 7 days if you do not
+                        The account will be deactivated <b>{timeToExpiry}</b>,
+                        if you don&apos;t verify your email address.
                         verify your email address.
                     </p>
                 </div>

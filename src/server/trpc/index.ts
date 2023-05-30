@@ -17,7 +17,6 @@ import {
     accountRouterDeleteUser,
 } from "./routes/account.router";
 import {
-    paymentRouterGetCheckoutSession,
     paymentRouterGetCheckoutURL,
     paymentRouterGetSubscription,
     paymentRouterGetCustomerPortal,
@@ -48,7 +47,6 @@ const mainRouter = router({
         deleteUser: accountRouterDeleteUser,
     }),
     payment: router({
-        getCheckoutSession: paymentRouterGetCheckoutSession,
         getCheckoutURL: paymentRouterGetCheckoutURL,
         getSubscription: paymentRouterGetSubscription,
         getCustomerPortal: paymentRouterGetCustomerPortal,

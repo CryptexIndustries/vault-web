@@ -10,6 +10,7 @@ import * as trpc from "@trpc/server";
 import {
     GetPriceID,
     PAYMENT_TIERS,
+    PRICE_ID_KEY,
     REVERSE_TIER_MAP,
 } from "../../../utils/subscription";
 import {
@@ -33,11 +34,18 @@ import { protectedProcedure } from "../trpc";
 //         "unpaid",
 //     ]);
 
-export const paymentRouterGetCheckoutSession = protectedProcedure
+export const paymentRouterGetCheckoutURL = protectedProcedure
     .input(
-        z.object({
-            priceId: z.string().max(256, "Invalid price ID"),
-        })
+        z
+            .object({
+                tier: z
+                    .enum([
+                        PAYMENT_TIERS.premiumMonthly,
+                        PAYMENT_TIERS.premiumYearly,
+                    ])
+                    .default(PAYMENT_TIERS.premiumMonthly),
+            })
+            .default({ tier: PAYMENT_TIERS.premiumMonthly })
     )
     .output(z.string().nullable())
     .query(async ({ ctx, input }) => {
@@ -45,42 +53,13 @@ export const paymentRouterGetCheckoutSession = protectedProcedure
             throw trpcRatelimitError;
         }
 
-        if (!ctx.session.user.email) {
+        const priceId = GetPriceID(input.tier as PRICE_ID_KEY);
+
+        if (!priceId?.length) {
             console.error(
-                `[TRPC - payment.getCheckoutSession] User ID: |${ctx.session.user.id}| - doesn't have an email`
+                `[TRPC - payment.getCheckoutURL] Invalid price ID. Tried: ${priceId} from ${input.tier}`
             );
-            throw new Error("User email is not defined");
         }
-
-        try {
-            return await createCheckoutSession(
-                ctx.session.user.email,
-                input.priceId
-            );
-        } catch (error) {
-            console.error(error);
-            throw new trpc.TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: "Something went wrong",
-            });
-        }
-    });
-
-export const paymentRouterGetCheckoutURL = protectedProcedure
-    .output(z.string().nullable())
-    .query(async ({ ctx }) => {
-        if (!checkRatelimitPaymentRouter(ctx.userIP, false)) {
-            throw trpcRatelimitError;
-        }
-
-        if (!ctx.session.user.email) {
-            console.error(
-                `[TRPC - payment.getCheckoutURL] User ID: |${ctx.session.user.id}| - doesn't have an email`
-            );
-            throw new Error("User email is not defined");
-        }
-
-        const priceId = GetPriceID("premiumMonthly");
 
         try {
             const id = await createCheckoutSession(

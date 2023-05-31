@@ -3,6 +3,7 @@
         "prisma.prisma",
         "bradlc.vscode-tailwindcss",
         "esbenp.prettier-vscode",
-        "usernamehw.errorlens"
+        "usernamehw.errorlens",
+        "yoavbls.pretty-ts-errors"
     ]
 }

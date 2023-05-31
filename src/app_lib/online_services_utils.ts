@@ -220,8 +220,6 @@ export const navigateToCheckout = async (): Promise<void> => {
 
     const checkoutSessionURL = await trpcClient.payment.getCheckoutURL.query();
 
-    debugger;
-
     if (!checkoutSessionURL?.length) {
         throw new Error("Failed to fetch checkout session URL.");
     }

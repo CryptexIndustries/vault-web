@@ -6,6 +6,8 @@ import { toast } from "react-toastify";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import type { AppRouter } from "../server/trpc";
+import Pusher from "pusher-js";
+import { env } from "../env/client.mjs";
 
 const createTRPCClient = () => {
     return createTRPCProxyClient<AppRouter>({
@@ -16,6 +18,19 @@ const createTRPCClient = () => {
         ],
         transformer: superjson,
     });
+};
+
+/**
+ * A function to check if cryptex-vault.com/app is available.
+ */
+const isOriginAvailable = async (): Promise<boolean> => {
+    try {
+        const res = await fetch("/api/health");
+        return res.status === 200;
+    } catch (e) {
+        console.debug("Application origin is unreachable or is offline.", e);
+        return false;
+    }
 };
 
 //#region Sign up
@@ -61,19 +76,6 @@ const signData = async (data: string, privateKey: string): Promise<string> => {
     return sodium.to_base64(signature);
 };
 //#endregion Encryption
-
-/**
- * A function to check if cryptex-vault.com/app is available.
- */
-export const isOriginAvailable = async (): Promise<boolean> => {
-    try {
-        const res = await fetch("/api/health");
-        return res.status === 200;
-    } catch (e) {
-        console.debug("Application origin is unreachable or is offline.", e);
-        return false;
-    }
-};
 
 //#region Session managements - Authentication
 const getNonce = async (): Promise<string> => {
@@ -228,3 +230,50 @@ export const navigateToCheckout = async (): Promise<void> => {
     location.replace(checkoutSessionURL);
 };
 //#endregion Subscription
+
+//#region OnlineServices
+export const newWebRTCConnection = async (): Promise<RTCPeerConnection> => {
+    return new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: "stun:stun.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun1.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun2.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun3.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun4.l.google.com:19302",
+            },
+            {
+                urls: "stun:stunserver.stunprotocol.org:3478",
+            },
+        ],
+    });
+};
+
+export const newWSPusherInstance = (): Pusher =>
+    new Pusher(env.NEXT_PUBLIC_PUSHER_APP_KEY, {
+        wsHost: env.NEXT_PUBLIC_PUSHER_APP_HOST,
+        wsPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
+        wssPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
+        forceTLS: env.NEXT_PUBLIC_PUSHER_APP_TLS,
+        // encrypted: true,
+        disableStats: true,
+        enabledTransports: ["ws", "wss"],
+        cluster: "",
+        userAuthentication: {
+            transport: "ajax",
+            endpoint: "/api/pusher/auth",
+        },
+        channelAuthorization: {
+            transport: "ajax",
+            endpoint: "/api/pusher/channel-auth",
+        },
+    });
+//#endregion OnlineServices

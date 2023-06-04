@@ -1104,10 +1104,12 @@ class LinkedDevice {
     public ID: string;
     public Name: string;
     public LastSync: Date | null = null;
+    public IsRoot: boolean = false;
 
-    constructor(deviceID: string, deviceName: string) {
+    constructor(deviceID: string, deviceName: string, isRoot: boolean = false) {
         this.ID = deviceID;
         this.Name = deviceName;
+        this.IsRoot = isRoot;
     }
 
     public updateLastSync(): void {
@@ -1148,8 +1150,27 @@ export class OnlineServicesAccount {
         );
     }
 
-    public addLinkedDevice(deviceID: string, deviceName: string): void {
-        this.LinkedDevices.push(new LinkedDevice(deviceID, deviceName));
+    public addLinkedDevice(
+        deviceID: string,
+        deviceName: string,
+        isRoot = false
+    ): void {
+        this.LinkedDevices.push(new LinkedDevice(deviceID, deviceName, isRoot));
+    }
+
+    public removeLinkedDevice(deviceID: string): void {
+        this.LinkedDevices = this.LinkedDevices.filter(
+            (device) => device.ID !== deviceID
+        );
+    }
+
+    public getLinkedDevice(deviceID: string): LinkedDevice | null {
+        for (const device of this.LinkedDevices) {
+            if (device.ID === deviceID) {
+                return device;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1365,7 +1386,8 @@ export class Vault {
         // Plant this device as a linked device in the new vault
         vaultCopy.OnlineServices.addLinkedDevice(
             this.OnlineServices.UserID,
-            deviceName
+            deviceName,
+            true
         );
 
         return vaultCopy;

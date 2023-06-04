@@ -2978,11 +2978,11 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
     dataLoading,
     hasDataLoadingError,
 }) => {
-    const { data: session } = useSession();
-    const router = useRouter();
-
     const [isVisible, setIsVisible] = useState(false);
     showDialogFnRef.current = () => setIsVisible(true);
+
+    const { data: session } = useSession();
+    const router = useRouter();
 
     const [ongoingOperation, setOngoingOperation] = useState(false);
 
@@ -2991,6 +2991,82 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 
     // Prepare the user deletion trpc call
     const deleteUser = trpc.account.deleteUser.useMutation();
+
+    const Account: React.FC = () => {
+        const {
+            mutateAsync: sendVerificationEmail,
+            isLoading: isSendingEmail,
+        } = trpc.credentials.resendVerificationEmail.useMutation();
+
+        return (
+            <>
+                {" "}
+                <div className="mt-2 flex flex-col">
+                    <div className="flex items-center gap-2">
+                        <p className="text-left text-base text-gray-600">
+                            Status:
+                        </p>
+                        {session?.user?.confirmed_at ? (
+                            <p className="text-green-500">Verified</p>
+                        ) : (
+                            <p className="text-red-500">Not Verified</p>
+                        )}
+                    </div>
+                    {session?.user?.confirmed_at && (
+                        <p className="text-left text-base text-gray-600">
+                            Last verification:{" "}
+                            {new Date(
+                                session.user.confirmed_at
+                            ).toLocaleDateString()}
+                        </p>
+                    )}
+                    {!session?.user?.confirmed_at &&
+                        session?.user?.confirmation_period_expires_at && (
+                            <p className="text-left text-base text-gray-600">
+                                Verify before:{" "}
+                                {new Date(
+                                    session.user.confirmation_period_expires_at
+                                ).toLocaleDateString()}
+                            </p>
+                        )}
+                </div>
+                {!session?.user?.confirmed_at && (
+                    <div className="mt-2 flex flex-col">
+                        <ButtonFlat
+                            type={ButtonType.Secondary}
+                            text="Resend Confirmation Email"
+                            onClick={async () => {
+                                if (!session) return;
+
+                                setOngoingOperation(true);
+
+                                try {
+                                    await sendVerificationEmail();
+
+                                    toast.success("Verification email sent.");
+                                } catch (error) {
+                                    console.error(
+                                        "Error sending verification email:",
+                                        error
+                                    );
+                                    if (error instanceof TRPCClientError) {
+                                        console.error(error.message);
+                                    }
+                                    toast.error(
+                                        "Error sending verification email. Please try again later."
+                                    );
+                                }
+
+                                setOngoingOperation(false);
+                            }}
+                            disabled={isSendingEmail}
+                            loading={isSendingEmail}
+                        />
+                    </div>
+                )}
+            </>
+        );
+    };
 
     const SubscriptionMenu: React.FC = () => {
         const router = useRouter();
@@ -3135,23 +3211,37 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
         );
     };
 
-    const LinkedDevices: React.FC = () => {
-        const { data: linkedDevices, refetch: refetchLinkedDevices } =
-            trpc.account.getLinkedDevices.useQuery(undefined, {
+    const RegisteredDevices: React.FC = () => {
+        const { data: registeredDevices, refetch: refetchRegisteredDevices } =
+            trpc.account.getRegisteredDevices.useQuery(undefined, {
                 refetchOnWindowFocus: false,
-                enabled: !!session,
+                enabled: !!session && session.user?.isRoot,
             });
-        const unlinkDevice = trpc.account.unlinkDevice.useMutation();
 
-        if (!linkedDevices) {
+        const removeDevice = trpc.account.removeDevice.useMutation();
+
+        if (!registeredDevices && session?.user?.isRoot) {
             // Something went wrong
             return (
-                <div className="mt-2 flex w-full flex-col items-center text-left">
+                <div className="mt-2 flex w-full flex-col gap-2 text-left">
                     <p className="line-clamp-2 text-left text-base text-gray-600">
-                        There was an error loading your linked devices.
+                        There was an error loading your registered devices.
                     </p>
                     <p className="line-clamp-2 text-left text-base text-gray-600">
                         Please try again later.
+                    </p>
+                </div>
+            );
+        } else if (!registeredDevices && !session?.user?.isRoot) {
+            // Only the root device is allowed to see and manage registered devices
+            return (
+                <div className="mt-2 flex w-full flex-col gap-2 text-left">
+                    <p className="line-clamp-2 text-left text-base text-gray-600">
+                        You are not allowed to manage registered devices.
+                    </p>
+                    <p className="line-clamp-2 text-left text-base text-gray-600">
+                        Please use the root device (the device that initially
+                        created the account) to manage registered devices.
                     </p>
                 </div>
             );
@@ -3159,9 +3249,9 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 
         if (!subscriptionData?.configuration?.linking_allowed) {
             return (
-                <div className="mt-2 flex w-full flex-col items-center text-left">
+                <div className="mt-2 flex w-full flex-col gap-2 text-left">
                     <p className="line-clamp-2 text-left text-base text-gray-600">
-                        You are not allowed to link devices.
+                        You are not allowed to register devices.
                     </p>
                     <p className="line-clamp-2 text-left text-base text-gray-600">
                         Please upgrade your subscription to enable this feature.
@@ -3170,170 +3260,155 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
             );
         }
 
+        if (!registeredDevices?.length) {
+            // No registered devices found - should not happen
+            return (
+                <div className="mt-2 flex w-full flex-col gap-2 text-left">
+                    <p className="line-clamp-2 text-left text-base text-gray-600">
+                        No registered devices found.
+                    </p>
+                    <p className="line-clamp-2 text-left text-base text-gray-600">
+                        Please register a new device by linking it to this vault
+                        or for use in a separate vault.
+                    </p>
+                </div>
+            );
+        }
+
+        const tempRmFn = async (id: string) => {
+            const confirmRemoval = window.confirm(
+                `Do you really want to remove the selected device? This will prevent the device from accessing the online services.`
+            );
+
+            if (confirmRemoval) {
+                setOngoingOperation(true);
+                try {
+                    await removeDevice.mutateAsync({
+                        id,
+                    });
+                    refetchRegisteredDevices();
+                } catch (error) {
+                    console.error("Error unlinking device.", error);
+                    toast.error("Error unlinking device.");
+                }
+                setOngoingOperation(false);
+            }
+        };
+
         return (
             <div className="overflow-auto">
                 <p className="mt-2 text-lg">
-                    Currently Linked ({linkedDevices?.length} /{" "}
+                    Currently Registered ({registeredDevices?.length} /{" "}
                     {subscriptionData.configuration.linked_devices_limit})
                 </p>
-                <table className="mt-2 w-full max-w-3xl border-separate border border-slate-500 bg-slate-800 text-sm shadow-sm">
-                    {linkedDevices?.length !== 1 && (
-                        <thead className="bg-slate-700">
-                            <tr>
-                                <th className="border border-slate-600 p-4 font-semibold text-slate-200">
-                                    Name
-                                </th>
-                                <th className="border border-slate-600 p-4 font-semibold text-slate-200">
-                                    Created At
-                                </th>
-                                <th className="border border-slate-600 p-4 font-semibold text-slate-200">
-                                    Remove
-                                </th>
-                            </tr>
-                        </thead>
-                    )}
-                    <tbody>
-                        {linkedDevices.length > 1 &&
-                            linkedDevices.map((device) => (
-                                <tr key={device.id} className="h-4 text-center">
-                                    {/* TODO: Pull device name from on-device data using the device ID */}
-                                    <td
-                                        // title={device.name ?? ""}
-                                        className="overflow-hidden text-ellipsis border border-slate-700 p-4 text-center text-slate-400"
-                                        style={{
-                                            maxWidth: "20px",
-                                        }}
-                                    >
-                                        {/* {device.name} */}?
-                                    </td>
-                                    <td className="border border-slate-700 p-4 text-slate-400">
-                                        {device.created_at.toDateString()}{" "}
-                                        {device.created_at.toLocaleTimeString()}
-                                    </td>
-                                    <td className="border border-slate-700 p-4 text-center text-slate-400">
-                                        <ButtonFlat
-                                            text="X"
-                                            onClick={async () => {
-                                                const confirmRemoval =
-                                                    window.confirm(
-                                                        `Do you really want to remove the selected linked device? This will prevent the device from accessing the service.`
-                                                    );
+                <div className="mt-2 flex max-h-52 flex-col gap-2 overflow-y-auto overflow-x-clip">
+                    {registeredDevices?.map((device) => {
+                        const resolvedDeviceName =
+                            unlockedVault?.OnlineServices.getLinkedDevice(
+                                device.deviceID
+                            )?.Name;
+                        const isCurrentDevice =
+                            device.id === session?.user?.accountID;
 
-                                                if (confirmRemoval) {
-                                                    setOngoingOperation(true);
-                                                    try {
-                                                        await unlinkDevice.mutateAsync(
-                                                            {
-                                                                id: device.id,
-                                                            }
-                                                        );
-                                                        refetchLinkedDevices();
-                                                    } catch (error) {
-                                                        console.error(
-                                                            "Error unlinking device.",
-                                                            error
-                                                        );
-                                                        toast.error(
-                                                            "Error unlinking device."
-                                                        );
-                                                    }
-                                                    setOngoingOperation(false);
-                                                }
-                                            }}
-                                        ></ButtonFlat>
-                                    </td>
-                                </tr>
-                            ))}
-                        {linkedDevices.length <= 1 && (
-                            <tr>
-                                <td
-                                    colSpan={4}
-                                    className="border border-slate-700 p-4 text-center text-slate-400 "
+                        let deviceDescription = "";
+                        const name = (function () {
+                            if (isCurrentDevice) {
+                                deviceDescription = "This device";
+                                return "(This device)";
+                            } else if (resolvedDeviceName) {
+                                deviceDescription =
+                                    "Linked device - known to this vault.";
+                                return resolvedDeviceName;
+                            } else {
+                                deviceDescription =
+                                    "Unknown device - might be known to another vault.";
+                                return "(Linked device)";
+                            }
+                        })();
+                        return (
+                            <div
+                                key={device.id}
+                                className="flex flex-col rounded-md border-b border-gray-200 bg-slate-300 px-4 py-2"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                        <DevicePhoneMobileIcon className="inline-block h-5 w-5" />
+                                        <p
+                                            className="line-clamp-2 break-all text-sm text-gray-500 sm:max-w-[200px]"
+                                            title={deviceDescription}
+                                        >
+                                            {name}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <p
+                                            className="text-sm text-gray-500"
+                                            title="Created at"
+                                        >
+                                            {device.created_at
+                                                ? new Date(
+                                                      device.created_at
+                                                  ).toLocaleString()
+                                                : "Unknown"}
+                                        </p>
+                                        {device.root && (
+                                            <div className="flex items-center space-x-2">
+                                                <p title="Device that created the account">
+                                                    Root
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-center space-x-2">
+                                    {device.userAgent && device.ip ? (
+                                        <>
+                                            <p
+                                                className="line-clamp-2 text-ellipsis text-sm text-gray-500"
+                                                title="User agent"
+                                            >
+                                                {device.userAgent}
+                                            </p>
+                                            <p
+                                                className="text-sm text-gray-500"
+                                                title="IP address"
+                                            >
+                                                {device.ip}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">
+                                            Device does not have an active
+                                            session.
+                                        </p>
+                                    )}
+                                </div>
+                                <div
+                                    className={clsx({
+                                        "mt-2 flex justify-start space-x-2":
+                                            true,
+                                        hidden:
+                                            session?.user?.accountID ===
+                                            device.id,
+                                    })}
                                 >
-                                    No linked devices found besides the current
-                                    device.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        );
-    };
-
-    const Account: React.FC = () => {
-        const {
-            mutateAsync: sendVerificationEmail,
-            isLoading: isSendingEmail,
-        } = trpc.credentials.resendVerificationEmail.useMutation();
-
-        return (
-            <>
-                {" "}
-                <div className="mt-2 flex flex-col">
-                    <div className="flex items-center gap-2">
-                        <p className="text-left text-base text-gray-600">
-                            Status:
-                        </p>
-                        {session?.user?.confirmed_at ? (
-                            <p className="text-green-500">Verified</p>
-                        ) : (
-                            <p className="text-red-500">Not Verified</p>
-                        )}
-                    </div>
-                    {session?.user?.confirmed_at && (
-                        <p className="text-left text-base text-gray-600">
-                            Last verification:{" "}
-                            {new Date(
-                                session.user.confirmed_at
-                            ).toLocaleDateString()}
-                        </p>
-                    )}
-                    {!session?.user?.confirmed_at &&
-                        session?.user?.confirmation_period_expires_at && (
-                            <p className="text-left text-base text-gray-600">
-                                Verify before:{" "}
-                                {new Date(
-                                    session.user.confirmation_period_expires_at
-                                ).toLocaleDateString()}
-                            </p>
-                        )}
+                                    <ButtonFlat
+                                        text="Remove"
+                                        onClick={async () =>
+                                            await tempRmFn(device.id)
+                                        }
+                                        disabled={
+                                            ongoingOperation ||
+                                            session?.user?.accountID ===
+                                                device.id
+                                        }
+                                    ></ButtonFlat>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
-                {!session?.user?.confirmed_at && (
-                    <div className="mt-2 flex flex-col">
-                        <ButtonFlat
-                            type={ButtonType.Secondary}
-                            text="Resend Confirmation Email"
-                            onClick={async () => {
-                                if (!session) return;
-
-                                setOngoingOperation(true);
-
-                                try {
-                                    await sendVerificationEmail();
-
-                                    toast.success("Verification email sent.");
-                                } catch (error) {
-                                    console.error(
-                                        "Error sending verification email:",
-                                        error
-                                    );
-                                    if (error instanceof TRPCClientError) {
-                                        console.error(error.message);
-                                    }
-                                    toast.error(
-                                        "Error sending verification email. Please try again later."
-                                    );
-                                }
-
-                                setOngoingOperation(false);
-                            }}
-                            disabled={isSendingEmail}
-                            loading={isSendingEmail}
-                        />
-                    </div>
-                )}
-            </>
+            </div>
         );
     };
 
@@ -3366,7 +3441,6 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                 <p className="text-lg font-bold text-slate-800">
                                     Account
                                 </p>
-
                                 <Account />
                             </div>
 
@@ -3379,9 +3453,9 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
-                                    Linked Devices
+                                    Registered Devices
                                 </p>
-                                <LinkedDevices />
+                                <RegisteredDevices />
                             </div>
 
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
@@ -3389,6 +3463,13 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                     General
                                 </p>
                                 <div className="mt-2 flex flex-col">
+                                    {!session?.user?.isRoot && (
+                                        // Only the root device can delete the account
+                                        <p className="my-2 text-base text-gray-600">
+                                            You can only delete your account
+                                            when you are using the root device.
+                                        </p>
+                                    )}
                                     <ButtonFlat
                                         type={ButtonType.Secondary}
                                         text="Delete Account"
@@ -3403,19 +3484,30 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                                 "Do you really want to delete this account permanently?"
                                             );
                                             if (confirmBox === true) {
-                                                await deleteUser.mutateAsync();
-                                                await unbindAccountFromVault(
-                                                    vaultMetadata,
-                                                    unlockedVault
-                                                );
-                                                router.reload();
+                                                try {
+                                                    await deleteUser.mutateAsync();
+                                                    await unbindAccountFromVault(
+                                                        vaultMetadata,
+                                                        unlockedVault
+                                                    );
+                                                    router.reload();
+                                                } catch (err) {
+                                                    toast.error(
+                                                        "Failed to delete account"
+                                                    );
+                                                    console.error(err);
+                                                }
                                             }
                                         }}
+                                        disabled={
+                                            ongoingOperation ||
+                                            !session?.user?.isRoot
+                                        }
                                     ></ButtonFlat>
                                 </div>
                             </div>
 
-                            {/* Overlay that is active if the session is null and tells the user that he is offline */}
+                            {/* Overlay that is active if the session is null */}
                             <div
                                 className={clsx({
                                     "absolute inset-0 items-center justify-center backdrop-blur-sm":
@@ -3426,11 +3518,11 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                             >
                                 <div className="flex flex-col items-center justify-center space-y-2 text-center">
                                     <p className="text-lg font-bold text-slate-800">
-                                        You are offline
+                                        You are not signed in
                                     </p>
                                     <p className="text-base text-slate-600">
-                                        You need to be online to manage your
-                                        account.
+                                        You need to be signed in and online to
+                                        manage your account.
                                     </p>
                                 </div>
                             </div>
@@ -6332,6 +6424,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                         "sm:ml-2": true,
                         hidden: !readyForOtherDevice,
                     })}
+                    disabled={!isOperationInProgress}
                     onClick={() => cancelFnRef.current()}
                 />
                 <ButtonFlat
@@ -6382,9 +6475,9 @@ const DashboardSidebarSynchronization: React.FC = () => {
                             <div>
                                 <DevicePhoneMobileIcon className="h-5 w-5" />
                             </div>
-                            <div className="flex flex-col">
+                            <div className="flex flex-col overflow-x-hidden">
                                 <p
-                                    className="line-clamp-1 text-base font-medium"
+                                    className="line-clamp-1 overflow-hidden truncate text-base font-medium"
                                     title={device.Name}
                                 >
                                     {device.Name}
@@ -6644,11 +6737,11 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
     };
 
     const sidebarClasses = clsx({
-        "flex-col sm:px-5 pt-1 flex min-w-0 sm:min-w-[250px] max-w-[250px] transition-all duration-300 ease-in-out overflow-hidden gap-3":
+        "flex-col pt-1 flex min-w-0 sm:min-w-[250px] max-w-[250px] transition-all duration-300 ease-in-out overflow-hidden gap-3":
             true,
         [sidebarSelector.slice(1)]: true, // We use this class to select the sidebar in the closeSidebarOnOutsideClick function
         "w-0 px-0": !isSidebarOpen,
-        "min-w-[90vw] px-5 border-r-2 border-slate-800/60 sm:border-r-0":
+        "min-w-[90vw] px-1 border-r-2 border-slate-800/60 sm:border-r-0":
             isSidebarOpen,
     });
 
@@ -6705,7 +6798,7 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                     </div>
                     <div className="my-5 block h-1 rounded-md bg-slate-300/25 sm:hidden" />
                     {/* TODO: This should be made prettier on mobile */}
-                    <div className="block w-full">
+                    <div className="block w-full px-5">
                         <ButtonFlat
                             text="New Item"
                             className="w-full"

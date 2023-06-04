@@ -110,10 +110,11 @@ export const credentialsRouterRegisterUser = publicProcedure
             const account = await ctx.prisma.account.create({
                 data: {
                     userId: user.id,
-                    provider: "cryptex-key-based",
                     type: "credentials",
+                    provider: "cryptex-key-based",
                     providerAccountId: randomUUID(),
                     public_key: input.publicKey,
+                    root: true, // We set this to true because this is the user's first account
                 },
             });
 

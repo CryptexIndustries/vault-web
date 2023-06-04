@@ -12,8 +12,8 @@ import {
 import {
     accountRouterGetLinkingConfiguration,
     accountRouterLinkDevice,
-    accountRouterUnlinkDevice,
-    accountRouterGetLinkedDevices,
+    accountRouterRemoveDevice,
+    accountRouterGetRegisteredDevices,
     accountRouterDeleteUser,
 } from "./routes/account.router";
 import {
@@ -42,8 +42,8 @@ const mainRouter = router({
     account: router({
         getLinkingConfiguration: accountRouterGetLinkingConfiguration,
         linkDevice: accountRouterLinkDevice,
-        unlinkDevice: accountRouterUnlinkDevice,
-        getLinkedDevices: accountRouterGetLinkedDevices,
+        removeDevice: accountRouterRemoveDevice,
+        getRegisteredDevices: accountRouterGetRegisteredDevices,
         deleteUser: accountRouterDeleteUser,
     }),
     payment: router({

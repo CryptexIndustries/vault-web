@@ -22,7 +22,7 @@ model User {
     id                            String               @id @default(cuid())
     name                          String?              @db.VarChar(255)
     email                         String               @unique
-    emailVerified                 String?              @map("email_verified")
+    emailVerified                 String?              @map("email_verified") // This is not used, only junk from next-auth
     email_verified_at             DateTime?
     email_verification_expires_at DateTime             @default(now())
     created_at                    DateTime             @default(now())
@@ -40,16 +40,16 @@ model Account {
     type              String
     provider          String
     providerAccountId String
-    refresh_token     String?  @db.Text
-    access_token      String?  @db.Text
-    totp_secret       String?  @db.Text // OBSOLETE
     public_key        String?  @db.Text
     created_at        DateTime @default(now())
-    expires_at        Int?
-    token_type        String?
-    scope             String?
-    id_token          String?  @db.Text
-    session_state     String?
+    root              Boolean  @default(false)
+    refresh_token     String?  @db.Text // This is not used, only junk from next-auth
+    access_token      String?  @db.Text // This is not used, only junk from next-auth
+    expires_at        Int? // This is not used, only junk from next-auth
+    token_type        String? // This is not used, only junk from next-auth
+    scope             String? // This is not used, only junk from next-auth
+    id_token          String?  @db.Text // This is not used, only junk from next-auth
+    session_state     String?  @db.Text // This is not used, only junk from next-auth
     session           Session?
     user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -67,7 +67,7 @@ model Session {
     user_agent   String?  @db.VarChar(255)
     ip           String?
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    account      Account  @relation(fields: [account_id], references: [providerAccountId], onDelete: Cascade)
+    account      Account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
 
     @@index([userId])
 }

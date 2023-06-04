@@ -1,6 +1,9 @@
-import NextAuth, { DefaultSession, type NextAuthOptions } from "next-auth";
+import NextAuth, {
+    DefaultSession,
+    DefaultUser,
+    type NextAuthOptions,
+} from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { NextApiRequest, NextApiResponse } from "next";
 import { randomUUID } from "crypto";
 import { getCookie, setCookie } from "cookies-next";
@@ -12,6 +15,7 @@ import { validateSignature } from "../../../utils/data_security";
 import { initUserSubscriptionTier } from "../../../utils/subscription";
 import validateCaptcha from "../../../utils/captcha";
 import { checkAuthRatelimit } from "../../../server/common/ratelimiting";
+import { PrismaAdapter } from "../../../server/common/prisma-adapter";
 
 // Used for nonce generation and verification
 const redis = Redis.fromEnv();
@@ -33,21 +37,22 @@ export type AvailableAuthProviders = "cryptex-key-based";
 
 // Extend the built-in session type
 declare module "next-auth" {
-    interface Session {
+    interface Session extends DefaultSession {
         user?: {
             id: string;
-            // accountId?: string;
+            accountID: string;
             confirmed_at: Date | null;
             confirmation_period_expires_at: Date | null;
             email: string;
             image: never;
+            isRoot: boolean;
         } & DefaultSession["user"];
     }
 
-    interface User {
+    interface User extends DefaultUser {
         // This accountID is smuggled in during the authorization callback (within the CredentialsProvider)
         accountID: string;
-
+        isRoot: boolean;
         email_verified_at: Date | null;
         email_verification_expires_at: Date | null;
     }
@@ -69,6 +74,33 @@ export function requestWrapper(
 
     const opts: NextAuthOptions = {
         adapter: adapter,
+        session: {
+            // strategy: "database",
+            maxAge: defaultSessionExpiery,
+            updateAge: 24 * 60 * 60, // 24 hours
+        },
+        theme: {
+            colorScheme: "dark",
+            brandColor: "#FF5668",
+        },
+        pages: {
+            signIn: "/app",
+            error: "",
+            verifyRequest: "/confirm",
+            newUser: "",
+        },
+        cookies: {
+            sessionToken: {
+                name: sessionTokenName,
+                options: {
+                    httpOnly: true,
+                    sameSite: "lax",
+                    path: "/",
+                    secure: process.env.NODE_ENV !== "development",
+                },
+            },
+        },
+        secret: env.NEXTAUTH_SECRET,
         providers: [
             CredentialsProvider({
                 id: CREDENTIAL_PROVIDERS.CryptexKeyBased,
@@ -136,8 +168,10 @@ export function requestWrapper(
                             provider: CREDENTIAL_PROVIDERS.CryptexKeyBased,
                         },
                         select: {
+                            id: true,
                             public_key: true,
                             userId: true,
+                            root: true,
                         },
                     });
 
@@ -204,17 +238,55 @@ export function requestWrapper(
                     // This is required so we can control the logins per account
                     return {
                         ...user,
-                        accountID: credentials.userID, // This is actually not the userID but the provider account ID
+                        accountID: account.id,
+                        isRoot: account.root, // This is not actually used in the signIn flow, it's there to make the type system happy
                     };
                 },
             }),
         ],
+        jwt: {
+            encode: async ({ token, secret, maxAge }) => {
+                if (
+                    req.query.nextauth?.includes("callback") &&
+                    req.query.nextauth.includes(
+                        CREDENTIAL_PROVIDERS.CryptexKeyBased
+                    ) &&
+                    req.method === "POST"
+                ) {
+                    const cookie = getCookie(
+                        opts.cookies?.sessionToken?.name ?? sessionTokenName
+                    )?.toString();
+
+                    if (cookie) return cookie;
+                    else return "";
+                }
+
+                // Revert to default behaviour when not in the credentials provider callback flow
+                return encode({ token, secret, maxAge });
+            },
+            decode: async ({ token, secret }) => {
+                if (
+                    req.query.nextauth?.includes("callback") &&
+                    req.query.nextauth.includes(
+                        CREDENTIAL_PROVIDERS.CryptexKeyBased
+                    ) &&
+                    req.method === "POST"
+                ) {
+                    // Skip the jwt verification for the Cryptex Vault credentials provider
+                    return null;
+                }
+
+                // Revert to default behaviour when not in the credentials provider callback flow
+                return decode({ token, secret });
+            },
+        },
         callbacks: {
             async session({ session, user }) {
                 if (session.user && user.id) {
-                    // Include user.id in the session object
+                    // Include these in the session object
                     session.user.id = user.id;
-                    // session.user.accountId = token.accountId;
+                    session.user.accountID = user.accountID;
+                    session.user.isRoot = user.isRoot;
                     session.user.confirmed_at = user.email_verified_at;
                     session.user.confirmation_period_expires_at =
                         user.email_verification_expires_at;
@@ -299,70 +371,6 @@ export function requestWrapper(
                 return false;
             },
         },
-        jwt: {
-            encode: async ({ token, secret, maxAge }) => {
-                if (
-                    req.query.nextauth?.includes("callback") &&
-                    req.query.nextauth.includes(
-                        CREDENTIAL_PROVIDERS.CryptexKeyBased
-                    ) &&
-                    req.method === "POST"
-                ) {
-                    const cookie = getCookie(
-                        opts.cookies?.sessionToken?.name ?? sessionTokenName
-                    )?.toString();
-
-                    if (cookie) return cookie;
-                    else return "";
-                }
-
-                // Revert to default behaviour when not in the credentials provider callback flow
-                return encode({ token, secret, maxAge });
-            },
-            decode: async ({ token, secret }) => {
-                if (
-                    req.query.nextauth?.includes("callback") &&
-                    req.query.nextauth.includes(
-                        CREDENTIAL_PROVIDERS.CryptexKeyBased
-                    ) &&
-                    req.method === "POST"
-                ) {
-                    // Skip the jwt verification for the Cryptex Vault credentials provider
-                    return null;
-                }
-
-                // Revert to default behaviour when not in the credentials provider callback flow
-                return decode({ token, secret });
-            },
-        },
-        session: {
-            // strategy: "database",
-            // strategy: "jwt",
-            maxAge: defaultSessionExpiery,
-            updateAge: 24 * 60 * 60, // 24 hours
-        },
-        theme: {
-            colorScheme: "dark",
-            brandColor: "#FF5668",
-        },
-        pages: {
-            signIn: "/app",
-            error: "",
-            verifyRequest: "/confirm",
-            newUser: "",
-        },
-        cookies: {
-            sessionToken: {
-                name: sessionTokenName,
-                options: {
-                    httpOnly: true,
-                    sameSite: "lax",
-                    path: "/",
-                    secure: process.env.NODE_ENV !== "development",
-                },
-            },
-        },
-        secret: env.NEXTAUTH_SECRET,
     };
 
     return [req, res, opts];

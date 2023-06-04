@@ -89,6 +89,13 @@ export const accountRouterLinkDevice = protectedProcedure
             throw trpcRatelimitError;
         }
 
+        if (!ctx.session.user.isRoot) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Only the root device can be used to link devices.",
+            });
+        }
+
         // Get the user and check whether they can link devices and how many devices they can link
         const user = await ctx.prisma.user.findFirst({
             where: {
@@ -180,7 +187,7 @@ export const accountRouterLinkDevice = protectedProcedure
         }
     });
 
-export const accountRouterUnlinkDevice = protectedProcedure
+export const accountRouterRemoveDevice = protectedProcedure
     .input(
         z.object({
             id: z.string(),
@@ -190,6 +197,13 @@ export const accountRouterUnlinkDevice = protectedProcedure
     .mutation(async ({ ctx, input }) => {
         if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
             throw trpcRatelimitError;
+        }
+
+        if (!ctx.session.user.isRoot) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Only the root device can be used to remove devices.",
+            });
         }
 
         // Check if the account (device) the user is trying to unlink isn't the last one
@@ -232,12 +246,16 @@ export const accountRouterUnlinkDevice = protectedProcedure
         return true;
     });
 
-export const accountRouterGetLinkedDevices = protectedProcedure
+export const accountRouterGetRegisteredDevices = protectedProcedure
     .output(
         z.array(
             z.object({
                 id: z.string(),
+                deviceID: z.string(),
                 created_at: z.date(),
+                root: z.boolean(),
+                userAgent: z.string().nullable(),
+                ip: z.string().nullable(),
             })
         )
     )
@@ -246,17 +264,40 @@ export const accountRouterGetLinkedDevices = protectedProcedure
             throw trpcRatelimitError;
         }
 
+        if (!ctx.session.user.isRoot) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                    "Only the root device can be used to view registered devices.",
+            });
+        }
+
         const devices = await ctx.prisma.account.findMany({
             where: {
                 userId: ctx.session.user.id,
             },
             select: {
                 id: true,
+                providerAccountId: true,
                 created_at: true,
+                root: true,
+                session: {
+                    select: {
+                        user_agent: true,
+                        ip: true,
+                    },
+                },
             },
         });
 
-        return devices;
+        return [
+            ...devices.map((device) => ({
+                ...device,
+                deviceID: device.providerAccountId,
+                userAgent: device.session?.user_agent ?? null,
+                ip: device.session?.ip ?? null,
+            })),
+        ];
     });
 
 export const accountRouterDeleteUser = protectedProcedure
@@ -264,6 +305,14 @@ export const accountRouterDeleteUser = protectedProcedure
     .mutation(async ({ ctx }) => {
         if (!checkRatelimitAccountRouter(ctx.userIP, true)) {
             throw trpcRatelimitError;
+        }
+
+        // Only the root account can delete the user
+        if (!ctx.session.user.isRoot) {
+            throw new trpc.TRPCError({
+                code: "BAD_REQUEST",
+                message: "Only the root account can delete the user.",
+            });
         }
 
         const subscription = await ctx.prisma.user.delete({

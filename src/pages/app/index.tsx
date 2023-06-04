@@ -14,9 +14,6 @@ import * as OTPAuth from "otpauth";
 import { shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
 
-import Pusher from "pusher-js";
-import type * as PusherOptions from "pusher-js/types/src/core/options";
-
 import dayjs from "dayjs";
 import RelativeTime from "dayjs/plugin/relativeTime";
 
@@ -49,6 +46,10 @@ import {
     HandThumbUpIcon,
     ArrowUturnUpIcon,
     CalendarIcon,
+    XCircleIcon,
+    ChevronUpIcon,
+    InformationCircleIcon,
+    ExclamationCircleIcon,
 } from "@heroicons/react/20/solid";
 import { Turnstile } from "@marsidev/react-turnstile";
 
@@ -65,6 +66,8 @@ import {
     cryptexAccountSignIn,
     generateKeyPair,
     navigateToCheckout,
+    newWSPusherInstance,
+    newWebRTCConnection,
 } from "../../app_lib/online_services_utils";
 import { signUpFormSchema } from "../../app_lib/online_services_utils";
 import {
@@ -92,25 +95,6 @@ dayjs.extend(RelativeTime);
 
 const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 const unlockedVaultAtom = atom<Vault | null>(null);
-
-const onlineServicesEndpointConfiguration: PusherOptions.Options = {
-    wsHost: env.NEXT_PUBLIC_PUSHER_APP_HOST,
-    wsPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
-    wssPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
-    forceTLS: env.NEXT_PUBLIC_PUSHER_APP_TLS,
-    // encrypted: true,
-    disableStats: true,
-    enabledTransports: ["ws", "wss"],
-    cluster: "",
-    userAuthentication: {
-        transport: "ajax",
-        endpoint: "/api/pusher/auth",
-    },
-    channelAuthorization: {
-        transport: "ajax",
-        endpoint: "/api/pusher/channel-auth",
-    },
-};
 
 const unbindAccountFromVault = async (
     vaultMetadata: VaultMetadata,
@@ -507,7 +491,7 @@ const IconCreateVault: React.FC = () => {
     );
 };
 
-const IconLinkVault: React.FC = () => {
+const IconLinkDevice: React.FC = () => {
     return (
         <svg
             width="48"
@@ -1682,31 +1666,69 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
     );
 };
 
-const VaultLinkingDialog: React.FC<{
+const BlockWideButton: React.FC<{
+    icon: React.ReactNode;
+    iconCaption: string;
+    description: string;
+    onClick?: () => void;
+    disabled?: boolean;
+}> = ({ icon, iconCaption, description, onClick, disabled }) => (
+    <div
+        className={clsx({
+            "mb-2 flex flex-col items-center gap-1 rounded-md bg-gray-200 px-4 py-2 transition-colors":
+                true,
+            "cursor-pointer hover:bg-gray-300": !disabled,
+            "opacity-50": disabled,
+        })}
+        onClick={() => !disabled && onClick && onClick()}
+    >
+        <div className="flex flex-row items-center gap-2">
+            {icon}
+            <p className="text-gray-900">{iconCaption}</p>
+        </div>
+        <p className="text-xs text-gray-500">{description}</p>
+    </div>
+);
+
+const LinkDeviceOutsideVaultDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
     const [visible, setVisible] = useState(false);
     showDialogFnRef.current = () => setVisible(true);
     const hideDialog = () => {
         setVisible(false);
-        resetForm();
-        setCurrentState(State.LinkingMethod);
+
+        setTimeout(() => {
+            resetForm();
+            setCurrentState(State.LinkingMethod);
+            progressLogRef.current = [];
+        }, 500);
     };
 
     enum State {
         LinkingMethod = "LinkingMethod",
-        SoundListening = "SoundListening",
+        // SoundListening = "SoundListening",
         DecryptionPassphrase = "DecryptionPassphrase",
-        WaitingForDevice = "WaitingForDevice",
-        ReceivingVaultMetadata = "ReceivingVaultMe",
-        AcceptingVault = "AcceptingVault",
-        SavingVault = "SavingVault",
+        LinkingInProgress = "LinkingInProgress",
+        // WaitingForDevice = "WaitingForDevice",
+        // ReceivingVaultMetadata = "ReceivingVault",
+        // AcceptingVault = "AcceptingVault",
+        // SavingVault = "SavingVault",
     }
 
     const [currentState, setCurrentState] = useState<State>(
         State.LinkingMethod
     );
     const [isOperationInProgress, setOperationInProgress] = useState(false);
+    const progressLogRef = useRef<ProgressLogType[]>([]);
+    const addToProgressLog = (
+        message: string,
+        type: "done" | "info" | "warn" | "error" = "done"
+    ) => {
+        const newProgressLog = [{ message, type }, ...progressLogRef.current];
+        progressLogRef.current = newProgressLog;
+        setFormValue("progressLog", newProgressLog);
+    };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const vaultLinkingFormSchema = z.object({
@@ -1715,15 +1737,20 @@ const VaultLinkingDialog: React.FC<{
         captchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
             ? z.string().nonempty("Captcha is required.")
             : z.string(),
+        progressLog: z.array(
+            z.object({
+                message: z.string(),
+                type: z.enum(["done", "info", "warn", "error"]),
+            })
+        ),
     });
     type VaultLinkingFormSchemaType = z.infer<typeof vaultLinkingFormSchema>;
     const {
         control,
         handleSubmit,
-        getValues: getFormValue,
         setValue: setFormValue,
         setError: setFormError,
-        formState: { errors, isSubmitting, isDirty },
+        formState: { errors },
         reset: resetForm,
     } = useForm<VaultLinkingFormSchemaType>({
         resolver: zodResolver(vaultLinkingFormSchema),
@@ -1731,32 +1758,9 @@ const VaultLinkingDialog: React.FC<{
             encryptedData: "",
             decryptionPassphrase: "",
             captchaToken: "",
+            progressLog: [],
         },
     });
-
-    const BlockButton: React.FC<{
-        icon: React.ReactNode;
-        iconCaption: string;
-        description: string;
-        onClick?: () => void;
-        disabled?: boolean;
-    }> = ({ icon, iconCaption, description, onClick, disabled }) => (
-        <div
-            className={clsx({
-                "mb-2 flex flex-col items-center gap-1 rounded-md bg-gray-200 px-4 py-2 transition-colors ":
-                    true,
-                "cursor-pointer hover:bg-gray-300": !disabled,
-                "opacity-50": disabled,
-            })}
-            onClick={() => !disabled && onClick && onClick()}
-        >
-            <div className="flex flex-row items-center gap-2">
-                {icon}
-                <p className="text-gray-900">{iconCaption}</p>
-            </div>
-            <p className="text-xs text-gray-500">{description}</p>
-        </div>
-    );
 
     /**
      * This is called when the user clicks on the "Using a file" button
@@ -1770,6 +1774,7 @@ const VaultLinkingDialog: React.FC<{
             const encryptedData = await readFile(fileData);
             setFormValue("encryptedData", encryptedData);
 
+            // If we were able to load the file, move to the next step which is decryption
             setCurrentState(State.DecryptionPassphrase);
         } catch (e) {
             console.error("Failed to load the file.", e);
@@ -1786,14 +1791,8 @@ const VaultLinkingDialog: React.FC<{
         // Delay a bit for the UI to update
         await new Promise((res) => setTimeout(res, 100));
 
-        // scrap believe knock lumber civil accident diesel coconut stay wedding just conduct
-
         // Try to decrypt the data - setError if it fails
-        let decryptedData: OnlineServicesAccountInterface = {
-            UserID: "",
-            PublicKey: "",
-            PrivateKey: "",
-        };
+        let decryptedData: OnlineServicesAccountInterface;
         try {
             decryptedData = await OnlineServicesAccount.decryptTransferableData(
                 formData.encryptedData,
@@ -1802,9 +1801,9 @@ const VaultLinkingDialog: React.FC<{
 
             // Validate the decrypted data
             if (
-                !decryptedData.UserID ||
-                !decryptedData.PublicKey ||
-                !decryptedData.PrivateKey
+                !decryptedData.UserID.length ||
+                !decryptedData.PublicKey.length ||
+                !decryptedData.PrivateKey.length
             ) {
                 throw new Error("Invalid decrypted data.");
             }
@@ -1838,83 +1837,59 @@ const VaultLinkingDialog: React.FC<{
                 message: "Failed to authenticate to online services.",
             });
 
+            setOperationInProgress(false);
             return;
         }
 
+        setCurrentState(State.LinkingInProgress);
+
+        // Delay a bit for the UI to update
+        await new Promise((res) => setTimeout(res, 100));
+
+        connectToOnlineServices(decryptedData);
+    };
+
+    const connectToOnlineServices = async (
+        decryptedData: OnlineServicesAccountInterface
+    ) => {
         //---
-        // Start setting up the WebRTC connection
-        const localConnection = new RTCPeerConnection({
-            iceServers: [
-                {
-                    urls: "stun:stun.l.google.com:19302",
-                },
-            ],
-        });
+        // Start setting up the WebRTC connection so it is ready when we need it
+        const webRTConnection = await newWebRTCConnection();
+        webRTConnection.onconnectionstatechange = () => {
+            // console.debug(
+            //     "WebRTC connection state changed:",
+            //     webRTConnection.connectionState
+            // );
 
-        // TODO: Access the WS server (provide the signed nonce) - subscribe to own channel
-        // TODO: Wait for a WebRTC offer from the other device
-        const onlineServicesEndpoint = new Pusher(
-            env.NEXT_PUBLIC_PUSHER_APP_KEY,
-            onlineServicesEndpointConfiguration
-        );
+            if (webRTConnection.connectionState === "connected") {
+                // console.debug("WebRTC connection established.");
+                addToProgressLog(
+                    "Private connection established, disconnecting from CryptexVault Online Services...",
+                    "info"
+                );
 
-        const channelName = `presence-link-${decryptedData.UserID}`;
-        const channel = onlineServicesEndpoint.subscribe(channelName);
-        channel.bind(
-            "client-link",
-            async (data: {
-                type: "offer" | "ice-candidate";
-                data: RTCIceCandidateInit | RTCSessionDescriptionInit;
-            }) => {
-                // console.log("Received WebRTC offer:", data);
+                // We're connected directly to the other device, so disconnect from the online services
+                onlineWSServicesEndpoint.disconnect();
+            } else if (
+                webRTConnection.connectionState === "disconnected" ||
+                webRTConnection.connectionState === "failed"
+            ) {
+                // console.debug("WebRTC connection lost.");
+                addToProgressLog(
+                    "Private connection has been terminated.",
+                    "info"
+                );
 
-                if (data.type === "offer") {
-                    // console.log("Received WebRTC offer:", data.data);
-                    localConnection.setRemoteDescription(
-                        data.data as RTCSessionDescriptionInit
-                    );
-
-                    localConnection.onicecandidate = (event) => {
-                        if (event.candidate) {
-                            // console.log(
-                            //     "Sending WebRTC ice candidate:",
-                            //     event.candidate
-                            // );
-                            channel.trigger("client-link", {
-                                type: "ice-candidate",
-                                data: event.candidate,
-                            });
-                        }
-                    };
-
-                    // Send the answer
-                    const answer = await localConnection.createAnswer();
-                    await localConnection.setLocalDescription(answer);
-                    // console.log("Sending WebRTC answer:", answer);
-                    channel.trigger("client-link", {
-                        type: "answer",
-                        data: answer,
-                    });
-                } else if (data.type === "ice-candidate") {
-                    // console.log("Received WebRTC ice candidate:", data.data);
-                    localConnection.addIceCandidate(
-                        data.data as RTCIceCandidateInit
-                    );
-                }
+                setOperationInProgress(false);
             }
-        );
+        };
 
-        localConnection.ondatachannel = (event) => {
+        webRTConnection.ondatachannel = (event) => {
             // console.debug("Received WebRTC data channel:", event);
 
             const receiveChannel = event.channel;
             receiveChannel.onmessage = async (event) => {
-                // console.log("Received WebRTC data channel message:", event);
-
-                toast.info("Receiving vault...", {
-                    toastId: "receive-vault",
-                    updateId: "receive-vault",
-                });
+                addToProgressLog("Receiving vault...", "info");
                 try {
                     // Get the message and JSON parse it
                     const rawVaultMetadata: string = event.data;
@@ -1925,52 +1900,108 @@ const VaultLinkingDialog: React.FC<{
 
                     await newVaultMetadata.save(null);
 
-                    toast.success("Vault received.", {
-                        autoClose: 3000,
-                        toastId: "receive-vault",
-                        updateId: "receive-vault",
-                    });
+                    addToProgressLog("Vault received.");
+
+                    toast.success("Vault received.");
                 } catch (e) {
                     console.error("Failed to receive the vault.", e);
-                    toast.error("Failed to receive the vault.", {
-                        autoClose: 3000,
-                        toastId: "receive-vault",
-                        updateId: "receive-vault",
-                    });
+                    addToProgressLog(
+                        "Failed to receive the vault - check the console for details. Please try again or contact support.",
+                        "error"
+                    );
                 }
 
                 receiveChannel.close();
 
-                // Close the dialog
-                hideDialog();
+                webRTConnection.close();
+
+                addToProgressLog(
+                    "It is safe to close this dialog now.",
+                    "info"
+                );
             };
-            receiveChannel.onerror = receiveChannel.onclose = (event) => {
-                console.debug("WebRTC data channel closed:", event);
+
+            receiveChannel.onerror = (err) => {
+                console.error("WebRTC data channel error:", err);
+
+                addToProgressLog("Secure channel error.", "error");
+
+                setOperationInProgress(false);
+            };
+
+            receiveChannel.onclose = () => {
                 // Close the WebRTC connection
-                localConnection.close();
+                webRTConnection.close();
+
+                addToProgressLog("Secure data channel closed.", "info");
+
+                setOperationInProgress(false);
             };
         };
-        localConnection.onconnectionstatechange = (event) => {
-            console.debug("WebRTC connection state changed:", event);
 
-            if (localConnection.connectionState === "connected") {
-                // console.log("WebRTC connection established.");
-
-                // Disconnect from the WS server
-                onlineServicesEndpoint.disconnect();
-            }
-
-            if (localConnection.connectionState === "disconnected") {
-                // console.log("WebRTC connection lost.");
+        // Send the ice candidates
+        // This is called only after we call setLocalDescription
+        webRTConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                // console.debug(
+                //     "Sending WebRTC ice candidate:",
+                //     event.candidate
+                // );
+                wsChannel.trigger("client-link", {
+                    type: "ice-candidate",
+                    data: event.candidate,
+                });
             }
         };
 
-        //---
-        // TODO: Once the WebRTC connection is established, receive the vault metadata
-        //---
-        // TODO: Ask the user if they want to accept the vault - show the number of entries and the size
-        // TODO: If the user accepts, save the vault metadata and the vault itself then bind the received account
-        // TODO: Show a success message and close the dialog
+        // Connect to the online services
+        // We use this to exchange the WebRTC offer and ice candidates
+        const onlineWSServicesEndpoint = newWSPusherInstance();
+        onlineWSServicesEndpoint.connection.bind("error", (err: any) => {
+            console.error("WS error:", err);
+
+            addToProgressLog(
+                `An error occurred while setting up a private connection, ${err.error.data.message}`,
+                "error"
+            );
+
+            setOperationInProgress(false);
+        });
+
+        // The predefined channel name is based on the user ID
+        const channelName = `presence-link-${decryptedData.UserID}`;
+        // Subscribe to own channel
+        const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
+        wsChannel.bind(
+            "client-link",
+            async (data: {
+                type: "offer" | "ice-candidate";
+                data: RTCIceCandidateInit | RTCSessionDescriptionInit;
+            }) => {
+                // console.debug("Received WebRTC offer:", data);
+
+                if (data.type === "offer") {
+                    // console.debug("Received WebRTC offer:", data.data);
+                    webRTConnection.setRemoteDescription(
+                        data.data as RTCSessionDescriptionInit
+                    );
+
+                    // Send the answer
+                    const answer = await webRTConnection.createAnswer();
+                    await webRTConnection.setLocalDescription(answer);
+                    // console.debug("Sending WebRTC answer:", answer);
+                    wsChannel.trigger("client-link", {
+                        type: "answer",
+                        data: answer,
+                    });
+                } else if (data.type === "ice-candidate") {
+                    // console.debug("Received WebRTC ice candidate:", data.data);
+                    webRTConnection.addIceCandidate(
+                        data.data as RTCIceCandidateInit
+                    );
+                }
+            }
+        );
 
         setOperationInProgress(false);
     };
@@ -1983,25 +2014,42 @@ const VaultLinkingDialog: React.FC<{
             <Body>
                 <div className="flex flex-col items-center text-center">
                     <p className="text-center text-2xl font-bold text-gray-900">
-                        Link Vault
+                        Link a Device
                     </p>
                     {currentState === State.LinkingMethod && (
-                        <p className="mt-2 text-base text-gray-600">
-                            Choose a method to link this device with another
-                            device.
-                        </p>
+                        <div className="text-left">
+                            <p className="mt-2 text-base text-gray-600">
+                                To link a device, you need to have the other
+                                device with you.
+                            </p>
+                            <p className="mt-2 text-base text-gray-600">
+                                There are two steps to linking a device:
+                            </p>
+                            <div className="pl-2">
+                                <p className="mt-2 text-base text-gray-600">
+                                    <b>1.</b> Unlock the vault you want to link
+                                    to this device then open the{" "}
+                                    <strong>Link a Device</strong> dialog in the
+                                    sidebar - then choose a linking method.
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    <b>2.</b> Select the same linking method
+                                    below and follow the instructions.
+                                </p>
+                            </div>
+                        </div>
                     )}
                     {currentState === State.DecryptionPassphrase && (
                         <p className="mt-2 text-base text-gray-600">
                             Enter the decryption passphrase displayed on the
-                            other device and click on &quot;Continue&quot;.
+                            other device and click on <strong>Continue</strong>.
                         </p>
                     )}
                 </div>
                 <div className="mt-5 flex flex-col">
                     {currentState === State.LinkingMethod && (
                         <>
-                            <BlockButton
+                            <BlockWideButton
                                 icon={
                                     <CameraIcon className="h-5 w-5 text-gray-900" />
                                 }
@@ -2014,8 +2062,7 @@ const VaultLinkingDialog: React.FC<{
                                 disabled={true} // FIXME: QR code scanning is not implemented yet
                                 // validInput={validInput === ValidInput.QRCode}
                             />
-
-                            <BlockButton
+                            <BlockWideButton
                                 icon={
                                     <SpeakerWaveIcon className="h-5 w-5 text-gray-900" />
                                 }
@@ -2028,8 +2075,7 @@ const VaultLinkingDialog: React.FC<{
                                 disabled={true} // FIXME: Sound transfer is not implemented yet
                                 // validInput={validInput === ValidInput.Sound}
                             />
-
-                            <BlockButton
+                            <BlockWideButton
                                 icon={
                                     <DocumentTextIcon className="h-5 w-5 text-gray-900" />
                                 }
@@ -2105,6 +2151,27 @@ const VaultLinkingDialog: React.FC<{
                             )}
                         </>
                     )}
+                    {currentState === State.LinkingInProgress && (
+                        <div className="flex flex-col gap-2">
+                            {isOperationInProgress && (
+                                <div className="flex justify-center">
+                                    <p className="animate-pulse text-gray-900">
+                                        Linking device...
+                                    </p>
+                                </div>
+                            )}
+                            <Controller
+                                control={control}
+                                name="progressLog"
+                                render={({ field: { value } }) => (
+                                    <EventLogDisclosure
+                                        title="Event log"
+                                        log={value}
+                                    />
+                                )}
+                            />
+                        </div>
+                    )}
                 </div>
                 <div className="hidden">
                     <input type="file" ref={fileInputRef} accept=".cryxa" />
@@ -2125,7 +2192,7 @@ const VaultLinkingDialog: React.FC<{
                     loading={isOperationInProgress}
                 />
                 <ButtonFlat
-                    text="Cancel"
+                    text="Close"
                     type={ButtonType.Secondary}
                     onClick={hideDialog}
                     disabled={isOperationInProgress}
@@ -2151,7 +2218,9 @@ const WelcomeScreen: React.FC<{
         createVaultDialogVisible[1](true);
     };
 
-    const vaultLinkingDialogShowDialogFnRef = useRef<(() => void) | null>(null);
+    const deviceLinkingDialogShowDialogFnRef = useRef<(() => void) | null>(
+        null
+    );
 
     // NOTE: Hardcoded for now, will come from the user's settings in the future
     const shouldShowUnlockDialogWhenAlone = true;
@@ -2184,10 +2253,10 @@ const WelcomeScreen: React.FC<{
             Icon: IconCreateVault,
         },
         {
-            Name: "Link Vault",
-            Description: "Link a vault from another device",
-            onClick: () => vaultLinkingDialogShowDialogFnRef.current?.(),
-            Icon: IconLinkVault,
+            Name: "Link a Device",
+            Description: "Copy a vault from another device",
+            onClick: () => deviceLinkingDialogShowDialogFnRef.current?.(),
+            Icon: IconLinkDevice,
         },
         {
             Name: "Restore Vault",
@@ -2302,14 +2371,14 @@ const WelcomeScreen: React.FC<{
                             <div
                                 className="flex h-12 w-3/4 cursor-pointer flex-col items-center justify-center rounded-lg bg-gray-700 p-4 shadow-lg transition-shadow hover:shadow-[#25C472] sm:h-56 sm:w-56"
                                 onClick={() =>
-                                    vaultLinkingDialogShowDialogFnRef.current?.()
+                                    deviceLinkingDialogShowDialogFnRef.current?.()
                                 }
                             >
                                 <p className="text-md font-bold sm:text-2xl">
-                                    Link Vault
+                                    Link a Device
                                 </p>
                                 <p className="hidden select-none text-center text-sm text-slate-300 sm:block">
-                                    Link a Vault from another device.
+                                    Copy a vault from another device.
                                 </p>
                             </div>
                             {/* <div
@@ -2333,8 +2402,8 @@ const WelcomeScreen: React.FC<{
                 mode={createVaultDialogMode}
                 vaultInstance={createVaultDialogVaultInstance}
             />
-            <VaultLinkingDialog
-                showDialogFnRef={vaultLinkingDialogShowDialogFnRef}
+            <LinkDeviceOutsideVaultDialog
+                showDialogFnRef={deviceLinkingDialogShowDialogFnRef}
             />
             <RestoreVaultDialog visibleState={restoreVaultDialogVisible} />
             <UnlockVaultDialog
@@ -5497,9 +5566,107 @@ const EmailNotVerifiedDialog: React.FC = () => {
 //#endregion Vault account management
 
 //#region Linking vaults
-const LinkDeviceDialog: React.FC<{
+
+type ProgressLogType = {
+    message: string;
+    type: "done" | "info" | "warn" | "error";
+};
+const EventLogDisclosure: React.FC<{
+    title: string;
+    log: ProgressLogType[];
+}> = ({ title, log }) => {
+    return (
+        <div className="flex flex-col">
+            <Disclosure defaultOpen={true}>
+                {({ open }) => (
+                    <>
+                        <Disclosure.Button className="flex flex-col justify-between rounded-t-lg bg-slate-100 p-4">
+                            <div className="flex w-full items-center justify-between">
+                                <p className="line-clamp-2 text-lg font-bold text-gray-900">
+                                    {title}
+                                </p>
+                                {
+                                    // Rotate the chevron icon if the panel is open
+                                    open && (
+                                        <ChevronUpIcon className="h-6 w-6 text-gray-500" />
+                                    )
+                                }
+                                {
+                                    // Rotate the chevron icon if the panel is closed
+                                    !open && (
+                                        <ChevronDownIcon className="h-6 w-6 text-gray-500" />
+                                    )
+                                }
+                            </div>
+                        </Disclosure.Button>
+                        <Disclosure.Panel>
+                            <div className="flex max-h-52 flex-col gap-2 overflow-y-auto rounded-b-md bg-slate-50 p-2">
+                                {log.map((log, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex flex-row items-center gap-2 rounded-xl bg-slate-200 p-2"
+                                    >
+                                        <div>
+                                            {log.type == "done" && (
+                                                <CheckCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-green-500"
+                                                    }
+                                                />
+                                            )}
+                                            {log.type == "info" && (
+                                                <InformationCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-blue-500"
+                                                    }
+                                                />
+                                            )}
+                                            {log.type == "warn" && (
+                                                <ExclamationCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-yellow-500"
+                                                    }
+                                                />
+                                            )}
+                                            {log.type == "error" && (
+                                                <XCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-red-500"
+                                                    }
+                                                />
+                                            )}
+                                        </div>
+                                        <p className="text-gray-900">
+                                            {log.message}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </Disclosure.Panel>
+                    </>
+                )}
+            </Disclosure>
+        </div>
+    );
+};
+
+const LinkDeviceInsideVaultDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
+    const [visible, setVisible] = useState(false);
+    showDialogFnRef.current = () => setVisible(true);
+    const hideDialog = () => {
+        setVisible(false);
+
+        setTimeout(() => {
+            resetForm();
+            setSelectedLinkMethod(null);
+            setIsOperationInProgress(false);
+            setReadyForOtherDevice(false);
+            progressLogRef.current = [];
+        }, 500);
+    };
+
     const { data: session } = useSession();
     const hasSession = session != null;
 
@@ -5508,8 +5675,20 @@ const LinkDeviceDialog: React.FC<{
 
     const [selectedLinkMethod, setSelectedLinkMethod] =
         useState<LinkMethod | null>(null);
-
     const [isOperationInProgress, setIsOperationInProgress] = useState(false);
+    const [readyForOtherDevice, setReadyForOtherDevice] = useState(false);
+    const progressLogRef = useRef<ProgressLogType[]>([]);
+    const addToProgressLog = (
+        message: string,
+        type: "done" | "info" | "warn" | "error" = "done"
+    ) => {
+        const newProgressLog = [{ message, type }, ...progressLogRef.current];
+        progressLogRef.current = newProgressLog;
+        setFormValue("progressLog", newProgressLog);
+    };
+    const cancelFnRef = useRef<() => void>(() => {
+        // No-op
+    });
 
     const linkingDeviceFormSchema = z.object({
         deviceName: z
@@ -5517,10 +5696,12 @@ const LinkDeviceDialog: React.FC<{
             .min(1, "Device name cannot be empty.")
             .max(150, "Device name cannot be longer than 150 characters.")
             .default("My Device"),
-        generatedKeys: z.boolean().default(false),
-        linkedDevice: z.boolean().default(false),
-        serializedTransferableData: z.boolean().default(false),
-        showingMnemonic: z.boolean().default(false),
+        progressLog: z.array(
+            z.object({
+                message: z.string(),
+                type: z.enum(["done", "info", "warn", "error"]),
+            })
+        ),
         mnemonic: z.string().default(""),
     });
     type LinkingDeviceFormSchemaType = z.infer<typeof linkingDeviceFormSchema>;
@@ -5535,22 +5716,10 @@ const LinkDeviceDialog: React.FC<{
         resolver: zodResolver(linkingDeviceFormSchema),
         defaultValues: {
             deviceName: "My Device",
-            generatedKeys: false,
-            linkedDevice: false,
-            serializedTransferableData: false,
-            showingMnemonic: false,
+            progressLog: [],
             mnemonic: "",
         },
     });
-
-    const [visible, setVisible] = useState(false);
-    showDialogFnRef.current = () => setVisible(true);
-    const hideDialog = () => {
-        setVisible(false);
-        setSelectedLinkMethod(null);
-        setIsOperationInProgress(false);
-        resetForm();
-    };
 
     const {
         data: linkingAccountConfiguration,
@@ -5566,24 +5735,6 @@ const LinkDeviceDialog: React.FC<{
     const { mutateAsync: linkNewDevice } =
         trpc.account.linkDevice.useMutation();
 
-    const saveNewLinkedDevice = async (userID: string): Promise<void> => {
-        // Save the UserID and device name to the vault as a new linked device
-        if (unlockedVault && vaultMetadata) {
-            unlockedVault.OnlineServices.addLinkedDevice(
-                userID,
-                getFormValues("deviceName")
-            );
-            await vaultMetadata.save(unlockedVault);
-        }
-
-        // Close the dialog
-        hideDialog();
-
-        toast.success("Successfully linked device.", {
-            closeButton: true,
-        });
-    };
-
     const startLinkingProcess = async (): Promise<{
         userID: string;
         encryptedTransferableData: string;
@@ -5593,37 +5744,72 @@ const LinkDeviceDialog: React.FC<{
         };
     }> => {
         if (!unlockedVault) {
+            addToProgressLog("No unlocked vault found.", "error");
             throw new Error("No unlocked vault found.");
         }
 
         // Generate a set of keys for the device
-        const keyPair = await generateKeyPair();
-        setFormValue("generatedKeys", true);
+        let keypair;
+        try {
+            keypair = await generateKeyPair();
+            addToProgressLog("Generated keys for the device.");
+        } catch (e) {
+            addToProgressLog(
+                "Failed to generate keys for the device.",
+                "error"
+            );
+            throw e;
+        }
 
         // Run the account.linkDevice mutation
-        const userID = await linkNewDevice({
-            publicKey: keyPair.publicKey,
-        });
-        setFormValue("linkedDevice", true);
+        let userID: string;
+        try {
+            userID = await linkNewDevice({
+                publicKey: keypair.publicKey,
+            });
+            addToProgressLog("Registered credentials with the server.");
+        } catch (e) {
+            if (e instanceof TRPCClientError) {
+                addToProgressLog(
+                    `Failed to register credentials with the server: ${e.message}`,
+                    "error"
+                );
+            } else {
+                addToProgressLog(
+                    "Failed to register credentials with the server.",
+                    "error"
+                );
+            }
+            throw e;
+        }
 
         // Encrypt the received UserID and PrivateKey with a random mnemonic passphrase
-        const encryptedTransferableData =
-            await OnlineServicesAccount.encryptTransferableData(
-                userID,
-                keyPair.publicKey,
-                keyPair.privateKey
+        let encryptedTransferableData;
+        try {
+            encryptedTransferableData =
+                await OnlineServicesAccount.encryptTransferableData(
+                    userID,
+                    keypair.publicKey,
+                    keypair.privateKey
+                );
+            addToProgressLog("Encrypted and serialized credentials.");
+        } catch (e) {
+            addToProgressLog(
+                "Failed to encrypt and serialize credentials.",
+                "error"
             );
-        setFormValue("serializedTransferableData", true);
+            throw e;
+        }
 
         // Show the user a note and the mnemonic passphrase to enter on the other device
         setFormValue("mnemonic", encryptedTransferableData.secret);
-        setFormValue("showingMnemonic", true);
+        // setFormValue("showingMnemonic", true);
 
         return {
             userID,
             encryptedTransferableData:
                 encryptedTransferableData?.encryptedDataB64,
-            generatedKeyPair: keyPair,
+            generatedKeyPair: keypair,
         };
     };
 
@@ -5635,90 +5821,200 @@ const LinkDeviceDialog: React.FC<{
         }
     ) => {
         // Start setting up the WebRTC connection
-        const localConnection = new RTCPeerConnection({
-            iceServers: [
-                {
-                    urls: "stun:stun.l.google.com:19302",
-                },
-            ],
-        });
+        const webRTConnection = await newWebRTCConnection();
+        webRTConnection.onconnectionstatechange = () => {
+            // console.debug(
+            //     "WebRTC connection state changed:",
+            //     webRTConnection.connectionState
+            // );
+
+            if (webRTConnection.connectionState === "connected") {
+                addToProgressLog(
+                    "Private connection established, disconnecting from CryptexVault Online Services...",
+                    "info"
+                );
+
+                // Since we're connected directly to the other device, we can disconnect from the Online Services
+                onlineWSServicesEndpoint.disconnect();
+            } else if (
+                webRTConnection.connectionState === "disconnected" ||
+                webRTConnection.connectionState === "failed"
+            ) {
+                // Handle disconnection from the other device
+                addToProgressLog(
+                    "Private connection has been terminater",
+                    "info"
+                );
+
+                setIsOperationInProgress(false);
+            }
+        };
 
         // Create a data channel
-        const dataChannel = localConnection.createDataChannel("linking");
-        dataChannel.addEventListener("open", async (event) => {
+        const webRTCDataChannel = webRTConnection.createDataChannel("linking");
+        // Once the data channel is open, start sending the encrypted vault package
+        webRTCDataChannel.onopen = async () => {
             // console.log("Data channel opened.", event);
+            addToProgressLog(
+                "Trying to send data to the other device...",
+                "info"
+            );
 
+            // Check if we have valid vault data to send
+            // In reality, this should never happen, but we'll check anyway to make the typescript compiler happy
             if (
-                vaultMetadata &&
-                unlockedVault &&
-                unlockedVault.OnlineServices.UserID
+                !vaultMetadata ||
+                !unlockedVault ||
+                !unlockedVault.OnlineServices.UserID
             ) {
-                //#region Preparing vault data for transmission
+                addToProgressLog(
+                    "Cannot find vault metadata or the vault itself.",
+                    "error"
+                );
+                console.error(
+                    "Cannot find vault metadata or unlocked vault data."
+                );
+
+                // Close the data channel
+                webRTCDataChannel.close();
+
+                // Close the WebRTC connection
+                webRTConnection.close();
+
+                setIsOperationInProgress(false);
+
+                // Prevent further execution
+                return;
+            }
+
+            {
+                // Prepare the vault data for transmission
                 const exportedVault = unlockedVault.packageForLinking({
                     UserID: userID,
                     PublicKey: generatedKeyPair.publicKey,
                     PrivateKey: generatedKeyPair.privateKey,
                 });
-
                 const encryptedBlobObj = await vaultMetadata.exportForLinking(
                     exportedVault
                 );
-                //#endregion Preparing vault data for transmission
 
                 // Send the encrypted data to the other device
-                dataChannel.send(JSON.stringify(encryptedBlobObj, null, 0));
-
-                saveNewLinkedDevice(userID);
+                webRTCDataChannel.send(
+                    JSON.stringify(encryptedBlobObj, null, 0)
+                );
             }
 
+            addToProgressLog("Vault data successfully sent.");
+
             // Close the data channel
-            dataChannel.close();
-        });
-        dataChannel.addEventListener("close", (event) => {
-            console.debug("Data channel closed.", event);
+            webRTCDataChannel.close();
+
+            // Save the new linked device to this vault
+            {
+                addToProgressLog(
+                    "Saving new linked device to vault...",
+                    "info"
+                );
+
+                unlockedVault.OnlineServices.addLinkedDevice(
+                    userID,
+                    getFormValues("deviceName")
+                );
+                await vaultMetadata.save(unlockedVault);
+
+                addToProgressLog("New linked device saved.");
+            }
+
+            toast.success("Successfully linked device.", {
+                closeButton: true,
+            });
+
+            addToProgressLog("It is safe to close this dialog now.", "info");
+        };
+        webRTCDataChannel.onerror = () => {
+            addToProgressLog(
+                "Failed to send vault data. Data channel error.",
+                "error"
+            );
+
             // Close the WebRTC connection
-            localConnection.close();
-        });
+            webRTConnection.close();
+
+            setIsOperationInProgress(false);
+        };
+        webRTCDataChannel.onclose = () => {
+            // console.debug("Data channel closed.", event);
+
+            // Close the WebRTC connection
+            webRTConnection.close();
+
+            setIsOperationInProgress(false);
+        };
+
+        // On ICE candidate, send it to the other device
+        // This is called after we call setLocalDescription, that's why we have access to the wsChannel object
+        webRTConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                wsChannel.trigger("client-link", {
+                    type: "ice-candidate",
+                    data: event.candidate,
+                });
+            }
+        };
 
         // Connect to WS and wait for the other device
-        const onlineServicesEndpoint = new Pusher(
-            env.NEXT_PUBLIC_PUSHER_APP_KEY,
-            onlineServicesEndpointConfiguration
-        );
-        // client.signin();
+        const onlineWSServicesEndpoint = newWSPusherInstance();
+        onlineWSServicesEndpoint.connection.bind("error", (err: any) => {
+            console.error("WS error:", err);
+            // NOTE: Should we handle specific errors?
+            // if (err.error.data.code === 4004) {
+            //     // log('Over limit!');
+            // }
+            addToProgressLog(
+                `An error occurred while setting up a private connection. ${err.error.data.message}`,
+                "error"
+            );
 
-        const channelName = `presence-link-${userID}`;
-
-        const channel = onlineServicesEndpoint.subscribe(channelName);
-
-        channel.bind("pusher:subscription_succeeded", () => {
-            // console.log("Subscribed to channel.");
+            setIsOperationInProgress(false);
         });
 
-        // When the user connects, send the encrypted data to the other device
-        channel.bind("pusher:member_added", async () => {
-            // console.log("Other device connected.", member);
+        const channelName = `presence-link-${userID}`;
+        const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
+        wsChannel.bind("pusher:subscription_succeeded", () => {
+            setReadyForOtherDevice(true);
+            cancelFnRef.current = () => {
+                // Close the WS connection
+                onlineWSServicesEndpoint.disconnect();
 
-            const offer = await localConnection.createOffer();
-            localConnection.setLocalDescription(offer);
-            channel.trigger("client-link", {
+                setIsOperationInProgress(false);
+                setReadyForOtherDevice(false);
+
+                addToProgressLog("Linking process cancelled.", "info");
+                toast.error("Linking process cancelled.");
+            };
+            addToProgressLog("Waiting for other device to connect...", "info");
+        });
+
+        // When the user connects, send the WebRTC offer to the other device
+        wsChannel.bind("pusher:member_added", async () => {
+            addToProgressLog("Found other device.");
+
+            addToProgressLog("Creating a private connection...", "info");
+
+            // When the device connects, create a WebRTC offer
+            const offer = await webRTConnection.createOffer();
+            await webRTConnection.setLocalDescription(offer);
+
+            // Send the offer to the other device
+            wsChannel.trigger("client-link", {
                 type: "offer",
                 data: offer,
             });
-
-            // On ICE candidate, send it to the other device
-            localConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    channel.trigger("client-link", {
-                        type: "ice-candidate",
-                        data: event.candidate,
-                    });
-                }
-            };
         });
 
         // Receive WebRTC events from the other device
-        channel.bind(
+        // Used to receive the offer and ICE candidates - establishing the connection
+        wsChannel.bind(
             "client-link",
             async (data: {
                 type: "ice-candidate" | "answer";
@@ -5727,48 +6023,41 @@ const LinkDeviceDialog: React.FC<{
                 // console.log("Received data from other device.", data);
 
                 if (data.type === "ice-candidate") {
-                    console.debug("Adding ICE candidate.");
-                    await localConnection.addIceCandidate(
+                    // console.debug("Adding ICE candidate.");
+                    await webRTConnection.addIceCandidate(
                         data.data as RTCIceCandidateInit
                     );
                 } else if (data.type === "answer") {
-                    console.debug("Setting remote description.");
-                    await localConnection.setRemoteDescription(
+                    // console.debug("Setting remote description.");
+                    await webRTConnection.setRemoteDescription(
                         data.data as RTCSessionDescriptionInit
                     );
                 }
             }
         );
-
-        // Bind to an on error event
-        onlineServicesEndpoint.connection.bind("error", (err: any) => {
-            console.error("Pusher error:", err);
-            // TODO: Handle errors
-            // if (err.error.data.code === 4004) {
-            //     // log('Over limit!');
-            // }
-        });
-
-        localConnection.onconnectionstatechange = (event) => {
-            console.debug("WebRTC connection state changed:", event);
-
-            if (localConnection.connectionState === "connected") {
-                console.debug("WebRTC connection established.");
-
-                // Disconnect from the WS server
-                onlineServicesEndpoint.disconnect();
-            }
-
-            if (localConnection.connectionState === "disconnected") {
-                console.debug("WebRTC connection lost.");
-            }
-        };
-
-        // TODO: When the device connects, create a WebRTC offer and send it to the other device
-        // TODO: After the other device accepts the offer, send the encrypted data to the other device
     };
 
-    const fileMethod = async () => {
+    const fileMethod = async (encryptedTransferableData: string) => {
+        // Save it to a file with a .cryxa extension
+        const blob = new Blob([encryptedTransferableData], {
+            type: "text/plain;charset=utf-8",
+        });
+
+        // Normalize the device name
+        const deviceName = getFormValues("deviceName")
+            .replaceAll(" ", "-")
+            .toLowerCase();
+
+        // Save the file
+        const fileName = `vault-linking-${deviceName}-${Date.now()}.cryxa`;
+        const link = document.createElement("a");
+        link.href = window.URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+    };
+
+    const onSubmit = async (type: LinkMethod) => {
+        // If the form is not valid, submit it to show the errors
         if (!isFormValid) {
             handleSubmit(() => {
                 // No-op
@@ -5776,71 +6065,39 @@ const LinkDeviceDialog: React.FC<{
             return;
         }
 
-        setSelectedLinkMethod(LinkMethod.File);
+        setSelectedLinkMethod(type);
         setIsOperationInProgress(true);
 
+        // We exploit this try-catch block to catch any errors that may occur and stop execution in case of an error
+        // All expected errors should be handled inside each method that can throw them
+        // Meaning only unexpected errors should be caught here
         try {
             // Trigger linking
             const { userID, encryptedTransferableData, generatedKeyPair } =
                 await startLinkingProcess();
 
-            // Save it to a file with a .cryxa extension
-            const blob = new Blob([encryptedTransferableData], {
-                type: "text/plain;charset=utf-8",
-            });
-
-            // Normalize the device name
-            const deviceName = getFormValues("deviceName")
-                .replaceAll(" ", "-")
-                .toLowerCase();
-
-            // Save the file
-            const fileName = `vault-linking-${deviceName}-${Date.now()}.cryxa`;
-            const link = document.createElement("a");
-            link.href = window.URL.createObjectURL(blob);
-            link.download = fileName;
-            link.click();
+            if (type === LinkMethod.File) {
+                // Generate the file with the encrypted data for the other device
+                fileMethod(encryptedTransferableData);
+            } else if (type === LinkMethod.QRCode) {
+                throw new Error("Not implemented.");
+            } else if (type === LinkMethod.Sound) {
+                throw new Error("Not implemented.");
+            } else {
+                throw new Error("Unknown linking method.");
+            }
 
             await finishLinkingProcess(userID, generatedKeyPair);
         } catch (e) {
             console.error("Failed to link device.", e);
 
-            let message = "Failed to link device.";
-            if (e instanceof TRPCClientError) {
-                message = e.message;
-            }
-
-            toast.error(message, {
+            toast.error("Failed to link device.", {
                 closeButton: true,
             });
 
             setIsOperationInProgress(false);
         }
     };
-
-    const BlockButton: React.FC<{
-        icon: React.ReactNode;
-        iconCaption: string;
-        description: string;
-        onClick?: () => void;
-        disabled?: boolean;
-    }> = ({ icon, iconCaption, description, onClick, disabled }) => (
-        <div
-            className={clsx({
-                "mb-2 flex flex-col items-center gap-1 rounded-md bg-gray-200 px-4 py-2 transition-colors ":
-                    true,
-                "cursor-pointer hover:bg-gray-300": !disabled,
-                "opacity-50": disabled,
-            })}
-            onClick={() => !disabled && onClick && onClick()}
-        >
-            <div className="flex flex-row items-center gap-2">
-                {icon}
-                <p className="text-gray-900">{iconCaption}</p>
-            </div>
-            <p className="text-xs text-gray-500">{description}</p>
-        </div>
-    );
 
     const isWrongTier =
         linkingAccountConfiguration &&
@@ -5936,7 +6193,7 @@ const LinkDeviceDialog: React.FC<{
                                     </div>
                                 </div>
 
-                                <BlockButton
+                                <BlockWideButton
                                     icon={
                                         <CameraIcon className="h-5 w-5 text-gray-900" />
                                     }
@@ -5950,7 +6207,7 @@ const LinkDeviceDialog: React.FC<{
                                     // validInput={validInput === ValidInput.QRCode}
                                 />
 
-                                <BlockButton
+                                <BlockWideButton
                                     icon={
                                         <SpeakerWaveIcon className="h-5 w-5 text-gray-900" />
                                     }
@@ -5964,13 +6221,13 @@ const LinkDeviceDialog: React.FC<{
                                     // validInput={validInput === ValidInput.Sound}
                                 />
 
-                                <BlockButton
+                                <BlockWideButton
                                     icon={
                                         <DocumentTextIcon className="h-5 w-5 text-gray-900" />
                                     }
                                     iconCaption="Using a file"
                                     description="Generate a file to transfer to the other device"
-                                    onClick={fileMethod}
+                                    onClick={() => onSubmit(LinkMethod.File)}
                                     disabled={isOperationInProgress}
                                 />
                             </>
@@ -5979,129 +6236,48 @@ const LinkDeviceDialog: React.FC<{
                     {!isWrongTier &&
                         hasSession &&
                         selectedLinkMethod != null && (
-                            <div>
-                                {/* A check list that has the items listed in the fileMethod function with gray checkmarks on the left side */}
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex flex-row items-center gap-2">
-                                        <Controller
-                                            control={control}
-                                            name="generatedKeys"
-                                            render={({ field: { value } }) => (
-                                                <CheckCircleIcon
-                                                    className={clsx({
-                                                        "h-5 w-5": true,
-                                                        "text-gray-400": !value,
-                                                        "text-green-500": value,
-                                                    })}
-                                                />
-                                            )}
-                                        />
-                                        <p className="text-gray-900">
-                                            Generated keys
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <Controller
-                                            control={control}
-                                            name="linkedDevice"
-                                            render={({ field: { value } }) => (
-                                                <CheckCircleIcon
-                                                    className={clsx({
-                                                        "h-5 w-5": true,
-                                                        "text-gray-400": !value,
-                                                        "text-green-500": value,
-                                                    })}
-                                                />
-                                            )}
-                                        />
-                                        <p className="text-gray-900">
-                                            Registered device
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <Controller
-                                            control={control}
-                                            name="serializedTransferableData"
-                                            render={({ field: { value } }) => (
-                                                <CheckCircleIcon
-                                                    className={clsx({
-                                                        "h-5 w-5": true,
-                                                        "text-gray-400": !value,
-                                                        "text-green-500": value,
-                                                    })}
-                                                />
-                                            )}
-                                        />
-                                        <p className="text-gray-900">
-                                            Encrypted and serialized data
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <Controller
-                                            control={control}
-                                            name="showingMnemonic"
-                                            render={({ field: { value } }) => (
-                                                <CheckCircleIcon
-                                                    className={clsx({
-                                                        "h-5 w-5": true,
-                                                        "text-gray-400": !value,
-                                                        "text-green-500": value,
-                                                    })}
-                                                />
-                                            )}
-                                        />
-                                        <p className="text-gray-900">
-                                            Showing decryption passphrase
-                                        </p>
-                                    </div>
-                                    {/* Show the mnemonic */}
-                                    <div className="flex flex-col items-center gap-2">
-                                        <Controller
-                                            control={control}
-                                            name="showingMnemonic"
-                                            render={({
-                                                field: {
-                                                    value: showingMnemonic,
-                                                },
-                                            }) => (
-                                                <div
-                                                    className={clsx({
-                                                        "flex flex-col items-center gap-2":
-                                                            true,
-                                                        hidden: !showingMnemonic,
-                                                    })}
-                                                >
-                                                    <p className="rounded-md bg-gray-200 p-2 text-gray-900">
-                                                        {getFormValues(
-                                                            "mnemonic"
-                                                        )}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        Enter this mnemonic on
-                                                        the other device when
-                                                        prompted.
-                                                    </p>
-                                                </div>
-                                            )}
-                                        />
-                                    </div>
-                                    <div className="mt-2 flex flex-col items-center gap-2">
-                                        {/* Show the operation in progress indicator - loading spinner */}
-                                        {isOperationInProgress && (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <p className="animate-pulse text-gray-900">
-                                                    Linking device...
+                            <div className="flex flex-col gap-2">
+                                {/* Show the mnemonic */}
+                                <div className="flex flex-col items-center gap-2">
+                                    <Controller
+                                        control={control}
+                                        name="mnemonic"
+                                        render={({ field: { value } }) => (
+                                            <div
+                                                className={clsx({
+                                                    "flex flex-col items-center gap-2":
+                                                        true,
+                                                    hidden: !value.length,
+                                                })}
+                                            >
+                                                <p className="rounded-md bg-gray-200 p-2 text-gray-900">
+                                                    {value}
                                                 </p>
-                                                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-gray-900"></div>
+                                                <p className="text-xs text-gray-500">
+                                                    Enter this mnemonic on the
+                                                    other device when prompted.
+                                                </p>
                                             </div>
                                         )}
+                                    />
+                                </div>
+                                <div className="mt-2 flex flex-col items-center gap-2">
+                                    {/* Show the operation in progress indicator - loading spinner */}
+                                    {isOperationInProgress && (
+                                        <div className="flex items-center">
+                                            <p className="animate-pulse text-gray-900">
+                                                Linking device...
+                                            </p>
+                                        </div>
+                                    )}
 
-                                        {
-                                            // If the link method is file, show a nicely formatted tip on how to load it into the other device
-                                            selectedLinkMethod ===
-                                                LinkMethod.File && (
+                                    {
+                                        // If the link method is file, show a nicely formatted tip on how to load it into the other device
+                                        selectedLinkMethod ===
+                                            LinkMethod.File &&
+                                            readyForOtherDevice && (
                                                 <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
-                                                    <p className="text-md w-full text-center text-slate-600">
+                                                    <p className="text-md w-full text-center text-slate-600 underline">
                                                         Tips for loading the
                                                         file into the other
                                                         device
@@ -6109,10 +6285,15 @@ const LinkDeviceDialog: React.FC<{
                                                     <p className="text-md text-slate-600">
                                                         1. Load the file into
                                                         the other device by
-                                                        selecting &quot;Link a
-                                                        vault&quot; and then
-                                                        &quot;Load from
-                                                        file&quot;
+                                                        opening the{" "}
+                                                        <strong>
+                                                            Link a Device
+                                                        </strong>{" "}
+                                                        dialog and then
+                                                        selecting{" "}
+                                                        <strong>
+                                                            Using a file
+                                                        </strong>
                                                     </p>
                                                     <p className="text-md text-slate-600">
                                                         2. Once the file is
@@ -6127,24 +6308,38 @@ const LinkDeviceDialog: React.FC<{
                                                     </p>
                                                 </div>
                                             )
-                                        }
-                                    </div>
+                                    }
                                 </div>
+                                <Controller
+                                    control={control}
+                                    name="progressLog"
+                                    render={({ field: { value } }) => (
+                                        <EventLogDisclosure
+                                            title="Event log"
+                                            log={value}
+                                        />
+                                    )}
+                                />
                             </div>
                         )}
                 </div>
             </Body>
             <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                {/* <ButtonFlat
-                    text="Link"
-                    className="sm:ml-2"
-                    // onClick={onConfirm}
-                    disabled={isFormSubmitting}
-                    loading={isFormSubmitting}
-                /> */}
                 <ButtonFlat
                     text="Cancel"
                     type={ButtonType.Secondary}
+                    className={clsx({
+                        "sm:ml-2": true,
+                        hidden: !readyForOtherDevice,
+                    })}
+                    onClick={() => cancelFnRef.current()}
+                />
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    className={clsx({
+                        hidden: isOperationInProgress,
+                    })}
                     onClick={hideDialog}
                     disabled={isOperationInProgress}
                 />
@@ -6231,7 +6426,9 @@ const DashboardSidebarSynchronization: React.FC = () => {
                     )
                 }
             </div>
-            <LinkDeviceDialog showDialogFnRef={showLinkingDeviceDialogFnRef} />
+            <LinkDeviceInsideVaultDialog
+                showDialogFnRef={showLinkingDeviceDialogFnRef}
+            />
         </div>
     );
 };
@@ -6516,7 +6713,7 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                             onClick={() => showCredentialDialog()}
                         />
                     </div>
-                    <div className="mt-5 flex gap-5">
+                    <div className="mt-5 flex h-px flex-grow gap-5 overflow-y-auto overflow-x-clip">
                         <div className="flex w-full flex-col gap-2">
                             <p className="text-sm text-slate-500">
                                 Synchronization

@@ -1100,13 +1100,13 @@ export interface OnlineServicesAccountInterface {
     PrivateKey: string;
 }
 
-class LinkedDevice {
+export class LinkedDevice {
     public ID: string;
     public Name: string;
     public LastSync: Date | null = null;
-    public IsRoot: boolean = false;
+    public IsRoot = false;
 
-    constructor(deviceID: string, deviceName: string, isRoot: boolean = false) {
+    constructor(deviceID: string, deviceName: string, isRoot = false) {
         this.ID = deviceID;
         this.Name = deviceName;
         this.IsRoot = isRoot;

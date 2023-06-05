@@ -3,9 +3,18 @@
     "parserOptions": {
         "project": "./tsconfig.json"
     },
-    "plugins": ["@typescript-eslint"],
-    "extends": ["next/core-web-vitals", "plugin:@typescript-eslint/recommended"],
+    "plugins": [
+        "@typescript-eslint"
+    ],
+    "extends": [
+        "next/core-web-vitals",
+        "plugin:@typescript-eslint/recommended"
+    ],
     "rules": {
         "@typescript-eslint/no-namespace": "off"
-    }
+    },
+    "ignorePatterns": [
+        "node_modules",
+        "src/server/common/prisma-adapter"
+    ]
 }

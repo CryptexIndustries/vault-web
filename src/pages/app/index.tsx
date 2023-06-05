@@ -73,6 +73,7 @@ import { signUpFormSchema } from "../../app_lib/online_services_utils";
 import {
     BackupUtils,
     Credential,
+    type LinkedDevice,
     NewVaultFormSchemaType,
     OnlineServicesAccount,
     OnlineServicesAccountInterface,
@@ -3284,7 +3285,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                 setOngoingOperation(true);
                 try {
                     await removeDevice.mutateAsync({
-                        id,
+                        deviceId: id,
                     });
                     refetchRegisteredDevices();
                 } catch (error) {
@@ -3395,7 +3396,7 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
                                     <ButtonFlat
                                         text="Remove"
                                         onClick={async () =>
-                                            await tempRmFn(device.id)
+                                            await tempRmFn(device.deviceID)
                                         }
                                         disabled={
                                             ongoingOperation ||
@@ -6441,10 +6442,189 @@ const LinkDeviceInsideVaultDialog: React.FC<{
     );
 };
 
-const DashboardSidebarSynchronization: React.FC = () => {
+const DashboardSidebarSynchronization: React.FC<{
+    showWarningFn: WarningDialogShowFn;
+}> = ({ showWarningFn }) => {
+    const { data: session } = useSession();
+
+    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const unlockedVault = useAtomValue(unlockedVaultAtom);
+
     const showLinkingDeviceDialogFnRef = useRef<(() => void) | null>(null);
 
-    const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const { mutateAsync: removeDevice } =
+        trpc.account.removeDevice.useMutation();
+
+    const synchronizeNow = (_device: LinkedDevice) => {
+        console.debug("TODO: Synchronize now");
+    };
+
+    const contextMenuOptions: {
+        name: string;
+        onClick: (device: LinkedDevice) => Promise<void>;
+    }[] = [
+        {
+            name: "Synchonize now",
+            onClick: async (device) => {
+                synchronizeNow(device);
+            },
+        },
+        {
+            name: "Unlink device",
+            onClick: async (device) => {
+                if (!unlockedVault || !unlockedVaultMetadata || !session) {
+                    return;
+                }
+
+                if (!session.user?.isRoot) {
+                    toast.error(
+                        "Only the root device can unlink other devices."
+                    );
+                    return;
+                }
+
+                showWarningFn(
+                    "Unlinking a device will prevent it from modifying the vault, effectively cutting it off from the rest of the network.",
+                    async () => {
+                        unlockedVault.OnlineServices.removeLinkedDevice(
+                            device.ID
+                        );
+
+                        // Try to remove the device from the online services
+                        try {
+                            await removeDevice({
+                                deviceId: device.ID,
+                            });
+                        } catch (err) {
+                            console.warn(
+                                "Tried to remove device from online services but failed",
+                                err
+                            );
+                            toast.warn(
+                                "Couldn't remove device from online services. Please remove the device manually in the Account dialog."
+                            );
+                        }
+
+                        // Save the vault metadata
+                        try {
+                            await unlockedVaultMetadata.save(unlockedVault);
+                        } catch (err) {
+                            console.error("Failed to save vault metadata", err);
+                            toast.error(
+                                "Failed to save vault data. There is a high probability of data loss."
+                            );
+                        }
+                    },
+                    null
+                );
+            },
+        },
+    ];
+
+    const DeviceItem: React.FC<{
+        device: LinkedDevice;
+    }> = ({ device }) => {
+        const optionsButtonRef = useRef<HTMLButtonElement | null>(null);
+        return (
+            <div
+                className="mt-1 flex flex-col gap-2"
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    optionsButtonRef.current?.click();
+                }}
+            >
+                <div className="ml-2 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500">
+                    <div>
+                        <DevicePhoneMobileIcon className="h-5 w-5" />
+                    </div>
+                    <div
+                        className="flex flex-grow flex-col overflow-x-hidden"
+                        onClick={() => synchronizeNow(device)}
+                    >
+                        <p
+                            className="line-clamp-1 overflow-hidden truncate text-base font-medium"
+                            title={device.Name}
+                        >
+                            {device.Name}
+                        </p>
+                        {/* Last synchronization date */}
+                        <p
+                            className="text-xs normal-case text-slate-300"
+                            title={
+                                device.LastSync
+                                    ? `Last synchronized ${dayjs(
+                                          device.LastSync
+                                      ).fromNow()}`
+                                    : "Never synchronized"
+                            }
+                        >
+                            {device.LastSync
+                                ? dayjs(device.LastSync).fromNow()
+                                : "Never"}
+                        </p>
+                        {/* <span
+                            className={clsx({
+                                "relative flex h-3 w-3": true,
+                                hidden: false,
+                            })}
+                        >
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5668] opacity-75"></span>
+                            <span className="absolute inline-flex h-3 w-3 rounded-full bg-[#FF5668]"></span>
+                        </span> */}
+                    </div>
+                    <Menu as="div" className="relative">
+                        <Menu.Button
+                            ref={optionsButtonRef}
+                            className="flex h-full items-center"
+                        >
+                            <EllipsisVerticalIcon className="h-6 w-6 text-gray-400 hover:text-gray-500" />
+                        </Menu.Button>
+                        <Transition
+                            as={React.Fragment}
+                            enter="transition ease-out duration-100"
+                            enterFrom="transform opacity-0 scale-95"
+                            enterTo="transform opacity-100 scale-100"
+                            leave="transition ease-in duration-75"
+                            leaveFrom="transform opacity-100 scale-100"
+                            leaveTo="transform opacity-0 scale-95"
+                        >
+                            <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none">
+                                <div className="py-1">
+                                    {contextMenuOptions.map((option, index) => (
+                                        <Menu.Item
+                                            key={`linked-device-sidebar-${index}-context-menu`}
+                                        >
+                                            {({ active }) => {
+                                                const hoverClass = clsx({
+                                                    "bg-gray-900 text-white":
+                                                        active,
+                                                    "flex px-4 py-2 text-sm font-semibold text-gray-200":
+                                                        true,
+                                                });
+                                                return (
+                                                    <a
+                                                        href="#"
+                                                        className={hoverClass}
+                                                        onClick={() =>
+                                                            option.onClick(
+                                                                device
+                                                            )
+                                                        }
+                                                    >
+                                                        {option.name}
+                                                    </a>
+                                                );
+                                            }}
+                                        </Menu.Item>
+                                    ))}
+                                </div>
+                            </Menu.Items>
+                        </Transition>
+                    </Menu>
+                </div>
+            </div>
+        );
+    };
 
     if (!unlockedVault) {
         return null;
@@ -6459,57 +6639,14 @@ const DashboardSidebarSynchronization: React.FC = () => {
             />
             <div className="mt-1 border-l-2 border-slate-500 pl-2">
                 <p className="text-sm text-slate-500">Linked Devices</p>
-                {unlockedVault.OnlineServices.LinkedDevices.map((device) => (
-                    <div
-                        key={`linked-device-sidebar-${device.ID}`}
-                        className="mt-1 flex flex-col gap-2"
-                    >
-                        <div
-                            className="ml-2 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500"
-                            // onClick={() =>
-                            //     console.log(
-                            //         `TODO: Linked device ${device.ID} clicked`
-                            //     )
-                            // }
-                        >
-                            <div>
-                                <DevicePhoneMobileIcon className="h-5 w-5" />
-                            </div>
-                            <div className="flex flex-col overflow-x-hidden">
-                                <p
-                                    className="line-clamp-1 overflow-hidden truncate text-base font-medium"
-                                    title={device.Name}
-                                >
-                                    {device.Name}
-                                </p>
-                                {/* Last synchronization date */}
-                                <p
-                                    className="text-xs normal-case text-slate-300"
-                                    title={
-                                        device.LastSync
-                                            ? `Last synchronized ${dayjs(
-                                                  device.LastSync
-                                              ).fromNow()}`
-                                            : "Never synchronized"
-                                    }
-                                >
-                                    {device.LastSync
-                                        ? dayjs(device.LastSync).fromNow()
-                                        : "Never"}
-                                </p>
-                                {/* <span
-                            className={clsx({
-                                "relative flex h-3 w-3": true,
-                                hidden: false,
-                            })}
-                        >
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5668] opacity-75"></span>
-                            <span className="absolute inline-flex h-3 w-3 rounded-full bg-[#FF5668]"></span>
-                        </span> */}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                {unlockedVault.OnlineServices.LinkedDevices.map(
+                    (device, index) => (
+                        <DeviceItem
+                            key={`linked-device-sidebar-${index}`}
+                            device={device}
+                        />
+                    )
+                )}
                 {
                     // If there are no linked devices, show a message
                     unlockedVault.OnlineServices.LinkedDevices.length === 0 && (
@@ -6582,6 +6719,11 @@ const DashboardSidebarMenuFeatureVoting: React.FC<{
 };
 
 //#region Vault dashboard
+type WarningDialogShowFn = (
+    description: string,
+    onConfirm: () => void,
+    onDismiss: (() => void) | null
+) => void;
 type VaultDashboardProps = {
     vault: Vault | null;
 };
@@ -6613,7 +6755,7 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
         (() => Promise<void>) | (() => void) | null
     >(null);
 
-    const showWarningDialog = (
+    const showWarningDialog: WarningDialogShowFn = (
         description: string,
         onConfirm: () => void,
         onDismiss: (() => void) | null
@@ -6811,7 +6953,9 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                             <p className="text-sm text-slate-500">
                                 Synchronization
                             </p>
-                            <DashboardSidebarSynchronization />
+                            <DashboardSidebarSynchronization
+                                showWarningFn={showWarningDialog}
+                            />
                             <p className="text-sm text-slate-500">
                                 CryptexVault
                             </p>

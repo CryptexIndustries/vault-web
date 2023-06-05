@@ -190,7 +190,7 @@ export const accountRouterLinkDevice = protectedProcedure
 export const accountRouterRemoveDevice = protectedProcedure
     .input(
         z.object({
-            id: z.string(),
+            deviceId: z.string(),
         })
     )
     .output(z.boolean())
@@ -222,11 +222,11 @@ export const accountRouterRemoveDevice = protectedProcedure
 
         const account = await ctx.prisma.account.findFirst({
             where: {
-                id: input.id,
+                providerAccountId: input.deviceId,
                 userId: ctx.session.user.id,
             },
             select: {
-                id: true,
+                providerAccountId: true,
             },
         });
 
@@ -239,7 +239,7 @@ export const accountRouterRemoveDevice = protectedProcedure
 
         await ctx.prisma.account.delete({
             where: {
-                id: account.id,
+                providerAccountId: account.providerAccountId,
             },
         });
 

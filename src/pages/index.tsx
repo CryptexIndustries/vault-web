@@ -240,15 +240,15 @@ const Index: NextPage = ({}) => {
                     >
                         <div className="flex h-full items-center justify-evenly">
                             <div>
-                                <h1 className="pb-5 text-center text-5xl font-medium md:text-start md:text-7xl">
+                                <h1 className="pb-5 text-center text-4xl font-medium md:text-start md:text-7xl">
                                     Fully{" "}
-                                    <span className="text-5xl text-rose-400 md:text-7xl">
+                                    <span className="text-4xl text-rose-400 md:text-7xl">
                                         Decentralized
                                     </span>
                                     <br />
                                     Identity Manager
                                 </h1>
-                                <p className="ml-2 text-gray-300">
+                                <p className="ml-2 mt-3 text-gray-300 sm:mt-0">
                                     We believe that your data is yours,
                                     encrypted or not, nobody should be able to
                                     read it, except <b>you</b>.
@@ -446,7 +446,7 @@ const Index: NextPage = ({}) => {
 
                     <section
                         id="section-pricing"
-                        className="flex h-full flex-col px-5 pb-5 pt-16 sm:px-0"
+                        className="flex h-full flex-col px-0 pb-5 pt-16 sm:px-5"
                     >
                         <div className="flex w-full justify-center">
                             <h1 className="text-center text-5xl leading-snug sm:text-7xl">
@@ -459,7 +459,7 @@ const Index: NextPage = ({}) => {
 
                         <div className="mt-10 flex w-full flex-col items-center justify-center space-x-0 pb-5 sm:scale-100 sm:space-x-5 md:flex-row lg:pb-14">
                             <div className={IndexStyles.pricingCardScaled}>
-                                <div className="flex max-w-md flex-col px-10 py-8 sm:py-16">
+                                <div className="flex max-w-md flex-col px-2 py-8 sm:px-10 sm:py-16">
                                     <div className="mb-4">
                                         <h2 className="text-lg font-bold text-gray-400">
                                             Standard
@@ -558,7 +558,7 @@ const Index: NextPage = ({}) => {
                             </div>
 
                             <div className={IndexStyles.pricingCard}>
-                                <div className="flex max-w-md flex-col px-10 py-8 sm:py-16">
+                                <div className="flex max-w-md flex-col px-2 py-8 sm:px-10 sm:py-16">
                                     <div className="mb-4">
                                         <h2 className="text-lg font-bold text-gray-400">
                                             Premium
@@ -681,7 +681,7 @@ const Index: NextPage = ({}) => {
                             </div>
 
                             <div className={IndexStyles.pricingCardScaled}>
-                                <div className="flex max-w-md flex-col px-10 py-8 sm:py-16">
+                                <div className="flex max-w-md flex-col px-2 py-8 sm:px-10 sm:py-16">
                                     <div className="mb-4">
                                         <h2 className="text-lg font-bold text-gray-400">
                                             Enterprise

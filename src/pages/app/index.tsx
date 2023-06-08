@@ -11,7 +11,7 @@ import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 import * as OTPAuth from "otpauth";
-import { shift, useFloating } from "@floating-ui/react-dom";
+import { autoPlacement, shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
 
 import dayjs from "dayjs";
@@ -25,7 +25,6 @@ import {
     XMarkIcon,
     ClipboardDocumentIcon,
     ArrowTopRightOnSquareIcon,
-    CogIcon,
     LockClosedIcon,
     PlusCircleIcon,
     CheckCircleIcon,
@@ -86,13 +85,18 @@ import {
     vaultRestoreFormSchema,
 } from "../../app_lib/vault_utils";
 import NavBar from "../../components/navbar";
-import { WarningDialog } from "../../components/dialog/warning";
+import {
+    WarningDialog,
+    WarningDialogShowFn,
+} from "../../components/dialog/warning";
 import { AccordionItem } from "../../components/general/accordion";
 import { GetSubscriptionOutputSchemaType } from "../../schemes/payment_router";
 import Spinner from "../../components/general/spinner";
 import { env } from "../../env/client.mjs";
 
 dayjs.extend(RelativeTime);
+
+const DIALOG_BLUR_TIME = 200;
 
 const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 const unlockedVaultAtom = atom<Vault | null>(null);
@@ -162,11 +166,7 @@ type Options = {
 type VaultListItemProps = {
     vaultMetadata: VaultMetadata;
     onClick: (vaultMetadata: VaultMetadata) => void;
-    showWarningDialogCallback: (
-        description: string,
-        onConfirm: () => void,
-        onDismiss: (() => void) | null
-    ) => void;
+    showWarningDialogCallback: WarningDialogShowFn;
 };
 const VaultListItem: React.FC<VaultListItemProps> = ({
     vaultMetadata,
@@ -1703,7 +1703,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             resetForm();
             setCurrentState(State.LinkingMethod);
             progressLogRef.current = [];
-        }, 500);
+        }, DIALOG_BLUR_TIME);
     };
 
     enum State {
@@ -2206,6 +2206,15 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 const WelcomeScreen: React.FC<{
     encryptedVaults?: VaultMetadata[];
 }> = ({ encryptedVaults }) => {
+    const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
+    const showWarningDialog: WarningDialogShowFn = (
+        description: string,
+        onConfirm: () => void,
+        onDismiss: (() => void) | null
+    ) => {
+        showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
+    };
+
     const createVaultDialogVisible = useState(false);
     const [createVaultDialogMode, setCreateVaultDialogMode] =
         useState<CreateVaultDialogMode>(CreateVaultDialogMode.Blank);
@@ -2277,29 +2286,6 @@ const WelcomeScreen: React.FC<{
         showOnFirstRenderTriggered.current = true;
         if (hasVaults) selectedVault.current = encryptedVaults[0];
     }
-
-    //#region Warning dialog
-    const isWarningDialogOpen = useState(false);
-    const warningDialogDescriptionRef = useRef<string | null>(null);
-    const warningDialogOnConfirmFnRef = useRef<
-        (() => Promise<void>) | (() => void) | null
-    >(null);
-    const warningDialogOnDismissFnRef = useRef<
-        (() => Promise<void>) | (() => void) | null
-    >(null);
-
-    const showWarningDialog = (
-        description: string,
-        onConfirm: () => void,
-        onDismiss: (() => void) | null
-    ) => {
-        warningDialogDescriptionRef.current = description;
-        warningDialogOnConfirmFnRef.current = onConfirm;
-
-        warningDialogOnDismissFnRef.current = onDismiss;
-        isWarningDialogOpen[1](true);
-    };
-    //#endregion Warning dialog
 
     // console.log("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
 
@@ -2411,12 +2397,7 @@ const WelcomeScreen: React.FC<{
                 visibleState={unlockVaultDialogVisible}
                 selected={selectedVault}
             />
-            <WarningDialog
-                visibleState={isWarningDialogOpen}
-                descriptionRef={warningDialogDescriptionRef}
-                onConfirmFnRef={warningDialogOnConfirmFnRef}
-                onDismissFnRef={warningDialogOnDismissFnRef}
-            />
+            <WarningDialog showFnRef={showWarningDialogFnRef} />
         </>
     );
 };
@@ -3547,9 +3528,10 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 };
 const AccountHeaderWidget: React.FC<{
     showAccountSignUpSignInDialog: () => void;
-    signOutCallback: () => void;
-}> = ({ showAccountSignUpSignInDialog, signOutCallback }) => {
+    showWarningDialogFn: WarningDialogShowFn;
+}> = ({ showAccountSignUpSignInDialog, showWarningDialogFn }) => {
     const { data: session, status: sessionStatus } = useSession();
+    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
 
     const showAccountDialogFnRef = useRef<() => void>(() => {
@@ -3571,6 +3553,20 @@ const AccountHeaderWidget: React.FC<{
             !!unlockedVault &&
             unlockedVault.OnlineServices.isBound(),
     });
+
+    const signOutCallback = () => {
+        if (!unlockedVaultMetadata || !unlockedVault) return;
+
+        showWarningDialogFn(
+            `You are about to sign out and lose access to online services. This will unbind the account from your vault and you will have to restore from a backed-up vault to regain access to your account.`,
+            async () =>
+                await unbindAccountFromVault(
+                    unlockedVaultMetadata,
+                    unlockedVault
+                ),
+            null
+        );
+    };
 
     // This should not happed, but if it does, sign out the user
     // if (!session && unlockedVault) {
@@ -4181,24 +4177,44 @@ const TOTPDialog: React.FC<{
 };
 type CredentialDialogProps = {
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
-    vaultMetadata: VaultMetadata;
-    vault: Vault;
+    vault: Vault | null;
     selected: React.MutableRefObject<Credential.VaultCredential | undefined>;
     requiredAuth?: boolean;
 };
 const CredentialDialog: React.FC<CredentialDialogProps> = ({
     showDialogFnRef,
-    vaultMetadata,
     vault,
     selected,
     requiredAuth = false, // Not used yet, but will be used to require authentication to view credentials
 }) => {
     const [isDialogVisible, setIsDialogVisible] = useState(false);
-    showDialogFnRef.current = () => setIsDialogVisible(true);
-    const hideModal = async (force = false) => {
+    showDialogFnRef.current = () => {
+        if (selected.current) {
+            const formData = {
+                id: selected.current.ID, // This means that the form is in "edit" mode
+                name: selected.current.Name,
+                username: selected.current.Username,
+                password: selected.current.Password,
+                totp: selected.current.TOTP ?? null,
+                tags: selected.current.Tags,
+                url: selected.current.URL,
+                notes: selected.current.Notes,
+            };
+
+            resetForm(formData);
+        }
+
+        setIsDialogVisible(true);
+    };
+    const hideDialog = async (force = false) => {
         const hide = () => {
             setIsDialogVisible(false);
-            selected.current = undefined; // Reset the selected credential
+
+            // Reset the form with a delay for better UX
+            setTimeout(() => {
+                selected.current = undefined; // Reset the selected credential
+                resetForm(defaultValues);
+            }, DIALOG_BLUR_TIME);
         };
 
         // Check if the form has been modified (only if we are not forcing)
@@ -4212,6 +4228,8 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
             hide();
         }
     };
+
+    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const defaultValues: Credential.CredentialFormSchemaType = {
         id: null, // This is set to null to indicate that this is a new credential
@@ -4230,7 +4248,6 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
         setValue,
-        register,
     } = useForm<Credential.CredentialFormSchemaType>({
         resolver: zodResolver(Credential.credentialFormSchema),
         defaultValues: defaultValues,
@@ -4244,7 +4261,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
         });
     };
 
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    // const setUnlockedVault = useSetAtom(unlockedVaultAtom);
 
     const saveToClipboard = async (value?: string) => {
         if (!value) return;
@@ -4446,11 +4463,13 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
     };
 
     const onSubmit = async (formData: Credential.CredentialFormSchemaType) => {
+        if (!vaultMetadata) return;
+
         // Upsert the credential in the vault
-        vault.upsertCredential(formData);
+        vault?.upsertCredential(formData);
 
         // Update the unlocked vault atom
-        setUnlockedVault(vault);
+        // setUnlockedVault(vault);
 
         toast.info("Saving vault data...", {
             autoClose: false,
@@ -4474,7 +4493,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
             });
 
             // Hide the modal
-            hideModal(true);
+            hideDialog(true);
         } catch (e) {
             console.error(`Failed to save vault data. ${e}`);
             toast.error(
@@ -4489,32 +4508,11 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
         }
     };
 
-    useEffect(() => {
-        // Set the form fields to the selected credential's values
-        if (selected.current) {
-            const formData = {
-                id: selected.current.ID, // This means that the form is in "edit" mode
-                name: selected.current.Name,
-                username: selected.current.Username,
-                password: selected.current.Password,
-                totp: selected.current.TOTP ?? null,
-                tags: selected.current.Tags,
-                url: selected.current.URL,
-                notes: selected.current.Notes,
-            };
-
-            resetForm(formData);
-        } else {
-            // If no credential is selected, reset the form
-            resetForm(defaultValues);
-        }
-    }, [selected, selected.current, resetForm]);
 
     return (
         <GenericModal
             key="credentials-modal"
-            visibleState={[isDialogVisible, setIsDialogVisible]}
-            inhibitDismissOnClickOutside={true}
+            visibleState={[isDialogVisible, () => hideDialog(false)]}
         >
             <Body className="flex w-full flex-col items-center gap-3">
                 <>
@@ -4805,7 +4803,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                 <ButtonFlat
                     text="Cancel"
                     type={ButtonType.Secondary}
-                    onClick={() => hideModal()}
+                    onClick={() => hideDialog()}
                     disabled={isSubmitting}
                 />
             </Footer>
@@ -4814,26 +4812,17 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
 };
 
 const CredentialCard: React.FC<{
-    /**
-     * The credential to display
-     */
     credential: Credential.VaultCredential;
-
-    /**
-     * The function to call when the card is clicked
-     * @returns void
-     */
     onClick: () => void;
+    showWarningDialog: WarningDialogShowFn;
+}> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
+    const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
-    /**
-     * The function to call when the credential is removed.
-     * This is done so that every card doesn't have to hold the reference to the vault.
-     * @param id The ID of the credential to remove
-     * @returns Promise<void>
-     */
-    removalCallback: (id: string) => Promise<void>;
-}> = ({ credential, onClick, removalCallback }) => {
-    const optionsButtonRef = useRef<HTMLButtonElement>(null);
+    const { refs, floatingStyles } = useFloating({
+        placement: "bottom-end",
+        middleware: [autoPlacement()],
+    });
 
     const options: Options[] = [
         {
@@ -4912,7 +4901,51 @@ const CredentialCard: React.FC<{
 
     options.push({
         Name: "Remove",
-        onClick: async () => await removalCallback(credential.ID),
+        onClick: async () => {
+            if (!unlockedVault || !unlockedVaultMetadata) return;
+
+            showWarningDialogFn(
+                `You are about to remove the "${credential.Name}" credential.`,
+                async () => {
+                    toast.info("Removing credential...", {
+                        autoClose: false,
+                        closeButton: false,
+                        toastId: "remove-credential",
+                        updateId: "remove-credential",
+                    });
+
+                    // A little delay to make sure the toast is shown
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+
+                    try {
+                        // Remove the credential from the vault
+                        unlockedVault.deleteCredential(credential.ID);
+
+                        // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+                        await unlockedVaultMetadata.save(unlockedVault);
+
+                        toast.success("Credential removed.", {
+                            autoClose: 3000,
+                            closeButton: true,
+                            toastId: "remove-credential",
+                            updateId: "remove-credential",
+                        });
+                    } catch (e) {
+                        console.error(`Failed to save vault: ${e}`);
+                        toast.error(
+                            "Failed to save vault. There is a high possibility of data loss!",
+                            {
+                                autoClose: 3000,
+                                closeButton: true,
+                                toastId: "remove-credential",
+                                updateId: "remove-credential",
+                            }
+                        );
+                    }
+                },
+                null
+            );
+        },
     });
 
     return (
@@ -4920,7 +4953,10 @@ const CredentialCard: React.FC<{
             className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-700 px-2 shadow-md transition-shadow hover:shadow-[#FF5668]"
             onContextMenu={(e) => {
                 e.preventDefault();
-                optionsButtonRef.current?.click();
+
+                // Cast the ref to an HTMLElement and click it
+                const optionsButtonRef = refs.reference?.current as HTMLElement;
+                optionsButtonRef?.click();
             }}
         >
             <div
@@ -4987,7 +5023,7 @@ const CredentialCard: React.FC<{
             </div>
             <Menu as="div" className="relative">
                 <Menu.Button
-                    ref={optionsButtonRef}
+                    ref={refs.setReference}
                     className="flex h-full items-center"
                 >
                     <EllipsisVerticalIcon className="h-6 w-6 text-gray-400" />
@@ -5001,7 +5037,11 @@ const CredentialCard: React.FC<{
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
                 >
-                    <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none">
+                    <Menu.Items
+                        ref={refs.setFloating}
+                        className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none"
+                        style={floatingStyles}
+                    >
                         <div className="py-1">
                             {options.map((option, index) => (
                                 <Menu.Item
@@ -5015,7 +5055,6 @@ const CredentialCard: React.FC<{
                                         });
                                         return (
                                             <a
-                                                href="#"
                                                 className={hoverClass}
                                                 onClick={option.onClick}
                                             >
@@ -5757,7 +5796,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             setIsOperationInProgress(false);
             setReadyForOtherDevice(false);
             progressLogRef.current = [];
-        }, 500);
+        }, DIALOG_BLUR_TIME);
     };
 
     const { data: session } = useSession();
@@ -6719,11 +6758,6 @@ const DashboardSidebarMenuFeatureVoting: React.FC<{
 };
 
 //#region Vault dashboard
-type WarningDialogShowFn = (
-    description: string,
-    onConfirm: () => void,
-    onDismiss: (() => void) | null
-) => void;
 type VaultDashboardProps = {
     vault: Vault | null;
 };
@@ -6734,67 +6768,37 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
 
     // We use this so that we can force a rerender of the component/app
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const sidebarSelector = ".sidebar-event-selector";
+    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
     const closeSidebarOnOutsideClick = (e: MouseEvent) => {
-        if (e.target instanceof HTMLElement) {
+        if (
+            e.target instanceof HTMLElement &&
+            isSidebarOpen &&
+            unlockedVaultAtom
+        ) {
             if (!e.target.closest(sidebarSelector)) {
                 setIsSidebarOpen(false);
             }
         }
     };
 
-    //#region Warning dialog
-    const isWarningDialogOpen = useState(false);
-    const warningDialogDescriptionRef = useRef<string | null>(null);
-    const warningDialogOnConfirmFnRef = useRef<
-        (() => Promise<void>) | (() => void) | null
-    >(null);
-    const warningDialogOnDismissFnRef = useRef<
-        (() => Promise<void>) | (() => void) | null
-    >(null);
-
+    const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
     const showWarningDialog: WarningDialogShowFn = (
         description: string,
         onConfirm: () => void,
         onDismiss: (() => void) | null
     ) => {
-        warningDialogDescriptionRef.current = description;
-        warningDialogOnConfirmFnRef.current = onConfirm;
-
-        warningDialogOnDismissFnRef.current = onDismiss;
-        isWarningDialogOpen[1](true);
+        showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
     };
-    //#endregion Warning dialog
 
-    //#region Credential dialog
-    const selectedCredential = useRef<Credential.VaultCredential | undefined>(
-        undefined
-    );
-    const showCredentialsDialogRef = useRef<(() => void) | null>(null);
-    const showCredentialDialog = (credential?: Credential.VaultCredential) => {
-        // Set the selected credential
-        selectedCredential.current = credential;
-
-        // Show the credential's dialog
-        showCredentialsDialogRef.current?.();
-    };
-    //#endregion Credential dialog
+    const showNewCredentialsDialogFnRef = useRef<(() => void) | null>(null);
 
     const showAccountSignUpSignInDialogRef = useRef<(() => void) | null>(null);
     const showFeatureVotingDialogRef = useRef<(() => void) | null>(null);
     const showVaultSettingsDialogRef = useRef<(() => void) | null>(null);
-
-    const showUnbindAccountDialog = () => {
-        if (!vaultMetadata || !vault) return;
-
-        showWarningDialog(
-            `You are about to sign out and lose access to online services. This will unbind the account from your vault and you will have to restore from a backed-up vault to regain access to your account.`,
-            async () => await unbindAccountFromVault(vaultMetadata, vault),
-            null
-        );
-    };
 
     const lockVault = async (
         vaultMetadata: VaultMetadata,
@@ -6822,6 +6826,7 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
             });
 
             setUnlockedVault(null);
+            setUnlockedVaultMetadata(null);
         } catch (e) {
             console.error(`Failed to save vault: ${e}`);
             toast.error(
@@ -6835,57 +6840,6 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
             );
         }
     };
-
-    const removeCredential = async (
-        vaultMetadata: VaultMetadata,
-        vaultInstance: Vault,
-        ID: string
-    ) => {
-        toast.info("Removing credential...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "remove-credential",
-            updateId: "remove-credential",
-        });
-
-        // A little delay to make sure the toast is shown
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        try {
-            // Remove the credential from the vault
-            vaultInstance.deleteCredential(ID);
-
-            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-            await vaultMetadata.save(vaultInstance);
-
-            toast.success("Credential removed.", {
-                autoClose: 3000,
-                closeButton: true,
-                toastId: "remove-credential",
-                updateId: "remove-credential",
-            });
-        } catch (e) {
-            console.error(`Failed to save vault: ${e}`);
-            toast.error(
-                "Failed to save vault. There is a high possibility of data loss!",
-                {
-                    autoClose: 3000,
-                    closeButton: true,
-                    toastId: "remove-credential",
-                    updateId: "remove-credential",
-                }
-            );
-        }
-    };
-
-    const sidebarClasses = clsx({
-        "flex-col pt-1 flex min-w-0 sm:min-w-[250px] max-w-[250px] transition-all duration-300 ease-in-out overflow-hidden gap-3":
-            true,
-        [sidebarSelector.slice(1)]: true, // We use this class to select the sidebar in the closeSidebarOnOutsideClick function
-        "w-0 px-0": !isSidebarOpen,
-        "min-w-[90vw] px-1 border-r-2 border-slate-800/60 sm:border-r-0":
-            isSidebarOpen,
-    });
 
     useEffect(() => {
         // Bind the event listener
@@ -6914,12 +6868,12 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                     {isSidebarOpen ? (
                         <XMarkIcon
                             className="h-6 w-6 text-slate-400"
-                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            onClick={() => toggleSidebar()}
                         />
                     ) : (
                         <Bars3Icon
                             className="h-6 w-6 text-slate-400"
-                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            onClick={() => toggleSidebar()}
                         />
                     )}
                 </div>
@@ -6930,11 +6884,20 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                     showAccountSignUpSignInDialog={() =>
                         showAccountSignUpSignInDialogRef.current?.()
                     }
-                    signOutCallback={showUnbindAccountDialog}
+                    showWarningDialogFn={showWarningDialog}
                 />
             </NavBar>
             <div className="flex flex-grow flex-row overflow-hidden">
-                <div className={sidebarClasses}>
+                <div
+                    className={clsx({
+                        "flex min-w-0 max-w-[250px] flex-col gap-3 overflow-hidden pt-1 transition-all duration-300 ease-in-out sm:min-w-[250px]":
+                            true,
+                        [sidebarSelector.slice(1)]: true, // We use this class to select the sidebar in the closeSidebarOnOutsideClick function
+                        "w-0 px-0": !isSidebarOpen,
+                        "min-w-[90vw] border-r-2 border-slate-800/60 px-1 sm:border-r-0":
+                            isSidebarOpen,
+                    })}
+                >
                     <div className="block md:hidden">
                         <VaultTitle title={vaultMetadata.Name} />
                     </div>
@@ -6945,7 +6908,9 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                             text="New Item"
                             className="w-full"
                             inhibitAutoWidth={true}
-                            onClick={() => showCredentialDialog()}
+                            onClick={() =>
+                                showNewCredentialsDialogFnRef.current?.()
+                            }
                         />
                     </div>
                     <div className="mt-5 flex h-px flex-grow gap-5 overflow-y-auto overflow-x-clip">
@@ -6984,80 +6949,19 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                     className={clsx({
                         "flex flex-grow flex-col border-t border-slate-700 sm:rounded-tl-md sm:border-l sm:blur-none":
                             true,
-                        "blur-sm": isSidebarOpen,
+                        "pointer-events-none blur-sm sm:pointer-events-auto":
+                            isSidebarOpen,
                     })}
                 >
-                    <div className="hidden w-full flex-grow-0 items-center gap-1 border-b border-slate-700 px-2">
-                        {/* TODO: Replicate GitHub Projects filter bar behaviour */}
-                        <FunnelIcon className="h-5 w-5 text-slate-400" />
-                        {/* <XMarkIcon className="h-6 w-6 text-slate-400" /> */}
-                        <input
-                            type="text"
-                            disabled={true}
-                            className="ml-2 flex-grow border-none bg-transparent text-slate-400 outline-none"
-                            placeholder="Filter by keyword or by field"
-                        />
-                    </div>
-                    <div className="my-5 flex h-px w-full flex-grow justify-center overflow-y-auto px-5">
-                        {vault.Credentials.length === 0 && (
-                            <div className="flex flex-grow flex-col items-center justify-center">
-                                <p className="text-2xl font-bold text-slate-50">
-                                    No items
-                                </p>
-                                <p className="text-center text-slate-400">
-                                    {" "}
-                                    Press the &quot;New Item&quot; button in the
-                                    sidebar to add a new credential.
-                                </p>
-                            </div>
-                        )}
-                        {vault.Credentials.length > 0 && (
-                            <div className="flex w-full max-w-full flex-col gap-3 pb-3 2xl:max-w-7xl">
-                                {vault.Credentials.map((credential) => (
-                                    <CredentialCard
-                                        key={credential.ID}
-                                        credential={credential}
-                                        onClick={() =>
-                                            showCredentialDialog(credential)
-                                        }
-                                        removalCallback={async (ID: string) =>
-                                            showWarningDialog(
-                                                `You are about to remove the "${credential.Name}" credential.`,
-                                                async () =>
-                                                    await removeCredential(
-                                                        vaultMetadata,
-                                                        vault,
-                                                        ID
-                                                    ),
-                                                null
-                                            )
-                                        }
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    {vault.Credentials.length > 0 && (
-                        <div className="flex w-full flex-grow-0 items-center justify-center border-t border-slate-700 px-2 py-1">
-                            <p className="text-slate-400">
-                                Items loaded: {vault.Credentials.length}
-                            </p>
-                        </div>
-                    )}
+                    <CredentialsList
+                        showNewCredentialsDialogFn={
+                            showNewCredentialsDialogFnRef
+                        }
+                        showWarningDialog={showWarningDialog}
+                    />
                 </div>
             </div>
-            <WarningDialog
-                visibleState={isWarningDialogOpen}
-                descriptionRef={warningDialogDescriptionRef}
-                onConfirmFnRef={warningDialogOnConfirmFnRef}
-                onDismissFnRef={warningDialogOnDismissFnRef}
-            />
-            <CredentialDialog
-                showDialogFnRef={showCredentialsDialogRef}
-                vaultMetadata={vaultMetadata}
-                vault={vault}
-                selected={selectedCredential}
-            />
+            <WarningDialog showFnRef={showWarningDialogFnRef} />
             <VaultSettingsDialog showDialogFnRef={showVaultSettingsDialogRef} />
             <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
             <AccountSignUpSignInDialog
@@ -7066,6 +6970,82 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                 vault={vault}
             />
             <EmailNotVerifiedDialog />
+        </>
+    );
+};
+
+const CredentialsList: React.FC<{
+    showNewCredentialsDialogFn: React.MutableRefObject<(() => void) | null>;
+    showWarningDialog: WarningDialogShowFn;
+}> = ({ showNewCredentialsDialogFn, showWarningDialog }) => {
+    const vault = useAtomValue(unlockedVaultAtom);
+
+    const selectedCredential = useRef<Credential.VaultCredential | undefined>(
+        undefined
+    );
+    const showCredentialsDialogRef = useRef<(() => void) | null>(null);
+    const showCredentialDialog = (showNewCredentialsDialogFn.current = (
+        credential?: Credential.VaultCredential
+    ) => {
+        // Set the selected credential
+        selectedCredential.current = credential;
+
+        // Show the credential's dialog
+        showCredentialsDialogRef.current?.();
+    });
+
+    return (
+        <>
+            <div className="hidden w-full flex-grow-0 items-center gap-1 border-b border-slate-700 px-2">
+                {/* TODO: Replicate GitHub Projects filter bar behaviour */}
+                <FunnelIcon className="h-5 w-5 text-slate-400" />
+                {/* <XMarkIcon className="h-6 w-6 text-slate-400" /> */}
+                <input
+                    type="text"
+                    disabled={true}
+                    className="ml-2 flex-grow border-none bg-transparent text-slate-400 outline-none"
+                    placeholder="Filter by keyword or by field"
+                />
+            </div>
+            <div className="my-5 flex h-px w-full flex-grow justify-center overflow-y-auto overflow-x-hidden px-5">
+                {!vault ||
+                    (vault.Credentials.length === 0 && (
+                        <div className="flex flex-grow flex-col items-center justify-center">
+                            <p className="text-2xl font-bold text-slate-50">
+                                No items
+                            </p>
+                            <p className="text-center text-slate-400">
+                                {" "}
+                                Press the &quot;New Item&quot; button in the
+                                sidebar to add a new credential.
+                            </p>
+                        </div>
+                    ))}
+                {vault && vault.Credentials.length > 0 && (
+                    <div className="flex w-full max-w-full flex-col gap-3 pb-3 2xl:max-w-7xl">
+                        {vault.Credentials.map((credential) => (
+                            <CredentialCard
+                                key={credential.ID}
+                                credential={credential}
+                                onClick={() => showCredentialDialog(credential)}
+                                showWarningDialog={showWarningDialog}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+            {vault && vault.Credentials.length > 0 && (
+                <div className="flex w-full flex-grow-0 items-center justify-center border-t border-slate-700 px-2 py-1">
+                    <p className="text-slate-400">
+                        Items loaded: {vault.Credentials.length}
+                    </p>
+                </div>
+            )}
+            <CredentialDialog
+                showDialogFnRef={showCredentialsDialogRef}
+                vault={vault}
+                selected={selectedCredential}
+            />
         </>
     );
 };

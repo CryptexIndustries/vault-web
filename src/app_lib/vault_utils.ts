@@ -1031,9 +1031,11 @@ export namespace Credential {
         public DatePasswordChanged: Date | null;
 
         constructor(form?: CredentialFormSchemaType) {
-            this.ID = crypto["randomUUID"]
-                ? crypto.randomUUID()
-                : this.uuidv4_insecurecontexts();
+            if (process.env.NODE_ENV === "development") {
+                this.ID = this.uuidv4_insecurecontexts();
+            } else {
+                this.ID = crypto.randomUUID();
+            }
 
             this.Name = form?.name ?? "";
             this.Username = form?.username ?? "";
@@ -1056,16 +1058,18 @@ export namespace Credential {
         }
 
         private uuidv4_insecurecontexts = (): string => {
-            return (1e7 + -1e3 + -4e3 + -8e3 + -1e11)
-                .toString()
-                .replace(/[018]/g, (c: string): string => {
-                    const numC = parseInt(c);
-                    return (
-                        numC ^
-                        (crypto.getRandomValues(new Uint8Array(1))[0] ??
-                            0 & (15 >> (numC / 4)))
-                    ).toString(16);
-                });
+            if (process.env.NODE_ENV === "development")
+                return (1e7 + -1e3 + -4e3 + -8e3 + -1e11)
+                    .toString()
+                    .replace(/[018]/g, (c: string): string => {
+                        const numC = parseInt(c);
+                        return (
+                            numC ^
+                            (crypto.getRandomValues(new Uint8Array(1))[0] ??
+                                0 & (15 >> (numC / 4)))
+                        ).toString(16);
+                    });
+            else return "";
         };
 
         public calculateTOTP(): {
@@ -1300,18 +1304,22 @@ export class Vault {
     private seedVault(num = 100): Credential.VaultCredential[] {
         const creds: Credential.VaultCredential[] = [];
 
-        // Generate n mock credentials
-        for (let i = 0; i < num; i++) {
-            const newCreds = new Credential.VaultCredential();
-            newCreds.Name = "Test Credential " + i;
-            newCreds.Username = "Test Username " + i;
-            newCreds.Password = "Test Password " + i;
-            creds.push(newCreds);
+        // This will only be included in development builds
+        if (process.env.NODE_ENV === "development") {
+            // Generate n mock credentials
+            for (let i = 0; i < num; i++) {
+                const newCreds = new Credential.VaultCredential();
+                newCreds.Name = "Test Credential " + i;
+                newCreds.Username = "Test Username " + i;
+                newCreds.Password = "Test Password " + i;
+                creds.push(newCreds);
+            }
         }
 
         return creds;
     }
 
+    //#region Credential Methods
     /**
      * Upserts a credential. If the credential already exists, it will be updated. If it does not exist, it will be created.
      * @param form The valid form data with which to upsert the credential.
@@ -1352,6 +1360,7 @@ export class Vault {
             this.Credentials.splice(index, 1);
         }
     }
+    //#endregion Credential Methods
 
     /**
      * Packages the vault for linking to another device.

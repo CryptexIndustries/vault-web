@@ -805,7 +805,7 @@ export class VaultMetadata {
             keyDerivationFuncConfig
         );
 
-        const vault = JSON.parse(decryptedVaultString, (key, value) => {
+        const vault: Object = JSON.parse(decryptedVaultString, (key, value) => {
             if (
                 key.toLowerCase().includes("date") &&
                 value != null &&
@@ -1015,6 +1015,26 @@ export namespace Credential {
             this.Digits = DIGITS_DEFAULT;
             this.Algorithm = ALGORITHM_DEFAULT;
         }
+
+        public calculate(): {
+            code: string;
+            timeRemaining: number;
+        } {
+            const code = OTPAuth.TOTP.generate({
+                secret: OTPAuth.Secret.fromBase32(this.Secret),
+                algorithm: this.Algorithm,
+                digits: this.Digits,
+                period: this.Period,
+            });
+
+            const timeRemaining =
+                this.Period - (new Date().getSeconds() % this.Period);
+
+            return {
+                code,
+                timeRemaining,
+            };
+        }
     }
 
     export class VaultCredential {
@@ -1040,7 +1060,9 @@ export namespace Credential {
             this.Name = form?.name ?? "";
             this.Username = form?.username ?? "";
             this.Password = form?.password ?? "";
-            this.TOTP = null;
+            this.TOTP = form?.totp
+                ? Object.assign(new Credential.TOTP(), form.totp)
+                : null;
             this.Tags = form?.tags ?? [];
             this.URL = form?.url ?? "";
             this.Notes = form?.notes ?? "";
@@ -1071,30 +1093,6 @@ export namespace Credential {
                     });
             else return "";
         };
-
-        public calculateTOTP(): {
-            code: string;
-            timeRemaining: number;
-        } | null {
-            if (this.TOTP != null) {
-                const code = OTPAuth.TOTP.generate({
-                    secret: OTPAuth.Secret.fromBase32(this.TOTP.Secret),
-                    algorithm: this.TOTP.Algorithm,
-                    digits: this.TOTP.Digits,
-                    period: this.TOTP.Period,
-                });
-
-                const timeRemaining =
-                    this.TOTP.Period -
-                    (new Date().getSeconds() % this.TOTP.Period);
-
-                return {
-                    code,
-                    timeRemaining,
-                };
-            }
-            return null;
-        }
     }
 }
 
@@ -1329,19 +1327,24 @@ export class Vault {
         const existingCreds = this.Credentials.find((c) => c.ID === form.id);
 
         if (existingCreds) {
+            const today = new Date();
+
             existingCreds.Name = form.name;
             existingCreds.Username = form.username;
 
             if (form.password !== existingCreds.Password) {
-                existingCreds.DatePasswordChanged = new Date();
+                existingCreds.DatePasswordChanged = today;
             }
 
             existingCreds.Password = form.password;
-            existingCreds.TOTP = form.totp;
+            existingCreds.TOTP = Object.assign(
+                new Credential.TOTP(),
+                form.totp
+            );
             existingCreds.Tags = form.tags;
             existingCreds.URL = form.url;
             existingCreds.Notes = form.notes;
-            existingCreds.DateModified = new Date();
+            existingCreds.DateModified = today;
         } else {
             const newCreds = new Credential.VaultCredential(form);
             this.Credentials.push(newCreds);

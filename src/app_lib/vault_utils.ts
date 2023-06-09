@@ -835,6 +835,12 @@ export class VaultMetadata {
         // Go through each credential and assign it to a new object
         vaultObject.Credentials = vaultObject.Credentials.map(
             (credential: Credential.VaultCredential) => {
+                if (credential.TOTP) {
+                    credential.TOTP = Object.assign(
+                        new Credential.TOTP(),
+                        credential.TOTP
+                    );
+                }
                 return Object.assign(
                     new Credential.VaultCredential(),
                     credential

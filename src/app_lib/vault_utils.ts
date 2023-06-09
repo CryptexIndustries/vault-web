@@ -805,7 +805,7 @@ export class VaultMetadata {
             keyDerivationFuncConfig
         );
 
-        const vault: Object = JSON.parse(decryptedVaultString, (key, value) => {
+        const vault = JSON.parse(decryptedVaultString, (key, value) => {
             if (
                 key.toLowerCase().includes("date") &&
                 value != null &&

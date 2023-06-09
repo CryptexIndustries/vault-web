@@ -4508,7 +4508,6 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
         }
     };
 
-
     return (
         <GenericModal
             key="credentials-modal"
@@ -4857,7 +4856,9 @@ const CredentialCard: React.FC<{
         options.push({
             Name: "Copy OTP",
             onClick: () => {
-                const data = credential.calculateTOTP();
+                if (!credential.TOTP) return;
+
+                const data = credential.TOTP.calculate();
                 if (data) {
                     navigator.clipboard.writeText(data.code);
                     toast.info(

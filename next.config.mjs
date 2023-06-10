@@ -86,6 +86,15 @@ const _withPWA = withPWA({
     ],
 });
 
+// Remove console logs from production build, but keep errors and warnings
+// Development build will still have all console logs
+const rmConsoleFromBuild =
+    process.env.NODE_ENV === "development"
+        ? false
+        : {
+              exclude: ["error", "warn"],
+          };
+
 const nextConfig = {
     reactStrictMode: true,
     swcMinify: true,
@@ -96,6 +105,14 @@ const nextConfig = {
         ignoreBuildErrors: true,
     },
     headers,
+    compiler: {
+        removeConsole: rmConsoleFromBuild,
+    },
+    modularizeImports: {
+        "@heroicons/react/20/solid": {
+            transform: "@heroicons/react/20/solid/{{member}}",
+        },
+    },
 };
 
 // Comment out this part if using ANALYZE=true

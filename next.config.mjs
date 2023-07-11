@@ -44,7 +44,7 @@ const headers = () => {
                 },
                 {
                     key: "Permissions-Policy",
-                    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+                    value: "microphone=(), geolocation=(), interest-cohort=()",
                 },
                 {
                     // Allow the service worker to be loaded from all domains

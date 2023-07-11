@@ -1,4 +1,4 @@
-import React, { Fragment, useEffect, useRef, useState } from "react";
+import React, { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import { GetStaticProps } from "next";
 import { SessionProvider, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/router";
@@ -97,6 +97,8 @@ import { AccordionItem } from "../../components/general/accordion";
 import { GetSubscriptionOutputSchemaType } from "../../schemes/payment_router";
 import Spinner from "../../components/general/spinner";
 import { env } from "../../env/client.mjs";
+import dynamic from "next/dynamic";
+import QrReader from "../../components/general/qrScanner";
 
 dayjs.extend(RelativeTime);
 
@@ -417,10 +419,9 @@ const VaultListPopover: React.FC<VaultListPopoverProps> = ({
                                     <div className="grid gap-8 bg-gray-700 p-7">
                                         {actionButtons.map((item, index) => (
                                             <a
-                                                href="#"
                                                 key={`cryptex-welcome-action-${index}`}
                                                 onClick={item.onClick}
-                                                className="-m-3 flex items-center rounded-lg p-2 transition duration-150 ease-in-out hover:bg-gray-800 focus:outline-none focus-visible:ring focus-visible:ring-orange-500 focus-visible:ring-opacity-50"
+                                                className="-m-3 flex cursor-pointer items-center rounded-lg p-2 transition duration-150 ease-in-out hover:bg-gray-800 focus:outline-none focus-visible:ring focus-visible:ring-orange-500 focus-visible:ring-opacity-50"
                                             >
                                                 {item.Icon && (
                                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center text-white sm:h-12 sm:w-12">
@@ -1710,14 +1711,13 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         setVisible(false);
 
         setTimeout(() => {
-            resetForm();
-            setCurrentState(State.LinkingMethod);
-            progressLogRef.current = [];
+            resetState();
         }, DIALOG_BLUR_TIME);
     };
 
     enum State {
         LinkingMethod = "LinkingMethod",
+        QRCodeScanning = "QRCodeScanning",
         // SoundListening = "SoundListening",
         DecryptionPassphrase = "DecryptionPassphrase",
         LinkingInProgress = "LinkingInProgress",
@@ -1773,6 +1773,12 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         },
     });
 
+    const resetState = () => {
+        resetForm();
+        setCurrentState(State.LinkingMethod);
+        progressLogRef.current = [];
+    };
+
     /**
      * This is called when the user clicks on the "Using a file" button
      */
@@ -1791,6 +1797,20 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             console.error("Failed to load the file.", e);
             toast.error("Failed to load the file.");
         }
+    };
+
+    /**
+     * This is called when the user clicks on the "Using a QR code" button
+     */
+    const qrCodeMethod = async () => {
+        setCurrentState(State.QRCodeScanning);
+    };
+
+    const qrCodeMethodCallback = async (data: string) => {
+        console.debug("QR code result:", data);
+
+        setFormValue("encryptedData", data);
+        setCurrentState(State.DecryptionPassphrase);
     };
 
     /**
@@ -2113,12 +2133,8 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                                 }
                                 iconCaption="QR code"
                                 description="Scan a QR code to link the devices"
-                                // disabled={
-                                //     isSubmitting ||
-                                //     (validInput !== ValidInput.QRCode && validInput !== null)
-                                // }
+                                onClick={qrCodeMethod}
                                 disabled={isOperationInProgress}
-                                // validInput={validInput === ValidInput.QRCode}
                             />
                             <BlockWideButton
                                 icon={
@@ -2144,6 +2160,22 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                             />
                         </>
                     )}
+                    {currentState === State.QRCodeScanning && (
+                        <div className="mb-2 flex justify-center">
+                            <p className="text-md text-center text-gray-600">
+                                Scan the QR code shown on the other device to
+                                continue...
+                            </p>
+                        </div>
+                    )}
+                    <QrReader
+                        disabled={currentState !== State.QRCodeScanning}
+                        onResult={(result) => {
+                            if (result) {
+                                qrCodeMethodCallback(result.getText());
+                            }
+                        }}
+                    />
                     {currentState === State.DecryptionPassphrase && (
                         <>
                             <Controller
@@ -2255,6 +2287,15 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                     onClick={hideDialog}
                     disabled={isOperationInProgress}
                 />
+                {currentState === State.QRCodeScanning ||
+                currentState === State.DecryptionPassphrase ? (
+                    <ButtonFlat
+                        text="Back"
+                        type={ButtonType.Secondary}
+                        onClick={resetState}
+                        disabled={isOperationInProgress}
+                    />
+                ) : null}
             </Footer>
         </GenericModal>
     );
@@ -3005,13 +3046,12 @@ const FeatureVotingDialog: React.FC<{
     );
 };
 
-type AccountDialogProps = {
+const AccountDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<() => void>;
     subscriptionData?: GetSubscriptionOutputSchemaType;
     dataLoading: boolean;
     hasDataLoadingError: boolean;
-};
-const AccountDialog: React.FC<AccountDialogProps> = ({
+}> = ({
     showDialogFnRef,
     subscriptionData,
     dataLoading,
@@ -5975,6 +6015,21 @@ const EventLogDisclosure: React.FC<{
     );
 };
 
+const QRCode: React.FC<{
+    value: string;
+    clickCallback?: () => void;
+}> = ({ value, clickCallback }) => {
+    const DynamicQRCode = dynamic(() => import("react-qr-code"), {
+        suspense: true,
+    });
+
+    return (
+        <Suspense fallback={<Spinner />}>
+            <DynamicQRCode value={value} onClick={clickCallback} />
+        </Suspense>
+    );
+};
+
 const LinkDeviceInsideVaultDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
@@ -6046,6 +6101,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         },
     });
 
+    const encryptedTransferableDataRef = useRef<string>("");
+
     const {
         data: linkingAccountConfiguration,
         isError: linkingAccountConfigurationError,
@@ -6059,6 +6116,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
     const { mutateAsync: linkNewDevice } =
         trpc.account.linkDevice.useMutation();
+    const removeDevice = trpc.account.removeDevice.useMutation();
 
     const startLinkingProcess = async (): Promise<{
         userID: string;
@@ -6339,14 +6397,28 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
         wsChannel.bind("pusher:subscription_succeeded", () => {
             setReadyForOtherDevice(true);
-            cancelFnRef.current = () => {
+            cancelFnRef.current = async () => {
                 // Close the WS connection
                 onlineWSServicesEndpoint.disconnect();
 
                 setIsOperationInProgress(false);
                 setReadyForOtherDevice(false);
 
-                addToProgressLog("Linking process cancelled.", "info");
+                // Try to remove the device from the account - if it fails, we'll just have to leave it there for the user to remove manually
+                try {
+                    await removeDevice.mutateAsync({
+                        deviceId: userID,
+                    });
+                } catch (err) {
+                    console.error("Failed to remove device:", err);
+
+                    addToProgressLog(
+                        "Rollback - Failed to remove device from account.",
+                        "error"
+                    );
+                }
+
+                addToProgressLog("Linking process cancelled.", "error");
                 toast.error("Linking process cancelled.");
             };
             addToProgressLog("Waiting for other device to connect...", "info");
@@ -6413,6 +6485,12 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         link.click();
     };
 
+    const qrCodeMethod = async (encryptedTransferableData: string) => {
+        // Set the encryptedTransferableDataRef to the encrypted data
+        // By the time this method is called, the QR Code component should be mounted
+        encryptedTransferableDataRef.current = encryptedTransferableData;
+    };
+
     const onSubmit = async (type: LinkMethod) => {
         // If the form is not valid, submit it to show the errors
         if (!isFormValid) {
@@ -6437,7 +6515,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 // Generate the file with the encrypted data for the other device
                 fileMethod(encryptedTransferableData);
             } else if (type === LinkMethod.QRCode) {
-                throw new Error("Not implemented.");
+                // Make sure that a QR Code with the encrypted data is generated
+                qrCodeMethod(encryptedTransferableData);
             } else if (type === LinkMethod.Sound) {
                 throw new Error("Not implemented.");
             } else {
@@ -6556,12 +6635,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                     }
                                     iconCaption="QR code"
                                     description="Generate a QR code to scan with the other device"
-                                    // disabled={
-                                    //     isSubmitting ||
-                                    //     (validInput !== ValidInput.QRCode && validInput !== null)
-                                    // }
-                                    disabled={true} // FIXME: QR code scanning is not implemented yet
-                                    // validInput={validInput === ValidInput.QRCode}
+                                    onClick={() => onSubmit(LinkMethod.QRCode)}
+                                    disabled={isOperationInProgress}
                                 />
 
                                 <BlockWideButton
@@ -6594,78 +6669,121 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                         hasSession &&
                         selectedLinkMethod != null && (
                             <div className="flex flex-col gap-2">
-                                {/* Show the mnemonic */}
-                                <div className="flex flex-col items-center gap-2">
-                                    <Controller
-                                        control={control}
-                                        name="mnemonic"
-                                        render={({ field: { value } }) => (
-                                            <div
-                                                className={clsx({
-                                                    "flex flex-col items-center gap-2":
-                                                        true,
-                                                    hidden: !value.length,
-                                                })}
-                                            >
-                                                <p className="select-all rounded-md bg-gray-200 p-2 text-gray-900">
-                                                    {value}
-                                                </p>
-                                                <p className="text-xs text-gray-500">
-                                                    Enter this mnemonic on the
-                                                    other device when prompted.
-                                                </p>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
                                 <div className="mt-2 flex flex-col items-center gap-2">
-                                    {/* Show the operation in progress indicator - loading spinner */}
+                                    {/* Show the operation in progress indicator - pulsating text */}
                                     {isOperationInProgress && (
                                         <div className="flex items-center">
                                             <p className="animate-pulse text-gray-900">
-                                                Linking device...
+                                                Waiting for device...
                                             </p>
                                         </div>
                                     )}
 
-                                    {
-                                        // If the link method is file, show a nicely formatted tip on how to load it into the other device
-                                        selectedLinkMethod ===
-                                            LinkMethod.File &&
-                                            readyForOtherDevice && (
-                                                <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
-                                                    <p className="text-md w-full text-center text-slate-600 underline">
-                                                        Tips for loading the
-                                                        file into the other
-                                                        device
+                                    {/* Show the mnemonic */}
+                                    {isOperationInProgress && (
+                                        <Controller
+                                            control={control}
+                                            name="mnemonic"
+                                            render={({ field: { value } }) => (
+                                                <div
+                                                    className={clsx({
+                                                        "flex flex-col items-center gap-2":
+                                                            true,
+                                                        hidden: !value.length,
+                                                    })}
+                                                >
+                                                    <p className="select-all rounded-md bg-gray-200 p-2 text-gray-900">
+                                                        {value}
                                                     </p>
-                                                    <p className="text-md text-slate-600">
-                                                        1. Load the file into
-                                                        the other device by
-                                                        opening the{" "}
-                                                        <strong>
-                                                            Link a Device
-                                                        </strong>{" "}
-                                                        dialog and then
-                                                        selecting{" "}
-                                                        <strong>
-                                                            Using a file
-                                                        </strong>
-                                                    </p>
-                                                    <p className="text-md text-slate-600">
-                                                        2. Once the file is
-                                                        loaded, enter the
-                                                        decryption passphrase
-                                                        shown above.
-                                                    </p>
-                                                    <p className="text-md text-slate-600">
-                                                        3. Follow the
-                                                        instructions on the
-                                                        other device.
+                                                    <p className="text-xs text-gray-500">
+                                                        Enter this mnemonic on
+                                                        the other device when
+                                                        prompted.
                                                     </p>
                                                 </div>
-                                            )
-                                    }
+                                            )}
+                                        />
+                                    )}
+
+                                    {selectedLinkMethod === LinkMethod.QRCode &&
+                                        readyForOtherDevice && (
+                                            <QRCode
+                                                value={
+                                                    encryptedTransferableDataRef.current
+                                                }
+                                            />
+                                        )}
+
+                                    {readyForOtherDevice && (
+                                        <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
+                                            <p className="text-md w-full text-center text-slate-600 underline">
+                                                Tips for linking to the other
+                                                device
+                                            </p>
+                                            {/* If the link method is file, show
+                                            a nicely formatted tip on how to
+                                            load it into the other device */}
+                                            {selectedLinkMethod ===
+                                                LinkMethod.QRCode &&
+                                                readyForOtherDevice && (
+                                                    <>
+                                                        <p className="text-md text-slate-600">
+                                                            1. Scan the QR Code
+                                                            with the other
+                                                            device by opening
+                                                            the{" "}
+                                                            <strong>
+                                                                Link a Device
+                                                            </strong>{" "}
+                                                            dialog and then
+                                                            selecting{" "}
+                                                            <strong>
+                                                                QR Code
+                                                            </strong>
+                                                        </p>
+                                                        <p className="text-md text-slate-600">
+                                                            2. Once the QR code
+                                                            is successfully
+                                                            scanned, enter the
+                                                            decryption
+                                                            passphrase shown
+                                                            above.
+                                                        </p>
+                                                    </>
+                                                )}
+                                            {selectedLinkMethod ===
+                                                LinkMethod.File &&
+                                                readyForOtherDevice && (
+                                                    <>
+                                                        <p className="text-md text-slate-600">
+                                                            1. Load the file
+                                                            into the other
+                                                            device by opening
+                                                            the{" "}
+                                                            <strong>
+                                                                Link a Device
+                                                            </strong>{" "}
+                                                            dialog and then
+                                                            selecting{" "}
+                                                            <strong>
+                                                                Using a file
+                                                            </strong>
+                                                        </p>
+                                                        <p className="text-md text-slate-600">
+                                                            2. Once the file is
+                                                            loaded, enter the
+                                                            decryption
+                                                            passphrase shown
+                                                            above.
+                                                        </p>
+                                                    </>
+                                                )}
+                                            <p className="text-md text-slate-600">
+                                                3. Follow the instructions on
+                                                the other device.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                                 <Controller
                                     control={control}

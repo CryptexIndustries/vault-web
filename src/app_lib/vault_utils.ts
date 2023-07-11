@@ -589,8 +589,8 @@ export namespace VaultStorage {
         id?: number;
         name: string;
         description: string;
-        created_at: Date;
-        last_used: Date | null;
+        created_at: string;
+        last_used: string | null;
         blob: VaultEncryption.EncryptedBlob;
     }
 
@@ -688,14 +688,14 @@ export class VaultMetadata {
 
     public Name: string;
     public Description: string;
-    public CreatedAt: Date;
-    public LastUsed: Date | null;
+    public CreatedAt: string;
+    public LastUsed: string | null;
     public Blob: VaultEncryption.EncryptedBlob | null;
 
     constructor() {
         this.Name = "";
         this.Description = "";
-        this.CreatedAt = new Date();
+        this.CreatedAt = new Date().toISOString();
         this.LastUsed = null;
         this.Blob = null;
     }
@@ -714,7 +714,7 @@ export class VaultMetadata {
 
         vaultMetadata.Name = formData.vaultName;
         vaultMetadata.Description = formData.vaultDescription;
-        vaultMetadata.CreatedAt = new Date();
+        vaultMetadata.CreatedAt = new Date().toISOString();
         vaultMetadata.LastUsed = null;
 
         // Instantiate a new vault to encrypt
@@ -754,7 +754,7 @@ export class VaultMetadata {
         // Otherwise, just save the blob as is
         if (vaultInstance != null) {
             // Update the last used date only if we're actually updating the vault
-            this.LastUsed = new Date();
+            this.LastUsed = new Date().toISOString();
 
             // Convert the vault to a JSON string
             const _vaultString = JSON.stringify(vaultInstance);
@@ -805,19 +805,12 @@ export class VaultMetadata {
             keyDerivationFuncConfig
         );
 
-        const vault = JSON.parse(decryptedVaultString, (key, value) => {
-            if (
-                key.toLowerCase().includes("date") &&
-                value != null &&
-                value.length > 0
-            ) {
-                return new Date(value);
-            }
+        const vaultRawParsed = JSON.parse(decryptedVaultString);
 
-            return value;
-        });
-
-        const vaultObject: Vault = Object.assign(new Vault(secret), vault);
+        const vaultObject: Vault = Object.assign(
+            new Vault(secret),
+            vaultRawParsed
+        );
 
         vaultObject.OnlineServices = Object.assign(
             new OnlineServicesAccount(),
@@ -825,10 +818,11 @@ export class VaultMetadata {
         );
 
         // Go through each linked device and assign it to a new object
+        // This is done to ensure that the LinkedDevice class is used instead of the generic object
         vaultObject.OnlineServices.LinkedDevices =
             vaultObject.OnlineServices.LinkedDevices.map(
                 (device: LinkedDevice) => {
-                    return Object.assign(new LinkedDevice("", ""), device);
+                    return Object.assign(new LinkedDevice(), device);
                 }
             );
 
@@ -846,6 +840,15 @@ export class VaultMetadata {
                     credential
                 );
             }
+        );
+
+        vaultObject.Diffs = vaultObject.Diffs.map((diff: Credential.Diff) => {
+            return Object.assign(new Credential.Diff(), diff);
+        });
+
+        vaultObject.Configuration = Object.assign(
+            new Configuration(),
+            vaultObject.Configuration
         );
 
         // Assign the deserialized data to the Vault object
@@ -918,8 +921,8 @@ export class VaultMetadata {
 
         vaultMetadata.Name = obj.Name;
         vaultMetadata.Description = obj.Description;
-        vaultMetadata.CreatedAt = new Date(obj.CreatedAt);
-        vaultMetadata.LastUsed = new Date(obj.LastUsed);
+        vaultMetadata.CreatedAt = obj.CreatedAt;
+        vaultMetadata.LastUsed = obj.LastUsed;
         vaultMetadata.Blob = Object.assign(
             VaultEncryption.EncryptedBlob.CreateDefault(),
             obj.Blob
@@ -993,13 +996,17 @@ export namespace Credential {
         name: z
             .string()
             .min(1, requiredFieldError)
-            .max(255, "Name is too long"),
-        username: z.string(),
-        password: z.string(),
+            .max(255, "Name is too long")
+            .optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
         totp: totpFormSchema.nullable(),
-        tags: z.array(z.string()),
-        url: z.string(),
-        notes: z.string(),
+        tags: z.array(z.string()).optional(),
+        url: z.string().optional(),
+        notes: z.string().optional(),
+        dateCreated: z.string().optional(), // Used only in diffing
+        dateModified: z.string().nullable().optional(), // Used only in diffing
+        datePasswordChanged: z.string().nullable().optional(), // Used only in diffing
     });
     export type TOTPFormSchemaType = z.infer<typeof totpFormSchema>;
     export type CredentialFormSchemaType = z.infer<typeof credentialFormSchema>;
@@ -1008,13 +1015,15 @@ export namespace Credential {
     export const DIGITS_DEFAULT = 6;
     export const ALGORITHM_DEFAULT = TOTPAlgorithm.SHA1;
     export class TOTP {
-        public Secret: string;
+        public Label: string;
         public Issuer: string;
+        public Secret: string;
         public Period: number;
         public Digits: number;
         public Algorithm: TOTPAlgorithm;
 
         constructor() {
+            this.Label = "";
             this.Secret = "";
             this.Issuer = "";
             this.Period = PERIOD_DEFAULT;
@@ -1052,15 +1061,15 @@ export namespace Credential {
         public Tags: string[];
         public URL: string;
         public Notes: string;
-        public DateCreated: Date;
-        public DateModified: Date | null;
-        public DatePasswordChanged: Date | null;
+        public DateCreated: string;
+        public DateModified: string | null;
+        public DatePasswordChanged: string | null;
 
         constructor(form?: CredentialFormSchemaType) {
             if (process.env.NODE_ENV === "development") {
-                this.ID = this.uuidv4_insecurecontexts();
+                this.ID = form?.id ?? this.uuidv4_insecurecontexts();
             } else {
-                this.ID = crypto.randomUUID();
+                this.ID = form?.id ?? crypto.randomUUID();
             }
 
             this.Name = form?.name ?? "";
@@ -1073,7 +1082,7 @@ export namespace Credential {
             this.URL = form?.url ?? "";
             this.Notes = form?.notes ?? "";
 
-            this.DateCreated = new Date();
+            this.DateCreated = new Date().toISOString();
             this.DateModified = null;
             this.DatePasswordChanged = null;
         }
@@ -1100,37 +1109,246 @@ export namespace Credential {
             else return "";
         };
     }
+
+    export enum DiffType {
+        Add = "ADD",
+        Update = "UPDATE",
+        Delete = "DELETE",
+    }
+
+    export type DiffChange = {
+        type: DiffType;
+        id: string;
+        props?: Partial<VaultCredential>;
+    };
+
+    export class Diff {
+        hash: string;
+        changes: DiffChange | null;
+
+        constructor(hash = "", changes: DiffChange | null = null) {
+            this.hash = hash;
+            this.changes = changes;
+        }
+    }
+
+    export const DiffSchema = z.object({
+        hash: z.string(),
+        changes: z.object({
+            type: z.nativeEnum(DiffType),
+            id: z.string(),
+            props: z.any().optional(), // This is Partial<VaultCredential>, undefined for deletes
+        }),
+    });
+
+    export const getChanges = (
+        prevCredential: VaultCredential | undefined,
+        nextCredential: VaultCredential
+    ): DiffChange | null => {
+        nextCredential = JSON.parse(JSON.stringify(nextCredential));
+
+        const changes: DiffChange[] = [];
+
+        // If the previous credential doesn't exist, then this is a new credential
+        if (!prevCredential) {
+            return {
+                type: DiffType.Add,
+                id: nextCredential.ID,
+                props: nextCredential,
+            };
+        }
+
+        if (prevCredential.Name !== nextCredential.Name) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { Name: nextCredential.Name },
+            });
+        }
+        if (prevCredential.Username !== nextCredential.Username) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { Username: nextCredential.Username },
+            });
+        }
+        if (prevCredential.Password !== nextCredential.Password) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { Password: nextCredential.Password },
+            });
+        }
+        if (prevCredential.TOTP !== nextCredential.TOTP) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { TOTP: nextCredential.TOTP },
+            });
+        }
+        if (
+            JSON.stringify(prevCredential.Tags) !==
+            JSON.stringify(nextCredential.Tags)
+        ) {
+            console.debug(
+                "Tags changed",
+                prevCredential.Tags,
+                nextCredential.Tags,
+                typeof prevCredential.Tags,
+                typeof nextCredential.Tags
+            );
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { Tags: nextCredential.Tags },
+            });
+        }
+        if (prevCredential.URL !== nextCredential.URL) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { URL: nextCredential.URL },
+            });
+        }
+        if (prevCredential.Notes !== nextCredential.Notes) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: { Notes: nextCredential.Notes },
+            });
+        }
+        if (prevCredential.DateCreated !== nextCredential.DateCreated) {
+            changes.push({
+                type: Credential.DiffType.Update,
+                id: nextCredential.ID,
+                props: { DateCreated: nextCredential.DateCreated },
+            });
+        }
+
+        if (prevCredential.DateModified !== nextCredential.DateModified) {
+            changes.push({
+                type: Credential.DiffType.Update,
+                id: nextCredential.ID,
+                props: {
+                    DateModified: nextCredential.DateModified,
+                },
+            });
+        }
+
+        if (
+            prevCredential.DatePasswordChanged !==
+            nextCredential.DatePasswordChanged
+        ) {
+            changes.push({
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: {
+                    DatePasswordChanged: nextCredential.DatePasswordChanged,
+                },
+            });
+        }
+
+        // Merge all changes into a single update
+        if (changes.length) {
+            const _props: Partial<VaultCredential> | undefined = changes.reduce(
+                (acc, change) => ({ ...acc, ...change.props }),
+                {}
+            );
+
+            // If the _props object only contains the DateModified property, then there are no real changes
+            if (
+                Object.keys(_props).length === 1 &&
+                _props.DateModified !== undefined
+            ) {
+                return null;
+            }
+
+            return {
+                type: DiffType.Update,
+                id: nextCredential.ID,
+                props: _props,
+            };
+        }
+
+        return null;
+    };
 }
 
-export interface OnlineServicesAccountInterface {
-    UserID: string;
-    PublicKey: string;
-    PrivateKey: string;
-}
-
-export class LinkedDevice {
+export const LinkedDevicesSchema = z.object({
+    ID: z.string(),
+    Name: z.string(),
+    LastSync: z.string().nullable(),
+    IsRoot: z.boolean(),
+    LinkedAtTimestamp: z.number(),
+    AutoConnect: z.boolean(),
+    SyncTimeout: z.boolean(),
+    SyncTimeoutPeriod: z.number(),
+});
+export type LinkedDeviceType = z.infer<typeof LinkedDevicesSchema>;
+export class LinkedDevice implements LinkedDeviceType {
     public ID: string;
     public Name: string;
-    public LastSync: Date | null = null;
+    public LastSync: string | null = null;
     public IsRoot = false;
+    public LinkedAtTimestamp = Date.now();
+    public AutoConnect: boolean;
+    public SyncTimeout: boolean;
+    public SyncTimeoutPeriod: number;
 
-    constructor(deviceID: string, deviceName: string, isRoot = false) {
+    constructor(
+        deviceID = "",
+        deviceName = "",
+        isRoot = false,
+        linkedAtTimestamp = Date.now(),
+        autoConnect = true,
+        syncTimeout = false,
+        syncTimeoutPeriod = 30
+    ) {
         this.ID = deviceID;
         this.Name = deviceName;
         this.IsRoot = isRoot;
+        this.LinkedAtTimestamp = linkedAtTimestamp;
+        this.AutoConnect = autoConnect;
+        this.SyncTimeout = syncTimeout;
+        this.SyncTimeoutPeriod = syncTimeoutPeriod;
     }
 
     public updateLastSync(): void {
-        this.LastSync = new Date();
+        this.LastSync = new Date().toISOString();
 
         console.debug(`Updated last sync for device ${this.Name} (${this.ID})`);
     }
+
+    public setName(name: string): void {
+        if (name.trim().length > 0) {
+            this.Name = name;
+        }
+    }
+
+    public setAutoConnect(autoConnect: boolean): void {
+        this.AutoConnect = autoConnect;
+    }
+
+    public setSyncTimeout(syncTimeout: boolean): void {
+        this.SyncTimeout = syncTimeout;
+    }
+
+    public setSyncTimeoutPeriod(syncTimeoutPeriod: number): void {
+        this.SyncTimeoutPeriod = Math.abs(syncTimeoutPeriod);
+    }
 }
 
-export class OnlineServicesAccount {
+export interface OnlineServicesAccountInterface {
+    UserID?: string;
+    PublicKey?: string;
+    PrivateKey?: string;
+}
+
+export class OnlineServicesAccount implements OnlineServicesAccountInterface {
     public UserID?: string;
     public PublicKey?: string;
     public PrivateKey?: string;
+    public CreationTimestamp = Date.now();
 
     public LinkedDevices: LinkedDevice[] = [];
 
@@ -1142,6 +1360,7 @@ export class OnlineServicesAccount {
         this.UserID = userID;
         this.PublicKey = publicKey;
         this.PrivateKey = privateKey;
+        this.CreationTimestamp = Date.now();
     }
 
     public unbindAccount(): void {
@@ -1158,12 +1377,27 @@ export class OnlineServicesAccount {
         );
     }
 
+    //#region Linked Devices
     public addLinkedDevice(
         deviceID: string,
         deviceName: string,
-        isRoot = false
+        isRoot = false,
+        linkedAtTimestamp = Date.now(),
+        autoConnect?: boolean,
+        syncTimeout?: boolean,
+        syncTimeoutPeriod?: number
     ): void {
-        this.LinkedDevices.push(new LinkedDevice(deviceID, deviceName, isRoot));
+        this.LinkedDevices.push(
+            new LinkedDevice(
+                deviceID,
+                deviceName,
+                isRoot,
+                linkedAtTimestamp,
+                autoConnect,
+                syncTimeout,
+                syncTimeoutPeriod
+            )
+        );
     }
 
     public removeLinkedDevice(deviceID: string): void {
@@ -1173,17 +1407,21 @@ export class OnlineServicesAccount {
     }
 
     public getLinkedDevice(deviceID: string): LinkedDevice | null {
-        for (const device of this.LinkedDevices) {
-            if (device.ID === deviceID) {
-                return device;
-            }
-        }
-        return null;
+        return (
+            this.LinkedDevices.find((device) => device.ID === deviceID) ?? null
+        );
     }
+
+    public getLinkedDevices(excludedIDs: string[] = []): LinkedDevice[] {
+        return this.LinkedDevices.filter(
+            (device) => !excludedIDs.includes(device.ID)
+        );
+    }
+    //#endregion Linked Devices
 
     /**
      * Decrypts the data that was deserialized for signing in to online services.
-     * This is used when
+     * This is used when linking devices (from outside the vault)
      * @param encryptedData The data to decrypt (as a base64 string)
      * @param secret The secret to decrypt the data with
      * @returns The decrypted data as an OnlineServicesAccountInterface object
@@ -1234,7 +1472,7 @@ export class OnlineServicesAccount {
     }
 
     /**
-     * Encrypts the data that will be deserialized for signing in to online services on another device.
+     * Encrypts and serializes the data that will be used for signing in to online services on another device.
      * @param userID The generated user ID (account ID)
      * @param publicKey The generated public key
      * @param privateKey The generated private key
@@ -1289,12 +1527,27 @@ export class OnlineServicesAccount {
     }
 }
 
+class Configuration {
+    /**
+     * The maximum number of diffs to store in the vault.
+     * This is used to prevent the vault from growing too large.
+     * @default 200
+     */
+    public MaxDiffCount = 200;
+
+    public setMaxDiffCount(count: number): void {
+        this.MaxDiffCount = Math.abs(count);
+    }
+}
+
 export class Vault {
     public Secret: string;
     public OnlineServices: OnlineServicesAccount;
     public Credentials: Credential.VaultCredential[];
+    public Diffs: Credential.Diff[] = [];
+    public Configuration: Configuration = new Configuration();
 
-    constructor(secret: string, seedData = false, seedCount = 0) {
+    constructor(secret = "", seedData = false, seedCount = 0) {
         this.Secret = secret;
         this.OnlineServices = new OnlineServicesAccount();
         this.Credentials = seedData ? this.seedVault(seedCount) : [];
@@ -1305,7 +1558,7 @@ export class Vault {
      * @param num Number of credentials to seed the vault with
      * @returns An array of mock credentials
      */
-    private seedVault(num = 100): Credential.VaultCredential[] {
+    private seedVault(num: number): Credential.VaultCredential[] {
         const creds: Credential.VaultCredential[] = [];
 
         // This will only be included in development builds
@@ -1323,6 +1576,175 @@ export class Vault {
         return creds;
     }
 
+    //#region Diffing
+    /**
+     * Hashes the vault's credentials and returns the hash as a hex string.
+     * This is used to when computing diffs between changes to the vault credentials.
+     * @returns A SHA256 hash
+     */
+    private hashCredentials(): string {
+        const credentialsCopy = this.Credentials.map((c) => {
+            const copy = Object.assign({}, c);
+
+            // Setting the ID to an empty string makes it irrelevant when computing the hash
+            copy.ID = "";
+
+            return copy;
+        });
+
+        const stringifiedCredentials = JSON.stringify(credentialsCopy, null, 0);
+        console.debug("Hashing credentials: ", stringifiedCredentials);
+
+        // Generate a SHA256 hash of the credentials
+        const credentialsHash = sodium.crypto_hash_sha256(
+            Buffer.from(stringifiedCredentials)
+        );
+
+        // Return the hash as a hex string
+        return Buffer.from(credentialsHash).toString("hex");
+    }
+
+    /**
+     * Gets the hash from the latest diff, or calculates the hash from the credentials if there are no diffs.
+     * @returns The hash from the latest diff, or the credentials hash if there are no diffs
+     * @returns An empty string if there are no credentials
+     */
+    public getLatestHash(): string | null {
+        if (this.Diffs.length === 0) {
+            return null;
+        }
+
+        return this.Diffs.at(-1)?.hash ?? "";
+    }
+
+    /**
+     * Gets the hashes from the latest diff to the first diff.
+     * @returns If there are diffs, an array of hashes from the latest diff to the first diff (in that order), empty array otherwise
+     */
+    public getAllHashes(): string[] {
+        return this.Diffs.map((diff) => diff.hash).reverse();
+    }
+
+    /**
+     * Gets the diffs for the vault from the specified hash to the latest diff.
+     * @param hash - The hash to start from
+     * @returns An array of diffs from the specified hash to the latest diff (in that order)
+     * @returns The whole array of diffs if the hash is null
+     *
+     */
+    public getDiffsSinceHash(hash: string | null): Credential.Diff[] {
+        if (hash === null) {
+            return this.Diffs;
+        }
+
+        const startIndex = this.Diffs.findIndex((diff) => diff.hash === hash);
+
+        // If the hash is not found, return an empty array
+        if (startIndex === -1) {
+            return [];
+        }
+
+        // If the hash is found, return the diffs from that index to the end of the array
+        return this.Diffs.slice(startIndex + 1);
+    }
+
+    /**
+     * Creates a new diff and adds it to the vault's Diffs array
+     * If the changes are null, no diff is created
+     * Also removes the oldest diff if the max diff count has been reached
+     * @param changes - The changes that were made
+     */
+    private createDiff(changes: Credential.DiffChange | null) {
+        if (!changes) {
+            console.debug("No changes to create diff for... Early return.");
+            return;
+        }
+
+        console.time("createDiff-getCredentialsHash");
+        // Get the hash of the current credentials
+        const newHash = this.hashCredentials();
+        console.timeEnd("createDiff-getCredentialsHash");
+
+        console.time("createDiff-pushDiff");
+        const diff = new Credential.Diff(newHash, changes);
+
+        // If the diff array size is greater than the max diff count, remove the oldest diff
+        if (this.Diffs.length >= this.Configuration.MaxDiffCount) {
+            // Slice the array to remove the overflowing diffs
+            // Example: this.Diffs.length = 286, this.Configuration.MaxDiffCount = 95
+            // - Result: 286 - 95 + 1 = 192 -> 192 diffs from the start of the array are removed
+            // - Amount of diffs currently: 286 - 192 = 94 (diffs saved)
+            this.Diffs = this.Diffs.slice(
+                this.Diffs.length - this.Configuration.MaxDiffCount + 1
+            );
+        }
+
+        // Add the new diff to the array
+        this.Diffs.push(diff);
+        console.timeEnd("createDiff-pushDiff");
+
+        console.debug("Current diff list:", this.Diffs);
+    }
+
+    public applyDiffs(diffs: Credential.Diff[]) {
+        console.time("applyDiffs");
+
+        // If there are no diffs, return
+        if (diffs.length === 0) {
+            console.timeEnd("applyDiffs");
+            return;
+        }
+
+        // Apply the diffs in order
+        diffs.forEach((diff) => {
+            if (diff.changes) {
+                if (
+                    diff.changes.type === Credential.DiffType.Add ||
+                    diff.changes.type === Credential.DiffType.Update
+                ) {
+                    if (diff.changes.props) {
+                        // If the diff has a TOTP, create a TOTP object
+                        let totp: Credential.TOTPFormSchemaType | null = null;
+                        if (diff.changes.props.TOTP) {
+                            totp = {
+                                Label: diff.changes.props.TOTP.Label,
+                                Issuer: diff.changes.props.TOTP.Issuer,
+                                Algorithm: diff.changes.props.TOTP.Algorithm,
+                                Digits: diff.changes.props.TOTP.Digits,
+                                Period: diff.changes.props.TOTP.Period,
+                                Secret: diff.changes.props.TOTP.Secret,
+                            };
+                        }
+
+                        // Use the built-in upsert method to add or update the credential
+                        // That way we don't have to duplicate the logic
+                        this.upsertCredential({
+                            id: diff.changes.id,
+                            name: diff.changes.props.Name,
+                            username: diff.changes.props.Username,
+                            password: diff.changes.props.Password,
+                            tags: diff.changes.props.Tags,
+                            notes: diff.changes.props.Notes,
+                            totp: totp,
+                            url: diff.changes.props.URL,
+                            dateCreated: diff.changes.props.DateCreated,
+                            dateModified: diff.changes.props.DateModified,
+                            datePasswordChanged:
+                                diff.changes.props.DatePasswordChanged,
+                        });
+                    }
+                } else if (diff.changes.type === Credential.DiffType.Delete) {
+                    // Use the built-in delete method to delete the credential
+                    this.deleteCredential(diff.changes.id);
+                }
+            }
+        });
+
+        console.timeEnd("applyDiffs");
+    }
+
+    //#endregion Diffing
+
     //#region Credential Methods
     /**
      * Upserts a credential. If the credential already exists, it will be updated. If it does not exist, it will be created.
@@ -1330,31 +1752,76 @@ export class Vault {
      * @returns void
      */
     public upsertCredential(form: Credential.CredentialFormSchemaType): void {
-        const existingCreds = this.Credentials.find((c) => c.ID === form.id);
+        console.time("upsertCredential");
+
+        console.time("upsertCredential-findExisting");
+        const existingCreds: Credential.VaultCredential | undefined =
+            this.Credentials.find((c) => c.ID === form.id);
+        console.timeEnd("upsertCredential-findExisting");
+
+        let changes: Credential.DiffChange | null = null;
 
         if (existingCreds) {
-            const today = new Date();
+            console.time("upsertCredential-existingCreds");
 
-            existingCreds.Name = form.name;
-            existingCreds.Username = form.username;
+            console.time("upsertCredential-existingCredsCopy");
+            const originalCredential = Object.assign({}, existingCreds);
+            console.timeEnd("upsertCredential-existingCredsCopy");
 
-            if (form.password !== existingCreds.Password) {
-                existingCreds.DatePasswordChanged = today;
+            console.time("upsertCredential-updateExisting");
+            const today = new Date().toISOString();
+
+            if (form.name) existingCreds.Name = form.name;
+
+            if (form.username) existingCreds.Username = form.username;
+
+            if (form.password) {
+                if (form.password !== existingCreds.Password)
+                    existingCreds.DatePasswordChanged = form.datePasswordChanged
+                        ? form.datePasswordChanged
+                        : today;
+
+                existingCreds.Password = form.password;
             }
 
-            existingCreds.Password = form.password;
-            existingCreds.TOTP = Object.assign(
-                new Credential.TOTP(),
-                form.totp
-            );
-            existingCreds.Tags = form.tags;
-            existingCreds.URL = form.url;
-            existingCreds.Notes = form.notes;
-            existingCreds.DateModified = today;
+            existingCreds.TOTP = form.totp
+                ? Object.assign(new Credential.TOTP(), form.totp)
+                : null;
+
+            if (form.tags) existingCreds.Tags = form.tags;
+            if (form.url) existingCreds.URL = form.url;
+            if (form.notes) existingCreds.Notes = form.notes;
+
+            // This is OK because if this is the only change, getChanges won't return anything
+            existingCreds.DateModified = form.dateModified
+                ? form.dateModified
+                : today;
+            console.timeEnd("upsertCredential-updateExisting");
+
+            console.time("upsertCredential-getChanges");
+            changes = Credential.getChanges(originalCredential, existingCreds);
+            console.timeEnd("upsertCredential-getChanges");
+
+            console.timeEnd("upsertCredential-existingCreds");
         } else {
+            console.time("upsertCredential-newCreds");
             const newCreds = new Credential.VaultCredential(form);
+            console.timeEnd("upsertCredential-newCreds");
+
+            if (form.dateCreated) newCreds.DateCreated = form.dateCreated;
+
+            console.time("upsertCredential-pushNewCreds");
             this.Credentials.push(newCreds);
+            console.timeEnd("upsertCredential-pushNewCreds");
+
+            console.time("upsertCredential-getChanges");
+            changes = Credential.getChanges(undefined, newCreds);
+            console.timeEnd("upsertCredential-getChanges");
         }
+
+        this.createDiff(changes);
+
+        console.timeEnd("upsertCredential");
     }
 
     /**
@@ -1363,11 +1830,26 @@ export class Vault {
      * @param id The ID of the credential to delete
      */
     public deleteCredential(id: string): void {
+        console.time("deleteCredential");
+
+        console.time("deleteCredential-findIndex");
         const index = this.Credentials.findIndex((c) => c.ID === id);
+        console.timeEnd("deleteCredential-findIndex");
 
         if (index >= 0) {
+            const change: Credential.DiffChange = {
+                type: Credential.DiffType.Delete,
+                id: id,
+            };
+
+            console.time("deleteCredential-splice");
             this.Credentials.splice(index, 1);
+            console.timeEnd("deleteCredential-splice");
+
+            this.createDiff(change);
         }
+
+        console.timeEnd("deleteCredential");
     }
     //#endregion Credential Methods
 
@@ -1387,6 +1869,16 @@ export class Vault {
             );
         }
 
+        if (
+            !newOnlineServicesAccount.UserID ||
+            !newOnlineServicesAccount.PublicKey ||
+            !newOnlineServicesAccount.PrivateKey
+        ) {
+            throw new Error(
+                "Cannot package the vault for linking. The new account is missing required information."
+            );
+        }
+
         // Create a copy of the vault so we don't modify the original
         const vaultCopy = Object.assign(new Vault(this.Secret), this);
 
@@ -1399,15 +1891,50 @@ export class Vault {
         );
 
         // Get the name of the computer
-        const deviceName = window.navigator.userAgent;
+        const deviceName = "Root Device";
 
         // Plant this device as a linked device in the new vault
         vaultCopy.OnlineServices.addLinkedDevice(
             this.OnlineServices.UserID,
             deviceName,
-            true
+            true,
+            this.OnlineServices.CreationTimestamp
         );
+
+        // Make sure we add all the other linked devices to this vault
+        this.OnlineServices.LinkedDevices.forEach((device) => {
+            vaultCopy.OnlineServices.addLinkedDevice(
+                device.ID,
+                device.Name,
+                device.IsRoot,
+                device.LinkedAtTimestamp,
+                device.AutoConnect,
+                device.SyncTimeout,
+                device.SyncTimeoutPeriod
+            );
+        });
 
         return vaultCopy;
     }
+}
+
+export namespace Synchronization {
+    export enum Command {
+        SyncRequest = "sync-request",
+        SyncResponse = "sync-response",
+        ResponseSyncAllHashes = "response-sync-all-hashes",
+        LinkedDevicesList = "linked-devices-list",
+    }
+    export interface Message {
+        command: Command;
+        hash: string | null;
+        diffList: Credential.Diff[];
+        linkedDevicesList?: LinkedDeviceType[];
+    }
+    export const messageSchema = z.object({
+        command: z.nativeEnum(Command),
+        hash: z.string().nullable(),
+        diffList: z.array(Credential.DiffSchema),
+        linkedDevicesList: z.array(LinkedDevicesSchema).optional(),
+    });
 }

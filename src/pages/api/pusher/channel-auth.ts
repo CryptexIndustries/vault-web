@@ -91,28 +91,87 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         return;
     }
 
-    // Remove the prefix that can be two words
-    const channelNameWithoutPrefix = channel_name.split("-").slice(2).join("-");
+    if (
+        channel_name.startsWith("presence-sync") ||
+        channel_name.startsWith("private-sync")
+    ) {
+        // This is an example of a channel name: presence-sync-{senior_deviceID}_{junior_deviceID}
+        const extractedDeviceIDs: string[] = channel_name
+            .split("-")
+            .slice(2)
+            .join("-")
+            .split("_");
 
-    // Check if there is a UserID for that user in the Account table
-    const account = await prisma.account.count({
-        where: {
-            userId: session.user.id,
-            providerAccountId: channelNameWithoutPrefix,
-        },
-    });
+        // Check if there are two device IDs (senior and junior) - valid channel name
+        if (extractedDeviceIDs.length !== 2) {
+            res.status(401).send("Unauthorized");
+            return;
+        }
 
-    // If there is no account, return an error
-    if (!account) {
-        res.status(401).send("Unauthorized");
-        return;
+        // Check if any of these device IDs belong to the user
+        const belongsToUser = await prisma.account.count({
+            where: {
+                userId: session.user.id,
+                id: session.user.accountID,
+                providerAccountId: {
+                    in: extractedDeviceIDs,
+                },
+            },
+        });
+
+        // If none of the devices belong to the user, return an error
+        if (belongsToUser === 0) {
+            console.error(
+                "[PUSHER] None of the devices belong to the user",
+                session.user.id,
+                extractedDeviceIDs
+            );
+            res.status(401).send("Unauthorized");
+            return;
+        }
+
+        // Check if these account IDs belong to the user
+        const accounts = await prisma.account.findMany({
+            where: {
+                userId: session.user.id,
+                providerAccountId: {
+                    in: extractedDeviceIDs,
+                },
+            },
+        });
+
+        // Both accounts should be found, otherwise return unauthorized
+        if (accounts.length !== 2) {
+            res.status(401).send("Unauthorized");
+            return;
+        }
+    } else {
+        // Remove the prefix that can be two words
+        const channelNameWithoutPrefix = channel_name
+            .split("-")
+            .slice(2)
+            .join("-");
+
+        // Check if there is a UserID for that user in the Account table
+        const account = await prisma.account.count({
+            where: {
+                userId: session.user.id,
+                providerAccountId: channelNameWithoutPrefix,
+            },
+        });
+
+        // If there is no account, return an error
+        if (!account) {
+            res.status(401).send("Unauthorized");
+            return;
+        }
     }
 
     // Create the presence data
     const userData = {
-        user_id: session.user.id + Date.now().toString(),
+        user_id: session.user.accountID,
         user_info: {
-            id: session.user.id + Date.now().toString(),
+            id: session.user.accountID,
             // name: session.user.name,
             // email: session.user.email,
         },

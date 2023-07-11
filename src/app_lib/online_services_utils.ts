@@ -276,4 +276,22 @@ export const newWSPusherInstance = (): Pusher =>
             endpoint: "/api/pusher/channel-auth",
         },
     });
+
+export const constructSyncChannelName = (
+    ourCreationTimestamp: number,
+    ourID: string,
+    otherDeviceID: string,
+    linkedAtTimestamp: number
+): string => {
+    // The senior device is the one that was created first
+    const thisSenior = ourCreationTimestamp < linkedAtTimestamp;
+
+    // If we're the senior device, we fill the senior device slot
+    const seniorDevice = thisSenior ? ourID : otherDeviceID;
+
+    // If we're the senior device, the other device is the junior device
+    const juniorDevice = thisSenior ? otherDeviceID : ourID;
+
+    return `presence-sync-${seniorDevice}_${juniorDevice}`;
+};
 //#endregion OnlineServices

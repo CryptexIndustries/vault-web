@@ -6,27 +6,14 @@ import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
 import { env } from "../env/client.mjs";
 
+import * as VaultUtilTypes from "./proto/vault";
+
 const requiredFieldError = "This is a required field";
 
-//#region Zod Schemas
-export const vaultRestoreFormSchema = z.object({
-    vaultName: z.string().min(1, requiredFieldError),
-});
-export type VaultRestoreFormSchema = z.infer<typeof vaultRestoreFormSchema>;
-//#endregion
-
 export namespace VaultEncryption {
-    export enum KeyDerivationFunction {
-        PBKDF2 = "PBKDF2",
-        Argon2ID = "Argon2ID",
-    }
-
-    export enum EncryptionAlgorithm {
-        AES256 = "AES256",
-        XChaCha20Poly1305 = "XChaCha20Poly1305",
-    }
-
-    export class KeyDerivationConfig_PBKDF2 {
+    export class KeyDerivationConfig_PBKDF2
+        implements VaultUtilTypes.KeyDerivationConfigPBKDF2
+    {
         // Docs: https://security.stackexchange.com/questions/3959/recommended-of-iterations-when-using-pbkdf2-sha256/3993#3993
         // Docs: https://csrc.nist.gov/publications/detail/sp/800-132/final
         // Docs: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
@@ -42,7 +29,9 @@ export namespace VaultEncryption {
         }
     }
 
-    export class KeyDerivationConfig_Argon2ID {
+    export class KeyDerivationConfig_Argon2ID
+        implements VaultUtilTypes.KeyDerivationConfigArgon2ID
+    {
         // Docs for params: https://libsodium.gitbook.io/doc/password_hashing/default_phf#key-derivation
 
         public static readonly DEFAULT_OPS_LIMIT = 3; // sodium.crypto_pwhash_OPSLIMIT_MODERATE;
@@ -67,17 +56,13 @@ export namespace VaultEncryption {
     }
 
     export const vaultEncryptionFormElement = z
-        .enum([
-            VaultEncryption.EncryptionAlgorithm.XChaCha20Poly1305,
-            VaultEncryption.EncryptionAlgorithm.AES256,
-        ])
-        .default(VaultEncryption.EncryptionAlgorithm.XChaCha20Poly1305);
+        .nativeEnum(VaultUtilTypes.EncryptionAlgorithm)
+        .default(VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305);
+
     export const vaultEncryptionKeyDerivationFunctionFormElement = z
-        .enum([
-            VaultEncryption.KeyDerivationFunction.Argon2ID,
-            VaultEncryption.KeyDerivationFunction.PBKDF2,
-        ])
-        .default(VaultEncryption.KeyDerivationFunction.Argon2ID);
+        .nativeEnum(VaultUtilTypes.KeyDerivationFunction)
+        .default(VaultUtilTypes.KeyDerivationFunction.Argon2ID);
+
     export const vaultEncryptionConfigurationsFormElement = z.object({
         memLimit: z.coerce
             .number()
@@ -90,7 +75,6 @@ export namespace VaultEncryption {
                     message: `Memory limit must be above ${KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT}`,
                 }
             ),
-
         opsLimit: z.coerce
             .number()
             .default(KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT)
@@ -120,12 +104,13 @@ export namespace VaultEncryption {
     // };
 
     export const unlockVaultFormSchema = z.object({
-        vaultSecret: z.string().min(1, requiredFieldError),
-        vaultEncryption: vaultEncryptionFormElement,
-        vaultEncryptionKeyDerivationFunction:
+        Secret: z.string().min(1, requiredFieldError),
+        Encryption: vaultEncryptionFormElement,
+        EncryptionKeyDerivationFunction:
             vaultEncryptionKeyDerivationFunctionFormElement,
-        vaultEncryptionConfig: vaultEncryptionConfigurationsFormElement,
-        captchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
+        EncryptionConfig: vaultEncryptionConfigurationsFormElement,
+        // EncryptionConfigArgon2ID:
+        CaptchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
             ? z.string().nonempty("Captcha is required.")
             : z.string(),
     });
@@ -133,32 +118,35 @@ export namespace VaultEncryption {
         typeof unlockVaultFormSchema
     >;
 
-    export class EncryptedBlob {
-        public algorithm: VaultEncryption.EncryptionAlgorithm;
-        public keyDerivationFunc: VaultEncryption.KeyDerivationFunction;
-        public keyDerivationFuncConfig:
-            | KeyDerivationConfig_Argon2ID
-            | KeyDerivationConfig_PBKDF2;
-        public blob: string;
-        public salt: string;
-        public header_iv: string;
+    export class EncryptedBlob implements VaultEncryption.EncryptedBlob {
+        public Algorithm: VaultUtilTypes.EncryptionAlgorithm;
+        public KeyDerivationFunc: VaultUtilTypes.KeyDerivationFunction;
+        public KDFConfigArgon2ID:
+            | VaultUtilTypes.KeyDerivationConfigArgon2ID
+            | undefined;
+        public KDFConfigPBKDF2:
+            | VaultUtilTypes.KeyDerivationConfigPBKDF2
+            | undefined;
+        public Blob: Uint8Array;
+        public Salt: string;
+        public HeaderIV: string;
 
         constructor(
-            algorithm: VaultEncryption.EncryptionAlgorithm,
-            keyDerivationFunc: VaultEncryption.KeyDerivationFunction,
-            keyDerivationFuncConfig:
-                | KeyDerivationConfig_Argon2ID
-                | KeyDerivationConfig_PBKDF2,
-            blob: string,
+            algorithm: VaultUtilTypes.EncryptionAlgorithm,
+            keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
+            kdfConfigArgon2ID: VaultUtilTypes.KeyDerivationConfigArgon2ID | null,
+            kdfConfigPBKDF2: VaultUtilTypes.KeyDerivationConfigPBKDF2 | null,
+            blob: Uint8Array,
             salt: string,
-            header_iv: string
+            headerIV: string
         ) {
-            this.algorithm = algorithm;
-            this.keyDerivationFunc = keyDerivationFunc;
-            this.keyDerivationFuncConfig = keyDerivationFuncConfig;
-            this.blob = blob;
-            this.salt = salt;
-            this.header_iv = header_iv;
+            this.Algorithm = algorithm;
+            this.KeyDerivationFunc = keyDerivationFunc;
+            this.KDFConfigArgon2ID = kdfConfigArgon2ID ?? undefined;
+            this.KDFConfigPBKDF2 = kdfConfigPBKDF2 ?? undefined;
+            this.Blob = blob;
+            this.Salt = salt;
+            this.HeaderIV = headerIV;
         }
 
         /**
@@ -168,17 +156,35 @@ export namespace VaultEncryption {
          */
         public static CreateDefault(): EncryptedBlob {
             return new EncryptedBlob(
-                EncryptionAlgorithm.XChaCha20Poly1305,
-                KeyDerivationFunction.Argon2ID,
+                VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID,
                 new KeyDerivationConfig_Argon2ID(),
-                "",
+                null,
+                new Uint8Array(),
                 "",
                 ""
             );
         }
 
+        /**
+         * Seralizes the EncryptedBlob object into a JSON string.
+         * This is used when creating a backup of the vault.
+         * @returns A JSON string representation of the EncryptedBlob object
+         */
         public async toString(): Promise<string> {
-            return JSON.stringify(this, null, 0);
+            return JSON.stringify({
+                Version: 1,
+                Algorithm: this.Algorithm,
+                KeyDerivationFunc: this.KeyDerivationFunc,
+                KeyDerivationFuncConfig:
+                    this.KeyDerivationFunc ===
+                    VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                        ? this.KDFConfigArgon2ID
+                        : this.KDFConfigPBKDF2,
+                Blob: Buffer.from(this.Blob).toString("base64"),
+                Salt: this.Salt,
+                HeaderIV: this.HeaderIV,
+            });
         }
 
         /**
@@ -193,28 +199,31 @@ export namespace VaultEncryption {
 
             // Check if the object is valid
             if (
-                !obj.hasOwnProperty("algorithm") ||
-                !obj.hasOwnProperty("keyDerivationFunc") ||
-                !obj.hasOwnProperty("keyDerivationFuncConfig") ||
-                !obj.hasOwnProperty("blob") ||
-                !obj.hasOwnProperty("salt") ||
-                !obj.hasOwnProperty("header_iv")
+                !obj.hasOwnProperty("Algorithm") ||
+                !obj.hasOwnProperty("KeyDerivationFunc") ||
+                !obj.hasOwnProperty("KeyDerivationFuncConfig") ||
+                !obj.hasOwnProperty("Blob") ||
+                !obj.hasOwnProperty("Salt") ||
+                !obj.hasOwnProperty("HeaderIV")
             ) {
                 throw new Error("Invalid object. Parsing failed.");
             }
 
             // Extract the algorithm
             if (
-                obj.algorithm !== EncryptionAlgorithm.AES256 &&
-                obj.algorithm !== EncryptionAlgorithm.XChaCha20Poly1305
+                obj.Algorithm !== VaultUtilTypes.EncryptionAlgorithm.AES256 &&
+                obj.Algorithm !==
+                    VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305
             ) {
                 throw new Error("Invalid algorithm. Parsing failed.");
             }
 
             // Extract the key derivation function
             if (
-                obj.keyDerivationFunc !== KeyDerivationFunction.Argon2ID &&
-                obj.keyDerivationFunc !== KeyDerivationFunction.PBKDF2
+                obj.KeyDerivationFunc !==
+                    VaultUtilTypes.KeyDerivationFunction.Argon2ID &&
+                obj.KeyDerivationFunc !==
+                    VaultUtilTypes.KeyDerivationFunction.PBKDF2
             ) {
                 throw new Error(
                     "Invalid key derivation function. Parsing failed."
@@ -222,14 +231,17 @@ export namespace VaultEncryption {
             }
 
             let keyDerivationFuncConfig:
-                | KeyDerivationConfig_Argon2ID
-                | KeyDerivationConfig_PBKDF2;
+                | VaultUtilTypes.KeyDerivationConfigArgon2ID
+                | VaultUtilTypes.KeyDerivationConfigPBKDF2;
 
             // Extract the key derivation function config
-            if (obj.keyDerivationFunc === KeyDerivationFunction.Argon2ID) {
+            if (
+                obj.KeyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
+            ) {
                 keyDerivationFuncConfig = new KeyDerivationConfig_Argon2ID(
-                    obj.keyDerivationFuncConfig.memLimit,
-                    obj.keyDerivationFuncConfig.opsLimit
+                    obj.KeyDerivationFuncConfig.memLimit,
+                    obj.KeyDerivationFuncConfig.opsLimit
                 );
             } else {
                 keyDerivationFuncConfig = new KeyDerivationConfig_PBKDF2(
@@ -237,33 +249,53 @@ export namespace VaultEncryption {
                 );
             }
 
+            // Base64 decode the blob
+            const blob = Buffer.from(obj.Blob, "base64");
+
             return new EncryptedBlob(
-                obj.algorithm,
-                obj.keyDerivationFunc,
-                keyDerivationFuncConfig,
-                obj.blob,
-                obj.salt,
-                obj.header_iv
+                obj.Algorithm,
+                obj.KeyDerivationFunc,
+                obj.KeyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                    ? (keyDerivationFuncConfig as VaultUtilTypes.KeyDerivationConfigArgon2ID)
+                    : null,
+                obj.KeyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+                    ? (keyDerivationFuncConfig as VaultUtilTypes.KeyDerivationConfigPBKDF2)
+                    : null,
+                blob,
+                obj.Salt,
+                obj.HeaderIV
             );
         }
     }
 
     export const EncryptDataBlob = async (
-        blob: string,
+        blob: Uint8Array,
         secret: string,
-        algorithm: EncryptionAlgorithm,
-        keyDerivationFunction: KeyDerivationFunction,
-        configuration: KeyDerivationConfig_Argon2ID | KeyDerivationConfig_PBKDF2
+        algorithm: VaultUtilTypes.EncryptionAlgorithm,
+        keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
+        kdfConfigArgon2ID: KeyDerivationConfig_Argon2ID,
+        kdfConfigPBKDF2: KeyDerivationConfig_PBKDF2
     ): Promise<EncryptedBlob> => {
+        // FIXME: This is a temporary fix to prevent the compiler from complaining about the union type
+        const configuration:
+            | KeyDerivationConfig_Argon2ID
+            | KeyDerivationConfig_PBKDF2 =
+            keyDerivationFunction ===
+            VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                ? kdfConfigArgon2ID
+                : kdfConfigPBKDF2;
+
         switch (algorithm) {
-            case EncryptionAlgorithm.AES256:
+            case VaultUtilTypes.EncryptionAlgorithm.AES256:
                 return await AES.encryptBlobAES256(
                     blob,
                     secret,
                     keyDerivationFunction,
                     configuration
                 );
-            case EncryptionAlgorithm.XChaCha20Poly1305:
+            case VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305:
                 return await XChaCha20Poly1305.encryptBlob(
                     blob,
                     secret,
@@ -276,19 +308,24 @@ export namespace VaultEncryption {
     export const DecryptDataBlob = async (
         blob: EncryptedBlob,
         secret: string,
-        algorithm: EncryptionAlgorithm,
-        keyDerivationFunction: KeyDerivationFunction,
+        algorithm: VaultUtilTypes.EncryptionAlgorithm,
+        keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
         configuration: KeyDerivationConfig_Argon2ID | KeyDerivationConfig_PBKDF2
-    ): Promise<string> => {
+    ): Promise<Uint8Array> => {
+        // Verify that the blob is an Uint8Array
+        if (!(blob.Blob instanceof Uint8Array)) {
+            throw new Error("Blob is not an Uint8Array");
+        }
+
         switch (algorithm) {
-            case EncryptionAlgorithm.AES256:
+            case VaultUtilTypes.EncryptionAlgorithm.AES256:
                 return await AES.decryptBlobAES256(
                     blob,
                     secret,
                     keyDerivationFunction,
                     configuration
                 );
-            case EncryptionAlgorithm.XChaCha20Poly1305:
+            case VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305:
                 return await XChaCha20Poly1305.decryptBlob(
                     blob,
                     secret,
@@ -354,28 +391,35 @@ export namespace VaultEncryption {
 
     class AES {
         static async encryptBlobAES256(
-            blob: string,
+            blob: Uint8Array,
             secret: string,
-            keyDerivationFunc: KeyDerivationFunction,
+            keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
                 | KeyDerivationConfig_PBKDF2
         ): Promise<EncryptedBlob> {
+            if (keyDerivationFuncConfig == undefined) {
+                throw new Error("Key derivation function config is undefined");
+            }
+
             // Generate a random salt
             const salt = crypto.getRandomValues(new Uint8Array(16));
 
             // These hold the derived key and the configuration for the key derivation function
             let derivedKey: CryptoKey;
 
-            if (keyDerivationFunc === KeyDerivationFunction.PBKDF2) {
+            if (
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+            ) {
                 derivedKey = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
                     keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2
                 );
             } else if (
-                keyDerivationFunc === KeyDerivationFunction.Argon2ID ||
-                true
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
             ) {
                 const key = await KeyDerivation.deriveKeyArgon2ID(
                     32, // Key length in bytes (256 bits) for AES-256
@@ -391,6 +435,8 @@ export namespace VaultEncryption {
                     false,
                     ["encrypt", "decrypt"]
                 );
+            } else {
+                throw new Error("Invalid key derivation function");
             }
 
             const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -400,16 +446,23 @@ export namespace VaultEncryption {
                     iv,
                 },
                 derivedKey,
-                new TextEncoder().encode(blob)
+                blob
             );
 
             const encryptedBlob = new Uint8Array(encrypted);
 
             return new EncryptedBlob(
-                EncryptionAlgorithm.AES256,
+                VaultUtilTypes.EncryptionAlgorithm.AES256,
                 keyDerivationFunc,
-                keyDerivationFuncConfig,
-                Buffer.from(encryptedBlob).toString("base64"),
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                    ? (keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID)
+                    : null,
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+                    ? (keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2)
+                    : null,
+                encryptedBlob,
                 Buffer.from(salt).toString("base64"),
                 Buffer.from(iv).toString("base64")
             );
@@ -418,27 +471,34 @@ export namespace VaultEncryption {
         static async decryptBlobAES256(
             blob: EncryptedBlob,
             secret: string,
-            keyDerivationFunc: KeyDerivationFunction,
+            keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
                 | KeyDerivationConfig_PBKDF2
-        ): Promise<string> {
-            const encryptedBlob = Buffer.from(blob.blob, "base64");
-            const salt = Buffer.from(blob.salt, "base64");
-            const iv = Buffer.from(blob.header_iv, "base64");
+        ): Promise<Uint8Array> {
+            if (keyDerivationFuncConfig == undefined) {
+                throw new Error("Key derivation function config is undefined");
+            }
+
+            const encryptedBlob = blob.Blob;
+            const salt = Buffer.from(blob.Salt, "base64");
+            const iv = Buffer.from(blob.HeaderIV, "base64");
 
             // These hold the derived key and the configuration for the key derivation function
             let derivedKey: CryptoKey;
 
-            if (keyDerivationFunc === KeyDerivationFunction.PBKDF2) {
+            if (
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+            ) {
                 derivedKey = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
                     keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2
                 );
             } else if (
-                keyDerivationFunc === KeyDerivationFunction.Argon2ID ||
-                true
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
             ) {
                 const key = await KeyDerivation.deriveKeyArgon2ID(
                     32, // Key length in bytes (256 bits) for AES-256
@@ -454,6 +514,8 @@ export namespace VaultEncryption {
                     false,
                     ["encrypt", "decrypt"]
                 );
+            } else {
+                throw new Error("Invalid key derivation function");
             }
 
             const decrypted = await crypto.subtle.decrypt(
@@ -465,19 +527,24 @@ export namespace VaultEncryption {
                 encryptedBlob
             );
 
-            return new TextDecoder().decode(decrypted);
+            // return new TextDecoder().decode(decrypted);
+            return new Uint8Array(decrypted);
         }
     }
 
     class XChaCha20Poly1305 {
         static async encryptBlob(
-            blob: string,
+            blob: Uint8Array,
             secret: string,
-            keyDerivationFunc: KeyDerivationFunction,
+            keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
                 | KeyDerivationConfig_PBKDF2
         ): Promise<EncryptedBlob> {
+            if (keyDerivationFuncConfig == undefined) {
+                throw new Error("Key derivation function config is undefined");
+            }
+
             await sodium.ready;
 
             const salt = sodium.randombytes_buf(
@@ -485,7 +552,10 @@ export namespace VaultEncryption {
             );
             let key: Uint8Array;
 
-            if (keyDerivationFunc === KeyDerivationFunction.PBKDF2) {
+            if (
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+            ) {
                 const _key = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
@@ -495,8 +565,8 @@ export namespace VaultEncryption {
 
                 key = new Uint8Array(rawKey);
             } else if (
-                keyDerivationFunc === KeyDerivationFunction.Argon2ID ||
-                true
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
             ) {
                 key = await KeyDerivation.deriveKeyArgon2ID(
                     sodium.crypto_secretstream_xchacha20poly1305_KEYBYTES,
@@ -504,6 +574,8 @@ export namespace VaultEncryption {
                     salt,
                     keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID
                 );
+            } else {
+                throw new Error("Invalid key derivation function");
             }
 
             const res =
@@ -511,16 +583,23 @@ export namespace VaultEncryption {
             const [state_out, header] = [res.state, res.header];
             const c1 = sodium.crypto_secretstream_xchacha20poly1305_push(
                 state_out,
-                sodium.from_string(blob),
+                blob,
                 null,
                 sodium.crypto_secretstream_xchacha20poly1305_TAG_MESSAGE
             );
 
             return new EncryptedBlob(
-                EncryptionAlgorithm.XChaCha20Poly1305,
+                VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
                 keyDerivationFunc,
-                keyDerivationFuncConfig,
-                Buffer.from(c1).toString("base64"),
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                    ? (keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID)
+                    : null,
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+                    ? (keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2)
+                    : null,
+                c1,
                 Buffer.from(salt).toString("base64"),
                 Buffer.from(header).toString("base64")
             );
@@ -529,20 +608,27 @@ export namespace VaultEncryption {
         static async decryptBlob(
             encryptedBlob: EncryptedBlob,
             secret: string,
-            keyDerivationFunc: KeyDerivationFunction,
+            keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
                 | KeyDerivationConfig_PBKDF2
-        ): Promise<string> {
+        ): Promise<Uint8Array> {
+            if (keyDerivationFuncConfig == undefined) {
+                throw new Error("Key derivation function config is undefined");
+            }
+
             await sodium.ready;
 
-            const c1 = Buffer.from(encryptedBlob.blob, "base64");
-            const salt = Buffer.from(encryptedBlob.salt, "base64");
-            const header = Buffer.from(encryptedBlob.header_iv, "base64");
+            const c1 = encryptedBlob.Blob;
+            const salt = Buffer.from(encryptedBlob.Salt, "base64");
+            const header = Buffer.from(encryptedBlob.HeaderIV, "base64");
 
             let key: Uint8Array;
 
-            if (keyDerivationFunc === KeyDerivationFunction.PBKDF2) {
+            if (
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
+            ) {
                 const _key = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
@@ -552,8 +638,8 @@ export namespace VaultEncryption {
 
                 key = new Uint8Array(rawKey);
             } else if (
-                keyDerivationFunc === KeyDerivationFunction.Argon2ID ||
-                true
+                keyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
             ) {
                 key = await KeyDerivation.deriveKeyArgon2ID(
                     sodium.crypto_secretstream_xchacha20poly1305_KEYBYTES,
@@ -561,6 +647,8 @@ export namespace VaultEncryption {
                     salt,
                     keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID
                 );
+            } else {
+                throw new Error("Invalid key derivation function");
             }
 
             const state_in =
@@ -572,14 +660,20 @@ export namespace VaultEncryption {
                 state_in,
                 c1
             );
-            const m1 = Buffer.from(r1.message).toString("utf-8");
 
+            if (typeof r1 === "boolean" && r1 === false) {
+                throw new Error("Decryption failed");
+            }
+
+            // Convert the byte array to a string
+            // const m1 = Buffer.from(r1.message).toString("utf-8");
             // console.debug(
             //     `Decrypted blob with XChaCha20Poly1305: ${m1.length} bytes`,
             //     m1
             // );
 
-            return m1;
+            // Return the decrypted byte array
+            return r1.message;
         }
     }
 }
@@ -587,11 +681,7 @@ export namespace VaultEncryption {
 export namespace VaultStorage {
     export interface VaultMetadataInterface {
         id?: number;
-        name: string;
-        description: string;
-        created_at: string;
-        last_used: string | null;
-        blob: VaultEncryption.EncryptedBlob;
+        data: Uint8Array;
     }
 
     export class VaultMetadataDatabase extends Dexie {
@@ -600,7 +690,7 @@ export namespace VaultStorage {
         constructor() {
             super("vaultDB");
             this.version(1).stores({
-                vaults: "++id, name, description, created_at, last_used, blob",
+                vaults: "++id, data",
             });
         }
     }
@@ -613,13 +703,17 @@ export namespace VaultStorage {
      * @param data The data to save.
      */
     export async function saveVault(
-        index: number | null | undefined,
-        data: VaultMetadataInterface
+        index: number | undefined,
+        data: Uint8Array
     ): Promise<void> {
         if (index != null) {
-            await db.vaults.update(index, data);
+            await db.vaults.update(index, {
+                data: data,
+            } as VaultMetadataInterface);
         } else {
-            await db.vaults.add(data);
+            await db.vaults.add({
+                data: data,
+            } as VaultMetadataInterface);
         }
 
         console.debug("Successfully saved the vault metadata to the database");
@@ -654,18 +748,18 @@ export namespace VaultStorage {
     // }
 }
 
-export namespace BackupUtils {
-    export enum BackupType {
+export namespace Backup {
+    export enum Type {
         Manual,
         // Dropbox,
         // GoogleDrive,
     }
 
     export const trigger = async (
-        type: BackupType,
+        type: Type,
         vaultBlob: VaultEncryption.EncryptedBlob
     ): Promise<void> => {
-        if (type === BackupType.Manual) {
+        if (type === Type.Manual) {
             await manualBackup(await vaultBlob.toString());
         } else {
             throw new Error("Not implemented");
@@ -677,27 +771,36 @@ export namespace BackupUtils {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `cryptexvault-bk-${new Date().toISOString()}.cryx`;
+        a.download = `cryptexvault-bk-${Date.now()}.cryx`;
         a.click();
         URL.revokeObjectURL(url);
     };
 }
 
-export class VaultMetadata {
-    public DBIndex?: number | null;
+export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
+    public Version: number;
+    public DBIndex?: number;
 
     public Name: string;
     public Description: string;
     public CreatedAt: string;
-    public LastUsed: string | null;
-    public Blob: VaultEncryption.EncryptedBlob | null;
+    public LastUsed: string | undefined;
+    public Blob: VaultEncryption.EncryptedBlob | undefined;
+
+    public Icon: string;
+    public Color: string;
 
     constructor() {
+        // This is the schema version that this vault was created with
+        // This changes when the vault schema changes
+        this.Version = 1;
         this.Name = "";
         this.Description = "";
         this.CreatedAt = new Date().toISOString();
-        this.LastUsed = null;
-        this.Blob = null;
+        this.LastUsed = undefined;
+        this.Blob = undefined;
+        this.Icon = "";
+        this.Color = "";
     }
 
     /**
@@ -712,28 +815,25 @@ export class VaultMetadata {
     ): Promise<VaultMetadata> {
         const vaultMetadata = new VaultMetadata();
 
-        vaultMetadata.Name = formData.vaultName;
-        vaultMetadata.Description = formData.vaultDescription;
+        vaultMetadata.Name = formData.Name;
+        vaultMetadata.Description = formData.Description;
         vaultMetadata.CreatedAt = new Date().toISOString();
-        vaultMetadata.LastUsed = null;
+        vaultMetadata.LastUsed = undefined;
 
         // Instantiate a new vault to encrypt
-        const freshVault = new Vault(
-            formData.vaultSecret,
-            seedVault,
-            seedCount
-        );
+        const freshVault = new Vault(formData.Secret, seedVault, seedCount);
 
-        // Convert the vault to a JSON string
-        const _freshVaultString = JSON.stringify(freshVault);
+        // Serialize the vault instance
+        const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
 
         // Encrypt the vault using default encryption
         vaultMetadata.Blob = await VaultEncryption.EncryptDataBlob(
-            _freshVaultString,
-            formData.vaultSecret,
-            formData.vaultEncryption,
-            formData.vaultEncryptionKeyDerivationFunction,
-            formData.vaultEncryptionConfig
+            _vaultBytes,
+            formData.Secret,
+            formData.Encryption,
+            formData.EncryptionKeyDerivationFunction,
+            formData.EncryptionConfig, // TODO: Get this TF out of here
+            formData.EncryptionConfig // TODO: Move this too
         );
 
         return vaultMetadata;
@@ -746,7 +846,7 @@ export class VaultMetadata {
      * @param vaultInstance The fresh vault instance to save to the database
      */
     public async save(vaultInstance: Vault | null): Promise<void> {
-        if (this.Blob === null) {
+        if (this.Blob == null) {
             throw new Error("Cannot save, vault blob is null");
         }
 
@@ -756,29 +856,28 @@ export class VaultMetadata {
             // Update the last used date only if we're actually updating the vault
             this.LastUsed = new Date().toISOString();
 
-            // Convert the vault to a JSON string
-            const _vaultString = JSON.stringify(vaultInstance);
+            // Serialize the vault instance
+            const _vaultBytes =
+                VaultUtilTypes.Vault.encode(vaultInstance).finish();
 
             // Encrypt the vault using the configured encryption
             this.Blob = await VaultEncryption.EncryptDataBlob(
-                _vaultString,
+                _vaultBytes,
                 vaultInstance.Secret,
-                this.Blob.algorithm,
-                this.Blob.keyDerivationFunc,
-                this.Blob.keyDerivationFuncConfig
+                this.Blob.Algorithm,
+                this.Blob.KeyDerivationFunc,
+                this.Blob
+                    .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+                this.Blob
+                    .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
             );
         }
 
-        // Mold the vault metadata into a serializable format
-        const serializableData: VaultStorage.VaultMetadataInterface = {
-            name: this.Name,
-            description: this.Description,
-            created_at: this.CreatedAt,
-            last_used: this.LastUsed,
-            blob: this.Blob,
-        };
-
-        await VaultStorage.saveVault(this.DBIndex, serializableData);
+        // Serialize the vault metadata and save it to the database
+        await VaultStorage.saveVault(
+            this.DBIndex,
+            VaultUtilTypes.VaultMetadata.encode(this).finish()
+        );
     }
 
     /**
@@ -789,11 +888,11 @@ export class VaultMetadata {
      */
     public async decryptVault(
         secret: string,
-        encryptionAlgorithm: VaultEncryption.EncryptionAlgorithm,
-        keyDerivationFunc: VaultEncryption.KeyDerivationFunction,
+        encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
+        keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
         keyDerivationFuncConfig: VaultEncryption.VaultEncryptionConfigurationsFormElementType
     ): Promise<Vault> {
-        if (this.Blob === null) {
+        if (this.Blob == null) {
             throw new Error("Vault blob is null");
         }
 
@@ -805,7 +904,8 @@ export class VaultMetadata {
             keyDerivationFuncConfig
         );
 
-        const vaultRawParsed = JSON.parse(decryptedVaultString);
+        const vaultRawParsed =
+            VaultUtilTypes.Vault.decode(decryptedVaultString);
 
         const vaultObject: Vault = Object.assign(
             new Vault(secret),
@@ -871,8 +971,10 @@ export class VaultMetadata {
      * @param cleanVaultInstance The cleaned up vault instance to encrypt and inject into the metadata
      * @returns A new VaultMetadata object ready to be saved for linking
      */
-    public async exportForLinking(cleanVaultInstance: Vault): Promise<this> {
-        if (this.Blob === null) {
+    public async exportForLinking(
+        cleanVaultInstance: Vault
+    ): Promise<Uint8Array> {
+        if (this.Blob == null) {
             throw new Error(
                 "Cannot export metadata for linking without an encrypted blob."
             );
@@ -880,102 +982,51 @@ export class VaultMetadata {
 
         const newMetadata = Object.assign(new VaultMetadata(), this);
 
-        // Convert the vault to a JSON string
-        const _vaultString = JSON.stringify(cleanVaultInstance);
+        // Reset the DBIndex to undefined because we cannot know what it will be on the other device
+        newMetadata.DBIndex = undefined;
 
-        newMetadata.DBIndex = null;
+        // Serialize the vault instance
+        const _vaultBytes =
+            VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
 
         // Encrypt the vault using the configured encryption
         newMetadata.Blob = await VaultEncryption.EncryptDataBlob(
-            _vaultString,
+            _vaultBytes,
             cleanVaultInstance.Secret,
-            this.Blob.algorithm,
-            this.Blob.keyDerivationFunc,
-            this.Blob.keyDerivationFuncConfig
+            this.Blob.Algorithm,
+            this.Blob.KeyDerivationFunc,
+            this.Blob
+                .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+            this.Blob
+                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
         );
 
-        return newMetadata;
+        return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
     }
 
-    /**
-     * Parses a JSON formatted string into a VaultMetadata Object while making sure the object is valid.
-     * This is used when importing a vault from a JSON file (usually a vault from a linked device).
-     * @param data The JSON string to parse
-     * @returns A new VaultMetadata object
-     */
-    public static async parseFromString(data: string): Promise<VaultMetadata> {
-        const obj = JSON.parse(data);
-
-        // Check if the object is valid
-        if (
-            !obj.hasOwnProperty("Name") ||
-            !obj.hasOwnProperty("Description") ||
-            !obj.hasOwnProperty("CreatedAt") ||
-            !obj.hasOwnProperty("LastUsed") ||
-            !obj.hasOwnProperty("Blob")
-        ) {
-            throw new Error("Invalid object. Parsing failed.");
-        }
-
-        const vaultMetadata = new VaultMetadata();
-
-        vaultMetadata.Name = obj.Name;
-        vaultMetadata.Description = obj.Description;
-        vaultMetadata.CreatedAt = obj.CreatedAt;
-        vaultMetadata.LastUsed = obj.LastUsed;
-        vaultMetadata.Blob = Object.assign(
-            VaultEncryption.EncryptedBlob.CreateDefault(),
-            obj.Blob
-        );
-
-        return vaultMetadata;
-    }
-
-    /**
-     * Parses raw data from the database interface into a proper VaultMetadata object.
-     * @param data The raw data from the database
-     * @returns A new VaultMetadata object
-     */
-    public static parseFromDatabase(
-        data: VaultStorage.VaultMetadataInterface
+    public static decodeMetadataBinary(
+        data: Uint8Array,
+        dbIndex?: number
     ): VaultMetadata {
-        const vaultMetadata = new VaultMetadata();
+        const rawData = VaultUtilTypes.VaultMetadata.decode(data);
 
-        vaultMetadata.DBIndex = data.id;
-        vaultMetadata.Name = data.name;
-        vaultMetadata.Description = data.description;
-        vaultMetadata.CreatedAt = data.created_at;
-        vaultMetadata.LastUsed = data.last_used;
-        vaultMetadata.Blob = Object.assign(
-            VaultEncryption.EncryptedBlob.CreateDefault(),
-            data.blob
-        );
+        const vaultMetadata = Object.assign(new VaultMetadata(), rawData);
+
+        if (dbIndex != null) vaultMetadata.DBIndex = dbIndex;
+
+        // Make sure that the Blob object is not a vanilla object
+        if (vaultMetadata.Blob != null) {
+            vaultMetadata.Blob = Object.assign(
+                VaultEncryption.EncryptedBlob.CreateDefault(),
+                vaultMetadata.Blob
+            );
+        }
 
         return vaultMetadata;
     }
 }
 
-export const newVaultFormSchema = z.object({
-    vaultName: z
-        .string()
-        .min(1, requiredFieldError)
-        .max(255, "Name is too long"),
-    vaultDescription: z.string().max(500, "Description is too long"),
-    vaultSecret: z.string().min(1, requiredFieldError),
-    vaultEncryption: VaultEncryption.vaultEncryptionFormElement,
-    vaultEncryptionKeyDerivationFunction:
-        VaultEncryption.vaultEncryptionKeyDerivationFunctionFormElement,
-    vaultEncryptionConfig:
-        VaultEncryption.vaultEncryptionConfigurationsFormElement,
-});
-export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
 export namespace Credential {
-    export enum TOTPAlgorithm {
-        SHA1 = "SHA1",
-        SHA256 = "SHA256",
-        SHA512 = "SHA512",
-    }
-
     export const totpFormSchema = z.object({
         Label: z
             .string()
@@ -985,42 +1036,20 @@ export namespace Credential {
         Secret: z.string(),
         Period: z.number().min(1, "Period must be at least 1 second"),
         Digits: z.number().min(1, "Digits must be at least 1"),
-        Algorithm: z.enum([
-            Credential.TOTPAlgorithm.SHA1,
-            Credential.TOTPAlgorithm.SHA256,
-            Credential.TOTPAlgorithm.SHA512,
-        ]),
-    });
-    export const credentialFormSchema = z.object({
-        id: z.string().nullable(),
-        name: z
-            .string()
-            .min(1, requiredFieldError)
-            .max(255, "Name is too long")
-            .optional(),
-        username: z.string().optional(),
-        password: z.string().optional(),
-        totp: totpFormSchema.nullable(),
-        tags: z.array(z.string()).optional(),
-        url: z.string().optional(),
-        notes: z.string().optional(),
-        dateCreated: z.string().optional(), // Used only in diffing
-        dateModified: z.string().nullable().optional(), // Used only in diffing
-        datePasswordChanged: z.string().nullable().optional(), // Used only in diffing
+        Algorithm: z.nativeEnum(VaultUtilTypes.TOTPAlgorithm),
     });
     export type TOTPFormSchemaType = z.infer<typeof totpFormSchema>;
-    export type CredentialFormSchemaType = z.infer<typeof credentialFormSchema>;
 
     export const PERIOD_DEFAULT = 30;
     export const DIGITS_DEFAULT = 6;
-    export const ALGORITHM_DEFAULT = TOTPAlgorithm.SHA1;
-    export class TOTP {
+    export const ALGORITHM_DEFAULT = VaultUtilTypes.TOTPAlgorithm.SHA1;
+    export class TOTP implements VaultUtilTypes.TOTP, TOTPFormSchemaType {
         public Label: string;
         public Issuer: string;
         public Secret: string;
         public Period: number;
         public Digits: number;
-        public Algorithm: TOTPAlgorithm;
+        public Algorithm: VaultUtilTypes.TOTPAlgorithm;
 
         constructor() {
             this.Label = "";
@@ -1037,7 +1066,7 @@ export namespace Credential {
         } {
             const code = OTPAuth.TOTP.generate({
                 secret: OTPAuth.Secret.fromBase32(this.Secret),
-                algorithm: this.Algorithm,
+                algorithm: VaultUtilTypes.TOTPAlgorithm[this.Algorithm],
                 digits: this.Digits,
                 period: this.Period,
             });
@@ -1052,39 +1081,59 @@ export namespace Credential {
         }
     }
 
-    export class VaultCredential {
+    export const credentialFormSchema = z.object({
+        ID: z.string().nullable(),
+        Name: z
+            .string()
+            .min(1, requiredFieldError)
+            .max(255, "Name is too long")
+            .optional(),
+        Username: z.string().optional(),
+        Password: z.string().optional(),
+        TOTP: totpFormSchema.optional().nullable(), // This has to be nullable because of the way the form works
+        Tags: z.string().optional(),
+        URL: z.string().optional(),
+        Notes: z.string().optional(),
+        DateCreated: z.string().optional(), // Used only in diffing
+        DateModified: z.string().nullable().optional(), // Used only in diffing
+        DatePasswordChanged: z.string().nullable().optional(), // Used only in diffing
+    });
+    export type CredentialFormSchemaType = z.infer<typeof credentialFormSchema>;
+    export class VaultCredential
+        implements VaultUtilTypes.Credential, CredentialFormSchemaType
+    {
         public ID: string;
         public Name: string;
         public Username: string;
         public Password: string;
-        public TOTP: TOTP | null;
-        public Tags: string[];
+        public TOTP: TOTP | undefined;
+        public Tags: string;
         public URL: string;
         public Notes: string;
         public DateCreated: string;
-        public DateModified: string | null;
-        public DatePasswordChanged: string | null;
+        public DateModified: string | undefined;
+        public DatePasswordChanged: string | undefined;
 
         constructor(form?: CredentialFormSchemaType) {
             if (process.env.NODE_ENV === "development") {
-                this.ID = form?.id ?? this.uuidv4_insecurecontexts();
+                this.ID = form?.ID ?? this.uuidv4_insecurecontexts();
             } else {
-                this.ID = form?.id ?? crypto.randomUUID();
+                this.ID = form?.ID ?? crypto.randomUUID();
             }
 
-            this.Name = form?.name ?? "";
-            this.Username = form?.username ?? "";
-            this.Password = form?.password ?? "";
-            this.TOTP = form?.totp
-                ? Object.assign(new Credential.TOTP(), form.totp)
-                : null;
-            this.Tags = form?.tags ?? [];
-            this.URL = form?.url ?? "";
-            this.Notes = form?.notes ?? "";
+            this.Name = form?.Name ?? "";
+            this.Username = form?.Username ?? "";
+            this.Password = form?.Password ?? "";
+            this.TOTP = form?.TOTP
+                ? Object.assign(new Credential.TOTP(), form.TOTP)
+                : undefined;
+            this.Tags = form?.Tags ?? "";
+            this.URL = form?.URL ?? "";
+            this.Notes = form?.Notes ?? "";
 
             this.DateCreated = new Date().toISOString();
-            this.DateModified = null;
-            this.DatePasswordChanged = null;
+            this.DateModified = undefined;
+            this.DatePasswordChanged = undefined;
         }
 
         /**
@@ -1110,41 +1159,43 @@ export namespace Credential {
         };
     }
 
-    export enum DiffType {
-        Add = "ADD",
-        Update = "UPDATE",
-        Delete = "DELETE",
+    export interface DiffChange
+        extends VaultUtilTypes.DiffChange,
+            DiffChangeSchemaType {
+        Type: VaultUtilTypes.DiffType;
+        ID: string;
+        Props?: VaultUtilTypes.PartialCredential | undefined;
     }
+    const DiffChangeSchema = z.object({
+        Type: z.nativeEnum(VaultUtilTypes.DiffType),
+        ID: z.string(),
+        Props: z.any().optional(), // This is Partial<VaultCredential>, undefined for deletes
+    });
+    type DiffChangeSchemaType = z.infer<typeof DiffChangeSchema>;
 
-    export type DiffChange = {
-        type: DiffType;
-        id: string;
-        props?: Partial<VaultCredential>;
-    };
+    export class Diff implements VaultUtilTypes.Diff, DiffSchemaType {
+        Hash: string;
+        Changes: DiffChange | undefined;
 
-    export class Diff {
-        hash: string;
-        changes: DiffChange | null;
-
-        constructor(hash = "", changes: DiffChange | null = null) {
-            this.hash = hash;
-            this.changes = changes;
+        constructor(hash = "", changes?: DiffChange) {
+            this.Hash = hash;
+            this.Changes = changes;
         }
     }
-
     export const DiffSchema = z.object({
-        hash: z.string(),
-        changes: z.object({
-            type: z.nativeEnum(DiffType),
-            id: z.string(),
-            props: z.any().optional(), // This is Partial<VaultCredential>, undefined for deletes
-        }),
+        Hash: z.string(),
+        Changes: DiffChangeSchema.optional(),
     });
+    export type DiffSchemaType = z.infer<typeof DiffSchema>;
 
     export const getChanges = (
         prevCredential: VaultCredential | undefined,
         nextCredential: VaultCredential
     ): DiffChange | null => {
+        // Normalize the previous and next credentials objects
+        prevCredential = prevCredential
+            ? JSON.parse(JSON.stringify(prevCredential))
+            : undefined;
         nextCredential = JSON.parse(JSON.stringify(nextCredential));
 
         const changes: DiffChange[] = [];
@@ -1152,84 +1203,91 @@ export namespace Credential {
         // If the previous credential doesn't exist, then this is a new credential
         if (!prevCredential) {
             return {
-                type: DiffType.Add,
-                id: nextCredential.ID,
-                props: nextCredential,
+                Type: VaultUtilTypes.DiffType.Add,
+                ID: nextCredential.ID,
+                Props: nextCredential,
             };
         }
 
         if (prevCredential.Name !== nextCredential.Name) {
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { Name: nextCredential.Name },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    Name: nextCredential.Name,
+                },
             });
         }
         if (prevCredential.Username !== nextCredential.Username) {
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { Username: nextCredential.Username },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    Username: nextCredential.Username,
+                },
             });
         }
         if (prevCredential.Password !== nextCredential.Password) {
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { Password: nextCredential.Password },
-            });
-        }
-        if (prevCredential.TOTP !== nextCredential.TOTP) {
-            changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { TOTP: nextCredential.TOTP },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    Password: nextCredential.Password,
+                },
             });
         }
         if (
-            JSON.stringify(prevCredential.Tags) !==
-            JSON.stringify(nextCredential.Tags)
+            JSON.stringify(prevCredential.TOTP) !==
+            JSON.stringify(nextCredential.TOTP)
         ) {
-            console.debug(
-                "Tags changed",
-                prevCredential.Tags,
-                nextCredential.Tags,
-                typeof prevCredential.Tags,
-                typeof nextCredential.Tags
-            );
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { Tags: nextCredential.Tags },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    TOTP: nextCredential.TOTP,
+                },
+            });
+        }
+        if (prevCredential.Tags !== nextCredential.Tags) {
+            changes.push({
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    Tags: nextCredential.Tags,
+                },
             });
         }
         if (prevCredential.URL !== nextCredential.URL) {
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { URL: nextCredential.URL },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: { URL: nextCredential.URL },
             });
         }
         if (prevCredential.Notes !== nextCredential.Notes) {
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: { Notes: nextCredential.Notes },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    Notes: nextCredential.Notes,
+                },
             });
         }
         if (prevCredential.DateCreated !== nextCredential.DateCreated) {
             changes.push({
-                type: Credential.DiffType.Update,
-                id: nextCredential.ID,
-                props: { DateCreated: nextCredential.DateCreated },
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    DateCreated: nextCredential.DateCreated,
+                },
             });
         }
 
         if (prevCredential.DateModified !== nextCredential.DateModified) {
             changes.push({
-                type: Credential.DiffType.Update,
-                id: nextCredential.ID,
-                props: {
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
                     DateModified: nextCredential.DateModified,
                 },
             });
@@ -1240,9 +1298,9 @@ export namespace Credential {
             nextCredential.DatePasswordChanged
         ) {
             changes.push({
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: {
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
                     DatePasswordChanged: nextCredential.DatePasswordChanged,
                 },
             });
@@ -1251,7 +1309,7 @@ export namespace Credential {
         // Merge all changes into a single update
         if (changes.length) {
             const _props: Partial<VaultCredential> | undefined = changes.reduce(
-                (acc, change) => ({ ...acc, ...change.props }),
+                (acc, change) => ({ ...acc, ...change.Props }),
                 {}
             );
 
@@ -1264,9 +1322,9 @@ export namespace Credential {
             }
 
             return {
-                type: DiffType.Update,
-                id: nextCredential.ID,
-                props: _props,
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: _props,
             };
         }
 
@@ -1277,18 +1335,20 @@ export namespace Credential {
 export const LinkedDevicesSchema = z.object({
     ID: z.string(),
     Name: z.string(),
-    LastSync: z.string().nullable(),
+    LastSync: z.string().optional(),
     IsRoot: z.boolean(),
     LinkedAtTimestamp: z.number(),
     AutoConnect: z.boolean(),
     SyncTimeout: z.boolean(),
     SyncTimeoutPeriod: z.number(),
 });
-export type LinkedDeviceType = z.infer<typeof LinkedDevicesSchema>;
-export class LinkedDevice implements LinkedDeviceType {
+export type LinkedDeviceSchemaType = z.infer<typeof LinkedDevicesSchema>;
+export class LinkedDevice
+    implements VaultUtilTypes.LinkedDevice, LinkedDeviceSchemaType
+{
     public ID: string;
     public Name: string;
-    public LastSync: string | null = null;
+    public LastSync: string | undefined;
     public IsRoot = false;
     public LinkedAtTimestamp = Date.now();
     public AutoConnect: boolean;
@@ -1344,7 +1404,9 @@ export interface OnlineServicesAccountInterface {
     PrivateKey?: string;
 }
 
-export class OnlineServicesAccount implements OnlineServicesAccountInterface {
+export class OnlineServicesAccount
+    implements VaultUtilTypes.OnlineServices, OnlineServicesAccountInterface
+{
     public UserID?: string;
     public PublicKey?: string;
     public PrivateKey?: string;
@@ -1441,20 +1503,24 @@ export class OnlineServicesAccount implements OnlineServicesAccountInterface {
 
         // Create a default EncryptedBlob object and assign the encrypted data to it
         const encryptedBlob = VaultEncryption.EncryptedBlob.CreateDefault();
-        encryptedBlob.blob = encryptedData.toString();
-        encryptedBlob.salt = salt;
-        encryptedBlob.header_iv = header_iv;
+        encryptedBlob.Blob = Buffer.from(blob, "base64");
+        encryptedBlob.Salt = salt;
+        encryptedBlob.HeaderIV = header_iv;
 
         const decrypted = await VaultEncryption.DecryptDataBlob(
             encryptedBlob,
             secret,
-            encryptedBlob.algorithm,
-            encryptedBlob.keyDerivationFunc,
-            encryptedBlob.keyDerivationFuncConfig
+            encryptedBlob.Algorithm,
+            encryptedBlob.KeyDerivationFunc,
+            encryptedBlob.KeyDerivationFunc ===
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                ? (encryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID)
+                : (encryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2)
         );
 
-        const decryptedData: OnlineServicesAccountInterface =
-            JSON.parse(decrypted);
+        const decryptedData: OnlineServicesAccountInterface = JSON.parse(
+            Buffer.from(decrypted).toString()
+        );
 
         // Some basic validation
         if (
@@ -1505,20 +1571,26 @@ export class OnlineServicesAccount implements OnlineServicesAccountInterface {
             PrivateKey: privateKey,
         };
 
-        newEncryptedBlob.blob = Buffer.from(
+        newEncryptedBlob.Blob = Buffer.from(
             JSON.stringify(dataToEncrypt, null, 0)
-        ).toString();
+        );
 
         // Encrypt the data using the passphrase
         const _encryptedData = await VaultEncryption.EncryptDataBlob(
-            newEncryptedBlob.blob,
+            newEncryptedBlob.Blob,
             secret,
-            newEncryptedBlob.algorithm,
-            newEncryptedBlob.keyDerivationFunc,
-            newEncryptedBlob.keyDerivationFuncConfig
+            newEncryptedBlob.Algorithm,
+            newEncryptedBlob.KeyDerivationFunc,
+            newEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+            newEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
         );
 
-        const encryptedDataB64 = `${_encryptedData.blob}:${_encryptedData.salt}:${_encryptedData.header_iv}`;
+        // Convert the encrypted data to a base64 string
+        const encryptdBase64Blob = Buffer.from(_encryptedData.Blob).toString(
+            "base64"
+        );
+
+        const encryptedDataB64 = `${encryptdBase64Blob}:${_encryptedData.Salt}:${_encryptedData.HeaderIV}`;
 
         return {
             encryptedDataB64,
@@ -1540,7 +1612,8 @@ class Configuration {
     }
 }
 
-export class Vault {
+export class Vault implements VaultUtilTypes.Vault {
+    public Version: number;
     public Secret: string;
     public OnlineServices: OnlineServicesAccount;
     public Credentials: Credential.VaultCredential[];
@@ -1548,6 +1621,9 @@ export class Vault {
     public Configuration: Configuration = new Configuration();
 
     constructor(secret = "", seedData = false, seedCount = 0) {
+        // This is the version of the vault schema
+        // It changes when the schema changes
+        this.Version = 1;
         this.Secret = secret;
         this.OnlineServices = new OnlineServicesAccount();
         this.Credentials = seedData ? this.seedVault(seedCount) : [];
@@ -1580,17 +1656,29 @@ export class Vault {
     /**
      * Hashes the vault's credentials and returns the hash as a hex string.
      * This is used to when computing diffs between changes to the vault credentials.
+     * It also sorts the properties of the credentials to ensure that the hash is consistent.
      * @returns A SHA256 hash
      */
     private hashCredentials(): string {
-        const credentialsCopy = this.Credentials.map((c) => {
-            const copy = Object.assign({}, c);
+        // Copy the credential object property by property
+        const credentialsCopy = this.Credentials.map(
+            (c: Credential.VaultCredential) => {
+                const blankObject: Partial<Credential.VaultCredential> = {};
 
-            // Setting the ID to an empty string makes it irrelevant when computing the hash
-            copy.ID = "";
+                // Sort the properties first to ensure the hash is consistent
+                Object.keys(c)
+                    .sort()
+                    .forEach((key: string) => {
+                        const typedKey =
+                            key as keyof Credential.VaultCredential;
+                        (blankObject as any)[typedKey] = c[typedKey];
+                    });
 
-            return copy;
-        });
+                blankObject.ID = "";
+
+                return blankObject;
+            }
+        );
 
         const stringifiedCredentials = JSON.stringify(credentialsCopy, null, 0);
         console.debug("Hashing credentials: ", stringifiedCredentials);
@@ -1614,7 +1702,7 @@ export class Vault {
             return null;
         }
 
-        return this.Diffs.at(-1)?.hash ?? "";
+        return this.Diffs.at(-1)?.Hash ?? "";
     }
 
     /**
@@ -1622,7 +1710,7 @@ export class Vault {
      * @returns If there are diffs, an array of hashes from the latest diff to the first diff (in that order), empty array otherwise
      */
     public getAllHashes(): string[] {
-        return this.Diffs.map((diff) => diff.hash).reverse();
+        return this.Diffs.map((diff) => diff.Hash).reverse();
     }
 
     /**
@@ -1637,7 +1725,7 @@ export class Vault {
             return this.Diffs;
         }
 
-        const startIndex = this.Diffs.findIndex((diff) => diff.hash === hash);
+        const startIndex = this.Diffs.findIndex((diff) => diff.Hash === hash);
 
         // If the hash is not found, return an empty array
         if (startIndex === -1) {
@@ -1686,7 +1774,7 @@ export class Vault {
         console.debug("Current diff list:", this.Diffs);
     }
 
-    public applyDiffs(diffs: Credential.Diff[]) {
+    public applyDiffs(diffs: Credential.DiffSchemaType[]) {
         console.time("applyDiffs");
 
         // If there are no diffs, return
@@ -1697,45 +1785,48 @@ export class Vault {
 
         // Apply the diffs in order
         diffs.forEach((diff) => {
-            if (diff.changes) {
+            if (diff.Changes) {
                 if (
-                    diff.changes.type === Credential.DiffType.Add ||
-                    diff.changes.type === Credential.DiffType.Update
+                    diff.Changes.Type === VaultUtilTypes.DiffType.Add ||
+                    diff.Changes.Type === VaultUtilTypes.DiffType.Update
                 ) {
-                    if (diff.changes.props) {
+                    if (diff.Changes.Props) {
                         // If the diff has a TOTP, create a TOTP object
-                        let totp: Credential.TOTPFormSchemaType | null = null;
-                        if (diff.changes.props.TOTP) {
+                        let totp: Credential.TOTPFormSchemaType | undefined =
+                            undefined;
+                        if (diff.Changes.Props.TOTP) {
                             totp = {
-                                Label: diff.changes.props.TOTP.Label,
-                                Issuer: diff.changes.props.TOTP.Issuer,
-                                Algorithm: diff.changes.props.TOTP.Algorithm,
-                                Digits: diff.changes.props.TOTP.Digits,
-                                Period: diff.changes.props.TOTP.Period,
-                                Secret: diff.changes.props.TOTP.Secret,
+                                Label: diff.Changes.Props.TOTP.Label,
+                                Issuer: diff.Changes.Props.TOTP.Issuer,
+                                Algorithm: diff.Changes.Props.TOTP.Algorithm,
+                                Digits: diff.Changes.Props.TOTP.Digits,
+                                Period: diff.Changes.Props.TOTP.Period,
+                                Secret: diff.Changes.Props.TOTP.Secret,
                             };
                         }
 
                         // Use the built-in upsert method to add or update the credential
                         // That way we don't have to duplicate the logic
                         this.upsertCredential({
-                            id: diff.changes.id,
-                            name: diff.changes.props.Name,
-                            username: diff.changes.props.Username,
-                            password: diff.changes.props.Password,
-                            tags: diff.changes.props.Tags,
-                            notes: diff.changes.props.Notes,
-                            totp: totp,
-                            url: diff.changes.props.URL,
-                            dateCreated: diff.changes.props.DateCreated,
-                            dateModified: diff.changes.props.DateModified,
-                            datePasswordChanged:
-                                diff.changes.props.DatePasswordChanged,
+                            ID: diff.Changes.ID,
+                            Name: diff.Changes.Props.Name,
+                            Username: diff.Changes.Props.Username,
+                            Password: diff.Changes.Props.Password,
+                            Tags: diff.Changes.Props.Tags,
+                            Notes: diff.Changes.Props.Notes,
+                            TOTP: totp,
+                            URL: diff.Changes.Props.URL,
+                            DateCreated: diff.Changes.Props.DateCreated,
+                            DateModified: diff.Changes.Props.DateModified,
+                            DatePasswordChanged:
+                                diff.Changes.Props.DatePasswordChanged,
                         });
                     }
-                } else if (diff.changes.type === Credential.DiffType.Delete) {
+                } else if (
+                    diff.Changes.Type === VaultUtilTypes.DiffType.Delete
+                ) {
                     // Use the built-in delete method to delete the credential
-                    this.deleteCredential(diff.changes.id);
+                    this.deleteCredential(diff.Changes.ID);
                 }
             }
         });
@@ -1756,7 +1847,7 @@ export class Vault {
 
         console.time("upsertCredential-findExisting");
         const existingCreds: Credential.VaultCredential | undefined =
-            this.Credentials.find((c) => c.ID === form.id);
+            this.Credentials.find((c) => c.ID === form.ID);
         console.timeEnd("upsertCredential-findExisting");
 
         let changes: Credential.DiffChange | null = null;
@@ -1771,30 +1862,31 @@ export class Vault {
             console.time("upsertCredential-updateExisting");
             const today = new Date().toISOString();
 
-            if (form.name) existingCreds.Name = form.name;
+            if (form.Name) existingCreds.Name = form.Name;
 
-            if (form.username) existingCreds.Username = form.username;
+            if (form.Username !== undefined)
+                existingCreds.Username = form.Username;
 
-            if (form.password) {
-                if (form.password !== existingCreds.Password)
-                    existingCreds.DatePasswordChanged = form.datePasswordChanged
-                        ? form.datePasswordChanged
+            if (form.Password !== undefined) {
+                if (form.Password !== existingCreds.Password)
+                    existingCreds.DatePasswordChanged = form.DatePasswordChanged
+                        ? form.DatePasswordChanged
                         : today;
 
-                existingCreds.Password = form.password;
+                existingCreds.Password = form.Password;
             }
 
-            existingCreds.TOTP = form.totp
-                ? Object.assign(new Credential.TOTP(), form.totp)
-                : null;
+            existingCreds.TOTP = form.TOTP
+                ? Object.assign(new Credential.TOTP(), form.TOTP)
+                : undefined;
 
-            if (form.tags) existingCreds.Tags = form.tags;
-            if (form.url) existingCreds.URL = form.url;
-            if (form.notes) existingCreds.Notes = form.notes;
+            if (form.Tags !== undefined) existingCreds.Tags = form.Tags;
+            if (form.URL !== undefined) existingCreds.URL = form.URL;
+            if (form.Notes !== undefined) existingCreds.Notes = form.Notes;
 
             // This is OK because if this is the only change, getChanges won't return anything
-            existingCreds.DateModified = form.dateModified
-                ? form.dateModified
+            existingCreds.DateModified = form.DateModified
+                ? form.DateModified
                 : today;
             console.timeEnd("upsertCredential-updateExisting");
 
@@ -1808,7 +1900,7 @@ export class Vault {
             const newCreds = new Credential.VaultCredential(form);
             console.timeEnd("upsertCredential-newCreds");
 
-            if (form.dateCreated) newCreds.DateCreated = form.dateCreated;
+            if (form.DateCreated) newCreds.DateCreated = form.DateCreated;
 
             console.time("upsertCredential-pushNewCreds");
             this.Credentials.push(newCreds);
@@ -1838,8 +1930,8 @@ export class Vault {
 
         if (index >= 0) {
             const change: Credential.DiffChange = {
-                type: Credential.DiffType.Delete,
-                id: id,
+                Type: VaultUtilTypes.DiffType.Delete,
+                ID: id,
             };
 
             console.time("deleteCredential-splice");
@@ -1925,11 +2017,23 @@ export namespace Synchronization {
         ResponseSyncAllHashes = "response-sync-all-hashes",
         LinkedDevicesList = "linked-devices-list",
     }
-    export interface Message {
+    export class Message implements z.infer<typeof messageSchema> {
         command: Command;
         hash: string | null;
-        diffList: Credential.Diff[];
-        linkedDevicesList?: LinkedDeviceType[];
+        diffList: Credential.DiffSchemaType[];
+        linkedDevicesList?: LinkedDeviceSchemaType[];
+
+        constructor(
+            command: Command,
+            hash: string | null,
+            diffList: Credential.DiffSchemaType[],
+            linkedDevicesList?: LinkedDeviceSchemaType[]
+        ) {
+            this.command = command;
+            this.hash = hash;
+            this.diffList = diffList;
+            this.linkedDevicesList = linkedDevicesList;
+        }
     }
     export const messageSchema = z.object({
         command: z.nativeEnum(Command),
@@ -1938,3 +2042,21 @@ export namespace Synchronization {
         linkedDevicesList: z.array(LinkedDevicesSchema).optional(),
     });
 }
+
+//#region Schemas
+export const newVaultFormSchema = z.object({
+    Name: z.string().min(1, requiredFieldError).max(255, "Name is too long"),
+    Description: z.string().max(500, "Description is too long"),
+    Secret: z.string().min(1, requiredFieldError),
+    Encryption: VaultEncryption.vaultEncryptionFormElement,
+    EncryptionKeyDerivationFunction:
+        VaultEncryption.vaultEncryptionKeyDerivationFunctionFormElement,
+    EncryptionConfig: VaultEncryption.vaultEncryptionConfigurationsFormElement,
+});
+export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
+
+export const vaultRestoreFormSchema = z.object({
+    Name: z.string().min(1, requiredFieldError),
+});
+export type VaultRestoreFormSchema = z.infer<typeof vaultRestoreFormSchema>;
+//#endregion Schemas

@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package VaultUtilTypes;
+
+//#region Encryption
+message KeyDerivationConfig_Argon2ID {
+    int32 memLimit = 7;
+    int32 opsLimit = 8;
+}
+
+message KeyDerivationConfig_PBKDF2 {
+    int32 iterations = 4;
+}
+
+enum EncryptionAlgorithm {
+    AES256 = 0;
+    XChaCha20Poly1305 = 1;
+}
+enum KeyDerivationFunction {
+    PBKDF2 = 0;
+    Argon2ID = 1;
+}
+//#endregion Encryption
+
+//#region Vault Metadata
+message VaultMetadata {
+    int32 Version = 1;
+    optional int32 DBIndex = 2;
+    string Name = 3;
+    string Description = 4;
+    string CreatedAt = 5;
+    optional string LastUsed = 6;
+    string Icon = 7;
+    string Color = 8;
+    optional EncryptedBlob Blob = 9;
+}
+
+message EncryptedBlob {
+    EncryptionAlgorithm Algorithm = 1;
+    KeyDerivationFunction KeyDerivationFunc = 2;
+
+    KeyDerivationConfig_Argon2ID KDFConfigArgon2ID = 3;
+    KeyDerivationConfig_PBKDF2 KDFConfigPBKDF2 = 4;
+
+    bytes Blob = 5;
+    string Salt = 6;
+    string HeaderIV = 7;
+}
+//#endregion Vault Metadata
+
+message Vault {
+    int32 Version = 1;
+    string Secret = 2; 
+    Configuration Configuration = 3;
+    OnlineServices OnlineServices = 4;
+    repeated Credential Credentials = 5;
+    repeated Diff Diffs = 6;
+}
+
+message Configuration {
+    int32 MaxDiffCount = 1;
+}
+
+//#region OnlineServices
+message OnlineServices {
+    optional string UserID = 1;
+    optional string PublicKey = 2;
+    optional string PrivateKey = 3;
+    int32 CreationTimestamp = 4;
+
+    repeated LinkedDevice LinkedDevices = 5;
+}
+
+message LinkedDevice {
+    string ID = 1;
+    string Name = 2;
+    optional string LastSync = 3;
+    bool IsRoot = 4;
+    int32 LinkedAtTimestamp = 5;
+    bool AutoConnect = 6;
+    bool SyncTimeout = 7;
+    int32 SyncTimeoutPeriod = 8;
+}
+//#endregion OnlineServices
+
+//#region Credentials
+message Credential {
+    string ID = 1;
+    string Name = 2;
+    string Username = 3;
+    string Password = 4;
+    optional TOTP TOTP = 5;
+    optional string Tags = 6;
+    string URL = 7;
+    string Notes = 8;
+    string DateCreated = 9;
+    optional string DateModified = 10;
+    optional string DatePasswordChanged = 11;
+}
+
+// All optional version of Credential
+message PartialCredential {
+    optional string ID = 1;
+    optional string Name = 2;
+    optional string Username = 3;
+    optional string Password = 4;
+    optional TOTP TOTP = 5;
+    optional string Tags = 6;
+    optional string URL = 7;
+    optional string Notes = 8;
+    optional string DateCreated = 9;
+    optional string DateModified = 10;
+    optional string DatePasswordChanged = 11;
+}
+
+message TOTP {
+    string Label = 1;
+    string Issuer = 2;
+    string Secret = 3;
+    int32 Period = 4;
+    int32 Digits = 5;
+    TOTPAlgorithm Algorithm = 6;
+}
+
+enum TOTPAlgorithm {
+    SHA1 = 0;
+    SHA256 = 1;
+    SHA512 = 2;
+}
+//#endregion Credentials
+
+//#region Diff
+message Diff {
+    string Hash = 1;
+    optional DiffChange Changes = 2;
+}
+
+message DiffChange {
+    DiffType Type = 1;
+    string ID = 2;
+    optional PartialCredential Props = 3;
+}
+
+enum DiffType {
+    Add = 0;
+    Delete = 1;
+    Update = 2;
+}
+//#endregion Diff

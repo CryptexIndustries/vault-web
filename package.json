@@ -9,7 +9,8 @@
         "start": "next start",
         "lint": "next lint",
         "tsc-lint": "tsc -w",
-        "postinstall": "prisma generate"
+        "postinstall": "prisma generate",
+        "protogen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=. ./src/app_lib/proto/vault.proto --ts_proto_opt=oneof=unions,unrecognizedEnum=false,useOptionals=none,initializeFieldsAsUndefined=false,esModuleInterop=true,useDate=false,stringEnums=false,outputEncodeMethods=true,outputJsonMethods=false"
     },
     "dependencies": {
         "@floating-ui/react-dom": "^2.0.0",
@@ -71,6 +72,7 @@
         "prettier-plugin-tailwindcss": "^0.2.7",
         "prisma": "^4.14.0",
         "tailwindcss": "^3.3.1",
+        "ts-proto": "^1.153.2",
         "typescript": "5.0.4"
     },
     "ct3aMetadata": {

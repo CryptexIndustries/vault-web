@@ -73,7 +73,7 @@ import {
 } from "../../app_lib/online_services_utils";
 import { signUpFormSchema } from "../../app_lib/online_services_utils";
 import {
-    BackupUtils,
+    Backup,
     Credential,
     LinkedDevice,
     NewVaultFormSchemaType,
@@ -88,6 +88,11 @@ import {
     newVaultFormSchema,
     vaultRestoreFormSchema,
 } from "../../app_lib/vault_utils";
+import {
+    TOTPAlgorithm,
+    EncryptionAlgorithm,
+    KeyDerivationFunction,
+} from "../../app_lib/proto/vault";
 import NavBar from "../../components/navbar";
 import {
     WarningDialog,
@@ -331,7 +336,7 @@ const VaultListItem: React.FC<VaultListItemProps> = ({
                         <div className="py-1">
                             {options.map((option, index) => (
                                 <Menu.Item
-                                    key={`vault-${vaultBlob.header_iv}-${index}`}
+                                    key={`vault-${vaultBlob.HeaderIV}-${index}`}
                                 >
                                     {({ active }) => {
                                         const hoverClass = clsx({
@@ -550,14 +555,15 @@ const IconRestoreVault: React.FC = () => {
     );
 };
 
-type VaultEncryptionAlgorithmSelectboxProps = {
+const EncryptionAlgorithmSelectbox: React.FC<{
     onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
     onBlur: () => void;
-    value: VaultEncryption.EncryptionAlgorithm;
-};
-const EncryptionAlgorithmSelectbox: React.FC<
-    VaultEncryptionAlgorithmSelectboxProps
-> = ({ onChange, onBlur, value }) => {
+    value: EncryptionAlgorithm;
+}> = ({ onChange, onBlur, value }) => {
+    // Only use the numeric values of the enum to create the selectbox
+    const encryptionOptions: number[] = Object.values(EncryptionAlgorithm)
+        .filter((key) => !isNaN(Number(key)))
+        .map((key) => Number(key));
     return (
         <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
             <select
@@ -566,29 +572,25 @@ const EncryptionAlgorithmSelectbox: React.FC<
                 onBlur={onBlur}
                 value={value}
             >
-                {Object.values(VaultEncryption.EncryptionAlgorithm).map(
-                    (key) => (
-                        <option
-                            key={key}
-                            value={VaultEncryption.EncryptionAlgorithm[key]}
-                        >
-                            {VaultEncryption.EncryptionAlgorithm[key]}
-                        </option>
-                    )
-                )}
+                {encryptionOptions.map((key) => (
+                    <option key={key} value={key}>
+                        {EncryptionAlgorithm[key]}
+                    </option>
+                ))}
             </select>
         </div>
     );
 };
 
-type KeyDerivationFunctionSelectboxProps = {
+const KeyDerivationFunctionSelectbox: React.FC<{
     onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
     onBlur: () => void;
-    value: VaultEncryption.KeyDerivationFunction;
-};
-const KeyDerivationFunctionSelectbox: React.FC<
-    KeyDerivationFunctionSelectboxProps
-> = ({ onChange, onBlur, value }) => {
+    value: KeyDerivationFunction;
+}> = ({ onChange, onBlur, value }) => {
+    // Only use the numeric values of the enum to create the selectbox
+    const keyDerivationOptions: number[] = Object.values(KeyDerivationFunction)
+        .filter((key) => !isNaN(Number(key)))
+        .map((key) => Number(key));
     return (
         <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
             <select
@@ -597,35 +599,25 @@ const KeyDerivationFunctionSelectbox: React.FC<
                 onBlur={onBlur}
                 value={value}
             >
-                {Object.values(VaultEncryption.KeyDerivationFunction).map(
-                    (key) => (
-                        <option
-                            key={key}
-                            value={VaultEncryption.KeyDerivationFunction[key]}
-                        >
-                            {VaultEncryption.KeyDerivationFunction[key]}
-                        </option>
-                    )
-                )}
+                {keyDerivationOptions.map((key) => (
+                    <option key={key} value={key}>
+                        {KeyDerivationFunction[key]}
+                    </option>
+                ))}
             </select>
         </div>
     );
 };
 
-type UnlockVaultDialogProps = {
+const UnlockVaultDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     selected: React.MutableRefObject<VaultMetadata | undefined>;
-};
-const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
-    visibleState,
-    selected,
-}) => {
+}> = ({ visibleState, selected }) => {
     const defaultValues: VaultEncryption.UnlockVaultFormSchemaType = {
-        vaultSecret: "",
-        vaultEncryption: VaultEncryption.EncryptionAlgorithm.XChaCha20Poly1305,
-        vaultEncryptionKeyDerivationFunction:
-            VaultEncryption.KeyDerivationFunction.Argon2ID,
-        vaultEncryptionConfig: {
+        Secret: "",
+        Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
+        EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
+        EncryptionConfig: {
             iterations:
                 VaultEncryption.KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
             memLimit:
@@ -633,7 +625,7 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
             opsLimit:
                 VaultEncryption.KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
         },
-        captchaToken: "",
+        CaptchaToken: "",
     };
     const {
         handleSubmit,
@@ -677,15 +669,15 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
 
         try {
             const vault = await selected.current.decryptVault(
-                formData.vaultSecret,
-                formData.vaultEncryption,
-                formData.vaultEncryptionKeyDerivationFunction,
-                formData.vaultEncryptionConfig
+                formData.Secret,
+                formData.Encryption,
+                formData.EncryptionKeyDerivationFunction,
+                formData.EncryptionConfig
             );
 
             // Initialize the vault account
             const res = await cryptexAccountInit(
-                formData.captchaToken,
+                formData.CaptchaToken,
                 vault.OnlineServices.UserID,
                 vault.OnlineServices.PrivateKey
             );
@@ -752,15 +744,26 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
         // Set the form fields to the selected vault's encryption algorithm
         if (selected.current && selected.current.Blob) {
             resetForm({
-                vaultSecret: "",
-                vaultEncryption: selected.current.Blob.algorithm,
-                vaultEncryptionKeyDerivationFunction:
-                    selected.current.Blob.keyDerivationFunc,
-                vaultEncryptionConfig:
-                    selected.current.Blob.keyDerivationFuncConfig,
-                captchaToken: "",
+                Secret: "",
+                Encryption: selected.current.Blob.Algorithm,
+                EncryptionKeyDerivationFunction:
+                    selected.current.Blob.KeyDerivationFunc,
+                EncryptionConfig: {
+                    iterations:
+                        selected.current.Blob.KDFConfigPBKDF2?.iterations ??
+                        VaultEncryption.KeyDerivationConfig_PBKDF2
+                            .DEFAULT_ITERATIONS,
+                    memLimit:
+                        selected.current.Blob.KDFConfigArgon2ID?.memLimit ??
+                        VaultEncryption.KeyDerivationConfig_Argon2ID
+                            .DEFAULT_MEM_LIMIT,
+                    opsLimit:
+                        selected.current.Blob.KDFConfigArgon2ID?.opsLimit ??
+                        VaultEncryption.KeyDerivationConfig_Argon2ID
+                            .DEFAULT_OPS_LIMIT,
+                },
+                CaptchaToken: "",
             });
-
             // If we're in development, automatically unlock the vault
             // if (process.env.NODE_ENV === "development") {
             //     setValue("vaultSecret", "This is insane");
@@ -784,13 +787,17 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                         Name: <b>{selected.current?.Name}</b>
                         <br />
                         Saved Encryption:{" "}
-                        <b>{selected.current?.Blob?.algorithm ?? "Unknown"}</b>
+                        <b>
+                            {EncryptionAlgorithm[
+                                selected.current?.Blob?.Algorithm ?? 0
+                            ] ?? "Unknown"}
+                        </b>
                     </p>
                     <div className="flex w-full flex-col text-left">
                         <div className="mt-2 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultSecret"
+                                name="Secret"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -814,16 +821,16 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultSecret && (
+                            {errors.Secret && (
                                 <p className="text-red-500">
-                                    {errors.vaultSecret.message}
+                                    {errors.Secret.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultEncryption"
+                                name="Encryption"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -839,16 +846,16 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultEncryption && (
+                            {errors.Encryption && (
                                 <p className="text-red-500">
-                                    {errors.vaultEncryption.message}
+                                    {errors.Encryption.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultEncryptionKeyDerivationFunction"
+                                name="EncryptionKeyDerivationFunction"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -864,11 +871,10 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultEncryptionKeyDerivationFunction && (
+                            {errors.EncryptionKeyDerivationFunction && (
                                 <p className="text-red-500">
                                     {
-                                        errors
-                                            .vaultEncryptionKeyDerivationFunction
+                                        errors.EncryptionKeyDerivationFunction
                                             .message
                                     }
                                 </p>
@@ -888,16 +894,15 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "vaultEncryptionKeyDerivationFunction"
-                                            ) !==
-                                            VaultEncryption
-                                                .KeyDerivationFunction.Argon2ID,
+                                                "EncryptionKeyDerivationFunction"
+                                            ).toString() !==
+                                            KeyDerivationFunction.Argon2ID.toString(),
                                     })}
                                 >
                                     <div className="flex flex-col">
                                         <Controller
                                             control={control}
-                                            name="vaultEncryptionConfig.memLimit"
+                                            name="EncryptionConfig.memLimit"
                                             render={({
                                                 field: {
                                                     onChange,
@@ -919,11 +924,10 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                                 />
                                             )}
                                         />
-                                        {errors.vaultEncryptionConfig
-                                            ?.memLimit && (
+                                        {errors.EncryptionConfig?.memLimit && (
                                             <p className="text-red-500">
                                                 {
-                                                    errors.vaultEncryptionConfig
+                                                    errors.EncryptionConfig
                                                         ?.memLimit.message
                                                 }
                                             </p>
@@ -932,7 +936,7 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     <div className="mt-4 flex flex-col">
                                         <Controller
                                             control={control}
-                                            name="vaultEncryptionConfig.opsLimit"
+                                            name="EncryptionConfig.opsLimit"
                                             render={({
                                                 field: {
                                                     onChange,
@@ -958,11 +962,10 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                                 />
                                             )}
                                         />
-                                        {errors.vaultEncryptionConfig
-                                            ?.opsLimit && (
+                                        {errors.EncryptionConfig?.opsLimit && (
                                             <p className="text-red-500">
                                                 {
-                                                    errors.vaultEncryptionConfig
+                                                    errors.EncryptionConfig
                                                         ?.opsLimit.message
                                                 }
                                             </p>
@@ -975,16 +978,15 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "vaultEncryptionKeyDerivationFunction"
-                                            ) !==
-                                            VaultEncryption
-                                                .KeyDerivationFunction.PBKDF2,
+                                                "EncryptionKeyDerivationFunction"
+                                            ).toString() !==
+                                            KeyDerivationFunction.PBKDF2.toString(),
                                     })}
                                 >
                                     <div className="flex flex-col">
                                         <Controller
                                             control={control}
-                                            name="vaultEncryptionConfig.iterations"
+                                            name="EncryptionConfig.iterations"
                                             render={({
                                                 field: {
                                                     onChange,
@@ -1001,11 +1003,11 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                                 />
                                             )}
                                         />
-                                        {errors.vaultEncryptionConfig
+                                        {errors.EncryptionConfig
                                             ?.iterations && (
                                             <p className="text-red-500">
                                                 {
-                                                    errors.vaultEncryptionConfig
+                                                    errors.EncryptionConfig
                                                         ?.iterations.message
                                                 }
                                             </p>
@@ -1013,9 +1015,9 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                     </div>
                                 </div>
 
-                                {errors.vaultEncryptionConfig && (
+                                {errors.EncryptionConfig && (
                                     <p className="text-red-500">
-                                        {errors.vaultEncryptionConfig.message}
+                                        {errors.EncryptionConfig.message}
                                     </p>
                                 )}
                             </AccordionItem>
@@ -1025,7 +1027,7 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                             <div className="mt-4 flex flex-col items-center">
                                 <Controller
                                     control={control}
-                                    name="captchaToken"
+                                    name="CaptchaToken"
                                     render={({ field: { onChange } }) => (
                                         <Turnstile
                                             options={{
@@ -1038,7 +1040,7 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                                 env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
                                             }
                                             onError={() => {
-                                                setFormError("captchaToken", {
+                                                setFormError("CaptchaToken", {
                                                     message: "Captcha error",
                                                 });
                                             }}
@@ -1049,9 +1051,9 @@ const UnlockVaultDialog: React.FC<UnlockVaultDialogProps> = ({
                                         />
                                     )}
                                 />
-                                {errors.captchaToken && (
+                                {errors.CaptchaToken && (
                                     <p className="text-red-500">
-                                        {errors.captchaToken.message}
+                                        {errors.CaptchaToken.message}
                                     </p>
                                 )}
                             </div>
@@ -1183,14 +1185,11 @@ enum CreateVaultDialogMode {
     Blank,
     FromImport,
 }
-type CreateVaultDialogProps = {
+const CreateVaultDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     mode: CreateVaultDialogMode;
     vaultInstance: React.MutableRefObject<Vault | undefined>;
-};
-const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
-    visibleState,
-}) => {
+}> = ({ visibleState }) => {
     const [dev_seedVault, setdev_seedVault] = useState(false);
     const dev_seedCount = useRef<number>(100);
 
@@ -1203,14 +1202,12 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
     } = useForm<NewVaultFormSchemaType>({
         resolver: zodResolver(newVaultFormSchema),
         defaultValues: {
-            vaultName: "",
-            vaultDescription: "",
-            vaultSecret: "",
-            vaultEncryption:
-                VaultEncryption.EncryptionAlgorithm.XChaCha20Poly1305,
-            vaultEncryptionKeyDerivationFunction:
-                VaultEncryption.KeyDerivationFunction.Argon2ID,
-            vaultEncryptionConfig: {
+            Name: "",
+            Description: "",
+            Secret: "",
+            Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
+            EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
+            EncryptionConfig: {
                 iterations:
                     VaultEncryption.KeyDerivationConfig_PBKDF2
                         .DEFAULT_ITERATIONS,
@@ -1259,10 +1256,10 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
 
             // Verify that the vault has been properly encrypted - try to decrypt it
             await vaultMetadata.decryptVault(
-                data.vaultSecret,
-                data.vaultEncryption,
-                data.vaultEncryptionKeyDerivationFunction,
-                data.vaultEncryptionConfig
+                data.Secret,
+                data.Encryption,
+                data.EncryptionKeyDerivationFunction,
+                data.EncryptionConfig
             );
             // console.debug("Decrypted vault:", _);
 
@@ -1290,7 +1287,10 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
     const hideDialog = async (force = false) => {
         const hide = () => {
             visibleState[1](false);
-            resetForm();
+
+            setTimeout(() => {
+                resetForm();
+            }, DIALOG_BLUR_TIME);
         };
 
         // Check if the form has been modified (only if we are not forcing)
@@ -1328,7 +1328,7 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultName"
+                                name="Name"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -1345,16 +1345,16 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultName && (
+                            {errors.Name && (
                                 <p className="text-red-500">
-                                    {errors.vaultName.message}
+                                    {errors.Name.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultDescription"
+                                name="Description"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -1370,16 +1370,16 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultDescription && (
+                            {errors.Description && (
                                 <p className="text-red-500">
-                                    {errors.vaultDescription.message}
+                                    {errors.Description.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultSecret"
+                                name="Secret"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -1396,9 +1396,9 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultSecret && (
+                            {errors.Secret && (
                                 <p className="text-red-500">
-                                    {errors.vaultSecret.message}
+                                    {errors.Secret.message}
                                 </p>
                             )}
                             <p className="mt-2 text-sm text-gray-600">
@@ -1447,7 +1447,7 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultEncryption"
+                                name="Encryption"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -1474,16 +1474,16 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultEncryption && (
+                            {errors.Encryption && (
                                 <p className="text-red-500">
-                                    {errors.vaultEncryption.message}
+                                    {errors.Encryption.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="vaultEncryptionKeyDerivationFunction"
+                                name="EncryptionKeyDerivationFunction"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -1499,11 +1499,10 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.vaultEncryptionKeyDerivationFunction && (
+                            {errors.EncryptionKeyDerivationFunction && (
                                 <p className="text-red-500">
                                     {
-                                        errors
-                                            .vaultEncryptionKeyDerivationFunction
+                                        errors.EncryptionKeyDerivationFunction
                                             .message
                                     }
                                 </p>
@@ -1523,16 +1522,15 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "vaultEncryptionKeyDerivationFunction"
-                                            ) !==
-                                            VaultEncryption
-                                                .KeyDerivationFunction.Argon2ID,
+                                                "EncryptionKeyDerivationFunction"
+                                            ).toString() !==
+                                            KeyDerivationFunction.Argon2ID.toString(),
                                     })}
                                 >
                                     <div className="flex flex-col">
                                         <Controller
                                             control={control}
-                                            name="vaultEncryptionConfig.memLimit"
+                                            name="EncryptionConfig.memLimit"
                                             render={({
                                                 field: {
                                                     onChange,
@@ -1554,11 +1552,10 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                                 />
                                             )}
                                         />
-                                        {errors.vaultEncryptionConfig
-                                            ?.memLimit && (
+                                        {errors.EncryptionConfig?.memLimit && (
                                             <p className="text-red-500">
                                                 {
-                                                    errors.vaultEncryptionConfig
+                                                    errors.EncryptionConfig
                                                         ?.memLimit.message
                                                 }
                                             </p>
@@ -1567,7 +1564,7 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     <div className="mt-4 flex flex-col">
                                         <Controller
                                             control={control}
-                                            name="vaultEncryptionConfig.opsLimit"
+                                            name="EncryptionConfig.opsLimit"
                                             render={({
                                                 field: {
                                                     onChange,
@@ -1593,11 +1590,10 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                                 />
                                             )}
                                         />
-                                        {errors.vaultEncryptionConfig
-                                            ?.opsLimit && (
+                                        {errors.EncryptionConfig?.opsLimit && (
                                             <p className="text-red-500">
                                                 {
-                                                    errors.vaultEncryptionConfig
+                                                    errors.EncryptionConfig
                                                         ?.opsLimit.message
                                                 }
                                             </p>
@@ -1610,16 +1606,15 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "vaultEncryptionKeyDerivationFunction"
-                                            ) !==
-                                            VaultEncryption
-                                                .KeyDerivationFunction.PBKDF2,
+                                                "EncryptionKeyDerivationFunction"
+                                            ).toString() !==
+                                            KeyDerivationFunction.PBKDF2.toString(),
                                     })}
                                 >
                                     <div className="flex flex-col">
                                         <Controller
                                             control={control}
-                                            name="vaultEncryptionConfig.iterations"
+                                            name="EncryptionConfig.iterations"
                                             render={({
                                                 field: {
                                                     onChange,
@@ -1636,11 +1631,11 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                                 />
                                             )}
                                         />
-                                        {errors.vaultEncryptionConfig
+                                        {errors.EncryptionConfig
                                             ?.iterations && (
                                             <p className="text-red-500">
                                                 {
-                                                    errors.vaultEncryptionConfig
+                                                    errors.EncryptionConfig
                                                         ?.iterations.message
                                                 }
                                             </p>
@@ -1648,9 +1643,9 @@ const CreateVaultDialog: React.FC<CreateVaultDialogProps> = ({
                                     </div>
                                 </div>
 
-                                {errors.vaultEncryptionConfig && (
+                                {errors.EncryptionConfig && (
                                     <p className="text-red-500">
-                                        {errors.vaultEncryptionConfig.message}
+                                        {errors.EncryptionConfig.message}
                                     </p>
                                 )}
                             </AccordionItem>
@@ -1923,12 +1918,14 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             receiveChannel.onmessage = async (event) => {
                 addToProgressLog("Receiving vault...", "info");
                 try {
-                    // Get the message and JSON parse it
-                    const rawVaultMetadata: string = event.data;
+                    // Get the message and make sure it's a Uint8Array
+                    const rawVaultMetadata: Uint8Array = new Uint8Array(
+                        event.data
+                    );
 
                     // Parse the vault metadata
                     const newVaultMetadata =
-                        await VaultMetadata.parseFromString(rawVaultMetadata);
+                        VaultMetadata.decodeMetadataBinary(rawVaultMetadata);
 
                     await newVaultMetadata.save(null);
 
@@ -2023,7 +2020,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             );
         });
 
-        onlineWSServicesEndpoint.connection.bind("error", (err: Object) => {
+        onlineWSServicesEndpoint.connection.bind("error", (err: object) => {
             console.error("WS error:", err);
 
             addToProgressLog(
@@ -2583,12 +2580,10 @@ const FileUploaderZone: React.FC<FileUploaderZoneProps> = ({ onFileAdded }) => {
         </div>
     );
 };
-type RestoreVaultDialogProps = {
+
+const RestoreVaultDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-};
-const RestoreVaultDialog: React.FC<RestoreVaultDialogProps> = ({
-    visibleState,
-}) => {
+}> = ({ visibleState }) => {
     const [isLoading, setIsLoading] = useState(false);
 
     const [validFile, setValidFile] =
@@ -2602,7 +2597,7 @@ const RestoreVaultDialog: React.FC<RestoreVaultDialogProps> = ({
     } = useForm<VaultRestoreFormSchema>({
         resolver: zodResolver(vaultRestoreFormSchema),
         defaultValues: {
-            vaultName: `Restored Vault ${new Date().toLocaleString()}`,
+            Name: `Restored Vault ${new Date().toLocaleString()}`,
         },
     });
 
@@ -2657,7 +2652,7 @@ const RestoreVaultDialog: React.FC<RestoreVaultDialogProps> = ({
         });
 
         const newVaultMetadataInst = new VaultMetadata();
-        newVaultMetadataInst.Name = data.vaultName;
+        newVaultMetadataInst.Name = data.Name;
         newVaultMetadataInst.Description = `Vault restored from backup on ${new Date().toLocaleString()}.`;
         newVaultMetadataInst.Blob = validFile;
 
@@ -2747,7 +2742,7 @@ const RestoreVaultDialog: React.FC<RestoreVaultDialogProps> = ({
                             <div className="mt-4 flex flex-col">
                                 <Controller
                                     control={control}
-                                    name="vaultName"
+                                    name="Name"
                                     render={({
                                         field: { onChange, onBlur, value },
                                     }) => (
@@ -2764,9 +2759,9 @@ const RestoreVaultDialog: React.FC<RestoreVaultDialogProps> = ({
                                         </>
                                     )}
                                 />
-                                {errors.vaultName && (
+                                {errors.Name && (
                                     <p className="text-red-500">
-                                        {errors.vaultName.message}
+                                        {errors.Name.message}
                                     </p>
                                 )}
                             </div>
@@ -3945,11 +3940,12 @@ const VaultSettingsDialog: React.FC<{
     });
 
     const onSubmit = async (form: FormSchema) => {
-        if (!vaultMetadata || !unlockedVault) {
+        if (!vaultMetadata || !unlockedVault || isLoading) {
             return;
         }
 
-        if (!isDirty || isLoading) {
+        if (!isDirty) {
+            hideDialog(true);
             return;
         }
 
@@ -3982,10 +3978,7 @@ const VaultSettingsDialog: React.FC<{
                 throw new Error("Vault metadata or blob cannot be null.");
             }
 
-            await BackupUtils.trigger(
-                BackupUtils.BackupType.Manual,
-                vaultMetadata.Blob
-            );
+            await Backup.trigger(Backup.Type.Manual, vaultMetadata.Blob);
 
             toast.success("Vault backup complete", {
                 autoClose: 3000,
@@ -4163,10 +4156,13 @@ const TOTPDialog: React.FC<{
         },
     });
 
-    const hideModal = async (force = false) => {
+    const hideDialog = async (force = false) => {
         const hide = () => {
             visibleState[1](false);
-            resetForm();
+
+            setTimeout(() => {
+                resetForm();
+            }, DIALOG_BLUR_TIME);
         };
 
         // Check if the form has been modified (only if we are not forcing)
@@ -4183,11 +4179,14 @@ const TOTPDialog: React.FC<{
 
     const onSubmit = async (formData: Credential.TOTPFormSchemaType) => {
         await submitCallback(formData);
-        hideModal(true);
+        hideDialog(true);
     };
 
     return (
-        <GenericModal key="credentials-totp-modal" visibleState={visibleState}>
+        <GenericModal
+            key="credentials-totp-modal"
+            visibleState={[visibleState[0], () => hideDialog()]}
+        >
             <Body>
                 <div className="flex flex-col items-center text-center">
                     <p className="text-2xl font-bold text-gray-900">
@@ -4391,36 +4390,31 @@ const TOTPDialog: React.FC<{
                 <ButtonFlat
                     text="Close"
                     type={ButtonType.Secondary}
-                    onClick={() => hideModal()}
+                    onClick={() => hideDialog()}
                 />
             </Footer>
         </GenericModal>
     );
 };
-type CredentialDialogProps = {
+
+const CredentialDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
     vault: Vault | null;
     selected: React.MutableRefObject<Credential.VaultCredential | undefined>;
-    // requiredAuth?: boolean;
-};
-const CredentialDialog: React.FC<CredentialDialogProps> = ({
-    showDialogFnRef,
-    vault,
-    selected,
-    // requiredAuth = false, // Not used yet, but will be used to require authentication to view credentials
-}) => {
+    // requiredAuth?: boolean; // Not used yet, but will be used to require authentication to view credentials
+}> = ({ showDialogFnRef, vault, selected }) => {
     const [isDialogVisible, setIsDialogVisible] = useState(false);
     showDialogFnRef.current = () => {
         if (selected.current) {
-            const formData = {
-                id: selected.current.ID, // This means that the form is in "edit" mode
-                name: selected.current.Name,
-                username: selected.current.Username,
-                password: selected.current.Password,
-                totp: selected.current.TOTP ?? null,
-                tags: selected.current.Tags,
-                url: selected.current.URL,
-                notes: selected.current.Notes,
+            const formData: Credential.CredentialFormSchemaType = {
+                ID: selected.current.ID, // This means that the form is in "edit" mode
+                Name: selected.current.Name,
+                Username: selected.current.Username,
+                Password: selected.current.Password,
+                TOTP: selected.current.TOTP ?? undefined,
+                Tags: selected.current.Tags,
+                URL: selected.current.URL,
+                Notes: selected.current.Notes,
             };
 
             resetForm(formData);
@@ -4454,14 +4448,14 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const defaultValues: Credential.CredentialFormSchemaType = {
-        id: null, // This is set to null to indicate that this is a new credential
-        name: "",
-        username: "",
-        password: "",
-        totp: null,
-        tags: [],
-        url: "",
-        notes: "",
+        ID: null, // This is set to null to indicate that this is a new credential
+        Name: "",
+        Username: "",
+        Password: "",
+        TOTP: undefined,
+        Tags: undefined,
+        URL: "",
+        Notes: "",
     };
 
     const {
@@ -4478,7 +4472,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
     const TOTPDialogVisible = useState(false);
     const showTOTPDialog = () => TOTPDialogVisible[1](true);
     const setTOTPFormValue = async (form: Credential.TOTPFormSchemaType) => {
-        setValue("totp", form, {
+        setValue("TOTP", form, {
             shouldDirty: true,
         });
     };
@@ -4509,23 +4503,41 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
     };
 
     const TagBox: React.FC<{
-        value: string[];
-        onChange: (tags: string[]) => void;
+        value: string | undefined;
+        onChange: (tags: string) => void;
     }> = ({ value, onChange }) => {
+        const tagSeparator = ",|.|,";
+
         const [inputValue, setInputValue] = useState("");
         const [inputFocused, setInputFocused] = useState(false);
 
         const tagInputRef = useRef<HTMLInputElement>(null);
 
+        const tagArrayValue = value ? value.split(tagSeparator) : [];
+
         const addTag = (tag: string) => {
-            if (tag.length === 0) return;
-            if (value.includes(tag)) return;
-            onChange([...value, tag]);
+            // If the tag is empty, don't add it
+            if (!tag?.length) return;
+
+            // Remove all tag separators from the tag
+            // Also, trim the tag
+            tag = tag.replaceAll(tagSeparator, "").trim();
+
+            // Transform all of the input into an array
+            const tags = tagArrayValue;
+
+            if (tags.includes(tag)) return;
+            else tags.push(tag);
+
+            onChange(tags.join(tagSeparator));
             setInputValue("");
         };
 
         const removeTag = (tag: string) => {
-            onChange(value.filter((t) => t !== tag));
+            // Remove the tag from the array
+            const newTags = tagArrayValue.filter((t) => t !== tag);
+
+            onChange(newTags.join(tagSeparator));
 
             // If the input is focused, focus it again
             if (inputFocused) {
@@ -4546,6 +4558,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                 addTag(inputValue);
             }
             if (e.key === "Backspace" && inputValue.length === 0) {
+                const value = tagArrayValue;
                 const valueToBeRemoved = value[value.length - 1];
                 if (valueToBeRemoved) removeTag(valueToBeRemoved);
             }
@@ -4561,7 +4574,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
 
         return (
             <div className="flex flex-row flex-wrap items-center">
-                {value.map((tag) => (
+                {tagArrayValue.map((tag) => (
                     <div
                         key={tag}
                         className="m-1 flex flex-row items-center rounded-full bg-gray-100 px-2 py-2"
@@ -4603,20 +4616,21 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
         value: Credential.TOTPFormSchemaType;
         onChange: (event: Credential.TOTPFormSchemaType | null) => void;
     }> = ({ value, onChange }) => {
-        const [code, setCode] = useState("");
+        const codeRef = useRef<string>("");
         const [timeLeft, setTimeLeft] = useState(0);
 
+        // FIXME: Use the code in the TOTP class to calculate the code and time left
         const updateCode = () => {
             const totp = new OTPAuth.TOTP({
                 issuer: value.Issuer,
                 secret: value.Secret,
                 period: value.Period,
                 digits: value.Digits,
-                algorithm: value.Algorithm,
+                algorithm: TOTPAlgorithm[value.Algorithm],
             });
             const code = totp.generate();
 
-            setCode(code);
+            codeRef.current = code;
         };
 
         const getTOTPTimeLeft = (period: number): number => {
@@ -4652,13 +4666,15 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
             <div className="flex flex-row items-center">
                 <div className="flex w-full flex-row items-center justify-between">
                     <div className="flex flex-col items-center">
-                        <span className="text-2xl font-bold">{code}</span>
+                        <span className="text-2xl font-bold">
+                            {codeRef.current}
+                        </span>
                         <span className="text-xs text-gray-500">
                             {timeLeft} seconds left
                         </span>
                     </div>
                     <div className="flex flex-row items-center">
-                        <ClipboardButton value={code} />
+                        <ClipboardButton value={codeRef.current} />
                         <XMarkIcon
                             className="ml-1 h-5 w-5 cursor-pointer text-slate-400 hover:text-slate-500"
                             aria-hidden="true"
@@ -4788,7 +4804,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                         <div className="mt-2 flex flex-col">
                             <Controller
                                 control={control}
-                                name="name"
+                                name="Name"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -4807,16 +4823,16 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.name && (
+                            {errors.Name && (
                                 <p className="text-red-500">
-                                    {errors.name.message}
+                                    {errors.Name.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="username"
+                                name="Username"
                                 render={({
                                     field: { onChange, onBlur, value, ref },
                                 }) => (
@@ -4839,16 +4855,16 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.username && (
+                            {errors.Username && (
                                 <p className="text-red-500">
-                                    {errors.username.message}
+                                    {errors.Username.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="password"
+                                name="Password"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -4871,16 +4887,16 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.password && (
+                            {errors.Password && (
                                 <p className="text-red-500">
-                                    {errors.password.message}
+                                    {errors.Password.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="totp"
+                                name="TOTP"
                                 render={({ field: { onChange, value } }) => (
                                     <>
                                         <label className="text-gray-600">
@@ -4925,16 +4941,16 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.totp && (
+                            {errors.TOTP && (
                                 <p className="text-red-500">
-                                    {errors.totp.message}
+                                    {errors.TOTP.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="tags"
+                                name="Tags"
                                 render={({ field: { onChange, value } }) => (
                                     <>
                                         <label className="text-gray-600">
@@ -4942,21 +4958,22 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                         </label>
                                         <TagBox
                                             onChange={onChange}
-                                            value={value ?? []}
+                                            value={value}
+                                            // value={value?.split(',,') ?? []}
                                         />
                                     </>
                                 )}
                             />
-                            {errors.tags && (
+                            {errors.Tags && (
                                 <p className="text-red-500">
-                                    {errors.tags.message}
+                                    {errors.Tags.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="url"
+                                name="URL"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -4979,16 +4996,16 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.url && (
+                            {errors.URL && (
                                 <p className="text-red-500">
-                                    {errors.url.message}
+                                    {errors.URL.message}
                                 </p>
                             )}
                         </div>
                         <div className="mt-4 flex flex-col">
                             <Controller
                                 control={control}
-                                name="notes"
+                                name="Notes"
                                 render={({
                                     field: { onChange, onBlur, value },
                                 }) => (
@@ -5005,9 +5022,9 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({
                                     </>
                                 )}
                             />
-                            {errors.notes && (
+                            {errors.Notes && (
                                 <p className="text-red-500">
-                                    {errors.notes.message}
+                                    {errors.Notes.message}
                                 </p>
                             )}
                         </div>
@@ -6281,20 +6298,26 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             }
 
             {
+                addToProgressLog(
+                    "Packaging vault data for transmission...",
+                    "info"
+                );
+
                 // Prepare the vault data for transmission
                 const exportedVault = unlockedVault.packageForLinking({
                     UserID: userID,
                     PublicKey: generatedKeyPair.publicKey,
                     PrivateKey: generatedKeyPair.privateKey,
                 });
+
+                addToProgressLog("Vault data packaged. Encrypting...", "info");
+
                 const encryptedBlobObj = await vaultMetadata.exportForLinking(
                     exportedVault
                 );
 
                 // Send the encrypted data to the other device
-                webRTCDataChannel.send(
-                    JSON.stringify(encryptedBlobObj, null, 0)
-                );
+                webRTCDataChannel.send(encryptedBlobObj);
             }
 
             addToProgressLog("Vault data successfully sent.");
@@ -6379,7 +6402,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
         // Connect to WS and wait for the other device
         const onlineWSServicesEndpoint = newWSPusherInstance();
-        onlineWSServicesEndpoint.connection.bind("error", (err: Object) => {
+        onlineWSServicesEndpoint.connection.bind("error", (err: object) => {
             console.error("WS error:", err);
             // NOTE: Should we handle specific errors?
             // if (err.error.data.code === 4004) {
@@ -8961,8 +8984,8 @@ const AppIndex: React.FC = () => {
 
     // NOTE: To implement a loading screen, we can use the !vaults check
 
-    const parsedVaults = vaults?.map((vault) => {
-        return VaultMetadata.parseFromDatabase(vault);
+    const parsedVaults = vaults?.map((metadata) => {
+        return VaultMetadata.decodeMetadataBinary(metadata.data, metadata.id);
     });
 
     return (

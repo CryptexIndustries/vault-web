@@ -14,7 +14,9 @@ export default function QrReader({
     className = "",
     disabled = false,
     scanDelay = 500,
-    onResult = () => {},
+    onResult = () => {
+        // No-op
+    },
     mediaTrackConstraints = {
         facingMode: {
             ideal: "environment",

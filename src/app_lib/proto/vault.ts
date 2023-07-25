@@ -13,6 +13,20 @@ export enum KeyDerivationFunction {
     Argon2ID = 1,
 }
 
+export enum ItemType {
+    SSHKey = 0,
+    Credentials = 1,
+    Note = 2,
+    Identity = 3,
+}
+
+export enum CustomFieldType {
+    Text = 0,
+    MaskedText = 1,
+    Boolean = 2,
+    Date = 3,
+}
+
 export enum TOTPAlgorithm {
     SHA1 = 0,
     SHA256 = 1,
@@ -58,11 +72,26 @@ export interface EncryptedBlob {
     HeaderIV: string;
 }
 
+export interface Group {
+    ID: string;
+    Name: string;
+    Icon: string;
+    Color: string;
+}
+
+export interface CustomField {
+    ID: string;
+    Name: string;
+    Type: CustomFieldType;
+    Value: string;
+}
+
 export interface Vault {
     Version: number;
     Secret: string;
     Configuration: Configuration | undefined;
     OnlineServices: OnlineServices | undefined;
+    Groups: Group[];
     Credentials: Credential[];
     Diffs: Diff[];
 }
@@ -94,6 +123,8 @@ export interface LinkedDevice {
 /** #region Credentials */
 export interface Credential {
     ID: string;
+    Type: ItemType;
+    GroupID: string;
     Name: string;
     Username: string;
     Password: string;
@@ -104,11 +135,14 @@ export interface Credential {
     DateCreated: string;
     DateModified?: string | undefined;
     DatePasswordChanged?: string | undefined;
+    CustomFields: CustomField[];
 }
 
 /** All optional version of Credential */
 export interface PartialCredential {
     ID?: string | undefined;
+    Type?: ItemType | undefined;
+    GroupID?: string | undefined;
     Name?: string | undefined;
     Username?: string | undefined;
     Password?: string | undefined;
@@ -119,6 +153,7 @@ export interface PartialCredential {
     DateCreated?: string | undefined;
     DateModified?: string | undefined;
     DatePasswordChanged?: string | undefined;
+    CustomFields?: CustomField[];
 }
 
 export interface TOTP {
@@ -576,12 +611,183 @@ export const EncryptedBlob = {
     },
 };
 
+function createBaseGroup(): Group {
+    return { ID: "", Name: "", Icon: "", Color: "" };
+}
+
+export const Group = {
+    encode(
+        message: Group,
+        writer: _m0.Writer = _m0.Writer.create()
+    ): _m0.Writer {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.Icon !== "") {
+            writer.uint32(26).string(message.Icon);
+        }
+        if (message.Color !== "") {
+            writer.uint32(34).string(message.Color);
+        }
+        return writer;
+    },
+
+    decode(input: _m0.Reader | Uint8Array, length?: number): Group {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseGroup();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                case 3:
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Icon = reader.string();
+                    continue;
+                case 4:
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Color = reader.string();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<Group>, I>>(base?: I): Group {
+        return Group.fromPartial(base ?? {});
+    },
+
+    fromPartial<I extends Exact<DeepPartial<Group>, I>>(object: I): Group {
+        const message = createBaseGroup();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.Icon = object.Icon ?? "";
+        message.Color = object.Color ?? "";
+        return message;
+    },
+};
+
+function createBaseCustomField(): CustomField {
+    return { ID: "", Name: "", Type: 0, Value: "" };
+}
+
+export const CustomField = {
+    encode(
+        message: CustomField,
+        writer: _m0.Writer = _m0.Writer.create()
+    ): _m0.Writer {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.Type !== 0) {
+            writer.uint32(24).int32(message.Type);
+        }
+        if (message.Value !== "") {
+            writer.uint32(34).string(message.Value);
+        }
+        return writer;
+    },
+
+    decode(input: _m0.Reader | Uint8Array, length?: number): CustomField {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseCustomField();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                case 3:
+                    if (tag !== 24) {
+                        break;
+                    }
+
+                    message.Type = reader.int32() as any;
+                    continue;
+                case 4:
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Value = reader.string();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<CustomField>, I>>(
+        base?: I
+    ): CustomField {
+        return CustomField.fromPartial(base ?? {});
+    },
+
+    fromPartial<I extends Exact<DeepPartial<CustomField>, I>>(
+        object: I
+    ): CustomField {
+        const message = createBaseCustomField();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.Type = object.Type ?? 0;
+        message.Value = object.Value ?? "";
+        return message;
+    },
+};
+
 function createBaseVault(): Vault {
     return {
         Version: 0,
         Secret: "",
         Configuration: undefined,
         OnlineServices: undefined,
+        Groups: [],
         Credentials: [],
         Diffs: [],
     };
@@ -610,11 +816,14 @@ export const Vault = {
                 writer.uint32(34).fork()
             ).ldelim();
         }
+        for (const v of message.Groups) {
+            Group.encode(v!, writer.uint32(42).fork()).ldelim();
+        }
         for (const v of message.Credentials) {
-            Credential.encode(v!, writer.uint32(42).fork()).ldelim();
+            Credential.encode(v!, writer.uint32(50).fork()).ldelim();
         }
         for (const v of message.Diffs) {
-            Diff.encode(v!, writer.uint32(50).fork()).ldelim();
+            Diff.encode(v!, writer.uint32(58).fork()).ldelim();
         }
         return writer;
     },
@@ -666,12 +875,19 @@ export const Vault = {
                         break;
                     }
 
+                    message.Groups.push(Group.decode(reader, reader.uint32()));
+                    continue;
+                case 6:
+                    if (tag !== 50) {
+                        break;
+                    }
+
                     message.Credentials.push(
                         Credential.decode(reader, reader.uint32())
                     );
                     continue;
-                case 6:
-                    if (tag !== 50) {
+                case 7:
+                    if (tag !== 58) {
                         break;
                     }
 
@@ -703,6 +919,7 @@ export const Vault = {
             object.OnlineServices !== null
                 ? OnlineServices.fromPartial(object.OnlineServices)
                 : undefined;
+        message.Groups = object.Groups?.map((e) => Group.fromPartial(e)) || [];
         message.Credentials =
             object.Credentials?.map((e) => Credential.fromPartial(e)) || [];
         message.Diffs = object.Diffs?.map((e) => Diff.fromPartial(e)) || [];
@@ -1007,12 +1224,15 @@ export const LinkedDevice = {
 function createBaseCredential(): Credential {
     return {
         ID: "",
+        Type: 0,
+        GroupID: "",
         Name: "",
         Username: "",
         Password: "",
         URL: "",
         Notes: "",
         DateCreated: "",
+        CustomFields: [],
     };
 }
 
@@ -1024,35 +1244,44 @@ export const Credential = {
         if (message.ID !== "") {
             writer.uint32(10).string(message.ID);
         }
+        if (message.Type !== 0) {
+            writer.uint32(16).int32(message.Type);
+        }
+        if (message.GroupID !== "") {
+            writer.uint32(26).string(message.GroupID);
+        }
         if (message.Name !== "") {
-            writer.uint32(18).string(message.Name);
+            writer.uint32(34).string(message.Name);
         }
         if (message.Username !== "") {
-            writer.uint32(26).string(message.Username);
+            writer.uint32(42).string(message.Username);
         }
         if (message.Password !== "") {
-            writer.uint32(34).string(message.Password);
+            writer.uint32(50).string(message.Password);
         }
         if (message.TOTP !== undefined) {
-            TOTP.encode(message.TOTP, writer.uint32(42).fork()).ldelim();
+            TOTP.encode(message.TOTP, writer.uint32(58).fork()).ldelim();
         }
         if (message.Tags !== undefined) {
-            writer.uint32(50).string(message.Tags);
+            writer.uint32(66).string(message.Tags);
         }
         if (message.URL !== "") {
-            writer.uint32(58).string(message.URL);
+            writer.uint32(74).string(message.URL);
         }
         if (message.Notes !== "") {
-            writer.uint32(66).string(message.Notes);
+            writer.uint32(82).string(message.Notes);
         }
         if (message.DateCreated !== "") {
-            writer.uint32(74).string(message.DateCreated);
+            writer.uint32(90).string(message.DateCreated);
         }
         if (message.DateModified !== undefined) {
-            writer.uint32(82).string(message.DateModified);
+            writer.uint32(98).string(message.DateModified);
         }
         if (message.DatePasswordChanged !== undefined) {
-            writer.uint32(90).string(message.DatePasswordChanged);
+            writer.uint32(106).string(message.DatePasswordChanged);
+        }
+        for (const v of message.CustomFields) {
+            CustomField.encode(v!, writer.uint32(114).fork()).ldelim();
         }
         return writer;
     },
@@ -1073,74 +1302,97 @@ export const Credential = {
                     message.ID = reader.string();
                     continue;
                 case 2:
-                    if (tag !== 18) {
+                    if (tag !== 16) {
                         break;
                     }
 
-                    message.Name = reader.string();
+                    message.Type = reader.int32() as any;
                     continue;
                 case 3:
                     if (tag !== 26) {
                         break;
                     }
 
-                    message.Username = reader.string();
+                    message.GroupID = reader.string();
                     continue;
                 case 4:
                     if (tag !== 34) {
                         break;
                     }
 
-                    message.Password = reader.string();
+                    message.Name = reader.string();
                     continue;
                 case 5:
                     if (tag !== 42) {
                         break;
                     }
 
-                    message.TOTP = TOTP.decode(reader, reader.uint32());
+                    message.Username = reader.string();
                     continue;
                 case 6:
                     if (tag !== 50) {
                         break;
                     }
 
-                    message.Tags = reader.string();
+                    message.Password = reader.string();
                     continue;
                 case 7:
                     if (tag !== 58) {
                         break;
                     }
 
-                    message.URL = reader.string();
+                    message.TOTP = TOTP.decode(reader, reader.uint32());
                     continue;
                 case 8:
                     if (tag !== 66) {
                         break;
                     }
 
-                    message.Notes = reader.string();
+                    message.Tags = reader.string();
                     continue;
                 case 9:
                     if (tag !== 74) {
                         break;
                     }
 
-                    message.DateCreated = reader.string();
+                    message.URL = reader.string();
                     continue;
                 case 10:
                     if (tag !== 82) {
                         break;
                     }
 
-                    message.DateModified = reader.string();
+                    message.Notes = reader.string();
                     continue;
                 case 11:
                     if (tag !== 90) {
                         break;
                     }
 
+                    message.DateCreated = reader.string();
+                    continue;
+                case 12:
+                    if (tag !== 98) {
+                        break;
+                    }
+
+                    message.DateModified = reader.string();
+                    continue;
+                case 13:
+                    if (tag !== 106) {
+                        break;
+                    }
+
                     message.DatePasswordChanged = reader.string();
+                    continue;
+                case 14:
+                    if (tag !== 114) {
+                        break;
+                    }
+
+                    message.CustomFields.push(
+                        CustomField.decode(reader, reader.uint32())
+                    );
                     continue;
             }
             if ((tag & 7) === 4 || tag === 0) {
@@ -1160,6 +1412,8 @@ export const Credential = {
     ): Credential {
         const message = createBaseCredential();
         message.ID = object.ID ?? "";
+        message.Type = object.Type ?? 0;
+        message.GroupID = object.GroupID ?? "";
         message.Name = object.Name ?? "";
         message.Username = object.Username ?? "";
         message.Password = object.Password ?? "";
@@ -1173,6 +1427,8 @@ export const Credential = {
         message.DateCreated = object.DateCreated ?? "";
         message.DateModified = object.DateModified ?? undefined;
         message.DatePasswordChanged = object.DatePasswordChanged ?? undefined;
+        message.CustomFields =
+            object.CustomFields?.map((e) => CustomField.fromPartial(e)) || [];
         return message;
     },
 };
@@ -1189,35 +1445,46 @@ export const PartialCredential = {
         if (message.ID !== undefined) {
             writer.uint32(10).string(message.ID);
         }
+        if (message.Type !== undefined) {
+            writer.uint32(16).int32(message.Type);
+        }
+        if (message.GroupID !== undefined) {
+            writer.uint32(26).string(message.GroupID);
+        }
         if (message.Name !== undefined) {
-            writer.uint32(18).string(message.Name);
+            writer.uint32(34).string(message.Name);
         }
         if (message.Username !== undefined) {
-            writer.uint32(26).string(message.Username);
+            writer.uint32(42).string(message.Username);
         }
         if (message.Password !== undefined) {
-            writer.uint32(34).string(message.Password);
+            writer.uint32(50).string(message.Password);
         }
         if (message.TOTP !== undefined) {
-            TOTP.encode(message.TOTP, writer.uint32(42).fork()).ldelim();
+            TOTP.encode(message.TOTP, writer.uint32(58).fork()).ldelim();
         }
         if (message.Tags !== undefined) {
-            writer.uint32(50).string(message.Tags);
+            writer.uint32(66).string(message.Tags);
         }
         if (message.URL !== undefined) {
-            writer.uint32(58).string(message.URL);
+            writer.uint32(74).string(message.URL);
         }
         if (message.Notes !== undefined) {
-            writer.uint32(66).string(message.Notes);
+            writer.uint32(82).string(message.Notes);
         }
         if (message.DateCreated !== undefined) {
-            writer.uint32(74).string(message.DateCreated);
+            writer.uint32(90).string(message.DateCreated);
         }
         if (message.DateModified !== undefined) {
-            writer.uint32(82).string(message.DateModified);
+            writer.uint32(98).string(message.DateModified);
         }
         if (message.DatePasswordChanged !== undefined) {
-            writer.uint32(90).string(message.DatePasswordChanged);
+            writer.uint32(106).string(message.DatePasswordChanged);
+        }
+        if (message.CustomFields !== undefined) {
+            for (const v of message.CustomFields) {
+                CustomField.encode(v!, writer.uint32(114).fork()).ldelim();
+            }
         }
         return writer;
     },
@@ -1238,74 +1505,101 @@ export const PartialCredential = {
                     message.ID = reader.string();
                     continue;
                 case 2:
-                    if (tag !== 18) {
+                    if (tag !== 16) {
                         break;
                     }
 
-                    message.Name = reader.string();
+                    message.Type = reader.int32() as any;
                     continue;
                 case 3:
                     if (tag !== 26) {
                         break;
                     }
 
-                    message.Username = reader.string();
+                    message.GroupID = reader.string();
                     continue;
                 case 4:
                     if (tag !== 34) {
                         break;
                     }
 
-                    message.Password = reader.string();
+                    message.Name = reader.string();
                     continue;
                 case 5:
                     if (tag !== 42) {
                         break;
                     }
 
-                    message.TOTP = TOTP.decode(reader, reader.uint32());
+                    message.Username = reader.string();
                     continue;
                 case 6:
                     if (tag !== 50) {
                         break;
                     }
 
-                    message.Tags = reader.string();
+                    message.Password = reader.string();
                     continue;
                 case 7:
                     if (tag !== 58) {
                         break;
                     }
 
-                    message.URL = reader.string();
+                    message.TOTP = TOTP.decode(reader, reader.uint32());
                     continue;
                 case 8:
                     if (tag !== 66) {
                         break;
                     }
 
-                    message.Notes = reader.string();
+                    message.Tags = reader.string();
                     continue;
                 case 9:
                     if (tag !== 74) {
                         break;
                     }
 
-                    message.DateCreated = reader.string();
+                    message.URL = reader.string();
                     continue;
                 case 10:
                     if (tag !== 82) {
                         break;
                     }
 
-                    message.DateModified = reader.string();
+                    message.Notes = reader.string();
                     continue;
                 case 11:
                     if (tag !== 90) {
                         break;
                     }
 
+                    message.DateCreated = reader.string();
+                    continue;
+                case 12:
+                    if (tag !== 98) {
+                        break;
+                    }
+
+                    message.DateModified = reader.string();
+                    continue;
+                case 13:
+                    if (tag !== 106) {
+                        break;
+                    }
+
                     message.DatePasswordChanged = reader.string();
+                    continue;
+                case 14:
+                    if (tag !== 114) {
+                        break;
+                    }
+
+                    if (message.CustomFields == null) {
+                        message.CustomFields = [];
+                    }
+
+                    message.CustomFields.push(
+                        CustomField.decode(reader, reader.uint32())
+                    );
                     continue;
             }
             if ((tag & 7) === 4 || tag === 0) {
@@ -1327,6 +1621,8 @@ export const PartialCredential = {
     ): PartialCredential {
         const message = createBasePartialCredential();
         message.ID = object.ID ?? undefined;
+        message.Type = object.Type ?? undefined;
+        message.GroupID = object.GroupID ?? undefined;
         message.Name = object.Name ?? undefined;
         message.Username = object.Username ?? undefined;
         message.Password = object.Password ?? undefined;
@@ -1340,6 +1636,8 @@ export const PartialCredential = {
         message.DateCreated = object.DateCreated ?? undefined;
         message.DateModified = object.DateModified ?? undefined;
         message.DatePasswordChanged = object.DatePasswordChanged ?? undefined;
+        message.CustomFields =
+            object.CustomFields?.map((e) => CustomField.fromPartial(e)) || [];
         return message;
     },
 };

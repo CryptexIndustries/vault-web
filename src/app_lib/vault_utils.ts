@@ -2033,10 +2033,10 @@ export class Vault implements VaultUtilTypes.Vault {
             // Generate n mock credentials
             for (let i = 0; i < num; i++) {
                 const newCreds = new Credential.VaultCredential();
-                newCreds.ID = `TestCreds-{i}`.toString();
-                newCreds.Name = "Test Credential " + i;
-                newCreds.Username = "Test Username " + i;
-                newCreds.Password = "Test Password " + i;
+                newCreds.ID = `TestCreds-${i}`;
+                newCreds.Name = `Test Credential ${i}`;
+                newCreds.Username = `Test Username ${i}`;
+                newCreds.Password = `Test Password ${i}`;
                 creds.push(newCreds);
             }
         }

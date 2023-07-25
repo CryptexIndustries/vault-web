@@ -2448,7 +2448,7 @@ const WelcomeScreen: React.FC<{
                                 Welcome to CryptexVault
                             </p>
                             <p className="text-center text-base text-slate-400">
-                                CryptexVault is a decentralized identity manager
+                                CryptexVault is a decentralized password manager
                                 that allows <br />
                                 you to manage your digital identity and access
                                 services <br />
@@ -2500,7 +2500,7 @@ const WelcomeScreen: React.FC<{
                                     Import
                                 </p>
                                 <p className="hidden select-none text-center text-sm text-slate-300 sm:block">
-                                    Import a Vault from another identity
+                                    Import a Vault from another password
                                     manager.
                                 </p>
                             </div> */}
@@ -9514,7 +9514,7 @@ const AppIndex: React.FC = () => {
         <SessionProvider refetchWhenOffline={false} refetchInterval={60 * 60}>
             <HTMLHeaderPWA
                 title="CryptexVault"
-                description="Decentralized Identity Manager"
+                description="Decentralized Password Manager"
             />
 
             <HTMLMain additionalClasses="content flex min-h-screen grow flex-col overflow-clip">

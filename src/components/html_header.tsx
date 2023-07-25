@@ -42,7 +42,7 @@ export const HTMLHeaderPWA: React.FC<HTMLHeaderProps> = ({
             <link rel="icon" href={favicon} />
             <link rel="manifest" href="/app/manifest.webmanifest" />
 
-            <meta name="application-name" content="CryptexVault" />
+            <meta name="application-name" content="Cryptex Vault" />
 
             <meta name="mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -50,9 +50,9 @@ export const HTMLHeaderPWA: React.FC<HTMLHeaderProps> = ({
                 name="apple-mobile-web-app-status-bar-style"
                 content="default"
             />
-            <meta name="apple-mobile-web-app-title" content="CryptexVault" />
+            <meta name="apple-mobile-web-app-title" content="Cryptex Vault" />
 
-            <meta name="description" content="Decentralized Identity Manager" />
+            <meta name="description" content="Decentralized Password Manager" />
             <meta name="format-detection" content="telephone=no" />
 
             {/* <meta
@@ -105,10 +105,10 @@ export const HTMLHeaderPWA: React.FC<HTMLHeaderProps> = ({
 
             <meta name="twitter:card" content="summary" />
             <meta name="twitter:url" content="https://cryptex-vault.com/app" />
-            <meta name="twitter:title" content="CryptexVault" />
+            <meta name="twitter:title" content="Cryptex Vault" />
             <meta
                 name="twitter:description"
-                content="Decentralized Identity Manager"
+                content="Decentralized Password Manager"
             />
             {/* <meta
                 name="twitter:image"
@@ -116,12 +116,12 @@ export const HTMLHeaderPWA: React.FC<HTMLHeaderProps> = ({
             /> */}
             {/* <meta name="twitter:creator" content="@DavidWShadow" /> */}
             <meta property="og:type" content="website" />
-            <meta property="og:title" content="CryptexVault" />
+            <meta property="og:title" content="Cryptex Vault" />
             <meta
                 property="og:description"
-                content="Decentralized Identity Manager"
+                content="Decentralized Password Manager"
             />
-            <meta property="og:site_name" content="CryptexVault" />
+            <meta property="og:site_name" content="Cryptex Vault" />
             <meta property="og:url" content="https://cryptex-vault.com" />
             {/* <meta
                 property="og:image"

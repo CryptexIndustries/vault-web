@@ -180,7 +180,7 @@ const Index: NextPage = ({}) => {
     return (
         <>
             <HTMLHeader
-                title="Cryptex Vault - Decentralized Identity Manager"
+                title="Cryptex Vault - Decentralized Password Manager"
                 description="No need to depend on any service that holds your passwords, secrets or other credentials."
             />
 
@@ -246,7 +246,7 @@ const Index: NextPage = ({}) => {
                                         Decentralized
                                     </span>
                                     <br />
-                                    Identity Manager
+                                    Password Manager
                                 </h1>
                                 <p className="ml-2 text-gray-300">
                                     We believe that your data is yours,
@@ -345,7 +345,15 @@ const Index: NextPage = ({}) => {
                                     information in a secure way using the web
                                     application and browser extensions. The web
                                     application can easily be used offline as it
-                                    is a PWA (Progressive Web App).
+                                    is a PWA (
+                                    <a
+                                        className="text-blue-500 underline"
+                                        href="https://web.dev/what-are-pwas/"
+                                        target="_blank"
+                                    >
+                                        Progressive Web App
+                                    </a>
+                                    ).
                                 </p>
                                 <p className="mb-2 mt-4 text-gray-500">
                                     How the rest of the industry works?
@@ -364,14 +372,14 @@ const Index: NextPage = ({}) => {
                                 </p>
                                 <p className="ml-3 text-justify text-gray-300 sm:text-start">
                                     Unlike other password managers, Cryptex
-                                    Vault doesn&apos;t store your data in the
-                                    cloud. It&apos;s only stored on your
-                                    devices, not servers. By keeping your
-                                    information off our servers, the security of
-                                    your data is guaranteed at the highest
-                                    level.
+                                    Vault does not store your data in the cloud.
+                                    It&apos;s only stored on your devices, not
+                                    servers. By keeping your information off our
+                                    servers, the security of your data is
+                                    guaranteed at the highest level.
                                     <br /> All modern browsers are supported,
-                                    with browser extensions coming soon.
+                                    with browser extensions, and mobile
+                                    applications coming soon.
                                 </p>
 
                                 {/* <p className="mb-2 mt-10 hidden text-gray-500">
@@ -565,7 +573,7 @@ const Index: NextPage = ({}) => {
                                         </h2>
                                         <div className="flex items-end">
                                             <div className="text-3xl font-bold">
-                                                €4,99
+                                                €2,50
                                             </div>
                                             <div className="ml-1 text-xl">
                                                 / month

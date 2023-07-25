@@ -7,8 +7,29 @@ import { wordlist } from "@scure/bip39/wordlists/english";
 import { env } from "../env/client.mjs";
 
 import * as VaultUtilTypes from "./proto/vault";
+import Papa from "papaparse";
 
 const requiredFieldError = "This is a required field";
+
+/**
+ * Generates a random string. Used only for development purposes, in insecure contexts.
+ * The check in the function is used to prevend the bundler from including this function in the production build.
+ * @returns A random string
+ */
+const uuidv4_insecurecontexts = (): string => {
+    if (process.env.NODE_ENV === "development")
+        return (1e7 + -1e3 + -4e3 + -8e3 + -1e11)
+            .toString()
+            .replace(/[018]/g, (c: string): string => {
+                const numC = parseInt(c);
+                return (
+                    numC ^
+                    (crypto.getRandomValues(new Uint8Array(1))[0] ??
+                        0 & (15 >> (numC / 4)))
+                ).toString(16);
+            });
+    else return "";
+};
 
 export namespace VaultEncryption {
     export class KeyDerivationConfig_PBKDF2
@@ -1026,6 +1047,326 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     }
 }
 
+export namespace Import {
+    export enum Type {
+        GenericCSV = 0,
+        Bitwarden = 1,
+        KeePass2 = 2,
+    }
+
+    export type Fields =
+        | "Name"
+        | "Username"
+        | "Password"
+        | "TOTP"
+        | "Tags"
+        | "URL"
+        | "Notes"
+        | "DateCreated"
+        | "DateModified"
+        | "DatePasswordChanged";
+    export const PossibleFields: Fields[] = [
+        "Name",
+        "Username",
+        "Password",
+        "TOTP",
+        "Tags",
+        "URL",
+        "Notes",
+        "DateCreated",
+        "DateModified",
+        "DatePasswordChanged",
+    ];
+    export const FieldsSchema = z.object({
+        Name: z.string().nullable(),
+        Username: z.string().nullable(),
+        Password: z.string().nullable(),
+        TOTP: z.string().nullable(),
+        Tags: z.string().nullable(),
+        URL: z.string().nullable(),
+        Notes: z.string().nullable(),
+        DateCreated: z.string().nullable(),
+        DateModified: z.string().nullable(),
+        DatePasswordChanged: z.string().nullable(),
+        TagDelimiter: z.string().nullable(),
+    });
+    export type FieldsSchemaType = z.infer<typeof FieldsSchema>;
+
+    //#region Bitwarden
+    interface BitwardenFolder {
+        id: string;
+        name: string;
+    }
+    interface BitwardenItem {
+        id: string;
+        folderId: string;
+        name: string;
+        notes: string;
+        type: number;
+        login: {
+            username: string;
+            password: string;
+            totp: string;
+            uris: {
+                match: string;
+                uri: string;
+            }[];
+        };
+        revisionDate: string;
+        passwordRevisionDate: string;
+        passwordHistory: {
+            password: string;
+            lastUsedDate: string;
+        }[];
+        card: {
+            cardholderName: string;
+            brand: string;
+            number: string;
+            expMonth: number;
+            expYear: number;
+            code: string;
+        };
+        fields: {
+            name: string;
+            value: string;
+            type: number;
+        }[];
+    }
+
+    interface BitwardenJSON {
+        folders: BitwardenFolder[];
+        items: BitwardenItem[];
+    }
+    //#endregion Bitwarden
+
+    export const CSVGetColNames = (
+        file: File,
+        onSuccess: (columnNames: string[]) => void,
+        onFailure: (error: Error) => void
+    ): void => {
+        // const Papa = dynamic(() => import("papaparse"));
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            download: false,
+            // worker: true,
+            step: function (_, parser) {
+                parser.abort();
+            },
+            complete: function (results: Papa.ParseResult<unknown> | null) {
+                // Call the onSuccess callback
+                onSuccess(results?.meta?.fields ?? []);
+
+                results = null; //Attempting to clear the results from memory
+            },
+            error: function (error) {
+                // Call the onFailure callback
+                onFailure(error);
+            },
+        });
+    };
+
+    export const CSV = (
+        file: File,
+        fields: FieldsSchemaType,
+        onSuccess: (credentials: Credential.CredentialFormSchemaType[]) => void,
+        onFailure: (error: Error) => void
+    ): void => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            download: false,
+            // worker: true,
+            complete: function (results: Papa.ParseResult<unknown> | null) {
+                if (!results) return;
+
+                const credentials: Credential.CredentialFormSchemaType[] = [];
+
+                for (const row of results.data as FieldsSchemaType[]) {
+                    const credential: Credential.CredentialFormSchemaType = {
+                        ID: null,
+                    };
+
+                    credential.Name =
+                        row[(fields.Name as keyof FieldsSchemaType) ?? ""] ??
+                        "Import";
+                    credential.Username =
+                        row[
+                            (fields.Username as keyof FieldsSchemaType) ?? ""
+                        ] ?? undefined;
+                    credential.Password =
+                        row[
+                            (fields.Password as keyof FieldsSchemaType) ?? ""
+                        ] ?? undefined;
+
+                    credential.Tags = (
+                        row[(fields.Tags as keyof FieldsSchemaType) ?? ""] ?? ""
+                    )
+                        .split(fields.TagDelimiter ?? ",")
+                        .join(Credential.TAG_SEPARATOR);
+
+                    credential.URL =
+                        row[(fields.URL as keyof FieldsSchemaType) ?? ""] ??
+                        undefined;
+
+                    credential.Notes =
+                        row[(fields.Notes as keyof FieldsSchemaType) ?? ""] ??
+                        undefined;
+
+                    // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
+                    credential.DateCreated = fields.DateCreated
+                        ? new Date(
+                              row[
+                                  fields.DateCreated as keyof FieldsSchemaType
+                              ] ?? Date.now()
+                          ).toISOString()
+                        : undefined;
+
+                    credential.DateModified = fields.DateModified
+                        ? new Date(
+                              row[
+                                  (fields.DateModified as keyof FieldsSchemaType) ??
+                                      ""
+                              ] ?? ""
+                          ).toISOString()
+                        : undefined;
+
+                    credential.DatePasswordChanged = fields.DatePasswordChanged
+                        ? new Date(
+                              row[
+                                  (fields.DatePasswordChanged as keyof FieldsSchemaType) ??
+                                      ""
+                              ] ?? ""
+                          ).toISOString()
+                        : undefined;
+
+                    if (
+                        fields.TOTP &&
+                        row[fields.TOTP as keyof FieldsSchemaType]
+                    ) {
+                        credential.TOTP = new Credential.TOTP();
+                        credential.TOTP.Secret =
+                            row[fields.TOTP as keyof FieldsSchemaType] ?? "";
+                    }
+
+                    credentials.push(credential);
+                }
+
+                // Call the onSuccess callback
+                onSuccess(credentials);
+            },
+            error: function (error) {
+                // Call the onFailure callback
+                onFailure(error);
+            },
+        });
+    };
+
+    export const BitwardenJSON = (
+        file: File
+    ): Promise<{
+        credentials: Credential.CredentialFormSchemaType[];
+        groups: Group[];
+    }> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onload = () => {
+                const json = reader.result as string;
+                const parsed = JSON.parse(json) as BitwardenJSON;
+
+                const credentials: Credential.CredentialFormSchemaType[] = [];
+
+                for (const item of parsed.items) {
+                    const credential: Credential.CredentialFormSchemaType = {
+                        ID: null,
+                        Type: item.type,
+                        GroupID: item.folderId,
+                    };
+
+                    // TODO: Set fields based on type (mainly type 4 - identity)
+
+                    credential.Name = item.name ?? "Import";
+
+                    if (item.login) {
+                        credential.Username = item.login.username ?? undefined;
+                        credential.Password = item.login.password ?? undefined;
+                        if (item.login.uris)
+                            credential.URL =
+                                item.login.uris[0]?.uri ?? undefined;
+                    }
+
+                    // No data to fill - credential.Tags
+
+                    credential.Notes = item.notes ?? undefined;
+
+                    // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
+                    credential.DateCreated = item.revisionDate
+                        ? new Date(item.revisionDate).toISOString()
+                        : undefined;
+
+                    credential.DateModified = item.passwordRevisionDate
+                        ? new Date(item.passwordRevisionDate).toISOString()
+                        : undefined;
+
+                    credential.DatePasswordChanged =
+                        item.passwordHistory && item.passwordHistory[0]
+                            ? new Date(
+                                  item.passwordHistory[0].lastUsedDate
+                              ).toISOString()
+                            : undefined;
+
+                    if (item.login?.totp) {
+                        credential.TOTP = new Credential.TOTP();
+                        credential.TOTP.Secret = item.login.totp;
+                    }
+
+                    // Set custom fields
+                    item.fields.forEach((field) => {
+                        if (!credential.CustomFields)
+                            credential.CustomFields = [];
+
+                        // Only import text, masked text and boolean fields
+                        // The 3 type is for something called "linked fields" for which we don't have an equivalent
+                        if (field.type < 3) {
+                            const customField = new Credential.CustomField();
+                            customField.Name = field.name;
+                            customField.Value = field.value;
+                            customField.Type = field.type;
+
+                            credential.CustomFields.push(customField);
+                        }
+                    });
+                }
+
+                // Return folders
+                const groups: Group[] = [];
+
+                parsed.folders?.forEach((folder) => {
+                    groups.push({
+                        ID: folder.id,
+                        Name: folder.name,
+                        Icon: "",
+                        Color: "",
+                    });
+                });
+
+                resolve({
+                    credentials,
+                    groups,
+                });
+            };
+
+            reader.onerror = () => {
+                reject(reader.error);
+            };
+
+            reader.readAsText(file);
+        });
+    };
+}
+
 export namespace Credential {
     export const totpFormSchema = z.object({
         Label: z
@@ -1081,8 +1422,25 @@ export namespace Credential {
         }
     }
 
+    export class CustomField implements VaultUtilTypes.CustomField {
+        public ID: string;
+        public Name: string;
+        public Type: VaultUtilTypes.CustomFieldType;
+        public Value: string;
+
+        constructor() {
+            this.ID = "-1";
+            this.Name = "";
+            this.Type = VaultUtilTypes.CustomFieldType.Text;
+            this.Value = "";
+        }
+    }
+
+    export const TAG_SEPARATOR = ",|.|,";
     export const credentialFormSchema = z.object({
         ID: z.string().nullable(),
+        Type: z.nativeEnum(VaultUtilTypes.ItemType).optional(),
+        GroupID: z.string().optional(),
         Name: z
             .string()
             .min(1, requiredFieldError)
@@ -1097,12 +1455,24 @@ export namespace Credential {
         DateCreated: z.string().optional(), // Used only in diffing
         DateModified: z.string().nullable().optional(), // Used only in diffing
         DatePasswordChanged: z.string().nullable().optional(), // Used only in diffing
+        CustomFields: z
+            .array(
+                z.object({
+                    ID: z.string(),
+                    Name: z.string(),
+                    Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
+                    Value: z.string(),
+                })
+            )
+            .optional(),
     });
     export type CredentialFormSchemaType = z.infer<typeof credentialFormSchema>;
     export class VaultCredential
         implements VaultUtilTypes.Credential, CredentialFormSchemaType
     {
         public ID: string;
+        public Type: VaultUtilTypes.ItemType;
+        public GroupID: string;
         public Name: string;
         public Username: string;
         public Password: string;
@@ -1113,13 +1483,13 @@ export namespace Credential {
         public DateCreated: string;
         public DateModified: string | undefined;
         public DatePasswordChanged: string | undefined;
+        public CustomFields: CustomField[];
 
         constructor(form?: CredentialFormSchemaType) {
-            if (process.env.NODE_ENV === "development") {
-                this.ID = form?.ID ?? this.uuidv4_insecurecontexts();
-            } else {
-                this.ID = form?.ID ?? crypto.randomUUID();
-            }
+            this.ID = form?.ID ?? "-1";
+
+            this.Type = form?.Type ?? VaultUtilTypes.ItemType.Credentials;
+            this.GroupID = form?.GroupID ?? "";
 
             this.Name = form?.Name ?? "";
             this.Username = form?.Username ?? "";
@@ -1134,6 +1504,8 @@ export namespace Credential {
             this.DateCreated = new Date().toISOString();
             this.DateModified = undefined;
             this.DatePasswordChanged = undefined;
+
+            this.CustomFields = form?.CustomFields ?? [];
         }
 
         /**
@@ -1142,21 +1514,6 @@ export namespace Credential {
         public toString(): string {
             return JSON.stringify(this);
         }
-
-        private uuidv4_insecurecontexts = (): string => {
-            if (process.env.NODE_ENV === "development")
-                return (1e7 + -1e3 + -4e3 + -8e3 + -1e11)
-                    .toString()
-                    .replace(/[018]/g, (c: string): string => {
-                        const numC = parseInt(c);
-                        return (
-                            numC ^
-                            (crypto.getRandomValues(new Uint8Array(1))[0] ??
-                                0 & (15 >> (numC / 4)))
-                        ).toString(16);
-                    });
-            else return "";
-        };
     }
 
     export interface DiffChange
@@ -1207,6 +1564,18 @@ export namespace Credential {
                 ID: nextCredential.ID,
                 Props: nextCredential,
             };
+        }
+
+        // Note: Don't diff the credential type
+
+        if (prevCredential.GroupID !== nextCredential.GroupID) {
+            changes.push({
+                Type: VaultUtilTypes.DiffType.Update,
+                ID: nextCredential.ID,
+                Props: {
+                    GroupID: nextCredential.GroupID,
+                },
+            });
         }
 
         if (prevCredential.Name !== nextCredential.Name) {
@@ -1599,7 +1968,7 @@ export class OnlineServicesAccount
     }
 }
 
-class Configuration {
+class Configuration implements VaultUtilTypes.Configuration {
     /**
      * The maximum number of diffs to store in the vault.
      * This is used to prevent the vault from growing too large.
@@ -1612,13 +1981,35 @@ class Configuration {
     }
 }
 
+const GroupSchema = z.object({
+    ID: z.string().nullable(),
+    Name: z.string(),
+    Icon: z.string(),
+    Color: z.string(),
+});
+export type GroupSchemaType = z.infer<typeof GroupSchema>;
+class Group implements VaultUtilTypes.Group, GroupSchemaType {
+    public ID: string;
+    public Name: string;
+    public Icon: string;
+    public Color: string;
+
+    constructor(name = "", icon = "", color = "") {
+        this.ID = "-1";
+        this.Name = name;
+        this.Icon = icon;
+        this.Color = color;
+    }
+}
+
 export class Vault implements VaultUtilTypes.Vault {
     public Version: number;
     public Secret: string;
+    public Configuration: Configuration = new Configuration();
     public OnlineServices: OnlineServicesAccount;
+    public Groups: Group[] = [];
     public Credentials: Credential.VaultCredential[];
     public Diffs: Credential.Diff[] = [];
-    public Configuration: Configuration = new Configuration();
 
     constructor(secret = "", seedData = false, seedCount = 0) {
         // This is the version of the vault schema
@@ -1642,6 +2033,7 @@ export class Vault implements VaultUtilTypes.Vault {
             // Generate n mock credentials
             for (let i = 0; i < num; i++) {
                 const newCreds = new Credential.VaultCredential();
+                newCreds.ID = `TestCreds-{i}`.toString();
                 newCreds.Name = "Test Credential " + i;
                 newCreds.Username = "Test Username " + i;
                 newCreds.Password = "Test Password " + i;
@@ -1898,6 +2290,13 @@ export class Vault implements VaultUtilTypes.Vault {
         } else {
             console.time("upsertCredential-newCreds");
             const newCreds = new Credential.VaultCredential(form);
+
+            if (process.env.NODE_ENV === "development") {
+                newCreds.ID = form?.ID ?? uuidv4_insecurecontexts();
+            } else {
+                newCreds.ID = form?.ID ?? crypto.randomUUID();
+            }
+
             console.timeEnd("upsertCredential-newCreds");
 
             if (form.DateCreated) newCreds.DateCreated = form.DateCreated;
@@ -1944,6 +2343,47 @@ export class Vault implements VaultUtilTypes.Vault {
         console.timeEnd("deleteCredential");
     }
     //#endregion Credential Methods
+
+    //#region Group Methods
+    public upsertGroup(form: GroupSchemaType): void {
+        const existingGroup: Group | undefined = this.Groups.find(
+            (g) => g.ID === form.ID
+        );
+
+        // let changes: Credential.DiffChange | null = null;
+        if (existingGroup) {
+            // const originalGroup = Object.assign({}, existingGroup);
+
+            if (form.Name) existingGroup.Name = form.Name;
+            if (form.Icon) existingGroup.Icon = form.Icon;
+            if (form.Color) existingGroup.Color = form.Color;
+
+            // changes = Credential.getChanges(originalGroup, existingGroup);
+        } else {
+            const newGroup = new Group(form.Name, form.Icon, form.Color);
+
+            if (process.env.NODE_ENV === "development") {
+                newGroup.ID = form?.ID ?? uuidv4_insecurecontexts();
+            } else {
+                newGroup.ID = form?.ID ?? crypto.randomUUID();
+            }
+
+            if (form.ID) newGroup.ID = form.ID;
+
+            this.Groups.push(newGroup);
+            // changes = Credential.getChanges(undefined, newGroup);
+        }
+        // this.createDiff(changes);
+    }
+
+    public deleteGroup(id: string): void {
+        const index = this.Groups.findIndex((g) => g.ID === id);
+
+        if (index >= 0) {
+            this.Groups.splice(index, 1);
+        }
+    }
+    //#endregion Group Methods
 
     /**
      * Packages the vault for linking to another device.

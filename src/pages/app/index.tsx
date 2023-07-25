@@ -4,7 +4,11 @@ import { SessionProvider, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { toast } from "react-toastify";
-import { Controller, useForm } from "react-hook-form";
+import {
+    Controller,
+    type UseFormRegisterReturn,
+    useForm,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
@@ -50,6 +54,7 @@ import {
     ChevronUpIcon,
     InformationCircleIcon,
     ExclamationCircleIcon,
+    TableCellsIcon,
 } from "@heroicons/react/20/solid";
 
 import { Turnstile } from "@marsidev/react-turnstile";
@@ -75,6 +80,7 @@ import { signUpFormSchema } from "../../app_lib/online_services_utils";
 import {
     Backup,
     Credential,
+    type GroupSchemaType,
     LinkedDevice,
     NewVaultFormSchemaType,
     OnlineServicesAccount,
@@ -87,6 +93,7 @@ import {
     VaultStorage,
     newVaultFormSchema,
     vaultRestoreFormSchema,
+    Import,
 } from "../../app_lib/vault_utils";
 import {
     TOTPAlgorithm,
@@ -555,6 +562,23 @@ const IconRestoreVault: React.FC = () => {
     );
 };
 
+const FormInputSelectbox: React.FC<{
+    register: UseFormRegisterReturn;
+    options: string[];
+}> = ({ register, options }) => {
+    return (
+        <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
+            <select className="w-full bg-gray-200 text-gray-900" {...register}>
+                {options.map((option) => (
+                    <option key={option} value={option}>
+                        {option}
+                    </option>
+                ))}
+            </select>
+        </div>
+    );
+};
+
 const EncryptionAlgorithmSelectbox: React.FC<{
     onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
     onBlur: () => void;
@@ -806,7 +830,7 @@ const UnlockVaultDialog: React.FC<{
                                             Secret *
                                         </label>
                                         <input
-                                            type="text"
+                                            type="password"
                                             autoCapitalize="none"
                                             className="mt-1 rounded-md bg-gray-200 px-4 py-2 text-gray-900"
                                             onKeyDown={(e) => {
@@ -1044,7 +1068,12 @@ const UnlockVaultDialog: React.FC<{
                                                     message: "Captcha error",
                                                 });
                                             }}
-                                            onExpire={() => onChange("")}
+                                            onExpire={() => {
+                                                onChange("");
+                                                setFormError("CaptchaToken", {
+                                                    message: "Captch expired",
+                                                });
+                                            }}
                                             onSuccess={(token) =>
                                                 onChange(token)
                                             }
@@ -3867,6 +3896,365 @@ const AccountHeaderWidget: React.FC<{
     );
 };
 
+const ImportDataDialog: React.FC<{
+    showDialogFnRef: React.MutableRefObject<() => void>;
+}> = ({ showDialogFnRef }) => {
+    const [visible, setVisible] = useState(false);
+    showDialogFnRef.current = () => setVisible(true);
+    const hideDialog = () => {
+        setVisible(false);
+        setTimeout(() => {
+            resetForm();
+
+            _setImportType(null);
+            setIsOperationInProgress(false);
+
+            selectedFileRef.current = null;
+            credentialsToImportRef.current = [];
+
+            parsedColumns.current = [];
+        }, DIALOG_BLUR_TIME);
+    };
+
+    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+
+    const {
+        register,
+        reset: resetForm,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<Import.FieldsSchemaType>({
+        resolver: zodResolver(Import.FieldsSchema),
+        defaultValues: {
+            Name: "",
+            Username: "",
+            Password: "",
+            TOTP: "",
+            Tags: "",
+            URL: "",
+            Notes: "",
+            DateCreated: "",
+            DateModified: "",
+            DatePasswordChanged: "",
+            TagDelimiter: ",",
+        },
+    });
+
+    const [importType, _setImportType] = useState<Import.Type | null>(null);
+    const [isOperationInProgress, setIsOperationInProgress] = useState(false);
+
+    const selectedFileRef = useRef<File | null>(null);
+    const credentialsToImportRef = useRef<
+        Credential.CredentialFormSchemaType[]
+    >([]);
+
+    // CSV import
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const columnMatchingFormRef = useRef<HTMLFormElement>(null);
+    const parsedColumns = useRef<string[]>([]);
+
+    const importCredentials = (
+        credentials: Credential.CredentialFormSchemaType[],
+        groups: GroupSchemaType[] = []
+    ) => {
+        // Add the credentials to the vault
+        setUnlockedVault((prev) => {
+            if (!prev) return prev;
+            const vault = prev;
+            groups.forEach((group) => {
+                vault.upsertGroup(group);
+            });
+            credentials.forEach((credential) => {
+                vault.upsertCredential(credential);
+            });
+            unlockedVaultMetadata?.save(vault);
+            return vault;
+        });
+
+        toast.success(
+            `Successfully imported ${credentials.length} credentials.`
+        );
+
+        hideDialog();
+    };
+
+    /**
+     * Prepares the import for the selected type.
+     * The functions themselves are responsible for setting the import type at the appropriate time.
+     */
+    const setImportType = async (type: Import.Type | null) => {
+        if (isOperationInProgress) return;
+
+        if (type == Import.Type.GenericCSV) {
+            await prepareGenericCSVImport();
+        } else if (type == Import.Type.Bitwarden) {
+            await parseBitwardenExport();
+            // } else if (type == Import.Type.KeePass2) {
+        }
+    };
+
+    const prepareGenericCSVImport = async () => {
+        // Bring up the file picker
+        const fileData = await openFilePicker(fileInputRef);
+
+        selectedFileRef.current = fileData;
+
+        // Try to parse the first line to get the column names
+        Import.CSVGetColNames(
+            fileData,
+            (columnNames) => {
+                if (columnNames.length) {
+                    // Set the column names as the possible fields in the dropdowns
+                    // Also add an empty option to the dropdowns
+                    columnNames.push("");
+                    parsedColumns.current = columnNames;
+
+                    _setImportType(Import.Type.GenericCSV);
+                } else {
+                    toast.warn("CSV file doesn't contain any data.");
+                }
+            },
+            (error) => {
+                console.error("Error parsing CSV file", error);
+                toast.error(
+                    "Failed to extract column names from CSV file. More details in the console."
+                );
+            }
+        );
+    };
+
+    const submitGenericCSVImport = (formData: Import.FieldsSchemaType) => {
+        if (isOperationInProgress || !selectedFileRef.current) return;
+        setIsOperationInProgress(true);
+
+        console.debug("CSV import form data:", formData);
+        Import.CSV(
+            selectedFileRef.current,
+            formData,
+            (credentials) => {
+                console.debug("Import result", credentials);
+
+                if (credentials.length) {
+                    importCredentials(credentials);
+                } else {
+                    toast.warn("CSV file doesn't contain any data.");
+                }
+
+                setIsOperationInProgress(false);
+            },
+            (error) => {
+                console.error("Error importing CSV file", error);
+                toast.error(
+                    "Failed to import CSV file. More details in the console."
+                );
+                setIsOperationInProgress(false);
+            }
+        );
+    };
+
+    const parseBitwardenExport = async () => {
+        // Bring up the file picker
+        const fileData = await openFilePicker(fileInputRef);
+
+        selectedFileRef.current = fileData;
+
+        setIsOperationInProgress(true);
+
+        try {
+            const { credentials, groups } = await Import.BitwardenJSON(
+                fileData
+            );
+
+            if (credentials.length) {
+                importCredentials(credentials, groups);
+            } else {
+                toast.warn("Bitwarden export file doesn't contain any data.");
+            }
+        } catch (error) {
+            console.error("Error importing Bitwarden JSON file", error);
+            toast.error(
+                "Failed to import Bitwarden JSON file. More details in the console."
+            );
+        }
+        setIsOperationInProgress(false);
+    };
+
+    return (
+        <GenericModal
+            visibleState={[
+                visible,
+                () => (!isOperationInProgress ? hideDialog() : () => {}),
+            ]}
+        >
+            <Body className="flex w-full flex-col items-center gap-3">
+                <div className="">
+                    <p className="text-2xl font-bold text-gray-900">Import</p>
+                </div>
+                {
+                    // If the import type is not selected, show the selection screen
+                    importType == null && (
+                        <div className="flex w-full flex-col">
+                            <p className="mb-2 text-center text-base text-gray-600">
+                                Select the type of data you want to import into
+                                this vault.
+                            </p>
+
+                            {/* <div className="my-5 flex flex-col gap-2">
+                        <Controller
+                            control={control}
+                            name="deviceName"
+                            render={({
+                                field: { onChange, onBlur, value },
+                            }) => (
+                                <>
+                                    <FormInputField
+                                        label="Device name"
+                                        placeholder="Type in a name for the device"
+                                        onChange={onChange}
+                                        onBlur={onBlur}
+                                        value={value}
+                                    />
+                                </>
+                            )}
+                        />
+                        {
+                            // If the device name is invalid, show an error
+                            errors.deviceName && errors.deviceName.message && (
+                                <p className="text-red-500">
+                                    {errors.deviceName.message}
+                                </p>
+                            )
+                        }
+                        <div className="w-full text-center">
+                            <p className="mt-1 text-xs text-gray-500">
+                                This name will be used to identify the device.
+                            </p>{" "}
+                            <p className="text-xs text-gray-500">
+                                This is stored in your vault and is not sent to
+                                the server as it is not necessary for
+                                authentication
+                            </p>
+                        </div>
+                    </div> */}
+
+                            <BlockWideButton
+                                icon={
+                                    <TableCellsIcon className="h-5 w-5 text-gray-900" />
+                                }
+                                iconCaption="Generic - CSV"
+                                description="Import data from a CSV file"
+                                onClick={() =>
+                                    setImportType(Import.Type.GenericCSV)
+                                }
+                                disabled={isOperationInProgress}
+                            />
+
+                            <BlockWideButton
+                                icon={
+                                    <DocumentTextIcon className="h-5 w-5 text-gray-900" />
+                                }
+                                iconCaption="Bitwarden - JSON"
+                                description="Import data from a Bitwarden export file (Unencrypted)"
+                                onClick={() =>
+                                    setImportType(Import.Type.Bitwarden)
+                                }
+                                disabled={isOperationInProgress}
+                            />
+                            {/* 
+                            <BlockWideButton
+                                icon={
+                                    <DocumentTextIcon className="h-5 w-5 text-gray-900" />
+                                }
+                                iconCaption="KeePass 2"
+                                description="Import data from a KeePass 2 export file"
+                                onClick={() =>
+                                    setImportType(Import.Type.KeePass2)
+                                }
+                                disabled={isOperationInProgress}
+                            /> */}
+                        </div>
+                    )
+                }
+                {
+                    // If the import type is selected, show the import screen
+                    importType == Import.Type.GenericCSV && (
+                        <div className="flex w-full flex-col">
+                            <p className="mb-2 text-center text-base text-gray-600">
+                                Match the columns in the CSV file to the fields
+                                in the vault.
+                            </p>
+                            <p className="mb-2 text-center text-base text-gray-600">
+                                Note: You can select only the columns that you
+                                want to import.
+                            </p>
+                            <form
+                                ref={columnMatchingFormRef}
+                                onSubmit={handleSubmit(submitGenericCSVImport)}
+                                className="flex w-full flex-wrap justify-between gap-2"
+                            >
+                                {Import.PossibleFields.map((field, index) => (
+                                    <div key={index} className="min-w-1/2">
+                                        <label className="text-gray-600">
+                                            {field}
+                                        </label>
+                                        {/* <input {...register(field)} /> */}
+                                        <FormInputSelectbox
+                                            options={parsedColumns.current}
+                                            register={register(field)}
+                                        />
+                                    </div>
+                                ))}
+                                <div className="mt-2 flex w-full flex-col rounded border border-gray-200 p-2">
+                                    <p className="mb-2 text-2xl text-gray-600">
+                                        Additional Configuration
+                                    </p>
+                                    <label className="text-gray-600">
+                                        Tag Delimiter
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="mt-1 rounded-md bg-gray-200 px-4 py-2 text-gray-900"
+                                        {...register("TagDelimiter")}
+                                    />
+                                </div>
+                                {errors.root?.message && (
+                                    <p>{errors.root?.message}</p>
+                                )}
+                            </form>
+                        </div>
+                    )
+                }
+                {importType != null && importType != Import.Type.GenericCSV && (
+                    <div className="flex w-full flex-col"></div>
+                )}
+                <div className="hidden">
+                    <input type="file" ref={fileInputRef} accept=".csv,.json" />
+                </div>
+            </Body>
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                {importType === Import.Type.GenericCSV && (
+                    <ButtonFlat
+                        text="Import"
+                        className="sm:ml-2"
+                        onClick={() =>
+                            columnMatchingFormRef.current?.requestSubmit()
+                        }
+                        disabled={isOperationInProgress}
+                        loading={isOperationInProgress}
+                    />
+                )}
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    onClick={hideDialog}
+                    disabled={isOperationInProgress}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+
 const VaultSettingsDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<() => void>;
 }> = ({ showDialogFnRef }) => {
@@ -3914,6 +4302,10 @@ const VaultSettingsDialog: React.FC<{
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+
+    const importDataDialogShowFnRef = useRef<() => void>(() => {
+        // No-op
+    });
 
     const minDiffCount = 50;
     const formSchema = z.object({
@@ -3964,6 +4356,8 @@ const VaultSettingsDialog: React.FC<{
         hideDialog(true);
     };
 
+    const showImportDataDialog = () => importDataDialogShowFnRef.current();
+
     const manualVaultBackup = async () => {
         setIsLoading(true);
         toast.info("Backing up vault...", {
@@ -4004,134 +4398,153 @@ const VaultSettingsDialog: React.FC<{
     }
 
     return (
-        <GenericModal
-            key="vault-settings-modal"
-            visibleState={[visibleState, () => hideDialog()]}
-        >
-            <Body>
-                <div className="flex flex-col items-center text-center">
-                    <p className="text-2xl font-bold text-gray-900">
-                        Vault Settings
-                    </p>
+        <>
+            <GenericModal
+                key="vault-settings-modal"
+                visibleState={[visibleState, () => hideDialog()]}
+            >
+                <Body>
+                    <div className="flex flex-col items-center text-center">
+                        <p className="text-2xl font-bold text-gray-900">
+                            Vault Settings
+                        </p>
 
-                    <div className="mt-2 flex w-full flex-col items-center text-left">
-                        <p
-                            className="line-clamp-2 text-left text-base text-gray-600"
-                            title={vaultMetadata.Name}
-                        >
-                            Name: <b>{vaultMetadata.Name}</b>
-                        </p>
-                        <p className="text-left text-base text-gray-600">
-                            Created:{" "}
-                            <b>
-                                {new Date(
-                                    vaultMetadata.CreatedAt
-                                ).toLocaleDateString()}
-                            </b>
-                        </p>
-                    </div>
-                    <div className="flex w-full flex-col text-left">
-                        <div className="mt-4 rounded-lg bg-gray-100 p-4">
-                            <p className="text-lg font-bold text-slate-800">
-                                Synchronization
+                        <div className="mt-2 flex w-full flex-col items-center text-left">
+                            <p
+                                className="line-clamp-2 text-left text-base text-gray-600"
+                                title={vaultMetadata.Name}
+                            >
+                                Name: <b>{vaultMetadata.Name}</b>
                             </p>
-                            <p className="mt-2 text-base text-gray-600">
-                                Configure how your vault is synchronized with
-                                other devices.
+                            <p className="text-left text-base text-gray-600">
+                                Created:{" "}
+                                <b>
+                                    {new Date(
+                                        vaultMetadata.CreatedAt
+                                    ).toLocaleDateString()}
+                                </b>
                             </p>
-                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                <Controller
-                                    control={control}
-                                    name="maxDiffCount"
-                                    render={({
-                                        field: { onChange, onBlur, value },
-                                    }) => (
-                                        <FormNumberInputField
-                                            label="Max changes to keep"
-                                            min={minDiffCount}
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
+                        </div>
+                        <div className="flex w-full flex-col text-left">
+                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Synchronization
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    Configure how your vault is synchronized
+                                    with other devices.
+                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <Controller
+                                        control={control}
+                                        name="maxDiffCount"
+                                        render={({
+                                            field: { onChange, onBlur, value },
+                                        }) => (
+                                            <FormNumberInputField
+                                                label="Max changes to keep"
+                                                min={minDiffCount}
+                                                onChange={onChange}
+                                                onBlur={onBlur}
+                                                value={value}
+                                            />
+                                        )}
+                                    />
+                                    {errors.maxDiffCount && (
+                                        <p className="text-red-500">
+                                            {errors.maxDiffCount.message}
+                                        </p>
                                     )}
-                                />
-                                {errors.maxDiffCount && (
-                                    <p className="text-red-500">
-                                        {errors.maxDiffCount.message}
-                                    </p>
-                                )}
+                                </div>
                             </div>
-                        </div>
-                        {/* The Backup section with rounded corners and a header top-left */}
-                        <div className="mt-4 rounded-lg bg-gray-100 p-4">
-                            <p className="text-lg font-bold text-slate-800">
-                                Backup
-                            </p>
-                            <p className="mt-2 text-base text-gray-600">
-                                You can backup your vault by exporting it as an
-                                encrypted JSON file. This file can be imported
-                                on another device or browser to restore your
-                                vault there.
-                            </p>
-                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                <ButtonFlat
-                                    text="Manual Backup"
-                                    type={ButtonType.Secondary}
-                                    onClick={manualVaultBackup}
-                                    disabled={isLoading}
-                                />
+                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Import
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    Import data from third-party applications.
+                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <ButtonFlat
+                                        text="Import Data"
+                                        type={ButtonType.Secondary}
+                                        onClick={showImportDataDialog}
+                                        disabled={isLoading}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <div className="mt-4 rounded-lg bg-gray-100 p-4 opacity-50">
-                            <p className="text-lg font-bold text-slate-800">
-                                Encryption
-                            </p>
-                            <p className="mt-2 text-base text-gray-600">
-                                You can change the encryption key or the
-                                algorithm used to encrypt your vault. This will
-                                re-encrypt your vault with the new settings.
-                            </p>
-                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                <ButtonFlat
-                                    text="Change Encryption Key"
-                                    type={ButtonType.Secondary}
-                                    onClick={() => {
-                                        // TODO
-                                    }}
-                                    // disabled={isLoading}
-                                    disabled={true}
-                                />
-                                <ButtonFlat
-                                    text="Change Encryption Algorithm"
-                                    type={ButtonType.Secondary}
-                                    onClick={() => {
-                                        // TODO
-                                    }}
-                                    // disabled={isLoading}
-                                    disabled={true}
-                                />
+                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Backup
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    You can backup your vault by exporting it as
+                                    an encrypted JSON file. This file can be
+                                    imported on another device or browser to
+                                    restore your vault there.
+                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <ButtonFlat
+                                        text="Manual Backup"
+                                        type={ButtonType.Secondary}
+                                        onClick={manualVaultBackup}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                            </div>
+                            <div className="mt-4 rounded-lg bg-gray-100 p-4 opacity-50">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Encryption
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    You can change the encryption key or the
+                                    algorithm used to encrypt your vault. This
+                                    will re-encrypt your vault with the new
+                                    settings.
+                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <ButtonFlat
+                                        text="Change Encryption Key"
+                                        type={ButtonType.Secondary}
+                                        onClick={() => {
+                                            // TODO
+                                        }}
+                                        // disabled={isLoading}
+                                        disabled={true}
+                                    />
+                                    <ButtonFlat
+                                        text="Change Encryption Algorithm"
+                                        type={ButtonType.Secondary}
+                                        onClick={() => {
+                                            // TODO
+                                        }}
+                                        // disabled={isLoading}
+                                        disabled={true}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </Body>
+                </Body>
 
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                <ButtonFlat
-                    text="Save"
-                    className="sm:ml-2"
-                    type={ButtonType.Primary}
-                    onClick={handleSubmit(onSubmit)}
-                    disabled={isSubmitting || isLoading}
-                />
-                <ButtonFlat
-                    text="Close"
-                    type={ButtonType.Secondary}
-                    onClick={() => hideDialog()}
-                    disabled={isSubmitting || isLoading}
-                />
-            </Footer>
-        </GenericModal>
+                <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                    <ButtonFlat
+                        text="Save"
+                        className="sm:ml-2"
+                        type={ButtonType.Primary}
+                        onClick={handleSubmit(onSubmit)}
+                        disabled={isSubmitting || isLoading || !isDirty}
+                    />
+                    <ButtonFlat
+                        text="Close"
+                        type={ButtonType.Secondary}
+                        onClick={() => hideDialog()}
+                        disabled={isSubmitting || isLoading}
+                    />
+                </Footer>
+            </GenericModal>
+            <ImportDataDialog showDialogFnRef={importDataDialogShowFnRef} />
+        </>
     );
 };
 
@@ -4506,7 +4919,7 @@ const CredentialDialog: React.FC<{
         value: string | undefined;
         onChange: (tags: string) => void;
     }> = ({ value, onChange }) => {
-        const tagSeparator = ",|.|,";
+        const tagSeparator = Credential.TAG_SEPARATOR;
 
         const [inputValue, setInputValue] = useState("");
         const [inputFocused, setInputFocused] = useState(false);
@@ -4760,7 +5173,7 @@ const CredentialDialog: React.FC<{
                     {
                         // If a credential is selected, show the credential's information
                         selected.current && (
-                            <p className="mt-2 text-left text-base text-gray-600">
+                            <p className="mt-2 break-all text-left text-base text-gray-600">
                                 Name: <b>{selected.current.Name}</b>
                                 <br />
                                 Created at:{" "}
@@ -5218,10 +5631,10 @@ const CredentialCard: React.FC<{
                     </div>
                     {/* Credential info */}
                     <div className="flex flex-col">
-                        <p className="text-md line-clamp-2 font-bold lg:line-clamp-1">
+                        <p className="text-md line-clamp-2 break-all font-bold lg:line-clamp-1">
                             {credential.Name}
                         </p>
-                        <p className="text-left text-sm text-slate-300">
+                        <p className="line-clamp-2 break-all text-left text-sm text-slate-300 lg:line-clamp-1">
                             {credential.Username}
                         </p>
                     </div>
@@ -5290,9 +5703,7 @@ const CredentialCard: React.FC<{
                     >
                         <div className="py-1">
                             {options.map((option, index) => (
-                                <Menu.Item
-                                    key={`vault-${credential.ID}-${index}`}
-                                >
+                                <Menu.Item key={index}>
                                     {({ active }) => {
                                         const hoverClass = clsx({
                                             "bg-gray-900 text-white": active,
@@ -8696,6 +9107,7 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
     const sidebarSelector = ".sidebar-event-selector";
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
     const closeSidebarOnOutsideClick = (e: MouseEvent) => {
+        // TODO: Fix this, isSidebarOpen is always false
         if (
             e.target instanceof HTMLElement &&
             isSidebarOpen &&

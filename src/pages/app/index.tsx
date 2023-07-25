@@ -7782,14 +7782,14 @@ const DashboardSidebarSynchronization: React.FC<{
         onlineWSServicesEndpoint = newWSPusherInstance();
 
         onlineWSServicesEndpoint.connection.bind("connecting", () => {
-            console.log("Changed status to offline - connection connecting");
+            console.debug("Changed status to offline - connection connecting");
             setOnlineServicesStatus(
                 <p className="text-sm text-slate-500">Loading...</p>
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("connected", () => {
-            console.log("Changed status to online - connection established");
+            console.debug("Changed status to online - connection established");
             setOnlineServicesStatus(
                 <p className="text-sm text-green-500">Online</p>
             );
@@ -7799,14 +7799,16 @@ const DashboardSidebarSynchronization: React.FC<{
         });
 
         onlineWSServicesEndpoint.connection.bind("disconnected", () => {
-            console.log("Changed status to offline - connection disconnected");
+            console.debug(
+                "Changed status to offline - connection disconnected"
+            );
             setOnlineServicesStatus(
                 <p className="text-sm text-red-500">Offline</p>
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("unavailable", () => {
-            console.log("Changed status to offline - connection unavailable");
+            console.debug("Changed status to offline - connection unavailable");
             setOnlineServicesStatus(
                 <p
                     className="text-sm text-orange-500"
@@ -7818,7 +7820,7 @@ const DashboardSidebarSynchronization: React.FC<{
         });
 
         onlineWSServicesEndpoint.connection.bind("failed", () => {
-            console.log("Changed status to offline - connection failed");
+            console.debug("Changed status to offline - connection failed");
             setOnlineServicesStatus(
                 <p
                     className="text-sm text-red-500"
@@ -9309,11 +9311,95 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
     );
 };
 
+// Vault item search bar that resembles the GitHub Projects search bar behaviour
+const SearchBar: React.FC<{
+    filter: React.Dispatch<React.SetStateAction<string>>;
+}> = ({ filter }) => {
+    const { register, watch, getValues, setValue, setFocus } = useForm<{
+        search: string;
+    }>({
+        defaultValues: {
+            search: "",
+        },
+    });
+
+    const inputTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const onInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // Clear the timeout if it exists
+        if (inputTimeoutRef.current) {
+            clearTimeout(inputTimeoutRef.current);
+        }
+
+        // Set a new timeout
+        inputTimeoutRef.current = setTimeout(() => {
+            // Get the search value
+            const search = getValues("search");
+            console.debug("Search", search);
+
+            filter(search);
+
+            // Clear the timeout
+            inputTimeoutRef.current = null;
+        }, 200);
+    };
+
+    const clearSearch = () => {
+        setValue("search", "");
+        filter("");
+    };
+
+    // On Ctrl+F, focus the search bar
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.key === "f") {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Focus the search bar
+                setFocus("search");
+            }
+        };
+        document.addEventListener("keydown", onKeyDown);
+
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, []);
+
+    return (
+        <div className="flex w-full flex-grow-0 items-center gap-1 border-b border-slate-700 p-2">
+            {
+                // If there is text in the search bar, show the clear button
+                watch("search").length > 0 ? (
+                    <XMarkIcon
+                        className="h-5 w-5 cursor-pointer text-slate-400"
+                        onClick={clearSearch}
+                    />
+                ) : (
+                    <FunnelIcon className="h-5 w-5 text-slate-400" />
+                )
+            }
+            <input
+                type="text"
+                // disabled={true}
+                className="ml-2 flex-grow border-none bg-transparent text-slate-200 outline-none placeholder:text-slate-400"
+                // placeholder="Filter by keyword or by field"
+                title="Ctrl+F to search"
+                placeholder="Filter by keyword (Ctrl+F)"
+                onInput={onInput}
+                {...register("search")}
+            />
+        </div>
+    );
+};
+
 const CredentialsList: React.FC<{
     showNewCredentialsDialogFn: React.MutableRefObject<(() => void) | null>;
     showWarningDialog: WarningDialogShowFn;
 }> = ({ showNewCredentialsDialogFn, showWarningDialog }) => {
     const vault = useAtomValue(unlockedVaultAtom);
+    const [filter, setFilter] = useState("");
 
     const selectedCredential = useRef<Credential.VaultCredential | undefined>(
         undefined
@@ -9329,36 +9415,53 @@ const CredentialsList: React.FC<{
         showCredentialsDialogRef.current?.();
     });
 
+    let filteredCredentials: Credential.VaultCredential[] = [];
+    if (vault) {
+        filteredCredentials = vault?.Credentials.filter((credential) => {
+            if (filter === "") return true;
+
+            if (credential.Name.toLowerCase().includes(filter.toLowerCase()))
+                return true;
+
+            if (
+                credential.Username.toLowerCase().includes(filter.toLowerCase())
+            )
+                return true;
+
+            if (credential.URL.toLowerCase().includes(filter.toLowerCase()))
+                return true;
+
+            return false;
+        });
+    }
+
     return (
         <>
-            <div className="hidden w-full flex-grow-0 items-center gap-1 border-b border-slate-700 px-2">
-                {/* TODO: Replicate GitHub Projects filter bar behaviour */}
-                <FunnelIcon className="h-5 w-5 text-slate-400" />
-                {/* <XMarkIcon className="h-6 w-6 text-slate-400" /> */}
-                <input
-                    type="text"
-                    disabled={true}
-                    className="ml-2 flex-grow border-none bg-transparent text-slate-400 outline-none"
-                    placeholder="Filter by keyword or by field"
-                />
-            </div>
+            <SearchBar filter={setFilter} />
             <div className="my-5 flex h-px w-full flex-grow justify-center overflow-y-auto overflow-x-hidden px-5">
                 {!vault ||
-                    (vault.Credentials.length === 0 && (
+                    (filteredCredentials.length === 0 && (
                         <div className="flex flex-grow flex-col items-center justify-center">
                             <p className="text-2xl font-bold text-slate-50">
                                 No items
                             </p>
-                            <p className="text-center text-slate-400">
-                                {" "}
-                                Press the &quot;New Item&quot; button in the
-                                sidebar to add a new credential.
-                            </p>
+                            {filter.length > 0 && (
+                                <p className="text-center text-slate-400">
+                                    No items match the filter.
+                                </p>
+                            )}
+                            {filter.length === 0 && (
+                                <p className="text-center text-slate-400">
+                                    {" "}
+                                    Press the &quot;New Item&quot; button in the
+                                    sidebar to add a new credential.
+                                </p>
+                            )}
                         </div>
                     ))}
-                {vault && vault.Credentials.length > 0 && (
+                {vault && filteredCredentials.length > 0 && (
                     <div className="flex w-full max-w-full flex-col gap-3 pb-3 2xl:max-w-7xl">
-                        {vault.Credentials.map((credential) => (
+                        {filteredCredentials.map((credential) => (
                             <CredentialCard
                                 key={credential.ID}
                                 credential={credential}
@@ -9371,9 +9474,16 @@ const CredentialsList: React.FC<{
             </div>
             {vault && vault.Credentials.length > 0 && (
                 <div className="flex w-full flex-grow-0 items-center justify-center border-t border-slate-700 px-2 py-1">
-                    <p className="text-slate-400">
-                        Items loaded: {vault.Credentials.length}
-                    </p>
+                    {filter.length > 0 && (
+                        <p className="text-slate-400">
+                            Filtered items: {filteredCredentials.length}
+                        </p>
+                    )}
+                    {filter.length === 0 && (
+                        <p className="text-slate-400">
+                            Items loaded: {vault.Credentials.length}
+                        </p>
+                    )}
                 </div>
             )}
             <CredentialDialog

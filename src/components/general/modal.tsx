@@ -89,7 +89,7 @@ export const GenericModal: React.FC<ModalProps> = ({
                             leaveFrom="opacity-100 translate-y-0 sm:scale-100"
                             leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                         >
-                            <Dialog.Panel className="relative transform overflow-hidden rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                            <Dialog.Panel className="relative w-full transform overflow-hidden rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
                                 {childrenTitle ? (
                                     <div className="flex justify-center bg-gray-50 px-4 py-3 sm:justify-start">
                                         {childrenTitle}
@@ -121,7 +121,7 @@ export const Title: React.FC<GeneralProps> = ({ children, className }) => (
 
 export const Body: React.FC<GeneralProps> = ({ children, className }) => (
     <div
-        className={"bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 " + className ?? ""}
+        className={"bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4 " + className ?? ""}
     >
         {children}
     </div>

@@ -4,11 +4,7 @@ import { SessionProvider, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { toast } from "react-toastify";
-import {
-    Controller,
-    type UseFormRegisterReturn,
-    useForm,
-} from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
@@ -111,6 +107,13 @@ import Spinner from "../../components/general/spinner";
 import { env } from "../../env/client.mjs";
 import dynamic from "next/dynamic";
 import QrReader from "../../components/general/qrScanner";
+import { CredentialsGeneratorDialog } from "../../components/dialog/credentialsGenerator";
+import {
+    FormInputField,
+    FormSelectboxField,
+    FormNumberInputField,
+    FormTextAreaField,
+} from "../../components/general/inputFields";
 
 dayjs.extend(RelativeTime);
 
@@ -559,23 +562,6 @@ const IconRestoreVault: React.FC = () => {
                 strokeLinejoin="round"
             />
         </svg>
-    );
-};
-
-const FormInputSelectbox: React.FC<{
-    register: UseFormRegisterReturn;
-    options: string[];
-}> = ({ register, options }) => {
-    return (
-        <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
-            <select className="w-full bg-gray-200 text-gray-900" {...register}>
-                {options.map((option) => (
-                    <option key={option} value={option}>
-                        {option}
-                    </option>
-                ))}
-            </select>
-        </div>
     );
 };
 
@@ -1107,106 +1093,6 @@ const UnlockVaultDialog: React.FC<{
                 />
             </Footer>
         </GenericModal>
-    );
-};
-
-type FormInputFieldProps = {
-    label: string;
-    type?: "text" | "password" | "email" | "tel" | "url";
-    placeholder?: string;
-    autoCapitalize?: "none" | "sentences" | "words" | "characters";
-    value: string | number | readonly string[] | undefined;
-    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
-};
-const FormInputField: React.FC<FormInputFieldProps> = ({
-    label,
-    type = "text",
-    placeholder,
-    autoCapitalize,
-    value,
-    onChange,
-    onBlur,
-}) => {
-    return (
-        <>
-            {label && <label className="text-gray-600">{label}</label>}
-            <input
-                type={type}
-                placeholder={placeholder}
-                autoCapitalize={autoCapitalize}
-                className="mt-1 rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                onChange={onChange}
-                onBlur={onBlur}
-                value={value}
-            />
-        </>
-    );
-};
-
-type FormTextAreaFieldProps = {
-    type?: never;
-    onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-    onBlur?: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
-} & FormInputFieldProps;
-const FormTextAreaField: React.FC<FormTextAreaFieldProps> = ({
-    label,
-    placeholder,
-    autoCapitalize,
-    value,
-    onChange,
-    onBlur,
-}) => {
-    return (
-        <>
-            {label && <label className="text-gray-600">{label}</label>}
-            <textarea
-                placeholder={placeholder}
-                autoCapitalize={autoCapitalize}
-                className="mt-1 max-h-52 min-h-[50px] rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                onChange={onChange}
-                onBlur={onBlur}
-                value={value}
-            />
-        </>
-    );
-};
-
-type FormNumberInputFieldProps = {
-    type?: never;
-    autoCapitalize?: never;
-    placeholder?: never;
-    min?: number;
-    max?: number;
-    valueLabel?: string;
-} & FormInputFieldProps;
-const FormNumberInputField: React.FC<FormNumberInputFieldProps> = ({
-    label,
-    min,
-    max,
-    valueLabel,
-    onChange,
-    onBlur,
-    value,
-}) => {
-    return (
-        <>
-            {label && <label className="text-gray-600">{label}</label>}
-            <div className="flex items-center gap-2">
-                <input
-                    type="number"
-                    onChange={onChange}
-                    onBlur={onBlur}
-                    value={value}
-                    className="w-full border p-2 transition-all hover:border-slate-500"
-                    min={min}
-                    max={max}
-                />
-                {valueLabel && (
-                    <span className="text-md text-gray-600">{valueLabel}</span>
-                )}
-            </div>
-        </>
     );
 };
 
@@ -4084,7 +3970,12 @@ const ImportDataDialog: React.FC<{
         <GenericModal
             visibleState={[
                 visible,
-                () => (!isOperationInProgress ? hideDialog() : () => {}),
+                () =>
+                    !isOperationInProgress
+                        ? hideDialog()
+                        : () => {
+                              // No-op
+                          },
             ]}
         >
             <Body className="flex w-full flex-col items-center gap-3">
@@ -4199,7 +4090,7 @@ const ImportDataDialog: React.FC<{
                                             {field}
                                         </label>
                                         {/* <input {...register(field)} /> */}
-                                        <FormInputSelectbox
+                                        <FormSelectboxField
                                             options={parsedColumns.current}
                                             register={register(field)}
                                         />
@@ -4814,8 +4705,14 @@ const CredentialDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
     vault: Vault | null;
     selected: React.MutableRefObject<Credential.VaultCredential | undefined>;
+    showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
     // requiredAuth?: boolean; // Not used yet, but will be used to require authentication to view credentials
-}> = ({ showDialogFnRef, vault, selected }) => {
+}> = ({
+    showDialogFnRef,
+    vault,
+    selected,
+    showCredentialsGeneratorDialogFn,
+}) => {
     const [isDialogVisible, setIsDialogVisible] = useState(false);
     showDialogFnRef.current = () => {
         if (selected.current) {
@@ -4895,7 +4792,17 @@ const CredentialDialog: React.FC<{
     const saveToClipboard = async (value?: string) => {
         if (!value) return;
         await navigator.clipboard.writeText(value);
-        toast.success("Copied to clipboard");
+        toast.info("Copied to clipboard");
+    };
+
+    const ShowCredentialsGeneratorButton = () => {
+        return (
+            <KeyIcon
+                className="mx-2 h-5 w-5 flex-grow-0 cursor-pointer text-slate-400 hover:text-slate-500"
+                title="Generate credentials"
+                onClick={() => showCredentialsGeneratorDialogFn.current()}
+            />
+        );
     };
 
     const ClipboardButton = ({ value }: { value?: string }) => {
@@ -5294,6 +5201,7 @@ const CredentialDialog: React.FC<{
                                                 onBlur={onBlur}
                                                 value={value}
                                             />
+                                            <ShowCredentialsGeneratorButton />
                                             <ClipboardButton value={value} />
                                         </div>
                                         {/* <EntropyCalculator value={value} /> */}
@@ -9093,10 +9001,9 @@ const DashboardSidebarMenuFeatureVoting: React.FC<{
 };
 
 //#region Vault dashboard
-type VaultDashboardProps = {
+const VaultDashboard: React.FC<{
     vault: Vault | null;
-};
-const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
+}> = ({ vault }) => {
     // console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
@@ -9135,6 +9042,10 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
     const showAccountSignUpSignInDialogRef = useRef<(() => void) | null>(null);
     const showFeatureVotingDialogRef = useRef<(() => void) | null>(null);
     const showVaultSettingsDialogRef = useRef<() => void>(() => {
+        // No-op
+    });
+
+    const showCredentialsGeneratorDialogFnRef = useRef<() => void>(() => {
         // No-op
     });
 
@@ -9268,6 +9179,13 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                             />
                             <p className="text-sm text-slate-500">Vault</p>
                             <DashboardSidebarMenuItem
+                                Icon={KeyIcon}
+                                text="Credentials Generator"
+                                onClick={() =>
+                                    showCredentialsGeneratorDialogFnRef.current()
+                                }
+                            />
+                            <DashboardSidebarMenuItem
                                 Icon={Cog8ToothIcon}
                                 text="Settings"
                                 onClick={() =>
@@ -9295,6 +9213,9 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                             showNewCredentialsDialogFnRef
                         }
                         showWarningDialog={showWarningDialog}
+                        showCredentialsGeneratorDialogFn={
+                            showCredentialsGeneratorDialogFnRef
+                        }
                     />
                 </div>
             </div>
@@ -9307,6 +9228,9 @@ const VaultDashboard: React.FC<VaultDashboardProps> = ({ vault }) => {
                 vault={vault}
             />
             <EmailNotVerifiedDialog />
+            <CredentialsGeneratorDialog
+                showDialogFnRef={showCredentialsGeneratorDialogFnRef}
+            />
         </>
     );
 };
@@ -9325,7 +9249,7 @@ const SearchBar: React.FC<{
 
     const inputTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const onInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const onInput = () => {
         // Clear the timeout if it exists
         if (inputTimeoutRef.current) {
             clearTimeout(inputTimeoutRef.current);
@@ -9397,7 +9321,12 @@ const SearchBar: React.FC<{
 const CredentialsList: React.FC<{
     showNewCredentialsDialogFn: React.MutableRefObject<(() => void) | null>;
     showWarningDialog: WarningDialogShowFn;
-}> = ({ showNewCredentialsDialogFn, showWarningDialog }) => {
+    showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
+}> = ({
+    showNewCredentialsDialogFn,
+    showWarningDialog,
+    showCredentialsGeneratorDialogFn,
+}) => {
     const vault = useAtomValue(unlockedVaultAtom);
     const [filter, setFilter] = useState("");
 
@@ -9490,6 +9419,9 @@ const CredentialsList: React.FC<{
                 showDialogFnRef={showCredentialsDialogRef}
                 vault={vault}
                 selected={selectedCredential}
+                showCredentialsGeneratorDialogFn={
+                    showCredentialsGeneratorDialogFn
+                }
             />
         </>
     );

@@ -2135,6 +2135,11 @@ export class Vault implements VaultUtilTypes.Vault {
      * @param changes - The changes that were made
      */
     private createDiff(changes: Credential.DiffChange | null) {
+        if (this.OnlineServices.LinkedDevices.length <= 0) {
+            console.debug("Skipping diff creation, no linked devices.");
+            return;
+        }
+
         if (!changes) {
             console.debug("No changes to create diff for... Early return.");
             return;
@@ -2149,7 +2154,8 @@ export class Vault implements VaultUtilTypes.Vault {
         const diff = new Credential.Diff(newHash, changes);
 
         // If the diff array size is greater than the max diff count, remove the oldest diff
-        if (this.Diffs.length >= this.Configuration.MaxDiffCount) {
+        // NOTE: This is disabled for now
+        if (this.Diffs.length >= this.Configuration.MaxDiffCount && false) {
             // Slice the array to remove the overflowing diffs
             // Example: this.Diffs.length = 286, this.Configuration.MaxDiffCount = 95
             // - Result: 286 - 95 + 1 = 192 -> 192 diffs from the start of the array are removed

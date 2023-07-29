@@ -4154,13 +4154,13 @@ const VaultSettingsDialog: React.FC<{
         const hide = () => {
             setVisibleState(false);
 
-            setTimeout(() => {
-                resetForm({
-                    maxDiffCount:
-                        unlockedVault?.Configuration.MaxDiffCount ??
-                        minDiffCount,
-                });
-            }, DIALOG_BLUR_TIME);
+            // setTimeout(() => {
+            //     resetForm({
+            //         maxDiffCount:
+            //             unlockedVault?.Configuration.MaxDiffCount ??
+            //             minDiffCount,
+            //     });
+            // }, DIALOG_BLUR_TIME);
         };
 
         if (force) {
@@ -4192,60 +4192,62 @@ const VaultSettingsDialog: React.FC<{
 
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    // const setUnlockedVault = useSetAtom(unlockedVaultAtom);
 
     const importDataDialogShowFnRef = useRef<() => void>(() => {
         // No-op
     });
 
-    const minDiffCount = 50;
-    const formSchema = z.object({
-        maxDiffCount: z.coerce
-            .number()
-            .int()
-            .min(
-                minDiffCount,
-                `Must be at least ${minDiffCount} to prevent data loss.`
-            ),
-    });
-    type FormSchema = z.infer<typeof formSchema>;
-    const {
-        handleSubmit,
-        control,
-        formState: { errors, isSubmitting, isDirty },
-        reset: resetForm,
-    } = useForm<FormSchema>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            maxDiffCount:
-                unlockedVault?.Configuration.MaxDiffCount ?? minDiffCount,
-        },
-    });
+    // NOTE: This is a placeholder for now
+    const isDirty = false;
+    // const minDiffCount = 50;
+    // const formSchema = z.object({
+    //     maxDiffCount: z.coerce
+    //         .number()
+    //         .int()
+    //         .min(
+    //             minDiffCount,
+    //             `Must be at least ${minDiffCount} to prevent data loss.`
+    //         ),
+    // });
+    // type FormSchema = z.infer<typeof formSchema>;
+    // const {
+    //     handleSubmit,
+    //     control,
+    //     formState: { errors, isSubmitting, isDirty },
+    //     reset: resetForm,
+    // } = useForm<FormSchema>({
+    //     resolver: zodResolver(formSchema),
+    //     defaultValues: {
+    //         maxDiffCount:
+    //             unlockedVault?.Configuration.MaxDiffCount ?? minDiffCount,
+    //     },
+    // });
 
-    const onSubmit = async (form: FormSchema) => {
-        if (!vaultMetadata || !unlockedVault || isLoading) {
-            return;
-        }
+    // const onSubmit = async (form: FormSchema) => {
+    //     if (!vaultMetadata || !unlockedVault || isLoading) {
+    //         return;
+    //     }
 
-        if (!isDirty) {
-            hideDialog(true);
-            return;
-        }
+    //     if (!isDirty) {
+    //         hideDialog(true);
+    //         return;
+    //     }
 
-        setIsLoading(true);
+    //     setIsLoading(true);
 
-        setUnlockedVault((prev) => {
-            if (prev == null) {
-                return prev;
-            } else {
-                prev.Configuration.setMaxDiffCount(form.maxDiffCount);
-                return prev;
-            }
-        });
+    //     setUnlockedVault((prev) => {
+    //         if (prev == null) {
+    //             return prev;
+    //         } else {
+    //             prev.Configuration.setMaxDiffCount(form.maxDiffCount);
+    //             return prev;
+    //         }
+    //     });
 
-        setIsLoading(false);
-        hideDialog(true);
-    };
+    //     setIsLoading(false);
+    //     hideDialog(true);
+    // };
 
     const showImportDataDialog = () => importDataDialogShowFnRef.current();
 
@@ -4317,7 +4319,7 @@ const VaultSettingsDialog: React.FC<{
                             </p>
                         </div>
                         <div className="flex w-full flex-col text-left">
-                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                            {/* <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Synchronization
                                 </p>
@@ -4347,7 +4349,7 @@ const VaultSettingsDialog: React.FC<{
                                         </p>
                                     )}
                                 </div>
-                            </div>
+                            </div> */}
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Import
@@ -4419,18 +4421,19 @@ const VaultSettingsDialog: React.FC<{
                 </Body>
 
                 <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                    <ButtonFlat
+                    {/* <ButtonFlat
                         text="Save"
                         className="sm:ml-2"
                         type={ButtonType.Primary}
                         onClick={handleSubmit(onSubmit)}
                         disabled={isSubmitting || isLoading || !isDirty}
-                    />
+                    /> */}
                     <ButtonFlat
                         text="Close"
                         type={ButtonType.Secondary}
                         onClick={() => hideDialog()}
-                        disabled={isSubmitting || isLoading}
+                        // disabled={isSubmitting || isLoading}
+                        disabled={isLoading}
                     />
                 </Footer>
             </GenericModal>

@@ -8090,6 +8090,11 @@ const DashboardSidebarSynchronization: React.FC<{
                             mockUnlockedVault.Credentials = JSON.parse(
                                 JSON.stringify(unlockedVault.Credentials)
                             );
+
+                            // Set the online services to the mock vault - we need this to pass the write check for the diffs
+                            mockUnlockedVault.OnlineServices =
+                                unlockedVault.OnlineServices;
+
                             mockUnlockedVault.applyDiffs(message.diffList);
                             const mockVaultHash =
                                 mockUnlockedVault.getLatestHash();

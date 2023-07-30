@@ -4766,7 +4766,7 @@ const CredentialDialog: React.FC<{
         Username: "",
         Password: "",
         TOTP: undefined,
-        Tags: undefined,
+        Tags: "",
         URL: "",
         Notes: "",
     };

@@ -1971,10 +1971,11 @@ export class OnlineServicesAccount
 class Configuration implements VaultUtilTypes.Configuration {
     /**
      * The maximum number of diffs to store in the vault.
-     * This is used to prevent the vault from growing too large.
-     * @default 200
+     * This is used to minimize the amount of user interaction required when syncing.
+     * It is set to a fixed number in order to prevent the vault from growing too large.
+     * @default 500
      */
-    public MaxDiffCount = 200;
+    public MaxDiffCount = 500;
 
     public setMaxDiffCount(count: number): void {
         this.MaxDiffCount = Math.abs(count);
@@ -2046,6 +2047,14 @@ export class Vault implements VaultUtilTypes.Vault {
 
     //#region Diffing
     /**
+     * Clear the list of diffs. This is usually used to remedy a failure to sync.
+     * NOTE: This has to be done on all linked devices in order to prevent the vaults from diverging.
+     */
+    public clearDiffList(): void {
+        this.Diffs = [];
+    }
+
+    /**
      * Hashes the vault's credentials and returns the hash as a hex string.
      * This is used to when computing diffs between changes to the vault credentials.
      * It also sorts the properties of the credentials to ensure that the hash is consistent.
@@ -2053,24 +2062,36 @@ export class Vault implements VaultUtilTypes.Vault {
      */
     private hashCredentials(): string {
         // Copy the credential object property by property
-        const credentialsCopy = this.Credentials.map(
-            (c: Credential.VaultCredential) => {
-                const blankObject: Partial<Credential.VaultCredential> = {};
+        const credentialsCopy = this.Credentials.sort((a, b) => {
+            // Convert every character of a to a number then sum them
+            const aSum = a.ID.split("").reduce(
+                (acc, char, index) => acc + char.charCodeAt(0) * index,
+                0
+            );
 
-                // Sort the properties first to ensure the hash is consistent
-                Object.keys(c)
-                    .sort()
-                    .forEach((key: string) => {
-                        const typedKey =
-                            key as keyof Credential.VaultCredential;
-                        (blankObject as any)[typedKey] = c[typedKey];
-                    });
+            // Convert every character of b to a number then sum them
+            const bSum = b.ID.split("").reduce(
+                (acc, char, index) => acc + char.charCodeAt(0) * index,
+                0
+            );
 
-                blankObject.ID = "";
+            // Sort by the sum of the characters
+            return aSum - bSum;
+        }).map((c: Credential.VaultCredential) => {
+            const blankObject: Partial<Credential.VaultCredential> = {};
 
-                return blankObject;
-            }
-        );
+            // Sort the properties first to ensure the hash is consistent
+            Object.keys(c)
+                .sort()
+                .forEach((key: string) => {
+                    const typedKey = key as keyof Credential.VaultCredential;
+                    (blankObject as any)[typedKey] = c[typedKey];
+                });
+
+            blankObject.ID = "";
+
+            return blankObject;
+        });
 
         const stringifiedCredentials = JSON.stringify(credentialsCopy, null, 0);
         console.debug("Hashing credentials: ", stringifiedCredentials);
@@ -2091,6 +2112,7 @@ export class Vault implements VaultUtilTypes.Vault {
      */
     public getLatestHash(): string | null {
         if (this.Diffs.length === 0) {
+            if (this.Credentials.length !== 0) return this.hashCredentials();
             return null;
         }
 
@@ -2109,12 +2131,24 @@ export class Vault implements VaultUtilTypes.Vault {
      * Gets the diffs for the vault from the specified hash to the latest diff.
      * @param hash - The hash to start from
      * @returns An array of diffs from the specified hash to the latest diff (in that order)
-     * @returns The whole array of diffs if the hash is null
-     *
+     * @returns An array of existing credentials (as additions) if the hash is null
      */
     public getDiffsSinceHash(hash: string | null): Credential.Diff[] {
         if (hash === null) {
-            return this.Diffs;
+            // Create a clone of the vault so we can calculate the hash after adding each credential
+            const clonedVault = new Vault();
+
+            return this.Credentials.map((cred) => {
+                // Add the credential to the cloned vault
+                clonedVault.upsertCredential(cred);
+
+                // Craft a diff for the credential
+                return new Credential.Diff(clonedVault.hashCredentials(), {
+                    Type: VaultUtilTypes.DiffType.Add,
+                    ID: cred.ID,
+                    Props: cred,
+                });
+            });
         }
 
         const startIndex = this.Diffs.findIndex((diff) => diff.Hash === hash);
@@ -2459,24 +2493,34 @@ export class Vault implements VaultUtilTypes.Vault {
 export namespace Synchronization {
     export enum Command {
         SyncRequest = "sync-request",
-        SyncResponse = "sync-response",
         ResponseSyncAllHashes = "response-sync-all-hashes",
+        SyncResponse = "sync-response",
+        DivergenceSolveRequest = "divergence-solve-request",
+        DivergenceSolve = "divergence-solve",
         LinkedDevicesList = "linked-devices-list",
     }
     export class Message implements z.infer<typeof messageSchema> {
         command: Command;
         hash: string | null;
+        /**
+         * The hash from which the divergance occurred.
+         * This is sent from the ResponseSyncAllHashes command if it detects a divergance.
+         * This is only used in the SyncResponse command if it has been set by the ResponseSyncAllHashes command.
+         */
+        divergenceHash: string | null;
         diffList: Credential.DiffSchemaType[];
         linkedDevicesList?: LinkedDeviceSchemaType[];
 
         constructor(
             command: Command,
             hash: string | null,
+            diverganceHash: string | null,
             diffList: Credential.DiffSchemaType[],
             linkedDevicesList?: LinkedDeviceSchemaType[]
         ) {
             this.command = command;
             this.hash = hash;
+            this.divergenceHash = diverganceHash;
             this.diffList = diffList;
             this.linkedDevicesList = linkedDevicesList;
         }
@@ -2484,6 +2528,7 @@ export namespace Synchronization {
     export const messageSchema = z.object({
         command: z.nativeEnum(Command),
         hash: z.string().nullable(),
+        divergenceHash: z.string().nullable(),
         diffList: z.array(Credential.DiffSchema),
         linkedDevicesList: z.array(LinkedDevicesSchema).optional(),
     });

@@ -4148,36 +4148,29 @@ const ImportDataDialog: React.FC<{
 
 const VaultSettingsDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<() => void>;
-}> = ({ showDialogFnRef }) => {
+    showWarningDialog: WarningDialogShowFn;
+}> = ({ showDialogFnRef, showWarningDialog }) => {
     const [visibleState, setVisibleState] = useState(false);
     const hideDialog = (force?: boolean) => {
         const hide = () => {
             setVisibleState(false);
-
-            // setTimeout(() => {
-            //     resetForm({
-            //         maxDiffCount:
-            //             unlockedVault?.Configuration.MaxDiffCount ??
-            //             minDiffCount,
-            //     });
-            // }, DIALOG_BLUR_TIME);
         };
 
         if (force) {
             hide();
         } else {
             // If the form is dirty, show a warning dialog
-            if (isDirty) {
-                const confirm = window.confirm(
-                    "Are you sure you want to discard your changes?"
-                );
+            // if (isDirty) {
+            //     const confirm = window.confirm(
+            //         "Are you sure you want to discard your changes?"
+            //     );
 
-                if (confirm) {
-                    hide();
-                }
-            } else {
-                hide();
-            }
+            //     if (confirm) {
+            //         hide();
+            //     }
+            // } else {
+            hide();
+            // }
         }
     };
     showDialogFnRef.current = () => {
@@ -4192,62 +4185,34 @@ const VaultSettingsDialog: React.FC<{
 
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    // const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
 
     const importDataDialogShowFnRef = useRef<() => void>(() => {
         // No-op
     });
 
-    // NOTE: This is a placeholder for now
-    const isDirty = false;
-    // const minDiffCount = 50;
-    // const formSchema = z.object({
-    //     maxDiffCount: z.coerce
-    //         .number()
-    //         .int()
-    //         .min(
-    //             minDiffCount,
-    //             `Must be at least ${minDiffCount} to prevent data loss.`
-    //         ),
-    // });
-    // type FormSchema = z.infer<typeof formSchema>;
-    // const {
-    //     handleSubmit,
-    //     control,
-    //     formState: { errors, isSubmitting, isDirty },
-    //     reset: resetForm,
-    // } = useForm<FormSchema>({
-    //     resolver: zodResolver(formSchema),
-    //     defaultValues: {
-    //         maxDiffCount:
-    //             unlockedVault?.Configuration.MaxDiffCount ?? minDiffCount,
-    //     },
-    // });
+    const clearSyncList = () => {
+        // Show a confirmation dialog
+        showWarningDialog(
+            `You are about to clear the sync list. This has to be done manually on all linked devices while disconnected from one another.`,
+            () => {
+                // Clear the sync list
+                if (!unlockedVault) {
+                    return;
+                }
 
-    // const onSubmit = async (form: FormSchema) => {
-    //     if (!vaultMetadata || !unlockedVault || isLoading) {
-    //         return;
-    //     }
-
-    //     if (!isDirty) {
-    //         hideDialog(true);
-    //         return;
-    //     }
-
-    //     setIsLoading(true);
-
-    //     setUnlockedVault((prev) => {
-    //         if (prev == null) {
-    //             return prev;
-    //         } else {
-    //             prev.Configuration.setMaxDiffCount(form.maxDiffCount);
-    //             return prev;
-    //         }
-    //     });
-
-    //     setIsLoading(false);
-    //     hideDialog(true);
-    // };
+                setIsLoading(true);
+                setUnlockedVault((prev) => {
+                    if (prev != null) {
+                        prev.clearDiffList();
+                    }
+                    return prev;
+                });
+                setIsLoading(false);
+            },
+            null
+        );
+    };
 
     const showImportDataDialog = () => importDataDialogShowFnRef.current();
 
@@ -4319,37 +4284,25 @@ const VaultSettingsDialog: React.FC<{
                             </p>
                         </div>
                         <div className="flex w-full flex-col text-left">
-                            {/* <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Synchronization
                                 </p>
                                 <p className="mt-2 text-base text-gray-600">
-                                    Configure how your vault is synchronized
-                                    with other devices.
+                                    Clear the synchronization list to remedy any
+                                    synchronization issues or to decrease the
+                                    vault size. This has to be done on all
+                                    linked devices manually.
                                 </p>
                                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                    <Controller
-                                        control={control}
-                                        name="maxDiffCount"
-                                        render={({
-                                            field: { onChange, onBlur, value },
-                                        }) => (
-                                            <FormNumberInputField
-                                                label="Max changes to keep"
-                                                min={minDiffCount}
-                                                onChange={onChange}
-                                                onBlur={onBlur}
-                                                value={value}
-                                            />
-                                        )}
+                                    <ButtonFlat
+                                        text="Clear Synchronization List"
+                                        type={ButtonType.Secondary}
+                                        onClick={clearSyncList}
+                                        disabled={isLoading}
                                     />
-                                    {errors.maxDiffCount && (
-                                        <p className="text-red-500">
-                                            {errors.maxDiffCount.message}
-                                        </p>
-                                    )}
                                 </div>
-                            </div> */}
+                            </div>
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Import
@@ -7923,6 +7876,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         const responseMessage: Synchronization.Message = {
                             command: Synchronization.Command.SyncResponse,
                             hash: myHash,
+                            divergenceHash: null,
                             diffList: [],
                         };
 
@@ -8024,6 +7978,17 @@ const DashboardSidebarSynchronization: React.FC<{
 
                         // We found a common hash, calculate the diff and send it to the other device with our latest hash (use the ResponseSync command)
                         if (firstHashInCommon) {
+                            // Find the index of the common hash in the received hashes array
+                            const firstHashInCommonIndex =
+                                hashes.indexOf(firstHashInCommon);
+
+                            // If the index of the first hash in common is 0, the other device is out of sync - we have the most recent data
+                            // If it's other than 0, we're diverged and we need to request a sync from the other device
+                            const divergenceAtHash =
+                                firstHashInCommonIndex > 0
+                                    ? firstHashInCommon
+                                    : null;
+
                             console.debug(
                                 "[WebRTC Message Handler] Found a hash in common - sending response to sync... Current vault data:",
                                 unlockedVault
@@ -8037,6 +8002,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             const responseMessage: Synchronization.Message = {
                                 command: Synchronization.Command.SyncResponse,
                                 hash: unlockedVault.getLatestHash(),
+                                divergenceHash: divergenceAtHash,
                                 diffList: diffList,
                             };
 
@@ -8048,11 +8014,25 @@ const DashboardSidebarSynchronization: React.FC<{
                                 "[Synchronization] Found a common history - syncing..."
                             );
                         } else {
-                            console.error(
-                                "[WebRTC Message Handler] Couldn't find a common history - devices are too out of sync"
+                            console.warn(
+                                "[Synchronization] Couldn't find a common history - requesting divergence solve"
                             );
-                            toast.error(
-                                "[Synchronization] Couldn't find a common history - devices are too out of sync"
+                            toast.warn(
+                                "[Synchronization] Synchronization will require manual intervention, please wait..."
+                            );
+
+                            // Send a request to solve the divergence
+                            const responseMessage: Synchronization.Message = {
+                                command:
+                                    Synchronization.Command
+                                        .DivergenceSolveRequest,
+                                hash: null,
+                                divergenceHash: null,
+                                diffList: [],
+                            };
+
+                            dataChannelInstance.send(
+                                JSON.stringify(responseMessage)
                             );
                         }
                     } else if (
@@ -8106,7 +8086,8 @@ const DashboardSidebarSynchronization: React.FC<{
                             );
 
                             // Check if our new hash is the same as the other device's hash
-                            if (hashMatches) {
+                            // If we received a divergence hash, we're diverged and can skip this check
+                            if (hashMatches || message.divergenceHash) {
                                 console.debug(
                                     "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault"
                                 );
@@ -8122,7 +8103,27 @@ const DashboardSidebarSynchronization: React.FC<{
                                     }
                                 );
 
+                                const diffsNotKnownByOtherDevice: Credential.Diff[] =
+                                    [];
+                                if (message.divergenceHash) {
+                                    // If we received a divergence hash, we're diverged and we need to save the diffs that the other device doesn't know about
+                                    // So we can send them to the other device after we apply the diffs that we received from the other device
+                                    unlockedVault
+                                        .getDiffsSinceHash(
+                                            message.divergenceHash
+                                        )
+                                        .forEach((diff) => {
+                                            diffsNotKnownByOtherDevice.push(
+                                                diff
+                                            );
+                                        });
+                                }
+
                                 unlockedVault.applyDiffs(message.diffList);
+
+                                const latestHash =
+                                    unlockedVault.getLatestHash();
+                                const hashMatches = latestHash === message.hash;
 
                                 // Update the last sync timestamp
                                 unlockedVault.OnlineServices.LinkedDevices.find(
@@ -8132,21 +8133,56 @@ const DashboardSidebarSynchronization: React.FC<{
                                     unlockedVault.OnlineServices.LinkedDevices
                                 );
 
-                                console.debug(
-                                    "[WebRTC Message Handler] Received response to sync - out of sync => in sync - saving the vault"
-                                );
-                                toast.success(
-                                    "[Synchronization] Successfully synced with the other device",
-                                    {
-                                        toastId: "applying-diff-list",
-                                        updateId: "applying-diff-list",
-                                    }
-                                );
-
                                 // Save the vault
                                 unlockedVaultMetadata?.save(unlockedVault);
 
                                 setUnlockedVault(unlockedVault);
+
+                                // Check if the last hash is the same as the other device's hash
+                                if (hashMatches) {
+                                    // We're in sync - no diverging between the devices
+                                    console.debug(
+                                        "[WebRTC Message Handler] Received response to sync - out of sync => in sync"
+                                    );
+                                    toast.success(
+                                        "[Synchronization] Successfully synced with the other device",
+                                        {
+                                            toastId: "applying-diff-list",
+                                            updateId: "applying-diff-list",
+                                        }
+                                    );
+                                } else if (
+                                    !hashMatches &&
+                                    message.divergenceHash
+                                ) {
+                                    console.debug(
+                                        "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device"
+                                    );
+
+                                    toast.info(
+                                        "[Synchronization] Devices diverged - sending differences to the other device...",
+                                        {
+                                            toastId: "applying-diff-list",
+                                            updateId: "applying-diff-list",
+                                        }
+                                    );
+
+                                    // If it isn't, we're diverging
+                                    const divergenceMessage: Synchronization.Message =
+                                        {
+                                            command:
+                                                Synchronization.Command
+                                                    .SyncResponse,
+                                            hash: latestHash,
+                                            divergenceHash: null,
+                                            diffList:
+                                                diffsNotKnownByOtherDevice,
+                                        };
+
+                                    dataChannelInstance.send(
+                                        JSON.stringify(divergenceMessage)
+                                    );
+                                }
                             } else {
                                 toast.error(
                                     "Failed to sync - could not apply the received changes",
@@ -8164,6 +8200,35 @@ const DashboardSidebarSynchronization: React.FC<{
                                 );
                             }
                         }
+                    } else if (
+                        message.command ===
+                        Synchronization.Command.DivergenceSolveRequest
+                    ) {
+                        console.warn(
+                            "[Synchronization] Received divergence solve request - responding..."
+                        );
+                        toast.info(
+                            "[Synchronization] The two devices diverged - check the other device to solve the differences"
+                        );
+
+                        const divergenceSolveResponse: Synchronization.Message =
+                            {
+                                command:
+                                    Synchronization.Command.DivergenceSolve,
+                                hash: null,
+                                divergenceHash: null,
+                                diffList: unlockedVault.getDiffsSinceHash(null),
+                            };
+
+                        dataChannelInstance.send(
+                            JSON.stringify(divergenceSolveResponse)
+                        );
+                    } else if (
+                        message.command ===
+                        Synchronization.Command.DivergenceSolve
+                    ) {
+                        // No-op
+                        // throw new Error("Not implemented");
                     } else if (
                         message.command ===
                         Synchronization.Command.LinkedDevicesList
@@ -8527,6 +8592,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         devicesToExclude
                     ),
                 hash: null,
+                divergenceHash: null,
                 diffList: [],
             };
             // Send the payload
@@ -8635,6 +8701,7 @@ const DashboardSidebarSynchronization: React.FC<{
             const message: Synchronization.Message = {
                 command: Synchronization.Command.SyncRequest,
                 hash: currentHash,
+                divergenceHash: null,
                 diffList: [],
             };
             dataChannel.send(JSON.stringify(message));
@@ -9228,7 +9295,10 @@ const VaultDashboard: React.FC<{
                 </div>
             </div>
             <WarningDialog showFnRef={showWarningDialogFnRef} />
-            <VaultSettingsDialog showDialogFnRef={showVaultSettingsDialogRef} />
+            <VaultSettingsDialog
+                showDialogFnRef={showVaultSettingsDialogRef}
+                showWarningDialog={showWarningDialog}
+            />
             <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
             <AccountSignUpSignInDialog
                 showDialogFnRef={showAccountSignUpSignInDialogRef}

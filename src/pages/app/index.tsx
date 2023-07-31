@@ -8044,6 +8044,10 @@ const DashboardSidebarSynchronization: React.FC<{
                                 "[WebRTC Message Handler] Received response to sync - in sync"
                             );
 
+                            toast.info(
+                                "[Synchronization] Devices are synchronized"
+                            );
+
                             // Update the last sync timestamp
                             unlockedVault.OnlineServices.LinkedDevices.find(
                                 (d) => d.ID === device.ID
@@ -8343,85 +8347,119 @@ const DashboardSidebarSynchronization: React.FC<{
                 };
             };
 
-            channel.bind("pusher:subscription_succeeded", async () => {
-                console.debug("Subscription succeeded");
-
-                webRTConnection = await newWebRTCConnection();
-                webRTConnection.onconnectionstatechange = () => {
+            channel.bind(
+                "pusher:subscription_succeeded",
+                async (context: { count: number }) => {
+                    weAreFirst = context.count === 1;
                     console.debug(
-                        "Connection state changed",
-                        webRTConnection?.connectionState
+                        "Subscription succeeded",
+                        weAreFirst ? "--We're first" : "--We're NOT first"
                     );
-                    if (webRTConnection?.connectionState === "connected") {
+
+                    webRTConnection = await newWebRTCConnection();
+                    webRTConnection.onconnectionstatechange = () => {
                         console.debug(
-                            "Private connection established -",
-                            commonChannelName
+                            "Connection state changed",
+                            webRTConnection?.connectionState
                         );
+                        if (webRTConnection?.connectionState === "connected") {
+                            console.debug(
+                                "Private connection established -",
+                                commonChannelName
+                            );
 
-                        // Clean up the channel subscription
-                        channel.unsubscribe();
-                        channel.unbind();
+                            // Clean up the channel subscription
+                            channel.unsubscribe();
+                            channel.unbind();
 
-                        if (device.SyncTimeout) {
-                            setTimeout(() => {
-                                console.debug(
-                                    "Sync timeout reached - disconnecting from the private channel"
-                                );
-                                removeWebRTConnection(device.ID, true);
-                            }, Math.abs(device.SyncTimeoutPeriod) * 1000);
+                            if (device.SyncTimeout) {
+                                setTimeout(() => {
+                                    console.debug(
+                                        "Sync timeout reached - disconnecting from the private channel"
+                                    );
+                                    removeWebRTConnection(device.ID, true);
+                                }, Math.abs(device.SyncTimeoutPeriod) * 1000);
+                            }
+                        } else if (
+                            webRTConnection?.connectionState === "disconnected"
+                        ) {
+                            console.debug(
+                                "Private connection disconnected -",
+                                commonChannelName
+                            );
+
+                            // Remove the connection from the list
+                            // Inhibit reconnecting if the device is not set to auto-connect or if the sync timeout has been reached
+                            removeWebRTConnection(
+                                device.ID,
+                                !device.AutoConnect || device.SyncTimeout
+                            );
                         }
-                    } else if (
-                        webRTConnection?.connectionState === "disconnected"
-                    ) {
-                        console.debug(
-                            "Private connection disconnected -",
-                            commonChannelName
-                        );
+                    };
 
-                        // Remove the connection from the list
-                        // Inhibit reconnecting if the device is not set to auto-connect or if the sync timeout has been reached
-                        removeWebRTConnection(
-                            device.ID,
-                            !device.AutoConnect || device.SyncTimeout
-                        );
-                    }
-                };
+                    if (weAreFirst) {
+                        // Since we're first, we need to create a data channel
+                        const dataChannel =
+                            webRTConnection.createDataChannel(
+                                "privatedatachannel"
+                            );
+                        dataChannel.onopen = () => {
+                            console.debug("[1st] Data channel opened");
 
-                // When we acquire an ICE candidate, send it to the other device
-                // This is being called only after we call setLocalDescription
-                webRTConnection.onicecandidate = async (event) => {
-                    if (event.candidate) {
-                        console.debug("Sending ICE candidate", event.candidate);
-                        channel.trigger(commonEventName, {
-                            type: "ice-candidate",
-                            candidate: event.candidate,
-                        });
+                            // Add the webRTC connection to the list
+                            if (webRTConnection)
+                                addWebRTConnection(
+                                    device.ID,
+                                    webRTConnection,
+                                    dataChannel
+                                );
 
-                        iceCandidatesWeGenerated++;
-                    }
+                            // Send the linked devices list to the other device (only if we're root)
+                            sendLinkedDevicesList(dataChannel, [device.ID]);
+                        };
+                        dataChannel.onmessage =
+                            onWebRTCMessageHandler(dataChannel);
+                        dataChannel.onclose = () => {
+                            console.debug("[1st] Data channel closed");
 
-                    if (iceCandidatesWeGenerated > 1 && weAreFirst) {
-                        const offer = await webRTConnection?.createOffer({
-                            offerToReceiveAudio: false,
-                            offerToReceiveVideo: false,
-                        });
-                        await webRTConnection?.setLocalDescription(offer);
+                            // Remove and clean up the WebRTC connection from the list
+                            removeWebRTConnection(device.ID);
+                        };
+                        dataChannel.onerror = (error) => {
+                            console.debug("[1st] Data channel error", error);
 
-                        // Send the offer to the other device
-                        channel.trigger(commonEventName, {
-                            type: "offer",
-                            data: offer,
-                        });
-
-                        console.debug("Offer sent", offer);
+                            // Clean up the WebRTC connection
+                            dataChannel.close();
+                            webRTConnection?.close();
+                        };
                     }
 
-                    // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
-                    if (iceCandidatesWeGenerated === 0 && !event.candidate) {
-                        console.error("No ICE candidates generated");
-                    }
-                };
-            });
+                    // When we acquire an ICE candidate, send it to the other device
+                    // This is being called only after we call setLocalDescription
+                    webRTConnection.onicecandidate = async (event) => {
+                        if (event.candidate) {
+                            console.debug(
+                                "Sending ICE candidate",
+                                event.candidate
+                            );
+                            channel.trigger(commonEventName, {
+                                type: "ice-candidate",
+                                candidate: event.candidate,
+                            });
+
+                            iceCandidatesWeGenerated++;
+                        }
+
+                        // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
+                        if (
+                            iceCandidatesWeGenerated === 0 &&
+                            !event.candidate
+                        ) {
+                            console.error("No ICE candidates generated");
+                        }
+                    };
+                }
+            );
 
             channel.bind(
                 commonEventName,
@@ -8534,40 +8572,55 @@ const DashboardSidebarSynchronization: React.FC<{
                         return;
                     }
 
-                    // Since we're first, we need to create a data channel
-                    const dataChannel =
-                        webRTConnection.createDataChannel("privatedatachannel");
-                    dataChannel.onopen = () => {
-                        console.debug("[1st] Data channel opened");
-
-                        // Add the webRTC connection to the list
-                        if (webRTConnection)
-                            addWebRTConnection(
-                                device.ID,
-                                webRTConnection,
-                                dataChannel
-                            );
-
-                        // Send the linked devices list to the other device (only if we're root)
-                        sendLinkedDevicesList(dataChannel, [device.ID]);
-                    };
-                    dataChannel.onmessage = onWebRTCMessageHandler(dataChannel);
-                    dataChannel.onclose = () => {
-                        console.debug("[1st] Data channel closed");
-
-                        // Remove and clean up the WebRTC connection from the list
-                        removeWebRTConnection(device.ID);
-                    };
-                    dataChannel.onerror = (error) => {
-                        console.debug("[1st] Data channel error", error);
-
-                        // Clean up the WebRTC connection
-                        dataChannel.close();
-                        webRTConnection?.close();
-                    };
-
                     console.debug("Other device connected", osDevice);
-                    weAreFirst = true;
+
+                    // webRTConnection.onsignalingstatechange = async (e) => {
+                    //     console.log(e);
+                    //  console.log(webRTConnection?.signalingState); //
+                    //     // if (webRTConnection?.signalingState === "stable") {
+                    //     //     await webRTConnection?.setLocalDescription();
+                    //     //     channel.trigger(commonEventName, {
+                    //     //         type: "offer",
+                    //     //         data: webRTConnection.localDescription,
+                    //     //     });
+
+                    //     //     console.debug(
+                    //     //         "Offer re-sent",
+                    //     //         webRTConnection.localDescription
+                    //     //     );
+                    //     // }
+                    // };
+
+                    // webRTConnection.onnegotiationneeded = async (e) => {
+                    //     console.log(e);
+                    //     // console.log(webRTConnection?.signalingState);
+                    // };
+
+                    // webRTConnection.oniceconnectionstatechange = async (e) => {
+                    //     console.log(e);
+                    //     console.log(webRTConnection?.iceConnectionState);
+                    // };
+
+                    let sent = false;
+                    webRTConnection.onicegatheringstatechange = async (e) => {
+                        // console.log(e);
+                        // console.log(webRTConnection?.iceGatheringState);
+                        if (
+                            webRTConnection?.iceGatheringState === "complete" &&
+                            !sent
+                        ) {
+                            sent = true;
+                            channel.trigger(commonEventName, {
+                                type: "offer",
+                                data: webRTConnection.localDescription,
+                            });
+
+                            console.debug(
+                                "Offer sent",
+                                webRTConnection.localDescription
+                            );
+                        }
+                    };
 
                     // Create an offer and set it as the local description
                     const offer = await webRTConnection.createOffer({

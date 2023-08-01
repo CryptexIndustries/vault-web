@@ -239,7 +239,7 @@ export const newWebRTCConnection = async (): Promise<RTCPeerConnection> => {
                 urls: "stun:rtc.cryptex-vault.com:3478",
             },
             {
-                urls: "turn:rtc.cryptex-vault.com:3478",
+                urls: "turn:rtc.cryptex-vault.com:3478[cryx:cryx]",
             },
             // {
             //     urls: "stun:stun.ekiga.net",

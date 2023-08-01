@@ -8400,9 +8400,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     if (weAreFirst) {
                         // Since we're first, we need to create a data channel
                         const dataChannel =
-                            webRTConnection.createDataChannel(
-                                "privatedatachannel"
-                            );
+                            webRTConnection.createDataChannel("");
                         dataChannel.onopen = () => {
                             console.debug("[1st] Data channel opened");
 
@@ -8437,7 +8435,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     // When we acquire an ICE candidate, send it to the other device
                     // This is being called only after we call setLocalDescription
                     webRTConnection.onicecandidate = async (event) => {
-                        if (event.candidate) {
+                        if (event && event.candidate) {
                             console.debug(
                                 "Sending ICE candidate",
                                 event.candidate
@@ -8574,37 +8572,8 @@ const DashboardSidebarSynchronization: React.FC<{
 
                     console.debug("Other device connected", osDevice);
 
-                    // webRTConnection.onsignalingstatechange = async (e) => {
-                    //     console.log(e);
-                    //  console.log(webRTConnection?.signalingState); //
-                    //     // if (webRTConnection?.signalingState === "stable") {
-                    //     //     await webRTConnection?.setLocalDescription();
-                    //     //     channel.trigger(commonEventName, {
-                    //     //         type: "offer",
-                    //     //         data: webRTConnection.localDescription,
-                    //     //     });
-
-                    //     //     console.debug(
-                    //     //         "Offer re-sent",
-                    //     //         webRTConnection.localDescription
-                    //     //     );
-                    //     // }
-                    // };
-
-                    // webRTConnection.onnegotiationneeded = async (e) => {
-                    //     console.log(e);
-                    //     // console.log(webRTConnection?.signalingState);
-                    // };
-
-                    // webRTConnection.oniceconnectionstatechange = async (e) => {
-                    //     console.log(e);
-                    //     console.log(webRTConnection?.iceConnectionState);
-                    // };
-
                     let sent = false;
-                    webRTConnection.onicegatheringstatechange = async (e) => {
-                        // console.log(e);
-                        // console.log(webRTConnection?.iceGatheringState);
+                    webRTConnection.onicegatheringstatechange = async () => {
                         if (
                             webRTConnection?.iceGatheringState === "complete" &&
                             !sent
@@ -8623,21 +8592,8 @@ const DashboardSidebarSynchronization: React.FC<{
                     };
 
                     // Create an offer and set it as the local description
-                    const offer = await webRTConnection.createOffer({
-                        offerToReceiveAudio: false,
-                        offerToReceiveVideo: false,
-                    });
+                    const offer = await webRTConnection.createOffer();
                     await webRTConnection.setLocalDescription(offer);
-
-                    channel.trigger(commonEventName, {
-                        type: "offer",
-                        data: webRTConnection.localDescription,
-                    });
-
-                    console.debug(
-                        "Offer sent",
-                        webRTConnection.localDescription
-                    );
                 }
             );
         }

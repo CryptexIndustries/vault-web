@@ -8601,26 +8601,26 @@ const DashboardSidebarSynchronization: React.FC<{
                     //     console.log(webRTConnection?.iceConnectionState);
                     // };
 
-                    let sent = false;
-                    webRTConnection.onicegatheringstatechange = async (e) => {
-                        // console.log(e);
-                        // console.log(webRTConnection?.iceGatheringState);
-                        if (
-                            webRTConnection?.iceGatheringState === "complete" &&
-                            !sent
-                        ) {
-                            sent = true;
-                            channel.trigger(commonEventName, {
-                                type: "offer",
-                                data: webRTConnection.localDescription,
-                            });
+                    // let sent = false;
+                    // webRTConnection.onicegatheringstatechange = async (e) => {
+                    //     // console.log(e);
+                    //     // console.log(webRTConnection?.iceGatheringState);
+                    //     if (
+                    //         webRTConnection?.iceGatheringState === "complete" &&
+                    //         !sent
+                    //     ) {
+                    //         sent = true;
+                    //         channel.trigger(commonEventName, {
+                    //             type: "offer",
+                    //             data: webRTConnection.localDescription,
+                    //         });
 
-                            console.debug(
-                                "Offer sent",
-                                webRTConnection.localDescription
-                            );
-                        }
-                    };
+                    //         console.debug(
+                    //             "Offer sent",
+                    //             webRTConnection.localDescription
+                    //         );
+                    //     }
+                    // };
 
                     // Create an offer and set it as the local description
                     const offer = await webRTConnection.createOffer({
@@ -8628,6 +8628,16 @@ const DashboardSidebarSynchronization: React.FC<{
                         offerToReceiveVideo: false,
                     });
                     await webRTConnection.setLocalDescription(offer);
+
+                    channel.trigger(commonEventName, {
+                        type: "offer",
+                        data: webRTConnection.localDescription,
+                    });
+
+                    console.debug(
+                        "Offer sent",
+                        webRTConnection.localDescription
+                    );
                 }
             );
         }

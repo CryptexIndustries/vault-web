@@ -244,15 +244,6 @@ export const newWebRTCConnection = async (): Promise<RTCPeerConnection> => {
             {
                 urls: "stun:stun2.l.google.com:19302",
             },
-            {
-                urls: "stun:stun3.l.google.com:19302",
-            },
-            {
-                urls: "stun:stun4.l.google.com:19302",
-            },
-            {
-                urls: "stun:stunserver.stunprotocol.org:3478",
-            },
         ],
     });
 };

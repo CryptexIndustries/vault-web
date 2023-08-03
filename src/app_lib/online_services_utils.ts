@@ -236,25 +236,25 @@ export const newWebRTCConnection = async (): Promise<RTCPeerConnection> => {
     return new RTCPeerConnection({
         iceServers: [
             {
-                urls: "stun:rtc.cryptex-vault.com:3478",
+                urls: "stun:rtc.cryptex-vault.com:5349",
             },
             {
-                urls: "turn:rtc.cryptex-vault.com:3478",
+                urls: "turn:rtc.cryptex-vault.com:5349",
                 username: "cryx",
                 credential: "cryx",
             },
-            // {
-            //     urls: "stun:stun.ekiga.net",
-            // },
-            // {
-            //     urls: "stun:stun.l.google.com:19302",
-            // },
-            // {
-            //     urls: "stun:stun1.l.google.com:19302",
-            // },
-            // {
-            //     urls: "stun:stun2.l.google.com:19302",
-            // },
+            {
+                urls: "stun:stun.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun1.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun2.l.google.com:19302",
+            },
+            {
+                urls: "stun:stun.ekiga.net",
+            },
         ],
     });
 };

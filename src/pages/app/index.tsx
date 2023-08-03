@@ -6977,41 +6977,6 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                         </div>
                                     )}
 
-                                    {/* Show the mnemonic */}
-                                    {isOperationInProgress && (
-                                        <Controller
-                                            control={control}
-                                            name="mnemonic"
-                                            render={({ field: { value } }) => (
-                                                <div
-                                                    className={clsx({
-                                                        "flex flex-col items-center gap-2":
-                                                            true,
-                                                        hidden: !value.length,
-                                                    })}
-                                                >
-                                                    <p className="select-all rounded-md bg-gray-200 p-2 text-gray-900">
-                                                        {value}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        Enter this mnemonic on
-                                                        the other device when
-                                                        prompted.
-                                                    </p>
-                                                </div>
-                                            )}
-                                        />
-                                    )}
-
-                                    {selectedLinkMethod === LinkMethod.QRCode &&
-                                        readyForOtherDevice && (
-                                            <QRCode
-                                                value={
-                                                    encryptedTransferableDataRef.current
-                                                }
-                                            />
-                                        )}
-
                                     {readyForOtherDevice && (
                                         <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
                                             <p className="text-md w-full text-center text-slate-600 underline">
@@ -7081,6 +7046,41 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                 the other device.
                                             </p>
                                         </div>
+                                    )}
+
+                                    {selectedLinkMethod === LinkMethod.QRCode &&
+                                        readyForOtherDevice && (
+                                            <QRCode
+                                                value={
+                                                    encryptedTransferableDataRef.current
+                                                }
+                                            />
+                                        )}
+
+                                    {/* Show the mnemonic */}
+                                    {isOperationInProgress && (
+                                        <Controller
+                                            control={control}
+                                            name="mnemonic"
+                                            render={({ field: { value } }) => (
+                                                <div
+                                                    className={clsx({
+                                                        "flex flex-col items-center gap-2":
+                                                            true,
+                                                        hidden: !value.length,
+                                                    })}
+                                                >
+                                                    <p className="select-all rounded-md bg-gray-200 p-2 text-gray-900">
+                                                        {value}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                        Enter this mnemonic on
+                                                        the other device when
+                                                        prompted.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        />
                                     )}
                                 </div>
                                 <Controller
@@ -8347,6 +8347,11 @@ const DashboardSidebarSynchronization: React.FC<{
                 };
             };
 
+            type PusherSignalingMessagesType = {
+                type: "offer" | "answer" | "ice-candidate";
+                data: RTCIceCandidateInit | RTCSessionDescriptionInit | null;
+            };
+
             channel.bind(
                 "pusher:subscription_succeeded",
                 async (context: { count: number }) => {
@@ -8399,8 +8404,9 @@ const DashboardSidebarSynchronization: React.FC<{
 
                     if (weAreFirst) {
                         // Since we're first, we need to create a data channel
-                        const dataChannel =
-                            webRTConnection.createDataChannel("");
+                        const dataChannel = webRTConnection.createDataChannel(
+                            `sync-${device.ID}`
+                        );
                         dataChannel.onopen = () => {
                             console.debug("[1st] Data channel opened");
 
@@ -8442,10 +8448,24 @@ const DashboardSidebarSynchronization: React.FC<{
                             );
                             channel.trigger(commonEventName, {
                                 type: "ice-candidate",
-                                candidate: event.candidate,
-                            });
+                                data: event.candidate,
+                            } as PusherSignalingMessagesType);
 
                             iceCandidatesWeGenerated++;
+                        }
+
+                        // When the event.candidate object is null - we're done
+                        // NOTE: Might be helpful to send that to the other device and we can show a notification
+                        if (event?.candidate == null) {
+                            console.debug(
+                                "Sending ICE completed event",
+                                event.candidate
+                            );
+
+                            channel.trigger(commonEventName, {
+                                type: "ice-candidate",
+                                data: null,
+                            } as PusherSignalingMessagesType);
                         }
 
                         // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
@@ -8453,7 +8473,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             iceCandidatesWeGenerated === 0 &&
                             !event.candidate
                         ) {
-                            console.error("No ICE candidates generated");
+                            console.error("Failed to generate ICE candidates.");
                         }
                     };
                 }
@@ -8461,10 +8481,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
             channel.bind(
                 commonEventName,
-                async (data: {
-                    type: "offer" | "answer" | "ice-candidate";
-                    data: RTCIceCandidateInit | RTCSessionDescriptionInit;
-                }) => {
+                async (data: PusherSignalingMessagesType) => {
                     console.debug(
                         "ws received",
                         data,
@@ -8472,9 +8489,17 @@ const DashboardSidebarSynchronization: React.FC<{
                     );
 
                     if (data.type === "ice-candidate") {
-                        await webRTConnection?.addIceCandidate(
-                            data.data as RTCIceCandidateInit
-                        );
+                        if (data.data) {
+                            await webRTConnection?.addIceCandidate(
+                                data.data as RTCIceCandidateInit
+                            );
+                        } else if (
+                            webRTConnection?.connectionState != "connected"
+                        ) {
+                            toast.warn(
+                                `[Synchronization] Failed to connect to ${device.Name}`
+                            );
+                        }
                     }
 
                     if (weAreFirst) {
@@ -8550,7 +8575,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             channel.trigger(commonEventName, {
                                 type: "answer",
                                 data: answer,
-                            });
+                            } as PusherSignalingMessagesType);
 
                             console.debug("Answer sent", answer);
                         }
@@ -8572,28 +8597,18 @@ const DashboardSidebarSynchronization: React.FC<{
 
                     console.debug("Other device connected", osDevice);
 
-                    let sent = false;
-                    webRTConnection.onicegatheringstatechange = async () => {
-                        if (
-                            webRTConnection?.iceGatheringState === "complete" &&
-                            !sent
-                        ) {
-                            sent = true;
-                            channel.trigger(commonEventName, {
-                                type: "offer",
-                                data: webRTConnection.localDescription,
-                            });
-
-                            console.debug(
-                                "Offer sent",
-                                webRTConnection.localDescription
-                            );
-                        }
-                    };
-
                     // Create an offer and set it as the local description
                     const offer = await webRTConnection.createOffer();
                     await webRTConnection.setLocalDescription(offer);
+
+                    const dataToSend = webRTConnection.localDescription;
+
+                    channel.trigger(commonEventName, {
+                        type: "offer",
+                        data: offer,
+                    } as PusherSignalingMessagesType);
+
+                    console.debug("Offer sent", dataToSend);
                 }
             );
         }

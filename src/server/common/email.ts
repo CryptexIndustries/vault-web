@@ -55,6 +55,18 @@ type InfobipResponse = {
     };
 };
 
+const sendRequest = async (data: FormData): Promise<InfobipResponse> => {
+    const response = await fetch(`${env.INFOBIP_BASE_URL}/email/3/send`, {
+        method: "POST",
+        headers: {
+            Authorization: `App ${env.INFOBIP_API_KEY}`,
+        },
+        body: data,
+    });
+
+    return response.json();
+};
+
 export const sendVerificationEmail = async (
     to: string,
     body: string
@@ -94,14 +106,33 @@ export const sendVerificationEmail = async (
     // xhr.setRequestHeader("Authorization", `App ${env.INFOBIP_API_KEY}`);
     // xhr.send(data);
 
-    // Fetch version
-    const response = await fetch(`${env.INFOBIP_BASE_URL}/email/3/send`, {
-        method: "POST",
-        headers: {
-            Authorization: `App ${env.INFOBIP_API_KEY}`,
-        },
-        body: data,
-    });
+    return sendRequest(data);
+};
 
-    return response.json();
+export const sendContactEmail = async (
+    from: string,
+    message: string
+): Promise<InfobipResponse> => {
+    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
+        throw new Error("[EMAIL] Infobip not configured. Skipping...");
+    }
+
+    const data = new FormData();
+    data.append("from", `CryptexVault <${env.EMAIL_SENDER}>`);
+    data.append("to", env.EMAIL_CONTACT_US_RECEIVER);
+    data.append("replyTo", from);
+    data.append("subject", "CryptexVault - Contact Form Submission");
+    data.append(
+        "html",
+        `
+            <h1>Contact Form Submission</h1>
+            <p><strong>From:</strong> ${from}</p>
+            <br />
+            <hr />
+            <br />
+            <p>${message}</p>
+        `
+    );
+
+    return sendRequest(data);
 };

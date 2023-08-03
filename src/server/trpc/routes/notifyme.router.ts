@@ -5,6 +5,7 @@ import {
     trpcRatelimitError,
 } from "../../common/ratelimiting";
 import { publicProcedure } from "../trpc";
+import { sendContactEmail } from "../../common/email";
 
 export const notifyMeRouterRegister = publicProcedure
     .input(
@@ -24,7 +25,6 @@ export const notifyMeRouterRegister = publicProcedure
 
         // If the user's response was invalid, return an error
         if (!verification.success) {
-            // console.log(`Captcha err: ${verification["error-codes"]}`);
             throw new Error("Failed to validate captcha");
         }
 
@@ -70,43 +70,11 @@ export const notifyMeRouterContact = publicProcedure
 
         // If the user's response was invalid, return an error
         if (!verification.success) {
-            // console.log(`Captcha err: ${verification["error-codes"]}`);
             throw new Error("Failed to validate captcha");
         }
 
         try {
-            const nodemailer = await import("nodemailer");
-            // Send email using the nodemailer package
-            // Cast the object as any because the types are wrong...
-            const transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST,
-                port: Number(process.env.SMTP_PORT),
-                secureConnection: false,
-                tls: {
-                    ciphers: "SSLv3",
-                },
-                auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS,
-                },
-            } as any);
-
-            await transporter.sendMail({
-                from: `"CryptexVaultRouter " <${process.env.SMTP_USER}>`,
-                to: process.env.SMTP_RECEIVER,
-                subject: "Contact form submission",
-                html: `
-                        <h1>Contact form submission</h1>
-                        <p><strong>From:</strong> ${input.email}</p>
-                        <br />
-                        <hr />
-                        <br />
-                        <p>${input.message}</p>
-                    `,
-                headers: {
-                    "Reply-To": input.email,
-                },
-            });
+            sendContactEmail(input.email, input.message);
 
             return {
                 success: true,

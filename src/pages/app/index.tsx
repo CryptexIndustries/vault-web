@@ -8494,7 +8494,7 @@ const DashboardSidebarSynchronization: React.FC<{
                                 data.data as RTCIceCandidateInit
                             );
                         } else if (
-                            webRTConnection?.connectionState != "connected"
+                            webRTConnection?.connectionState != "connecting"
                         ) {
                             toast.warn(
                                 `[Synchronization] Failed to connect to ${device.Name}`

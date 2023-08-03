@@ -38,7 +38,7 @@ export const serverSchema = z.object({
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.string().url(),
 
-    /* Authentication ENV Vars */
+    /* Authentication */
     // GOOGLE_CLIENT_ID: z.string(),
     // GOOGLE_CLIENT_SECRET: z.string(),
     // GITHUB_CLIENT_ID: z.string(),
@@ -52,11 +52,11 @@ export const serverSchema = z.object({
     // DISCORD_CLIENT_ID: z.string(),
     // DISCORD_CLIENT_SECRET: z.string(),
 
-    // Upstash Redis
+    /* Upstash Redis */
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string(),
 
-    // Upstash Ratelimitting
+    /* Upstash Ratelimitting */
     UPSTASH_RATELIMIT_ENABLE_AUTH: booleanString(z.boolean().default(false)),
     UPSTASH_RATELIMIT_N_REQUESTS_AUTH: numberString(z.number().default(2)),
     UPSTASH_RATELIMIT_DURATION_AUTH: z.string().default("5s"),
@@ -138,24 +138,19 @@ export const serverSchema = z.object({
     ),
     UPSTASH_RATELIMIT_DURATION_API_PUSHER: z.string().default("30s"),
 
-    // Captcha - Turnstile
+    /* Captcha - Turnstile */
     TURNSTILE_SECRET: z.string(),
 
     /* Email */
-    SMTP_HOST: z.string(),
-    SMTP_PORT: z.string(),
-    SMTP_USER: z.string(),
-    SMTP_PASS: z.string(),
-    SMTP_RECEIVER: z.string(),
-
     INFOBIP_BASE_URL: z.string().optional(),
     INFOBIP_API_KEY: z.string().optional(),
     EMAIL_SENDER: z.string().optional(),
+    EMAIL_CONTACT_US_RECEIVER: z.string(),
 
-    /* Pusher ENV Vars */
+    /* Pusher */
     PUSHER_APP_SECRET: z.string(),
 
-    /* Stripe ENV Vars */
+    /* Stripe */
     STRIPE_SECRET_KEY: z.string(),
     STRIPE_WEBHOOK_SECRET: z.string(),
 });

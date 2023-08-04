@@ -2101,6 +2101,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                                             label="Decryption Passphrase"
                                             type="text"
                                             placeholder="The passphrase displayed on the other device"
+                                            autoCapitalize="none"
                                             onChange={onChange}
                                             onBlur={onBlur}
                                             value={value}
@@ -3991,44 +3992,6 @@ const ImportDataDialog: React.FC<{
                                 this vault.
                             </p>
 
-                            {/* <div className="my-5 flex flex-col gap-2">
-                        <Controller
-                            control={control}
-                            name="deviceName"
-                            render={({
-                                field: { onChange, onBlur, value },
-                            }) => (
-                                <>
-                                    <FormInputField
-                                        label="Device name"
-                                        placeholder="Type in a name for the device"
-                                        onChange={onChange}
-                                        onBlur={onBlur}
-                                        value={value}
-                                    />
-                                </>
-                            )}
-                        />
-                        {
-                            // If the device name is invalid, show an error
-                            errors.deviceName && errors.deviceName.message && (
-                                <p className="text-red-500">
-                                    {errors.deviceName.message}
-                                </p>
-                            )
-                        }
-                        <div className="w-full text-center">
-                            <p className="mt-1 text-xs text-gray-500">
-                                This name will be used to identify the device.
-                            </p>{" "}
-                            <p className="text-xs text-gray-500">
-                                This is stored in your vault and is not sent to
-                                the server as it is not necessary for
-                                authentication
-                            </p>
-                        </div>
-                    </div> */}
-
                             <BlockWideButton
                                 icon={
                                     <TableCellsIcon className="h-5 w-5 text-gray-900" />
@@ -4072,12 +4035,12 @@ const ImportDataDialog: React.FC<{
                     importType == Import.Type.GenericCSV && (
                         <div className="flex w-full flex-col">
                             <p className="mb-2 text-center text-base text-gray-600">
-                                Match the columns in the CSV file to the fields
-                                in the vault.
+                                Approximately match the values in the select
+                                boxes to the labels above them.
                             </p>
                             <p className="mb-2 text-center text-base text-gray-600">
-                                Note: You can select only the columns that you
-                                want to import.
+                                Note: If you leave a select box empty, the
+                                corresponding field will not be imported.
                             </p>
                             <form
                                 ref={columnMatchingFormRef}
@@ -7326,7 +7289,7 @@ const EditLinkedDeviceDialog: React.FC<{
                                             </label>
                                             <InformationCircleIcon
                                                 className="h-5 w-5 text-gray-600"
-                                                title="When enabled, the vault will try to connect to this device as soon as possible."
+                                                title="Whether or not we should automatically connect to this device when it is available"
                                             />
                                         </div>
                                         <input
@@ -7361,11 +7324,12 @@ const EditLinkedDeviceDialog: React.FC<{
                                             <>
                                                 <div className="flex items-center">
                                                     <label className="flex items-center text-gray-600">
-                                                        Synchronization Timeout
+                                                        Impose a synchronization
+                                                        window
                                                     </label>
                                                     <InformationCircleIcon
                                                         className="h-5 w-5 text-gray-600"
-                                                        title="When enabled, the device will automatically disconnect after the specified period."
+                                                        title="The synchronization will only be possible when manually triggered and will only last for the specified amount of time."
                                                     />
                                                 </div>
                                                 <input
@@ -7403,7 +7367,7 @@ const EditLinkedDeviceDialog: React.FC<{
                                             })}
                                         >
                                             <FormNumberInputField
-                                                label="Sync Timeout Period"
+                                                label="Allowed window"
                                                 valueLabel="seconds"
                                                 min={1}
                                                 onChange={onChange}

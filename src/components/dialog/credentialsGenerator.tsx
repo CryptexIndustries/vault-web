@@ -64,11 +64,11 @@ export const CredentialsGeneratorDialog: React.FC<{
         resolver: zodResolver(FormSchema),
         mode: "onChange",
         defaultValues: {
-            type: GenerationType.Random,
-            length: 32,
+            type: GenerationType.Memorable,
+            length: 16,
             wordSeparator: WordSeparator.Space,
             specialCharacters: false,
-            capitalLetters: false,
+            capitalLetters: true,
             includeNumbers: false,
         },
     });

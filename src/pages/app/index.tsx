@@ -3226,10 +3226,10 @@ const AccountDialog: React.FC<{
             // Only the root device is allowed to see and manage registered devices
             return (
                 <div className="mt-2 flex w-full flex-col gap-2 text-left">
-                    <p className="line-clamp-2 text-left text-base text-gray-600">
+                    <p className="text-left text-base text-gray-600">
                         You are not allowed to manage registered devices.
                     </p>
-                    <p className="line-clamp-2 text-left text-base text-gray-600">
+                    <p className="text-left text-base text-gray-600">
                         Please use the root device (the device that initially
                         created the account) to manage registered devices.
                     </p>
@@ -9422,7 +9422,9 @@ const CredentialsList: React.FC<{
 
     let filteredCredentials: Credential.VaultCredential[] = [];
     if (vault) {
-        filteredCredentials = vault?.Credentials.filter((credential) => {
+        filteredCredentials = vault?.Credentials.sort((a, b) =>
+            a.Name.localeCompare(b.Name)
+        ).filter((credential) => {
             if (filter === "") return true;
 
             if (credential.Name.toLowerCase().includes(filter.toLowerCase()))

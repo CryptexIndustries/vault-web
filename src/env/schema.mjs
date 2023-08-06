@@ -145,6 +145,7 @@ export const serverSchema = z.object({
     INFOBIP_BASE_URL: z.string().optional(),
     INFOBIP_API_KEY: z.string().optional(),
     EMAIL_SENDER: z.string().optional(),
+    EMAIL_CONTACT_US_SENDER: z.string(),
     EMAIL_CONTACT_US_RECEIVER: z.string(),
 
     /* Pusher */

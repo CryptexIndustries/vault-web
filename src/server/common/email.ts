@@ -118,7 +118,7 @@ export const sendContactEmail = async (
     }
 
     const data = new FormData();
-    data.append("from", `CryptexVault <${env.EMAIL_SENDER}>`);
+    data.append("from", `CryptexVault <${env.EMAIL_CONTACT_US_SENDER}>`);
     data.append("to", env.EMAIL_CONTACT_US_RECEIVER);
     data.append("replyTo", from);
     data.append("subject", "CryptexVault - Contact Form Submission");

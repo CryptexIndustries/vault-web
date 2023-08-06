@@ -114,6 +114,10 @@ import {
     FormNumberInputField,
     FormTextAreaField,
 } from "../../components/general/inputFields";
+import {
+    DivergenceSolveDialog,
+    type DivergenceSolveShowDialogFnPropType,
+} from "../../components/dialog/synchronization";
 
 dayjs.extend(RelativeTime);
 
@@ -4167,7 +4171,7 @@ const VaultSettingsDialog: React.FC<{
                 setIsLoading(true);
                 setUnlockedVault((prev) => {
                     if (prev != null) {
-                        prev.clearDiffList();
+                        prev.purgeDiffList();
                     }
                     return prev;
                 });
@@ -6946,9 +6950,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                 Tips for linking to the other
                                                 device
                                             </p>
-                                            {/* If the link method is file, show
-                                            a nicely formatted tip on how to
-                                            load it into the other device */}
+                                            {/* Show a nicely formatted tip on how to
+                                            load the data into the other device */}
                                             {selectedLinkMethod ===
                                                 LinkMethod.QRCode &&
                                                 readyForOtherDevice && (
@@ -6973,7 +6976,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                             scanned, enter the
                                                             decryption
                                                             passphrase shown
-                                                            above.
+                                                            below.
                                                         </p>
                                                     </>
                                                 )}
@@ -7000,7 +7003,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                             loaded, enter the
                                                             decryption
                                                             passphrase shown
-                                                            above.
+                                                            below.
                                                         </p>
                                                     </>
                                                 )}
@@ -7445,6 +7448,8 @@ const DashboardSidebarSynchronization: React.FC<{
     const editLinkedDeviceDialogSelectedDeviceRef = useRef<LinkedDevice | null>(
         null
     );
+    const showDivergenceSolveDialogRef =
+        useRef<DivergenceSolveShowDialogFnPropType | null>(null);
     //#endregion Dialog refs
 
     const [onlineServicesStatus, setOnlineServicesStatus] =
@@ -8176,7 +8181,17 @@ const DashboardSidebarSynchronization: React.FC<{
                             "[Synchronization] Received divergence solve request - responding..."
                         );
                         toast.info(
-                            "[Synchronization] The two devices diverged - check the other device to solve the differences"
+                            "[Synchronization] Devices diverged - preparing the differences...",
+                            {
+                                autoClose: false,
+                                toastId: "generating-diff-list",
+                                updateId: "generating-diff-list",
+                            }
+                        );
+
+                        // Wait for a second to make sure the toast is shown
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 100)
                         );
 
                         const divergenceSolveResponse: Synchronization.Message =
@@ -8191,12 +8206,77 @@ const DashboardSidebarSynchronization: React.FC<{
                         dataChannelInstance.send(
                             JSON.stringify(divergenceSolveResponse)
                         );
+
+                        toast.info(
+                            "[Synchronization] Devices diverged - Check the other device to select which differences to apply",
+                            {
+                                toastId: "generating-diff-list",
+                                updateId: "generating-diff-list",
+                            }
+                        );
                     } else if (
                         message.command ===
                         Synchronization.Command.DivergenceSolve
                     ) {
-                        // No-op
-                        // throw new Error("Not implemented");
+                        // Open a dialog for the user to select which differences to apply
+                        showDivergenceSolveDialogRef.current?.(
+                            unlockedVault.Credentials,
+                            message.diffList.map((i) => i.Changes?.Props),
+                            (diffsToApply, diffsToSend) => {
+                                toast.info(
+                                    "[Synchronization] Applying differences...",
+                                    {
+                                        autoClose: false,
+                                        toastId: "applying-diff-list",
+                                        updateId: "applying-diff-list",
+                                    }
+                                );
+
+                                // Apply the diffsToApply to the vault
+                                unlockedVault.applyDiffs(diffsToApply);
+
+                                // Update the last sync timestamp
+                                unlockedVault.OnlineServices.LinkedDevices.find(
+                                    (d) => d.ID === device.ID
+                                )?.updateLastSync();
+                                setLinkedDevices(
+                                    unlockedVault.OnlineServices.LinkedDevices
+                                );
+
+                                // Save the vault
+                                unlockedVaultMetadata?.save(unlockedVault);
+                                setUnlockedVault(unlockedVault);
+
+                                toast.info(
+                                    "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
+                                    {
+                                        toastId: "applying-diff-list",
+                                        updateId: "applying-diff-list",
+                                    }
+                                );
+
+                                // Send the diffsToSend to the other device
+                                const divergenceSolveResponse: Synchronization.Message =
+                                    {
+                                        command:
+                                            Synchronization.Command
+                                                .SyncResponse,
+                                        hash: unlockedVault.getLatestHash(),
+                                        divergenceHash: null,
+                                        diffList: diffsToSend,
+                                    };
+
+                                dataChannelInstance.send(
+                                    JSON.stringify(divergenceSolveResponse)
+                                );
+                            },
+                            () => {
+                                // Warn the user that the vaults are still diverged
+                                toast.warn(
+                                    "[Synchronization] The vaults are still diverged - you can try to solve the differences again by synchronizing the vaults"
+                                );
+                            }
+                        );
                     } else if (
                         message.command ===
                         Synchronization.Command.LinkedDevicesList
@@ -9013,6 +9093,10 @@ const DashboardSidebarSynchronization: React.FC<{
                 showDialogFnRef={showEditLinkedDeviceDialogFnRef}
                 selectedDevice={editLinkedDeviceDialogSelectedDeviceRef}
                 vaultMetadata={unlockedVaultMetadata}
+            />
+            <DivergenceSolveDialog
+                showDialogFnRef={showDivergenceSolveDialogRef}
+                showWarningDialog={showWarningFn}
             />
         </div>
     );

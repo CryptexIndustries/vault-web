@@ -6,30 +6,11 @@ import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
 import { env } from "../env/client.mjs";
 
-import * as VaultUtilTypes from "./proto/vault";
 import Papa from "papaparse";
+import { ulid } from "ulidx";
+import * as VaultUtilTypes from "./proto/vault";
 
 const requiredFieldError = "This is a required field";
-
-/**
- * Generates a random string. Used only for development purposes, in insecure contexts.
- * The check in the function is used to prevend the bundler from including this function in the production build.
- * @returns A random string
- */
-const uuidv4_insecurecontexts = (): string => {
-    if (process.env.NODE_ENV === "development")
-        return (1e7 + -1e3 + -4e3 + -8e3 + -1e11)
-            .toString()
-            .replace(/[018]/g, (c: string): string => {
-                const numC = parseInt(c);
-                return (
-                    numC ^
-                    (crypto.getRandomValues(new Uint8Array(1))[0] ??
-                        0 & (15 >> (numC / 4)))
-                ).toString(16);
-            });
-    else return "";
-};
 
 export namespace VaultEncryption {
     export class KeyDerivationConfig_PBKDF2
@@ -1514,6 +1495,47 @@ export namespace Credential {
         public toString(): string {
             return JSON.stringify(this);
         }
+
+        public static stripForDiff(
+            credential: VaultCredential
+        ): Partial<VaultCredential> {
+            const stripped: Partial<VaultCredential> = {};
+
+            Object.keys(credential)
+                .sort()
+                .forEach((key: string) => {
+                    const typedKey = key as keyof VaultCredential;
+                    (stripped as any)[typedKey] = credential[typedKey];
+                });
+
+            stripped.ID = "";
+            stripped.DateCreated = "";
+            stripped.DateModified = "";
+            stripped.DatePasswordChanged = "";
+
+            // Sort the keys in the stripped object since we might have added some
+            // and we want to make sure the order is consistent
+            const strippedSorted: Partial<VaultCredential> = {};
+            Object.keys(stripped)
+                .sort()
+                .forEach((key: string) => {
+                    const typedKey = key as keyof VaultCredential;
+                    (strippedSorted as any)[typedKey] = credential[typedKey];
+                });
+
+            return strippedSorted;
+        }
+
+        public async hash(): Promise<string> {
+            const blankObject = VaultCredential.stripForDiff(this);
+
+            const hash = await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(JSON.stringify(blankObject))
+            );
+
+            return Buffer.from(hash).toString("hex");
+        }
     }
 
     export interface DiffChange
@@ -2045,13 +2067,22 @@ export class Vault implements VaultUtilTypes.Vault {
         return creds;
     }
 
+    /**
+     * Returns the sorted list of credentials in the vault.
+     * The credentials are sorted by ID (ULID) in lexicographic order.
+     */
+    public getSortedCredentials(): Credential.VaultCredential[] {
+        return this.Credentials.sort((a, b) => a.ID.localeCompare(b.ID));
+    }
+
     //#region Diffing
     /**
      * Clear the list of diffs. This is usually used to remedy a failure to sync.
      * NOTE: This has to be done on all linked devices in order to prevent the vaults from diverging.
      */
-    public clearDiffList(): void {
-        this.Diffs = [];
+    public purgeDiffList(): void {
+        // Leave the last diff in the list
+        this.Diffs = this.Diffs.slice(this.Diffs.length - 1);
     }
 
     /**
@@ -2061,37 +2092,18 @@ export class Vault implements VaultUtilTypes.Vault {
      * @returns A SHA256 hash
      */
     private hashCredentials(): string {
+        // Credentials sorted by ID (ULIDs) by lexicographic order
+        const sortedCreds = this.getSortedCredentials();
+        // console.debug(
+        //     "Hashing credentials IDs: ",
+        //     sortedCreds.map((c) => c.ID)
+        // );
+
         // Copy the credential object property by property
-        const credentialsCopy = this.Credentials.sort((a, b) => {
-            // Convert every character of a to a number then sum them
-            const aSum = a.ID.split("").reduce(
-                (acc, char, index) => acc + char.charCodeAt(0) * index,
-                0
-            );
-
-            // Convert every character of b to a number then sum them
-            const bSum = b.ID.split("").reduce(
-                (acc, char, index) => acc + char.charCodeAt(0) * index,
-                0
-            );
-
-            // Sort by the sum of the characters
-            return aSum - bSum;
-        }).map((c: Credential.VaultCredential) => {
-            const blankObject: Partial<Credential.VaultCredential> = {};
-
-            // Sort the properties first to ensure the hash is consistent
-            Object.keys(c)
-                .sort()
-                .forEach((key: string) => {
-                    const typedKey = key as keyof Credential.VaultCredential;
-                    (blankObject as any)[typedKey] = c[typedKey];
-                });
-
-            blankObject.ID = "";
-
-            return blankObject;
-        });
+        const credentialsCopy = sortedCreds.map(
+            (c: Credential.VaultCredential) =>
+                Credential.VaultCredential.stripForDiff(c)
+        );
 
         const stringifiedCredentials = JSON.stringify(credentialsCopy, null, 0);
         console.debug("Hashing credentials: ", stringifiedCredentials);
@@ -2100,6 +2112,12 @@ export class Vault implements VaultUtilTypes.Vault {
         const credentialsHash = sodium.crypto_hash_sha256(
             Buffer.from(stringifiedCredentials)
         );
+
+        // TODO: Use the WebCrypto API instead of sodium
+        // const credentialsHash = crypto.subtle.digest(
+        //     "SHA-256",
+        //     Buffer.from(stringifiedCredentials)
+        // );
 
         // Return the hash as a hex string
         return Buffer.from(credentialsHash).toString("hex");
@@ -2138,7 +2156,7 @@ export class Vault implements VaultUtilTypes.Vault {
             // Create a clone of the vault so we can calculate the hash after adding each credential
             const clonedVault = new Vault();
 
-            return this.Credentials.map((cred) => {
+            const diffs = this.getSortedCredentials().map((cred) => {
                 // Add the credential to the cloned vault
                 clonedVault.upsertCredential(cred);
 
@@ -2149,6 +2167,8 @@ export class Vault implements VaultUtilTypes.Vault {
                     Props: cred,
                 });
             });
+
+            return diffs;
         }
 
         const startIndex = this.Diffs.findIndex((diff) => diff.Hash === hash);
@@ -2169,11 +2189,6 @@ export class Vault implements VaultUtilTypes.Vault {
      * @param changes - The changes that were made
      */
     private createDiff(changes: Credential.DiffChange | null) {
-        if (this.OnlineServices.LinkedDevices.length <= 0) {
-            console.debug("Skipping diff creation, no linked devices.");
-            return;
-        }
-
         if (!changes) {
             console.debug("No changes to create diff for... Early return.");
             return;
@@ -2188,8 +2203,12 @@ export class Vault implements VaultUtilTypes.Vault {
         const diff = new Credential.Diff(newHash, changes);
 
         // If the diff array size is greater than the max diff count, remove the oldest diff
-        // NOTE: This is disabled for now
-        if (this.Diffs.length >= this.Configuration.MaxDiffCount && false) {
+        // If there are no linked devices, only the latest diff is saved to ensure that linked
+        //  devices can sync even if they diverged right after linking
+        if (
+            this.Diffs.length >= this.Configuration.MaxDiffCount &&
+            this.OnlineServices.LinkedDevices.length > 0
+        ) {
             // Slice the array to remove the overflowing diffs
             // Example: this.Diffs.length = 286, this.Configuration.MaxDiffCount = 95
             // - Result: 286 - 95 + 1 = 192 -> 192 diffs from the start of the array are removed
@@ -2197,6 +2216,9 @@ export class Vault implements VaultUtilTypes.Vault {
             this.Diffs = this.Diffs.slice(
                 this.Diffs.length - this.Configuration.MaxDiffCount + 1
             );
+        } else if (this.OnlineServices.LinkedDevices.length <= 0) {
+            // Make sure that only this diff is saved when there are no linked devices
+            this.Diffs = [];
         }
 
         // Add the new diff to the array
@@ -2331,11 +2353,7 @@ export class Vault implements VaultUtilTypes.Vault {
             console.time("upsertCredential-newCreds");
             const newCreds = new Credential.VaultCredential(form);
 
-            if (process.env.NODE_ENV === "development") {
-                newCreds.ID = form?.ID ?? uuidv4_insecurecontexts();
-            } else {
-                newCreds.ID = form?.ID ?? crypto.randomUUID();
-            }
+            newCreds.ID = form?.ID ?? ulid();
 
             console.timeEnd("upsertCredential-newCreds");
 
@@ -2402,11 +2420,7 @@ export class Vault implements VaultUtilTypes.Vault {
         } else {
             const newGroup = new Group(form.Name, form.Icon, form.Color);
 
-            if (process.env.NODE_ENV === "development") {
-                newGroup.ID = form?.ID ?? uuidv4_insecurecontexts();
-            } else {
-                newGroup.ID = form?.ID ?? crypto.randomUUID();
-            }
+            newGroup.ID = form?.ID ?? ulid();
 
             if (form.ID) newGroup.ID = form.ID;
 
@@ -2453,6 +2467,9 @@ export class Vault implements VaultUtilTypes.Vault {
 
         // Create a copy of the vault so we don't modify the original
         const vaultCopy = Object.assign(new Vault(this.Secret), this);
+
+        // NOTE: Even if this vault never had any linked devices, it will always have at least on diff in the diff list
+        // This is to ensure that both devices can synchronize with each other even if they diverge right after linking
 
         // Clear the online services account and re-bind it with the new account for the other device
         vaultCopy.OnlineServices = new OnlineServicesAccount();

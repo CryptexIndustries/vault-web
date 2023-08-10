@@ -74,7 +74,7 @@ export const notifyMeRouterContact = publicProcedure
         }
 
         try {
-            sendContactEmail(input.email, input.message);
+            await sendContactEmail(input.email, input.message);
 
             return {
                 success: true,

@@ -4,7 +4,6 @@ import Dexie from "dexie";
 import * as OTPAuth from "otpauth";
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
-import { env } from "../env/client.mjs";
 
 import Papa from "papaparse";
 import { ulid } from "ulidx";
@@ -111,10 +110,10 @@ export namespace VaultEncryption {
         EncryptionKeyDerivationFunction:
             vaultEncryptionKeyDerivationFunctionFormElement,
         EncryptionConfig: vaultEncryptionConfigurationsFormElement,
-        // EncryptionConfigArgon2ID:
-        CaptchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
-            ? z.string().nonempty("Captcha is required.")
-            : z.string(),
+        CaptchaToken: z.string(),
+    });
+    export const unlockVaultWCaptchaFormSchema = unlockVaultFormSchema.extend({
+        CaptchaToken: z.string().nonempty("Captcha is required."),
     });
     export type UnlockVaultFormSchemaType = z.infer<
         typeof unlockVaultFormSchema
@@ -1148,18 +1147,22 @@ export namespace Import {
         });
     };
 
-    export const CSV = (
+    export const CSV = async (
         file: File,
         fields: FieldsSchemaType,
-        onSuccess: (credentials: Credential.CredentialFormSchemaType[]) => void,
+        onSuccess: (
+            credentials: Credential.CredentialFormSchemaType[]
+        ) => Promise<void>,
         onFailure: (error: Error) => void
-    ): void => {
+    ): Promise<void> => {
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
             download: false,
             // worker: true,
-            complete: function (results: Papa.ParseResult<unknown> | null) {
+            complete: async function (
+                results: Papa.ParseResult<unknown> | null
+            ) {
                 if (!results) return;
 
                 const credentials: Credential.CredentialFormSchemaType[] = [];
@@ -1235,7 +1238,7 @@ export namespace Import {
                 }
 
                 // Call the onSuccess callback
-                onSuccess(credentials);
+                await onSuccess(credentials);
             },
             error: function (error) {
                 // Call the onFailure callback
@@ -1999,6 +2002,13 @@ class Configuration implements VaultUtilTypes.Configuration {
      */
     public MaxDiffCount = 500;
 
+    /**
+     * Whether or not to generate a diff when no linked devices are available.
+     * Currently, it is recommended to leave this disabled because there is no mechanism to keep the vault from growing too large.
+     * @default false
+     */
+    public GenerateDiffWhenNoLinked = false;
+
     public setMaxDiffCount(count: number): void {
         this.MaxDiffCount = Math.abs(count);
     }
@@ -2091,7 +2101,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * It also sorts the properties of the credentials to ensure that the hash is consistent.
      * @returns A SHA256 hash
      */
-    private hashCredentials(): string {
+    private async hashCredentials(): Promise<string> {
         // Credentials sorted by ID (ULIDs) by lexicographic order
         const sortedCreds = this.getSortedCredentials();
         // console.debug(
@@ -2109,15 +2119,10 @@ export class Vault implements VaultUtilTypes.Vault {
         console.debug("Hashing credentials: ", stringifiedCredentials);
 
         // Generate a SHA256 hash of the credentials
-        const credentialsHash = sodium.crypto_hash_sha256(
+        const credentialsHash = await crypto.subtle.digest(
+            "SHA-256",
             Buffer.from(stringifiedCredentials)
         );
-
-        // TODO: Use the WebCrypto API instead of sodium
-        // const credentialsHash = crypto.subtle.digest(
-        //     "SHA-256",
-        //     Buffer.from(stringifiedCredentials)
-        // );
 
         // Return the hash as a hex string
         return Buffer.from(credentialsHash).toString("hex");
@@ -2128,9 +2133,10 @@ export class Vault implements VaultUtilTypes.Vault {
      * @returns The hash from the latest diff, or the credentials hash if there are no diffs
      * @returns An empty string if there are no credentials
      */
-    public getLatestHash(): string | null {
+    public async getLatestHash(): Promise<string | null> {
         if (this.Diffs.length === 0) {
-            if (this.Credentials.length !== 0) return this.hashCredentials();
+            if (this.Credentials.length !== 0)
+                return await this.hashCredentials();
             return null;
         }
 
@@ -2149,26 +2155,38 @@ export class Vault implements VaultUtilTypes.Vault {
      * Gets the diffs for the vault from the specified hash to the latest diff.
      * @param hash - The hash to start from
      * @returns An array of diffs from the specified hash to the latest diff (in that order)
-     * @returns An array of existing credentials (as additions) if the hash is null
+     * @returns An array of existing credentials (as additions) if the hash is null or the vault has no diffs
      */
-    public getDiffsSinceHash(hash: string | null): Credential.Diff[] {
-        if (hash === null) {
+    public async getDiffsSinceHash(
+        hash: string | null
+    ): Promise<Credential.Diff[]> {
+        const returnCredentialsAsAdditions = async (): Promise<
+            Credential.Diff[]
+        > => {
             // Create a clone of the vault so we can calculate the hash after adding each credential
             const clonedVault = new Vault();
+            clonedVault.Configuration.GenerateDiffWhenNoLinked = true;
 
-            const diffs = this.getSortedCredentials().map((cred) => {
+            // const diffs = this.getSortedCredentials().map((cred) => {
+            const diffs: Credential.Diff[] = [];
+            for (const cred of this.getSortedCredentials()) {
                 // Add the credential to the cloned vault
-                clonedVault.upsertCredential(cred);
+                await clonedVault.upsertCredential(cred);
 
                 // Craft a diff for the credential
-                return new Credential.Diff(clonedVault.hashCredentials(), {
-                    Type: VaultUtilTypes.DiffType.Add,
-                    ID: cred.ID,
-                    Props: cred,
-                });
-            });
+                // diffs.push(new Credential.Diff(clonedVault.hashCredentials(), {
+                //     Type: VaultUtilTypes.DiffType.Add,
+                //     ID: cred.ID,
+                //     Props: cred,
+                // }));
+            }
 
             return diffs;
+        };
+
+        // If the hash is null, return the credentials as additions
+        if (hash === null || this.Diffs.length === 0) {
+            return await returnCredentialsAsAdditions();
         }
 
         const startIndex = this.Diffs.findIndex((diff) => diff.Hash === hash);
@@ -2188,7 +2206,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * Also removes the oldest diff if the max diff count has been reached
      * @param changes - The changes that were made
      */
-    private createDiff(changes: Credential.DiffChange | null) {
+    private async createDiff(changes: Credential.DiffChange | null) {
         if (!changes) {
             console.debug("No changes to create diff for... Early return.");
             return;
@@ -2196,7 +2214,7 @@ export class Vault implements VaultUtilTypes.Vault {
 
         console.time("createDiff-getCredentialsHash");
         // Get the hash of the current credentials
-        const newHash = this.hashCredentials();
+        const newHash = await this.hashCredentials();
         console.timeEnd("createDiff-getCredentialsHash");
 
         console.time("createDiff-pushDiff");
@@ -2207,7 +2225,8 @@ export class Vault implements VaultUtilTypes.Vault {
         //  devices can sync even if they diverged right after linking
         if (
             this.Diffs.length >= this.Configuration.MaxDiffCount &&
-            this.OnlineServices.LinkedDevices.length > 0
+            (this.OnlineServices.LinkedDevices.length > 0 ||
+                this.Configuration.GenerateDiffWhenNoLinked)
         ) {
             // Slice the array to remove the overflowing diffs
             // Example: this.Diffs.length = 286, this.Configuration.MaxDiffCount = 95
@@ -2228,7 +2247,7 @@ export class Vault implements VaultUtilTypes.Vault {
         console.debug("Current diff list:", this.Diffs);
     }
 
-    public applyDiffs(diffs: Credential.DiffSchemaType[]) {
+    public async applyDiffs(diffs: Credential.DiffSchemaType[]) {
         console.time("applyDiffs");
 
         // If there are no diffs, return
@@ -2238,7 +2257,7 @@ export class Vault implements VaultUtilTypes.Vault {
         }
 
         // Apply the diffs in order
-        diffs.forEach((diff) => {
+        for (const diff of diffs) {
             if (diff.Changes) {
                 if (
                     diff.Changes.Type === VaultUtilTypes.DiffType.Add ||
@@ -2261,7 +2280,7 @@ export class Vault implements VaultUtilTypes.Vault {
 
                         // Use the built-in upsert method to add or update the credential
                         // That way we don't have to duplicate the logic
-                        this.upsertCredential({
+                        await this.upsertCredential({
                             ID: diff.Changes.ID,
                             Name: diff.Changes.Props.Name,
                             Username: diff.Changes.Props.Username,
@@ -2280,10 +2299,10 @@ export class Vault implements VaultUtilTypes.Vault {
                     diff.Changes.Type === VaultUtilTypes.DiffType.Delete
                 ) {
                     // Use the built-in delete method to delete the credential
-                    this.deleteCredential(diff.Changes.ID);
+                    await this.deleteCredential(diff.Changes.ID);
                 }
             }
-        });
+        }
 
         console.timeEnd("applyDiffs");
     }
@@ -2294,9 +2313,8 @@ export class Vault implements VaultUtilTypes.Vault {
     /**
      * Upserts a credential. If the credential already exists, it will be updated. If it does not exist, it will be created.
      * @param form The valid form data with which to upsert the credential.
-     * @returns void
      */
-    public upsertCredential(form: Credential.CredentialFormSchemaType): void {
+    public async upsertCredential(form: Credential.CredentialFormSchemaType) {
         console.time("upsertCredential");
 
         console.time("upsertCredential-findExisting");
@@ -2368,7 +2386,7 @@ export class Vault implements VaultUtilTypes.Vault {
             console.timeEnd("upsertCredential-getChanges");
         }
 
-        this.createDiff(changes);
+        await this.createDiff(changes);
 
         console.timeEnd("upsertCredential");
     }
@@ -2378,7 +2396,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * We don't throw an error if the credential doesn't exist, because it doesn't matter.
      * @param id The ID of the credential to delete
      */
-    public deleteCredential(id: string): void {
+    public async deleteCredential(id: string) {
         console.time("deleteCredential");
 
         console.time("deleteCredential-findIndex");
@@ -2395,7 +2413,7 @@ export class Vault implements VaultUtilTypes.Vault {
             this.Credentials.splice(index, 1);
             console.timeEnd("deleteCredential-splice");
 
-            this.createDiff(change);
+            await this.createDiff(change);
         }
 
         console.timeEnd("deleteCredential");
@@ -2516,6 +2534,16 @@ export namespace Synchronization {
         DivergenceSolve = "divergence-solve",
         LinkedDevicesList = "linked-devices-list",
     }
+
+    // When adding fields, make sure to add them first to this zod schema
+    export const messageSchema = z.object({
+        command: z.nativeEnum(Command),
+        hash: z.string().nullable(),
+        divergenceHash: z.string().nullable(),
+        diffList: z.array(Credential.DiffSchema),
+        linkedDevicesList: z.array(LinkedDevicesSchema).optional(),
+    });
+
     export class Message implements z.infer<typeof messageSchema> {
         command: Command;
         hash: string | null;
@@ -2541,14 +2569,65 @@ export namespace Synchronization {
             this.diffList = diffList;
             this.linkedDevicesList = linkedDevicesList;
         }
+
+        public static prepare(
+            command: Command,
+            hash: string | null,
+            diverganceHash: string | null,
+            diffList: Credential.DiffSchemaType[],
+            linkedDevicesList?: LinkedDeviceSchemaType[]
+        ): Message {
+            return new Message(
+                command,
+                hash,
+                diverganceHash,
+                diffList,
+                linkedDevicesList
+            );
+        }
+
+        static fromSchema(schema: z.infer<typeof messageSchema>): Message {
+            return new Message(
+                schema.command,
+                schema.hash,
+                schema.divergenceHash,
+                schema.diffList,
+                schema.linkedDevicesList
+            );
+        }
+
+        public setCommand(command: Command): void {
+            this.command = command;
+        }
+
+        public setHash(hash: string | null): void {
+            this.hash = hash;
+        }
+
+        public setDivergenceHash(hash: string | null): void {
+            this.divergenceHash = hash;
+        }
+
+        public setDiffList(diffList: Credential.DiffSchemaType[]): void {
+            this.diffList = diffList;
+        }
+
+        public setLinkedDevicesList(
+            linkedDevicesList: LinkedDeviceSchemaType[]
+        ): void {
+            this.linkedDevicesList = linkedDevicesList;
+        }
+
+        public serialize(): string {
+            // Make sure to only include properties, not methods
+            return JSON.stringify(this, (_, value) => {
+                if (typeof value === "function") {
+                    return undefined;
+                }
+                return value;
+            });
+        }
     }
-    export const messageSchema = z.object({
-        command: z.nativeEnum(Command),
-        hash: z.string().nullable(),
-        divergenceHash: z.string().nullable(),
-        diffList: z.array(Credential.DiffSchema),
-        linkedDevicesList: z.array(LinkedDevicesSchema).optional(),
-    });
 }
 
 //#region Schemas

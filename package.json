@@ -9,6 +9,8 @@
         "start": "next start",
         "lint": "next lint",
         "tsc-lint": "tsc -w",
+        "test": "jest",
+        "coverage": "jest --coverage",
         "postinstall": "prisma generate",
         "protogen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=. ./src/app_lib/proto/vault.proto --ts_proto_opt=oneof=unions,unrecognizedEnum=false,useOptionals=none,initializeFieldsAsUndefined=false,esModuleInterop=true,useDate=false,stringEnums=false,outputEncodeMethods=true,outputJsonMethods=false"
     },
@@ -56,6 +58,7 @@
         "zod": "^3.21.4"
     },
     "devDependencies": {
+        "@jest/globals": "^29.6.2",
         "@types/libsodium-wrappers-sumo": "^0.7.5",
         "@types/node": "^18.0.0",
         "@types/papaparse": "^5.3.7",
@@ -67,12 +70,15 @@
         "cssnano": "^6.0.1",
         "eslint": "8.38.0",
         "eslint-config-next": "13.4.1",
+        "jest": "^29.6.2",
+        "jest-environment-jsdom": "^29.6.2",
         "next-pwa": "^5.6.0",
         "postcss": "^8.4.23",
         "prettier": "^2.8.7",
         "prettier-plugin-tailwindcss": "^0.2.7",
         "prisma": "^4.14.0",
         "tailwindcss": "^3.3.1",
+        "ts-jest": "^29.1.1",
         "ts-proto": "^1.153.2",
         "typescript": "5.0.4"
     },

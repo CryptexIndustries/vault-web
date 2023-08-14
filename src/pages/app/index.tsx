@@ -5310,267 +5310,6 @@ const CredentialDialog: React.FC<{
     );
 };
 
-const CredentialCard: React.FC<{
-    credential: Credential.VaultCredential;
-    onClick: () => void;
-    showWarningDialog: WarningDialogShowFn;
-}> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
-    const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-
-    const { refs, floatingStyles } = useFloating({
-        placement: "bottom-end",
-        middleware: [autoPlacement()],
-    });
-
-    const options: Options[] = [
-        {
-            Name: "Copy Username",
-            onClick: () => {
-                navigator.clipboard.writeText(credential.Username);
-                toast.info("Copied username to clipboard");
-            },
-        },
-    ];
-
-    if (credential.Password) {
-        options.push({
-            Name: "Copy Password",
-            onClick: () => {
-                navigator.clipboard.writeText(credential.Password);
-                toast.info("Copied password to clipboard");
-            },
-        });
-    }
-
-    if (credential.URL) {
-        options.push({
-            Name: "Open URL",
-            onClick: () => {
-                window.open(credential.URL, "_blank");
-            },
-        });
-    }
-
-    if (credential.TOTP) {
-        options.push({
-            Name: "Copy OTP",
-            onClick: () => {
-                if (!credential.TOTP) return;
-
-                const data = credential.TOTP.calculate();
-                if (data) {
-                    navigator.clipboard.writeText(data.code);
-                    toast.info(
-                        `Copied OTP to clipboard; ${data.timeRemaining} seconds left`,
-                        {
-                            autoClose: 3000,
-                            pauseOnFocusLoss: false,
-                            updateId: "copy-otp",
-                            toastId: "copy-otp",
-                        }
-                    );
-
-                    // let timePassed = 0;
-                    // const interval = setInterval(() => {
-                    //     const progress = (data.timeRemaining - timePassed / 1000) / credential.TOTP.Period;
-                    //     toast.info(
-                    //         `Copied OTP to clipboard; ${
-                    //             data.timeRemaining - timePassed / 1000
-                    //         } seconds left`,
-                    //         {
-                    //             progress:
-                    //                 progress,
-                    //             pauseOnFocusLoss: false,
-                    //             updateId: "copy-otp",
-                    //             toastId: "copy-otp",
-                    //             onClick: () => clearInterval(interval),
-                    //         }
-                    //     );
-                    //     timePassed += 1000;
-
-                    //     if (timePassed >= data.timeRemaining * 1000) {
-                    //         toast.dismiss("copy-otp");
-
-                    //         clearInterval(interval);
-                    //     }
-                    // }, 1000);
-                }
-            },
-        });
-    }
-
-    options.push({
-        Name: "Remove",
-        onClick: async () => {
-            if (!unlockedVault || !unlockedVaultMetadata) return;
-
-            showWarningDialogFn(
-                `You are about to remove the "${credential.Name}" credential.`,
-                async () => {
-                    toast.info("Removing credential...", {
-                        autoClose: false,
-                        closeButton: false,
-                        toastId: "remove-credential",
-                        updateId: "remove-credential",
-                    });
-
-                    // A little delay to make sure the toast is shown
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-
-                    try {
-                        // Remove the credential from the vault
-                        await unlockedVault.deleteCredential(credential.ID);
-
-                        // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-                        await unlockedVaultMetadata.save(unlockedVault);
-
-                        toast.success("Credential removed.", {
-                            autoClose: 3000,
-                            closeButton: true,
-                            toastId: "remove-credential",
-                            updateId: "remove-credential",
-                        });
-                    } catch (e) {
-                        console.error(`Failed to save vault: ${e}`);
-                        toast.error(
-                            "Failed to save vault. There is a high possibility of data loss!",
-                            {
-                                autoClose: 3000,
-                                closeButton: true,
-                                toastId: "remove-credential",
-                                updateId: "remove-credential",
-                            }
-                        );
-                    }
-                },
-                null
-            );
-        },
-    });
-
-    return (
-        <div
-            className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-700 px-2 shadow-md transition-shadow hover:shadow-[#FF5668]"
-            onContextMenu={(e) => {
-                e.preventDefault();
-
-                // Cast the ref to an HTMLElement and click it
-                const optionsButtonRef = refs.reference?.current as HTMLElement;
-                optionsButtonRef?.click();
-            }}
-        >
-            <div
-                className="flex w-full cursor-pointer items-center justify-between p-2"
-                onClick={onClick}
-            >
-                <div className="flex items-center gap-2">
-                    {/* Temporary colored circle */}
-                    <div>
-                        <div className="flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black">
-                            {credential.Name[0]}
-                        </div>
-                    </div>
-                    {/* Credential info */}
-                    <div className="flex flex-col">
-                        <p className="text-md line-clamp-2 break-all font-bold lg:line-clamp-1">
-                            {credential.Name}
-                        </p>
-                        <p className="line-clamp-2 break-all text-left text-sm text-slate-300 lg:line-clamp-1">
-                            {credential.Username}
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div onClick={onClick}>
-                {/* Indicators - md+ */}
-                <div className="hidden h-full items-center justify-center gap-3 rounded-sm px-3 md:flex">
-                    {credential.TOTP && (
-                        <p
-                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
-                            title="Contains OTP"
-                        >
-                            OTP
-                        </p>
-                    )}
-                    {credential.Notes && (
-                        <p
-                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
-                            title="Contains additional notes"
-                        >
-                            Notes
-                        </p>
-                    )}
-                </div>
-                {/* Indicators - mobile */}
-                <div className="flex h-full flex-col items-center justify-center gap-3 rounded-sm px-3 text-center md:hidden">
-                    {credential.TOTP && (
-                        <p
-                            className="rounded-md text-xs text-slate-50"
-                            title="Contains OTP"
-                        >
-                            OTP
-                        </p>
-                    )}
-                    {credential.Notes && (
-                        <p
-                            className="rounded-md text-xs text-slate-50"
-                            title="Contains additional notes"
-                        >
-                            Notes
-                        </p>
-                    )}
-                </div>
-            </div>
-            <Menu as="div" className="relative">
-                <Menu.Button
-                    ref={refs.setReference}
-                    className="flex h-full items-center"
-                >
-                    <EllipsisVerticalIcon className="h-6 w-6 text-gray-400" />
-                </Menu.Button>
-                <Transition
-                    as={React.Fragment}
-                    enter="transition ease-out duration-100"
-                    enterFrom="transform opacity-0 scale-95"
-                    enterTo="transform opacity-100 scale-100"
-                    leave="transition ease-in duration-75"
-                    leaveFrom="transform opacity-100 scale-100"
-                    leaveTo="transform opacity-0 scale-95"
-                >
-                    <Menu.Items
-                        ref={refs.setFloating}
-                        className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none"
-                        style={floatingStyles}
-                    >
-                        <div className="py-1">
-                            {options.map((option, index) => (
-                                <Menu.Item key={index}>
-                                    {({ active }) => {
-                                        const hoverClass = clsx({
-                                            "bg-gray-900 text-white": active,
-                                            "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                                true,
-                                        });
-                                        return (
-                                            <a
-                                                className={hoverClass}
-                                                onClick={option.onClick}
-                                            >
-                                                {option.Name}
-                                            </a>
-                                        );
-                                    }}
-                                </Menu.Item>
-                            ))}
-                        </div>
-                    </Menu.Items>
-                </Transition>
-            </Menu>
-        </div>
-    );
-};
-
 const VaultTitle: React.FC<{ title: string }> = ({ title }) => {
     return (
         <div className="flex flex-col items-center justify-center overflow-hidden overflow-ellipsis">
@@ -9476,6 +9215,273 @@ const SearchBar: React.FC<{
                 onInput={onInput}
                 {...register("search")}
             />
+        </div>
+    );
+};
+
+const CredentialCard: React.FC<{
+    credential: Credential.VaultCredential;
+    onClick: () => void;
+    showWarningDialog: WarningDialogShowFn;
+}> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
+    const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+
+    const { refs, floatingStyles } = useFloating({
+        placement: "bottom-end",
+        middleware: [autoPlacement()],
+    });
+
+    const options: Options[] = [
+        {
+            Name: "Copy Username",
+            onClick: () => {
+                navigator.clipboard.writeText(credential.Username);
+                toast.info("Copied username to clipboard");
+            },
+        },
+    ];
+
+    if (credential.Password) {
+        options.push({
+            Name: "Copy Password",
+            onClick: () => {
+                navigator.clipboard.writeText(credential.Password);
+                toast.info("Copied password to clipboard");
+            },
+        });
+    }
+
+    if (credential.URL) {
+        options.push({
+            Name: "Open URL",
+            onClick: () => {
+                window.open(credential.URL, "_blank");
+            },
+        });
+    }
+
+    if (credential.TOTP) {
+        options.push({
+            Name: "Copy OTP",
+            onClick: () => {
+                if (!credential.TOTP) return;
+
+                const data = credential.TOTP.calculate();
+                if (data) {
+                    navigator.clipboard.writeText(data.code);
+                    toast.info(
+                        `Copied OTP to clipboard; ${data.timeRemaining} seconds left`,
+                        {
+                            autoClose: 3000,
+                            pauseOnFocusLoss: false,
+                            updateId: "copy-otp",
+                            toastId: "copy-otp",
+                        }
+                    );
+
+                    // let timePassed = 0;
+                    // const interval = setInterval(() => {
+                    //     const progress = (data.timeRemaining - timePassed / 1000) / credential.TOTP.Period;
+                    //     toast.info(
+                    //         `Copied OTP to clipboard; ${
+                    //             data.timeRemaining - timePassed / 1000
+                    //         } seconds left`,
+                    //         {
+                    //             progress:
+                    //                 progress,
+                    //             pauseOnFocusLoss: false,
+                    //             updateId: "copy-otp",
+                    //             toastId: "copy-otp",
+                    //             onClick: () => clearInterval(interval),
+                    //         }
+                    //     );
+                    //     timePassed += 1000;
+
+                    //     if (timePassed >= data.timeRemaining * 1000) {
+                    //         toast.dismiss("copy-otp");
+
+                    //         clearInterval(interval);
+                    //     }
+                    // }, 1000);
+                }
+            },
+        });
+    }
+
+    options.push({
+        Name: "Remove",
+        onClick: async () => {
+            if (!unlockedVault || !unlockedVaultMetadata) return;
+
+            showWarningDialogFn(
+                `You are about to remove the "${credential.Name}" credential.`,
+                async () => {
+                    toast.info("Removing credential...", {
+                        autoClose: false,
+                        closeButton: false,
+                        toastId: "remove-credential",
+                        updateId: "remove-credential",
+                    });
+
+                    // A little delay to make sure the toast is shown
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+
+                    try {
+                        // Remove the credential from the vault
+                        await unlockedVault.deleteCredential(credential.ID);
+
+                        // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+                        await unlockedVaultMetadata.save(unlockedVault);
+
+                        toast.success("Credential removed.", {
+                            autoClose: 3000,
+                            closeButton: true,
+                            toastId: "remove-credential",
+                            updateId: "remove-credential",
+                        });
+                    } catch (e) {
+                        console.error(`Failed to save vault: ${e}`);
+                        toast.error(
+                            "Failed to save vault. There is a high possibility of data loss!",
+                            {
+                                autoClose: 3000,
+                                closeButton: true,
+                                toastId: "remove-credential",
+                                updateId: "remove-credential",
+                            }
+                        );
+                    }
+                },
+                null
+            );
+        },
+    });
+
+    return (
+        <div
+            className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-700 px-2 shadow-md transition-shadow hover:shadow-[#FF5668]"
+            onContextMenu={(e) => {
+                e.preventDefault();
+
+                // Cast the ref to an HTMLElement and click it
+                const optionsButtonRef = refs.reference?.current as HTMLElement;
+                optionsButtonRef?.click();
+            }}
+        >
+            <div
+                className="flex w-full cursor-pointer items-center justify-between p-2"
+                onClick={onClick}
+            >
+                <div className="flex items-center gap-2">
+                    {/* Temporary colored circle */}
+                    <div>
+                        <div className="flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black">
+                            {credential.Name[0]}
+                        </div>
+                    </div>
+                    {/* Credential info */}
+                    <div className="flex flex-col">
+                        <p className="text-md line-clamp-2 break-all font-bold lg:line-clamp-1">
+                            {credential.Name}
+                        </p>
+                        {credential.Username?.trim().length ? (
+                            <p className="line-clamp-2 break-all text-left text-sm text-slate-300 lg:line-clamp-1">
+                                {credential.Username}
+                            </p>
+                        ) : (
+                            <p className="line-clamp-2 break-all text-left text-sm italic text-slate-300 lg:line-clamp-1">
+                                No username
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div onClick={onClick}>
+                {/* Indicators - md+ */}
+                <div className="hidden h-full items-center justify-center gap-3 rounded-sm px-3 md:flex">
+                    {credential.TOTP && (
+                        <p
+                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
+                            title="Contains OTP"
+                        >
+                            OTP
+                        </p>
+                    )}
+                    {credential.Notes && (
+                        <p
+                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
+                            title="Contains additional notes"
+                        >
+                            Notes
+                        </p>
+                    )}
+                </div>
+                {/* Indicators - mobile */}
+                <div className="flex h-full flex-col items-center justify-center gap-3 rounded-sm px-3 text-center md:hidden">
+                    {credential.TOTP && (
+                        <p
+                            className="rounded-md text-xs text-slate-50"
+                            title="Contains OTP"
+                        >
+                            OTP
+                        </p>
+                    )}
+                    {credential.Notes && (
+                        <p
+                            className="rounded-md text-xs text-slate-50"
+                            title="Contains additional notes"
+                        >
+                            Notes
+                        </p>
+                    )}
+                </div>
+            </div>
+            <Menu as="div" className="relative">
+                <Menu.Button
+                    ref={refs.setReference}
+                    className="flex h-full items-center"
+                >
+                    <EllipsisVerticalIcon className="h-6 w-6 text-gray-400" />
+                </Menu.Button>
+                <Transition
+                    as={React.Fragment}
+                    enter="transition ease-out duration-100"
+                    enterFrom="transform opacity-0 scale-95"
+                    enterTo="transform opacity-100 scale-100"
+                    leave="transition ease-in duration-75"
+                    leaveFrom="transform opacity-100 scale-100"
+                    leaveTo="transform opacity-0 scale-95"
+                >
+                    <Menu.Items
+                        ref={refs.setFloating}
+                        className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none"
+                        style={floatingStyles}
+                    >
+                        <div className="py-1">
+                            {options.map((option, index) => (
+                                <Menu.Item key={index}>
+                                    {({ active }) => {
+                                        const hoverClass = clsx({
+                                            "bg-gray-900 text-white": active,
+                                            "flex px-4 py-2 text-sm font-semibold text-gray-200":
+                                                true,
+                                        });
+                                        return (
+                                            <a
+                                                className={hoverClass}
+                                                onClick={option.onClick}
+                                            >
+                                                {option.Name}
+                                            </a>
+                                        );
+                                    }}
+                                </Menu.Item>
+                            ))}
+                        </div>
+                    </Menu.Items>
+                </Transition>
+            </Menu>
         </div>
     );
 };

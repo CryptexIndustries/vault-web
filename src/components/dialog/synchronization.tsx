@@ -16,7 +16,7 @@ export type DivergenceSolveShowDialogFnPropType = (
 type OnSuccessCallback = (
     diffsToApply: Credential.Diff[],
     diffsToSend: Credential.Diff[]
-) => void;
+) => Promise<void>;
 type OnCancelCallback = () => void;
 
 export const DivergenceSolveDialog: React.FC<{
@@ -257,8 +257,8 @@ export const DivergenceSolveDialog: React.FC<{
         showWarningDialog(
             `You are about to apply ${diffsToApply.length} changes to this vault,
             and send ${diffsToSend.length} changes to the other device.`,
-            () => {
-                onSuccessRef.current?.(diffsToApply, diffsToSend);
+            async () => {
+                await onSuccessRef.current?.(diffsToApply, diffsToSend);
                 hideDialog(true);
             },
             () => {

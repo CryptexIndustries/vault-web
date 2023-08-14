@@ -200,12 +200,9 @@ export const CredentialsGeneratorDialog: React.FC<{
                         >
                             {output}
                         </p>
-                        <div>
-                            <ArrowPathIcon
-                                className="h-6 w-6 cursor-pointer rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
-                                onClick={handleSubmit(regenerateOutput)}
-                            />
-                        </div>
+                        <button onClick={handleSubmit(regenerateOutput)}>
+                            <ArrowPathIcon className="h-6 w-6 cursor-pointer rounded-lg text-slate-600 transition-colors hover:bg-slate-100" />
+                        </button>
                     </div>
 
                     <p className="text-sm text-gray-600">

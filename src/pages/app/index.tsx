@@ -3596,7 +3596,7 @@ const AccountHeaderWidget: React.FC<{
             >
                 <div className="text-center">
                     <p className="text-slate-50">Not Signed In</p>
-                    <p className="text-slate-400">Access online services</p>
+                    <p className="text-slate-400">Log in to continue</p>
                 </div>
             </button>
         );
@@ -3624,20 +3624,19 @@ const AccountHeaderWidget: React.FC<{
                                                 <p
                                                     className="max-w-[200px] truncate capitalize text-slate-50"
                                                     title={
-                                                        session?.user?.name ??
-                                                        ""
+                                                        session.user?.name ?? ""
                                                     }
                                                 >
-                                                    {session?.user?.name}
+                                                    {session.user?.name}
                                                 </p>
                                                 <p
                                                     className="max-w-[200px] truncate text-slate-400"
                                                     title={
-                                                        session?.user?.email ??
+                                                        session.user?.email ??
                                                         ""
                                                     }
                                                 >
-                                                    {session?.user?.email}
+                                                    {session.user?.email}
                                                 </p>
                                             </>
                                         )}
@@ -3647,11 +3646,10 @@ const AccountHeaderWidget: React.FC<{
                                                 "unauthenticated" && (
                                                 <div className="text-center">
                                                     <p className="max-w-xs truncate capitalize text-slate-50">
-                                                        Disconnected
+                                                        Not Authenticated
                                                     </p>
                                                     <p className="max-w-xs truncate text-slate-400">
-                                                        From CryptexVault
-                                                        services
+                                                        Failed to authenticate
                                                     </p>
                                                 </div>
                                             )}
@@ -3769,7 +3767,7 @@ const AccountHeaderWidget: React.FC<{
                                             <ButtonFlat
                                                 className="text-slate-200 sm:w-full"
                                                 type={ButtonType.Secondary}
-                                                text="Unbind account"
+                                                text="Sign Out"
                                                 // This is used because we can't get to the warning dialog from here
                                                 onClick={signOutCallback}
                                             />
@@ -5813,9 +5811,12 @@ const AccountDialogSignUpForm: React.FC<{
                     <span className="font-bold">Note:</span> Once you sign in,
                     make sure to save your vault somewhere safe. If you lose
                     access to the vault, you will not be able to recover your
-                    account. Once you register, this device will be marked as a
-                    root device. Meaning, this device will be able to link other
-                    devices and remove them.
+                    account.
+                </p>
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> This device will be
+                    marked as a root device. Only the root device will be able
+                    to link other devices and remove them.
                 </p>
             </div>
 
@@ -5841,7 +5842,7 @@ const AccountDialogSignUpForm: React.FC<{
                 <p className="text-xs text-gray-500">
                     We will send you a confirmation email to verify your email
                     address. Verify your email address to complete the
-                    registration. The token will expire after 24 hours.
+                    registration. The link will expire after 24 hours.
                 </p>
             </div>
             <div className="mt-2 flex flex-col items-center">
@@ -8637,9 +8638,13 @@ const DashboardSidebarSynchronization: React.FC<{
             },
         ];
 
+        const lastSynced = device.LastSync
+            ? dayjs(device.LastSync).fromNow()
+            : "Never synced";
+
         return (
             <div
-                className="mt-1 flex flex-col gap-2"
+                className="mr-2 mt-1 flex flex-col gap-2 rounded-md border border-slate-700"
                 onContextMenu={(e) => {
                     e.preventDefault();
                     optionsButtonRef.current?.click();
@@ -8647,16 +8652,10 @@ const DashboardSidebarSynchronization: React.FC<{
             >
                 <div className="ml-2 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500">
                     <div>
-                        {/* <DevicePhoneMobileIcon className="h-5 w-5" /> */}
-                        <DevicePhoneMobileIcon
-                            className={clsx({
-                                "h-5 w-5": true,
-                                "text-green-500": directConnectionEstablished,
-                            })}
-                        />
+                        <DevicePhoneMobileIcon className="h-5 w-5" />
                     </div>
                     <div
-                        className="flex flex-grow flex-col overflow-x-hidden"
+                        className="flex flex-grow flex-col overflow-x-hidden py-1"
                         onClick={async () => await synchronizeNow(device)}
                     >
                         <p
@@ -8665,21 +8664,34 @@ const DashboardSidebarSynchronization: React.FC<{
                         >
                             {device.Name}
                         </p>
-                        {/* Last synchronization date */}
-                        <p
-                            className="text-xs normal-case text-slate-300"
-                            title={
-                                device.LastSync
-                                    ? `Last synchronized ${dayjs(
-                                          device.LastSync
-                                      ).fromNow()}`
-                                    : "Never synchronized"
-                            }
-                        >
-                            {device.LastSync
-                                ? dayjs(device.LastSync).fromNow()
-                                : "Never"}
-                        </p>
+                        <div className="flex flex-col items-start">
+                            {/* Connection status */}
+                            <p
+                                className={clsx({
+                                    "flex h-full items-center rounded border px-1 text-xs capitalize":
+                                        true,
+                                    "border-green-500/50 text-green-500":
+                                        directConnectionEstablished,
+                                    "border-red-500/50 text-red-500":
+                                        !directConnectionEstablished,
+                                })}
+                            >
+                                {directConnectionEstablished
+                                    ? "Connected"
+                                    : "Disconnected"}
+                            </p>
+                            {/* Last synchronization date */}
+                            <p
+                                className="ml-1 text-xs normal-case text-slate-300/50"
+                                title={
+                                    device.LastSync
+                                        ? `Last synchronized ${lastSynced}`
+                                        : "Never synchronized"
+                                }
+                            >
+                                {lastSynced}
+                            </p>
+                        </div>
                         {/* <span
                             className={clsx({
                                 "relative flex h-3 w-3": true,
@@ -8780,10 +8792,15 @@ const DashboardSidebarSynchronization: React.FC<{
                 text="Link a Device"
                 onClick={() => showLinkingDeviceDialogFnRef.current?.()}
             />
+            {/* <DashboardSidebarMenuItem
+                Icon={GlobeAltIcon}
+                text="Configuration"
+                onClick={() => showLinkingDeviceDialogFnRef.current?.()}
+            /> */}
             <div className="mt-1 border-l-2 border-slate-500 pl-2">
                 <div className="flex items-center gap-1">
                     <p className="text-sm text-slate-500">
-                        Linked Devices{" "}
+                        Online Services{" "}
                         {unlockedVault.OnlineServices.LinkedDevices.length
                             ? "-"
                             : ""}
@@ -8799,7 +8816,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     // If there are no linked devices, show a message
                     unlockedVault.OnlineServices.LinkedDevices.length === 0 && (
                         <p className="mt-2 text-center text-sm text-slate-500">
-                            No linked devices
+                            No linked devices - Link a device to synchronize
                         </p>
                     )
                 }

@@ -2628,6 +2628,121 @@ export namespace Synchronization {
             });
         }
     }
+
+    export enum LinkStatus {
+        Connected,
+        Connecting,
+        Disconnected,
+        WaitingForDevice,
+        Failure,
+    }
+
+    export type WebRTCConnection = {
+        ID: string;
+        Connection: RTCPeerConnection | null;
+        DataChannel: RTCDataChannel | null;
+        State: LinkStatus;
+    };
+
+    export class WebRTCConnections {
+        // List of connections
+        public connections: WebRTCConnection[] = [];
+
+        private initForDevice(id: string): WebRTCConnection {
+            const newConn = {
+                ID: id,
+                Connection: null,
+                DataChannel: null,
+                State: LinkStatus.Disconnected,
+            };
+
+            this.connections.push(newConn);
+
+            return newConn;
+        }
+
+        public get(id: string): WebRTCConnection {
+            const connection = this.connections.find((c) => c.ID === id);
+            if (connection) {
+                return connection;
+            }
+            return this.initForDevice(id);
+        }
+
+        public upsert(
+            id: string,
+            connection: RTCPeerConnection,
+            dataChannel: RTCDataChannel,
+            state: LinkStatus
+        ): void {
+            // Make sure the connection doesn't already exist
+            if (this.connections.some((c) => c.ID === id)) {
+                // Update the connection
+                this.connections = this.connections.map((c) => {
+                    if (c.ID === id) {
+                        c.Connection = connection;
+                        c.DataChannel = dataChannel;
+                        c.State = state;
+                    }
+                    return c;
+                });
+            } else {
+                // Add the connection
+                this.connections.push({
+                    ID: id,
+                    Connection: connection,
+                    DataChannel: dataChannel,
+                    State: state,
+                });
+            }
+        }
+
+        public remove(id: string): void {
+            // Close the connection
+            const connection = this.connections.find((c) => c.ID === id);
+            if (connection) {
+                connection.DataChannel?.close();
+                connection.Connection?.close();
+
+                // Clear the connection
+                this.connections = this.connections.map((c) => {
+                    if (c.ID === id) {
+                        c.Connection = null;
+                        c.DataChannel = null;
+                        c.State = LinkStatus.Disconnected;
+                    }
+                    return c;
+                });
+            }
+        }
+
+        public setState(id: string, state: LinkStatus): void {
+            const connection = this.connections.find((c) => c.ID === id);
+            if (connection) {
+                connection.State = state;
+            } else {
+                console.debug(
+                    "Tried to set state for non-existent connection.",
+                    id,
+                    state
+                );
+            }
+        }
+
+        public cleanup(): void {
+            const numConnections = this.connections.map(
+                (c) => c.Connection && c.DataChannel
+            ).length;
+
+            this.connections.forEach((c) => {
+                c.DataChannel?.close();
+                c.Connection?.close();
+            });
+            this.connections = [];
+
+            console.debug(`Cleaned up ${numConnections} WebRTC connections.`);
+        }
+    }
 }
 
 //#region Schemas

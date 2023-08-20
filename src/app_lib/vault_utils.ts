@@ -2642,11 +2642,14 @@ export namespace Synchronization {
         Connection: RTCPeerConnection | null;
         DataChannel: RTCDataChannel | null;
         State: LinkStatus;
+        ManualDisconnect: boolean;
     };
 
     export class WebRTCConnections {
-        // List of connections
-        public connections: WebRTCConnection[] = [];
+        public connections: Map<string, WebRTCConnection> = new Map<
+            string,
+            WebRTCConnection
+        >();
 
         private initForDevice(id: string): WebRTCConnection {
             const newConn = {
@@ -2654,15 +2657,16 @@ export namespace Synchronization {
                 Connection: null,
                 DataChannel: null,
                 State: LinkStatus.Disconnected,
+                ManualDisconnect: false,
             };
 
-            this.connections.push(newConn);
+            this.connections.set(id, newConn);
 
             return newConn;
         }
 
         public get(id: string): WebRTCConnection {
-            const connection = this.connections.find((c) => c.ID === id);
+            const connection = this.connections.get(id);
             if (connection) {
                 return connection;
             }
@@ -2676,48 +2680,45 @@ export namespace Synchronization {
             state: LinkStatus
         ): void {
             // Make sure the connection doesn't already exist
-            if (this.connections.some((c) => c.ID === id)) {
+            if (this.connections.has(id)) {
                 // Update the connection
-                this.connections = this.connections.map((c) => {
-                    if (c.ID === id) {
-                        c.Connection = connection;
-                        c.DataChannel = dataChannel;
-                        c.State = state;
-                    }
-                    return c;
-                });
+                const conn = this.connections.get(id);
+                if (conn) {
+                    conn.Connection = connection;
+                    conn.DataChannel = dataChannel;
+                    conn.State = state;
+                    // conn.ManualDisconnect = false;
+                }
             } else {
                 // Add the connection
-                this.connections.push({
+                const newConn = {
                     ID: id,
                     Connection: connection,
                     DataChannel: dataChannel,
                     State: state,
-                });
+                    ManualDisconnect: false,
+                };
+
+                this.connections.set(id, newConn);
             }
         }
 
         public remove(id: string): void {
             // Close the connection
-            const connection = this.connections.find((c) => c.ID === id);
+            const connection = this.connections.get(id);
             if (connection) {
                 connection.DataChannel?.close();
                 connection.Connection?.close();
 
                 // Clear the connection
-                this.connections = this.connections.map((c) => {
-                    if (c.ID === id) {
-                        c.Connection = null;
-                        c.DataChannel = null;
-                        c.State = LinkStatus.Disconnected;
-                    }
-                    return c;
-                });
+                connection.Connection = null;
+                connection.DataChannel = null;
+                connection.State = LinkStatus.Disconnected;
             }
         }
 
         public setState(id: string, state: LinkStatus): void {
-            const connection = this.connections.find((c) => c.ID === id);
+            const connection = this.connections.get(id);
             if (connection) {
                 connection.State = state;
             } else {
@@ -2729,16 +2730,30 @@ export namespace Synchronization {
             }
         }
 
+        public setManualDisconnect(id: string, state: boolean): void {
+            const connection = this.connections.get(id);
+            if (connection) {
+                connection.ManualDisconnect = state;
+            } else {
+                console.debug(
+                    "Tried to set manual disconnect for non-existent connection.",
+                    id,
+                    state
+                );
+            }
+        }
+
         public cleanup(): void {
-            const numConnections = this.connections.map(
-                (c) => c.Connection && c.DataChannel
-            ).length;
+            // const numConnections = this.connections.map(
+            //     (c) => c.Connection && c.DataChannel
+            // ).length;
+            const numConnections = this.connections.size;
 
             this.connections.forEach((c) => {
                 c.DataChannel?.close();
                 c.Connection?.close();
             });
-            this.connections = [];
+            this.connections.clear();
 
             console.debug(`Cleaned up ${numConnections} WebRTC connections.`);
         }

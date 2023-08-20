@@ -11,7 +11,7 @@ import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
-import { useAtomsDebugValue } from "jotai-devtools";
+// import { focusAtom } from "jotai-optics";
 import * as OTPAuth from "otpauth";
 import { autoPlacement, shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
@@ -120,28 +120,24 @@ import {
     DivergenceSolveDialog,
     type DivergenceSolveShowDialogFnPropType,
 } from "../../components/dialog/synchronization";
+// import isEqual from "react-fast-compare";
 
 dayjs.extend(RelativeTime);
 
 const DIALOG_BLUR_TIME = 200;
 
 const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
-const unlockedVaultAtom = atom<Vault | null>(null);
-unlockedVaultAtom.debugLabel = "unlockedVaultAtom";
+const unlockedVaultAtom = atom(new Vault());
 const unlockedVaultWriteOnlyAtom = atom(
     null,
     async (get, set, val: (pre: Vault | null) => Promise<Vault | null>) => {
         const vault = await val(get(unlockedVaultAtom));
-        set(unlockedVaultAtom, vault);
+        set(unlockedVaultAtom, Object.assign(new Vault(), vault));
     }
 );
 const isVaultUnlockedAtom = selectAtom(
-    unlockedVaultAtom,
+    unlockedVaultMetadataAtom,
     (vault) => vault !== null
-);
-const unlockedVaultCredentialsAtom = selectAtom(
-    unlockedVaultAtom,
-    (vault) => vault?.Credentials
 );
 const onlineServicesAccountAtom = selectAtom(
     unlockedVaultAtom,
@@ -1824,7 +1820,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         // Delay a bit for the UI to update
         await new Promise((res) => setTimeout(res, 100));
 
-        connectToOnlineServices(decryptedData);
+        await connectToOnlineServices(decryptedData);
     };
 
     const connectToOnlineServices = async (
@@ -7222,11 +7218,9 @@ const DashboardSidebarSynchronization: React.FC<{
     const [onlineServicesStatus, setOnlineServicesStatus] =
         useState<OnlineServicesStatus>(OnlineServicesStatus.NoAccount);
 
-    // useAtomsDebugValue();
-
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const linkedDevicesLen = unlockedVault?.OnlineServices.LinkedDevices.length;
     const linkedDevicesLenRef = useRef<number | null>(null);
@@ -7378,7 +7372,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.LinkedDevices.find(
                         (d) => d.ID === device.ID
                     )?.updateLastSync();
-                    setUnlockedVault((pre) => {
+                    setUnlockedVault(async (pre) => {
                         if (pre == null) {
                             return pre;
                         } else {
@@ -7527,7 +7521,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.LinkedDevices.find(
                         (d) => d.ID === device.ID
                     )?.updateLastSync();
-                    setUnlockedVault((pre) => {
+                    setUnlockedVault(async (pre) => {
                         if (pre == null) {
                             return pre;
                         } else {
@@ -7621,7 +7615,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         // Save the vault
                         unlockedVaultMetadata?.save(unlockedVault);
 
-                        setUnlockedVault(unlockedVault);
+                        setUnlockedVault(async () => unlockedVault);
 
                         // Check if the last hash is the same as the other device's hash
                         if (hashMatches) {
@@ -7747,7 +7741,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                         // Save the vault
                         unlockedVaultMetadata?.save(unlockedVault);
-                        setUnlockedVault(unlockedVault);
+                        setUnlockedVault(async () => unlockedVault);
 
                         toast.info(
                             "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
@@ -7870,7 +7864,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 });
 
                 if (changesOccured) {
-                    setUnlockedVault(unlockedVault);
+                    setUnlockedVault(async () => unlockedVault);
 
                     // Save the vault
                     await unlockedVaultMetadata?.save(unlockedVault);
@@ -7952,8 +7946,6 @@ const DashboardSidebarSynchronization: React.FC<{
         const { mutateAsync: removeDevice } =
             trpc.account.removeDevice.useMutation();
 
-        useAtomsDebugValue();
-        const [wtfHook, setWtfHook] = useState(0);
         const [webRTCConnections, setWebRTCConnections] = useAtom(
             webRTCConnectionsAtom
         );
@@ -7971,17 +7963,16 @@ const DashboardSidebarSynchronization: React.FC<{
 
         const webRTConnection = webRTCConnections.get(device.ID);
         const linkStatus = webRTConnection.State;
-        if (linkStatus !== wtfHook) {
-            setWtfHook(linkStatus);
-        }
+
         const setLinkStatus = (state: Synchronization.LinkStatus) => {
             setWebRTCConnections((prev) => {
                 prev.setState(device.ID, state);
-                return prev;
+                return Object.assign(
+                    new Synchronization.WebRTCConnections(),
+                    prev
+                );
             });
         };
-
-        const manuallyDisconnectedRef = useRef(false);
 
         console.debug("DeviceItem render", linkStatus);
 
@@ -7996,14 +7987,20 @@ const DashboardSidebarSynchronization: React.FC<{
                     dataChannel,
                     Synchronization.LinkStatus.Connected
                 );
-                return prev;
+                return Object.assign(
+                    new Synchronization.WebRTCConnections(),
+                    prev
+                );
             });
         };
 
         const tearDownLink = (unsubscribe = false) => {
             setWebRTCConnections((prev) => {
                 prev.remove(device.ID);
-                return prev;
+                return Object.assign(
+                    new Synchronization.WebRTCConnections(),
+                    prev
+                );
             });
             if (onlineWSServicesEndpoint && unsubscribe) {
                 onlineWSServicesEndpoint.unsubscribe(commonChannelName);
@@ -8062,7 +8059,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.removeLinkedDevice(device.ID);
 
                     // Update the vault
-                    setUnlockedVault(unlockedVault);
+                    setUnlockedVault(async () => unlockedVault);
 
                     // Try to remove the device from the online services
                     try {
@@ -8105,11 +8102,23 @@ const DashboardSidebarSynchronization: React.FC<{
                             (c.subscribed || c.subscriptionPending)
                     )
             ) {
-                manuallyDisconnectedRef.current = true;
+                setWebRTCConnections((prev) => {
+                    prev.setManualDisconnect(device.ID, true);
+                    return Object.assign(
+                        new Synchronization.WebRTCConnections(),
+                        prev
+                    );
+                });
 
                 tearDownLink(true);
             } else {
-                manuallyDisconnectedRef.current = false;
+                setWebRTCConnections((prev) => {
+                    prev.setManualDisconnect(device.ID, false);
+                    return Object.assign(
+                        new Synchronization.WebRTCConnections(),
+                        prev
+                    );
+                });
 
                 // In case we're not connected to online services, this will set it up and then connect to the device
                 setupDeviceLink(true);
@@ -8209,7 +8218,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
             // Check if the user disconnected from this device manually
             // If so, we will not try to connect to it unless the user manually reconnects (deviceID != null)
-            if (manuallyDisconnectedRef.current && forceConnect == false) {
+            if (webRTConnection.ManualDisconnect && forceConnect == false) {
                 console.debug(
                     "[setupDeviceLinks] Skipping autoconnect to",
                     device.ID,
@@ -8807,7 +8816,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             );
 
                             unlockedVault.Diffs = [];
-                            setUnlockedVault(unlockedVault);
+                            setUnlockedVault(async () => unlockedVault);
                             unlockedVaultMetadata?.save(unlockedVault);
 
                             console.debug(
@@ -9491,9 +9500,11 @@ const CredentialsList: React.FC<{
     showWarningDialog,
     showCredentialsGeneratorDialogFn,
 }) => {
-    useAtomsDebugValue();
+    // This is totally unnecessary, but this is the only way I could get the credentials to rerender when we change the credentials list
+    // Seems that Jotai cannot detect changes if the changes are made to an array (which might be too deep)
+    // TODO: Find a better way to do this
+    const vaultCredentials = useAtomValue(unlockedVaultAtom).Credentials;
 
-    const vaultCredentials = useAtomValue(unlockedVaultCredentialsAtom);
     const [filter, setFilter] = useState("");
 
     const selectedCredential = useRef<Credential.VaultCredential | undefined>(

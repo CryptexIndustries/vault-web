@@ -9,7 +9,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
-import { atom, useAtomValue, useSetAtom } from "jotai";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { selectAtom } from "jotai/utils";
+import { useAtomsDebugValue } from "jotai-devtools";
 import * as OTPAuth from "otpauth";
 import { autoPlacement, shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
@@ -125,6 +127,27 @@ const DIALOG_BLUR_TIME = 200;
 
 const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 const unlockedVaultAtom = atom<Vault | null>(null);
+unlockedVaultAtom.debugLabel = "unlockedVaultAtom";
+const unlockedVaultWriteOnlyAtom = atom(
+    null,
+    async (get, set, val: (pre: Vault | null) => Promise<Vault | null>) => {
+        const vault = await val(get(unlockedVaultAtom));
+        set(unlockedVaultAtom, vault);
+    }
+);
+const isVaultUnlockedAtom = selectAtom(
+    unlockedVaultAtom,
+    (vault) => vault !== null
+);
+const unlockedVaultCredentialsAtom = selectAtom(
+    unlockedVaultAtom,
+    (vault) => vault?.Credentials
+);
+const onlineServicesAccountAtom = selectAtom(
+    unlockedVaultAtom,
+    (vault) => vault?.OnlineServices
+);
+const webRTCConnectionsAtom = atom(new Synchronization.WebRTCConnections());
 
 const unbindAccountFromVault = async (
     vaultMetadata: VaultMetadata,
@@ -788,6 +811,12 @@ const UnlockVaultDialog: React.FC<{
             //     handleSubmit(onSubmit)();
             // }
         }
+
+        return () => {
+            if (env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA) {
+                if (window.turnstile) window.turnstile.remove();
+            }
+        };
     }, [selected, selected.current, resetForm, visibleState]);
 
     return (
@@ -2222,9 +2251,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
     );
 };
 
-const WelcomeScreen: React.FC<{
-    encryptedVaults?: VaultMetadata[];
-}> = ({ encryptedVaults }) => {
+const WelcomeScreen: React.FC = ({}) => {
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
     const showWarningDialog: WarningDialogShowFn = (
         description: string,
@@ -2233,6 +2260,13 @@ const WelcomeScreen: React.FC<{
     ) => {
         showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
     };
+
+    const _encryptedVaults = useLiveQuery(() =>
+        VaultStorage.db.vaults.toArray()
+    );
+    const encryptedVaults = _encryptedVaults?.map((metadata) =>
+        VaultMetadata.decodeMetadataBinary(metadata.data, metadata.id)
+    );
 
     const createVaultDialogVisible = useState(false);
     const [createVaultDialogMode, setCreateVaultDialogMode] =
@@ -2260,9 +2294,7 @@ const WelcomeScreen: React.FC<{
         !showOnFirstRenderTriggered.current;
 
     const selectedVault = useRef<VaultMetadata | undefined>(undefined);
-    const unlockVaultDialogVisible = useState<boolean>(
-        unlockDialogVisibleOnFirstRender
-    );
+    const unlockVaultDialogVisible = useState<boolean>(false);
     const showUnlockVaultDialog = (vaultMetadata: VaultMetadata) => {
         // Set the selected vault
         selectedVault.current = vaultMetadata;
@@ -2304,6 +2336,7 @@ const WelcomeScreen: React.FC<{
     ) {
         showOnFirstRenderTriggered.current = true;
         if (hasVaults) selectedVault.current = encryptedVaults[0];
+        unlockVaultDialogVisible[1](true);
     }
 
     // console.log("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
@@ -4635,16 +4668,12 @@ const TOTPDialog: React.FC<{
 
 const CredentialDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
-    vault: Vault | null;
     selected: React.MutableRefObject<Credential.VaultCredential | undefined>;
     showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
     // requiredAuth?: boolean; // Not used yet, but will be used to require authentication to view credentials
-}> = ({
-    showDialogFnRef,
-    vault,
-    selected,
-    showCredentialsGeneratorDialogFn,
-}) => {
+}> = ({ showDialogFnRef, selected, showCredentialsGeneratorDialogFn }) => {
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const [isDialogVisible, setIsDialogVisible] = useState(false);
     showDialogFnRef.current = () => {
         if (selected.current) {
@@ -4686,8 +4715,6 @@ const CredentialDialog: React.FC<{
             hide();
         }
     };
-
-    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const defaultValues: Credential.CredentialFormSchemaType = {
         ID: null, // This is set to null to indicate that this is a new credential
@@ -4955,47 +4982,49 @@ const CredentialDialog: React.FC<{
     const onSubmit = async (formData: Credential.CredentialFormSchemaType) => {
         if (!vaultMetadata) return;
 
-        // Upsert the credential in the vault
-        await vault?.upsertCredential(formData);
+        setUnlockedVault(async (prev) => {
+            if (!prev) return prev;
 
-        // Update the unlocked vault atom
-        // setUnlockedVault(vault);
-
-        toast.info("Saving vault data...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "saving-vault-data",
-            updateId: "saving-vault-data",
-        });
-
-        // Delay a little bit to allow the toast to update
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Trigger manual vault save (TODO: This will be removed when the auto-save feature is implemented)
-        try {
-            await vaultMetadata.save(vault);
-
-            toast.success("Vault data saved", {
-                autoClose: 3000,
+            // Upsert the credential in the vault
+            await prev?.upsertCredential(formData);
+            toast.info("Saving vault data...", {
+                autoClose: false,
                 closeButton: false,
                 toastId: "saving-vault-data",
                 updateId: "saving-vault-data",
             });
 
-            // Hide the modal
-            hideDialog(true);
-        } catch (e) {
-            console.error(`Failed to save vault data. ${e}`);
-            toast.error(
-                "Failed to save vault. There is a high possibility of data loss!",
-                {
+            // Delay a little bit to allow the toast to update
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            // Trigger manual vault save (TODO: This will be removed when the auto-save feature is implemented)
+            try {
+                await vaultMetadata.save(prev);
+
+                toast.success("Vault data saved", {
                     autoClose: 3000,
                     closeButton: false,
                     toastId: "saving-vault-data",
                     updateId: "saving-vault-data",
-                }
-            );
-        }
+                });
+
+                // Hide the modal
+                hideDialog(true);
+            } catch (e) {
+                console.error(`Failed to save vault data. ${e}`);
+                toast.error(
+                    "Failed to save vault. There is a high possibility of data loss!",
+                    {
+                        autoClose: 3000,
+                        closeButton: false,
+                        toastId: "saving-vault-data",
+                        updateId: "saving-vault-data",
+                    }
+                );
+            }
+
+            return prev;
+        });
     };
 
     return (
@@ -5371,22 +5400,18 @@ const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
     );
 };
 
-type AccountSignUpSignInDialogProps = {
+const AccountSignUpSignInDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
     vaultMetadata: VaultMetadata;
-    vault: Vault;
-};
-const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
-    showDialogFnRef,
-    vaultMetadata,
-    vault,
-}) => {
+}> = ({ showDialogFnRef, vaultMetadata }) => {
+    const vault = useAtomValue(onlineServicesAccountAtom);
+
     // TODO: Show this dialog only if the user is actually online
-    const [visible, setVisible] = useState(!vault.OnlineServices.isBound());
+    const [visible, setVisible] = useState(!vault?.isBound() ?? false);
     showDialogFnRef.current = () => setVisible(true);
     const hideDialog = () => setVisible(false);
 
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const [currentFormMode, setCurrentFormMode] = useState(
         AccountDialogMode.SignUp
@@ -5427,19 +5452,28 @@ const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
         privateKey: string,
         publicKey: string
     ) => {
-        // Save the UserID, public/private key to the vault
-        vault.OnlineServices.bindAccount(userID, publicKey, privateKey);
-        setUnlockedVault(vault);
+        if (!vault) return;
 
-        try {
-            // Save the vault
-            await vaultMetadata.save(vault);
-        } catch (e) {
-            console.error("Failed to save vault.", e);
-            toast.error("Failed to save vault.", {
-                closeButton: true,
-            });
-        }
+        // Save the UserID, public/private key to the vault
+        setUnlockedVault(async (pre) => {
+            if (!pre) return pre;
+
+            pre.OnlineServices.bindAccount(userID, publicKey, privateKey);
+
+            try {
+                await vaultMetadata.save(pre);
+                toast.success("Account bound successfully.", {
+                    autoClose: 3000,
+                    closeButton: true,
+                });
+            } catch (e) {
+                console.error("Failed to save vault.", e);
+                toast.error("Failed to save vault.", {
+                    closeButton: true,
+                });
+            }
+            return pre;
+        });
     };
 
     return (
@@ -5467,7 +5501,6 @@ const AccountSignUpSignInDialog: React.FC<AccountSignUpSignInDialogProps> = ({
                     submittingState={isSubmitting}
                     submitFnRef={signUpSubmitFnRef}
                     vaultMetadata={vaultMetadata}
-                    vault={vault}
                     bindAccountFn={bindAccount}
                     hideDialogFn={hideDialog}
                 />
@@ -5707,7 +5740,6 @@ const AccountDialogSignUpForm: React.FC<{
     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
     vaultMetadata: VaultMetadata;
-    vault: Vault;
     bindAccountFn: (
         userID: string,
         privateKey: string,
@@ -5799,6 +5831,12 @@ const AccountDialogSignUpForm: React.FC<{
     };
 
     submitFnRef.current = handleSubmit(onSubmit);
+
+    useEffect(() => {
+        return () => {
+            if (window.turnstile) window.turnstile.remove();
+        };
+    }, []);
 
     return (
         <div className="flex w-full flex-col text-left">
@@ -6061,6 +6099,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
     const hasSession = session != null;
 
     const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const [selectedLinkMethod, setSelectedLinkMethod] =
@@ -6327,11 +6366,17 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                     "info"
                 );
 
-                unlockedVault.OnlineServices.addLinkedDevice(
-                    userID,
-                    getFormValues("deviceName")
-                );
-                await vaultMetadata.save(unlockedVault);
+                setUnlockedVault(async (prev) => {
+                    if (!prev) return null;
+
+                    prev.OnlineServices.addLinkedDevice(
+                        userID,
+                        getFormValues("deviceName")
+                    );
+                    await vaultMetadata.save(unlockedVault);
+
+                    return prev;
+                });
 
                 addToProgressLog("New linked device saved.");
             }
@@ -6886,7 +6931,7 @@ const EditLinkedDeviceDialog: React.FC<{
     const [syncTimeoutValue, setSyncTimeoutValue] = useState(
         selectedDevice.current?.SyncTimeout ?? false
     );
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const formSchema = z.object({
         name: z.string().nonempty().max(200),
@@ -6920,28 +6965,25 @@ const EditLinkedDeviceDialog: React.FC<{
             return;
         }
 
-        setUnlockedVault((prev) => {
-            if (prev == null) {
-                return prev;
-            } else {
-                const originalLinkedDevice =
-                    prev.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === selectedDevice.current?.ID
-                    );
+        setUnlockedVault(async (prev) => {
+            if (prev == null) return prev;
 
-                if (originalLinkedDevice != null) {
-                    originalLinkedDevice.setName(form.name);
-                    originalLinkedDevice.setAutoConnect(form.autoConnect);
-                    originalLinkedDevice.setSyncTimeout(form.syncTimeout);
-                    originalLinkedDevice.setSyncTimeoutPeriod(
-                        form.syncTimeoutPeriod
-                    );
-                }
+            const originalLinkedDevice = prev.OnlineServices.LinkedDevices.find(
+                (d) => d.ID === selectedDevice.current?.ID
+            );
 
-                vaultMetadata?.save(prev);
-
-                return prev;
+            if (originalLinkedDevice != null) {
+                originalLinkedDevice.setName(form.name);
+                originalLinkedDevice.setAutoConnect(form.autoConnect);
+                originalLinkedDevice.setSyncTimeout(form.syncTimeout);
+                originalLinkedDevice.setSyncTimeoutPeriod(
+                    form.syncTimeoutPeriod
+                );
             }
+
+            await vaultMetadata?.save(prev);
+
+            return prev;
         });
 
         hideDialog(true);
@@ -7161,8 +7203,6 @@ const EditLinkedDeviceDialog: React.FC<{
     );
 };
 
-const linkedDevicesAtom = atom<LinkedDevice[]>([]);
-const webRTCConnectionsAtom = atom<string[]>([]);
 let onlineWSServicesEndpoint: Pusher | null = null;
 
 const DashboardSidebarSynchronization: React.FC<{
@@ -7170,23 +7210,23 @@ const DashboardSidebarSynchronization: React.FC<{
 }> = ({ showWarningFn }) => {
     const { data: session } = useSession();
 
-    type WebRTConnection = {
-        remoteDeviceID: string;
-        connection?: RTCPeerConnection;
-        dataChannel?: RTCDataChannel;
-    };
-    const setWebRTConnections = useSetAtom(webRTCConnectionsAtom);
-    const webRTConnectionsRef = useRef<WebRTConnection[]>([]);
-    // This is used to keep track of the devices that have been manually disconnected by the user - we don't want to reconnect to them automatically
-    const manuallyDisconnectedWebRTConnectionsRef = useRef<string[]>([]);
+    enum OnlineServicesStatus {
+        NoAccount = "No Account",
+        NoDevices = "No Devices",
+        Connecting = "Preparing...",
+        Connected = "Ready",
+        Disconnected = "Not Ready",
+        Unavailable = "Unavailable",
+        Failure = "Failure",
+    }
+    const [onlineServicesStatus, setOnlineServicesStatus] =
+        useState<OnlineServicesStatus>(OnlineServicesStatus.NoAccount);
+
+    // useAtomsDebugValue();
 
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
-    const setLinkedDevices = useSetAtom(linkedDevicesAtom);
-
-    if (unlockedVault != null)
-        setLinkedDevices([...unlockedVault.OnlineServices.LinkedDevices]);
 
     const linkedDevicesLen = unlockedVault?.OnlineServices.LinkedDevices.length;
     const linkedDevicesLenRef = useRef<number | null>(null);
@@ -7203,151 +7243,15 @@ const DashboardSidebarSynchronization: React.FC<{
         useRef<DivergenceSolveShowDialogFnPropType | null>(null);
     //#endregion Dialog refs
 
-    const [onlineServicesStatus, setOnlineServicesStatus] =
-        useState<JSX.Element>(
-            <p className="text-sm text-slate-500">Loading...</p>
-        );
-
-    const addWebRTConnection = (
-        deviceID: string,
-        webRTConnection: RTCPeerConnection,
-        dataChannel: RTCDataChannel
-    ) => {
-        console.debug(
-            "[addWebRTConnection] Adding WebRT connection",
-            deviceID,
-            webRTConnection
-        );
-
-        const connection = {
-            remoteDeviceID: deviceID,
-            connection: webRTConnection,
-            dataChannel: dataChannel,
-        };
-
-        setWebRTConnections((prev) => {
-            if (prev == null) {
-                return [deviceID];
-            } else {
-                return [...prev, deviceID];
-            }
-        });
-
-        webRTConnectionsRef.current.push(connection);
-
-        // console.debug("Current WebRT connections", webRTConnections);
-    };
-
-    const removeWebRTConnection = (
-        deviceID: string,
-        inhibitReconnect = false
-    ) => {
-        let found = false;
-
-        setWebRTConnections((prev) => {
-            if (prev == null) {
-                return [];
-            } else {
-                found = prev.includes(deviceID);
-                return prev.filter((id) => id !== deviceID);
-            }
-        });
-
-        // Because this function is called from an event handler and can be called multiple times, we need to make sure we don't try the same thing multiple times
-        if (found) {
-            console.debug(
-                "[removeWebRTConnection] Removing WebRT connection",
-                deviceID
-            );
-
-            // Extract the connection from the list of connections
-            const webRTCConnection = webRTConnectionsRef.current.find(
-                (connection) => connection.remoteDeviceID === deviceID
-            );
-            // Disconnect from the device
-            if (webRTCConnection) {
-                console.debug(
-                    "[removeWebRTConnection] Closing WebRT connection to",
-                    webRTCConnection.remoteDeviceID
-                );
-
-                webRTCConnection.dataChannel?.close();
-                webRTCConnection.connection?.close();
-
-                delete webRTCConnection.dataChannel;
-                delete webRTCConnection.connection;
-            }
-
-            webRTConnectionsRef.current = webRTConnectionsRef.current.filter(
-                (connection) => connection.remoteDeviceID !== deviceID
-            );
-
-            // Try to reconnect to the device only if this client is still connected to the online services (we're not the one who disconnected)
-            // This is important since this is called when the connection is closed, which can happen when the other device disconnects
-            if (
-                onlineWSServicesEndpoint &&
-                onlineWSServicesEndpoint.connection.state === "connected" &&
-                !inhibitReconnect
-            ) {
-                console.debug("Will try to reconnect to", deviceID);
-                setupDeviceLinks(deviceID);
-            }
+    const setupOnlineServices = (
+        onConnect = () => {
+            // NO-OP
         }
-    };
-
-    const cleanupWebRTConnections = () => {
-        console.debug(
-            "[cleanupWebRTConnections] Cleaning up WebRT connections"
-        );
-
-        if (webRTConnectionsRef.current.length === 0) {
-            console.debug(
-                "[cleanupWebRTConnections] No WebRT connections to clean up"
-            );
-            return;
-        }
-
-        // Close all connections
-        webRTConnectionsRef.current.forEach((instance) => {
-            console.debug(
-                "[cleanupWebRTConnections] Closing WebRT connection",
-                instance.remoteDeviceID
-            );
-
-            instance.dataChannel?.close();
-            instance.connection?.close();
-
-            delete instance.dataChannel;
-            delete instance.connection;
-        });
-
-        // Clear the array
-        webRTConnectionsRef.current = [];
-
-        // Clear the state
-        // if (webRTConnections.length > 0) setWebRTConnections([]);
-        setWebRTConnections((prev) => {
-            if (prev.length > 0) {
-                return [];
-            } else {
-                return prev;
-            }
-        });
-
-        console.debug(
-            "[cleanupWebRTConnections] WebRT connections cleaned up",
-            // webRTConnections,
-            webRTConnectionsRef.current
-        );
-    };
-
-    const setupOnlineServices = (specificDeviceID?: string) => {
+    ) => {
         if (!unlockedVault) return;
 
         if (!unlockedVault.OnlineServices.isBound()) {
-            setOnlineServicesStatus(
-                <p className="text-sm text-slate-500">No account</p>
-            );
+            setOnlineServicesStatus(OnlineServicesStatus.NoAccount);
             console.debug("Skipping online services setup - no account");
             return;
         }
@@ -7356,7 +7260,7 @@ const DashboardSidebarSynchronization: React.FC<{
             unlockedVault.OnlineServices.isBound() &&
             unlockedVault.OnlineServices.LinkedDevices.length === 0
         ) {
-            setOnlineServicesStatus(<></>);
+            setOnlineServicesStatus(OnlineServicesStatus.NoDevices);
             console.debug("Skipping online services setup - no linked devices");
             return;
         }
@@ -7367,52 +7271,36 @@ const DashboardSidebarSynchronization: React.FC<{
 
         onlineWSServicesEndpoint.connection.bind("connecting", () => {
             console.debug("Changed status to offline - connection connecting");
-            setOnlineServicesStatus(
-                <p className="text-sm text-slate-500">Loading...</p>
-            );
+            setOnlineServicesStatus(OnlineServicesStatus.Connecting);
         });
 
         onlineWSServicesEndpoint.connection.bind("connected", () => {
             console.debug("Changed status to online - connection established");
-            setOnlineServicesStatus(
-                <p className="text-sm text-green-500">Online</p>
-            );
+            setOnlineServicesStatus(OnlineServicesStatus.Connected);
 
             // Setup device links
-            setupDeviceLinks(specificDeviceID);
+            // setupDeviceLinks(specificDeviceID);
+            if (onConnect) {
+                onConnect();
+                onConnect = () => void 0;
+            }
         });
 
         onlineWSServicesEndpoint.connection.bind("disconnected", () => {
             console.debug(
                 "Changed status to offline - connection disconnected"
             );
-            setOnlineServicesStatus(
-                <p className="text-sm text-red-500">Offline</p>
-            );
+            setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
         });
 
         onlineWSServicesEndpoint.connection.bind("unavailable", () => {
             console.debug("Changed status to offline - connection unavailable");
-            setOnlineServicesStatus(
-                <p
-                    className="text-sm text-orange-500"
-                    title="Could not reach Online Services"
-                >
-                    Unavailable
-                </p>
-            );
+            setOnlineServicesStatus(OnlineServicesStatus.Unavailable);
         });
 
         onlineWSServicesEndpoint.connection.bind("failed", () => {
             console.debug("Changed status to offline - connection failed");
-            setOnlineServicesStatus(
-                <p
-                    className="text-sm text-red-500"
-                    title="Not supported by browser"
-                >
-                    Failed
-                </p>
-            );
+            setOnlineServicesStatus(OnlineServicesStatus.Failure);
         });
 
         // setOnlineServices(onlineServices);
@@ -7427,979 +7315,576 @@ const DashboardSidebarSynchronization: React.FC<{
         }
     };
 
-    const setupDeviceLinks = (deviceID?: string) => {
-        // If we don't have an online services instance, we will try to create one
-        // We return here since the setupOnlineServices function will call this function again - once the connection is established
-        if (
-            !onlineWSServicesEndpoint ||
-            onlineWSServicesEndpoint?.connection.state === "disconnected"
-        ) {
-            setupOnlineServices(deviceID);
-            return;
-        }
-
-        console.debug(
-            "[setupDeviceLinks] Setting up device links... Specific device:",
-            deviceID
-        );
-        if (
-            !unlockedVault ||
-            !onlineWSServicesEndpoint ||
-            onlineWSServicesEndpoint?.connection.state !== "connected"
-        )
-            return;
-
-        // If we have a user identifier, we can try to subscribe
-        const ownIdentifier = unlockedVault.OnlineServices.UserID;
-        if (!ownIdentifier) return;
-
-        // This will be the event name that we will use to communicate over the pusher channel
-        const commonEventName = "client-private-connection-setup";
-
-        // This is triggered only if the deviceID is provided
-        const foundDevice: LinkedDevice | undefined = deviceID
-            ? unlockedVault.OnlineServices.LinkedDevices.find(
-                  (d) => d.ID === deviceID
-              )
-            : undefined;
-
-        // If we have a device ID, we will only try to connect to that device, otherwise we will try to connect to all devices
-        // If the deviceID cannot be found, we will not try to connect to any devices
-        const devices: LinkedDevice[] = deviceID
-            ? foundDevice
-                ? [foundDevice]
-                : []
-            : unlockedVault.OnlineServices.LinkedDevices;
-
-        // For each device, subscribe to a predetermined channel name
-        // Set up event handlers for presence and other events
-        for (const device of devices) {
-            // If we already have a connection to this device, we don't need to do anything
-            if (
-                webRTConnectionsRef.current.some(
-                    (c) => c.remoteDeviceID === device.ID
-                )
-            ) {
-                continue;
-            }
-
-            // Check if we should autoconnect to this device
-            // This check is only relevant if we are not trying to connect to a specific device
-            if (device.AutoConnect == false && deviceID == null) {
-                continue;
-            }
-
-            // Check if the user disconnected from this device manually
-            // If so, we will not try to connect to it unless the user manually reconnects (deviceID != null)
-            if (
-                manuallyDisconnectedWebRTConnectionsRef.current.some(
-                    (id) => id === device.ID
-                ) &&
-                deviceID == null
-            ) {
-                console.debug(
-                    "[setupDeviceLinks] Skipping autoconnect to",
-                    device.ID,
-                    "because it was manually disconnected"
-                );
-                continue;
+    // This handler is used when we receive a message over WebRTC
+    const onWebRTCMessageHandler = (
+        dataChannelInstance: RTCDataChannel,
+        device: LinkedDevice
+    ): ((event: MessageEvent) => Promise<void>) => {
+        return async (event: MessageEvent) => {
+            if (unlockedVault == null) {
+                return;
             }
 
             console.debug(
-                "[setupDeviceLinks] Trying to connect to device",
-                device
-            );
-            console.debug(
-                "[setupDeviceLinks] Current WebRTC connections",
-                webRTConnectionsRef.current
+                "[WebRTC Message Handler] Received WebRTC message",
+                event
             );
 
-            // This needs to be within this scope because of some idiotic TypeScript
-            if (!unlockedVault.OnlineServices.UserID) return;
-
-            // Construct a channel name that is common to both devices
-            const commonChannelName = constructSyncChannelName(
-                unlockedVault.OnlineServices.CreationTimestamp,
-                unlockedVault.OnlineServices.UserID,
-                device.ID,
-                device.LinkedAtTimestamp
-            );
-
-            // Initialize a new WebRTC connection - so we can communicate directly with the other device
-            let webRTConnection: RTCPeerConnection | null = null;
-
-            // Check if we're already subscribed to this channel
-            if (
-                onlineWSServicesEndpoint
-                    .allChannels()
-                    .some((c) => c.name === commonChannelName && c.subscribed)
-            ) {
-                console.debug(
-                    "[setupDeviceLinks] Already subscribed to channel",
-                    commonChannelName
+            // Validate the message
+            const parsedMessage =
+                await Synchronization.messageSchema.safeParseAsync(
+                    JSON.parse(event.data)
                 );
-                continue;
+
+            if (!parsedMessage.success) {
+                console.warn(
+                    "[WebRTC Message Handler] Received invalid message over WebRTC",
+                    parsedMessage.error
+                );
+                return;
             }
 
-            const channel =
-                onlineWSServicesEndpoint.subscribe(commonChannelName);
+            const message = Synchronization.Message.fromSchema(
+                parsedMessage.data
+            );
 
-            /**
-             * Short explanation of the following code:
-             *  - We need to set up a WebRTC connection between the two devices using the Pusher channel as a signaling server.
-             *  - If we're the first device to connect, we need to send an offer - the member_added event will be triggered, we set the weAreFirst flag to true.
-             *  - If we're not the first device to connect, we need to wait for the offer, and then send an answer.
-             *  - Both devices need to be able to exchange the ICE candidates.
-             */
+            if (message.command === Synchronization.Command.SyncRequest) {
+                // If we receive a request to sync, we will send a response
+                console.debug(
+                    "[WebRTC Message Handler] Received request to sync"
+                );
 
-            let weAreFirst = false;
-            let iceCandidatesWeGenerated = 0;
+                const myHash = await unlockedVault.getLatestHash();
 
-            // This handler is used when we receive a message over WebRTC
-            const onWebRTCMessageHandler = (
-                dataChannelInstance: RTCDataChannel
-            ): ((event: MessageEvent) => Promise<void>) => {
-                return async (event: MessageEvent) => {
+                const responseMessage = Synchronization.Message.prepare(
+                    Synchronization.Command.SyncResponse,
+                    myHash,
+                    null,
+                    []
+                );
+
+                // If the hashes are the same - we're in sync
+                // If the hashes are different - we're out of sync, there are a couple of options:
+                // - If our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs, request a full sync
+                // - If our hash is not null, we try to find the diff between the two hashes
+                // -- If we cannot create a diff list, we send every hash we have and let the other device decide from which hash to start
+                // -- If we can create a diff list, we send the diff list along with our latest hash
+                if (message.hash === myHash) {
                     console.debug(
-                        "[WebRTC Message Handler] Received WebRTC message",
-                        event
+                        "[WebRTC Message Handler] Received request to sync - in sync"
                     );
 
-                    // Validate the message
-                    const parsedMessage =
-                        await Synchronization.messageSchema.safeParseAsync(
-                            JSON.parse(event.data)
+                    // Update the last sync timestamp
+                    unlockedVault.OnlineServices.LinkedDevices.find(
+                        (d) => d.ID === device.ID
+                    )?.updateLastSync();
+                    setUnlockedVault((pre) => {
+                        if (pre == null) {
+                            return pre;
+                        } else {
+                            pre.OnlineServices.LinkedDevices =
+                                unlockedVault.OnlineServices.LinkedDevices;
+                            return pre;
+                        }
+                    });
+                } else {
+                    console.debug(
+                        "[WebRTC Message Handler] Received request to sync - out of sync"
+                    );
+
+                    // NOTE: Should we check whether or not the message.hash is null?
+                    // that way we wouldn't need to use the else block for the multiple situations
+
+                    // In case our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs/hashes, request a full sync
+                    if (myHash == null) {
+                        console.debug(
+                            "[WebRTC Message Handler] Received request to sync - out of sync - requesting full sync"
                         );
 
-                    if (!parsedMessage.success) {
-                        console.warn(
-                            "[WebRTC Message Handler] Received invalid message over WebRTC",
-                            parsedMessage.error
+                        responseMessage.setCommand(
+                            Synchronization.Command.SyncRequest
                         );
-                        return;
+                    } else {
+                        // If we have a hash, we can try to send the diff list, fall back to sending all hashes if we can't find the hash
+                        const diffList = await unlockedVault.getDiffsSinceHash(
+                            message.hash
+                        );
+
+                        // If the diff list is empty, we couldn't find the hash - send every hash we have and let the other device decide from which hash to start
+                        // Otherwise, send the diff list we extracted from the vault
+                        if (diffList.length > 0) {
+                            responseMessage.setDiffList(diffList);
+
+                            console.debug(
+                                "[WebRTC Message Handler] Couldn't find the received hash - sending diff list to resolve the conflict. Diff list:",
+                                diffList
+                            );
+                        } else {
+                            responseMessage.setCommand(
+                                Synchronization.Command.ResponseSyncAllHashes
+                            );
+                            responseMessage.setHash(
+                                unlockedVault.getAllHashes().join(",")
+                            );
+
+                            console.debug(
+                                "[WebRTC Message Handler] Couldn't find the received hash - sending all hashes to resolve the conflict. Hashes:",
+                                responseMessage.hash
+                            );
+                        }
                     }
+                }
 
-                    const message = Synchronization.Message.fromSchema(
-                        parsedMessage.data
+                dataChannelInstance.send(responseMessage.serialize());
+            } else if (
+                message.command ===
+                Synchronization.Command.ResponseSyncAllHashes
+            ) {
+                // If we receive a response with all hashes, we will try to find the first hash that we have in common
+                console.debug(
+                    "[WebRTC Message Handler] Received response with all hashes"
+                );
+
+                // Chech if someone is messing with us
+                if (message.hash == null) {
+                    console.warn(
+                        "[WebRTC Message Handler] Received response with all hashes - but the hash is null"
+                    );
+                    return;
+                }
+
+                const hashes = message.hash.split(",");
+
+                // Find the first hash that we have in common
+                const firstHashInCommon = unlockedVault
+                    .getAllHashes()
+                    .find((h) => hashes.includes(h));
+
+                console.debug(
+                    "firstHashInCommon",
+                    firstHashInCommon,
+                    unlockedVault.getAllHashes(),
+                    hashes
+                );
+
+                // We found a common hash, calculate the diff and send it to the other device with our latest hash (use the ResponseSync command)
+                if (firstHashInCommon) {
+                    // Find the index of the common hash in the received hashes array
+                    const firstHashInCommonIndex =
+                        hashes.indexOf(firstHashInCommon);
+
+                    // If the index of the first hash in common is 0, the other device is out of sync - we have the most recent data
+                    // If it's other than 0, we're diverged and we need to request a sync from the other device
+                    const divergenceAtHash =
+                        firstHashInCommonIndex > 0 ? firstHashInCommon : null;
+
+                    console.debug(
+                        "[WebRTC Message Handler] Found a hash in common - sending response to sync... Current vault data:",
+                        unlockedVault
                     );
 
-                    if (
-                        message.command === Synchronization.Command.SyncRequest
-                    ) {
-                        // If we receive a request to sync, we will send a response
-                        console.debug(
-                            "[WebRTC Message Handler] Received request to sync"
-                        );
+                    const responseMessage = Synchronization.Message.prepare(
+                        Synchronization.Command.SyncResponse,
+                        await unlockedVault.getLatestHash(),
+                        divergenceAtHash,
+                        await unlockedVault.getDiffsSinceHash(firstHashInCommon)
+                    ).serialize();
 
-                        const myHash = await unlockedVault.getLatestHash();
+                    dataChannelInstance.send(responseMessage);
 
-                        const responseMessage = Synchronization.Message.prepare(
-                            Synchronization.Command.SyncResponse,
-                            myHash,
-                            null,
-                            []
-                        );
+                    toast.info(
+                        "[Synchronization] Found a common history - syncing..."
+                    );
+                } else {
+                    console.warn(
+                        "[Synchronization] Couldn't find a common history - requesting divergence solve"
+                    );
+                    toast.warn(
+                        "[Synchronization] Synchronization will require manual intervention, please wait..."
+                    );
 
-                        // If the hashes are the same - we're in sync
-                        // If the hashes are different - we're out of sync, there are a couple of options:
-                        // - If our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs, request a full sync
-                        // - If our hash is not null, we try to find the diff between the two hashes
-                        // -- If we cannot create a diff list, we send every hash we have and let the other device decide from which hash to start
-                        // -- If we can create a diff list, we send the diff list along with our latest hash
-                        if (message.hash === myHash) {
-                            console.debug(
-                                "[WebRTC Message Handler] Received request to sync - in sync"
-                            );
+                    // Send a request to solve the divergence
+                    const responseMessage = Synchronization.Message.prepare(
+                        Synchronization.Command.DivergenceSolveRequest,
+                        null,
+                        null,
+                        []
+                    ).serialize();
+                    dataChannelInstance.send(responseMessage);
+                }
+            } else if (
+                message.command === Synchronization.Command.SyncResponse
+            ) {
+                // Check if we have the same hash - in sync
+                if (message.hash === (await unlockedVault.getLatestHash())) {
+                    console.debug(
+                        "[WebRTC Message Handler] Received response to sync - in sync"
+                    );
 
-                            // Update the last sync timestamp
-                            unlockedVault.OnlineServices.LinkedDevices.find(
-                                (d) => d.ID === device.ID
-                            )?.updateLastSync();
-                            setLinkedDevices(
-                                unlockedVault.OnlineServices.LinkedDevices
-                            );
+                    toast.info("[Synchronization] Devices are synchronized");
+
+                    // Update the last sync timestamp
+                    unlockedVault.OnlineServices.LinkedDevices.find(
+                        (d) => d.ID === device.ID
+                    )?.updateLastSync();
+                    setUnlockedVault((pre) => {
+                        if (pre == null) {
+                            return pre;
                         } else {
-                            console.debug(
-                                "[WebRTC Message Handler] Received request to sync - out of sync"
-                            );
-
-                            // NOTE: Should we check whether or not the message.hash is null?
-                            // that way we wouldn't need to use the else block for the multiple situations
-
-                            // In case our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs/hashes, request a full sync
-                            if (myHash == null) {
-                                console.debug(
-                                    "[WebRTC Message Handler] Received request to sync - out of sync - requesting full sync"
-                                );
-
-                                responseMessage.setCommand(
-                                    Synchronization.Command.SyncRequest
-                                );
-                            } else {
-                                // If we have a hash, we can try to send the diff list, fall back to sending all hashes if we can't find the hash
-                                const diffList =
-                                    await unlockedVault.getDiffsSinceHash(
-                                        message.hash
-                                    );
-
-                                // If the diff list is empty, we couldn't find the hash - send every hash we have and let the other device decide from which hash to start
-                                // Otherwise, send the diff list we extracted from the vault
-                                if (diffList.length > 0) {
-                                    responseMessage.setDiffList(diffList);
-
-                                    console.debug(
-                                        "[WebRTC Message Handler] Couldn't find the received hash - sending diff list to resolve the conflict. Diff list:",
-                                        diffList
-                                    );
-                                } else {
-                                    responseMessage.setCommand(
-                                        Synchronization.Command
-                                            .ResponseSyncAllHashes
-                                    );
-                                    responseMessage.setHash(
-                                        unlockedVault.getAllHashes().join(",")
-                                    );
-
-                                    console.debug(
-                                        "[WebRTC Message Handler] Couldn't find the received hash - sending all hashes to resolve the conflict. Hashes:",
-                                        responseMessage.hash
-                                    );
-                                }
-                            }
+                            pre.OnlineServices.LinkedDevices =
+                                unlockedVault.OnlineServices.LinkedDevices;
+                            return pre;
                         }
+                    });
+                } else {
+                    // We're out of sync - try to apply the diffs and check if we're in sync
+                    console.debug(
+                        "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list"
+                    );
+                    toast.info("[Synchronization] Validating diff list...", {
+                        autoClose: false,
+                        toastId: "validating-diff-list",
+                        updateId: "validating-diff-list",
+                    });
 
-                        dataChannelInstance.send(responseMessage.serialize());
-                    } else if (
-                        message.command ===
-                        Synchronization.Command.ResponseSyncAllHashes
-                    ) {
-                        // If we receive a response with all hashes, we will try to find the first hash that we have in common
+                    // Create a mock vault to try a dry run of the diff application
+                    const mockUnlockedVault = new Vault();
+                    mockUnlockedVault.Credentials = JSON.parse(
+                        JSON.stringify(unlockedVault.Credentials)
+                    );
+
+                    // Set the online services to the mock vault - we need this to pass the write check for the diffs
+                    mockUnlockedVault.OnlineServices =
+                        unlockedVault.OnlineServices;
+
+                    await mockUnlockedVault.applyDiffs(message.diffList);
+                    const mockVaultHash =
+                        await mockUnlockedVault.getLatestHash();
+
+                    const hashMatches = mockVaultHash === message.hash;
+
+                    console.debug(
+                        `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.hash} => ${hashMatches}`
+                    );
+
+                    // Check if our new hash is the same as the other device's hash
+                    // If we received a divergence hash, we're diverged and can skip this check
+                    if (hashMatches || message.divergenceHash) {
                         console.debug(
-                            "[WebRTC Message Handler] Received response with all hashes"
+                            "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault"
                         );
-
-                        // Chech if someone is messing with us
-                        if (message.hash == null) {
-                            console.warn(
-                                "[WebRTC Message Handler] Received response with all hashes - but the hash is null"
-                            );
-                            return;
-                        }
-
-                        const hashes = message.hash.split(",");
-
-                        // Find the first hash that we have in common
-                        const firstHashInCommon = unlockedVault
-                            .getAllHashes()
-                            .find((h) => hashes.includes(h));
-
-                        console.debug(
-                            "firstHashInCommon",
-                            firstHashInCommon,
-                            unlockedVault.getAllHashes(),
-                            hashes
-                        );
-
-                        // We found a common hash, calculate the diff and send it to the other device with our latest hash (use the ResponseSync command)
-                        if (firstHashInCommon) {
-                            // Find the index of the common hash in the received hashes array
-                            const firstHashInCommonIndex =
-                                hashes.indexOf(firstHashInCommon);
-
-                            // If the index of the first hash in common is 0, the other device is out of sync - we have the most recent data
-                            // If it's other than 0, we're diverged and we need to request a sync from the other device
-                            const divergenceAtHash =
-                                firstHashInCommonIndex > 0
-                                    ? firstHashInCommon
-                                    : null;
-
-                            console.debug(
-                                "[WebRTC Message Handler] Found a hash in common - sending response to sync... Current vault data:",
-                                unlockedVault
-                            );
-
-                            const responseMessage =
-                                Synchronization.Message.prepare(
-                                    Synchronization.Command.SyncResponse,
-                                    await unlockedVault.getLatestHash(),
-                                    divergenceAtHash,
-                                    await unlockedVault.getDiffsSinceHash(
-                                        firstHashInCommon
-                                    )
-                                ).serialize();
-
-                            dataChannelInstance.send(responseMessage);
-
-                            toast.info(
-                                "[Synchronization] Found a common history - syncing..."
-                            );
-                        } else {
-                            console.warn(
-                                "[Synchronization] Couldn't find a common history - requesting divergence solve"
-                            );
-                            toast.warn(
-                                "[Synchronization] Synchronization will require manual intervention, please wait..."
-                            );
-
-                            // Send a request to solve the divergence
-                            const responseMessage =
-                                Synchronization.Message.prepare(
-                                    Synchronization.Command
-                                        .DivergenceSolveRequest,
-                                    null,
-                                    null,
-                                    []
-                                ).serialize();
-                            dataChannelInstance.send(responseMessage);
-                        }
-                    } else if (
-                        message.command === Synchronization.Command.SyncResponse
-                    ) {
-                        // Check if we have the same hash - in sync
-                        if (
-                            message.hash ===
-                            (await unlockedVault.getLatestHash())
-                        ) {
-                            console.debug(
-                                "[WebRTC Message Handler] Received response to sync - in sync"
-                            );
-
-                            toast.info(
-                                "[Synchronization] Devices are synchronized"
-                            );
-
-                            // Update the last sync timestamp
-                            unlockedVault.OnlineServices.LinkedDevices.find(
-                                (d) => d.ID === device.ID
-                            )?.updateLastSync();
-                            setLinkedDevices(
-                                unlockedVault.OnlineServices.LinkedDevices
-                            );
-                        } else {
-                            // We're out of sync - try to apply the diffs and check if we're in sync
-                            console.debug(
-                                "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list"
-                            );
-                            toast.info(
-                                "[Synchronization] Validating diff list...",
-                                {
-                                    autoClose: false,
-                                    toastId: "validating-diff-list",
-                                    updateId: "validating-diff-list",
-                                }
-                            );
-
-                            // Create a mock vault to try a dry run of the diff application
-                            const mockUnlockedVault = new Vault();
-                            mockUnlockedVault.Credentials = JSON.parse(
-                                JSON.stringify(unlockedVault.Credentials)
-                            );
-
-                            // Set the online services to the mock vault - we need this to pass the write check for the diffs
-                            mockUnlockedVault.OnlineServices =
-                                unlockedVault.OnlineServices;
-
-                            await mockUnlockedVault.applyDiffs(
-                                message.diffList
-                            );
-                            const mockVaultHash =
-                                await mockUnlockedVault.getLatestHash();
-
-                            const hashMatches = mockVaultHash === message.hash;
-
-                            console.debug(
-                                `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.hash} => ${hashMatches}`
-                            );
-
-                            // Check if our new hash is the same as the other device's hash
-                            // If we received a divergence hash, we're diverged and can skip this check
-                            if (hashMatches || message.divergenceHash) {
-                                console.debug(
-                                    "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault"
-                                );
-                                toast.update("validating-diff-list", {
-                                    autoClose: 1,
-                                });
-                                toast.info(
-                                    "[Synchronization] Applying differences...",
-                                    {
-                                        autoClose: false,
-                                        toastId: "applying-diff-list",
-                                        updateId: "applying-diff-list",
-                                    }
-                                );
-
-                                const diffsNotKnownByOtherDevice: Credential.Diff[] =
-                                    [];
-                                if (message.divergenceHash) {
-                                    // If we received a divergence hash, we're diverged and we need to save the diffs that the other device doesn't know about
-                                    // So we can send them to the other device after we apply the diffs that we received from the other device
-                                    (
-                                        await unlockedVault.getDiffsSinceHash(
-                                            message.divergenceHash
-                                        )
-                                    ).forEach((diff) => {
-                                        diffsNotKnownByOtherDevice.push(diff);
-                                    });
-                                }
-
-                                await unlockedVault.applyDiffs(
-                                    message.diffList
-                                );
-
-                                const latestHash =
-                                    await unlockedVault.getLatestHash();
-                                const hashMatches = latestHash === message.hash;
-
-                                // Update the last sync timestamp
-                                unlockedVault.OnlineServices.LinkedDevices.find(
-                                    (d) => d.ID === device.ID
-                                )?.updateLastSync();
-                                setLinkedDevices(
-                                    unlockedVault.OnlineServices.LinkedDevices
-                                );
-
-                                // Save the vault
-                                unlockedVaultMetadata?.save(unlockedVault);
-
-                                setUnlockedVault(unlockedVault);
-
-                                // Check if the last hash is the same as the other device's hash
-                                if (hashMatches) {
-                                    // We're in sync - no diverging between the devices
-                                    console.debug(
-                                        "[WebRTC Message Handler] Received response to sync - out of sync => in sync"
-                                    );
-                                    toast.success(
-                                        "[Synchronization] Successfully synced with the other device",
-                                        {
-                                            toastId: "applying-diff-list",
-                                            updateId: "applying-diff-list",
-                                        }
-                                    );
-                                } else if (
-                                    !hashMatches &&
-                                    message.divergenceHash
-                                ) {
-                                    console.debug(
-                                        "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device"
-                                    );
-
-                                    toast.info(
-                                        "[Synchronization] Devices diverged - sending differences to the other device...",
-                                        {
-                                            toastId: "applying-diff-list",
-                                            updateId: "applying-diff-list",
-                                        }
-                                    );
-
-                                    // If it isn't, we're diverging
-                                    const syncMessage =
-                                        Synchronization.Message.prepare(
-                                            Synchronization.Command
-                                                .SyncResponse,
-                                            latestHash,
-                                            null,
-                                            diffsNotKnownByOtherDevice
-                                        ).serialize();
-
-                                    dataChannelInstance.send(syncMessage);
-                                }
-                            } else {
-                                toast.error(
-                                    "Failed to sync - could not apply the received changes",
-                                    {
-                                        toastId: "validating-diff-list",
-                                        updateId: "validating-diff-list",
-                                    }
-                                );
-                                console.error(
-                                    "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data"
-                                );
-                                console.debug(
-                                    "[WebRTC Message Handler] Mock vault data:",
-                                    mockUnlockedVault
-                                );
-                            }
-                        }
-                    } else if (
-                        message.command ===
-                        Synchronization.Command.DivergenceSolveRequest
-                    ) {
-                        console.warn(
-                            "[Synchronization] Received divergence solve request - responding..."
-                        );
+                        toast.update("validating-diff-list", {
+                            autoClose: 1,
+                        });
                         toast.info(
-                            "[Synchronization] Devices diverged - preparing the differences...",
+                            "[Synchronization] Applying differences...",
                             {
                                 autoClose: false,
-                                toastId: "generating-diff-list",
-                                updateId: "generating-diff-list",
+                                toastId: "applying-diff-list",
+                                updateId: "applying-diff-list",
                             }
                         );
 
-                        // Wait for a second to make sure the toast is shown
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                        const diffsNotKnownByOtherDevice: Credential.Diff[] =
+                            [];
+                        if (message.divergenceHash) {
+                            // If we received a divergence hash, we're diverged and we need to save the diffs that the other device doesn't know about
+                            // So we can send them to the other device after we apply the diffs that we received from the other device
+                            (
+                                await unlockedVault.getDiffsSinceHash(
+                                    message.divergenceHash
+                                )
+                            ).forEach((diff) => {
+                                diffsNotKnownByOtherDevice.push(diff);
+                            });
+                        }
+
+                        await unlockedVault.applyDiffs(message.diffList);
+
+                        const latestHash = await unlockedVault.getLatestHash();
+                        const hashMatches = latestHash === message.hash;
+
+                        // Update the last sync timestamp
+                        unlockedVault.OnlineServices.LinkedDevices.find(
+                            (d) => d.ID === device.ID
+                        )?.updateLastSync();
+                        // setUnlockedVault((pre) => {
+                        //     if (pre == null) {
+                        //         return pre;
+                        //     } else {
+                        //         pre.OnlineServices.LinkedDevices =
+                        //             unlockedVault.OnlineServices.LinkedDevices;
+                        //         return pre;
+                        //     }
+                        // });
+
+                        // Save the vault
+                        unlockedVaultMetadata?.save(unlockedVault);
+
+                        setUnlockedVault(unlockedVault);
+
+                        // Check if the last hash is the same as the other device's hash
+                        if (hashMatches) {
+                            // We're in sync - no diverging between the devices
+                            console.debug(
+                                "[WebRTC Message Handler] Received response to sync - out of sync => in sync"
+                            );
+                            toast.success(
+                                "[Synchronization] Successfully synced with the other device",
+                                {
+                                    toastId: "applying-diff-list",
+                                    updateId: "applying-diff-list",
+                                }
+                            );
+                        } else if (!hashMatches && message.divergenceHash) {
+                            console.debug(
+                                "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device"
+                            );
+
+                            toast.info(
+                                "[Synchronization] Devices diverged - sending differences to the other device...",
+                                {
+                                    toastId: "applying-diff-list",
+                                    updateId: "applying-diff-list",
+                                }
+                            );
+
+                            // If it isn't, we're diverging
+                            const syncMessage = Synchronization.Message.prepare(
+                                Synchronization.Command.SyncResponse,
+                                latestHash,
+                                null,
+                                diffsNotKnownByOtherDevice
+                            ).serialize();
+
+                            dataChannelInstance.send(syncMessage);
+                        }
+                    } else {
+                        toast.error(
+                            "Failed to sync - could not apply the received changes",
+                            {
+                                toastId: "validating-diff-list",
+                                updateId: "validating-diff-list",
+                            }
+                        );
+                        console.error(
+                            "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data"
+                        );
+                        console.debug(
+                            "[WebRTC Message Handler] Mock vault data:",
+                            mockUnlockedVault
+                        );
+                    }
+                }
+            } else if (
+                message.command ===
+                Synchronization.Command.DivergenceSolveRequest
+            ) {
+                console.warn(
+                    "[Synchronization] Received divergence solve request - responding..."
+                );
+                toast.info(
+                    "[Synchronization] Devices diverged - preparing the differences...",
+                    {
+                        autoClose: false,
+                        toastId: "generating-diff-list",
+                        updateId: "generating-diff-list",
+                    }
+                );
+
+                // Wait for a second to make sure the toast is shown
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+                const divergenceSolveResponse = Synchronization.Message.prepare(
+                    Synchronization.Command.DivergenceSolve,
+                    null,
+                    null,
+                    await unlockedVault.getDiffsSinceHash(null)
+                ).serialize();
+
+                dataChannelInstance.send(divergenceSolveResponse);
+
+                toast.info(
+                    "[Synchronization] Devices diverged - Check the other device to select which differences to apply",
+                    {
+                        toastId: "generating-diff-list",
+                        updateId: "generating-diff-list",
+                    }
+                );
+            } else if (
+                message.command === Synchronization.Command.DivergenceSolve
+            ) {
+                // Open a dialog for the user to select which differences to apply
+                showDivergenceSolveDialogRef.current?.(
+                    unlockedVault.Credentials,
+                    message.diffList.map((i) => i.Changes?.Props),
+                    async (diffsToApply, diffsToSend) => {
+                        toast.info(
+                            "[Synchronization] Applying differences...",
+                            {
+                                autoClose: false,
+                                toastId: "applying-diff-list",
+                                updateId: "applying-diff-list",
+                            }
                         );
 
+                        // Apply the diffsToApply to the vault
+                        await unlockedVault.applyDiffs(diffsToApply);
+
+                        // Update the last sync timestamp
+                        unlockedVault.OnlineServices.LinkedDevices.find(
+                            (d) => d.ID === device.ID
+                        )?.updateLastSync();
+                        // setUnlockedVault((pre) => {
+                        //     if (pre == null) {
+                        //         return pre;
+                        //     } else {
+                        //         pre.OnlineServices.LinkedDevices =
+                        //             unlockedVault.OnlineServices.LinkedDevices;
+                        //         return pre;
+                        //     }
+                        // });
+
+                        // Save the vault
+                        unlockedVaultMetadata?.save(unlockedVault);
+                        setUnlockedVault(unlockedVault);
+
+                        toast.info(
+                            "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
+                            {
+                                toastId: "applying-diff-list",
+                                updateId: "applying-diff-list",
+                            }
+                        );
+
+                        // Send the diffsToSend to the other device
                         const divergenceSolveResponse =
                             Synchronization.Message.prepare(
-                                Synchronization.Command.DivergenceSolve,
+                                Synchronization.Command.SyncResponse,
+                                await unlockedVault.getLatestHash(),
                                 null,
-                                null,
-                                await unlockedVault.getDiffsSinceHash(null)
+                                diffsToSend
                             ).serialize();
 
                         dataChannelInstance.send(divergenceSolveResponse);
-
-                        toast.info(
-                            "[Synchronization] Devices diverged - Check the other device to select which differences to apply",
-                            {
-                                toastId: "generating-diff-list",
-                                updateId: "generating-diff-list",
-                            }
+                    },
+                    () => {
+                        // Warn the user that the vaults are still diverged
+                        toast.warn(
+                            "[Synchronization] The vaults are still diverged - you can try to solve the differences again by synchronizing the vaults"
                         );
-                    } else if (
-                        message.command ===
-                        Synchronization.Command.DivergenceSolve
-                    ) {
-                        // Open a dialog for the user to select which differences to apply
-                        showDivergenceSolveDialogRef.current?.(
-                            unlockedVault.Credentials,
-                            message.diffList.map((i) => i.Changes?.Props),
-                            async (diffsToApply, diffsToSend) => {
-                                toast.info(
-                                    "[Synchronization] Applying differences...",
-                                    {
-                                        autoClose: false,
-                                        toastId: "applying-diff-list",
-                                        updateId: "applying-diff-list",
-                                    }
-                                );
+                    }
+                );
+            } else if (
+                message.command === Synchronization.Command.LinkedDevicesList
+            ) {
+                if (message.linkedDevicesList == null) {
+                    console.debug(
+                        "[WebRTC Message Handler] Received linked devices list - but the list is null"
+                    );
+                    return;
+                }
 
-                                // Apply the diffsToApply to the vault
-                                await unlockedVault.applyDiffs(diffsToApply);
+                const isDeviceRoot =
+                    unlockedVault.OnlineServices.LinkedDevices.find(
+                        (d) => d.ID === device.ID
+                    )?.IsRoot;
 
-                                // Update the last sync timestamp
-                                unlockedVault.OnlineServices.LinkedDevices.find(
-                                    (d) => d.ID === device.ID
-                                )?.updateLastSync();
-                                setLinkedDevices(
-                                    unlockedVault.OnlineServices.LinkedDevices
-                                );
+                if (!isDeviceRoot) {
+                    console.warn(
+                        `[WebRTC Message Handler] Received linked devices list from '${device.Name}' - but the device is not root - ignoring`
+                    );
+                    return;
+                }
 
-                                // Save the vault
-                                unlockedVaultMetadata?.save(unlockedVault);
-                                setUnlockedVault(unlockedVault);
+                console.debug(
+                    "[WebRTC Message Handler] Received linked devices list",
+                    message.linkedDevicesList
+                );
 
-                                toast.info(
-                                    "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
-                                    {
-                                        toastId: "applying-diff-list",
-                                        updateId: "applying-diff-list",
-                                    }
-                                );
+                let changesOccured = false;
 
-                                // Send the diffsToSend to the other device
-                                const divergenceSolveResponse =
-                                    Synchronization.Message.prepare(
-                                        Synchronization.Command.SyncResponse,
-                                        await unlockedVault.getLatestHash(),
-                                        null,
-                                        diffsToSend
-                                    ).serialize();
+                const devicesInReceivedList = message.linkedDevicesList.map(
+                    (d) => d.ID
+                );
+                const devicesInCurrentList =
+                    unlockedVault.OnlineServices.LinkedDevices.map((d) => d.ID);
+                const currentDeviceCount = devicesInCurrentList.length;
+                const intersection = devicesInReceivedList.filter((d) =>
+                    devicesInCurrentList.includes(d)
+                );
 
-                                dataChannelInstance.send(
-                                    divergenceSolveResponse
-                                );
-                            },
-                            () => {
-                                // Warn the user that the vaults are still diverged
-                                toast.warn(
-                                    "[Synchronization] The vaults are still diverged - you can try to solve the differences again by synchronizing the vaults"
-                                );
-                            }
-                        );
-                    } else if (
-                        message.command ===
-                        Synchronization.Command.LinkedDevicesList
-                    ) {
-                        if (message.linkedDevicesList == null) {
-                            console.debug(
-                                "[WebRTC Message Handler] Received linked devices list - but the list is null"
-                            );
-                            return;
-                        }
-
-                        const isDeviceRoot =
+                // Update the IsRoot property of the devices that are in both lists
+                intersection.forEach((d) => {
+                    if (message.linkedDevicesList) {
+                        const existingLinkedDevice =
                             unlockedVault.OnlineServices.LinkedDevices.find(
-                                (d) => d.ID === device.ID
-                            )?.IsRoot;
-
-                        if (!isDeviceRoot) {
-                            console.warn(
-                                `[WebRTC Message Handler] Received linked devices list from '${device.Name}' - but the device is not root - ignoring`
+                                (ld) => ld.ID === d
                             );
-                            return;
-                        }
+                        const receivedLinkedDevice =
+                            message.linkedDevicesList.find((ld) => ld.ID === d);
 
-                        console.debug(
-                            "[WebRTC Message Handler] Received linked devices list",
-                            message.linkedDevicesList
-                        );
-
-                        let changesOccured = false;
-
-                        const devicesInReceivedList =
-                            message.linkedDevicesList.map((d) => d.ID);
-                        const devicesInCurrentList =
-                            unlockedVault.OnlineServices.LinkedDevices.map(
-                                (d) => d.ID
-                            );
-                        const currentDeviceCount = devicesInCurrentList.length;
-                        const intersection = devicesInReceivedList.filter((d) =>
-                            devicesInCurrentList.includes(d)
-                        );
-
-                        // Update the IsRoot property of the devices that are in both lists
-                        intersection.forEach((d) => {
-                            if (message.linkedDevicesList) {
-                                const existingLinkedDevice =
-                                    unlockedVault.OnlineServices.LinkedDevices.find(
-                                        (ld) => ld.ID === d
-                                    );
-                                const receivedLinkedDevice =
-                                    message.linkedDevicesList.find(
-                                        (ld) => ld.ID === d
-                                    );
-
-                                if (
-                                    existingLinkedDevice != null &&
-                                    receivedLinkedDevice != null
-                                ) {
-                                    changesOccured ||=
-                                        existingLinkedDevice.IsRoot !==
-                                        receivedLinkedDevice.IsRoot;
-
-                                    existingLinkedDevice.IsRoot =
-                                        receivedLinkedDevice.IsRoot;
-                                }
-                            }
-                        });
-
-                        // Remove devices that are not in the received list
-                        unlockedVault.OnlineServices.LinkedDevices =
-                            unlockedVault.OnlineServices.LinkedDevices.filter(
-                                (d) =>
-                                    devicesInReceivedList.includes(d.ID) ||
-                                    d.ID === device.ID
-                            );
-                        changesOccured ||=
-                            currentDeviceCount !==
-                            unlockedVault.OnlineServices.LinkedDevices.length;
-
-                        // Add devices that are in the received list but not in the current list
-                        message.linkedDevicesList.forEach((d) => {
-                            if (
-                                !unlockedVault.OnlineServices.LinkedDevices.find(
-                                    (ld) => ld.ID === d.ID
-                                )
-                            ) {
-                                changesOccured = true;
-                                unlockedVault.OnlineServices.addLinkedDevice(
-                                    d.ID,
-                                    d.Name,
-                                    d.IsRoot,
-                                    d.LinkedAtTimestamp,
-                                    d.AutoConnect,
-                                    d.SyncTimeout,
-                                    d.SyncTimeoutPeriod
-                                );
-                            }
-                        });
-
-                        if (changesOccured) {
-                            // Save the vault
-                            await unlockedVaultMetadata?.save(unlockedVault);
-                            toast.info(
-                                "[Synchronization] Successfully updated the list of linked devices"
-                            );
-                        }
-                    } else {
-                        console.warn(
-                            "[WebRTC Message Handler] Received invalid command",
-                            message.command
-                        );
-                    }
-                };
-            };
-
-            type PusherSignalingMessagesType = {
-                type: "offer" | "answer" | "ice-candidate";
-                data: RTCIceCandidateInit | RTCSessionDescriptionInit | null;
-            };
-
-            channel.bind(
-                "pusher:subscription_succeeded",
-                async (context: { count: number }) => {
-                    weAreFirst = context.count === 1;
-                    console.debug(
-                        "Subscription succeeded",
-                        weAreFirst ? "--We're first" : "--We're NOT first"
-                    );
-
-                    webRTConnection = await newWebRTCConnection();
-                    webRTConnection.onconnectionstatechange = () => {
-                        console.debug(
-                            "Connection state changed",
-                            webRTConnection?.connectionState
-                        );
-                        if (webRTConnection?.connectionState === "connected") {
-                            console.debug(
-                                "Private connection established -",
-                                commonChannelName
-                            );
-
-                            // Clean up the channel subscription
-                            channel.unsubscribe();
-                            channel.unbind();
-
-                            if (device.SyncTimeout) {
-                                setTimeout(() => {
-                                    console.debug(
-                                        "Sync timeout reached - disconnecting from the private channel"
-                                    );
-                                    removeWebRTConnection(device.ID, true);
-                                }, Math.abs(device.SyncTimeoutPeriod) * 1000);
-                            }
-                        } else if (
-                            webRTConnection?.connectionState === "disconnected"
-                        ) {
-                            console.debug(
-                                "Private connection disconnected -",
-                                commonChannelName
-                            );
-
-                            // Remove the connection from the list
-                            // Inhibit reconnecting if the device is not set to auto-connect or if the sync timeout has been reached
-                            removeWebRTConnection(
-                                device.ID,
-                                !device.AutoConnect || device.SyncTimeout
-                            );
-                        }
-                    };
-
-                    if (weAreFirst) {
-                        // Since we're first, we need to create a data channel
-                        const dataChannel = webRTConnection.createDataChannel(
-                            `sync-${device.ID}`
-                        );
-                        dataChannel.onopen = () => {
-                            console.debug("[1st] Data channel opened");
-
-                            // Add the webRTC connection to the list
-                            if (webRTConnection)
-                                addWebRTConnection(
-                                    device.ID,
-                                    webRTConnection,
-                                    dataChannel
-                                );
-
-                            // Send the linked devices list to the other device (only if we're root)
-                            sendLinkedDevicesList(dataChannel, [device.ID]);
-                        };
-                        dataChannel.onmessage =
-                            onWebRTCMessageHandler(dataChannel);
-                        dataChannel.onclose = () => {
-                            console.debug("[1st] Data channel closed");
-
-                            // Remove and clean up the WebRTC connection from the list
-                            removeWebRTConnection(device.ID);
-                        };
-                        dataChannel.onerror = (error) => {
-                            console.debug("[1st] Data channel error", error);
-
-                            // Clean up the WebRTC connection
-                            dataChannel.close();
-                            webRTConnection?.close();
-                        };
-                    }
-
-                    // When we acquire an ICE candidate, send it to the other device
-                    // This is being called only after we call setLocalDescription
-                    webRTConnection.onicecandidate = async (event) => {
-                        if (event && event.candidate) {
-                            console.debug(
-                                "Sending ICE candidate",
-                                event.candidate
-                            );
-                            channel.trigger(commonEventName, {
-                                type: "ice-candidate",
-                                data: event.candidate,
-                            } as PusherSignalingMessagesType);
-
-                            iceCandidatesWeGenerated++;
-                        }
-
-                        // When the event.candidate object is null - we're done
-                        // NOTE: Might be helpful to send that to the other device and we can show a notification
-                        if (event?.candidate == null) {
-                            console.debug(
-                                "Sending ICE completed event",
-                                event.candidate
-                            );
-
-                            channel.trigger(commonEventName, {
-                                type: "ice-candidate",
-                                data: null,
-                            } as PusherSignalingMessagesType);
-                        }
-
-                        // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
                         if (
-                            iceCandidatesWeGenerated === 0 &&
-                            !event.candidate
+                            existingLinkedDevice != null &&
+                            receivedLinkedDevice != null
                         ) {
-                            console.error("Failed to generate ICE candidates.");
-                        }
-                    };
-                }
-            );
+                            changesOccured ||=
+                                existingLinkedDevice.IsRoot !==
+                                receivedLinkedDevice.IsRoot;
 
-            channel.bind(
-                commonEventName,
-                async (data: PusherSignalingMessagesType) => {
-                    console.debug(
-                        "ws received",
-                        data,
-                        `|| Are we first? ${weAreFirst}`
+                            existingLinkedDevice.IsRoot =
+                                receivedLinkedDevice.IsRoot;
+                        }
+                    }
+                });
+
+                // Remove devices that are not in the received list
+                unlockedVault.OnlineServices.LinkedDevices =
+                    unlockedVault.OnlineServices.LinkedDevices.filter(
+                        (d) =>
+                            devicesInReceivedList.includes(d.ID) ||
+                            d.ID === device.ID
                     );
+                changesOccured ||=
+                    currentDeviceCount !==
+                    unlockedVault.OnlineServices.LinkedDevices.length;
 
-                    if (data.type === "ice-candidate") {
-                        if (data.data) {
-                            await webRTConnection?.addIceCandidate(
-                                data.data as RTCIceCandidateInit
-                            );
-                        } else if (
-                            webRTConnection?.connectionState != "connecting"
-                        ) {
-                            toast.warn(
-                                `[Synchronization] Failed to connect to ${device.Name}`
-                            );
-                        }
-                    }
-
-                    if (weAreFirst) {
-                        // If we're first, we sent the offer, so we need to handle the answer
-                        if (data.type === "answer") {
-                            await webRTConnection?.setRemoteDescription(
-                                data.data as RTCSessionDescriptionInit
-                            );
-                        }
-                    } else {
-                        // If we're not first, we received the offer, so we need to handle the answer
-                        if (data.type === "offer") {
-                            if (!webRTConnection) {
-                                console.error(
-                                    "WebRTC connection not initialized"
-                                );
-                                return;
-                            }
-
-                            // This event is triggered when we're not the first device to connect
-                            webRTConnection.ondatachannel = (event) => {
-                                console.debug("Data channel received");
-
-                                const dataChannel = event.channel;
-                                dataChannel.onopen = () => {
-                                    console.debug("[2nd] Data channel opened");
-
-                                    // Add the webRTC connection to the list
-                                    if (webRTConnection)
-                                        addWebRTConnection(
-                                            device.ID,
-                                            webRTConnection,
-                                            dataChannel
-                                        );
-
-                                    // Send the linked devices list to the other device (only if we're root)
-                                    sendLinkedDevicesList(dataChannel, [
-                                        device.ID,
-                                    ]);
-                                };
-
-                                dataChannel.onmessage =
-                                    onWebRTCMessageHandler(dataChannel);
-
-                                dataChannel.onclose = () => {
-                                    console.debug("[2nd] Data channel closed");
-
-                                    // Remove and clean up the WebRTC connection from the list
-                                    removeWebRTConnection(device.ID);
-                                };
-
-                                dataChannel.onerror = (event) => {
-                                    console.debug(
-                                        "[2nd] Data channel error",
-                                        event
-                                    );
-
-                                    // Clean up the WebRTC connection
-                                    dataChannel.close();
-                                    webRTConnection?.close();
-                                };
-                            };
-
-                            await webRTConnection.setRemoteDescription(
-                                data.data as RTCSessionDescriptionInit
-                            );
-
-                            // Create an answer and set it as the local description
-                            const answer = await webRTConnection.createAnswer();
-                            await webRTConnection.setLocalDescription(answer);
-
-                            // Send the answer to the other device
-                            channel.trigger(commonEventName, {
-                                type: "answer",
-                                data: answer,
-                            } as PusherSignalingMessagesType);
-
-                            console.debug("Answer sent", answer);
-                        }
-                    }
-                }
-            );
-
-            // When the other device connects, send an offer if we are the first to connect
-            // This only triggers if we are the first to connect
-            channel.bind(
-                "pusher:member_added",
-                async (osDevice: { id: string }) => {
-                    if (!webRTConnection) {
-                        console.error(
-                            "[Member] WebRTC connection not initialized"
+                // Add devices that are in the received list but not in the current list
+                message.linkedDevicesList.forEach((d) => {
+                    if (
+                        !unlockedVault.OnlineServices.LinkedDevices.find(
+                            (ld) => ld.ID === d.ID
+                        )
+                    ) {
+                        changesOccured = true;
+                        unlockedVault.OnlineServices.addLinkedDevice(
+                            d.ID,
+                            d.Name,
+                            d.IsRoot,
+                            d.LinkedAtTimestamp,
+                            d.AutoConnect,
+                            d.SyncTimeout,
+                            d.SyncTimeoutPeriod
                         );
-                        return;
                     }
+                });
 
-                    console.debug("Other device connected", osDevice);
+                if (changesOccured) {
+                    setUnlockedVault(unlockedVault);
 
-                    // Create an offer and set it as the local description
-                    const offer = await webRTConnection.createOffer();
-                    await webRTConnection.setLocalDescription(offer);
-
-                    const dataToSend = webRTConnection.localDescription;
-
-                    channel.trigger(commonEventName, {
-                        type: "offer",
-                        data: offer,
-                    } as PusherSignalingMessagesType);
-
-                    console.debug("Offer sent", dataToSend);
+                    // Save the vault
+                    await unlockedVaultMetadata?.save(unlockedVault);
+                    toast.info(
+                        "[Synchronization] Successfully updated the list of linked devices"
+                    );
                 }
-            );
-        }
+            } else {
+                console.warn(
+                    "[WebRTC Message Handler] Received invalid command",
+                    message.command
+                );
+            }
+        };
     };
 
     const sendLinkedDevicesList = (
@@ -8450,7 +7935,6 @@ const DashboardSidebarSynchronization: React.FC<{
                 // If we don't have linked devices, disconnect from online services
                 if (currentValue === 0 && previousValue > 0) {
                     cleanupOnlineServices();
-                    cleanupWebRTConnections();
                 }
             }
         }
@@ -8460,25 +7944,71 @@ const DashboardSidebarSynchronization: React.FC<{
 
     const DeviceItem: React.FC<{
         device: LinkedDevice;
-    }> = ({ device }) => {
+        onlineServices: OnlineServicesAccount;
+        onlineServicesStatus: OnlineServicesStatus;
+    }> = ({ device, onlineServices, onlineServicesStatus }) => {
         const optionsButtonRef = useRef<HTMLButtonElement | null>(null);
-
-        const linkedDevices = useAtomValue(linkedDevicesAtom);
-        const webRTCConnections = useAtomValue(webRTCConnectionsAtom);
-
-        const directConnectionEstablished = webRTCConnections.includes(
-            device.ID
-        );
-
-        const updatedLinkedDeviceData = linkedDevices.find(
-            (d) => d.ID === device.ID
-        );
-        if (updatedLinkedDeviceData) device = updatedLinkedDeviceData;
-
-        console.debug("DeviceItem render");
 
         const { mutateAsync: removeDevice } =
             trpc.account.removeDevice.useMutation();
+
+        useAtomsDebugValue();
+        const [wtfHook, setWtfHook] = useState(0);
+        const [webRTCConnections, setWebRTCConnections] = useAtom(
+            webRTCConnectionsAtom
+        );
+
+        const commonChannelName = React.useMemo(
+            () =>
+                constructSyncChannelName(
+                    onlineServices.CreationTimestamp,
+                    onlineServices.UserID ?? "",
+                    device.ID,
+                    device.LinkedAtTimestamp
+                ),
+            [onlineServices, device]
+        );
+
+        const webRTConnection = webRTCConnections.get(device.ID);
+        const linkStatus = webRTConnection.State;
+        if (linkStatus !== wtfHook) {
+            setWtfHook(linkStatus);
+        }
+        const setLinkStatus = (state: Synchronization.LinkStatus) => {
+            setWebRTCConnections((prev) => {
+                prev.setState(device.ID, state);
+                return prev;
+            });
+        };
+
+        const manuallyDisconnectedRef = useRef(false);
+
+        console.debug("DeviceItem render", linkStatus);
+
+        const initLink = (
+            peerConnection: RTCPeerConnection,
+            dataChannel: RTCDataChannel
+        ) => {
+            setWebRTCConnections((prev) => {
+                prev.upsert(
+                    device.ID,
+                    peerConnection,
+                    dataChannel,
+                    Synchronization.LinkStatus.Connected
+                );
+                return prev;
+            });
+        };
+
+        const tearDownLink = (unsubscribe = false) => {
+            setWebRTCConnections((prev) => {
+                prev.remove(device.ID);
+                return prev;
+            });
+            if (onlineWSServicesEndpoint && unsubscribe) {
+                onlineWSServicesEndpoint.unsubscribe(commonChannelName);
+            }
+        };
 
         const synchronizeNow = async (device: LinkedDevice) => {
             if (!unlockedVault) {
@@ -8486,7 +8016,7 @@ const DashboardSidebarSynchronization: React.FC<{
             }
 
             // Check if we're connected to the device
-            if (!directConnectionEstablished) {
+            if (!webRTConnection) {
                 console.warn(
                     "[Manual Sync] Not connected to device",
                     device.ID
@@ -8495,19 +8025,6 @@ const DashboardSidebarSynchronization: React.FC<{
             }
 
             console.debug("[Manual Sync] Triggered for device", device.ID);
-
-            // Get the datachannel for the device
-            const dataChannel = webRTConnectionsRef.current.find(
-                (c) => c.remoteDeviceID === device.ID
-            )?.dataChannel;
-
-            if (!dataChannel) {
-                console.error(
-                    "[Manual Sync] Data channel not found",
-                    device.ID
-                );
-                return;
-            }
 
             const currentHash = await unlockedVault.getLatestHash();
 
@@ -8524,7 +8041,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 null,
                 []
             ).serialize();
-            dataChannel.send(syncRequestPayload);
+            webRTConnection.DataChannel?.send(syncRequestPayload);
         };
 
         const unlinkDevice = async (device: LinkedDevice) => {
@@ -8540,7 +8057,12 @@ const DashboardSidebarSynchronization: React.FC<{
             showWarningFn(
                 "Unlinking a device will prevent it from modifying the vault, effectively cutting it off from the rest of the network.",
                 async () => {
+                    tearDownLink(true);
+
                     unlockedVault.OnlineServices.removeLinkedDevice(device.ID);
+
+                    // Update the vault
+                    setUnlockedVault(unlockedVault);
 
                     // Try to remove the device from the online services
                     try {
@@ -8571,45 +8093,50 @@ const DashboardSidebarSynchronization: React.FC<{
             );
         };
 
-        const disconnectReconnectDevice = (device: LinkedDevice) => {
-            if (directConnectionEstablished) {
-                // Add the device to the list of manually disconnected devices if it's not already there
-                if (
-                    !manuallyDisconnectedWebRTConnectionsRef.current.includes(
-                        device.ID
+        const disconnectReconnectDevice = () => {
+            if (
+                webRTConnection?.DataChannel?.readyState === "open" ||
+                webRTConnection?.DataChannel?.readyState === "connecting" ||
+                onlineWSServicesEndpoint
+                    ?.allChannels()
+                    .some(
+                        (c) =>
+                            c.name === commonChannelName &&
+                            (c.subscribed || c.subscriptionPending)
                     )
-                ) {
-                    manuallyDisconnectedWebRTConnectionsRef.current.push(
-                        device.ID
-                    );
-                }
+            ) {
+                manuallyDisconnectedRef.current = true;
 
-                removeWebRTConnection(device.ID, true);
+                tearDownLink(true);
             } else {
-                // Remove the device from the list of manually disconnected devices
-                if (
-                    manuallyDisconnectedWebRTConnectionsRef.current.includes(
-                        device.ID
-                    )
-                ) {
-                    manuallyDisconnectedWebRTConnectionsRef.current =
-                        manuallyDisconnectedWebRTConnectionsRef.current.filter(
-                            (id) => id !== device.ID
-                        );
-                }
+                manuallyDisconnectedRef.current = false;
 
                 // In case we're not connected to online services, this will set it up and then connect to the device
-                setupDeviceLinks(device.ID);
+                setupDeviceLink(true);
             }
         };
 
         const contextMenuOptions: {
             disabled: boolean;
+            visible: boolean;
             name: string;
             onClick: (device: LinkedDevice) => Promise<void>;
         }[] = [
             {
-                disabled: !directConnectionEstablished,
+                disabled: linkStatus === Synchronization.LinkStatus.Connecting,
+                visible: linkStatus !== Synchronization.LinkStatus.Connecting,
+                name:
+                    linkStatus === Synchronization.LinkStatus.Connected ||
+                    linkStatus === Synchronization.LinkStatus.WaitingForDevice
+                        ? "Disconnect"
+                        : "Connect",
+                onClick: async () => {
+                    disconnectReconnectDevice();
+                },
+            },
+            {
+                disabled: linkStatus !== Synchronization.LinkStatus.Connected,
+                visible: true,
                 name: "Synchonize now",
                 onClick: async (device) => {
                     await synchronizeNow(device);
@@ -8617,13 +8144,7 @@ const DashboardSidebarSynchronization: React.FC<{
             },
             {
                 disabled: false,
-                name: directConnectionEstablished ? "Disconnect" : "Connect",
-                onClick: async (device) => {
-                    disconnectReconnectDevice(device);
-                },
-            },
-            {
-                disabled: false,
+                visible: true,
                 name: "Unlink device",
                 onClick: async (device) => {
                     await unlinkDevice(device);
@@ -8631,6 +8152,7 @@ const DashboardSidebarSynchronization: React.FC<{
             },
             {
                 disabled: false,
+                visible: true,
                 name: "Edit",
                 onClick: async (device) => {
                     showEditLinkedDeviceDialog(device);
@@ -8638,12 +8160,409 @@ const DashboardSidebarSynchronization: React.FC<{
             },
         ];
 
+        const setupDeviceLink = (forceConnect = false) => {
+            // If we don't have an online services instance, we will try to create one
+            if (
+                !onlineWSServicesEndpoint ||
+                onlineWSServicesEndpoint?.connection.state === "disconnected"
+            ) {
+                setupOnlineServices(() => setupDeviceLink(forceConnect));
+                return;
+            }
+
+            // console.debug(
+            //     "[setupDeviceLinks] Setting up device links... Specific device:",
+            //     deviceID
+            // );
+            // If we're not connected to the signaling server, return
+            if (onlineWSServicesEndpoint?.connection.state !== "connected") {
+                return;
+            }
+
+            // If we have a user identifier, we can try to subscribe
+            const ownIdentifier = onlineServices.UserID;
+            if (!ownIdentifier) return;
+
+            // This will be the event name that we will use to communicate over the pusher channel
+            const commonEventName = "client-private-connection-setup";
+
+            // Subscribe to a predetermined channel name
+            // Set up event handlers for presence and other events
+            // If we already have a connection to this device, we don't need to do anything
+            if (
+                webRTConnection.State ===
+                    Synchronization.LinkStatus.Connected ||
+                webRTConnection.State ===
+                    Synchronization.LinkStatus.Connecting ||
+                webRTConnection.State ===
+                    Synchronization.LinkStatus.WaitingForDevice
+            ) {
+                return;
+            }
+
+            // Check if we should autoconnect to this device
+            // This check is only relevant if we are not trying to connect to a specific device
+            // if (device.AutoConnect == false && deviceID == null) {
+            if (device.AutoConnect == false && forceConnect == false) {
+                return;
+            }
+
+            // Check if the user disconnected from this device manually
+            // If so, we will not try to connect to it unless the user manually reconnects (deviceID != null)
+            if (manuallyDisconnectedRef.current && forceConnect == false) {
+                console.debug(
+                    "[setupDeviceLinks] Skipping autoconnect to",
+                    device.ID,
+                    "because it was manually disconnected"
+                );
+                return;
+            }
+
+            // console.debug(
+            //     "[setupDeviceLinks] Current WebRTC connections",
+            //     webRTConnectionsRef.current
+            // );
+
+            // Initialize a new WebRTC connection - so we can communicate directly with the other device
+            let _webRTConnection: RTCPeerConnection | null = null;
+
+            // Check if we're already subscribed to this channel
+            if (
+                onlineWSServicesEndpoint
+                    .allChannels()
+                    .some(
+                        (c) =>
+                            c.name === commonChannelName &&
+                            (c.subscribed || c.subscriptionPending)
+                    )
+            ) {
+                console.debug(
+                    "[setupDeviceLinks] Already subscribed to channel",
+                    commonChannelName
+                );
+
+                if (
+                    linkStatus !== Synchronization.LinkStatus.WaitingForDevice
+                ) {
+                    setLinkStatus(Synchronization.LinkStatus.WaitingForDevice);
+                }
+
+                return;
+            }
+
+            console.debug(
+                "[setupDeviceLinks] Trying to connect to device",
+                device
+            );
+
+            const channel =
+                onlineWSServicesEndpoint.subscribe(commonChannelName);
+
+            /**
+             * Short explanation of the following code:
+             *  - We need to set up a WebRTC connection between the two devices using the Pusher channel as a signaling server.
+             *  - If we're the first device to connect, we need to send an offer - the member_added event will be triggered, we set the weAreFirst flag to true.
+             *  - If we're not the first device to connect, we need to wait for the offer, and then send an answer.
+             *  - Both devices need to be able to exchange the ICE candidates.
+             */
+
+            let weAreFirst = false;
+            let iceCandidatesWeGenerated = 0;
+
+            type PusherSignalingMessagesType = {
+                type: "offer" | "answer" | "ice-candidate";
+                data: RTCIceCandidateInit | RTCSessionDescriptionInit | null;
+            };
+
+            channel.bind(
+                "pusher:subscription_succeeded",
+                async (context: { count: number }) => {
+                    setLinkStatus(Synchronization.LinkStatus.WaitingForDevice);
+
+                    weAreFirst = context.count === 1;
+                    console.debug(
+                        "Subscription succeeded",
+                        weAreFirst ? "--We're first" : "--We're NOT first"
+                    );
+
+                    _webRTConnection = await newWebRTCConnection();
+                    _webRTConnection.onconnectionstatechange = () => {
+                        console.debug(
+                            "Connection state changed",
+                            _webRTConnection?.connectionState
+                        );
+                        if (_webRTConnection?.connectionState === "connected") {
+                            console.debug(
+                                "Private connection established -",
+                                commonChannelName
+                            );
+
+                            // Clean up the channel subscription
+                            channel.unsubscribe();
+                            channel.unbind();
+
+                            if (device.SyncTimeout) {
+                                setTimeout(() => {
+                                    console.debug(
+                                        "Sync timeout reached - disconnecting from the private channel"
+                                    );
+                                    tearDownLink();
+                                }, Math.abs(device.SyncTimeoutPeriod) * 1000);
+                            }
+                        } else if (
+                            _webRTConnection?.connectionState === "connecting"
+                        ) {
+                            setLinkStatus(
+                                Synchronization.LinkStatus.Connecting
+                            );
+                        } else if (
+                            _webRTConnection?.connectionState === "disconnected"
+                        ) {
+                            console.debug(
+                                "Private connection disconnected -",
+                                commonChannelName
+                            );
+
+                            // Remove the connection from the list
+                            // Inhibit reconnecting if the device is not set to auto-connect or if the sync timeout has been reached
+                            tearDownLink();
+                            if (device.AutoConnect && !device.SyncTimeout) {
+                                setupDeviceLink(true);
+                            }
+                        }
+                    };
+
+                    if (weAreFirst) {
+                        // Since we're first, we need to create a data channel
+                        const dataChannel = _webRTConnection.createDataChannel(
+                            `sync-${device.ID}`
+                        );
+                        dataChannel.onopen = () => {
+                            console.debug("[1st] Data channel opened");
+
+                            // Add the webRTC connection to the list
+                            if (_webRTConnection)
+                                initLink(_webRTConnection, dataChannel);
+
+                            // Send the linked devices list to the other device (only if we're root)
+                            sendLinkedDevicesList(dataChannel, [device.ID]);
+                        };
+                        dataChannel.onmessage = onWebRTCMessageHandler(
+                            dataChannel,
+                            device
+                        );
+                        dataChannel.onclose = () => {
+                            console.debug("[1st] Data channel closed");
+
+                            // Remove and clean up the WebRTC connection from the list
+                            tearDownLink();
+                            if (device.AutoConnect && !device.SyncTimeout) {
+                                setupDeviceLink(true);
+                            }
+                        };
+                        dataChannel.onerror = (error) => {
+                            console.debug("[1st] Data channel error", error);
+
+                            // Clean up the WebRTC connection
+                            tearDownLink();
+                        };
+                    }
+
+                    // When we acquire an ICE candidate, send it to the other device
+                    // This is being called only after we call setLocalDescription
+                    _webRTConnection.onicecandidate = async (event) => {
+                        if (event && event.candidate) {
+                            console.debug(
+                                "Sending ICE candidate",
+                                event.candidate
+                            );
+                            channel.trigger(commonEventName, {
+                                type: "ice-candidate",
+                                data: event.candidate,
+                            } as PusherSignalingMessagesType);
+
+                            iceCandidatesWeGenerated++;
+                        }
+
+                        // When the event.candidate object is null - we're done
+                        // NOTE: Might be helpful to send that to the other device and we can show a notification
+                        if (event?.candidate == null) {
+                            console.debug(
+                                "Sending ICE completed event",
+                                event.candidate
+                            );
+
+                            channel.trigger(commonEventName, {
+                                type: "ice-candidate",
+                                data: null,
+                            } as PusherSignalingMessagesType);
+                        }
+
+                        // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
+                        if (
+                            iceCandidatesWeGenerated === 0 &&
+                            !event.candidate
+                        ) {
+                            console.error("Failed to generate ICE candidates.");
+
+                            setLinkStatus(Synchronization.LinkStatus.Failure);
+                        }
+                    };
+                }
+            );
+
+            channel.bind(
+                commonEventName,
+                async (data: PusherSignalingMessagesType) => {
+                    console.debug(
+                        "ws received",
+                        data,
+                        `|| Are we first? ${weAreFirst}`
+                    );
+
+                    if (data.type === "ice-candidate") {
+                        if (data.data) {
+                            await _webRTConnection?.addIceCandidate(
+                                data.data as RTCIceCandidateInit
+                            );
+                        } else if (
+                            _webRTConnection?.connectionState != "connecting"
+                        ) {
+                            toast.warn(
+                                `[Synchronization] Failed to connect to ${device.Name}`
+                            );
+                        }
+                    }
+
+                    if (weAreFirst) {
+                        // If we're first, we sent the offer, so we need to handle the answer
+                        if (data.type === "answer") {
+                            await _webRTConnection?.setRemoteDescription(
+                                data.data as RTCSessionDescriptionInit
+                            );
+                        }
+                    } else {
+                        // If we're not first, we received the offer, so we need to handle the answer
+                        if (data.type === "offer") {
+                            if (!_webRTConnection) {
+                                console.error(
+                                    "WebRTC connection not initialized"
+                                );
+                                return;
+                            }
+
+                            // This event is triggered when we're not the first device to connect
+                            _webRTConnection.ondatachannel = (event) => {
+                                console.debug("Data channel received");
+
+                                const dataChannel = event.channel;
+                                dataChannel.onopen = () => {
+                                    console.debug("[2nd] Data channel opened");
+
+                                    // Add the webRTC connection to the list
+                                    if (_webRTConnection)
+                                        initLink(_webRTConnection, dataChannel);
+
+                                    // Send the linked devices list to the other device (only if we're root)
+                                    sendLinkedDevicesList(dataChannel, [
+                                        device.ID,
+                                    ]);
+                                };
+
+                                dataChannel.onmessage = onWebRTCMessageHandler(
+                                    dataChannel,
+                                    device
+                                );
+
+                                dataChannel.onclose = () => {
+                                    console.debug("[2nd] Data channel closed");
+
+                                    // Remove and clean up the WebRTC connection from the list
+                                    tearDownLink();
+                                    if (
+                                        device.AutoConnect &&
+                                        !device.SyncTimeout
+                                    ) {
+                                        setupDeviceLink(true);
+                                    }
+                                };
+
+                                dataChannel.onerror = (event) => {
+                                    console.debug(
+                                        "[2nd] Data channel error",
+                                        event
+                                    );
+
+                                    // Clean up the WebRTC connection
+                                    tearDownLink();
+                                };
+                            };
+
+                            await _webRTConnection.setRemoteDescription(
+                                data.data as RTCSessionDescriptionInit
+                            );
+
+                            // Create an answer and set it as the local description
+                            const answer =
+                                await _webRTConnection.createAnswer();
+                            await _webRTConnection.setLocalDescription(answer);
+
+                            // Send the answer to the other device
+                            channel.trigger(commonEventName, {
+                                type: "answer",
+                                data: answer,
+                            } as PusherSignalingMessagesType);
+
+                            console.debug("Answer sent", answer);
+                        }
+                    }
+                }
+            );
+
+            // When the other device connects, send an offer if we are the first to connect
+            // This only triggers if we are the first to connect
+            channel.bind(
+                "pusher:member_added",
+                async (osDevice: { id: string }) => {
+                    if (!_webRTConnection) {
+                        console.error(
+                            "[Member] WebRTC connection not initialized"
+                        );
+                        return;
+                    }
+
+                    console.debug("Other device connected", osDevice);
+
+                    // Create an offer and set it as the local description
+                    const offer = await _webRTConnection.createOffer();
+                    await _webRTConnection.setLocalDescription(offer);
+
+                    const dataToSend = _webRTConnection.localDescription;
+
+                    channel.trigger(commonEventName, {
+                        type: "offer",
+                        data: offer,
+                    } as PusherSignalingMessagesType);
+
+                    console.debug("Offer sent", dataToSend);
+                }
+            );
+        };
+
         const lastSynced = device.LastSync
             ? dayjs(device.LastSync).fromNow()
             : "Never synced";
 
+        useEffect(() => {
+            // If we manage to connect to online services, we can try to trigger the direct connection setup
+            if (onlineServicesStatus === OnlineServicesStatus.Connected) {
+                setupDeviceLink();
+            }
+        }, [onlineServicesStatus]);
+
         return (
             <div
+                key={`device-${device.ID}-${webRTConnection.State}`}
                 className="mr-2 mt-1 flex flex-col gap-2 rounded-md border border-slate-700"
                 onContextMenu={(e) => {
                     e.preventDefault();
@@ -8671,14 +8590,45 @@ const DashboardSidebarSynchronization: React.FC<{
                                     "flex h-full items-center rounded border px-1 text-xs capitalize":
                                         true,
                                     "border-green-500/50 text-green-500":
-                                        directConnectionEstablished,
+                                        webRTConnection.State ===
+                                        Synchronization.LinkStatus.Connected,
                                     "border-red-500/50 text-red-500":
-                                        !directConnectionEstablished,
+                                        webRTConnection.State ===
+                                            Synchronization.LinkStatus
+                                                .Disconnected ||
+                                        webRTConnection.State ===
+                                            Synchronization.LinkStatus.Failure,
+                                    "border-yellow-500/50 text-yellow-500":
+                                        webRTConnection.State ===
+                                            Synchronization.LinkStatus
+                                                .Connecting ||
+                                        webRTConnection.State ===
+                                            Synchronization.LinkStatus
+                                                .WaitingForDevice,
                                 })}
                             >
-                                {directConnectionEstablished
-                                    ? "Connected"
-                                    : "Disconnected"}
+                                {webRTConnection.State ===
+                                    Synchronization.LinkStatus.Connected &&
+                                    "Connected"}
+                                {webRTConnection.State ===
+                                    Synchronization.LinkStatus.Connecting && (
+                                    <span className="ml-1 animate-pulse">
+                                        Connecting...
+                                    </span>
+                                )}
+                                {webRTConnection.State ===
+                                    Synchronization.LinkStatus
+                                        .WaitingForDevice && (
+                                    <span className="ml-1 animate-pulse">
+                                        Waiting for device...
+                                    </span>
+                                )}
+                                {webRTConnection.State ===
+                                    Synchronization.LinkStatus.Disconnected &&
+                                    "Disconnected"}
+                                {webRTConnection.State ===
+                                    Synchronization.LinkStatus.Failure &&
+                                    "Failure"}
                             </p>
                             {/* Last synchronization date */}
                             <p
@@ -8724,21 +8674,27 @@ const DashboardSidebarSynchronization: React.FC<{
                                         <Menu.Item key={index}>
                                             {({ active }) => {
                                                 const hoverClass = clsx({
-                                                    "bg-gray-900 text-white":
+                                                    "bg-gray-900 text-white select-none":
                                                         active &&
                                                         !option.disabled,
                                                     "flex px-4 py-2 text-sm font-semibold text-gray-200":
                                                         true,
-                                                    "cursor-auto opacity-50 pointer-events-none":
+                                                    "pointer-events-none opacity-50":
                                                         option.disabled,
+                                                    hidden: !option.visible,
                                                 });
                                                 return (
                                                     <a
                                                         className={hoverClass}
-                                                        onClick={() =>
-                                                            option.onClick(
-                                                                device
-                                                            )
+                                                        onClick={
+                                                            option.disabled
+                                                                ? () => {
+                                                                      // NO-OP
+                                                                  }
+                                                                : () =>
+                                                                      option.onClick(
+                                                                          device
+                                                                      )
                                                         }
                                                     >
                                                         {option.name}
@@ -8770,14 +8726,6 @@ const DashboardSidebarSynchronization: React.FC<{
 
             // Disconnect from the online services - if we're connected
             cleanupOnlineServices();
-
-            // Clean up all of the WebRTC connections individually
-            cleanupWebRTConnections();
-
-            // Clean up the manually disconnected devices
-            manuallyDisconnectedWebRTConnectionsRef.current = [];
-
-            setLinkedDevices([]);
         };
     }, []);
 
@@ -8799,22 +8747,48 @@ const DashboardSidebarSynchronization: React.FC<{
             /> */}
             <div className="mt-1 border-l-2 border-slate-500 pl-2">
                 <div className="flex items-center gap-1">
-                    <p className="text-sm text-slate-500">
-                        Online Services{" "}
-                        {unlockedVault.OnlineServices.LinkedDevices.length
-                            ? "-"
-                            : ""}
+                    <p className="text-sm text-slate-500">Online Services</p>
+                    <p className="text-sm text-slate-500"> - </p>
+                    <p
+                        className={clsx({
+                            "text-sm capitalize": true,
+                            "text-slate-500/50":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.NoAccount,
+                            "text-slate-500":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.NoDevices,
+                            "animate-pulse text-slate-500":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.Connecting,
+                            "text-green-500":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.Connected,
+                            "text-red-500":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.Disconnected,
+                            "text-orange-500":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.Unavailable,
+                            "text-red-500/50":
+                                onlineServicesStatus ===
+                                OnlineServicesStatus.Failure,
+                        })}
+                    >
+                        {onlineServicesStatus}
                     </p>
-                    {onlineServicesStatus}
                 </div>
-                {unlockedVault.OnlineServices.LinkedDevices.map(
-                    (device, index) => (
-                        <DeviceItem key={index} device={device} />
-                    )
-                )}
+                {unlockedVault.OnlineServices.LinkedDevices.map((device) => (
+                    <DeviceItem
+                        key={device.ID}
+                        device={device}
+                        onlineServices={unlockedVault.OnlineServices}
+                        onlineServicesStatus={onlineServicesStatus}
+                    />
+                ))}
                 {
                     // If there are no linked devices, show a message
-                    unlockedVault.OnlineServices.LinkedDevices.length === 0 && (
+                    onlineServicesStatus === OnlineServicesStatus.NoAccount && (
                         <p className="mt-2 text-center text-sm text-slate-500">
                             No linked devices - Link a device to synchronize
                         </p>
@@ -8916,16 +8890,12 @@ const DashboardSidebarMenuFeatureVoting: React.FC<{
 };
 
 //#region Vault dashboard
-const VaultDashboard: React.FC<{
-    vault: Vault | null;
-}> = ({ vault }) => {
+const VaultDashboard: React.FC = ({}) => {
     // console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-
-    // We use this so that we can force a rerender of the component/app
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const sidebarSelector = ".sidebar-event-selector";
@@ -8964,10 +8934,7 @@ const VaultDashboard: React.FC<{
         // No-op
     });
 
-    const lockVault = async (
-        vaultMetadata: VaultMetadata,
-        vaultInstance: Vault
-    ) => {
+    const lockVault = async (vaultMetadata: VaultMetadata) => {
         toast.info("Securing vault...", {
             autoClose: false,
             closeButton: false,
@@ -8978,30 +8945,37 @@ const VaultDashboard: React.FC<{
         // A little delay to make sure the toast is shown
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        try {
+        // NOTE: Why can't this just be an async function????
+        setUnlockedVault(async (pre) => {
+            if (!pre) return null;
+
             // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-            await vaultMetadata.save(vaultInstance);
-
-            toast.success("Vault secured.", {
-                autoClose: 3000,
-                closeButton: true,
-                toastId: "lock-vault",
-                updateId: "lock-vault",
-            });
-
-            setUnlockedVault(null);
-            setUnlockedVaultMetadata(null);
-        } catch (e) {
-            console.error(`Failed to save vault: ${e}`);
-            toast.error(
-                "Failed to save vault. There is a high possibility of data loss!",
-                {
+            // NOTE: This might not work, since we are not awaiting the save function
+            try {
+                await vaultMetadata.save(pre);
+                toast.success("Vault secured.", {
+                    autoClose: 3000,
                     closeButton: true,
                     toastId: "lock-vault",
                     updateId: "lock-vault",
-                }
-            );
-        }
+                });
+
+                setUnlockedVaultMetadata(null);
+            } catch (e) {
+                console.error(`Failed to save vault: ${e}`);
+                toast.error(
+                    "Failed to save vault. There is a high possibility of data loss!",
+                    {
+                        closeButton: true,
+                        toastId: "lock-vault",
+                        updateId: "lock-vault",
+                    }
+                );
+            }
+
+            // Clean up the unlocked vault - remove all data from the atom
+            return null;
+        });
     };
 
     useEffect(() => {
@@ -9016,7 +8990,7 @@ const VaultDashboard: React.FC<{
 
     // console.log("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
 
-    if (!vaultMetadata || !vault) return null;
+    if (!vaultMetadata) return null;
 
     // console.log("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
 
@@ -9110,7 +9084,7 @@ const VaultDashboard: React.FC<{
                             <DashboardSidebarMenuItem
                                 Icon={LockClosedIcon}
                                 text="Lock Vault"
-                                onClick={() => lockVault(vaultMetadata, vault)}
+                                onClick={() => lockVault(vaultMetadata)}
                             />
                         </div>
                     </div>
@@ -9143,7 +9117,6 @@ const VaultDashboard: React.FC<{
             <AccountSignUpSignInDialog
                 showDialogFnRef={showAccountSignUpSignInDialogRef}
                 vaultMetadata={vaultMetadata}
-                vault={vault}
             />
             <EmailNotVerifiedDialog />
             <CredentialsGeneratorDialog
@@ -9241,7 +9214,7 @@ const CredentialCard: React.FC<{
     onClick: () => void;
     showWarningDialog: WarningDialogShowFn;
 }> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
-    const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const { refs, floatingStyles } = useFloating({
@@ -9329,7 +9302,7 @@ const CredentialCard: React.FC<{
     options.push({
         Name: "Remove",
         onClick: async () => {
-            if (!unlockedVault || !unlockedVaultMetadata) return;
+            if (!unlockedVaultMetadata) return;
 
             showWarningDialogFn(
                 `You are about to remove the "${credential.Name}" credential.`,
@@ -9344,31 +9317,37 @@ const CredentialCard: React.FC<{
                     // A little delay to make sure the toast is shown
                     await new Promise((resolve) => setTimeout(resolve, 100));
 
-                    try {
+                    setUnlockedVault(async (pre) => {
+                        if (!pre) return null;
+
+                        const newVault = pre;
+
                         // Remove the credential from the vault
-                        await unlockedVault.deleteCredential(credential.ID);
-
-                        // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-                        await unlockedVaultMetadata.save(unlockedVault);
-
-                        toast.success("Credential removed.", {
-                            autoClose: 3000,
-                            closeButton: true,
-                            toastId: "remove-credential",
-                            updateId: "remove-credential",
-                        });
-                    } catch (e) {
-                        console.error(`Failed to save vault: ${e}`);
-                        toast.error(
-                            "Failed to save vault. There is a high possibility of data loss!",
-                            {
+                        await newVault.deleteCredential(credential.ID);
+                        try {
+                            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+                            await unlockedVaultMetadata.save(newVault);
+                            toast.success("Credential removed.", {
                                 autoClose: 3000,
                                 closeButton: true,
                                 toastId: "remove-credential",
                                 updateId: "remove-credential",
-                            }
-                        );
-                    }
+                            });
+                        } catch (e) {
+                            console.error(`Failed to save vault: ${e}`);
+                            toast.error(
+                                "Failed to save vault. There is a high possibility of data loss!",
+                                {
+                                    autoClose: 3000,
+                                    closeButton: true,
+                                    toastId: "remove-credential",
+                                    updateId: "remove-credential",
+                                }
+                            );
+                        }
+
+                        return newVault;
+                    });
                 },
                 null
             );
@@ -9512,7 +9491,9 @@ const CredentialsList: React.FC<{
     showWarningDialog,
     showCredentialsGeneratorDialogFn,
 }) => {
-    const vault = useAtomValue(unlockedVaultAtom);
+    useAtomsDebugValue();
+
+    const vaultCredentials = useAtomValue(unlockedVaultCredentialsAtom);
     const [filter, setFilter] = useState("");
 
     const selectedCredential = useRef<Credential.VaultCredential | undefined>(
@@ -9530,32 +9511,38 @@ const CredentialsList: React.FC<{
     });
 
     let filteredCredentials: Credential.VaultCredential[] = [];
-    if (vault) {
-        filteredCredentials = vault?.Credentials.sort((a, b) =>
-            a.Name.localeCompare(b.Name)
-        ).filter((credential) => {
-            if (filter === "") return true;
+    if (vaultCredentials) {
+        filteredCredentials = vaultCredentials
+            ?.sort((a, b) => a.Name.localeCompare(b.Name))
+            .filter((credential) => {
+                if (filter === "") return true;
 
-            if (credential.Name.toLowerCase().includes(filter.toLowerCase()))
-                return true;
+                if (
+                    credential.Name.toLowerCase().includes(filter.toLowerCase())
+                )
+                    return true;
 
-            if (
-                credential.Username.toLowerCase().includes(filter.toLowerCase())
-            )
-                return true;
+                if (
+                    credential.Username.toLowerCase().includes(
+                        filter.toLowerCase()
+                    )
+                )
+                    return true;
 
-            if (credential.URL.toLowerCase().includes(filter.toLowerCase()))
-                return true;
+                if (credential.URL.toLowerCase().includes(filter.toLowerCase()))
+                    return true;
 
-            return false;
-        });
+                return false;
+            });
     }
+
+    console.debug("Credentials list rerender");
 
     return (
         <>
             <SearchBar filter={setFilter} />
             <div className="my-5 flex h-px w-full flex-grow justify-center overflow-y-auto overflow-x-hidden px-5">
-                {!vault ||
+                {!vaultCredentials ||
                     (filteredCredentials.length === 0 && (
                         <div className="flex flex-grow flex-col items-center justify-center">
                             <p className="text-2xl font-bold text-slate-50">
@@ -9575,7 +9562,7 @@ const CredentialsList: React.FC<{
                             )}
                         </div>
                     ))}
-                {vault && filteredCredentials.length > 0 && (
+                {vaultCredentials && filteredCredentials.length > 0 && (
                     <div className="flex w-full max-w-full flex-col gap-3 pb-3 2xl:max-w-7xl">
                         {filteredCredentials.map((credential) => (
                             <CredentialCard
@@ -9588,7 +9575,7 @@ const CredentialsList: React.FC<{
                     </div>
                 )}
             </div>
-            {vault && vault.Credentials.length > 0 && (
+            {vaultCredentials && vaultCredentials.length > 0 && (
                 <div className="flex w-full flex-grow-0 items-center justify-center border-t border-slate-700 px-2 py-1">
                     {filter.length > 0 && (
                         <p className="text-slate-400">
@@ -9597,14 +9584,13 @@ const CredentialsList: React.FC<{
                     )}
                     {filter.length === 0 && (
                         <p className="text-slate-400">
-                            Items loaded: {vault.Credentials.length}
+                            Items loaded: {vaultCredentials.length}
                         </p>
                     )}
                 </div>
             )}
             <CredentialDialog
                 showDialogFnRef={showCredentialsDialogRef}
-                vault={vault}
                 selected={selectedCredential}
                 showCredentialsGeneratorDialogFn={
                     showCredentialsGeneratorDialogFn
@@ -9617,17 +9603,22 @@ const CredentialsList: React.FC<{
 //#endregion Vault dashboard
 
 const AppIndex: React.FC = () => {
-    const vaults = useLiveQuery(() => VaultStorage.db.vaults.toArray());
-    const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const isVaultUnlocked = useAtomValue(isVaultUnlockedAtom);
+    const webRTConnections = useSetAtom(webRTCConnectionsAtom);
 
     // TODO: Check for multiple rerenderings of this component
     // console.log("MAIN RERENDER", unlockedVault);
-
     // NOTE: To implement a loading screen, we can use the !vaults check
 
-    const parsedVaults = vaults?.map((metadata) => {
-        return VaultMetadata.decodeMetadataBinary(metadata.data, metadata.id);
-    });
+    useEffect(() => {
+        return () => {
+            // Clean up all of the WebRTC connections individually
+            webRTConnections((pre) => {
+                pre.cleanup();
+                return pre;
+            });
+        };
+    }, [isVaultUnlocked]);
 
     return (
         <SessionProvider refetchWhenOffline={false} refetchInterval={60 * 60}>
@@ -9648,13 +9639,11 @@ const AppIndex: React.FC = () => {
                     </div>
                 )} */}
 
-                <VaultDashboard vault={unlockedVault} />
+                <VaultDashboard />
 
                 {
                     // If the vault is not unlocked, show the welcome screen
-                    !unlockedVault && parsedVaults && (
-                        <WelcomeScreen encryptedVaults={parsedVaults} />
-                    )
+                    !isVaultUnlocked && <WelcomeScreen />
                 }
             </HTMLMain>
             <NotificationContainer pauseOnHover={false} />

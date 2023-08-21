@@ -6,7 +6,10 @@ export const FormSelectboxField: React.FC<{
 }> = ({ register, options }) => {
     return (
         <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
-            <select className="w-full bg-gray-200 text-gray-900" {...register}>
+            <select
+                className="w-full truncate bg-gray-200 text-gray-900"
+                {...register}
+            >
                 {options.map((option) => (
                     <option key={option} value={option}>
                         {option}

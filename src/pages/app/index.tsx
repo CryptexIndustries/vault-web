@@ -3839,7 +3839,7 @@ const ImportDataDialog: React.FC<{
     };
 
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const {
@@ -3897,7 +3897,7 @@ const ImportDataDialog: React.FC<{
         }
         unlockedVaultMetadata?.save(vault);
 
-        setUnlockedVault(vault);
+        setUnlockedVault(async () => vault);
 
         toast.success(
             `Successfully imported ${credentials.length} credentials.`
@@ -3958,28 +3958,38 @@ const ImportDataDialog: React.FC<{
         setIsOperationInProgress(true);
 
         console.debug("CSV import form data:", formData);
-        await Import.CSV(
-            selectedFileRef.current,
-            formData,
-            async (credentials) => {
-                console.debug("Import result", credentials);
+        try {
+            await Import.CSV(
+                selectedFileRef.current,
+                formData,
+                async (credentials) => {
+                    console.debug("Import result", credentials);
 
-                if (credentials.length) {
-                    await importCredentials(credentials);
-                } else {
-                    toast.warn("CSV file doesn't contain any data.");
+                    if (credentials.length) {
+                        await importCredentials(credentials);
+                    } else {
+                        toast.warn("CSV file doesn't contain any data.");
+                    }
+
+                    setIsOperationInProgress(false);
+                },
+                (error) => {
+                    console.error("Error importing CSV file", error);
+                    toast.error(
+                        "Failed to import CSV file. More details in the console."
+                    );
+                    setIsOperationInProgress(false);
                 }
-
-                setIsOperationInProgress(false);
-            },
-            (error) => {
-                console.error("Error importing CSV file", error);
-                toast.error(
-                    "Failed to import CSV file. More details in the console."
-                );
-                setIsOperationInProgress(false);
-            }
-        );
+            );
+        } catch (error) {
+            console.error(
+                "Fatal error while parsing the provided CSV file",
+                error
+            );
+            toast.error(
+                "Failed to parse CSV file. More details in the console."
+            );
+        }
     };
 
     const parseBitwardenExport = async () => {
@@ -4075,7 +4085,7 @@ const ImportDataDialog: React.FC<{
                 {
                     // If the import type is selected, show the import screen
                     importType == Import.Type.GenericCSV && (
-                        <div className="flex w-full flex-col">
+                        <div className="flex w-full flex-col overflow-hidden">
                             <p className="mb-2 text-center text-base text-gray-600">
                                 Approximately match the values in the select
                                 boxes to the labels above them.
@@ -4089,18 +4099,20 @@ const ImportDataDialog: React.FC<{
                                 onSubmit={handleSubmit(submitGenericCSVImport)}
                                 className="flex w-full flex-wrap justify-between gap-2"
                             >
-                                {Import.PossibleFields.map((field, index) => (
-                                    <div key={index} className="min-w-1/2">
-                                        <label className="text-gray-600">
-                                            {field}
-                                        </label>
-                                        {/* <input {...register(field)} /> */}
-                                        <FormSelectboxField
-                                            options={parsedColumns.current}
-                                            register={register(field)}
-                                        />
-                                    </div>
-                                ))}
+                                {Import.PossibleFields.map(
+                                    ({ fieldText, field }, index) => (
+                                        <div key={index} className="w-[45%]">
+                                            <label className="text-gray-600">
+                                                {fieldText}
+                                            </label>
+                                            <FormSelectboxField
+                                                options={parsedColumns.current}
+                                                register={register(field)}
+                                            />
+                                        </div>
+                                    )
+                                )}
+
                                 <div className="mt-2 flex w-full flex-col rounded border border-gray-200 p-2">
                                     <p className="mb-2 text-2xl text-gray-600">
                                         Additional Configuration

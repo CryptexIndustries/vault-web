@@ -1045,18 +1045,19 @@ export namespace Import {
         | "DateCreated"
         | "DateModified"
         | "DatePasswordChanged";
-    export const PossibleFields: Fields[] = [
-        "Name",
-        "Username",
-        "Password",
-        "TOTP",
-        "Tags",
-        "URL",
-        "Notes",
-        "DateCreated",
-        "DateModified",
-        "DatePasswordChanged",
+    export const PossibleFields: Array<{ fieldText: string; field: Fields }> = [
+        { fieldText: "Name", field: "Name" },
+        { fieldText: "Username", field: "Username" },
+        { fieldText: "Password", field: "Password" },
+        { fieldText: "2FA Secret", field: "TOTP" },
+        { fieldText: "Tags", field: "Tags" },
+        { fieldText: "URL", field: "URL" },
+        { fieldText: "Notes", field: "Notes" },
+        { fieldText: "DateCreated", field: "DateCreated" },
+        { fieldText: "DateModified", field: "DateModified" },
+        { fieldText: "DatePasswordChanged", field: "DatePasswordChanged" },
     ];
+
     export const FieldsSchema = z.object({
         Name: z.string().nullable(),
         Username: z.string().nullable(),
@@ -1167,78 +1168,105 @@ export namespace Import {
 
                 const credentials: Credential.CredentialFormSchemaType[] = [];
 
-                for (const row of results.data as FieldsSchemaType[]) {
-                    const credential: Credential.CredentialFormSchemaType = {
-                        ID: null,
-                    };
+                try {
+                    for (const row of results.data as FieldsSchemaType[]) {
+                        const credential: Credential.CredentialFormSchemaType =
+                            {
+                                ID: null,
+                            };
 
-                    credential.Name =
-                        row[(fields.Name as keyof FieldsSchemaType) ?? ""] ??
-                        "Import";
-                    credential.Username =
-                        row[
-                            (fields.Username as keyof FieldsSchemaType) ?? ""
-                        ] ?? undefined;
-                    credential.Password =
-                        row[
-                            (fields.Password as keyof FieldsSchemaType) ?? ""
-                        ] ?? undefined;
+                        credential.Name =
+                            row[
+                                (fields.Name as keyof FieldsSchemaType) ?? ""
+                            ] ?? "Import";
+                        credential.Username =
+                            row[
+                                (fields.Username as keyof FieldsSchemaType) ??
+                                    ""
+                            ] ?? undefined;
+                        credential.Password =
+                            row[
+                                (fields.Password as keyof FieldsSchemaType) ??
+                                    ""
+                            ] ?? undefined;
 
-                    credential.Tags = (
-                        row[(fields.Tags as keyof FieldsSchemaType) ?? ""] ?? ""
-                    )
-                        .split(fields.TagDelimiter ?? ",")
-                        .join(Credential.TAG_SEPARATOR);
+                        credential.Tags = (
+                            row[
+                                (fields.Tags as keyof FieldsSchemaType) ?? ""
+                            ] ?? ""
+                        )
+                            .split(fields.TagDelimiter ?? ",")
+                            .join(Credential.TAG_SEPARATOR);
 
-                    credential.URL =
-                        row[(fields.URL as keyof FieldsSchemaType) ?? ""] ??
-                        undefined;
+                        credential.URL =
+                            row[(fields.URL as keyof FieldsSchemaType) ?? ""] ??
+                            undefined;
 
-                    credential.Notes =
-                        row[(fields.Notes as keyof FieldsSchemaType) ?? ""] ??
-                        undefined;
+                        credential.Notes =
+                            row[
+                                (fields.Notes as keyof FieldsSchemaType) ?? ""
+                            ] ?? undefined;
 
-                    // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
-                    credential.DateCreated = fields.DateCreated
-                        ? new Date(
-                              row[
-                                  fields.DateCreated as keyof FieldsSchemaType
-                              ] ?? Date.now()
-                          ).toISOString()
-                        : undefined;
+                        let _dateCreated: string | number | null =
+                            row[fields.DateCreated as keyof FieldsSchemaType];
+                        // Check if the dateCreated is actually a number as a string - if it is, convert it to a proper number
+                        if (_dateCreated && !isNaN(Number(_dateCreated))) {
+                            _dateCreated = Number(_dateCreated);
+                        }
 
-                    credential.DateModified = fields.DateModified
-                        ? new Date(
-                              row[
-                                  (fields.DateModified as keyof FieldsSchemaType) ??
-                                      ""
-                              ] ?? ""
-                          ).toISOString()
-                        : undefined;
+                        // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
+                        credential.DateCreated = fields.DateCreated
+                            ? new Date(_dateCreated ?? Date.now()).toISOString()
+                            : undefined;
 
-                    credential.DatePasswordChanged = fields.DatePasswordChanged
-                        ? new Date(
-                              row[
-                                  (fields.DatePasswordChanged as keyof FieldsSchemaType) ??
-                                      ""
-                              ] ?? ""
-                          ).toISOString()
-                        : undefined;
+                        let _dateModified: string | number | null =
+                            row[fields.DateModified as keyof FieldsSchemaType];
+                        // Check if the dateModified is actually a number as a string - if it is, convert it to a proper number
+                        if (_dateModified && !isNaN(Number(_dateModified))) {
+                            _dateModified = Number(_dateModified);
+                        }
 
-                    if (
-                        fields.TOTP &&
-                        row[fields.TOTP as keyof FieldsSchemaType]
-                    ) {
-                        credential.TOTP = new Credential.TOTP();
-                        credential.TOTP.Secret =
-                            row[fields.TOTP as keyof FieldsSchemaType] ?? "";
+                        credential.DateModified = fields.DateModified
+                            ? new Date(_dateModified ?? "").toISOString()
+                            : undefined;
+
+                        let _datePasswordChanged: string | number | null =
+                            row[
+                                fields.DatePasswordChanged as keyof FieldsSchemaType
+                            ];
+                        // Check if the datePasswordChanged is actually a number as a string - if it is, convert it to a proper number
+                        if (
+                            _datePasswordChanged &&
+                            !isNaN(Number(_datePasswordChanged))
+                        ) {
+                            _datePasswordChanged = Number(_datePasswordChanged);
+                        }
+
+                        credential.DatePasswordChanged =
+                            fields.DatePasswordChanged
+                                ? new Date(
+                                      _datePasswordChanged ?? ""
+                                  ).toISOString()
+                                : undefined;
+
+                        if (
+                            fields.TOTP &&
+                            row[fields.TOTP as keyof FieldsSchemaType]
+                        ) {
+                            credential.TOTP = new Credential.TOTP();
+                            credential.TOTP.Secret =
+                                row[fields.TOTP as keyof FieldsSchemaType] ??
+                                "";
+                        }
+
+                        credentials.push(credential);
                     }
 
-                    credentials.push(credential);
+                    // Call the onSuccess callback
+                    await onSuccess(credentials);
+                } catch (error) {
+                    onFailure(error as Error);
                 }
-
-                // Call the onSuccess callback
-                await onSuccess(credentials);
             },
             error: function (error) {
                 // Call the onFailure callback

@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
-import { ArrowPathIcon } from "@heroicons/react/20/solid";
+import { ArrowPathIcon, KeyIcon } from "@heroicons/react/20/solid";
 
 import { Body, Footer, GenericModal } from "../general/modal";
 import { ButtonFlat, ButtonType } from "../general/buttons";
@@ -299,5 +299,17 @@ export const CredentialsGeneratorDialog: React.FC<{
                 />
             </Footer>
         </GenericModal>
+    );
+};
+
+export const ShowCredentialsGeneratorButton: React.FC<{
+    fnRef: React.MutableRefObject<() => void>;
+}> = ({ fnRef: openCredentialsGeneratorDialogFnRef }) => {
+    return (
+        <KeyIcon
+            className="mx-2 h-5 w-5 flex-grow-0 cursor-pointer text-slate-400 hover:text-slate-500"
+            title="Generate credentials"
+            onClick={openCredentialsGeneratorDialogFnRef.current}
+        />
     );
 };

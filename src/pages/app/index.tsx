@@ -115,6 +115,7 @@ import {
     FormSelectboxField,
     FormNumberInputField,
     FormTextAreaField,
+    ClipboardButton,
 } from "../../components/general/inputFields";
 import {
     DivergenceSolveDialog,
@@ -845,13 +846,10 @@ const UnlockVaultDialog: React.FC<{
                                     field: { onChange, onBlur, value },
                                 }) => (
                                     <>
-                                        <label className="text-gray-600">
-                                            Secret *
-                                        </label>
-                                        <input
+                                        <FormInputField
+                                            label="Secret *"
                                             type="password"
                                             autoCapitalize="none"
-                                            className="mt-1 rounded-md bg-gray-200 px-4 py-2 text-gray-900"
                                             onKeyDown={(e) => {
                                                 if (e.key === "Enter") {
                                                     handleSubmit(onSubmit)();
@@ -1137,7 +1135,8 @@ const CreateVaultDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     mode: CreateVaultDialogMode;
     vaultInstance: React.MutableRefObject<Vault | undefined>;
-}> = ({ visibleState }) => {
+    showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
+}> = ({ visibleState, showCredentialsGeneratorDialogFn }) => {
     const [dev_seedVault, setdev_seedVault] = useState(false);
     const dev_seedCount = useRef<number>(100);
 
@@ -1337,6 +1336,9 @@ const CreateVaultDialog: React.FC<{
                                             type="text"
                                             placeholder="E.g. My super secr3t p4ssphrase"
                                             autoCapitalize="none"
+                                            credentialsGeneratorFnRef={
+                                                showCredentialsGeneratorDialogFn
+                                            }
                                             onChange={onChange}
                                             onBlur={onBlur}
                                             value={value}
@@ -2302,6 +2304,10 @@ const WelcomeScreen: React.FC = ({}) => {
     const restoreVaultDialogVisible = useState(false);
     const showRestoreVaultDialog = () => restoreVaultDialogVisible[1](true);
 
+    const showCredentialsGeneratorDialogFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+
     const actionButtons: ActionButton[] = [
         {
             Name: "Create Vault",
@@ -2436,6 +2442,9 @@ const WelcomeScreen: React.FC = ({}) => {
                 visibleState={createVaultDialogVisible}
                 mode={createVaultDialogMode}
                 vaultInstance={createVaultDialogVaultInstance}
+                showCredentialsGeneratorDialogFn={
+                    showCredentialsGeneratorDialogFnRef
+                }
             />
             <LinkDeviceOutsideVaultDialog
                 showDialogFnRef={deviceLinkingDialogShowDialogFnRef}
@@ -2444,6 +2453,9 @@ const WelcomeScreen: React.FC = ({}) => {
             <UnlockVaultDialog
                 visibleState={unlockVaultDialogVisible}
                 selected={selectedVault}
+            />
+            <CredentialsGeneratorDialog
+                showDialogFnRef={showCredentialsGeneratorDialogFnRef}
             />
             <WarningDialog showFnRef={showWarningDialogFnRef} />
         </>
@@ -4756,39 +4768,6 @@ const CredentialDialog: React.FC<{
 
     // const setUnlockedVault = useSetAtom(unlockedVaultAtom);
 
-    const saveToClipboard = async (value?: string) => {
-        if (!value) return;
-        await navigator.clipboard.writeText(value);
-        toast.info("Copied to clipboard");
-    };
-
-    const ShowCredentialsGeneratorButton = () => {
-        return (
-            <KeyIcon
-                className="mx-2 h-5 w-5 flex-grow-0 cursor-pointer text-slate-400 hover:text-slate-500"
-                title="Generate credentials"
-                onClick={() => showCredentialsGeneratorDialogFn.current()}
-            />
-        );
-    };
-
-    const ClipboardButton = ({ value }: { value?: string }) => {
-        return (
-            <ClipboardDocumentIcon
-                className="mx-2 h-5 w-5 flex-grow-0 cursor-pointer text-slate-400 hover:text-slate-500"
-                style={{
-                    // display: value ? "block" : "none",
-                    // If the value is empty, set opacity to 50%
-                    opacity: value ? 1 : 0.5,
-                    pointerEvents: value ? "auto" : "none",
-                }}
-                aria-hidden="true"
-                title="Copy to clipboard"
-                onClick={() => saveToClipboard(value)}
-            />
-        );
-    };
-
     const TagBox: React.FC<{
         value: string | undefined;
         onChange: (tags: string) => void;
@@ -5126,21 +5105,15 @@ const CredentialDialog: React.FC<{
                                     field: { onChange, onBlur, value, ref },
                                 }) => (
                                     <>
-                                        <label className="text-gray-600">
-                                            Username
-                                        </label>
-                                        <div className="flex flex-row items-center">
-                                            <input
-                                                ref={ref}
-                                                type="text"
-                                                autoCapitalize="none"
-                                                className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                                                onChange={onChange}
-                                                onBlur={onBlur}
-                                                value={value}
-                                            />
-                                            <ClipboardButton value={value} />
-                                        </div>
+                                        <FormInputField
+                                            label="Username"
+                                            type="text"
+                                            autoCapitalize="none"
+                                            clipboardButton={true}
+                                            onChange={onChange}
+                                            onBlur={onBlur}
+                                            value={value}
+                                        />
                                     </>
                                 )}
                             />
@@ -5158,22 +5131,19 @@ const CredentialDialog: React.FC<{
                                     field: { onChange, onBlur, value },
                                 }) => (
                                     <>
-                                        <label className="text-gray-600">
-                                            Password
-                                        </label>
-                                        <div className="flex flex-row items-center">
-                                            <input
-                                                type="password"
-                                                autoCapitalize="none"
-                                                className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                                                onChange={onChange}
-                                                onBlur={onBlur}
-                                                value={value}
-                                            />
-                                            <ShowCredentialsGeneratorButton />
-                                            <ClipboardButton value={value} />
-                                        </div>
                                         {/* <EntropyCalculator value={value} /> */}
+                                        <FormInputField
+                                            label="Password"
+                                            type="password"
+                                            autoCapitalize="none"
+                                            clipboardButton={true}
+                                            credentialsGeneratorFnRef={
+                                                showCredentialsGeneratorDialogFn
+                                            }
+                                            onChange={onChange}
+                                            onBlur={onBlur}
+                                            value={value}
+                                        />
                                     </>
                                 )}
                             />
@@ -5268,21 +5238,20 @@ const CredentialDialog: React.FC<{
                                     field: { onChange, onBlur, value },
                                 }) => (
                                     <>
-                                        <label className="text-gray-600">
-                                            Website (URL)
-                                        </label>
-                                        <div className="flex flex-row items-center">
-                                            <input
-                                                type="text"
-                                                autoCapitalize="none"
-                                                className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                                                onChange={onChange}
-                                                onBlur={onBlur}
-                                                value={value}
-                                            />
-                                            <ClipboardButton value={value} />
-                                            <OpenInNewTabButton value={value} />
-                                        </div>
+                                        <FormInputField
+                                            label="Website (URL)"
+                                            type="url"
+                                            autoCapitalize="none"
+                                            clipboardButton={true}
+                                            additionalButtons={
+                                                <OpenInNewTabButton
+                                                    value={value}
+                                                />
+                                            }
+                                            onChange={onChange}
+                                            onBlur={onBlur}
+                                            value={value}
+                                        />
                                     </>
                                 )}
                             />

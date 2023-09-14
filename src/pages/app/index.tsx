@@ -4203,10 +4203,6 @@ const VaultSettingsDialog: React.FC<{
         }
     };
     showDialogFnRef.current = () => {
-        if (!unlockedVault) {
-            return;
-        }
-
         setVisibleState(true);
     };
 
@@ -4226,10 +4222,6 @@ const VaultSettingsDialog: React.FC<{
             `You are about to clear the sync list. This has to be done manually on all linked devices while disconnected from one another.`,
             () => {
                 // Clear the sync list
-                if (!unlockedVault) {
-                    return;
-                }
-
                 setIsLoading(true);
                 setUnlockedVault((prev) => {
                     if (prev != null) {
@@ -4259,7 +4251,11 @@ const VaultSettingsDialog: React.FC<{
                 throw new Error("Vault metadata or blob cannot be null.");
             }
 
-            await Backup.trigger(Backup.Type.Manual, vaultMetadata.Blob);
+            await Backup.trigger(
+                Backup.Type.Manual,
+                unlockedVault,
+                vaultMetadata.Blob
+            );
 
             toast.success("Vault backup complete", {
                 autoClose: 3000,
@@ -4280,7 +4276,7 @@ const VaultSettingsDialog: React.FC<{
         setIsLoading(false);
     };
 
-    if (!vaultMetadata || !unlockedVault) {
+    if (!vaultMetadata) {
         return null;
     }
 

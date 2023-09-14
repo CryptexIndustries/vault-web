@@ -119,7 +119,7 @@ export namespace VaultEncryption {
         typeof unlockVaultFormSchema
     >;
 
-    export class EncryptedBlob implements VaultEncryption.EncryptedBlob {
+    export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
         public Algorithm: VaultUtilTypes.EncryptionAlgorithm;
         public KeyDerivationFunc: VaultUtilTypes.KeyDerivationFunction;
         public KDFConfigArgon2ID:
@@ -758,10 +758,36 @@ export namespace Backup {
 
     export const trigger = async (
         type: Type,
-        vaultBlob: VaultEncryption.EncryptedBlob
+        vaultInstance: Vault,
+        existingEncryptedBlob: VaultEncryption.EncryptedBlob
     ): Promise<void> => {
+        // Clone the vault instance and remove the online services
+        // NOTE: Need to clone the OnlineServicesAccount object too because it still has a reference to the vault instance
+        const cleanVault = Object.assign(new Vault(), vaultInstance);
+        const cleanOnlineServices = Object.assign(
+            new OnlineServicesAccount(),
+            vaultInstance.OnlineServices
+        );
+        cleanVault.OnlineServices = cleanOnlineServices;
+
+        cleanVault.OnlineServices.unbindAccount();
+
+        // Serialize the vault instance
+        const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();
+
+        // Encrypt the vault using the configured encryption
+        const encryptedBlob = await VaultEncryption.EncryptDataBlob(
+            _vaultBytes,
+            cleanVault.Secret,
+            existingEncryptedBlob.Algorithm,
+            existingEncryptedBlob.KeyDerivationFunc,
+            existingEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+            existingEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+        );
+
         if (type === Type.Manual) {
-            await manualBackup(await vaultBlob.toString());
+            // Serialize the encrypted blob and trigger the manual backup
+            await manualBackup(await encryptedBlob.toString());
         } else {
             throw new Error("Not implemented");
         }
@@ -1851,6 +1877,8 @@ export class OnlineServicesAccount
         this.UserID = undefined;
         this.PublicKey = undefined;
         this.PrivateKey = undefined;
+        this.CreationTimestamp = Date.now();
+        this.LinkedDevices = [];
     }
 
     public isBound(): boolean {

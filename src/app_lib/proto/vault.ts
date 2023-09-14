@@ -1,4 +1,5 @@
 /* eslint-disable */
+import Long from "long";
 import _m0 from "protobufjs/minimal";
 
 export const protobufPackage = "VaultUtilTypes";
@@ -1000,7 +1001,7 @@ export const OnlineServices = {
             writer.uint32(26).string(message.PrivateKey);
         }
         if (message.CreationTimestamp !== 0) {
-            writer.uint32(32).int32(message.CreationTimestamp);
+            writer.uint32(32).int64(message.CreationTimestamp);
         }
         for (const v of message.LinkedDevices) {
             LinkedDevice.encode(v!, writer.uint32(42).fork()).ldelim();
@@ -1042,7 +1043,9 @@ export const OnlineServices = {
                         break;
                     }
 
-                    message.CreationTimestamp = reader.int32();
+                    message.CreationTimestamp = longToNumber(
+                        reader.int64() as Long
+                    );
                     continue;
                 case 5:
                     if (tag !== 42) {
@@ -1907,6 +1910,25 @@ export const DiffChange = {
     },
 };
 
+declare const self: any | undefined;
+declare const window: any | undefined;
+declare const global: any | undefined;
+const tsProtoGlobalThis: any = (() => {
+    if (typeof globalThis !== "undefined") {
+        return globalThis;
+    }
+    if (typeof self !== "undefined") {
+        return self;
+    }
+    if (typeof window !== "undefined") {
+        return window;
+    }
+    if (typeof global !== "undefined") {
+        return global;
+    }
+    throw "Unable to locate global object";
+})();
+
 type Builtin =
     | Date
     | Function
@@ -1936,3 +1958,17 @@ export type Exact<P, I extends P> = P extends Builtin
     : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
           [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
       };
+
+function longToNumber(long: Long): number {
+    if (long.gt(Number.MAX_SAFE_INTEGER)) {
+        throw new tsProtoGlobalThis.Error(
+            "Value is larger than Number.MAX_SAFE_INTEGER"
+        );
+    }
+    return long.toNumber();
+}
+
+if (_m0.util.Long !== Long) {
+    _m0.util.Long = Long as any;
+    _m0.configure();
+}

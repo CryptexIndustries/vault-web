@@ -95,7 +95,7 @@ message OnlineServices {
     optional string UserID = 1;
     optional string PublicKey = 2;
     optional string PrivateKey = 3;
-    int32 CreationTimestamp = 4;
+    int64 CreationTimestamp = 4;
 
     repeated LinkedDevice LinkedDevices = 5;
 }

@@ -522,8 +522,8 @@ const Index: NextPage = ({}) => {
                                                 }
                                             />
                                             <PricingFeatureItem
-                                                title="A Secure Vault"
-                                                description="This is where you save your credentials (passwords and other secrets)."
+                                                title="Unlimited secure vaults"
+                                                description="You get unlimited vaults in which you can save credentials."
                                                 visibleID={
                                                     tierCardFeatureInfoVisible
                                                 }

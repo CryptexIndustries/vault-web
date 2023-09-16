@@ -120,6 +120,7 @@ export namespace VaultEncryption {
     >;
 
     export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
+        public Version: number;
         public Algorithm: VaultUtilTypes.EncryptionAlgorithm;
         public KeyDerivationFunc: VaultUtilTypes.KeyDerivationFunction;
         public KDFConfigArgon2ID:
@@ -141,6 +142,7 @@ export namespace VaultEncryption {
             salt: string,
             headerIV: string
         ) {
+            this.Version = 1;
             this.Algorithm = algorithm;
             this.KeyDerivationFunc = keyDerivationFunc;
             this.KDFConfigArgon2ID = kdfConfigArgon2ID ?? undefined;
@@ -167,104 +169,21 @@ export namespace VaultEncryption {
             );
         }
 
-        /**
-         * Seralizes the EncryptedBlob object into a JSON string.
-         * This is used when creating a backup of the vault.
-         * @returns A JSON string representation of the EncryptedBlob object
-         */
-        public async toString(): Promise<string> {
-            return JSON.stringify({
-                Version: 1,
-                Algorithm: this.Algorithm,
-                KeyDerivationFunc: this.KeyDerivationFunc,
-                KeyDerivationFuncConfig:
-                    this.KeyDerivationFunc ===
-                    VaultUtilTypes.KeyDerivationFunction.Argon2ID
-                        ? this.KDFConfigArgon2ID
-                        : this.KDFConfigPBKDF2,
-                Blob: Buffer.from(this.Blob).toString("base64"),
-                Salt: this.Salt,
-                HeaderIV: this.HeaderIV,
-            });
-        }
-
-        /**
-         * Creates an EncryptedBlob object from a JSON string.
-         * This is mainly used when restoring a vault from a JSON file.
-         * @param data The JSON string to parse
-         * @returns An EncryptedBlob object
-         * @throws Error if the JSON string is invalid
-         */
-        public static async FromJSON(data: string): Promise<EncryptedBlob> {
-            const obj = JSON.parse(data);
-
-            // Check if the object is valid
-            if (
-                !obj.hasOwnProperty("Algorithm") ||
-                !obj.hasOwnProperty("KeyDerivationFunc") ||
-                !obj.hasOwnProperty("KeyDerivationFuncConfig") ||
-                !obj.hasOwnProperty("Blob") ||
-                !obj.hasOwnProperty("Salt") ||
-                !obj.hasOwnProperty("HeaderIV")
-            ) {
-                throw new Error("Invalid object. Parsing failed.");
-            }
-
-            // Extract the algorithm
-            if (
-                obj.Algorithm !== VaultUtilTypes.EncryptionAlgorithm.AES256 &&
-                obj.Algorithm !==
-                    VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305
-            ) {
-                throw new Error("Invalid algorithm. Parsing failed.");
-            }
-
-            // Extract the key derivation function
-            if (
-                obj.KeyDerivationFunc !==
-                    VaultUtilTypes.KeyDerivationFunction.Argon2ID &&
-                obj.KeyDerivationFunc !==
-                    VaultUtilTypes.KeyDerivationFunction.PBKDF2
-            ) {
-                throw new Error(
-                    "Invalid key derivation function. Parsing failed."
-                );
-            }
-
-            let keyDerivationFuncConfig:
-                | VaultUtilTypes.KeyDerivationConfigArgon2ID
-                | VaultUtilTypes.KeyDerivationConfigPBKDF2;
-
-            // Extract the key derivation function config
-            if (
-                obj.KeyDerivationFunc ===
-                VaultUtilTypes.KeyDerivationFunction.Argon2ID
-            ) {
-                keyDerivationFuncConfig = new KeyDerivationConfig_Argon2ID(
-                    obj.KeyDerivationFuncConfig.memLimit,
-                    obj.KeyDerivationFuncConfig.opsLimit
-                );
-            } else {
-                keyDerivationFuncConfig = new KeyDerivationConfig_PBKDF2(
-                    obj.keyDerivationFuncConfig.iterations
-                );
-            }
-
-            // Base64 decode the blob
-            const blob = Buffer.from(obj.Blob, "base64");
+        public static fromBinary(data: Uint8Array): EncryptedBlob {
+            const obj = VaultUtilTypes.EncryptedBlob.decode(data);
 
             return new EncryptedBlob(
                 obj.Algorithm,
                 obj.KeyDerivationFunc,
                 obj.KeyDerivationFunc ===
                 VaultUtilTypes.KeyDerivationFunction.Argon2ID
-                    ? (keyDerivationFuncConfig as VaultUtilTypes.KeyDerivationConfigArgon2ID)
+                    ? (obj.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID)
                     : null,
                 obj.KeyDerivationFunc ===
                 VaultUtilTypes.KeyDerivationFunction.PBKDF2
-                    ? (keyDerivationFuncConfig as VaultUtilTypes.KeyDerivationConfigPBKDF2)
+                    ? (obj.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2)
                     : null,
-                blob,
+                obj.Blob,
                 obj.Salt,
                 obj.HeaderIV
             );
@@ -787,14 +706,18 @@ export namespace Backup {
 
         if (type === Type.Manual) {
             // Serialize the encrypted blob and trigger the manual backup
-            await manualBackup(await encryptedBlob.toString());
+            await manualBackup(encryptedBlob);
         } else {
             throw new Error("Not implemented");
         }
     };
 
-    const manualBackup = async (data: string): Promise<void> => {
-        const blob = new Blob([data], { type: "text/plain" });
+    const manualBackup = async (
+        encryptedBlob: VaultEncryption.EncryptedBlob
+    ) => {
+        const data =
+            VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish();
+        const blob = new Blob([data], { type: "application/octet-stream" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -802,255 +725,6 @@ export namespace Backup {
         a.click();
         URL.revokeObjectURL(url);
     };
-}
-
-export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
-    public Version: number;
-    public DBIndex?: number;
-
-    public Name: string;
-    public Description: string;
-    public CreatedAt: string;
-    public LastUsed: string | undefined;
-    public Blob: VaultEncryption.EncryptedBlob | undefined;
-
-    public Icon: string;
-    public Color: string;
-
-    constructor() {
-        // This is the schema version that this vault was created with
-        // This changes when the vault schema changes
-        this.Version = 1;
-        this.Name = "";
-        this.Description = "";
-        this.CreatedAt = new Date().toISOString();
-        this.LastUsed = undefined;
-        this.Blob = undefined;
-        this.Icon = "";
-        this.Color = "";
-    }
-
-    /**
-     * Creates a new vault with the given form data then saves it to the database
-     * @param formData Form data from the vault creation form
-     * @returns A new VaultMetadata object ready to be saved to the database
-     */
-    public static async createNewVault(
-        formData: NewVaultFormSchemaType,
-        seedVault = false,
-        seedCount = 0
-    ): Promise<VaultMetadata> {
-        const vaultMetadata = new VaultMetadata();
-
-        vaultMetadata.Name = formData.Name;
-        vaultMetadata.Description = formData.Description;
-        vaultMetadata.CreatedAt = new Date().toISOString();
-        vaultMetadata.LastUsed = undefined;
-
-        // Instantiate a new vault to encrypt
-        const freshVault = new Vault(formData.Secret, seedVault, seedCount);
-
-        // Serialize the vault instance
-        const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
-
-        // Encrypt the vault using default encryption
-        vaultMetadata.Blob = await VaultEncryption.EncryptDataBlob(
-            _vaultBytes,
-            formData.Secret,
-            formData.Encryption,
-            formData.EncryptionKeyDerivationFunction,
-            formData.EncryptionConfig, // TODO: Get this TF out of here
-            formData.EncryptionConfig // TODO: Move this too
-        );
-
-        return vaultMetadata;
-    }
-
-    /**
-     * Saves the vault manifest to the database.
-     * If the vault instance is not null, encrypt it, add it to the blob and save it to the database.
-     * If the vault instance is null, just save the existing blob to the database.
-     * @param vaultInstance The fresh vault instance to save to the database
-     */
-    public async save(vaultInstance: Vault | null): Promise<void> {
-        if (this.Blob == null) {
-            throw new Error("Cannot save, vault blob is null");
-        }
-
-        // If the vault instance is not null, encrypt it and save it to the blob
-        // Otherwise, just save the blob as is
-        if (vaultInstance != null) {
-            // Update the last used date only if we're actually updating the vault
-            this.LastUsed = new Date().toISOString();
-
-            // Serialize the vault instance
-            const _vaultBytes =
-                VaultUtilTypes.Vault.encode(vaultInstance).finish();
-
-            // Encrypt the vault using the configured encryption
-            this.Blob = await VaultEncryption.EncryptDataBlob(
-                _vaultBytes,
-                vaultInstance.Secret,
-                this.Blob.Algorithm,
-                this.Blob.KeyDerivationFunc,
-                this.Blob
-                    .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-                this.Blob
-                    .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
-            );
-        }
-
-        // Serialize the vault metadata and save it to the database
-        await VaultStorage.saveVault(
-            this.DBIndex,
-            VaultUtilTypes.VaultMetadata.encode(this).finish()
-        );
-    }
-
-    /**
-     * Decrypts the vault blob and returns it.
-     * @param secret The secret to decrypt the vault with
-     * @param encryptionAlgorithm The encryption algorithm used to encrypt the vault (taken from the blob or overriden by the user)
-     * @returns The decrypted vault object
-     */
-    public async decryptVault(
-        secret: string,
-        encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
-        keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
-        keyDerivationFuncConfig: VaultEncryption.VaultEncryptionConfigurationsFormElementType
-    ): Promise<Vault> {
-        if (this.Blob == null) {
-            throw new Error("Vault blob is null");
-        }
-
-        const decryptedVaultString = await VaultEncryption.DecryptDataBlob(
-            this.Blob,
-            secret,
-            encryptionAlgorithm,
-            keyDerivationFunc,
-            keyDerivationFuncConfig
-        );
-
-        const vaultRawParsed =
-            VaultUtilTypes.Vault.decode(decryptedVaultString);
-
-        const vaultObject: Vault = Object.assign(
-            new Vault(secret),
-            vaultRawParsed
-        );
-
-        vaultObject.OnlineServices = Object.assign(
-            new OnlineServicesAccount(),
-            vaultObject.OnlineServices
-        );
-
-        // Go through each linked device and assign it to a new object
-        // This is done to ensure that the LinkedDevice class is used instead of the generic object
-        vaultObject.OnlineServices.LinkedDevices =
-            vaultObject.OnlineServices.LinkedDevices.map(
-                (device: LinkedDevice) => {
-                    return Object.assign(new LinkedDevice(), device);
-                }
-            );
-
-        // Go through each credential and assign it to a new object
-        vaultObject.Credentials = vaultObject.Credentials.map(
-            (credential: Credential.VaultCredential) => {
-                if (credential.TOTP) {
-                    credential.TOTP = Object.assign(
-                        new Credential.TOTP(),
-                        credential.TOTP
-                    );
-                }
-                return Object.assign(
-                    new Credential.VaultCredential(),
-                    credential
-                );
-            }
-        );
-
-        vaultObject.Diffs = vaultObject.Diffs.map((diff: Credential.Diff) => {
-            return Object.assign(new Credential.Diff(), diff);
-        });
-
-        vaultObject.Configuration = Object.assign(
-            new Configuration(),
-            vaultObject.Configuration
-        );
-
-        // Assign the deserialized data to the Vault object
-        return vaultObject;
-    }
-
-    /**
-     * Deletes the vault from the database.
-     */
-    public async terminate(): Promise<void> {
-        if (this.DBIndex == null) {
-            throw new Error("Cannot terminate a vault without a valid index.");
-        }
-
-        await VaultStorage.terminateVault(this.DBIndex);
-    }
-
-    /**
-     * Prepares the vault for linking by cleaning up the metadata and re-encrypting the blob.
-     * @param cleanVaultInstance The cleaned up vault instance to encrypt and inject into the metadata
-     * @returns A new VaultMetadata object ready to be saved for linking
-     */
-    public async exportForLinking(
-        cleanVaultInstance: Vault
-    ): Promise<Uint8Array> {
-        if (this.Blob == null) {
-            throw new Error(
-                "Cannot export metadata for linking without an encrypted blob."
-            );
-        }
-
-        const newMetadata = Object.assign(new VaultMetadata(), this);
-
-        // Reset the DBIndex to undefined because we cannot know what it will be on the other device
-        newMetadata.DBIndex = undefined;
-
-        // Serialize the vault instance
-        const _vaultBytes =
-            VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
-
-        // Encrypt the vault using the configured encryption
-        newMetadata.Blob = await VaultEncryption.EncryptDataBlob(
-            _vaultBytes,
-            cleanVaultInstance.Secret,
-            this.Blob.Algorithm,
-            this.Blob.KeyDerivationFunc,
-            this.Blob
-                .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-            this.Blob
-                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
-        );
-
-        return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
-    }
-
-    public static decodeMetadataBinary(
-        data: Uint8Array,
-        dbIndex?: number
-    ): VaultMetadata {
-        const rawData = VaultUtilTypes.VaultMetadata.decode(data);
-
-        const vaultMetadata = Object.assign(new VaultMetadata(), rawData);
-
-        if (dbIndex != null) vaultMetadata.DBIndex = dbIndex;
-
-        // Make sure that the Blob object is not a vanilla object
-        if (vaultMetadata.Blob != null) {
-            vaultMetadata.Blob = Object.assign(
-                VaultEncryption.EncryptedBlob.CreateDefault(),
-                vaultMetadata.Blob
-            );
-        }
-
-        return vaultMetadata;
-    }
 }
 
 export namespace Import {
@@ -1403,6 +1077,259 @@ export namespace Import {
             reader.readAsText(file);
         });
     };
+}
+
+export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
+    public Version: number;
+    public DBIndex?: number;
+
+    public Name: string;
+    public Description: string;
+    public CreatedAt: string;
+    public LastUsed: string | undefined;
+    public Blob: VaultEncryption.EncryptedBlob | undefined;
+
+    public Icon: string;
+    public Color: string;
+
+    constructor() {
+        // This is the schema version that this vault was created with
+        // This changes when the vault schema changes
+        this.Version = 1;
+        this.Name = "";
+        this.Description = "";
+        this.CreatedAt = new Date().toISOString();
+        this.LastUsed = undefined;
+        this.Blob = undefined;
+        this.Icon = "";
+        this.Color = "";
+    }
+
+    /**
+     * Creates a new vault with the given form data then saves it to the database
+     * @param formData Form data from the vault creation form
+     * @returns A new VaultMetadata object ready to be saved to the database
+     */
+    public static async createNewVault(
+        formData: NewVaultFormSchemaType,
+        seedVault = false,
+        seedCount = 0
+    ): Promise<VaultMetadata> {
+        const vaultMetadata = new VaultMetadata();
+
+        vaultMetadata.Name = formData.Name;
+        vaultMetadata.Description = formData.Description;
+        vaultMetadata.CreatedAt = new Date().toISOString();
+        vaultMetadata.LastUsed = undefined;
+
+        // Instantiate a new vault to encrypt
+        const freshVault = new Vault(formData.Secret, seedVault, seedCount);
+
+        // Serialize the vault instance
+        const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
+
+        // Encrypt the vault using default encryption
+        vaultMetadata.Blob = await VaultEncryption.EncryptDataBlob(
+            _vaultBytes,
+            formData.Secret,
+            formData.Encryption,
+            formData.EncryptionKeyDerivationFunction,
+            formData.EncryptionConfig, // TODO: Get this TF out of here
+            formData.EncryptionConfig // TODO: Move this too
+        );
+
+        return vaultMetadata;
+    }
+
+    /**
+     * Saves the vault manifest to the database.
+     * If the vault instance is not null, encrypt it, add it to the blob and save it to the database.
+     * If the vault instance is null, just save the existing blob to the database.
+     * @param vaultInstance The fresh vault instance to save to the database
+     */
+    public async save(vaultInstance: Vault | null): Promise<void> {
+        if (this.Blob == null) {
+            throw new Error("Cannot save, vault blob is null");
+        }
+
+        // If the vault instance is not null, encrypt it and save it to the blob
+        // Otherwise, just save the blob as is
+        if (vaultInstance != null) {
+            // Update the last used date only if we're actually updating the vault
+            this.LastUsed = new Date().toISOString();
+
+            // Serialize the vault instance
+            const _vaultBytes =
+                VaultUtilTypes.Vault.encode(vaultInstance).finish();
+
+            // Encrypt the vault using the configured encryption
+            this.Blob = await VaultEncryption.EncryptDataBlob(
+                _vaultBytes,
+                vaultInstance.Secret,
+                this.Blob.Algorithm,
+                this.Blob.KeyDerivationFunc,
+                this.Blob
+                    .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+                this.Blob
+                    .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+            );
+        }
+
+        // Serialize the vault metadata and save it to the database
+        await VaultStorage.saveVault(
+            this.DBIndex,
+            VaultUtilTypes.VaultMetadata.encode(this).finish()
+        );
+    }
+
+    /**
+     * Decrypts the vault blob and returns it.
+     * @param secret The secret to decrypt the vault with
+     * @param encryptionAlgorithm The encryption algorithm used to encrypt the vault (taken from the blob or overriden by the user)
+     * @returns The decrypted vault object
+     */
+    public async decryptVault(
+        secret: string,
+        encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
+        keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
+        keyDerivationFuncConfig: VaultEncryption.VaultEncryptionConfigurationsFormElementType
+    ): Promise<Vault> {
+        if (this.Blob == null) {
+            throw new Error("Vault blob is null");
+        }
+
+        const decryptedVaultString = await VaultEncryption.DecryptDataBlob(
+            this.Blob,
+            secret,
+            encryptionAlgorithm,
+            keyDerivationFunc,
+            keyDerivationFuncConfig
+        );
+
+        const vaultRawParsed =
+            VaultUtilTypes.Vault.decode(decryptedVaultString);
+
+        const vaultObject: Vault = Object.assign(
+            new Vault(secret),
+            vaultRawParsed
+        );
+
+        vaultObject.OnlineServices = Object.assign(
+            new OnlineServicesAccount(),
+            vaultObject.OnlineServices
+        );
+
+        // Go through each linked device and assign it to a new object
+        // This is done to ensure that the LinkedDevice class is used instead of the generic object
+        vaultObject.OnlineServices.LinkedDevices =
+            vaultObject.OnlineServices.LinkedDevices.map(
+                (device: LinkedDevice) => {
+                    return Object.assign(new LinkedDevice(), device);
+                }
+            );
+
+        // Go through each credential and assign it to a new object
+        vaultObject.Credentials = vaultObject.Credentials.map(
+            (credential: Credential.VaultCredential) => {
+                if (credential.TOTP) {
+                    credential.TOTP = Object.assign(
+                        new Credential.TOTP(),
+                        credential.TOTP
+                    );
+                }
+                return Object.assign(
+                    new Credential.VaultCredential(),
+                    credential
+                );
+            }
+        );
+
+        vaultObject.Diffs = vaultObject.Diffs.map((diff: Credential.Diff) => {
+            return Object.assign(new Credential.Diff(), diff);
+        });
+
+        vaultObject.Configuration = Object.assign(
+            new Configuration(),
+            vaultObject.Configuration
+        );
+
+        // Assign the deserialized data to the Vault object
+        return vaultObject;
+    }
+
+    /**
+     * Deletes the vault from the database.
+     */
+    public async terminate(): Promise<void> {
+        if (this.DBIndex == null) {
+            throw new Error("Cannot terminate a vault without a valid index.");
+        }
+
+        await VaultStorage.terminateVault(this.DBIndex);
+    }
+
+    /**
+     * Prepares the vault for linking by cleaning up the metadata and re-encrypting the blob.
+     * @param cleanVaultInstance The cleaned up vault instance to encrypt and inject into the metadata
+     * @returns A new VaultMetadata object ready to be saved for linking
+     */
+    public async exportForLinking(
+        cleanVaultInstance: Vault
+    ): Promise<Uint8Array> {
+        if (this.Blob == null) {
+            throw new Error(
+                "Cannot export metadata for linking without an encrypted blob."
+            );
+        }
+
+        const newMetadata = Object.assign(new VaultMetadata(), this);
+
+        // Reset the DBIndex to undefined because we cannot know what it will be on the other device
+        newMetadata.DBIndex = undefined;
+
+        // Serialize the vault instance
+        const _vaultBytes =
+            VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
+
+        // Encrypt the vault using the configured encryption
+        newMetadata.Blob = await VaultEncryption.EncryptDataBlob(
+            _vaultBytes,
+            cleanVaultInstance.Secret,
+            this.Blob.Algorithm,
+            this.Blob.KeyDerivationFunc,
+            this.Blob
+                .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+            this.Blob
+                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+        );
+
+        return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
+    }
+
+    public static decodeMetadataBinary(
+        data: Uint8Array,
+        dbIndex?: number
+    ): VaultMetadata {
+        const rawData = VaultUtilTypes.VaultMetadata.decode(data);
+
+        console.log(
+            `Metadata version: ${rawData.Version} || Blob version: ${rawData.Blob?.Version}`
+        );
+
+        const vaultMetadata = Object.assign(new VaultMetadata(), rawData);
+
+        if (dbIndex != null) vaultMetadata.DBIndex = dbIndex;
+
+        // Make sure that the Blob object is not a vanilla object
+        if (vaultMetadata.Blob != null) {
+            vaultMetadata.Blob = Object.assign(
+                VaultEncryption.EncryptedBlob.CreateDefault(),
+                vaultMetadata.Blob
+            );
+        }
+
+        return vaultMetadata;
+    }
 }
 
 export namespace Credential {

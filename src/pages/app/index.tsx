@@ -2576,8 +2576,9 @@ const RestoreVaultDialog: React.FC<{
         });
 
         try {
-            const validEncryptedData =
-                await VaultEncryption.EncryptedBlob.FromJSON(await file.text());
+            const validEncryptedData = VaultEncryption.EncryptedBlob.fromBinary(
+                new Uint8Array(await file.arrayBuffer())
+            );
 
             setValidFile(validEncryptedData);
 
@@ -4230,6 +4231,8 @@ const VaultSettingsDialog: React.FC<{
                     return prev;
                 });
                 setIsLoading(false);
+
+                toast.success("Synchronization list cleared.");
             },
             null
         );
@@ -4239,6 +4242,10 @@ const VaultSettingsDialog: React.FC<{
 
     const manualVaultBackup = async () => {
         setIsLoading(true);
+
+        // Wait for a bit so that we can trigger the loading state
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         toast.info("Backing up vault...", {
             autoClose: false,
             closeButton: false,

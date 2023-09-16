@@ -64,6 +64,7 @@ export interface VaultMetadata {
 }
 
 export interface EncryptedBlob {
+    Version: number;
     Algorithm: EncryptionAlgorithm;
     KeyDerivationFunc: KeyDerivationFunction;
     KDFConfigArgon2ID: KeyDerivationConfigArgon2ID | undefined;
@@ -463,6 +464,7 @@ export const VaultMetadata = {
 
 function createBaseEncryptedBlob(): EncryptedBlob {
     return {
+        Version: 0,
         Algorithm: 0,
         KeyDerivationFunc: 0,
         KDFConfigArgon2ID: undefined,
@@ -478,6 +480,9 @@ export const EncryptedBlob = {
         message: EncryptedBlob,
         writer: _m0.Writer = _m0.Writer.create()
     ): _m0.Writer {
+        if (message.Version !== 0) {
+            writer.uint32(64).int32(message.Version);
+        }
         if (message.Algorithm !== 0) {
             writer.uint32(8).int32(message.Algorithm);
         }
@@ -516,6 +521,13 @@ export const EncryptedBlob = {
         while (reader.pos < end) {
             const tag = reader.uint32();
             switch (tag >>> 3) {
+                case 8:
+                    if (tag !== 64) {
+                        break;
+                    }
+
+                    message.Version = reader.int32();
+                    continue;
                 case 1:
                     if (tag !== 8) {
                         break;
@@ -591,6 +603,7 @@ export const EncryptedBlob = {
         object: I
     ): EncryptedBlob {
         const message = createBaseEncryptedBlob();
+        message.Version = object.Version ?? 0;
         message.Algorithm = object.Algorithm ?? 0;
         message.KeyDerivationFunc = object.KeyDerivationFunc ?? 0;
         message.KDFConfigArgon2ID =

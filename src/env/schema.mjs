@@ -75,6 +75,21 @@ export const serverSchema = z.object({
     UPSTASH_RATELIMIT_N_REQUESTS_REGISTER: numberString(z.number().default(1)),
     UPSTASH_RATELIMIT_DURATION_REGISTER: z.string().default("1m"),
 
+    // ------------
+    UPSTASH_RATELIMIT_ENABLE_RECOVERY: booleanString(
+        z.boolean().default(false)
+    ),
+    UPSTASH_RATELIMIT_N_REQUESTS_RECOVERY: numberString(z.number().default(3)),
+    UPSTASH_RATELIMIT_DURATION_RECOVERY: z.string().default("1h"),
+    UPSTASH_RATELIMIT_ENABLE_RECOVERY_CREATE: booleanString(
+        z.boolean().default(false)
+    ),
+    UPSTASH_RATELIMIT_N_REQUESTS_RECOVERY_CREATE: numberString(
+        z.number().default(3)
+    ),
+    UPSTASH_RATELIMIT_DURATION_RECOVERY_CREATE: z.string().default("1h"),
+    // ------------
+
     UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_DB: booleanString(
         z.boolean().default(false)
     ),

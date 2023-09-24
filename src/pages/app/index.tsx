@@ -819,6 +819,7 @@ const UnlockVaultDialog: React.FC<{
     return (
         <GenericModal
             key="vault-unlock-modal"
+            inhibitDismissOnClickOutside={isSubmitting}
             visibleState={[visibleState[0], () => hideDialog()]}
         >
             <Body>
@@ -3009,11 +3010,17 @@ const FeatureVotingDialog: React.FC<{
 
 const AccountDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<() => void>;
+    showWarningDialogFn: WarningDialogShowFn;
+    showRecoveryGenerationDialogFnRef: React.MutableRefObject<
+        (() => void) | null
+    >;
     subscriptionData?: GetSubscriptionOutputSchemaType;
     dataLoading: boolean;
     hasDataLoadingError: boolean;
 }> = ({
     showDialogFnRef,
+    showWarningDialogFn,
+    showRecoveryGenerationDialogFnRef,
     subscriptionData,
     dataLoading,
     hasDataLoadingError,
@@ -3021,7 +3028,7 @@ const AccountDialog: React.FC<{
     const [isVisible, setIsVisible] = useState(false);
     showDialogFnRef.current = () => setIsVisible(true);
 
-    const { data: session } = useSession();
+    const { data: session, update: refreshSessionData } = useSession();
     const router = useRouter();
 
     const [ongoingOperation, setOngoingOperation] = useState(false);
@@ -3038,11 +3045,74 @@ const AccountDialog: React.FC<{
             isLoading: isSendingEmail,
         } = trpc.credentials.resendVerificationEmail.useMutation();
 
+        const resendVerificationEmail = async () => {
+            if (!session) return;
+
+            setOngoingOperation(true);
+
+            try {
+                await sendVerificationEmail();
+
+                toast.success("Verification email sent.");
+            } catch (error) {
+                if (error instanceof TRPCClientError) {
+                    console.error(error.message);
+                } else {
+                    console.error("Error sending verification email:", error);
+                }
+                toast.error(
+                    "Error sending verification email. Please try again later."
+                );
+            }
+
+            setOngoingOperation(false);
+        };
+
+        const {
+            mutateAsync: _clearRecoveryPhrase,
+            isLoading: isClearingRecoveryPhrase,
+        } = trpc.credentials.clearRecoveryToken.useMutation();
+
+        const clearRecoveryPhrase = async () => {
+            showWarningDialogFn(
+                "You are about to clear your recovery phrase. This will make it impossible to recover your account using the existing phrase, if you lose access to your vault.",
+                async () => {
+                    setOngoingOperation(true);
+
+                    try {
+                        await _clearRecoveryPhrase();
+
+                        toast.success("Recovery phrase cleared.");
+
+                        // Refresh the session data
+                        await refreshSessionData();
+                    } catch (error) {
+                        if (error instanceof TRPCClientError) {
+                            console.error(error.message);
+                        } else {
+                            console.error(
+                                "Error clearing recovery phrase:",
+                                error
+                            );
+                        }
+                        toast.error(
+                            "Error clearing recovery phrase. Please try again later."
+                        );
+                    }
+
+                    setOngoingOperation(false);
+                },
+                null
+            );
+        };
+
+        const generateRecoveryPhrase = async () =>
+            showRecoveryGenerationDialogFnRef.current?.();
+
         return (
             <>
-                {" "}
                 <div className="mt-2 flex flex-col">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         <p className="text-left text-base text-gray-600">
                             Status:
                         </p>
@@ -3075,35 +3145,77 @@ const AccountDialog: React.FC<{
                         <ButtonFlat
                             type={ButtonType.Secondary}
                             text="Resend Confirmation Email"
-                            onClick={async () => {
-                                if (!session) return;
-
-                                setOngoingOperation(true);
-
-                                try {
-                                    await sendVerificationEmail();
-
-                                    toast.success("Verification email sent.");
-                                } catch (error) {
-                                    console.error(
-                                        "Error sending verification email:",
-                                        error
-                                    );
-                                    if (error instanceof TRPCClientError) {
-                                        console.error(error.message);
-                                    }
-                                    toast.error(
-                                        "Error sending verification email. Please try again later."
-                                    );
-                                }
-
-                                setOngoingOperation(false);
-                            }}
+                            onClick={resendVerificationEmail}
                             disabled={isSendingEmail}
                             loading={isSendingEmail}
                         />
                     </div>
                 )}
+
+                <hr className="my-3" />
+
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-1">
+                        <p className="text-left text-base text-gray-600">
+                            Recovery Phrase:
+                        </p>
+                        {session?.user?.recovery_token_created ? (
+                            <p className="text-green-500">Backed up</p>
+                        ) : (
+                            <p className="text-red-500">Not Backed up</p>
+                        )}
+                    </div>
+                    {session?.user?.recovery_token_created_at && (
+                        <p className="text-left text-base text-gray-600">
+                            Date of backup:{" "}
+                            {new Date(
+                                session.user.recovery_token_created_at
+                            ).toLocaleDateString()}
+                        </p>
+                    )}
+                </div>
+                {!session?.user?.recovery_token_created && (
+                    <div className="flex flex-row items-center gap-1">
+                        <div>
+                            <InformationCircleIcon className="h-5 w-5 text-gray-500" />
+                        </div>
+                        <p className="my-1 flex text-left text-base text-gray-600">
+                            Generate a recovery phrase to regain access to your
+                            account in case you lose access to your vault.
+                        </p>
+                    </div>
+                )}
+                {!session?.user?.isRoot && (
+                    <div className="mt-2 flex flex-col">
+                        <p className="text-left text-base text-gray-600">
+                            You are not the root user. Only the root user can
+                            generate a recovery phrase.
+                        </p>
+                    </div>
+                )}
+                {session?.user?.recovery_token_created &&
+                    session?.user?.isRoot && (
+                        <div className="mt-2 flex flex-col">
+                            <ButtonFlat
+                                type={ButtonType.Secondary}
+                                text="Clear Recovery Phrase"
+                                onClick={clearRecoveryPhrase}
+                                disabled={ongoingOperation}
+                                loading={isClearingRecoveryPhrase}
+                            />
+                        </div>
+                    )}
+                {!session?.user?.recovery_token_created &&
+                    session?.user?.isRoot && (
+                        <div className="mt-2 flex flex-col">
+                            <ButtonFlat
+                                type={ButtonType.Secondary}
+                                text="Generate Recovery Phrase"
+                                onClick={generateRecoveryPhrase}
+                                disabled={ongoingOperation}
+                            />
+                        </div>
+                    )}
             </>
         );
     };
@@ -3584,10 +3696,165 @@ const AccountDialog: React.FC<{
         </GenericModal>
     );
 };
+
+const RecoveryGenerationDialog: React.FC<{
+    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
+}> = ({ showDialogFnRef }) => {
+    const [isVisible, setIsVisible] = useState(false);
+    showDialogFnRef.current = () => setIsVisible(true);
+
+    const hideDialog = () => {
+        setIsVisible(false);
+
+        setTimeout(() => {
+            setShowRecoveryPhrase(false);
+            setRecoveryPhrase("");
+            setUserId("");
+        }, DIALOG_BLUR_TIME);
+    };
+
+    const { update: refreshSessionData } = useSession();
+
+    const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
+    const [userId, setUserId] = useState<string>("");
+    const [recoveryPhrase, setRecoveryPhrase] = useState<string>("");
+
+    const {
+        mutateAsync: _generateRecoveryPhrase,
+        isLoading: isGeneratingRecoveryPhrase,
+    } = trpc.credentials.generateRecoveryToken.useMutation();
+
+    const generateRecoveryPhrase = async () => {
+        toast.info("Generating recovery phrase...", {
+            toastId: "recovery-generation-toast",
+            updateId: "recovery-generation-toast",
+            closeButton: false,
+            autoClose: false,
+        });
+
+        try {
+            const payload = await _generateRecoveryPhrase();
+
+            // toast.success("");
+            toast.update("recovery-generation-toast", {
+                autoClose: 1000,
+                closeButton: true,
+            });
+
+            // Show the recovery phrase UI
+            setRecoveryPhrase(payload.token);
+            setUserId(payload.userId);
+            setShowRecoveryPhrase(true);
+
+            // Refresh the session data
+            await refreshSessionData();
+        } catch (error) {
+            if (error instanceof TRPCClientError) {
+                console.error(error.message);
+            } else {
+                console.error("Error while generating recovery phrase:", error);
+            }
+            toast.error(
+                "An error occurred while generating the recovery phrase. Please try again later.",
+                {
+                    toastId: "recovery-generation-toast",
+                    updateId: "recovery-generation-toast",
+                    closeButton: true,
+                    autoClose: 3000,
+                }
+            );
+        }
+    };
+
+    return (
+        <GenericModal
+            key="recovery-generation-modal"
+            inhibitDismissOnClickOutside={
+                isGeneratingRecoveryPhrase || showRecoveryPhrase
+            }
+            visibleState={[isVisible, hideDialog]}
+        >
+            <Body className="flex w-full flex-col items-center gap-3">
+                <p className="text-center text-2xl font-bold text-gray-900">
+                    Recovery Phrase Generation
+                </p>
+
+                {!showRecoveryPhrase ? (
+                    <div className="flex flex-col items-center gap-3">
+                        <p className="text-base text-gray-600">
+                            Generate a recovery phrase to regain access to your
+                            account in case you lose access to your vault.
+                        </p>
+                        <p className="text-base text-gray-600">
+                            It is recommended to write down the recovery phrase
+                            and the user ID then store it in a safe place.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="flex w-full flex-col gap-3">
+                            <p className="text-base text-gray-600">
+                                Your user ID is:
+                            </p>
+                            <div className="rounded bg-slate-300 p-3">
+                                <p className="font-mono text-base text-gray-600">
+                                    {userId}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex w-full flex-col gap-3">
+                            <p className="text-base text-gray-600">
+                                Your recovery phrase is:
+                            </p>
+                            <div className="rounded bg-slate-300 p-3">
+                                <p className="font-mono text-base text-gray-600">
+                                    {recoveryPhrase}
+                                </p>
+                            </div>
+                        </div>
+                        <p className="text-base text-gray-600">
+                            By pressing "Done" you confirm that you have written
+                            down the shown information and stored it in a safe
+                            place. This is the only time the recovery
+                            information will be shown.
+                        </p>
+                    </div>
+                )}
+            </Body>
+
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text={showRecoveryPhrase ? "Done" : "Generate"}
+                    className="sm:ml-2"
+                    onClick={
+                        showRecoveryPhrase ? hideDialog : generateRecoveryPhrase
+                    }
+                    disabled={isGeneratingRecoveryPhrase}
+                    loading={isGeneratingRecoveryPhrase}
+                />
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    onClick={hideDialog}
+                    disabled={isGeneratingRecoveryPhrase || showRecoveryPhrase}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+
 const AccountHeaderWidget: React.FC<{
     showAccountSignUpSignInDialog: () => void;
     showWarningDialogFn: WarningDialogShowFn;
-}> = ({ showAccountSignUpSignInDialog, showWarningDialogFn }) => {
+    showRecoveryGenerationDialogFnRef: React.MutableRefObject<
+        (() => void) | null
+    >;
+}> = ({
+    showAccountSignUpSignInDialog,
+    showWarningDialogFn,
+    showRecoveryGenerationDialogFnRef,
+}) => {
     const { data: session, status: sessionStatus } = useSession();
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
@@ -3616,7 +3883,9 @@ const AccountHeaderWidget: React.FC<{
         if (!unlockedVaultMetadata || !unlockedVault) return;
 
         showWarningDialogFn(
-            `You are about to sign out and lose access to online services. This will unbind the account from your vault and you will have to restore from a backed-up vault to regain access to your account.`,
+            `You are about to sign out and lose access to online services. This will unbind the account from your vault. \
+            Make sure you have generated a account recovery phrase in the Account dialog. \
+            You can use that recovery phrase to regain access to your account after signing out.`,
             async () =>
                 await unbindAccountFromVault(
                     unlockedVaultMetadata,
@@ -3823,6 +4092,10 @@ const AccountHeaderWidget: React.FC<{
             </Popover>
             <AccountDialog
                 showDialogFnRef={showAccountDialogFnRef}
+                showWarningDialogFn={showWarningDialogFn}
+                showRecoveryGenerationDialogFnRef={
+                    showRecoveryGenerationDialogFnRef
+                }
                 subscriptionData={subscriptionData}
                 dataLoading={isSubscriptionDataLoading}
                 hasDataLoadingError={hasSubscriptionDataError}
@@ -5333,14 +5606,13 @@ const VaultTitle: React.FC<{ title: string }> = ({ title }) => {
 
 //#region Vault account management
 enum AccountDialogMode {
-    // SignIn = "Sign In",
+    Recover = "Recover",
     SignUp = "Sign Up",
 }
 type AccountDialogTabBarProps = {
     currentFormMode: AccountDialogMode;
     changeFormMode: (
-        // newFormMode: AccountDialogMode.SignIn | AccountDialogMode.SignUp
-        newFormMode: AccountDialogMode.SignUp
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp
     ) => void;
 };
 
@@ -5383,7 +5655,14 @@ const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
 const AccountSignUpSignInDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
     vaultMetadata: VaultMetadata;
-}> = ({ showDialogFnRef, vaultMetadata }) => {
+    showRecoveryGenerationDialogFnRef: React.MutableRefObject<
+        (() => void) | null
+    >;
+}> = ({
+    showDialogFnRef,
+    vaultMetadata,
+    showRecoveryGenerationDialogFnRef,
+}) => {
     const vault = useAtomValue(onlineServicesAccountAtom);
 
     // TODO: Show this dialog only if the user is actually online
@@ -5398,8 +5677,7 @@ const AccountSignUpSignInDialog: React.FC<{
     );
 
     const changeFormMode = (
-        // newFormMode: AccountDialogMode.SignIn | AccountDialogMode.SignUp
-        newFormMode: AccountDialogMode.SignUp
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp
     ) => {
         // Clear the submit function reference
         // signInSubmitFnRef.current = null;
@@ -5410,21 +5688,21 @@ const AccountSignUpSignInDialog: React.FC<{
     const isSubmitting = useState(false);
     const isFormSubmitting = isSubmitting[0];
 
-    // const signInSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
+    const recoverSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
     const signUpSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
 
     const onConfirm = async () => {
-        // if (
-        //     currentFormMode === AccountDialogMode.SignIn &&
-        //     signInSubmitFnRef.current
-        // ) {
-        //     await signInSubmitFnRef.current();
-        // } else if (
-        //     currentFormMode === AccountDialogMode.SignUp &&
-        //     signUpSubmitFnRef.current
-        // ) {
-        await signUpSubmitFnRef.current?.();
-        // }
+        if (
+            currentFormMode === AccountDialogMode.Recover &&
+            recoverSubmitFnRef.current
+        ) {
+            await recoverSubmitFnRef.current();
+        } else if (
+            currentFormMode === AccountDialogMode.SignUp &&
+            signUpSubmitFnRef.current
+        ) {
+            await signUpSubmitFnRef.current?.();
+        }
     };
 
     const bindAccount = async (
@@ -5446,6 +5724,9 @@ const AccountSignUpSignInDialog: React.FC<{
                     autoClose: 3000,
                     closeButton: true,
                 });
+
+                // Show the recovery generation dialog - good practice to generate a recovery phrase after binding an account
+                showRecoveryGenerationDialogFnRef.current?.();
             } catch (e) {
                 console.error("Failed to save vault.", e);
                 toast.error("Failed to save vault.", {
@@ -5468,24 +5749,22 @@ const AccountSignUpSignInDialog: React.FC<{
                         changeFormMode={changeFormMode}
                     />
                 </div>
-                {/* <div className="mt-3 flex flex-col items-center text-center sm:ml-4 sm:mt-0 sm:text-left">
-                    {currentFormMode === AccountDialogMode.SignIn ? (
-                        // <AccountDialogSignInForm
-                        //     submittingState={isSubmitting}
-                        //     submitFnRef={signInSubmitFnRef}
-                        //     bindAccountFn={bindAccount}
-                        //     vault={vault}
-                        // />
-                    ) : ( */}
-                <AccountDialogSignUpForm
-                    submittingState={isSubmitting}
-                    submitFnRef={signUpSubmitFnRef}
-                    vaultMetadata={vaultMetadata}
-                    bindAccountFn={bindAccount}
-                    hideDialogFn={hideDialog}
-                />
-                {/* //     )}
-                // </div> */}
+                {currentFormMode === AccountDialogMode.Recover ? (
+                    <AccountDialogRecoverForm
+                        submittingState={isSubmitting}
+                        submitFnRef={recoverSubmitFnRef}
+                        bindAccountFn={bindAccount}
+                        hideDialogFn={hideDialog}
+                    />
+                ) : (
+                    <AccountDialogSignUpForm
+                        submittingState={isSubmitting}
+                        submitFnRef={signUpSubmitFnRef}
+                        vaultMetadata={vaultMetadata}
+                        bindAccountFn={bindAccount}
+                        hideDialogFn={hideDialog}
+                    />
+                )}
             </Body>
             <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
                 <ButtonFlat
@@ -5506,215 +5785,220 @@ const AccountSignUpSignInDialog: React.FC<{
     );
 };
 
-// const AccountDialogSignInForm: React.FC<{
-//     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-//     submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
-//     bindAccountFn: (
-//         userId: string,
-//         privateKey: string,
-//         publicKey: string
-//     ) => Promise<void>;
-//     vault: Vault;
-// }> = ({ submittingState, submitFnRef, bindAccountFn, vault }) => {
-//     const [isSubmitting, setIsSubmitting] = submittingState;
+const AccountDialogRecoverForm: React.FC<{
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
+    submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
+    bindAccountFn: (
+        userId: string,
+        privateKey: string,
+        publicKey: string
+    ) => Promise<void>;
+    hideDialogFn: () => void;
+}> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
+    const [, setIsSubmitting] = submittingState;
 
-//     enum ValidInput {
-//         QRCode = "QR Code",
-//         Sound = "Sound",
-//         File = "File",
-//     }
+    const recoverFormSchema = z.object({
+        userId: z.string().nonempty("This field is required").max(100),
+        recoveryPhrase: z.string().nonempty("This field is required"),
+        captchaToken: z.string().nonempty("Captch is required"),
+    });
+    type RecoverFormSchemaType = z.infer<typeof recoverFormSchema>;
 
-//     const [validInput, setValidInput] = useState<ValidInput | null>(null);
-//     const clearValidInput = () => {
-//         setValidInput(null);
-//         submitFnRef.current = null;
-//     };
+    const {
+        control,
+        handleSubmit,
+        setError: setFormError,
+        formState: { errors },
+    } = useForm<RecoverFormSchemaType>({
+        resolver: zodResolver(recoverFormSchema),
+        defaultValues: {
+            userId: "",
+            recoveryPhrase: "",
+            captchaToken: "",
+        },
+    });
 
-//     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { mutateAsync: recoverUser } =
+        trpc.credentials.recoverAccount.useMutation();
 
-//     const promptPassphrase = async () => {
-//         return new Promise<string>((resolve, reject) => {
-//             const passphrase = prompt(
-//                 "Enter the passphrase from the other device."
-//             );
-//             if (passphrase) {
-//                 resolve(passphrase);
-//             } else {
-//                 reject("No passphrase entered.");
-//             }
-//         });
-//     };
+    const onSubmit = async (formData: RecoverFormSchemaType) => {
+        setIsSubmitting(true);
 
-//     const loadFromFile = async () => {
-//         try {
-//             // Open the file picker
-//             // FIXME: This promise never resolves if the user cancels the file picker
-//             const file = await openFilePicker(fileInputRef);
+        toast.info("Generating keys...", {
+            autoClose: false,
+            closeButton: false,
+            toastId: "recovery-generating-keys",
+            updateId: "recovery-generating-keys",
+        });
 
-//             setIsSubmitting(true);
+        // Generate a public/private key pair
+        const keyPair = await generateKeyPair();
 
-//             // On file selection, read the file
-//             const encryptedFileContents = await readFile(file);
+        // Send the public key and the email to the server
+        toast.info("Contacting the server...", {
+            autoClose: false,
+            closeButton: false,
+            toastId: "recovery-generating-keys",
+            updateId: "recovery-generating-keys",
+        });
 
-//             // Prompt the user for the decryption passphrase
-//             const secret = await promptPassphrase();
+        // Hash the recovery phrase
+        const hashRaw = await crypto.subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode(formData.recoveryPhrase)
+        );
 
-//             // Decrypt and parse the file
-//             const decryptedData =
-//                 await OnlineServicesAccount.decryptTransferableData(
-//                     encryptedFileContents,
-//                     secret
-//                 );
+        const hash = Buffer.from(hashRaw).toString("hex");
 
-//             // The file is valid
-//             setValidInput(ValidInput.File);
+        try {
+            const newUserId = await recoverUser({
+                userId: formData.userId,
+                recoveryPhraseHash: hash,
+                publicKey: keyPair.publicKey,
+                captchaToken: formData.captchaToken,
+            });
 
-//             // Bind the submitFnRef to the submit function suitable for this input
-//             submitFnRef.current = async () => {
-//                 console.debug(
-//                     "Submitting sign in form using data from file loader."
-//                 );
+            // Save the UserID, public/private key to the vault
+            await bindAccountFn(
+                newUserId,
+                keyPair.privateKey,
+                keyPair.publicKey
+            );
 
-//                 // console.log("Trying to use the following data:", decryptedData);
+            toast.update("recovery-generating-keys", {
+                autoClose: 1000,
+                closeButton: true,
+            });
 
-//                 setIsSubmitting(true);
+            // Sign in - NOTE: don't await this, we don't want to wait for the server to respond
+            cryptexAccountSignIn(
+                newUserId,
+                keyPair.privateKey,
+                formData.captchaToken
+            );
 
-//                 // Try to sign in with the data from the file
-//                 // const signInRes = await cryptexAccountSignIn(
-//                 //     decryptedData.UserID,
-//                 //     decryptedData.PrivateKey
-//                 // );
+            // Hide the dialog
+            hideDialogFn();
+        } catch (e) {
+            console.error("Failed to recover user.", e);
 
-//                 // If successful, save the credentials to the vault
-//                 // if (signInRes) {
-//                 //     bindAccountFn(
-//                 //         decryptedData.UserID,
-//                 //         decryptedData.PrivateKey,
-//                 //         decryptedData.PublicKey
-//                 //     );
-//                 // }
+            let message = "Recovery failed. Please try again.";
+            if (e instanceof TRPCClientError) {
+                console.error(e.message);
+            }
 
-//                 setIsSubmitting(false);
-//             };
-//         } catch (error) {
-//             console.error(`Failed to load account from file. ${error}`);
-//             toast.error("Failed to load account from file.", {
-//                 closeButton: true,
-//             });
-//         }
+            toast.error(message, {
+                autoClose: 3000,
+                closeButton: true,
+                toastId: "recovery-generating-keys",
+                updateId: "recovery-generating-keys",
+            });
+        }
+        setIsSubmitting(false);
+    };
 
-//         setIsSubmitting(false);
-//     };
+    submitFnRef.current = handleSubmit(onSubmit);
 
-//     const ButtonContainer: React.FC<{
-//         icon: React.ReactNode;
-//         iconCaption: string;
-//         description: string;
-//         onClick?: () => void;
-//         disabled?: boolean;
-//         validInput?: boolean;
-//     }> = ({
-//         icon,
-//         iconCaption,
-//         description,
-//         onClick,
-//         disabled,
-//         validInput,
-//     }) => {
-//         // If the input is valid, show a green checkmark
-//         return validInput ? (
-//             <div className="flex flex-col items-center justify-center rounded-md bg-slate-500 p-5 shadow-md">
-//                 <div className="flex w-full flex-col items-end">
-//                     {/* Clear field icon */}
-//                     <XMarkIcon
-//                         className={`h-5 w-5 cursor-pointer`}
-//                         title="Clear file"
-//                         aria-hidden="true"
-//                         onClick={clearValidInput}
-//                     />
-//                 </div>
-//                 <div className="mb-5 flex flex-col items-center justify-center">
-//                     <CheckCircleIcon
-//                         className={`h-12 w-12 text-green-500`}
-//                         aria-hidden="true"
-//                     />
-//                     <p className="h-full w-full cursor-pointer text-center text-base text-slate-200">
-//                         File successfully loaded
-//                     </p>
-//                 </div>
-//             </div>
-//         ) : (
-//             <div
-//                 className={clsx({
-//                     "mb-2 flex flex-col items-center gap-1 rounded-md bg-gray-200 px-4 py-2 transition-colors ":
-//                         true,
-//                     "cursor-pointer hover:bg-gray-300": !disabled,
-//                     "opacity-50": disabled,
-//                 })}
-//                 onClick={() => !disabled && onClick && onClick()}
-//             >
-//                 <div className="flex flex-row items-center gap-2">
-//                     {icon}
-//                     <p className="text-gray-900">{iconCaption}</p>
-//                 </div>
-//                 <p className="text-xs text-gray-500">{description}</p>
-//             </div>
-//         );
-//     };
+    useEffect(() => {
+        return () => {
+            if (window.turnstile) window.turnstile.remove();
+        };
+    }, []);
 
-//     // Debugging purposes, creates an encrypted transferable data object and logs it to the console
-//     // useEffect(() => {
-//     //     vault.OnlineServices.encryptTransferableData().then((data) => {
-//     //         console.log("TransferableData", data);
-//     //     });
-//     // }, []);
+    return (
+        <div className="flex w-full flex-col text-left">
+            <div className="mb-2 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
+                <ExclamationTriangleIcon
+                    className="h-7 w-7 text-slate-800"
+                    aria-hidden="true"
+                />
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> On successful
+                    recovery, the account will be bound to this device. You will
+                    not be able to recover the account on another device. If
+                    there were any other devices linked to the account, they
+                    will be unlinked - you will have to link them again.
+                </p>
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> This device will be
+                    marked as a root device. Only the root device will be able
+                    to link other devices and remove them.
+                </p>
+            </div>
 
-//     return (
-//         <div className="flex w-full flex-col text-left">
-//             {/* Notice  */}
-
-//             <ButtonContainer
-//                 icon={<CameraIcon className="h-5 w-5 text-gray-900" />}
-//                 iconCaption="Scan QR code"
-//                 description="Scan the QR code with your camera"
-//                 // disabled={
-//                 //     isSubmitting ||
-//                 //     (validInput !== ValidInput.QRCode && validInput !== null)
-//                 // }
-//                 disabled={true} // FIXME: QR code scanning is not implemented yet
-//                 validInput={validInput === ValidInput.QRCode}
-//             />
-
-//             <ButtonContainer
-//                 icon={<SpeakerWaveIcon className="h-5 w-5 text-gray-900" />}
-//                 iconCaption="Transfer with sound"
-//                 description="Transfer the data with sound"
-//                 // disabled={
-//                 //     isSubmitting ||
-//                 //     (validInput !== ValidInput.Sound && validInput !== null)
-//                 // }
-//                 disabled={true} // FIXME: Sound transfer is not implemented yet
-//                 validInput={validInput === ValidInput.Sound}
-//             />
-
-//             <ButtonContainer
-//                 icon={<DocumentTextIcon className="h-5 w-5 text-gray-900" />}
-//                 iconCaption="Load from file"
-//                 description="Load the data from a file"
-//                 onClick={loadFromFile}
-//                 disabled={
-//                     isSubmitting ||
-//                     (validInput !== ValidInput.File && validInput !== null)
-//                 }
-//                 validInput={validInput === ValidInput.File}
-//             />
-
-//             <div className="hidden">
-//                 <input type="file" ref={fileInputRef} accept=".cryxa" />
-//             </div>
-//         </div>
-//     );
-// };
+            <div className="mt-2 flex flex-col">
+                <Controller
+                    control={control}
+                    name="userId"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <FormInputField
+                            label="User ID *"
+                            placeholder="Type in your User ID"
+                            type="text"
+                            autoCapitalize="none"
+                            onChange={onChange}
+                            onBlur={onBlur}
+                            value={value}
+                        />
+                    )}
+                />
+                {errors.userId && (
+                    <p className="text-red-500">{errors.userId.message}</p>
+                )}
+            </div>
+            <div className="mt-2 flex flex-col">
+                <Controller
+                    control={control}
+                    name="recoveryPhrase"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <FormInputField
+                            label="Recovery Phrase *"
+                            placeholder="Type in your recovery phrase"
+                            type="text"
+                            autoCapitalize="none"
+                            onChange={onChange}
+                            onBlur={onBlur}
+                            value={value}
+                        />
+                    )}
+                />
+                {errors.recoveryPhrase && (
+                    <p className="text-red-500">
+                        {errors.recoveryPhrase.message}
+                    </p>
+                )}
+            </div>
+            <div className="mt-2 flex flex-col items-center">
+                <Controller
+                    control={control}
+                    name="captchaToken"
+                    render={({ field: { onChange } }) => (
+                        <Turnstile
+                            options={{
+                                theme: "light",
+                                size: "normal",
+                                language: "auto",
+                            }}
+                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                            onError={() => {
+                                setFormError("captchaToken", {
+                                    message: "Captcha error",
+                                });
+                            }}
+                            onExpire={() => onChange("")}
+                            onSuccess={(token) => onChange(token)}
+                        />
+                    )}
+                />
+                {errors.captchaToken && (
+                    <p className="text-red-500">
+                        {errors.captchaToken.message}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const AccountDialogSignUpForm: React.FC<{
     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
@@ -8918,6 +9202,7 @@ const VaultDashboard: React.FC = ({}) => {
     const showNewCredentialsDialogFnRef = useRef<(() => void) | null>(null);
 
     const showAccountSignUpSignInDialogRef = useRef<(() => void) | null>(null);
+    const showRecoveryGenerationDialogRef = useRef<(() => void) | null>(null);
     const showFeatureVotingDialogRef = useRef<(() => void) | null>(null);
     const showVaultSettingsDialogRef = useRef<() => void>(() => {
         // No-op
@@ -9015,6 +9300,9 @@ const VaultDashboard: React.FC = ({}) => {
                         showAccountSignUpSignInDialogRef.current?.()
                     }
                     showWarningDialogFn={showWarningDialog}
+                    showRecoveryGenerationDialogFnRef={
+                        showRecoveryGenerationDialogRef
+                    }
                 />
             </NavBar>
             <div className="flex flex-grow flex-row overflow-hidden">
@@ -9110,6 +9398,12 @@ const VaultDashboard: React.FC = ({}) => {
             <AccountSignUpSignInDialog
                 showDialogFnRef={showAccountSignUpSignInDialogRef}
                 vaultMetadata={vaultMetadata}
+                showRecoveryGenerationDialogFnRef={
+                    showRecoveryGenerationDialogRef
+                }
+            />
+            <RecoveryGenerationDialog
+                showDialogFnRef={showRecoveryGenerationDialogRef}
             />
             <EmailNotVerifiedDialog />
             <CredentialsGeneratorDialog

@@ -45,6 +45,8 @@ export const WarningDialog: React.FC<{
     const onConfirm = async () => {
         setIsLoadingState(true);
 
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         if (onConfirmFnRef && onConfirmFnRef.current) {
             await onConfirmFnRef.current();
         }

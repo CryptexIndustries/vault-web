@@ -3814,10 +3814,10 @@ const RecoveryGenerationDialog: React.FC<{
                             </div>
                         </div>
                         <p className="text-base text-gray-600">
-                            By pressing "Done" you confirm that you have written
-                            down the shown information and stored it in a safe
-                            place. This is the only time the recovery
-                            information will be shown.
+                            By pressing &quot;Done&quot; you confirm that you
+                            have written down the shown information and stored
+                            it in a safe place. This is the only time the
+                            recovery information will be shown.
                         </p>
                     </div>
                 )}
@@ -5882,12 +5882,11 @@ const AccountDialogRecoverForm: React.FC<{
         } catch (e) {
             console.error("Failed to recover user.", e);
 
-            let message = "Recovery failed. Please try again.";
             if (e instanceof TRPCClientError) {
                 console.error(e.message);
             }
 
-            toast.error(message, {
+            toast.error("Recovery failed. Please try again.", {
                 autoClose: 3000,
                 closeButton: true,
                 toastId: "recovery-generating-keys",

@@ -1312,7 +1312,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     ): VaultMetadata {
         const rawData = VaultUtilTypes.VaultMetadata.decode(data);
 
-        console.log(
+        console.debug(
             `Metadata version: ${rawData.Version} || Blob version: ${rawData.Blob?.Version}`
         );
 

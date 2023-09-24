@@ -57,6 +57,55 @@ export const checkRatelimitUserVerification = async (ip: string) => {
     const result = await ratelimitUserVerification.limit(ip);
     return result.success;
 };
+//#endregion User Verification
+
+//#region Recovery
+/**
+ * Ratelimit for recovering an account
+ * @param ip IP address of the user
+ * @returns Whether the request is allowed or not
+ */
+export const checkRatelimitUserRecovery = async (ip: string) => {
+    if (!env.UPSTASH_RATELIMIT_ENABLE_RECOVERY) return true;
+
+    const ratelimitUserRecovery: Ratelimit = new Ratelimit({
+        redis: Redis.fromEnv(),
+        limiter: Ratelimit.slidingWindow(
+            env.UPSTASH_RATELIMIT_N_REQUESTS_RECOVERY,
+            env.UPSTASH_RATELIMIT_DURATION_RECOVERY as Duration
+        ),
+        analytics: true,
+        ephemeralCache,
+        prefix: "@upstash/ratelimit/user-recovery",
+    });
+
+    const result = await ratelimitUserRecovery.limit(ip);
+    return result.success;
+};
+
+/**
+ * Ratelimit for creating/clearing a recovery token
+ * @param ip The IP address of the user
+ * @returns Whether the request is allowed or not
+ */
+export const checkRatelimitUserRecoveryCreate = async (ip: string) => {
+    if (!env.UPSTASH_RATELIMIT_ENABLE_RECOVERY_CREATE) return true;
+
+    const ratelimitUserRecoveryCreate: Ratelimit = new Ratelimit({
+        redis: Redis.fromEnv(),
+        limiter: Ratelimit.slidingWindow(
+            env.UPSTASH_RATELIMIT_N_REQUESTS_RECOVERY_CREATE,
+            env.UPSTASH_RATELIMIT_DURATION_RECOVERY_CREATE as Duration
+        ),
+        analytics: true,
+        ephemeralCache,
+        prefix: "@upstash/ratelimit/user-recovery-create",
+    });
+
+    const result = await ratelimitUserRecoveryCreate.limit(ip);
+    return result.success;
+};
+//#endregion Recovery
 
 //#region Register User
 /**

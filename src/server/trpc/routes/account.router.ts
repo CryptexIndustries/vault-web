@@ -1,8 +1,11 @@
 import { z } from "zod";
 import * as trpc from "@trpc/server";
-import { StripeConfiguration } from "../../../utils/stripe";
+
 import Stripe from "stripe";
+
 import { randomUUID } from "crypto";
+
+import { StripeConfiguration } from "../../../utils/stripe";
 import {
     checkRatelimitAccountRouter,
     trpcRatelimitError,

@@ -26,6 +26,8 @@ model User {
     email_verified_at             DateTime?
     email_verification_expires_at DateTime             @default(now())
     created_at                    DateTime             @default(now())
+    recovery_token                String?              @db.Text // Hashed token used for account recovery
+    recovery_token_created_at     DateTime? // When the recovery token was created (has a value when recovery token is set)
     accounts                      Account[]
     sessions                      Session[]
     verification_tokens           VerificationToken[]

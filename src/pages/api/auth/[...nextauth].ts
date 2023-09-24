@@ -43,6 +43,8 @@ declare module "next-auth" {
             accountID: string;
             confirmed_at: Date | null;
             confirmation_period_expires_at: Date | null;
+            recovery_token_created: boolean;
+            recovery_token_created_at: Date | null;
             email: string;
             image: never;
             isRoot: boolean;
@@ -55,6 +57,8 @@ declare module "next-auth" {
         isRoot: boolean;
         email_verified_at: Date | null;
         email_verification_expires_at: Date | null;
+        recovery_token: boolean;
+        recovery_token_created_at: Date | null;
     }
 }
 
@@ -238,6 +242,9 @@ export function requestWrapper(
                     // This is required so we can control the logins per account
                     return {
                         ...user,
+                        recovery_token: user.recovery_token != null,
+                        recovery_token_created_at:
+                            user.recovery_token_created_at,
                         accountID: account.id,
                         isRoot: account.root, // This is not actually used in the signIn flow, it's there to make the type system happy
                     };
@@ -290,6 +297,9 @@ export function requestWrapper(
                     session.user.confirmed_at = user.email_verified_at;
                     session.user.confirmation_period_expires_at =
                         user.email_verification_expires_at;
+                    session.user.recovery_token_created = user.recovery_token;
+                    session.user.recovery_token_created_at =
+                        user.recovery_token_created_at;
                 }
                 return session;
             },

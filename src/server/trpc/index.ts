@@ -4,6 +4,9 @@ import {
     credentialsRouterRegisterUser,
     credentialsRouterConfirm,
     credentialsRouterResendVerificationEmail,
+    credentialsRouterClearRecoveryToken,
+    credentialsRouterGenerateRecoveryToken,
+    credentialsRecover,
 } from "./routes/credentials.router";
 import {
     notifyMeRouterRegister,
@@ -38,6 +41,9 @@ const mainRouter = router({
         registerUser: credentialsRouterRegisterUser,
         confirm: credentialsRouterConfirm,
         resendVerificationEmail: credentialsRouterResendVerificationEmail,
+        recoverAccount: credentialsRecover,
+        generateRecoveryToken: credentialsRouterGenerateRecoveryToken,
+        clearRecoveryToken: credentialsRouterClearRecoveryToken,
     }),
     account: router({
         getLinkingConfiguration: accountRouterGetLinkingConfiguration,

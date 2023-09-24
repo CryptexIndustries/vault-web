@@ -3188,8 +3188,7 @@ const AccountDialog: React.FC<{
                 {!session?.user?.isRoot && (
                     <div className="mt-2 flex flex-col">
                         <p className="text-left text-base text-gray-600">
-                            You are not the root user. Only the root user can
-                            generate a recovery phrase.
+                            Use the root device to generate a recovery phrase.
                         </p>
                     </div>
                 )}

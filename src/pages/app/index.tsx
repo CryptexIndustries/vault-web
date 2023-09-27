@@ -3037,7 +3037,35 @@ const AccountDialog: React.FC<{
     const unlockedVault = useAtomValue(unlockedVaultAtom);
 
     // Prepare the user deletion trpc call
-    const deleteUser = trpc.account.deleteUser.useMutation();
+    const { mutateAsync: deleteUser } = trpc.account.deleteUser.useMutation();
+
+    const deleteUserAccount = async () => {
+        if (!vaultMetadata) return;
+
+        showWarningDialogFn(
+            "You are about to permanently delete your online services account. This will prevent you from accessing online services until you create a new account. This will not affect your vault data.",
+            async () => {
+                setOngoingOperation(true);
+
+                try {
+                    await deleteUser();
+                    await unbindAccountFromVault(vaultMetadata, unlockedVault);
+
+                    toast.success("User account deleted.");
+
+                    router.reload();
+                } catch (err) {
+                    toast.error(
+                        "An error occured while deleting your user account. Please try again later."
+                    );
+                    console.error(err);
+                }
+
+                setOngoingOperation(false);
+            },
+            null
+        );
+    };
 
     const Account: React.FC = () => {
         const {
@@ -3075,7 +3103,7 @@ const AccountDialog: React.FC<{
 
         const clearRecoveryPhrase = async () => {
             showWarningDialogFn(
-                "You are about to clear your recovery phrase. This will make it impossible to recover your account using the existing phrase, if you lose access to your vault.",
+                "You are about to clear your recovery phrase. This will make it impossible to recover your online services account using the existing recovery phrase, if you lose access to your vault.",
                 async () => {
                     setOngoingOperation(true);
 
@@ -3179,10 +3207,18 @@ const AccountDialog: React.FC<{
                         <div>
                             <InformationCircleIcon className="h-5 w-5 text-gray-500" />
                         </div>
-                        <p className="my-1 flex text-left text-base text-gray-600">
-                            Generate a recovery phrase to regain access to your
-                            account in case you lose access to your vault.
-                        </p>
+                        <div>
+                            <p className="my-1 flex text-left text-base text-gray-600">
+                                Generate a recovery phrase to regain access to
+                                your online services account in case you lose
+                                access to your vault.
+                            </p>
+                            <p className="my-1 flex text-left text-base text-gray-600">
+                                Note: This recovery method is strictly for
+                                online services account recovery which is
+                                separate from vault backup/recovery.
+                            </p>
+                        </div>
                     </div>
                 )}
                 {!session?.user?.isRoot && (
@@ -3623,33 +3659,8 @@ const AccountDialog: React.FC<{
                                     )}
                                     <ButtonFlat
                                         type={ButtonType.Secondary}
-                                        text="Delete Account"
-                                        onClick={async () => {
-                                            if (
-                                                !vaultMetadata ||
-                                                !unlockedVault
-                                            )
-                                                return;
-
-                                            const confirmBox = window.confirm(
-                                                "Do you really want to delete this account permanently?"
-                                            );
-                                            if (confirmBox === true) {
-                                                try {
-                                                    await deleteUser.mutateAsync();
-                                                    await unbindAccountFromVault(
-                                                        vaultMetadata,
-                                                        unlockedVault
-                                                    );
-                                                    router.reload();
-                                                } catch (err) {
-                                                    toast.error(
-                                                        "Failed to delete account"
-                                                    );
-                                                    console.error(err);
-                                                }
-                                            }
-                                        }}
+                                        text="Delete User Account"
+                                        onClick={deleteUserAccount}
                                         disabled={
                                             ongoingOperation ||
                                             !session?.user?.isRoot

@@ -7564,7 +7564,13 @@ const DashboardSidebarSynchronization: React.FC<{
             console.debug(
                 "Changed status to offline - connection disconnected"
             );
-            setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
+
+            // Both statuses mean that we're not connected to the server, but this makes the status more clear to the end user
+            if (linkedDevicesLen !== 0) {
+                setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
+            } else {
+                setOnlineServicesStatus(OnlineServicesStatus.NoDevices);
+            }
         });
 
         onlineWSServicesEndpoint.connection.bind("unavailable", () => {

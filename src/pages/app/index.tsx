@@ -3405,7 +3405,8 @@ const AccountDialog: React.FC<{
                 enabled: !!session && session.user?.isRoot,
             });
 
-        const removeDevice = trpc.account.removeDevice.useMutation();
+        const { mutateAsync: removeDevice } =
+            trpc.account.removeDevice.useMutation();
 
         if (!registeredDevices && session?.user?.isRoot) {
             // Something went wrong
@@ -3463,23 +3464,25 @@ const AccountDialog: React.FC<{
         }
 
         const tempRmFn = async (id: string) => {
-            const confirmRemoval = window.confirm(
-                `Do you really want to remove the selected device? This will prevent the device from accessing the online services.`
-            );
+            showWarningDialogFn(
+                "Do you really want to remove the selected device? This will prevent the device from accessing the online services.",
+                async () => {
+                    setOngoingOperation(true);
 
-            if (confirmRemoval) {
-                setOngoingOperation(true);
-                try {
-                    await removeDevice.mutateAsync({
-                        deviceId: id,
-                    });
-                    refetchRegisteredDevices();
-                } catch (error) {
-                    console.error("Error unlinking device.", error);
-                    toast.error("Error unlinking device.");
-                }
-                setOngoingOperation(false);
-            }
+                    try {
+                        await removeDevice({
+                            deviceId: id,
+                        });
+                        refetchRegisteredDevices();
+                    } catch (error) {
+                        console.error("Error unlinking device.", error);
+                        toast.error("Error unlinking device.");
+                    }
+
+                    setOngoingOperation(false);
+                },
+                null
+            );
         };
 
         return (

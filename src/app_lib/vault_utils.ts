@@ -2542,13 +2542,13 @@ export namespace Synchronization {
         constructor(
             command: Command,
             hash: string | null,
-            diverganceHash: string | null,
+            divergenceHash: string | null,
             diffList: Credential.DiffSchemaType[],
             linkedDevicesList?: LinkedDeviceSchemaType[]
         ) {
             this.command = command;
             this.hash = hash;
-            this.divergenceHash = diverganceHash;
+            this.divergenceHash = divergenceHash;
             this.diffList = diffList;
             this.linkedDevicesList = linkedDevicesList;
         }
@@ -2556,14 +2556,14 @@ export namespace Synchronization {
         public static prepare(
             command: Command,
             hash: string | null,
-            diverganceHash: string | null,
+            divergenceHash: string | null,
             diffList: Credential.DiffSchemaType[],
             linkedDevicesList?: LinkedDeviceSchemaType[]
         ): Message {
             return new Message(
                 command,
                 hash,
-                diverganceHash,
+                divergenceHash,
                 diffList,
                 linkedDevicesList
             );
@@ -2739,6 +2739,110 @@ export namespace Synchronization {
             this.connections.clear();
 
             console.debug(`Cleaned up ${numConnections} WebRTC connections.`);
+        }
+    }
+
+    /**
+     * A class that handles the synchronization process.
+     */
+    export class Process {
+        /**
+         * Handles the divergence solving process, when the user confirms the solution.
+         * @param unlockedVault - A reference to the unlocked vault.
+         * @param diffsToApply - An array of diffs to apply to the vault.
+         */
+        public static async divergenceSolveConfirm(
+            unlockedVault: Vault,
+            diffsToApply: Credential.Diff[]
+        ) {
+            // Apply the diffsToApply to the vault
+            await unlockedVault.applyDiffs(diffsToApply);
+        }
+
+        /**
+         * Handles the device list synchronization. We receive a list of devices from the other device and compare it to our own list.
+         * NOTE: A security check needs to be performed to ensure that the other device is a Root device.
+         * @param unlockedVault - A reference to the unlocked vault.
+         * @param message - An incoming message from another device.
+         * @param deviceId - The ID of the current device.
+         * @returns True if changes were made to the vault, false otherwise.
+         */
+        public static linkedDevicesList(
+            unlockedVault: Vault,
+            message: Message,
+            deviceId: string
+        ) {
+            if (!message.linkedDevicesList) return false;
+
+            let changesOccured = false;
+
+            const devicesInReceivedList = message.linkedDevicesList.map(
+                (d) => d.ID
+            );
+            const devicesInCurrentList =
+                unlockedVault.OnlineServices.LinkedDevices.map((d) => d.ID);
+            const currentDeviceCount = devicesInCurrentList.length;
+            const intersection = devicesInReceivedList.filter((d) =>
+                devicesInCurrentList.includes(d)
+            );
+
+            // Update the IsRoot property of the devices that are in both lists
+            intersection.forEach((d) => {
+                if (message.linkedDevicesList) {
+                    const existingLinkedDevice =
+                        unlockedVault.OnlineServices.LinkedDevices.find(
+                            (ld) => ld.ID === d
+                        );
+                    const receivedLinkedDevice = message.linkedDevicesList.find(
+                        (ld) => ld.ID === d
+                    );
+
+                    if (
+                        existingLinkedDevice != null &&
+                        receivedLinkedDevice != null
+                    ) {
+                        changesOccured ||=
+                            existingLinkedDevice.IsRoot !==
+                            receivedLinkedDevice.IsRoot;
+
+                        existingLinkedDevice.IsRoot =
+                            receivedLinkedDevice.IsRoot;
+                    }
+                }
+            });
+
+            // Remove devices that are not in the received list
+            unlockedVault.OnlineServices.LinkedDevices =
+                unlockedVault.OnlineServices.LinkedDevices.filter(
+                    (d) =>
+                        devicesInReceivedList.includes(d.ID) ||
+                        d.ID === deviceId
+                );
+            changesOccured ||=
+                currentDeviceCount !==
+                unlockedVault.OnlineServices.LinkedDevices.length;
+
+            // Add devices that are in the received list but not in the current list
+            message.linkedDevicesList.forEach((d) => {
+                if (
+                    !unlockedVault.OnlineServices.LinkedDevices.find(
+                        (ld) => ld.ID === d.ID
+                    )
+                ) {
+                    changesOccured = true;
+                    unlockedVault.OnlineServices.addLinkedDevice(
+                        d.ID,
+                        d.Name,
+                        d.IsRoot,
+                        d.LinkedAtTimestamp,
+                        d.AutoConnect,
+                        d.SyncTimeout,
+                        d.SyncTimeoutPeriod
+                    );
+                }
+            });
+
+            return changesOccured;
         }
     }
 }

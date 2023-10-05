@@ -9,7 +9,7 @@ import { WarningDialogShowFn } from "./warning";
 export type DivergenceSolveShowDialogFnPropType = (
     ourCredentials: Credential.VaultCredential[],
     theirCredentials: Credential.VaultCredential[],
-    onSuccess: OnSuccessCallback,
+    onConfirm: OnSuccessCallback,
     onCancel: OnCancelCallback
 ) => void;
 

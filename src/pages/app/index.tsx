@@ -7658,7 +7658,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.LinkedDevices.find(
                         (d) => d.ID === device.ID
                     )?.updateLastSync();
-                    setUnlockedVault(async (pre) => {
+                    await setUnlockedVault(async (pre) => {
                         if (pre == null) {
                             return pre;
                         } else {
@@ -7807,7 +7807,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.LinkedDevices.find(
                         (d) => d.ID === device.ID
                     )?.updateLastSync();
-                    setUnlockedVault(async (pre) => {
+                    await setUnlockedVault(async (pre) => {
                         if (pre == null) {
                             return pre;
                         } else {
@@ -7901,7 +7901,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         // Save the vault
                         unlockedVaultMetadata?.save(unlockedVault);
 
-                        setUnlockedVault(async () => unlockedVault);
+                        await setUnlockedVault(async () => unlockedVault);
 
                         // Check if the last hash is the same as the other device's hash
                         if (hashMatches) {
@@ -7938,6 +7938,20 @@ const DashboardSidebarSynchronization: React.FC<{
                             ).serialize();
 
                             dataChannelInstance.send(syncMessage);
+                        } else {
+                            // NOTE: We're here if the hash doesn't match and we don't have a divergence hash - a basic SyncResponse
+                            toast.error(
+                                "Failed to sync - could not apply the received changes",
+                                {
+                                    toastId: "applying-diff-list",
+                                    updateId: "applying-diff-list",
+                                    autoClose: 3000,
+                                }
+                            );
+
+                            console.error(
+                                "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to apply the received changes"
+                            );
                         }
                     } else {
                         toast.error(
@@ -8008,8 +8022,10 @@ const DashboardSidebarSynchronization: React.FC<{
                             }
                         );
 
-                        // Apply the diffsToApply to the vault
-                        await unlockedVault.applyDiffs(diffsToApply);
+                        await Synchronization.Process.divergenceSolveConfirm(
+                            unlockedVault,
+                            diffsToApply
+                        );
 
                         // Update the last sync timestamp
                         unlockedVault.OnlineServices.LinkedDevices.find(
@@ -8027,7 +8043,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                         // Save the vault
                         unlockedVaultMetadata?.save(unlockedVault);
-                        setUnlockedVault(async () => unlockedVault);
+                        await setUnlockedVault(async () => unlockedVault);
 
                         toast.info(
                             "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
@@ -8082,75 +8098,15 @@ const DashboardSidebarSynchronization: React.FC<{
                     message.linkedDevicesList
                 );
 
-                let changesOccured = false;
-
-                const devicesInReceivedList = message.linkedDevicesList.map(
-                    (d) => d.ID
-                );
-                const devicesInCurrentList =
-                    unlockedVault.OnlineServices.LinkedDevices.map((d) => d.ID);
-                const currentDeviceCount = devicesInCurrentList.length;
-                const intersection = devicesInReceivedList.filter((d) =>
-                    devicesInCurrentList.includes(d)
-                );
-
-                // Update the IsRoot property of the devices that are in both lists
-                intersection.forEach((d) => {
-                    if (message.linkedDevicesList) {
-                        const existingLinkedDevice =
-                            unlockedVault.OnlineServices.LinkedDevices.find(
-                                (ld) => ld.ID === d
-                            );
-                        const receivedLinkedDevice =
-                            message.linkedDevicesList.find((ld) => ld.ID === d);
-
-                        if (
-                            existingLinkedDevice != null &&
-                            receivedLinkedDevice != null
-                        ) {
-                            changesOccured ||=
-                                existingLinkedDevice.IsRoot !==
-                                receivedLinkedDevice.IsRoot;
-
-                            existingLinkedDevice.IsRoot =
-                                receivedLinkedDevice.IsRoot;
-                        }
-                    }
-                });
-
-                // Remove devices that are not in the received list
-                unlockedVault.OnlineServices.LinkedDevices =
-                    unlockedVault.OnlineServices.LinkedDevices.filter(
-                        (d) =>
-                            devicesInReceivedList.includes(d.ID) ||
-                            d.ID === device.ID
+                const changesOccured =
+                    Synchronization.Process.linkedDevicesList(
+                        unlockedVault,
+                        message,
+                        device.ID
                     );
-                changesOccured ||=
-                    currentDeviceCount !==
-                    unlockedVault.OnlineServices.LinkedDevices.length;
-
-                // Add devices that are in the received list but not in the current list
-                message.linkedDevicesList.forEach((d) => {
-                    if (
-                        !unlockedVault.OnlineServices.LinkedDevices.find(
-                            (ld) => ld.ID === d.ID
-                        )
-                    ) {
-                        changesOccured = true;
-                        unlockedVault.OnlineServices.addLinkedDevice(
-                            d.ID,
-                            d.Name,
-                            d.IsRoot,
-                            d.LinkedAtTimestamp,
-                            d.AutoConnect,
-                            d.SyncTimeout,
-                            d.SyncTimeoutPeriod
-                        );
-                    }
-                });
 
                 if (changesOccured) {
-                    setUnlockedVault(async () => unlockedVault);
+                    await setUnlockedVault(async () => unlockedVault);
 
                     // Save the vault
                     await unlockedVaultMetadata?.save(unlockedVault);
@@ -8345,7 +8301,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.removeLinkedDevice(device.ID);
 
                     // Update the vault
-                    setUnlockedVault(async () => unlockedVault);
+                    await setUnlockedVault(async () => unlockedVault);
 
                     // Try to remove the device from the online services
                     try {
@@ -9095,14 +9051,14 @@ const DashboardSidebarSynchronization: React.FC<{
                     <DashboardSidebarMenuItem
                         Icon={XMarkIcon}
                         text="[DEBUG] Clear Diff list"
-                        onClick={() => {
+                        onClick={async () => {
                             console.debug(
                                 "[DEBUG] Clear Diff list - before -",
                                 unlockedVault.Diffs
                             );
 
                             unlockedVault.Diffs = [];
-                            setUnlockedVault(async () => unlockedVault);
+                            await setUnlockedVault(async () => unlockedVault);
                             unlockedVaultMetadata?.save(unlockedVault);
 
                             console.debug(

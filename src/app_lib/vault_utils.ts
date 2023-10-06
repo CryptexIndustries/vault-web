@@ -2151,7 +2151,7 @@ export class Vault implements VaultUtilTypes.Vault {
             clonedVault.Configuration.GenerateDiffWhenNoLinked = true;
 
             // const diffs = this.getSortedCredentials().map((cred) => {
-            const diffs: Credential.Diff[] = [];
+            // const diffs: Credential.Diff[] = [];
             for (const cred of this.getSortedCredentials()) {
                 // Add the credential to the cloned vault
                 await clonedVault.upsertCredential(cred);
@@ -2164,7 +2164,7 @@ export class Vault implements VaultUtilTypes.Vault {
                 // }));
             }
 
-            return diffs;
+            return clonedVault.Diffs;
         };
 
         // If the hash is null, return the credentials as additions

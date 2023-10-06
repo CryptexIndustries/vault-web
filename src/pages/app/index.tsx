@@ -5258,7 +5258,7 @@ const CredentialDialog: React.FC<{
     const onSubmit = async (formData: Credential.CredentialFormSchemaType) => {
         if (!vaultMetadata) return;
 
-        setUnlockedVault(async (prev) => {
+        await setUnlockedVault(async (prev) => {
             if (!prev) return prev;
 
             // Upsert the credential in the vault

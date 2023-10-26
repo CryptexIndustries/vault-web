@@ -40,6 +40,16 @@ export enum DiffType {
     Update = 2,
 }
 
+/** #region Synchronization Message */
+export enum SynchronizationMessageCommand {
+    SyncRequest = 0,
+    SyncResponseAllHashes = 1,
+    SyncResponse = 2,
+    DivergenceSolveRequest = 3,
+    DivergenceSolve = 4,
+    LinkedDevicesList = 5,
+}
+
 /** #region Encryption */
 export interface KeyDerivationConfigArgon2ID {
     memLimit: number;
@@ -52,6 +62,7 @@ export interface KeyDerivationConfigPBKDF2 {
 
 /** #region Vault Metadata */
 export interface VaultMetadata {
+    /** The version of the vault as the point of creation */
     Version: number;
     DBIndex?: number | undefined;
     Name: string;
@@ -89,7 +100,10 @@ export interface CustomField {
 }
 
 export interface Vault {
+    /** The version of the vault as the point of creation */
     Version: number;
+    /** The current version of the vault, which chages when the vault is upgraded */
+    CurrentVersion: number;
     Secret: string;
     Configuration: Configuration | undefined;
     OnlineServices: OnlineServices | undefined;
@@ -138,9 +152,11 @@ export interface Credential {
     DateModified?: string | undefined;
     DatePasswordChanged?: string | undefined;
     CustomFields: CustomField[];
+    /** NOTE: This property is not synchronized across devices ATM (meaning, it isn't present in the PartialCredential object) */
+    Hash?: string | undefined;
 }
 
-/** All optional version of Credential */
+/** All optional version of the Credential object */
 export interface PartialCredential {
     ID?: string | undefined;
     Type?: ItemType | undefined;
@@ -155,12 +171,28 @@ export interface PartialCredential {
     DateCreated?: string | undefined;
     DateModified?: string | undefined;
     DatePasswordChanged?: string | undefined;
-    CustomFields?: CustomField[];
+    CustomFields: CustomField[];
+    ChangeFlags?: PartialCredentialChanges | undefined;
+}
+
+export interface PartialCredentialChanges {
+    TypeHasChanged: boolean;
+    GroupIDHasChanged: boolean;
+    NameHasChanged: boolean;
+    UsernameHasChanged: boolean;
+    PasswordHasChanged: boolean;
+    TOTPHasChanged: boolean;
+    TagsHasChanged: boolean;
+    URLHasChanged: boolean;
+    NotesHasChanged: boolean;
+    DateCreatedHasChanged: boolean;
+    DateModifiedHasChanged: boolean;
+    DatePasswordChangedHasChanged: boolean;
+    CustomFieldsHasChanged: boolean;
 }
 
 export interface TOTP {
     Label: string;
-    Issuer: string;
     Secret: string;
     Period: number;
     Digits: number;
@@ -169,14 +201,27 @@ export interface TOTP {
 
 /** #region Diff */
 export interface Diff {
+    /** The hash of the vault after the change */
     Hash: string;
+    /** The changes that were made */
     Changes?: DiffChange | undefined;
 }
 
 export interface DiffChange {
+    /** The type of change */
     Type: DiffType;
+    /** The ID of the item that was changed */
     ID: string;
+    /** The new value(s) of the item */
     Props?: PartialCredential | undefined;
+}
+
+export interface SynchronizationMessage {
+    Command: SynchronizationMessageCommand;
+    Hash?: string | undefined;
+    DivergenceHash?: string | undefined;
+    Diffs: Diff[];
+    LinkedDevices: LinkedDevice[];
 }
 
 function createBaseKeyDerivationConfigArgon2ID(): KeyDerivationConfigArgon2ID {
@@ -234,9 +279,8 @@ export const KeyDerivationConfigArgon2ID = {
     create<I extends Exact<DeepPartial<KeyDerivationConfigArgon2ID>, I>>(
         base?: I
     ): KeyDerivationConfigArgon2ID {
-        return KeyDerivationConfigArgon2ID.fromPartial(base ?? {});
+        return KeyDerivationConfigArgon2ID.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<KeyDerivationConfigArgon2ID>, I>>(
         object: I
     ): KeyDerivationConfigArgon2ID {
@@ -292,9 +336,8 @@ export const KeyDerivationConfigPBKDF2 = {
     create<I extends Exact<DeepPartial<KeyDerivationConfigPBKDF2>, I>>(
         base?: I
     ): KeyDerivationConfigPBKDF2 {
-        return KeyDerivationConfigPBKDF2.fromPartial(base ?? {});
+        return KeyDerivationConfigPBKDF2.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<KeyDerivationConfigPBKDF2>, I>>(
         object: I
     ): KeyDerivationConfigPBKDF2 {
@@ -439,9 +482,8 @@ export const VaultMetadata = {
     create<I extends Exact<DeepPartial<VaultMetadata>, I>>(
         base?: I
     ): VaultMetadata {
-        return VaultMetadata.fromPartial(base ?? {});
+        return VaultMetadata.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<VaultMetadata>, I>>(
         object: I
     ): VaultMetadata {
@@ -596,9 +638,8 @@ export const EncryptedBlob = {
     create<I extends Exact<DeepPartial<EncryptedBlob>, I>>(
         base?: I
     ): EncryptedBlob {
-        return EncryptedBlob.fromPartial(base ?? {});
+        return EncryptedBlob.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<EncryptedBlob>, I>>(
         object: I
     ): EncryptedBlob {
@@ -695,9 +736,8 @@ export const Group = {
     },
 
     create<I extends Exact<DeepPartial<Group>, I>>(base?: I): Group {
-        return Group.fromPartial(base ?? {});
+        return Group.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<Group>, I>>(object: I): Group {
         const message = createBaseGroup();
         message.ID = object.ID ?? "";
@@ -780,9 +820,8 @@ export const CustomField = {
     create<I extends Exact<DeepPartial<CustomField>, I>>(
         base?: I
     ): CustomField {
-        return CustomField.fromPartial(base ?? {});
+        return CustomField.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<CustomField>, I>>(
         object: I
     ): CustomField {
@@ -798,6 +837,7 @@ export const CustomField = {
 function createBaseVault(): Vault {
     return {
         Version: 0,
+        CurrentVersion: 0,
         Secret: "",
         Configuration: undefined,
         OnlineServices: undefined,
@@ -814,6 +854,9 @@ export const Vault = {
     ): _m0.Writer {
         if (message.Version !== 0) {
             writer.uint32(8).int32(message.Version);
+        }
+        if (message.CurrentVersion !== 0) {
+            writer.uint32(64).int32(message.CurrentVersion);
         }
         if (message.Secret !== "") {
             writer.uint32(18).string(message.Secret);
@@ -856,6 +899,13 @@ export const Vault = {
                     }
 
                     message.Version = reader.int32();
+                    continue;
+                case 8:
+                    if (tag !== 64) {
+                        break;
+                    }
+
+                    message.CurrentVersion = reader.int32();
                     continue;
                 case 2:
                     if (tag !== 18) {
@@ -917,12 +967,12 @@ export const Vault = {
     },
 
     create<I extends Exact<DeepPartial<Vault>, I>>(base?: I): Vault {
-        return Vault.fromPartial(base ?? {});
+        return Vault.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<Vault>, I>>(object: I): Vault {
         const message = createBaseVault();
         message.Version = object.Version ?? 0;
+        message.CurrentVersion = object.CurrentVersion ?? 0;
         message.Secret = object.Secret ?? "";
         message.Configuration =
             object.Configuration !== undefined && object.Configuration !== null
@@ -983,9 +1033,8 @@ export const Configuration = {
     create<I extends Exact<DeepPartial<Configuration>, I>>(
         base?: I
     ): Configuration {
-        return Configuration.fromPartial(base ?? {});
+        return Configuration.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<Configuration>, I>>(
         object: I
     ): Configuration {
@@ -1081,9 +1130,8 @@ export const OnlineServices = {
     create<I extends Exact<DeepPartial<OnlineServices>, I>>(
         base?: I
     ): OnlineServices {
-        return OnlineServices.fromPartial(base ?? {});
+        return OnlineServices.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<OnlineServices>, I>>(
         object: I
     ): OnlineServices {
@@ -1128,7 +1176,7 @@ export const LinkedDevice = {
             writer.uint32(32).bool(message.IsRoot);
         }
         if (message.LinkedAtTimestamp !== 0) {
-            writer.uint32(40).int32(message.LinkedAtTimestamp);
+            writer.uint32(40).int64(message.LinkedAtTimestamp);
         }
         if (message.AutoConnect === true) {
             writer.uint32(48).bool(message.AutoConnect);
@@ -1183,7 +1231,9 @@ export const LinkedDevice = {
                         break;
                     }
 
-                    message.LinkedAtTimestamp = reader.int32();
+                    message.LinkedAtTimestamp = longToNumber(
+                        reader.int64() as Long
+                    );
                     continue;
                 case 6:
                     if (tag !== 48) {
@@ -1218,9 +1268,8 @@ export const LinkedDevice = {
     create<I extends Exact<DeepPartial<LinkedDevice>, I>>(
         base?: I
     ): LinkedDevice {
-        return LinkedDevice.fromPartial(base ?? {});
+        return LinkedDevice.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<LinkedDevice>, I>>(
         object: I
     ): LinkedDevice {
@@ -1298,6 +1347,9 @@ export const Credential = {
         }
         for (const v of message.CustomFields) {
             CustomField.encode(v!, writer.uint32(114).fork()).ldelim();
+        }
+        if (message.Hash !== undefined) {
+            writer.uint32(122).string(message.Hash);
         }
         return writer;
     },
@@ -1410,6 +1462,13 @@ export const Credential = {
                         CustomField.decode(reader, reader.uint32())
                     );
                     continue;
+                case 15:
+                    if (tag !== 122) {
+                        break;
+                    }
+
+                    message.Hash = reader.string();
+                    continue;
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -1420,9 +1479,8 @@ export const Credential = {
     },
 
     create<I extends Exact<DeepPartial<Credential>, I>>(base?: I): Credential {
-        return Credential.fromPartial(base ?? {});
+        return Credential.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<Credential>, I>>(
         object: I
     ): Credential {
@@ -1445,12 +1503,13 @@ export const Credential = {
         message.DatePasswordChanged = object.DatePasswordChanged ?? undefined;
         message.CustomFields =
             object.CustomFields?.map((e) => CustomField.fromPartial(e)) || [];
+        message.Hash = object.Hash ?? undefined;
         return message;
     },
 };
 
 function createBasePartialCredential(): PartialCredential {
-    return {};
+    return { CustomFields: [] };
 }
 
 export const PartialCredential = {
@@ -1497,10 +1556,14 @@ export const PartialCredential = {
         if (message.DatePasswordChanged !== undefined) {
             writer.uint32(106).string(message.DatePasswordChanged);
         }
-        if (message.CustomFields !== undefined) {
-            for (const v of message.CustomFields) {
-                CustomField.encode(v!, writer.uint32(114).fork()).ldelim();
-            }
+        for (const v of message.CustomFields) {
+            CustomField.encode(v!, writer.uint32(114).fork()).ldelim();
+        }
+        if (message.ChangeFlags !== undefined) {
+            PartialCredentialChanges.encode(
+                message.ChangeFlags,
+                writer.uint32(122).fork()
+            ).ldelim();
         }
         return writer;
     },
@@ -1609,12 +1672,18 @@ export const PartialCredential = {
                         break;
                     }
 
-                    if (message.CustomFields == null) {
-                        message.CustomFields = [];
-                    }
-
                     message.CustomFields.push(
                         CustomField.decode(reader, reader.uint32())
+                    );
+                    continue;
+                case 15:
+                    if (tag !== 122) {
+                        break;
+                    }
+
+                    message.ChangeFlags = PartialCredentialChanges.decode(
+                        reader,
+                        reader.uint32()
                     );
                     continue;
             }
@@ -1629,9 +1698,8 @@ export const PartialCredential = {
     create<I extends Exact<DeepPartial<PartialCredential>, I>>(
         base?: I
     ): PartialCredential {
-        return PartialCredential.fromPartial(base ?? {});
+        return PartialCredential.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<PartialCredential>, I>>(
         object: I
     ): PartialCredential {
@@ -1654,19 +1722,219 @@ export const PartialCredential = {
         message.DatePasswordChanged = object.DatePasswordChanged ?? undefined;
         message.CustomFields =
             object.CustomFields?.map((e) => CustomField.fromPartial(e)) || [];
+        message.ChangeFlags =
+            object.ChangeFlags !== undefined && object.ChangeFlags !== null
+                ? PartialCredentialChanges.fromPartial(object.ChangeFlags)
+                : undefined;
+        return message;
+    },
+};
+
+function createBasePartialCredentialChanges(): PartialCredentialChanges {
+    return {
+        TypeHasChanged: false,
+        GroupIDHasChanged: false,
+        NameHasChanged: false,
+        UsernameHasChanged: false,
+        PasswordHasChanged: false,
+        TOTPHasChanged: false,
+        TagsHasChanged: false,
+        URLHasChanged: false,
+        NotesHasChanged: false,
+        DateCreatedHasChanged: false,
+        DateModifiedHasChanged: false,
+        DatePasswordChangedHasChanged: false,
+        CustomFieldsHasChanged: false,
+    };
+}
+
+export const PartialCredentialChanges = {
+    encode(
+        message: PartialCredentialChanges,
+        writer: _m0.Writer = _m0.Writer.create()
+    ): _m0.Writer {
+        if (message.TypeHasChanged === true) {
+            writer.uint32(8).bool(message.TypeHasChanged);
+        }
+        if (message.GroupIDHasChanged === true) {
+            writer.uint32(16).bool(message.GroupIDHasChanged);
+        }
+        if (message.NameHasChanged === true) {
+            writer.uint32(24).bool(message.NameHasChanged);
+        }
+        if (message.UsernameHasChanged === true) {
+            writer.uint32(32).bool(message.UsernameHasChanged);
+        }
+        if (message.PasswordHasChanged === true) {
+            writer.uint32(40).bool(message.PasswordHasChanged);
+        }
+        if (message.TOTPHasChanged === true) {
+            writer.uint32(48).bool(message.TOTPHasChanged);
+        }
+        if (message.TagsHasChanged === true) {
+            writer.uint32(56).bool(message.TagsHasChanged);
+        }
+        if (message.URLHasChanged === true) {
+            writer.uint32(64).bool(message.URLHasChanged);
+        }
+        if (message.NotesHasChanged === true) {
+            writer.uint32(72).bool(message.NotesHasChanged);
+        }
+        if (message.DateCreatedHasChanged === true) {
+            writer.uint32(80).bool(message.DateCreatedHasChanged);
+        }
+        if (message.DateModifiedHasChanged === true) {
+            writer.uint32(88).bool(message.DateModifiedHasChanged);
+        }
+        if (message.DatePasswordChangedHasChanged === true) {
+            writer.uint32(96).bool(message.DatePasswordChangedHasChanged);
+        }
+        if (message.CustomFieldsHasChanged === true) {
+            writer.uint32(104).bool(message.CustomFieldsHasChanged);
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number
+    ): PartialCredentialChanges {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBasePartialCredentialChanges();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 8) {
+                        break;
+                    }
+
+                    message.TypeHasChanged = reader.bool();
+                    continue;
+                case 2:
+                    if (tag !== 16) {
+                        break;
+                    }
+
+                    message.GroupIDHasChanged = reader.bool();
+                    continue;
+                case 3:
+                    if (tag !== 24) {
+                        break;
+                    }
+
+                    message.NameHasChanged = reader.bool();
+                    continue;
+                case 4:
+                    if (tag !== 32) {
+                        break;
+                    }
+
+                    message.UsernameHasChanged = reader.bool();
+                    continue;
+                case 5:
+                    if (tag !== 40) {
+                        break;
+                    }
+
+                    message.PasswordHasChanged = reader.bool();
+                    continue;
+                case 6:
+                    if (tag !== 48) {
+                        break;
+                    }
+
+                    message.TOTPHasChanged = reader.bool();
+                    continue;
+                case 7:
+                    if (tag !== 56) {
+                        break;
+                    }
+
+                    message.TagsHasChanged = reader.bool();
+                    continue;
+                case 8:
+                    if (tag !== 64) {
+                        break;
+                    }
+
+                    message.URLHasChanged = reader.bool();
+                    continue;
+                case 9:
+                    if (tag !== 72) {
+                        break;
+                    }
+
+                    message.NotesHasChanged = reader.bool();
+                    continue;
+                case 10:
+                    if (tag !== 80) {
+                        break;
+                    }
+
+                    message.DateCreatedHasChanged = reader.bool();
+                    continue;
+                case 11:
+                    if (tag !== 88) {
+                        break;
+                    }
+
+                    message.DateModifiedHasChanged = reader.bool();
+                    continue;
+                case 12:
+                    if (tag !== 96) {
+                        break;
+                    }
+
+                    message.DatePasswordChangedHasChanged = reader.bool();
+                    continue;
+                case 13:
+                    if (tag !== 104) {
+                        break;
+                    }
+
+                    message.CustomFieldsHasChanged = reader.bool();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<PartialCredentialChanges>, I>>(
+        base?: I
+    ): PartialCredentialChanges {
+        return PartialCredentialChanges.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<PartialCredentialChanges>, I>>(
+        object: I
+    ): PartialCredentialChanges {
+        const message = createBasePartialCredentialChanges();
+        message.TypeHasChanged = object.TypeHasChanged ?? false;
+        message.GroupIDHasChanged = object.GroupIDHasChanged ?? false;
+        message.NameHasChanged = object.NameHasChanged ?? false;
+        message.UsernameHasChanged = object.UsernameHasChanged ?? false;
+        message.PasswordHasChanged = object.PasswordHasChanged ?? false;
+        message.TOTPHasChanged = object.TOTPHasChanged ?? false;
+        message.TagsHasChanged = object.TagsHasChanged ?? false;
+        message.URLHasChanged = object.URLHasChanged ?? false;
+        message.NotesHasChanged = object.NotesHasChanged ?? false;
+        message.DateCreatedHasChanged = object.DateCreatedHasChanged ?? false;
+        message.DateModifiedHasChanged = object.DateModifiedHasChanged ?? false;
+        message.DatePasswordChangedHasChanged =
+            object.DatePasswordChangedHasChanged ?? false;
+        message.CustomFieldsHasChanged = object.CustomFieldsHasChanged ?? false;
         return message;
     },
 };
 
 function createBaseTOTP(): TOTP {
-    return {
-        Label: "",
-        Issuer: "",
-        Secret: "",
-        Period: 0,
-        Digits: 0,
-        Algorithm: 0,
-    };
+    return { Label: "", Secret: "", Period: 0, Digits: 0, Algorithm: 0 };
 }
 
 export const TOTP = {
@@ -1676,9 +1944,6 @@ export const TOTP = {
     ): _m0.Writer {
         if (message.Label !== "") {
             writer.uint32(10).string(message.Label);
-        }
-        if (message.Issuer !== "") {
-            writer.uint32(18).string(message.Issuer);
         }
         if (message.Secret !== "") {
             writer.uint32(26).string(message.Secret);
@@ -1709,13 +1974,6 @@ export const TOTP = {
                     }
 
                     message.Label = reader.string();
-                    continue;
-                case 2:
-                    if (tag !== 18) {
-                        break;
-                    }
-
-                    message.Issuer = reader.string();
                     continue;
                 case 3:
                     if (tag !== 26) {
@@ -1755,13 +2013,11 @@ export const TOTP = {
     },
 
     create<I extends Exact<DeepPartial<TOTP>, I>>(base?: I): TOTP {
-        return TOTP.fromPartial(base ?? {});
+        return TOTP.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<TOTP>, I>>(object: I): TOTP {
         const message = createBaseTOTP();
         message.Label = object.Label ?? "";
-        message.Issuer = object.Issuer ?? "";
         message.Secret = object.Secret ?? "";
         message.Period = object.Period ?? 0;
         message.Digits = object.Digits ?? 0;
@@ -1826,9 +2082,8 @@ export const Diff = {
     },
 
     create<I extends Exact<DeepPartial<Diff>, I>>(base?: I): Diff {
-        return Diff.fromPartial(base ?? {});
+        return Diff.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<Diff>, I>>(object: I): Diff {
         const message = createBaseDiff();
         message.Hash = object.Hash ?? "";
@@ -1906,9 +2161,8 @@ export const DiffChange = {
     },
 
     create<I extends Exact<DeepPartial<DiffChange>, I>>(base?: I): DiffChange {
-        return DiffChange.fromPartial(base ?? {});
+        return DiffChange.fromPartial(base ?? ({} as any));
     },
-
     fromPartial<I extends Exact<DeepPartial<DiffChange>, I>>(
         object: I
     ): DiffChange {
@@ -1923,24 +2177,108 @@ export const DiffChange = {
     },
 };
 
-declare const self: any | undefined;
-declare const window: any | undefined;
-declare const global: any | undefined;
-const tsProtoGlobalThis: any = (() => {
-    if (typeof globalThis !== "undefined") {
-        return globalThis;
-    }
-    if (typeof self !== "undefined") {
-        return self;
-    }
-    if (typeof window !== "undefined") {
-        return window;
-    }
-    if (typeof global !== "undefined") {
-        return global;
-    }
-    throw "Unable to locate global object";
-})();
+function createBaseSynchronizationMessage(): SynchronizationMessage {
+    return { Command: 0, Diffs: [], LinkedDevices: [] };
+}
+
+export const SynchronizationMessage = {
+    encode(
+        message: SynchronizationMessage,
+        writer: _m0.Writer = _m0.Writer.create()
+    ): _m0.Writer {
+        if (message.Command !== 0) {
+            writer.uint32(8).int32(message.Command);
+        }
+        if (message.Hash !== undefined) {
+            writer.uint32(18).string(message.Hash);
+        }
+        if (message.DivergenceHash !== undefined) {
+            writer.uint32(26).string(message.DivergenceHash);
+        }
+        for (const v of message.Diffs) {
+            Diff.encode(v!, writer.uint32(34).fork()).ldelim();
+        }
+        for (const v of message.LinkedDevices) {
+            LinkedDevice.encode(v!, writer.uint32(42).fork()).ldelim();
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number
+    ): SynchronizationMessage {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseSynchronizationMessage();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 8) {
+                        break;
+                    }
+
+                    message.Command = reader.int32() as any;
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Hash = reader.string();
+                    continue;
+                case 3:
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.DivergenceHash = reader.string();
+                    continue;
+                case 4:
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Diffs.push(Diff.decode(reader, reader.uint32()));
+                    continue;
+                case 5:
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.LinkedDevices.push(
+                        LinkedDevice.decode(reader, reader.uint32())
+                    );
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<SynchronizationMessage>, I>>(
+        base?: I
+    ): SynchronizationMessage {
+        return SynchronizationMessage.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<SynchronizationMessage>, I>>(
+        object: I
+    ): SynchronizationMessage {
+        const message = createBaseSynchronizationMessage();
+        message.Command = object.Command ?? 0;
+        message.Hash = object.Hash ?? undefined;
+        message.DivergenceHash = object.DivergenceHash ?? undefined;
+        message.Diffs = object.Diffs?.map((e) => Diff.fromPartial(e)) || [];
+        message.LinkedDevices =
+            object.LinkedDevices?.map((e) => LinkedDevice.fromPartial(e)) || [];
+        return message;
+    },
+};
 
 type Builtin =
     | Date
@@ -1953,8 +2291,8 @@ type Builtin =
 
 export type DeepPartial<T> = T extends Builtin
     ? T
-    : T extends Array<infer U>
-    ? Array<DeepPartial<U>>
+    : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
     : T extends ReadonlyArray<infer U>
     ? ReadonlyArray<DeepPartial<U>>
     : T extends { $case: string }
@@ -1973,8 +2311,8 @@ export type Exact<P, I extends P> = P extends Builtin
       };
 
 function longToNumber(long: Long): number {
-    if (long.gt(Number.MAX_SAFE_INTEGER)) {
-        throw new tsProtoGlobalThis.Error(
+    if (long.gt(globalThis.Number.MAX_SAFE_INTEGER)) {
+        throw new globalThis.Error(
             "Value is larger than Number.MAX_SAFE_INTEGER"
         );
     }

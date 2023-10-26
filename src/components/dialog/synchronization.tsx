@@ -2,20 +2,20 @@ import React, { useState } from "react";
 import { Body, Footer, GenericModal } from "../general/modal";
 import { ButtonFlat, ButtonType } from "../general/buttons";
 import { Credential } from "../../app_lib/vault_utils";
-import { DiffType } from "../../app_lib/proto/vault";
+import { DiffType, PartialCredential, Diff } from "../../app_lib/proto/vault";
 import clsx from "clsx";
 import { WarningDialogShowFn } from "./warning";
 
 export type DivergenceSolveShowDialogFnPropType = (
     ourCredentials: Credential.VaultCredential[],
-    theirCredentials: Credential.VaultCredential[],
+    theirCredentials: PartialCredential[],
     onConfirm: OnSuccessCallback,
     onCancel: OnCancelCallback
 ) => void;
 
 type OnSuccessCallback = (
-    diffsToApply: Credential.Diff[],
-    diffsToSend: Credential.Diff[]
+    diffsToApply: Diff[],
+    diffsToSend: Diff[]
 ) => Promise<void>;
 type OnCancelCallback = () => void;
 
@@ -32,16 +32,21 @@ export const DivergenceSolveDialog: React.FC<{
     const onCancelRef = React.useRef<OnCancelCallback>();
 
     const [selectedDiffHashes, setSelectedDiffHashes] = useState<string[]>([]);
-    const [differences, setDifferences] = useState<Credential.Diff[]>([]);
+    const [differences, setDifferences] = useState<Diff[]>([]);
 
     showDialogFnRef.current = (
         ourCredentials: Credential.VaultCredential[],
-        theirCredentials: Credential.VaultCredential[],
+        theirCredentials: PartialCredential[],
         onSuccess: OnSuccessCallback,
         onCancel: OnCancelCallback
     ) => {
         ourCredentialsRef.current = ourCredentials;
-        theirCredentialsRef.current = theirCredentials;
+
+        // NOTE: We need to convert the PartialCredential to a VaultCredential
+        // This should work as long as the data we received is valid
+        theirCredentialsRef.current =
+            theirCredentials as Credential.VaultCredential[];
+
         onSuccessRef.current = onSuccess;
         onCancelRef.current = onCancel;
 
@@ -81,7 +86,7 @@ export const DivergenceSolveDialog: React.FC<{
     // If our credentials are not in their credentials, then we save that as removal
     const compare = async () => {
         setLoading(true);
-        const _differences: Credential.Diff[] = [];
+        const _differences: Diff[] = [];
 
         for (const ourCredential of ourCredentialsRef.current) {
             const theirCredential = theirCredentialsRef.current.find(
@@ -194,8 +199,8 @@ export const DivergenceSolveDialog: React.FC<{
             differences.map((i) => DiffType[i.Changes?.Type ?? 0])
         );
 
-        const diffsToApply: Credential.Diff[] = [];
-        const diffsToSend: Credential.Diff[] = [];
+        const diffsToApply: Diff[] = [];
+        const diffsToSend: Diff[] = [];
 
         for (const _diff of differences) {
             const diffType = _diff.Changes?.Type ?? 0;
@@ -377,7 +382,7 @@ export const DivergenceSolveDialog: React.FC<{
 };
 
 const DiffItem: React.FC<{
-    difference: Credential.Diff;
+    difference: Diff;
     checked: boolean;
     onChangeFn: (hash: string, checked: boolean) => void;
 }> = ({ difference, checked, onChangeFn }) => {

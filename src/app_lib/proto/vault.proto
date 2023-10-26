@@ -24,6 +24,7 @@ enum KeyDerivationFunction {
 
 //#region Vault Metadata
 message VaultMetadata {
+    // The version of the vault as the point of creation
     int32 Version = 1;
     optional int32 DBIndex = 2;
     string Name = 3;
@@ -78,7 +79,10 @@ message CustomField {
 }
 
 message Vault {
+    // The version of the vault as the point of creation
     int32 Version = 1;
+    // The current version of the vault, which chages when the vault is upgraded
+    int32 CurrentVersion = 8;
     string Secret = 2; 
     Configuration Configuration = 3;
     OnlineServices OnlineServices = 4;
@@ -106,7 +110,7 @@ message LinkedDevice {
     string Name = 2;
     optional string LastSync = 3;
     bool IsRoot = 4;
-    int32 LinkedAtTimestamp = 5;
+    int64 LinkedAtTimestamp = 5;
     bool AutoConnect = 6;
     bool SyncTimeout = 7;
     int32 SyncTimeoutPeriod = 8;
@@ -129,9 +133,11 @@ message Credential {
     optional string DateModified = 12;
     optional string DatePasswordChanged = 13;
     repeated CustomField CustomFields = 14;
+    // NOTE: This property is not synchronized across devices ATM (meaning, it isn't present in the PartialCredential object)
+    optional string Hash = 15;
 }
 
-// All optional version of Credential
+// All optional version of the Credential object
 message PartialCredential {
     optional string ID = 1;
     optional ItemType Type = 2;
@@ -147,11 +153,27 @@ message PartialCredential {
     optional string DateModified = 12;
     optional string DatePasswordChanged = 13;
     repeated CustomField CustomFields = 14;
+    optional PartialCredentialChanges ChangeFlags = 15;
+}
+
+message PartialCredentialChanges {
+    bool TypeHasChanged = 1;
+    bool GroupIDHasChanged = 2;
+    bool NameHasChanged = 3;
+    bool UsernameHasChanged = 4;
+    bool PasswordHasChanged = 5;
+    bool TOTPHasChanged = 6;
+    bool TagsHasChanged = 7;
+    bool URLHasChanged = 8;
+    bool NotesHasChanged = 9;
+    bool DateCreatedHasChanged = 10;
+    bool DateModifiedHasChanged = 11;
+    bool DatePasswordChangedHasChanged = 12;
+    bool CustomFieldsHasChanged = 13;
 }
 
 message TOTP {
     string Label = 1;
-    string Issuer = 2;
     string Secret = 3;
     int32 Period = 4;
     int32 Digits = 5;
@@ -167,13 +189,18 @@ enum TOTPAlgorithm {
 
 //#region Diff
 message Diff {
+    // The hash of the vault after the change
     string Hash = 1;
+    // The changes that were made
     optional DiffChange Changes = 2;
 }
 
 message DiffChange {
+    // The type of change
     DiffType Type = 1;
+    // The ID of the item that was changed
     string ID = 2;
+    // The new value(s) of the item
     optional PartialCredential Props = 3;
 }
 
@@ -183,3 +210,21 @@ enum DiffType {
     Update = 2;
 }
 //#endregion Diff
+
+//#region Synchronization Message
+enum SynchronizationMessageCommand {
+    SyncRequest = 0;
+    SyncResponseAllHashes = 1;
+    SyncResponse = 2;
+    DivergenceSolveRequest = 3;
+    DivergenceSolve = 4;
+    LinkedDevicesList = 5;
+}
+
+message SynchronizationMessage {
+    SynchronizationMessageCommand Command = 1;
+    optional string Hash = 2;
+    optional string DivergenceHash = 3;
+    repeated Diff Diffs = 4;
+    repeated LinkedDevice LinkedDevices = 5;
+}

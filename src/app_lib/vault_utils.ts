@@ -852,7 +852,7 @@ export namespace Import {
         file: File,
         fields: FieldsSchemaType,
         onSuccess: (
-            credentials: Credential.CredentialFormSchemaType[]
+            credentials: VaultUtilTypes.PartialCredential[]
         ) => Promise<void>,
         onFailure: (error: Error) => void
     ): Promise<void> => {
@@ -860,105 +860,95 @@ export namespace Import {
             header: true,
             skipEmptyLines: true,
             download: false,
-            // worker: true,
+            worker: true,
             complete: async function (
                 results: Papa.ParseResult<unknown> | null
             ) {
                 if (!results) return;
 
-                const credentials: Credential.CredentialFormSchemaType[] = [];
+                const extractValue = (
+                    row: FieldsSchemaType,
+                    field: Fields,
+                    defaultValue?: string
+                ): string | undefined => {
+                    const value = row[field] ?? defaultValue;
+                    if (value == undefined || value === "") return undefined;
+                    return value;
+                };
+
+                const parseTags = (
+                    tags: string | undefined
+                ): string | undefined => {
+                    if (tags == undefined || tags === "") return undefined;
+                    return tags
+                        .split(fields.TagDelimiter ?? ",")
+                        .join(Credential.TAG_SEPARATOR);
+                };
+
+                const tryParseNumber = (
+                    value: string | undefined
+                ): string | number | undefined => {
+                    if (value == undefined || value === "") return undefined;
+                    // Try to parse the value as a number
+                    const parsed = Number(value);
+                    // If we failed to parse the number, return the original value
+                    if (isNaN(parsed)) return value;
+                    // Otherwise, return the parsed number
+                    return parsed;
+                };
+
+                const parseDate = (
+                    date: string | number | undefined
+                ): string | undefined => {
+                    if (date == undefined || date === "") return undefined;
+                    try {
+                        return new Date(date).toISOString();
+                    } catch (error) {
+                        console.error(
+                            "Failed to parse value as a date.",
+                            error
+                        );
+                        throw error;
+                    }
+                };
+
+                const createTOTP = (
+                    secret: string | undefined
+                ): Credential.TOTP | undefined => {
+                    if (secret == undefined || secret === "") return undefined;
+                    const totp = new Credential.TOTP();
+                    totp.Secret = String(secret);
+                    return totp;
+                };
+
+                const credentials: VaultUtilTypes.PartialCredential[] = [];
 
                 try {
                     for (const row of results.data as FieldsSchemaType[]) {
-                        const credential: Credential.CredentialFormSchemaType =
-                            {
-                                ID: null,
-                            };
-
-                        credential.Name =
-                            row[
-                                (fields.Name as keyof FieldsSchemaType) ?? ""
-                            ] ?? "Import";
-                        credential.Username =
-                            row[
-                                (fields.Username as keyof FieldsSchemaType) ??
-                                    ""
-                            ] ?? undefined;
-                        credential.Password =
-                            row[
-                                (fields.Password as keyof FieldsSchemaType) ??
-                                    ""
-                            ] ?? undefined;
-
-                        credential.Tags = (
-                            row[
-                                (fields.Tags as keyof FieldsSchemaType) ?? ""
-                            ] ?? ""
-                        )
-                            .split(fields.TagDelimiter ?? ",")
-                            .join(Credential.TAG_SEPARATOR);
-
-                        credential.URL =
-                            row[(fields.URL as keyof FieldsSchemaType) ?? ""] ??
-                            undefined;
-
-                        credential.Notes =
-                            row[
-                                (fields.Notes as keyof FieldsSchemaType) ?? ""
-                            ] ?? undefined;
-
-                        let _dateCreated: string | number | null =
-                            row[fields.DateCreated as keyof FieldsSchemaType];
-                        // Check if the dateCreated is actually a number as a string - if it is, convert it to a proper number
-                        if (_dateCreated && !isNaN(Number(_dateCreated))) {
-                            _dateCreated = Number(_dateCreated);
-                        }
-
-                        // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
-                        credential.DateCreated = fields.DateCreated
-                            ? new Date(_dateCreated ?? Date.now()).toISOString()
-                            : undefined;
-
-                        let _dateModified: string | number | null =
-                            row[fields.DateModified as keyof FieldsSchemaType];
-                        // Check if the dateModified is actually a number as a string - if it is, convert it to a proper number
-                        if (_dateModified && !isNaN(Number(_dateModified))) {
-                            _dateModified = Number(_dateModified);
-                        }
-
-                        credential.DateModified = fields.DateModified
-                            ? new Date(_dateModified ?? "").toISOString()
-                            : undefined;
-
-                        let _datePasswordChanged: string | number | null =
-                            row[
-                                fields.DatePasswordChanged as keyof FieldsSchemaType
-                            ];
-                        // Check if the datePasswordChanged is actually a number as a string - if it is, convert it to a proper number
-                        if (
-                            _datePasswordChanged &&
-                            !isNaN(Number(_datePasswordChanged))
-                        ) {
-                            _datePasswordChanged = Number(_datePasswordChanged);
-                        }
-
-                        credential.DatePasswordChanged =
-                            fields.DatePasswordChanged
-                                ? new Date(
-                                      _datePasswordChanged ?? ""
-                                  ).toISOString()
-                                : undefined;
-
-                        if (
-                            fields.TOTP &&
-                            row[fields.TOTP as keyof FieldsSchemaType]
-                        ) {
-                            credential.TOTP = new Credential.TOTP();
-                            credential.TOTP.Secret =
-                                row[fields.TOTP as keyof FieldsSchemaType] ??
-                                "";
-                        }
-
+                        const credential: VaultUtilTypes.PartialCredential = {
+                            ID: undefined,
+                            Name: extractValue(row, "Name", "Import"),
+                            Username: extractValue(row, "Username"),
+                            Password: extractValue(row, "Password"),
+                            Tags: parseTags(extractValue(row, "Tags")),
+                            URL: extractValue(row, "URL"),
+                            Notes: extractValue(row, "Notes"),
+                            DateCreated: parseDate(
+                                tryParseNumber(extractValue(row, "DateCreated"))
+                            ),
+                            DateModified: parseDate(
+                                tryParseNumber(
+                                    extractValue(row, "DateModified")
+                                )
+                            ),
+                            DatePasswordChanged: parseDate(
+                                tryParseNumber(
+                                    extractValue(row, "DatePasswordChanged")
+                                )
+                            ),
+                            TOTP: createTOTP(extractValue(row, "TOTP")),
+                            CustomFields: [],
+                        };
                         credentials.push(credential);
                     }
 
@@ -978,91 +968,102 @@ export namespace Import {
     export const BitwardenJSON = (
         file: File
     ): Promise<{
-        credentials: Credential.CredentialFormSchemaType[];
+        credentials: VaultUtilTypes.PartialCredential[];
         groups: Group[];
     }> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
 
             reader.onload = () => {
-                const json = reader.result as string;
-                const parsed = JSON.parse(json) as BitwardenJSON;
-
-                const credentials: Credential.CredentialFormSchemaType[] = [];
-
-                for (const item of parsed.items) {
-                    const credential: Credential.CredentialFormSchemaType = {
-                        ID: null,
-                        Type: item.type,
-                        GroupID: item.folderId,
-                    };
-
-                    // TODO: Set fields based on type (mainly type 4 - identity)
-
-                    credential.Name = item.name ?? "Import";
-
-                    if (item.login) {
-                        credential.Username = item.login.username ?? undefined;
-                        credential.Password = item.login.password ?? undefined;
-                        if (item.login.uris)
-                            credential.URL =
-                                item.login.uris[0]?.uri ?? undefined;
-                    }
-
-                    // No data to fill - credential.Tags
-
-                    credential.Notes = item.notes ?? undefined;
-
-                    // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
-                    credential.DateCreated = item.revisionDate
-                        ? new Date(item.revisionDate).toISOString()
-                        : undefined;
-
-                    credential.DateModified = item.passwordRevisionDate
-                        ? new Date(item.passwordRevisionDate).toISOString()
-                        : undefined;
-
-                    credential.DatePasswordChanged =
-                        item.passwordHistory && item.passwordHistory[0]
-                            ? new Date(
-                                  item.passwordHistory[0].lastUsedDate
-                              ).toISOString()
-                            : undefined;
-
-                    if (item.login?.totp) {
-                        credential.TOTP = new Credential.TOTP();
-                        credential.TOTP.Secret = item.login.totp;
-                    }
-
-                    // Set custom fields
-                    item.fields.forEach((field) => {
-                        if (!credential.CustomFields)
-                            credential.CustomFields = [];
-
-                        // Only import text, masked text and boolean fields
-                        // The 3 type is for something called "linked fields" for which we don't have an equivalent
-                        if (field.type < 3) {
-                            const customField = new Credential.CustomField();
-                            customField.Name = field.name;
-                            customField.Value = field.value;
-                            customField.Type = field.type;
-
-                            credential.CustomFields.push(customField);
-                        }
-                    });
-                }
-
-                // Return folders
+                const credentials: VaultUtilTypes.PartialCredential[] = [];
                 const groups: Group[] = [];
 
-                parsed.folders?.forEach((folder) => {
-                    groups.push({
-                        ID: folder.id,
-                        Name: folder.name,
-                        Icon: "",
-                        Color: "",
-                    });
-                });
+                // NOTE: The whole thing is wrapped in a try-catch block because we need to reject the promise if something goes wrong
+                try {
+                    const json = reader.result as string;
+                    const parsed = JSON.parse(json) as BitwardenJSON;
+
+                    for (const item of parsed.items) {
+                        const credential: VaultUtilTypes.PartialCredential = {
+                            ID: undefined,
+                            Type: item.type,
+                            GroupID: item.folderId,
+                            CustomFields: [],
+                        };
+
+                        // TODO: Set fields based on type (mainly type 4 - identity)
+
+                        credential.Name = item.name ?? "Import";
+
+                        if (item.login) {
+                            credential.Username =
+                                item.login.username ?? undefined;
+                            credential.Password =
+                                item.login.password ?? undefined;
+                            if (item.login.uris)
+                                credential.URL =
+                                    item.login.uris[0]?.uri ?? undefined;
+                        }
+
+                        // No data to fill - credential.Tags
+
+                        credential.Notes = item.notes ?? undefined;
+
+                        // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
+                        credential.DateCreated = item.revisionDate
+                            ? new Date(item.revisionDate).toISOString()
+                            : undefined;
+
+                        credential.DateModified = item.passwordRevisionDate
+                            ? new Date(item.passwordRevisionDate).toISOString()
+                            : undefined;
+
+                        credential.DatePasswordChanged =
+                            item.passwordHistory && item.passwordHistory[0]
+                                ? new Date(
+                                      item.passwordHistory[0].lastUsedDate
+                                  ).toISOString()
+                                : undefined;
+
+                        if (item.login?.totp) {
+                            credential.TOTP = new Credential.TOTP();
+                            credential.TOTP.Secret = item.login.totp;
+                        }
+
+                        // Set custom fields
+                        item.fields?.forEach((field) => {
+                            if (!credential.CustomFields)
+                                credential.CustomFields = [];
+
+                            // Only import text, masked text and boolean fields
+                            // The 3 type is for something called "linked fields" for which we don't have an equivalent
+                            if (field.type < 3) {
+                                const customField =
+                                    new Credential.CustomField();
+                                customField.Name = field.name;
+                                customField.Value = field.value;
+                                customField.Type = field.type;
+
+                                credential.CustomFields.push(customField);
+                            }
+                        });
+
+                        credentials.push(credential);
+                    }
+
+                    if (parsed.folders) {
+                        parsed.folders.forEach((folder) => {
+                            groups.push({
+                                ID: folder.id,
+                                Name: folder.name,
+                                Icon: "",
+                                Color: "",
+                            });
+                        });
+                    }
+                } catch (error) {
+                    reject(error);
+                }
 
                 resolve({
                     credentials,
@@ -1244,14 +1245,20 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             }
         );
 
-        vaultObject.Diffs = vaultObject.Diffs.map((diff: Credential.Diff) => {
-            return Object.assign(new Credential.Diff(), diff);
-        });
+        // There is no instantiable class for the Diff object so this is commented out for now
+        // vaultObject.Diffs = vaultObject.Diffs.map(
+        //     (diff: VaultUtilTypes.Diff) => {
+        //         // return Object.assign(new VaultUtilTypes.Diff(), diff);
+        //         return diff;
+        //     }
+        // );
 
         vaultObject.Configuration = Object.assign(
             new Configuration(),
             vaultObject.Configuration
         );
+
+        vaultObject.upgrade(vaultRawParsed.CurrentVersion);
 
         // Assign the deserialized data to the Vault object
         return vaultObject;
@@ -1334,11 +1341,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
 export namespace Credential {
     export const totpFormSchema = z.object({
-        Label: z
-            .string()
-            .min(1, requiredFieldError)
-            .max(255, "Label is too long"),
-        Issuer: z.string(),
+        Label: z.string().max(255, "Label is too long"),
         Secret: z.string(),
         Period: z.number().min(1, "Period must be at least 1 second"),
         Digits: z.number().min(1, "Digits must be at least 1"),
@@ -1351,7 +1354,6 @@ export namespace Credential {
     export const ALGORITHM_DEFAULT = VaultUtilTypes.TOTPAlgorithm.SHA1;
     export class TOTP implements VaultUtilTypes.TOTP, TOTPFormSchemaType {
         public Label: string;
-        public Issuer: string;
         public Secret: string;
         public Period: number;
         public Digits: number;
@@ -1360,7 +1362,6 @@ export namespace Credential {
         constructor() {
             this.Label = "";
             this.Secret = "";
-            this.Issuer = "";
             this.Period = PERIOD_DEFAULT;
             this.Digits = DIGITS_DEFAULT;
             this.Algorithm = ALGORITHM_DEFAULT;
@@ -1404,32 +1405,29 @@ export namespace Credential {
     export const TAG_SEPARATOR = ",|.|,";
     export const credentialFormSchema = z.object({
         ID: z.string().nullable(),
-        Type: z.nativeEnum(VaultUtilTypes.ItemType).optional(),
-        GroupID: z.string().optional(),
+        Type: z.nativeEnum(VaultUtilTypes.ItemType),
+        GroupID: z.string(),
         Name: z
             .string()
             .min(1, requiredFieldError)
-            .max(255, "Name is too long")
-            .optional(),
-        Username: z.string().optional(),
-        Password: z.string().optional(),
+            .max(255, "Name is too long"),
+        Username: z.string(),
+        Password: z.string(),
         TOTP: totpFormSchema.optional().nullable(), // This has to be nullable because of the way the form works
-        Tags: z.string().optional(),
-        URL: z.string().optional(),
-        Notes: z.string().optional(),
+        Tags: z.string(),
+        URL: z.string(),
+        Notes: z.string(),
         DateCreated: z.string().optional(), // Used only in diffing
-        DateModified: z.string().nullable().optional(), // Used only in diffing
-        DatePasswordChanged: z.string().nullable().optional(), // Used only in diffing
-        CustomFields: z
-            .array(
-                z.object({
-                    ID: z.string(),
-                    Name: z.string(),
-                    Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
-                    Value: z.string(),
-                })
-            )
-            .optional(),
+        DateModified: z.string().optional(), // Used only in diffing
+        DatePasswordChanged: z.string().optional(), // Used only in diffing
+        CustomFields: z.array(
+            z.object({
+                ID: z.string(),
+                Name: z.string(),
+                Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
+                Value: z.string(),
+            })
+        ),
     });
     export type CredentialFormSchemaType = z.infer<typeof credentialFormSchema>;
     export class VaultCredential
@@ -1449,257 +1447,326 @@ export namespace Credential {
         public DateModified: string | undefined;
         public DatePasswordChanged: string | undefined;
         public CustomFields: CustomField[];
+        public Hash: string | undefined;
 
-        constructor(form?: CredentialFormSchemaType) {
-            this.ID = form?.ID ?? "-1";
+        constructor(
+            form?: CredentialFormSchemaType | VaultUtilTypes.PartialCredential
+        ) {
+            this.ID = form?.ID ? String(form.ID).trim() : ulid();
 
             this.Type = form?.Type ?? VaultUtilTypes.ItemType.Credentials;
-            this.GroupID = form?.GroupID ?? "";
+            this.GroupID = form?.GroupID ? String(form.GroupID).trim() : "";
 
-            this.Name = form?.Name ?? "";
-            this.Username = form?.Username ?? "";
-            this.Password = form?.Password ?? "";
+            this.Name = form?.Name ? String(form.Name).trim() : "Unnamed item";
+            this.Username = form?.Username ? String(form.Username).trim() : "";
+            this.Password = form?.Password ? String(form.Password).trim() : "";
             this.TOTP = form?.TOTP
                 ? Object.assign(new Credential.TOTP(), form.TOTP)
                 : undefined;
-            this.Tags = form?.Tags ?? "";
-            this.URL = form?.URL ?? "";
-            this.Notes = form?.Notes ?? "";
+            this.Tags = form?.Tags ? String(form.Tags).trim() : "";
+            this.URL = form?.URL ? String(form.URL).trim() : "";
+            this.Notes = form?.Notes ? String(form.Notes).trim() : "";
 
-            this.DateCreated = new Date().toISOString();
-            this.DateModified = undefined;
-            this.DatePasswordChanged = undefined;
+            this.DateCreated = form?.DateCreated ?? new Date().toISOString();
+            this.DateModified = form?.DateModified ?? undefined;
+            this.DatePasswordChanged = form?.DatePasswordChanged ?? undefined;
 
             this.CustomFields = form?.CustomFields ?? [];
         }
 
+        public update(
+            form?: CredentialFormSchemaType,
+            diff?: VaultUtilTypes.DiffChange
+        ) {
+            if (diff && diff.Props && diff.Props.ChangeFlags) {
+                if (diff.Props.ChangeFlags.TypeHasChanged)
+                    this.Type = diff.Props.Type ?? this.Type;
+
+                if (diff.Props.ChangeFlags.GroupIDHasChanged)
+                    this.GroupID = diff.Props.GroupID ?? this.GroupID;
+
+                if (diff.Props.ChangeFlags.NameHasChanged)
+                    this.Name = diff.Props.Name ?? this.Name;
+
+                if (diff.Props.ChangeFlags.UsernameHasChanged)
+                    this.Username = diff.Props.Username ?? this.Username;
+
+                if (diff.Props.ChangeFlags.PasswordHasChanged)
+                    this.Password = diff.Props.Password ?? this.Password;
+
+                if (diff.Props.ChangeFlags.TOTPHasChanged)
+                    this.TOTP = diff.Props.TOTP
+                        ? Object.assign(new Credential.TOTP(), diff.Props.TOTP)
+                        : undefined;
+
+                if (diff.Props.ChangeFlags.TagsHasChanged)
+                    this.Tags = diff.Props.Tags ?? this.Tags;
+
+                if (diff.Props.ChangeFlags.URLHasChanged)
+                    this.URL = diff.Props.URL ?? this.URL;
+
+                if (diff.Props.ChangeFlags.NotesHasChanged)
+                    this.Notes = diff.Props.Notes ?? this.Notes;
+
+                if (diff.Props.ChangeFlags.DateCreatedHasChanged)
+                    this.DateCreated =
+                        diff.Props.DateCreated ?? this.DateCreated;
+
+                if (diff.Props.ChangeFlags.DateModifiedHasChanged)
+                    this.DateModified =
+                        diff.Props.DateModified ?? this.DateModified;
+
+                if (diff.Props.ChangeFlags.DatePasswordChangedHasChanged)
+                    this.DatePasswordChanged =
+                        diff.Props.DatePasswordChanged ??
+                        this.DatePasswordChanged;
+
+                if (diff.Props.ChangeFlags.CustomFieldsHasChanged)
+                    this.CustomFields =
+                        diff.Props.CustomFields ?? this.CustomFields;
+            } else if (form) {
+                const today = new Date().toISOString();
+
+                // The ID cannot be changed, so we don't check for it
+                // this.ID = form.ID ?? this.ID;
+
+                this.Type = form.Type ?? this.Type;
+                this.GroupID = form.GroupID ?? this.GroupID;
+
+                this.Name = form.Name ?? this.Name;
+                this.Username = form.Username ?? this.Username;
+
+                // Only update the DatePasswordChanged if the password has changed
+                // This only takes a non nullish value of the password into account
+                if (this.Password !== (form.Password ?? this.Password)) {
+                    this.Password = form.Password ?? this.Password;
+                    this.DatePasswordChanged = today;
+                }
+
+                this.TOTP = form.TOTP
+                    ? Object.assign(new Credential.TOTP(), form.TOTP)
+                    : undefined;
+                this.Tags = form.Tags ?? this.Tags;
+                this.URL = form.URL ?? this.URL;
+                this.Notes = form.Notes ?? this.Notes;
+
+                // The date created cannot be changed, so we don't check for it
+                // this.DateCreated = form.DateCreated ?? this.DateCreated;
+
+                this.DateModified = today;
+
+                this.CustomFields = form.CustomFields ?? this.CustomFields;
+            }
+
+            // Reset the hash - it will be recalculated when needed
+            this.Hash = undefined;
+
+            return this;
+        }
+
+        private prepareForHashing(): string {
+            // NOTE: When adding new fields, make sure to add them to the includedFields array
+            // The excluded fields are also listed here (commented out) for reference
+            const includedFields: (keyof VaultCredential)[] = [
+                "ID",
+                "Type",
+                "GroupID",
+                "Name",
+                "Username",
+                "Password",
+                // "TOTP",
+                "Tags",
+                "URL",
+                "Notes",
+                "DateCreated",
+                "DateModified",
+                "DatePasswordChanged",
+                "CustomFields",
+                // "Hash",
+            ];
+
+            // These are the fields we don't want to blindly concatenate, so we exclude them and handle them separately (if needed)
+            const excludedFields = ["TOTP", "Hash"];
+
+            let concatenatedValues = "";
+
+            includedFields.forEach((key: string) => {
+                // NOTE: Ran some performance test on this check; it's faster than actually checking
+                //  if the key is of the value we're looking for
+                if (!excludedFields.includes(key)) {
+                    const typedKey = key as keyof VaultCredential;
+
+                    // Concatenate the value of the field to the string
+                    concatenatedValues += String(this[typedKey] ?? "");
+                }
+            });
+
+            // Handle the TOTP field separately
+            concatenatedValues += String(this.TOTP?.Label ?? "");
+            concatenatedValues += String(this.TOTP?.Algorithm ?? "");
+            concatenatedValues += String(this.TOTP?.Digits ?? "");
+            concatenatedValues += String(this.TOTP?.Period ?? "");
+            concatenatedValues += this.TOTP?.Secret ?? "";
+
+            return concatenatedValues;
+        }
+
         /**
-         * Override the string representation of the object
+         * Calculates the hash of the credential and returns it.
+         * If the hash has already been calculated, it is returned instead.
+         * NOTE: This also sets the Hash property of the credential to the calculated hash - inplace.
+         * @returns The hash of the credential
          */
-        public toString(): string {
-            return JSON.stringify(this);
-        }
-
-        public static stripForDiff(
-            credential: VaultCredential
-        ): Partial<VaultCredential> {
-            const stripped: Partial<VaultCredential> = {};
-
-            Object.keys(credential)
-                .sort()
-                .forEach((key: string) => {
-                    const typedKey = key as keyof VaultCredential;
-                    (stripped as any)[typedKey] = credential[typedKey];
-                });
-
-            stripped.ID = "";
-            stripped.DateCreated = "";
-            stripped.DateModified = "";
-            stripped.DatePasswordChanged = "";
-
-            // Sort the keys in the stripped object since we might have added some
-            // and we want to make sure the order is consistent
-            const strippedSorted: Partial<VaultCredential> = {};
-            Object.keys(stripped)
-                .sort()
-                .forEach((key: string) => {
-                    const typedKey = key as keyof VaultCredential;
-                    (strippedSorted as any)[typedKey] = credential[typedKey];
-                });
-
-            return strippedSorted;
-        }
-
         public async hash(): Promise<string> {
-            const blankObject = VaultCredential.stripForDiff(this);
+            // If the hash has already been calculated, return it
+            // The thing gets calculated every time the credential is updated, so we don't want to do it again
+            if (this.Hash) return this.Hash;
+
+            const data = this.prepareForHashing();
 
             const hash = await crypto.subtle.digest(
-                "SHA-256",
-                new TextEncoder().encode(JSON.stringify(blankObject))
+                "SHA-1",
+                new TextEncoder().encode(data)
             );
 
-            return Buffer.from(hash).toString("hex");
+            this.Hash = Buffer.from(hash).toString("hex");
+
+            return this.Hash;
         }
     }
 
-    export interface DiffChange
-        extends VaultUtilTypes.DiffChange,
-            DiffChangeSchemaType {
-        Type: VaultUtilTypes.DiffType;
-        ID: string;
-        Props?: VaultUtilTypes.PartialCredential | undefined;
-    }
-    const DiffChangeSchema = z.object({
-        Type: z.nativeEnum(VaultUtilTypes.DiffType),
-        ID: z.string(),
-        Props: z.any().optional(), // This is Partial<VaultCredential>, undefined for deletes
-    });
-    type DiffChangeSchemaType = z.infer<typeof DiffChangeSchema>;
-
-    export class Diff implements VaultUtilTypes.Diff, DiffSchemaType {
-        Hash: string;
-        Changes: DiffChange | undefined;
-
-        constructor(hash = "", changes?: DiffChange) {
-            this.Hash = hash;
-            this.Changes = changes;
-        }
-    }
-    export const DiffSchema = z.object({
-        Hash: z.string(),
-        Changes: DiffChangeSchema.optional(),
-    });
-    export type DiffSchemaType = z.infer<typeof DiffSchema>;
-
+    /**
+     * Determines the changes done to a credential and returns them in the form of a DiffChange object.
+     * @param prevCredential - The previous credential object
+     * @param nextCredential - The new credential object
+     * @returns The nextCredential object if it's a new credential (prevCredential is undefined)
+     * @returns The changes done to the credential in the form of a DiffChange object
+     * @returns null if no changes were done to the credential
+     */
     export const getChanges = (
         prevCredential: VaultCredential | undefined,
         nextCredential: VaultCredential
-    ): DiffChange | null => {
-        // Normalize the previous and next credentials objects
-        prevCredential = prevCredential
-            ? JSON.parse(JSON.stringify(prevCredential))
-            : undefined;
-        nextCredential = JSON.parse(JSON.stringify(nextCredential));
-
-        const changes: DiffChange[] = [];
-
+    ): VaultUtilTypes.DiffChange | null => {
         // If the previous credential doesn't exist, then this is a new credential
         if (!prevCredential) {
+            const partialCredential = Object.assign({}, nextCredential);
+
+            // Remove the Hash property from the partial credential (since it doesn't exist in the PartialCredential type, and we're not syncing it)
+            delete partialCredential.Hash;
+
             return {
                 Type: VaultUtilTypes.DiffType.Add,
                 ID: nextCredential.ID,
-                Props: nextCredential,
+                Props: partialCredential,
             };
         }
 
-        // Note: Don't diff the credential type
+        // Normalize the previous and next credentials objects
+        prevCredential = Object.assign({}, prevCredential);
+        nextCredential = Object.assign({}, nextCredential);
+
+        const changeFlags: VaultUtilTypes.PartialCredentialChanges = {
+            TypeHasChanged: false,
+            GroupIDHasChanged: false,
+            NameHasChanged: false,
+            UsernameHasChanged: false,
+            PasswordHasChanged: false,
+            TOTPHasChanged: false,
+            TagsHasChanged: false,
+            URLHasChanged: false,
+            NotesHasChanged: false,
+            DateCreatedHasChanged: false,
+            DateModifiedHasChanged: false,
+            DatePasswordChangedHasChanged: false,
+            CustomFieldsHasChanged: false,
+        };
+
+        const craftedCredentials: VaultUtilTypes.PartialCredential = {
+            CustomFields: [],
+        };
+
+        // Note: Don't diff the credential type, we won't support that for now
 
         if (prevCredential.GroupID !== nextCredential.GroupID) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    GroupID: nextCredential.GroupID,
-                },
-            });
+            craftedCredentials.GroupID = nextCredential.GroupID;
+            changeFlags.GroupIDHasChanged = true;
         }
 
         if (prevCredential.Name !== nextCredential.Name) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    Name: nextCredential.Name,
-                },
-            });
+            craftedCredentials.Name = nextCredential.Name;
+            changeFlags.NameHasChanged = true;
         }
+
         if (prevCredential.Username !== nextCredential.Username) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    Username: nextCredential.Username,
-                },
-            });
+            craftedCredentials.Username = nextCredential.Username;
+            changeFlags.UsernameHasChanged = true;
         }
+
         if (prevCredential.Password !== nextCredential.Password) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    Password: nextCredential.Password,
-                },
-            });
+            craftedCredentials.Password = nextCredential.Password;
+            changeFlags.PasswordHasChanged = true;
         }
+
         if (
             JSON.stringify(prevCredential.TOTP) !==
             JSON.stringify(nextCredential.TOTP)
         ) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    TOTP: nextCredential.TOTP,
-                },
-            });
+            craftedCredentials.TOTP = nextCredential.TOTP
+                ? Object.assign({}, nextCredential.TOTP)
+                : undefined;
+            changeFlags.TOTPHasChanged = true;
         }
+
         if (prevCredential.Tags !== nextCredential.Tags) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    Tags: nextCredential.Tags,
-                },
-            });
+            craftedCredentials.Tags = nextCredential.Tags;
+            changeFlags.TagsHasChanged = true;
         }
+
         if (prevCredential.URL !== nextCredential.URL) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: { URL: nextCredential.URL },
-            });
+            craftedCredentials.URL = nextCredential.URL;
+            changeFlags.URLHasChanged = true;
         }
+
         if (prevCredential.Notes !== nextCredential.Notes) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    Notes: nextCredential.Notes,
-                },
-            });
+            craftedCredentials.Notes = nextCredential.Notes;
+            changeFlags.NotesHasChanged = true;
         }
+
         if (prevCredential.DateCreated !== nextCredential.DateCreated) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    DateCreated: nextCredential.DateCreated,
-                },
-            });
+            craftedCredentials.DateCreated = nextCredential.DateCreated;
+            changeFlags.DateCreatedHasChanged = true;
         }
 
         if (prevCredential.DateModified !== nextCredential.DateModified) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    DateModified: nextCredential.DateModified,
-                },
-            });
+            craftedCredentials.DateModified = nextCredential.DateModified;
+            changeFlags.DateModifiedHasChanged = true;
         }
 
         if (
             prevCredential.DatePasswordChanged !==
             nextCredential.DatePasswordChanged
         ) {
-            changes.push({
-                Type: VaultUtilTypes.DiffType.Update,
-                ID: nextCredential.ID,
-                Props: {
-                    DatePasswordChanged: nextCredential.DatePasswordChanged,
-                },
-            });
+            craftedCredentials.DatePasswordChanged =
+                nextCredential.DatePasswordChanged;
+            changeFlags.DatePasswordChangedHasChanged = true;
         }
 
-        // Merge all changes into a single update
-        if (changes.length) {
-            const _props: Partial<VaultCredential> | undefined = changes.reduce(
-                (acc, change) => ({ ...acc, ...change.Props }),
-                {}
-            );
-
-            // If the _props object only contains the DateModified property, then there are no real changes
-            if (
-                Object.keys(_props).length === 1 &&
-                _props.DateModified !== undefined
-            ) {
-                return null;
-            }
-
+        // Check if any of the fields have changed
+        if (
+            Object.keys(changeFlags).some(
+                (key) =>
+                    changeFlags[
+                        key as keyof VaultUtilTypes.PartialCredentialChanges
+                    ] as boolean
+            )
+        ) {
             return {
                 Type: VaultUtilTypes.DiffType.Update,
                 ID: nextCredential.ID,
-                Props: _props,
+                Props: {
+                    ...craftedCredentials,
+                    ChangeFlags: changeFlags,
+                },
             };
         }
 
@@ -1976,21 +2043,32 @@ export class OnlineServicesAccount
     }
 }
 
+/**
+ * Configuration options for the vault.
+ */
 class Configuration implements VaultUtilTypes.Configuration {
     /**
      * The maximum number of diffs to store in the vault.
      * This is used to minimize the amount of user interaction required when syncing.
      * It is set to a fixed number in order to prevent the vault from growing too large.
+     * NOTE: This is serialized and saved in the vault, so changing the value here will not affect existing vaults.
      * @default 500
      */
     public MaxDiffCount = 500;
 
     /**
-     * Whether or not to generate a diff when no linked devices are available.
-     * Currently, it is recommended to leave this disabled because there is no mechanism to keep the vault from growing too large.
+     * Whether or not to save only the latest diff when no linked devices are available.
+     * This is used to minimize the amount of storage space used by the vault when there are no linked devices.
+     * @default true
+     */
+    public SaveOnlyLatestDiffWhenNoLinked = true;
+
+    /**
+     * Whether or not to inhibit diff generation.
+     * This is mainly used when testing to ease the load on the CPU.
      * @default false
      */
-    public GenerateDiffWhenNoLinked = false;
+    public InhibitDiffGeneration = false;
 
     public setMaxDiffCount(count: number): void {
         this.MaxDiffCount = Math.abs(count);
@@ -2019,26 +2097,53 @@ class Group implements VaultUtilTypes.Group, GroupSchemaType {
 }
 
 export class Vault implements VaultUtilTypes.Vault {
+    // NOTE: This property is **not** serialized and saved in the vault
+    private LATEST_VERSION = 2;
     public Version: number;
+    public CurrentVersion = 0;
     public Secret: string;
     public Configuration: Configuration = new Configuration();
     public OnlineServices: OnlineServicesAccount;
     public Groups: Group[] = [];
     public Credentials: Credential.VaultCredential[];
-    public Diffs: Credential.Diff[] = [];
+    public Diffs: VaultUtilTypes.Diff[] = [];
 
     constructor(secret = "", seedData = false, seedCount = 0) {
-        // This is the version of the vault schema
-        // It changes when the schema changes
-        this.Version = 1;
+        this.Version = this.LATEST_VERSION;
         this.Secret = secret;
         this.OnlineServices = new OnlineServicesAccount();
         this.Credentials = seedData ? this.seedVault(seedCount) : [];
     }
 
     /**
+     * Upgrades the vault to the latest version. Makes changes to the vault in place - if the vault is not in the latest version, it will be upgraded.
+     * @param oldVersion - The version of the vault to upgrade from. Usually the value of the CurrentVersion property but from the clean-deserialized vault.
+     */
+    public upgrade(oldVersion: number): void {
+        // NOTE: Only CurrentVersion changes during upgrades, Version stays the same as it was when the vault was created
+        /**
+         * Version 2
+         *  - Upgrade reasons:
+         *      - Introduced new schema for Diff objects, revamped the way diffs are stored
+         *  - Other bigger changes (no upgrade needed):
+         *      - Changed the backup output to be more compact (binary instead of B64 data encoded in a JSON blob)
+         *      - Changed the way the synchronization messsages are serialized and deserialized (to be more compact and efficient)
+         */
+        if (oldVersion < 2) {
+            console.warn("Upgrading vault to version 2...");
+            // Clear the list of diffs
+            this.Diffs = [];
+
+            // Set the current version to 2
+            this.CurrentVersion = 2;
+
+            console.warn("Upgraded vault to version 2.");
+        }
+    }
+
+    /**
      * Seeds the vault with mock credentials
-     * @param num Number of credentials to seed the vault with
+     * @param num - Number of credentials to seed the vault with
      * @returns An array of mock credentials
      */
     private seedVault(num: number): Credential.VaultCredential[] {
@@ -2081,8 +2186,9 @@ export class Vault implements VaultUtilTypes.Vault {
     /**
      * Hashes the vault's credentials and returns the hash as a hex string.
      * This is used to when computing diffs between changes to the vault credentials.
-     * It also sorts the properties of the credentials to ensure that the hash is consistent.
-     * @returns A SHA256 hash
+     * It also sorts the credentials to ensure that the hash is consistent - by using ULIDs.
+     * Each credential is hashed individually, and the hashes are concatenated and hashed again.
+     * @returns A hash in the form of a hex string
      */
     private async hashCredentials(): Promise<string> {
         // Credentials sorted by ID (ULIDs) by lexicographic order
@@ -2092,19 +2198,17 @@ export class Vault implements VaultUtilTypes.Vault {
         //     sortedCreds.map((c) => c.ID)
         // );
 
-        // Copy the credential object property by property
-        const credentialsCopy = sortedCreds.map(
-            (c: Credential.VaultCredential) =>
-                Credential.VaultCredential.stripForDiff(c)
-        );
+        console.debug("Hashing credentials: ", sortedCreds);
 
-        const stringifiedCredentials = JSON.stringify(credentialsCopy, null, 0);
-        console.debug("Hashing credentials: ", stringifiedCredentials);
+        let concatedHashes = "";
+        for (const cred of sortedCreds) {
+            concatedHashes += await cred.hash();
+        }
 
-        // Generate a SHA256 hash of the credentials
+        // Generate a hash of the credentials hashes
         const credentialsHash = await crypto.subtle.digest(
-            "SHA-256",
-            Buffer.from(stringifiedCredentials)
+            "SHA-1",
+            Buffer.from(concatedHashes)
         );
 
         // Return the hash as a hex string
@@ -2114,21 +2218,24 @@ export class Vault implements VaultUtilTypes.Vault {
     /**
      * Gets the hash from the latest diff, or calculates the hash from the credentials if there are no diffs.
      * @returns The hash from the latest diff, or the credentials hash if there are no diffs
-     * @returns An empty string if there are no credentials
+     * @returns Undefined if there are no diffs and no credentials
+     * @returns An empty string if there are diffs but we can't get the hash from the latest (last) diff - shouldn't, and can't, happen
      */
-    public async getLatestHash(): Promise<string | null> {
+    public async getLatestHash(): Promise<string | undefined> {
         if (this.Diffs.length === 0) {
             if (this.Credentials.length !== 0)
                 return await this.hashCredentials();
-            return null;
+            return undefined;
         }
 
+        // NOTE: Don't worry about the empty string, it shouldn't happen - since we did a check for the length of the diffs array above
         return this.Diffs.at(-1)?.Hash ?? "";
     }
 
     /**
      * Gets the hashes from the latest diff to the first diff.
-     * @returns If there are diffs, an array of hashes from the latest diff to the first diff (in that order), empty array otherwise
+     * @returns If there are diffs, an array of hashes from the latest diff to the first diff (in that order)
+     * @returns An empty array if there are no diffs
      */
     public getAllHashes(): string[] {
         return this.Diffs.map((diff) => diff.Hash).reverse();
@@ -2142,34 +2249,17 @@ export class Vault implements VaultUtilTypes.Vault {
      */
     public async getDiffsSinceHash(
         hash: string | null
-    ): Promise<Credential.Diff[]> {
-        const returnCredentialsAsAdditions = async (): Promise<
-            Credential.Diff[]
-        > => {
-            // Create a clone of the vault so we can calculate the hash after adding each credential
+    ): Promise<VaultUtilTypes.Diff[]> {
+        // If the hash is null, return the credentials as additions
+        if (hash === null || this.Diffs.length === 0) {
             const clonedVault = new Vault();
-            clonedVault.Configuration.GenerateDiffWhenNoLinked = true;
+            clonedVault.Configuration.SaveOnlyLatestDiffWhenNoLinked = false;
 
-            // const diffs = this.getSortedCredentials().map((cred) => {
-            // const diffs: Credential.Diff[] = [];
             for (const cred of this.getSortedCredentials()) {
-                // Add the credential to the cloned vault
-                await clonedVault.upsertCredential(cred);
-
-                // Craft a diff for the credential
-                // diffs.push(new Credential.Diff(clonedVault.hashCredentials(), {
-                //     Type: VaultUtilTypes.DiffType.Add,
-                //     ID: cred.ID,
-                //     Props: cred,
-                // }));
+                await clonedVault.createCredential(cred);
             }
 
             return clonedVault.Diffs;
-        };
-
-        // If the hash is null, return the credentials as additions
-        if (hash === null || this.Diffs.length === 0) {
-            return await returnCredentialsAsAdditions();
         }
 
         const startIndex = this.Diffs.findIndex((diff) => diff.Hash === hash);
@@ -2184,12 +2274,23 @@ export class Vault implements VaultUtilTypes.Vault {
     }
 
     /**
-     * Creates a new diff and adds it to the vault's Diffs array
-     * If the changes are null, no diff is created
-     * Also removes the oldest diff if the max diff count has been reached
-     * @param changes - The changes that were made
+     * Processes the given changes and crafts a diff object.
+     * If the changes are null, no diff is created.
+     * First a hash of the current credentials list is generated. Then a diff object is created and added to the vault's Diffs array.
+     * If there are linked devices or the configuration flag "SaveOnlyLatestDiffWhenNoLinked" is set to true, the diff is added to the array.
+     * Otherwise, the diff list is cleared and only the current diff is saved.
+     * NOTE: if the configuration flag "InhibitDiffGeneration" is set to true, no diff is created - this is to prevent unnecessary resource usage.
+     * @param changes The changes to Process
+     * @returns Nothing
      */
-    private async createDiff(changes: Credential.DiffChange | null) {
+    private async createDiff(changes: VaultUtilTypes.DiffChange | null) {
+        if (this.Configuration.InhibitDiffGeneration) {
+            console.debug(
+                "Diff generation inhibited. Early return from createDiff."
+            );
+            return;
+        }
+
         if (!changes) {
             console.debug("No changes to create diff for... Early return.");
             return;
@@ -2201,16 +2302,13 @@ export class Vault implements VaultUtilTypes.Vault {
         console.timeEnd("createDiff-getCredentialsHash");
 
         console.time("createDiff-pushDiff");
-        const diff = new Credential.Diff(newHash, changes);
+        const diff: VaultUtilTypes.Diff = {
+            Hash: newHash,
+            Changes: changes,
+        };
 
         // If the diff array size is greater than the max diff count, remove the oldest diff
-        // If there are no linked devices, only the latest diff is saved to ensure that linked
-        //  devices can sync even if they diverged right after linking
-        if (
-            this.Diffs.length >= this.Configuration.MaxDiffCount &&
-            (this.OnlineServices.LinkedDevices.length > 0 ||
-                this.Configuration.GenerateDiffWhenNoLinked)
-        ) {
+        if (this.Diffs.length >= this.Configuration.MaxDiffCount) {
             // Slice the array to remove the overflowing diffs
             // Example: this.Diffs.length = 286, this.Configuration.MaxDiffCount = 95
             // - Result: 286 - 95 + 1 = 192 -> 192 diffs from the start of the array are removed
@@ -2218,7 +2316,15 @@ export class Vault implements VaultUtilTypes.Vault {
             this.Diffs = this.Diffs.slice(
                 this.Diffs.length - this.Configuration.MaxDiffCount + 1
             );
-        } else if (this.OnlineServices.LinkedDevices.length <= 0) {
+        }
+
+        // If there are no linked devices and the configuration flag is set to false, clear the diff list
+        // If there are no linked devices, only the latest diff is saved to ensure that linked
+        //  devices can sync even if they diverged right after linking
+        if (
+            this.OnlineServices.LinkedDevices.length <= 0 &&
+            this.Configuration.SaveOnlyLatestDiffWhenNoLinked
+        ) {
             // Make sure that only this diff is saved when there are no linked devices
             this.Diffs = [];
         }
@@ -2230,7 +2336,7 @@ export class Vault implements VaultUtilTypes.Vault {
         console.debug("Current diff list:", this.Diffs);
     }
 
-    public async applyDiffs(diffs: Credential.DiffSchemaType[]) {
+    public async applyDiffs(diffs: VaultUtilTypes.Diff[]) {
         console.time("applyDiffs");
 
         // If there are no diffs, return
@@ -2241,43 +2347,13 @@ export class Vault implements VaultUtilTypes.Vault {
 
         // Apply the diffs in order
         for (const diff of diffs) {
-            if (diff.Changes) {
-                if (
-                    diff.Changes.Type === VaultUtilTypes.DiffType.Add ||
+            if (diff.Changes && diff.Changes.Props) {
+                if (diff.Changes.Type === VaultUtilTypes.DiffType.Add) {
+                    await this.createCredential(diff.Changes.Props);
+                } else if (
                     diff.Changes.Type === VaultUtilTypes.DiffType.Update
                 ) {
-                    if (diff.Changes.Props) {
-                        // If the diff has a TOTP, create a TOTP object
-                        let totp: Credential.TOTPFormSchemaType | undefined =
-                            undefined;
-                        if (diff.Changes.Props.TOTP) {
-                            totp = {
-                                Label: diff.Changes.Props.TOTP.Label,
-                                Issuer: diff.Changes.Props.TOTP.Issuer,
-                                Algorithm: diff.Changes.Props.TOTP.Algorithm,
-                                Digits: diff.Changes.Props.TOTP.Digits,
-                                Period: diff.Changes.Props.TOTP.Period,
-                                Secret: diff.Changes.Props.TOTP.Secret,
-                            };
-                        }
-
-                        // Use the built-in upsert method to add or update the credential
-                        // That way we don't have to duplicate the logic
-                        await this.upsertCredential({
-                            ID: diff.Changes.ID,
-                            Name: diff.Changes.Props.Name,
-                            Username: diff.Changes.Props.Username,
-                            Password: diff.Changes.Props.Password,
-                            Tags: diff.Changes.Props.Tags,
-                            Notes: diff.Changes.Props.Notes,
-                            TOTP: totp,
-                            URL: diff.Changes.Props.URL,
-                            DateCreated: diff.Changes.Props.DateCreated,
-                            DateModified: diff.Changes.Props.DateModified,
-                            DatePasswordChanged:
-                                diff.Changes.Props.DatePasswordChanged,
-                        });
-                    }
+                    await this.updateCredential(undefined, diff.Changes);
                 } else if (
                     diff.Changes.Type === VaultUtilTypes.DiffType.Delete
                 ) {
@@ -2294,84 +2370,111 @@ export class Vault implements VaultUtilTypes.Vault {
 
     //#region Credential Methods
     /**
-     * Upserts a credential. If the credential already exists, it will be updated. If it does not exist, it will be created.
-     * @param form The valid form data with which to upsert the credential.
+     * Inserts the given credential into the vault. After creation, a diff is generated and added to the vault's diff list.
+     * @param data The form data with which to create the credential. The data can come from the frontend or from a diff we're applying.
+     * @returns A reference to the new credential
      */
-    public async upsertCredential(form: Credential.CredentialFormSchemaType) {
-        console.time("upsertCredential");
+    public async createCredential(
+        data:
+            | Credential.CredentialFormSchemaType
+            | VaultUtilTypes.PartialCredential
+    ): Promise<Credential.VaultCredential | null> {
+        console.time("createCredential");
 
-        console.time("upsertCredential-findExisting");
-        const existingCreds: Credential.VaultCredential | undefined =
-            this.Credentials.find((c) => c.ID === form.ID);
-        console.timeEnd("upsertCredential-findExisting");
+        console.timeLog("createCredential", "Creating new credential...");
+        const newCreds = new Credential.VaultCredential(data);
+        console.timeLog("createCredential", "New credential created.");
 
-        let changes: Credential.DiffChange | null = null;
-
-        if (existingCreds) {
-            console.time("upsertCredential-existingCreds");
-
-            console.time("upsertCredential-existingCredsCopy");
-            const originalCredential = Object.assign({}, existingCreds);
-            console.timeEnd("upsertCredential-existingCredsCopy");
-
-            console.time("upsertCredential-updateExisting");
-            const today = new Date().toISOString();
-
-            if (form.Name) existingCreds.Name = form.Name;
-
-            if (form.Username !== undefined)
-                existingCreds.Username = form.Username;
-
-            if (form.Password !== undefined) {
-                if (form.Password !== existingCreds.Password)
-                    existingCreds.DatePasswordChanged = form.DatePasswordChanged
-                        ? form.DatePasswordChanged
-                        : today;
-
-                existingCreds.Password = form.Password;
-            }
-
-            existingCreds.TOTP = form.TOTP
-                ? Object.assign(new Credential.TOTP(), form.TOTP)
-                : undefined;
-
-            if (form.Tags !== undefined) existingCreds.Tags = form.Tags;
-            if (form.URL !== undefined) existingCreds.URL = form.URL;
-            if (form.Notes !== undefined) existingCreds.Notes = form.Notes;
-
-            // This is OK because if this is the only change, getChanges won't return anything
-            existingCreds.DateModified = form.DateModified
-                ? form.DateModified
-                : today;
-            console.timeEnd("upsertCredential-updateExisting");
-
-            console.time("upsertCredential-getChanges");
-            changes = Credential.getChanges(originalCredential, existingCreds);
-            console.timeEnd("upsertCredential-getChanges");
-
-            console.timeEnd("upsertCredential-existingCreds");
-        } else {
-            console.time("upsertCredential-newCreds");
-            const newCreds = new Credential.VaultCredential(form);
-
-            newCreds.ID = form?.ID ?? ulid();
-
-            console.timeEnd("upsertCredential-newCreds");
-
-            if (form.DateCreated) newCreds.DateCreated = form.DateCreated;
-
-            console.time("upsertCredential-pushNewCreds");
-            this.Credentials.push(newCreds);
-            console.timeEnd("upsertCredential-pushNewCreds");
-
-            console.time("upsertCredential-getChanges");
-            changes = Credential.getChanges(undefined, newCreds);
-            console.timeEnd("upsertCredential-getChanges");
+        if (!this.Configuration.InhibitDiffGeneration) {
+            // Recalculate the hash, since the credential has been updated
+            await newCreds.hash();
         }
 
-        await this.createDiff(changes);
+        // TODO: We could add a check here to make sure that the credentials hash matches the hash from the given diff (if we're applying from a diff)
+        this.Credentials.push(newCreds);
 
-        console.timeEnd("upsertCredential");
+        // This creates an 'Add' type diff - because the credential didn't exist before
+        const change = Credential.getChanges(undefined, newCreds);
+
+        console.timeLog("createCredential", "Creating diff...");
+        await this.createDiff(change);
+        console.timeLog("createCredential", "Diff created.");
+
+        console.timeEnd("createCredential");
+
+        return newCreds;
+    }
+
+    /**
+     * Updates a credential in the vault using the credential's ID.
+     * @param formData - The form data with which to update the credential (not undefined if the update is coming from the frontend)
+     * @param diff - The diff with which to update the credential (not undefined if the update is coming from a diff)
+     * @returns A reference to the updated credential
+     * @returns Null if the credential ID is missing
+     */
+    public async updateCredential(
+        formData?: Credential.CredentialFormSchemaType,
+        diff?: VaultUtilTypes.DiffChange
+    ): Promise<Credential.VaultCredential | null> {
+        console.time("updateCredential");
+        // If the ID is missing, throw an error (this covers the case where we receive form data or a diff)
+        if (
+            (formData && (formData.ID == null || !formData.ID?.length)) ||
+            (diff && (diff.ID == null || !diff.ID?.length))
+        ) {
+            console.timeEnd("updateCredential");
+
+            // throw new Error(
+            //     "Cannot update credential. The credential ID is missing."
+            // );
+
+            return null;
+        }
+
+        // Extract the ID from the data or diff
+        const credentialId = formData?.ID ?? diff?.ID;
+
+        // NOTE: The data.ID will never be null or empty here because we check for it in the if statement above
+        const existingCreds: Credential.VaultCredential | undefined =
+            this.Credentials.find(
+                (i) => i.ID.toLowerCase() === credentialId?.toLowerCase()
+            );
+
+        if (!existingCreds) {
+            console.timeLog(
+                "updateCredential",
+                "Credential not found. Early return."
+            );
+            console.timeEnd("updateCredential");
+
+            // throw new Error(
+            //     "Cannot update credential. The credential was not found."
+            // );
+
+            return null;
+        }
+
+        const originalCredentials = Object.assign({}, existingCreds);
+
+        const moddedCredentials = existingCreds.update(formData, diff);
+
+        if (!this.Configuration.InhibitDiffGeneration) {
+            // Recalculate the hash, since the credential has been updated
+            await moddedCredentials.hash();
+        }
+
+        const changes = Credential.getChanges(
+            originalCredentials,
+            moddedCredentials
+        );
+
+        if (changes) {
+            await this.createDiff(changes);
+        }
+
+        console.timeEnd("updateCredential");
+
+        return moddedCredentials;
     }
 
     /**
@@ -2387,7 +2490,7 @@ export class Vault implements VaultUtilTypes.Vault {
         console.timeEnd("deleteCredential-findIndex");
 
         if (index >= 0) {
-            const change: Credential.DiffChange = {
+            const change: VaultUtilTypes.DiffChange = {
                 Type: VaultUtilTypes.DiffType.Delete,
                 ID: id,
             };
@@ -2509,106 +2612,88 @@ export class Vault implements VaultUtilTypes.Vault {
 }
 
 export namespace Synchronization {
-    export enum Command {
-        SyncRequest = "sync-request",
-        ResponseSyncAllHashes = "response-sync-all-hashes",
-        SyncResponse = "sync-response",
-        DivergenceSolveRequest = "divergence-solve-request",
-        DivergenceSolve = "divergence-solve",
-        LinkedDevicesList = "linked-devices-list",
-    }
+    // Reexport the VaultUtil.SynchronizationCommand enum as Command for convenience
+    export import Command = VaultUtilTypes.SynchronizationMessageCommand;
 
-    // When adding fields, make sure to add them first to this zod schema
-    export const messageSchema = z.object({
-        command: z.nativeEnum(Command),
-        hash: z.string().nullable(),
-        divergenceHash: z.string().nullable(),
-        diffList: z.array(Credential.DiffSchema),
-        linkedDevicesList: z.array(LinkedDevicesSchema).optional(),
-    });
+    export class Message implements VaultUtilTypes.SynchronizationMessage {
+        Command: VaultUtilTypes.SynchronizationMessageCommand;
+        Hash?: string;
 
-    export class Message implements z.infer<typeof messageSchema> {
-        command: Command;
-        hash: string | null;
         /**
-         * The hash from which the divergance occurred.
-         * This is sent from the ResponseSyncAllHashes command if it detects a divergance.
+         * The hash from which the divergence occurred.
+         * This is sent from the ResponseSyncAllHashes command if it detects a divergence.
          * This is only used in the SyncResponse command if it has been set by the ResponseSyncAllHashes command.
          */
-        divergenceHash: string | null;
-        diffList: Credential.DiffSchemaType[];
-        linkedDevicesList?: LinkedDeviceSchemaType[];
+        DivergenceHash?: string;
+
+        Diffs: VaultUtilTypes.Diff[];
+        LinkedDevices: VaultUtilTypes.LinkedDevice[];
 
         constructor(
-            command: Command,
-            hash: string | null,
-            divergenceHash: string | null,
-            diffList: Credential.DiffSchemaType[],
-            linkedDevicesList?: LinkedDeviceSchemaType[]
+            command: VaultUtilTypes.SynchronizationMessageCommand,
+            hash?: string,
+            divergenceHash?: string,
+            diffs?: VaultUtilTypes.Diff[],
+            linkedDevices?: VaultUtilTypes.LinkedDevice[]
         ) {
-            this.command = command;
-            this.hash = hash;
-            this.divergenceHash = divergenceHash;
-            this.diffList = diffList;
-            this.linkedDevicesList = linkedDevicesList;
+            this.Command = command;
+            this.Hash = hash;
+            this.DivergenceHash = divergenceHash;
+            this.Diffs = diffs ?? [];
+            this.LinkedDevices = linkedDevices ?? [];
         }
 
         public static prepare(
-            command: Command,
-            hash: string | null,
-            divergenceHash: string | null,
-            diffList: Credential.DiffSchemaType[],
-            linkedDevicesList?: LinkedDeviceSchemaType[]
+            command: VaultUtilTypes.SynchronizationMessageCommand,
+            hash: string | undefined,
+            divergenceHash: string | undefined,
+            diffs: VaultUtilTypes.Diff[],
+            linkedDevices?: VaultUtilTypes.LinkedDevice[]
         ): Message {
             return new Message(
                 command,
                 hash,
                 divergenceHash,
-                diffList,
-                linkedDevicesList
+                diffs,
+                linkedDevices
             );
         }
 
-        static fromSchema(schema: z.infer<typeof messageSchema>): Message {
+        public static parse(data: Uint8Array): Message {
+            const decoded = VaultUtilTypes.SynchronizationMessage.decode(data);
             return new Message(
-                schema.command,
-                schema.hash,
-                schema.divergenceHash,
-                schema.diffList,
-                schema.linkedDevicesList
+                decoded.Command,
+                decoded.Hash,
+                decoded.DivergenceHash,
+                decoded.Diffs,
+                decoded.LinkedDevices
             );
         }
 
         public setCommand(command: Command): void {
-            this.command = command;
+            this.Command = command;
         }
 
         public setHash(hash: string | null): void {
-            this.hash = hash;
+            this.Hash = hash ?? undefined;
         }
 
         public setDivergenceHash(hash: string | null): void {
-            this.divergenceHash = hash;
+            this.DivergenceHash = hash ?? undefined;
         }
 
-        public setDiffList(diffList: Credential.DiffSchemaType[]): void {
-            this.diffList = diffList;
+        public setDiffList(diffList: VaultUtilTypes.Diff[]): void {
+            this.Diffs = diffList;
         }
 
         public setLinkedDevicesList(
             linkedDevicesList: LinkedDeviceSchemaType[]
         ): void {
-            this.linkedDevicesList = linkedDevicesList;
+            this.LinkedDevices = linkedDevicesList;
         }
 
-        public serialize(): string {
-            // Make sure to only include properties, not methods
-            return JSON.stringify(this, (_, value) => {
-                if (typeof value === "function") {
-                    return undefined;
-                }
-                return value;
-            });
+        public serialize(): Uint8Array {
+            return VaultUtilTypes.SynchronizationMessage.encode(this).finish();
         }
     }
 
@@ -2753,7 +2838,7 @@ export namespace Synchronization {
          */
         public static async divergenceSolveConfirm(
             unlockedVault: Vault,
-            diffsToApply: Credential.Diff[]
+            diffsToApply: VaultUtilTypes.Diff[]
         ) {
             // Apply the diffsToApply to the vault
             await unlockedVault.applyDiffs(diffsToApply);
@@ -2772,11 +2857,11 @@ export namespace Synchronization {
             message: Message,
             deviceId: string
         ) {
-            if (!message.linkedDevicesList) return false;
+            if (!message.LinkedDevices.length) return false;
 
             let changesOccured = false;
 
-            const devicesInReceivedList = message.linkedDevicesList.map(
+            const devicesInReceivedList = message.LinkedDevices.map(
                 (d) => d.ID
             );
             const devicesInCurrentList =
@@ -2788,12 +2873,12 @@ export namespace Synchronization {
 
             // Update the IsRoot property of the devices that are in both lists
             intersection.forEach((d) => {
-                if (message.linkedDevicesList) {
+                if (message.LinkedDevices) {
                     const existingLinkedDevice =
                         unlockedVault.OnlineServices.LinkedDevices.find(
                             (ld) => ld.ID === d
                         );
-                    const receivedLinkedDevice = message.linkedDevicesList.find(
+                    const receivedLinkedDevice = message.LinkedDevices.find(
                         (ld) => ld.ID === d
                     );
 
@@ -2823,7 +2908,7 @@ export namespace Synchronization {
                 unlockedVault.OnlineServices.LinkedDevices.length;
 
             // Add devices that are in the received list but not in the current list
-            message.linkedDevicesList.forEach((d) => {
+            message.LinkedDevices.forEach((d) => {
                 if (
                     !unlockedVault.OnlineServices.LinkedDevices.find(
                         (ld) => ld.ID === d.ID

@@ -26,7 +26,6 @@ import {
     FunnelIcon,
     Bars3Icon,
     XMarkIcon,
-    ClipboardDocumentIcon,
     ArrowTopRightOnSquareIcon,
     LockClosedIcon,
     PlusCircleIcon,
@@ -97,6 +96,9 @@ import {
     TOTPAlgorithm,
     EncryptionAlgorithm,
     KeyDerivationFunction,
+    type PartialCredential,
+    Diff,
+    SynchronizationMessageCommand,
 } from "../../app_lib/proto/vault";
 import NavBar from "../../components/navbar";
 import {
@@ -130,9 +132,14 @@ const DIALOG_BLUR_TIME = 200;
 const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 const unlockedVaultAtom = atom(new Vault());
 const unlockedVaultWriteOnlyAtom = atom(
-    null,
-    async (get, set, val: (pre: Vault | null) => Promise<Vault | null>) => {
-        const vault = await val(get(unlockedVaultAtom));
+    (get): Vault => {
+        return get(unlockedVaultAtom);
+    },
+    async (get, set, val: ((pre: Vault) => Promise<Vault> | Vault) | Vault) => {
+        const vault: Vault = await (typeof val === "function"
+            ? val(get(unlockedVaultAtom))
+            : val);
+
         set(unlockedVaultAtom, Object.assign(new Vault(), vault));
     }
 );
@@ -671,7 +678,7 @@ const UnlockVaultDialog: React.FC<{
         handleSubmit,
         control,
         setError: setFormError,
-        formState: { errors, isSubmitting, isDirty },
+        formState: { errors, isSubmitting, isDirty, dirtyFields },
         reset: resetForm,
         watch,
     } = useForm<UnlockVaultFormSchemaType>({
@@ -766,8 +773,11 @@ const UnlockVaultDialog: React.FC<{
             resetForm(defaultValues);
         };
 
+        const isOnlyCaptchaDirty =
+            Object.keys(dirtyFields).length === 1 && dirtyFields.CaptchaToken;
+
         // Check if the form has been modified (only if we are not forcing)
-        if (isDirty && !force) {
+        if (isDirty && !force && !isOnlyCaptchaDirty) {
             // If it has, ask the user if they want to discard the changes
             if (confirm("Are you sure you want to discard your changes?")) {
                 hide();
@@ -4177,7 +4187,7 @@ const ImportDataDialog: React.FC<{
     const parsedColumns = useRef<string[]>([]);
 
     const importCredentials = async (
-        credentials: Credential.CredentialFormSchemaType[],
+        credentials: PartialCredential[],
         groups: GroupSchemaType[] = []
     ) => {
         // Add the credentials to the vault
@@ -4192,7 +4202,7 @@ const ImportDataDialog: React.FC<{
             vault.upsertGroup(group);
         });
         for (const credential of credentials) {
-            await vault.upsertCredential(credential);
+            await vault.createCredential(credential);
         }
         unlockedVaultMetadata?.save(vault);
 
@@ -4511,9 +4521,7 @@ const VaultSettingsDialog: React.FC<{
                 // Clear the sync list
                 setIsLoading(true);
                 setUnlockedVault((prev) => {
-                    if (prev != null) {
-                        prev.purgeDiffList();
-                    }
+                    prev.purgeDiffList();
                     return prev;
                 });
                 setIsLoading(false);
@@ -4726,7 +4734,6 @@ const TOTPDialog: React.FC<{
         resolver: zodResolver(Credential.totpFormSchema),
         defaultValues: {
             Label: "",
-            Issuer: "",
             Secret: "",
             Period: Credential.PERIOD_DEFAULT,
             Digits: Credential.DIGITS_DEFAULT,
@@ -4778,7 +4785,7 @@ const TOTPDialog: React.FC<{
                         <b>{vaultMetadata.CreatedAt.toLocaleDateString()}</b>
                     </p> */}
                     <div className="flex w-full flex-col text-left">
-                        <div className="mt-2 flex flex-col">
+                        <div className="mt-2 hidden flex-col">
                             <Controller
                                 control={control}
                                 name="Label"
@@ -4787,7 +4794,7 @@ const TOTPDialog: React.FC<{
                                 }) => (
                                     <>
                                         <label className="text-gray-600">
-                                            Label *
+                                            Label
                                         </label>
                                         <input
                                             type="text"
@@ -4804,36 +4811,6 @@ const TOTPDialog: React.FC<{
                             {errors.Label && (
                                 <p className="text-red-500">
                                     {errors.Label.message}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="mt-2 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Issuer"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Issuer
-                                        </label>
-                                        <input
-                                            type="text"
-                                            autoCapitalize="sentences"
-                                            placeholder="e.g. Google, GitHub, etc."
-                                            className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900 placeholder-gray-400"
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.Issuer && (
-                                <p className="text-red-500">
-                                    {errors.Issuer.message}
                                 </p>
                             )}
                         </div>
@@ -4988,13 +4965,19 @@ const CredentialDialog: React.FC<{
         if (selected.current) {
             const formData: Credential.CredentialFormSchemaType = {
                 ID: selected.current.ID, // This means that the form is in "edit" mode
+                Type: selected.current.Type,
+                GroupID: selected.current.GroupID,
                 Name: selected.current.Name,
                 Username: selected.current.Username,
                 Password: selected.current.Password,
-                TOTP: selected.current.TOTP ?? null,
+                TOTP: selected.current.TOTP,
                 Tags: selected.current.Tags,
                 URL: selected.current.URL,
                 Notes: selected.current.Notes,
+                CustomFields: selected.current.CustomFields,
+                DateCreated: selected.current.DateCreated,
+                DateModified: selected.current.DateModified,
+                DatePasswordChanged: selected.current.DatePasswordChanged,
             };
 
             resetForm(formData);
@@ -5025,15 +5008,13 @@ const CredentialDialog: React.FC<{
         }
     };
 
-    const defaultValues: Credential.CredentialFormSchemaType = {
-        ID: null, // This is set to null to indicate that this is a new credential
-        Name: "",
-        Username: "",
-        Password: "",
-        TOTP: null,
-        Tags: "",
-        URL: "",
-        Notes: "",
+    const defaultValues = () => {
+        const obj: Credential.CredentialFormSchemaType = Object.assign(
+            {},
+            new Credential.VaultCredential()
+        );
+        obj.ID = null; // This is set to null to indicate that this is a new credential
+        return obj;
     };
 
     const {
@@ -5044,7 +5025,7 @@ const CredentialDialog: React.FC<{
         setValue,
     } = useForm<Credential.CredentialFormSchemaType>({
         resolver: zodResolver(Credential.credentialFormSchema),
-        defaultValues: defaultValues,
+        defaultValues: defaultValues(),
     });
 
     const TOTPDialogVisible = useState(false);
@@ -5177,7 +5158,7 @@ const CredentialDialog: React.FC<{
         // FIXME: Use the code in the TOTP class to calculate the code and time left
         const updateCode = () => {
             const totp = new OTPAuth.TOTP({
-                issuer: value.Issuer,
+                issuer: value.Label,
                 secret: value.Secret,
                 period: value.Period,
                 digits: value.Digits,
@@ -5259,10 +5240,12 @@ const CredentialDialog: React.FC<{
         if (!vaultMetadata) return;
 
         await setUnlockedVault(async (prev) => {
-            if (!prev) return prev;
-
-            // Upsert the credential in the vault
-            await prev?.upsertCredential(formData);
+            // Create/Update the credential in the vault
+            if (formData.ID) {
+                await prev?.updateCredential(formData);
+            } else {
+                await prev.createCredential(formData);
+            }
             toast.info("Saving vault data...", {
                 autoClose: false,
                 closeButton: false,
@@ -5391,7 +5374,7 @@ const CredentialDialog: React.FC<{
                                 control={control}
                                 name="Username"
                                 render={({
-                                    field: { onChange, onBlur, value, ref },
+                                    field: { onChange, onBlur, value },
                                 }) => (
                                     <>
                                         <FormInputField
@@ -5727,8 +5710,6 @@ const AccountSignUpSignInDialog: React.FC<{
 
         // Save the UserID, public/private key to the vault
         setUnlockedVault(async (pre) => {
-            if (!pre) return pre;
-
             pre.OnlineServices.bindAccount(userID, publicKey, privateKey);
 
             try {
@@ -6643,8 +6624,6 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 );
 
                 setUnlockedVault(async (prev) => {
-                    if (!prev) return null;
-
                     prev.OnlineServices.addLinkedDevice(
                         userID,
                         getFormValues("deviceName")
@@ -7242,8 +7221,6 @@ const EditLinkedDeviceDialog: React.FC<{
         }
 
         setUnlockedVault(async (prev) => {
-            if (prev == null) return prev;
-
             const originalLinkedDevice = prev.OnlineServices.LinkedDevices.find(
                 (d) => d.ID === selectedDevice.current?.ID
             );
@@ -7566,7 +7543,7 @@ const DashboardSidebarSynchronization: React.FC<{
             );
 
             // Both statuses mean that we're not connected to the server, but this makes the status more clear to the end user
-            if (linkedDevicesLen !== 0) {
+            if (linkedDevicesLenRef.current !== 0) {
                 setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
             } else {
                 setOnlineServicesStatus(OnlineServicesStatus.NoDevices);
@@ -7600,7 +7577,7 @@ const DashboardSidebarSynchronization: React.FC<{
         dataChannelInstance: RTCDataChannel,
         device: LinkedDevice
     ): ((event: MessageEvent) => Promise<void>) => {
-        return async (event: MessageEvent) => {
+        return async (event: MessageEvent<ArrayBuffer>) => {
             if (unlockedVault == null) {
                 return;
             }
@@ -7610,25 +7587,19 @@ const DashboardSidebarSynchronization: React.FC<{
                 event
             );
 
-            // Validate the message
-            const parsedMessage =
-                await Synchronization.messageSchema.safeParseAsync(
-                    JSON.parse(event.data)
-                );
-
-            if (!parsedMessage.success) {
-                console.warn(
-                    "[WebRTC Message Handler] Received invalid message over WebRTC",
-                    parsedMessage.error
-                );
-                return;
-            }
-
-            const message = Synchronization.Message.fromSchema(
-                parsedMessage.data
+            // Convert the data from ArrayBuffer to Uint8Array
+            const message = Synchronization.Message.parse(
+                new Uint8Array(event.data)
             );
 
-            if (message.command === Synchronization.Command.SyncRequest) {
+            console.debug(
+                `[WebRTC Message Handler] Parsed WebRTC message - command: ${
+                    SynchronizationMessageCommand[message.Command]
+                }`,
+                message
+            );
+
+            if (message.Command === Synchronization.Command.SyncRequest) {
                 // If we receive a request to sync, we will send a response
                 console.debug(
                     "[WebRTC Message Handler] Received request to sync"
@@ -7639,7 +7610,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 const responseMessage = Synchronization.Message.prepare(
                     Synchronization.Command.SyncResponse,
                     myHash,
-                    null,
+                    undefined,
                     []
                 );
 
@@ -7649,7 +7620,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 // - If our hash is not null, we try to find the diff between the two hashes
                 // -- If we cannot create a diff list, we send every hash we have and let the other device decide from which hash to start
                 // -- If we can create a diff list, we send the diff list along with our latest hash
-                if (message.hash === myHash) {
+                if (message.Hash === myHash) {
                     console.debug(
                         "[WebRTC Message Handler] Received request to sync - in sync"
                     );
@@ -7658,14 +7629,10 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.LinkedDevices.find(
                         (d) => d.ID === device.ID
                     )?.updateLastSync();
-                    await setUnlockedVault(async (pre) => {
-                        if (pre == null) {
-                            return pre;
-                        } else {
-                            pre.OnlineServices.LinkedDevices =
-                                unlockedVault.OnlineServices.LinkedDevices;
-                            return pre;
-                        }
+                    setUnlockedVault((pre) => {
+                        pre.OnlineServices.LinkedDevices =
+                            unlockedVault.OnlineServices.LinkedDevices;
+                        return pre;
                     });
                 } else {
                     console.debug(
@@ -7687,7 +7654,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     } else {
                         // If we have a hash, we can try to send the diff list, fall back to sending all hashes if we can't find the hash
                         const diffList = await unlockedVault.getDiffsSinceHash(
-                            message.hash
+                            message.Hash ?? null
                         );
 
                         // If the diff list is empty, we couldn't find the hash - send every hash we have and let the other device decide from which hash to start
@@ -7701,7 +7668,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             );
                         } else {
                             responseMessage.setCommand(
-                                Synchronization.Command.ResponseSyncAllHashes
+                                Synchronization.Command.SyncResponseAllHashes
                             );
                             responseMessage.setHash(
                                 unlockedVault.getAllHashes().join(",")
@@ -7709,7 +7676,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                             console.debug(
                                 "[WebRTC Message Handler] Couldn't find the received hash - sending all hashes to resolve the conflict. Hashes:",
-                                responseMessage.hash
+                                responseMessage.Hash
                             );
                         }
                     }
@@ -7717,8 +7684,8 @@ const DashboardSidebarSynchronization: React.FC<{
 
                 dataChannelInstance.send(responseMessage.serialize());
             } else if (
-                message.command ===
-                Synchronization.Command.ResponseSyncAllHashes
+                message.Command ===
+                Synchronization.Command.SyncResponseAllHashes
             ) {
                 // If we receive a response with all hashes, we will try to find the first hash that we have in common
                 console.debug(
@@ -7726,14 +7693,14 @@ const DashboardSidebarSynchronization: React.FC<{
                 );
 
                 // Chech if someone is messing with us
-                if (message.hash == null) {
+                if (message.Hash == null) {
                     console.warn(
                         "[WebRTC Message Handler] Received response with all hashes - but the hash is null"
                     );
                     return;
                 }
 
-                const hashes = message.hash.split(",");
+                const hashes = message.Hash.split(",");
 
                 // Find the first hash that we have in common
                 const firstHashInCommon = unlockedVault
@@ -7756,7 +7723,9 @@ const DashboardSidebarSynchronization: React.FC<{
                     // If the index of the first hash in common is 0, the other device is out of sync - we have the most recent data
                     // If it's other than 0, we're diverged and we need to request a sync from the other device
                     const divergenceAtHash =
-                        firstHashInCommonIndex > 0 ? firstHashInCommon : null;
+                        firstHashInCommonIndex > 0
+                            ? firstHashInCommon
+                            : undefined;
 
                     console.debug(
                         "[WebRTC Message Handler] Found a hash in common - sending response to sync... Current vault data:",
@@ -7786,17 +7755,17 @@ const DashboardSidebarSynchronization: React.FC<{
                     // Send a request to solve the divergence
                     const responseMessage = Synchronization.Message.prepare(
                         Synchronization.Command.DivergenceSolveRequest,
-                        null,
-                        null,
+                        undefined,
+                        undefined,
                         []
                     ).serialize();
                     dataChannelInstance.send(responseMessage);
                 }
             } else if (
-                message.command === Synchronization.Command.SyncResponse
+                message.Command === Synchronization.Command.SyncResponse
             ) {
                 // Check if we have the same hash - in sync
-                if (message.hash === (await unlockedVault.getLatestHash())) {
+                if (message.Hash === (await unlockedVault.getLatestHash())) {
                     console.debug(
                         "[WebRTC Message Handler] Received response to sync - in sync"
                     );
@@ -7807,171 +7776,164 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.LinkedDevices.find(
                         (d) => d.ID === device.ID
                     )?.updateLastSync();
-                    await setUnlockedVault(async (pre) => {
-                        if (pre == null) {
-                            return pre;
-                        } else {
-                            pre.OnlineServices.LinkedDevices =
-                                unlockedVault.OnlineServices.LinkedDevices;
-                            return pre;
-                        }
+                    setUnlockedVault((pre) => {
+                        pre.OnlineServices.LinkedDevices =
+                            unlockedVault.OnlineServices.LinkedDevices;
+                        return pre;
                     });
-                } else {
-                    // We're out of sync - try to apply the diffs and check if we're in sync
-                    console.debug(
-                        "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list"
+
+                    return;
+                }
+                // We're out of sync - try to apply the diffs and check if we're in sync
+                console.debug(
+                    "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list"
+                );
+                toast.info("[Synchronization] Validating diff list...", {
+                    autoClose: false,
+                    toastId: "validating-diff-list",
+                    updateId: "validating-diff-list",
+                });
+
+                // Create a mock vault to try a dry run of the diff application
+                const mockUnlockedVault = new Vault();
+                for (const c of unlockedVault.Credentials) {
+                    mockUnlockedVault.Credentials.push(
+                        Object.assign(new Credential.VaultCredential(), c)
                     );
-                    toast.info("[Synchronization] Validating diff list...", {
+                }
+
+                // Set the online services to the mock vault - we need this to pass the write check for the diffs
+                mockUnlockedVault.OnlineServices = unlockedVault.OnlineServices;
+
+                await mockUnlockedVault.applyDiffs(message.Diffs);
+                const mockVaultHash = await mockUnlockedVault.getLatestHash();
+
+                const hashMatches = mockVaultHash === message.Hash;
+
+                console.debug(
+                    `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.Hash} => ${hashMatches}`
+                );
+
+                // Check if our new hash is the same as the other device's hash
+                // If we received a divergence hash, we're diverged and can skip this check
+                if (hashMatches || message.DivergenceHash) {
+                    console.debug(
+                        "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault"
+                    );
+                    toast.update("validating-diff-list", {
+                        autoClose: 1,
+                    });
+                    toast.info("[Synchronization] Applying differences...", {
                         autoClose: false,
-                        toastId: "validating-diff-list",
-                        updateId: "validating-diff-list",
+                        toastId: "applying-diff-list",
+                        updateId: "applying-diff-list",
                     });
 
-                    // Create a mock vault to try a dry run of the diff application
-                    const mockUnlockedVault = new Vault();
-                    mockUnlockedVault.Credentials = JSON.parse(
-                        JSON.stringify(unlockedVault.Credentials)
-                    );
-
-                    // Set the online services to the mock vault - we need this to pass the write check for the diffs
-                    mockUnlockedVault.OnlineServices =
-                        unlockedVault.OnlineServices;
-
-                    await mockUnlockedVault.applyDiffs(message.diffList);
-                    const mockVaultHash =
-                        await mockUnlockedVault.getLatestHash();
-
-                    const hashMatches = mockVaultHash === message.hash;
-
-                    console.debug(
-                        `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.hash} => ${hashMatches}`
-                    );
-
-                    // Check if our new hash is the same as the other device's hash
-                    // If we received a divergence hash, we're diverged and can skip this check
-                    if (hashMatches || message.divergenceHash) {
-                        console.debug(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault"
-                        );
-                        toast.update("validating-diff-list", {
-                            autoClose: 1,
+                    const diffsNotKnownByOtherDevice: Diff[] = [];
+                    if (message.DivergenceHash) {
+                        // If we received a divergence hash, we're diverged and we need to save the diffs that the other device doesn't know about
+                        // So we can send them to the other device after we apply the diffs that we received from the other device
+                        (
+                            await unlockedVault.getDiffsSinceHash(
+                                message.DivergenceHash
+                            )
+                        ).forEach((diff) => {
+                            diffsNotKnownByOtherDevice.push(diff);
                         });
-                        toast.info(
-                            "[Synchronization] Applying differences...",
+                    }
+
+                    await unlockedVault.applyDiffs(message.Diffs);
+
+                    const latestHash = await unlockedVault.getLatestHash();
+                    const hashMatches = latestHash === message.Hash;
+
+                    // Update the last sync timestamp
+                    unlockedVault.OnlineServices.LinkedDevices.find(
+                        (d) => d.ID === device.ID
+                    )?.updateLastSync();
+                    // setUnlockedVault((pre) => {
+                    //     if (pre == null) {
+                    //         return pre;
+                    //     } else {
+                    //         pre.OnlineServices.LinkedDevices =
+                    //             unlockedVault.OnlineServices.LinkedDevices;
+                    //         return pre;
+                    //     }
+                    // });
+
+                    // Save the vault
+                    unlockedVaultMetadata?.save(unlockedVault);
+
+                    setUnlockedVault(unlockedVault);
+
+                    // Check if the last hash is the same as the other device's hash
+                    if (hashMatches) {
+                        // We're in sync - no diverging between the devices
+                        console.debug(
+                            "[WebRTC Message Handler] Received response to sync - out of sync => in sync"
+                        );
+                        toast.success(
+                            "[Synchronization] Successfully synced with the other device",
                             {
-                                autoClose: false,
+                                toastId: "applying-diff-list",
+                                updateId: "applying-diff-list",
+                            }
+                        );
+                    } else if (!hashMatches && message.DivergenceHash) {
+                        console.debug(
+                            "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device"
+                        );
+
+                        toast.info(
+                            "[Synchronization] Devices diverged - sending differences to the other device...",
+                            {
                                 toastId: "applying-diff-list",
                                 updateId: "applying-diff-list",
                             }
                         );
 
-                        const diffsNotKnownByOtherDevice: Credential.Diff[] =
-                            [];
-                        if (message.divergenceHash) {
-                            // If we received a divergence hash, we're diverged and we need to save the diffs that the other device doesn't know about
-                            // So we can send them to the other device after we apply the diffs that we received from the other device
-                            (
-                                await unlockedVault.getDiffsSinceHash(
-                                    message.divergenceHash
-                                )
-                            ).forEach((diff) => {
-                                diffsNotKnownByOtherDevice.push(diff);
-                            });
-                        }
+                        // If it isn't, we're diverging
+                        const syncMessage = Synchronization.Message.prepare(
+                            Synchronization.Command.SyncResponse,
+                            latestHash,
+                            undefined,
+                            diffsNotKnownByOtherDevice
+                        ).serialize();
 
-                        await unlockedVault.applyDiffs(message.diffList);
-
-                        const latestHash = await unlockedVault.getLatestHash();
-                        const hashMatches = latestHash === message.hash;
-
-                        // Update the last sync timestamp
-                        unlockedVault.OnlineServices.LinkedDevices.find(
-                            (d) => d.ID === device.ID
-                        )?.updateLastSync();
-                        // setUnlockedVault((pre) => {
-                        //     if (pre == null) {
-                        //         return pre;
-                        //     } else {
-                        //         pre.OnlineServices.LinkedDevices =
-                        //             unlockedVault.OnlineServices.LinkedDevices;
-                        //         return pre;
-                        //     }
-                        // });
-
-                        // Save the vault
-                        unlockedVaultMetadata?.save(unlockedVault);
-
-                        await setUnlockedVault(async () => unlockedVault);
-
-                        // Check if the last hash is the same as the other device's hash
-                        if (hashMatches) {
-                            // We're in sync - no diverging between the devices
-                            console.debug(
-                                "[WebRTC Message Handler] Received response to sync - out of sync => in sync"
-                            );
-                            toast.success(
-                                "[Synchronization] Successfully synced with the other device",
-                                {
-                                    toastId: "applying-diff-list",
-                                    updateId: "applying-diff-list",
-                                }
-                            );
-                        } else if (!hashMatches && message.divergenceHash) {
-                            console.debug(
-                                "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device"
-                            );
-
-                            toast.info(
-                                "[Synchronization] Devices diverged - sending differences to the other device...",
-                                {
-                                    toastId: "applying-diff-list",
-                                    updateId: "applying-diff-list",
-                                }
-                            );
-
-                            // If it isn't, we're diverging
-                            const syncMessage = Synchronization.Message.prepare(
-                                Synchronization.Command.SyncResponse,
-                                latestHash,
-                                null,
-                                diffsNotKnownByOtherDevice
-                            ).serialize();
-
-                            dataChannelInstance.send(syncMessage);
-                        } else {
-                            // NOTE: We're here if the hash doesn't match and we don't have a divergence hash - a basic SyncResponse
-                            toast.error(
-                                "Failed to sync - could not apply the received changes",
-                                {
-                                    toastId: "applying-diff-list",
-                                    updateId: "applying-diff-list",
-                                    autoClose: 3000,
-                                }
-                            );
-
-                            console.error(
-                                "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to apply the received changes"
-                            );
-                        }
+                        dataChannelInstance.send(syncMessage);
                     } else {
+                        // NOTE: We're here if the hash doesn't match and we don't have a divergence hash - a basic SyncResponse
                         toast.error(
                             "Failed to sync - could not apply the received changes",
                             {
-                                toastId: "validating-diff-list",
-                                updateId: "validating-diff-list",
+                                toastId: "applying-diff-list",
+                                updateId: "applying-diff-list",
+                                autoClose: 3000,
                             }
                         );
+
                         console.error(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data"
-                        );
-                        console.debug(
-                            "[WebRTC Message Handler] Mock vault data:",
-                            mockUnlockedVault
+                            "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to apply the received changes"
                         );
                     }
+                } else {
+                    toast.error(
+                        "Failed to sync - could not apply the received changes",
+                        {
+                            toastId: "validating-diff-list",
+                            updateId: "validating-diff-list",
+                        }
+                    );
+                    console.error(
+                        "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data"
+                    );
+                    console.debug(
+                        "[WebRTC Message Handler] Mock vault data:",
+                        mockUnlockedVault
+                    );
                 }
             } else if (
-                message.command ===
+                message.Command ===
                 Synchronization.Command.DivergenceSolveRequest
             ) {
                 console.warn(
@@ -7991,8 +7953,8 @@ const DashboardSidebarSynchronization: React.FC<{
 
                 const divergenceSolveResponse = Synchronization.Message.prepare(
                     Synchronization.Command.DivergenceSolve,
-                    null,
-                    null,
+                    undefined,
+                    undefined,
                     await unlockedVault.getDiffsSinceHash(null)
                 ).serialize();
 
@@ -8006,12 +7968,16 @@ const DashboardSidebarSynchronization: React.FC<{
                     }
                 );
             } else if (
-                message.command === Synchronization.Command.DivergenceSolve
+                message.Command === Synchronization.Command.DivergenceSolve
             ) {
+                const theirChanges = message.Diffs.filter(
+                    (i) => i.Changes != null
+                ).map((i) => i.Changes?.Props) as PartialCredential[];
+
                 // Open a dialog for the user to select which differences to apply
                 showDivergenceSolveDialogRef.current?.(
                     unlockedVault.Credentials,
-                    message.diffList.map((i) => i.Changes?.Props),
+                    theirChanges,
                     async (diffsToApply, diffsToSend) => {
                         toast.info(
                             "[Synchronization] Applying differences...",
@@ -8043,7 +8009,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                         // Save the vault
                         unlockedVaultMetadata?.save(unlockedVault);
-                        await setUnlockedVault(async () => unlockedVault);
+                        setUnlockedVault(unlockedVault);
 
                         toast.info(
                             "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
@@ -8058,7 +8024,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             Synchronization.Message.prepare(
                                 Synchronization.Command.SyncResponse,
                                 await unlockedVault.getLatestHash(),
-                                null,
+                                undefined,
                                 diffsToSend
                             ).serialize();
 
@@ -8072,14 +8038,14 @@ const DashboardSidebarSynchronization: React.FC<{
                     }
                 );
             } else if (
-                message.command === Synchronization.Command.LinkedDevicesList
+                message.Command === Synchronization.Command.LinkedDevicesList
             ) {
-                if (message.linkedDevicesList == null) {
-                    console.debug(
-                        "[WebRTC Message Handler] Received linked devices list - but the list is null"
-                    );
-                    return;
-                }
+                // if (message.LinkedDevices == null) {
+                //     console.debug(
+                //         "[WebRTC Message Handler] Received linked devices list - but the list is null"
+                //     );
+                //     return;
+                // }
 
                 const isDeviceRoot =
                     unlockedVault.OnlineServices.LinkedDevices.find(
@@ -8095,7 +8061,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                 console.debug(
                     "[WebRTC Message Handler] Received linked devices list",
-                    message.linkedDevicesList
+                    message.LinkedDevices
                 );
 
                 const changesOccured =
@@ -8106,7 +8072,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     );
 
                 if (changesOccured) {
-                    await setUnlockedVault(async () => unlockedVault);
+                    setUnlockedVault(unlockedVault);
 
                     // Save the vault
                     await unlockedVaultMetadata?.save(unlockedVault);
@@ -8117,7 +8083,7 @@ const DashboardSidebarSynchronization: React.FC<{
             } else {
                 console.warn(
                     "[WebRTC Message Handler] Received invalid command",
-                    message.command
+                    message.Command
                 );
             }
         };
@@ -8130,8 +8096,8 @@ const DashboardSidebarSynchronization: React.FC<{
         if (session?.user?.isRoot && unlockedVault) {
             const linkedDevicesPayload = Synchronization.Message.prepare(
                 Synchronization.Command.LinkedDevicesList,
-                null,
-                null,
+                undefined,
+                undefined,
                 [],
                 unlockedVault.OnlineServices.getLinkedDevices(devicesToExclude)
             ).serialize();
@@ -8154,6 +8120,8 @@ const DashboardSidebarSynchronization: React.FC<{
         const currentValue = linkedDevicesLen;
         const previousValue = linkedDevicesLenRef.current;
 
+        linkedDevicesLenRef.current = linkedDevicesLen;
+
         // This prevents the comparison from running on the first render (while the previous value is null)
         if (previousValue != null) {
             // If the value has changed, run the comparison
@@ -8174,8 +8142,6 @@ const DashboardSidebarSynchronization: React.FC<{
                 }
             }
         }
-
-        linkedDevicesLenRef.current = linkedDevicesLen;
     }
 
     const DeviceItem: React.FC<{
@@ -8277,7 +8243,7 @@ const DashboardSidebarSynchronization: React.FC<{
             const syncRequestPayload = Synchronization.Message.prepare(
                 Synchronization.Command.SyncRequest,
                 currentHash,
-                null,
+                undefined,
                 []
             ).serialize();
             webRTConnection.DataChannel?.send(syncRequestPayload);
@@ -8301,7 +8267,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     unlockedVault.OnlineServices.removeLinkedDevice(device.ID);
 
                     // Update the vault
-                    await setUnlockedVault(async () => unlockedVault);
+                    setUnlockedVault(unlockedVault);
 
                     // Try to remove the device from the online services
                     try {
@@ -9058,7 +9024,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             );
 
                             unlockedVault.Diffs = [];
-                            await setUnlockedVault(async () => unlockedVault);
+                            setUnlockedVault(unlockedVault);
                             unlockedVaultMetadata?.save(unlockedVault);
 
                             console.debug(
@@ -9199,8 +9165,6 @@ const VaultDashboard: React.FC = ({}) => {
 
         // NOTE: Why can't this just be an async function????
         setUnlockedVault(async (pre) => {
-            if (!pre) return null;
-
             // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
             // NOTE: This might not work, since we are not awaiting the save function
             try {
@@ -9226,7 +9190,7 @@ const VaultDashboard: React.FC = ({}) => {
             }
 
             // Clean up the unlocked vault - remove all data from the atom
-            return null;
+            return new Vault();
         });
     };
 
@@ -9579,8 +9543,6 @@ const CredentialCard: React.FC<{
                     await new Promise((resolve) => setTimeout(resolve, 100));
 
                     setUnlockedVault(async (pre) => {
-                        if (!pre) return null;
-
                         const newVault = pre;
 
                         // Remove the credential from the vault

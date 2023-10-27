@@ -2129,7 +2129,8 @@ export class Vault implements VaultUtilTypes.Vault {
          *      - Changed the backup output to be more compact (binary instead of B64 data encoded in a JSON blob)
          *      - Changed the way the synchronization messsages are serialized and deserialized (to be more compact and efficient)
          */
-        if (oldVersion < 2) {
+        // NOTE: Check for the current version first, then for the version at vault creation (so we don't trigger on vault create)
+        if (oldVersion < 2 && this.Version < 2) {
             console.warn("Upgrading vault to version 2...");
             // Clear the list of diffs
             this.Diffs = [];

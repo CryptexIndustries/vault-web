@@ -2555,6 +2555,55 @@ jest.describe("Credentials - Diff", () => {
         },
         100
     );
+
+    jest.it("Empty vault with credentials", async () => {
+        // Instantiate a vault and inhibit diff generation
+        const vault = new Vault();
+
+        // Ease the computation by disabling the diff generation (which then skipps the hashing)
+        vault.Configuration.InhibitDiffGeneration = true;
+        vault.Configuration.SaveOnlyLatestDiffWhenNoLinked = true;
+
+        // Create a credential
+        const credential = new Credential.VaultCredential();
+        credential.Name = "Credential";
+        credential.Username = "Username";
+        credential.Password = "Password";
+        credential.URL = "URL";
+        credential.Notes = "Notes";
+        credential.Tags = ["Tag1", "Tag2", "Tag3"].join(
+            Credential.TAG_SEPARATOR
+        );
+        credential.TOTP = undefined;
+        credential.CustomFields = [];
+
+        // When the vault is empty, we expect a certain hash
+        jest.expect(await vault.getLatestHash()).toEqual(
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        );
+
+        // await vault.createCredential(credential);
+        vault.Credentials.push(credential);
+
+        // Check that the credentials are in the vault
+        jest.expect(vault.Credentials.length).toBe(1);
+
+        // Check that the credentials are in the vault
+        jest.expect(vault.Diffs.length).toBe(0);
+
+        // Check that the hash is not empty
+        const latestHash = await vault.getLatestHash();
+        jest.expect(latestHash).not.toBeNull();
+        jest.expect(latestHash).not.toEqual(
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        );
+
+        // Try to get diffs since hash
+        const diffs = await vault.getDiffsSinceHash(latestHash);
+
+        // Since we manually added a credential, we expect no diffs
+        jest.expect(diffs.length).toBe(0);
+    });
 });
 
 /**

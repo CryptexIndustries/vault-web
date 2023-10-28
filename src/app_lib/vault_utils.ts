@@ -2189,6 +2189,8 @@ export class Vault implements VaultUtilTypes.Vault {
      * This is used to when computing diffs between changes to the vault credentials.
      * It also sorts the credentials to ensure that the hash is consistent - by using ULIDs.
      * Each credential is hashed individually, and the hashes are concatenated and hashed again.
+     * @remarks The hash is generated using the SHA-1 algorithm.
+     * @remarks If there are no credentials, an empty string will get hashed. Which will result in the following hash: da39a3ee5e6b4b0d3255bfef95601890afd80709
      * @returns A hash in the form of a hex string
      */
     private async hashCredentials(): Promise<string> {
@@ -2219,14 +2221,11 @@ export class Vault implements VaultUtilTypes.Vault {
     /**
      * Gets the hash from the latest diff, or calculates the hash from the credentials if there are no diffs.
      * @returns The hash from the latest diff, or the credentials hash if there are no diffs
-     * @returns Undefined if there are no diffs and no credentials
-     * @returns An empty string if there are diffs but we can't get the hash from the latest (last) diff - shouldn't, and can't, happen
+     * @returns An empty string if there are diffs but we can't get the hash from the latest (last) diff - this shouldn't, and can't, happen
      */
-    public async getLatestHash(): Promise<string | undefined> {
+    public async getLatestHash(): Promise<string> {
         if (this.Diffs.length === 0) {
-            if (this.Credentials.length !== 0)
-                return await this.hashCredentials();
-            return undefined;
+            return await this.hashCredentials();
         }
 
         // NOTE: Don't worry about the empty string, it shouldn't happen - since we did a check for the length of the diffs array above
@@ -2252,7 +2251,7 @@ export class Vault implements VaultUtilTypes.Vault {
         hash: string | null
     ): Promise<VaultUtilTypes.Diff[]> {
         // If the hash is null, return the credentials as additions
-        if (hash === null || this.Diffs.length === 0) {
+        if (hash === null) {
             const clonedVault = new Vault();
             clonedVault.Configuration.SaveOnlyLatestDiffWhenNoLinked = false;
 

@@ -240,7 +240,17 @@ export const DivergenceSolveDialog: React.FC<{
                         (ourCredential) => ourCredential.ID === diff.Changes?.ID
                     );
                     if (ourCredential) {
-                        diff.Changes.Props = ourCredential;
+                        // Set the ChangeFlags to the changes between our credential and the diff credential (same is done above in case we take the other device's version)
+                        const ourCredentialCast =
+                            ourCredential as PartialCredential;
+                        if (diff.Changes && diff.Changes.Props)
+                            ourCredentialCast.ChangeFlags =
+                                Credential.getChanges(
+                                    ourCredential,
+                                    diff.Changes.Props
+                                )?.Props?.ChangeFlags;
+
+                        diff.Changes.Props = ourCredentialCast;
                         diffsToSend.push(diff);
                     } else {
                         console.error(

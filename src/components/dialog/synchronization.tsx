@@ -110,14 +110,21 @@ export const DivergenceSolveDialog: React.FC<{
                 const theirHash = await parsedTheirCredential.hash();
                 if (ourHash !== theirHash) {
                     // Modification
-                    _differences.push({
+                    const _diff: Diff = {
                         Hash: theirHash,
                         Changes: {
                             Type: DiffType.Update,
                             ID: parsedTheirCredential.ID,
                             Props: parsedTheirCredential,
                         },
-                    });
+                    };
+                    // TODO: Use this to show the changes in the UI
+                    if (_diff.Changes && _diff.Changes.Props)
+                        _diff.Changes.Props.ChangeFlags = Credential.getChanges(
+                            parsedOurCredential,
+                            parsedTheirCredential
+                        )?.Props?.ChangeFlags;
+                    _differences.push(_diff);
                 } else {
                     // Same
                 }

@@ -6858,8 +6858,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
     return (
         <GenericModal
-            visibleState={[visible, setVisible]}
-            inhibitDismissOnClickOutside
+            visibleState={[visible, () => hideDialog()]}
+            inhibitDismissOnClickOutside={isOperationInProgress}
         >
             <Body className="flex w-full flex-col items-center gap-3">
                 <div className="">
@@ -6995,11 +6995,12 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                         </div>
                                     )}
 
-                                    {readyForOtherDevice && (
+                                    {readyForOtherDevice &&
+                                        isOperationInProgress && (
                                         <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
                                             <p className="text-md w-full text-center text-slate-600 underline">
-                                                Tips for linking to the other
-                                                device
+                                                    Tips for linking to the
+                                                    other device
                                             </p>
                                             {/* Show a nicely formatted tip on how to
                                             load the data into the other device */}
@@ -7008,12 +7009,13 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                 readyForOtherDevice && (
                                                     <>
                                                         <p className="text-md text-slate-600">
-                                                            1. Scan the QR Code
-                                                            with the other
-                                                            device by opening
-                                                            the{" "}
+                                                                1. Scan the QR
+                                                                Code with the
+                                                                other device by
+                                                                opening the{" "}
                                                             <strong>
-                                                                Link a Device
+                                                                    Link a
+                                                                    Device
                                                             </strong>{" "}
                                                             dialog and then
                                                             selecting{" "}
@@ -7022,10 +7024,11 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                             </strong>
                                                         </p>
                                                         <p className="text-md text-slate-600">
-                                                            2. Once the QR code
-                                                            is successfully
-                                                            scanned, enter the
-                                                            decryption
+                                                                2. Once the QR
+                                                                code is
+                                                                successfully
+                                                                scanned, enter
+                                                                the decryption
                                                             passphrase shown
                                                             below.
                                                         </p>
@@ -7038,10 +7041,11 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                         <p className="text-md text-slate-600">
                                                             1. Load the file
                                                             into the other
-                                                            device by opening
-                                                            the{" "}
+                                                                device by
+                                                                opening the{" "}
                                                             <strong>
-                                                                Link a Device
+                                                                    Link a
+                                                                    Device
                                                             </strong>{" "}
                                                             dialog and then
                                                             selecting{" "}
@@ -7050,17 +7054,17 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                             </strong>
                                                         </p>
                                                         <p className="text-md text-slate-600">
-                                                            2. Once the file is
-                                                            loaded, enter the
-                                                            decryption
+                                                                2. Once the file
+                                                                is loaded, enter
+                                                                the decryption
                                                             passphrase shown
                                                             below.
                                                         </p>
                                                     </>
                                                 )}
                                             <p className="text-md text-slate-600">
-                                                3. Follow the instructions on
-                                                the other device.
+                                                    3. Follow the instructions
+                                                    on the other device.
                                             </p>
                                         </div>
                                     )}
@@ -7120,7 +7124,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                     type={ButtonType.Secondary}
                     className={clsx({
                         "sm:ml-2": true,
-                        hidden: !readyForOtherDevice,
+                        hidden: !readyForOtherDevice || !isOperationInProgress,
                     })}
                     disabled={!isOperationInProgress}
                     onClick={() => cancelFnRef.current()}

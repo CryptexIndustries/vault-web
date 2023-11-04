@@ -1,14 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import Cors from "cors";
+
+const cors = Cors({});
 
 // Helper method to wait for a middleware to execute before continuing
 // And to throw an error when an error happens in a middleware
 const runMiddleware = (
     req: NextApiRequest,
     res: NextApiResponse,
-    fn: Function,
+    fn: typeof cors,
 ) => {
     return new Promise((resolve, reject) => {
-        fn(req, res, (result: any) => {
+        fn(req, res, (result) => {
             if (result instanceof Error) {
                 return reject(result);
             }

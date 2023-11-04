@@ -75,7 +75,10 @@ export interface VaultMetadata {
 }
 
 export interface EncryptedBlob {
+    /** The version of the vault as the point of creation */
     Version: number;
+    /** The current version of the vault, which chages when the vault is upgraded */
+    CurrentVersion: number;
     Algorithm: EncryptionAlgorithm;
     KeyDerivationFunc: KeyDerivationFunction;
     KDFConfigArgon2ID: KeyDerivationConfigArgon2ID | undefined;
@@ -104,7 +107,6 @@ export interface Vault {
     Version: number;
     /** The current version of the vault, which chages when the vault is upgraded */
     CurrentVersion: number;
-    Secret: string;
     Configuration: Configuration | undefined;
     OnlineServices: OnlineServices | undefined;
     Groups: Group[];
@@ -507,6 +509,7 @@ export const VaultMetadata = {
 function createBaseEncryptedBlob(): EncryptedBlob {
     return {
         Version: 0,
+        CurrentVersion: 0,
         Algorithm: 0,
         KeyDerivationFunc: 0,
         KDFConfigArgon2ID: undefined,
@@ -524,6 +527,9 @@ export const EncryptedBlob = {
     ): _m0.Writer {
         if (message.Version !== 0) {
             writer.uint32(64).int32(message.Version);
+        }
+        if (message.CurrentVersion !== 0) {
+            writer.uint32(72).int32(message.CurrentVersion);
         }
         if (message.Algorithm !== 0) {
             writer.uint32(8).int32(message.Algorithm);
@@ -569,6 +575,13 @@ export const EncryptedBlob = {
                     }
 
                     message.Version = reader.int32();
+                    continue;
+                case 9:
+                    if (tag !== 72) {
+                        break;
+                    }
+
+                    message.CurrentVersion = reader.int32();
                     continue;
                 case 1:
                     if (tag !== 8) {
@@ -645,6 +658,7 @@ export const EncryptedBlob = {
     ): EncryptedBlob {
         const message = createBaseEncryptedBlob();
         message.Version = object.Version ?? 0;
+        message.CurrentVersion = object.CurrentVersion ?? 0;
         message.Algorithm = object.Algorithm ?? 0;
         message.KeyDerivationFunc = object.KeyDerivationFunc ?? 0;
         message.KDFConfigArgon2ID =
@@ -838,7 +852,6 @@ function createBaseVault(): Vault {
     return {
         Version: 0,
         CurrentVersion: 0,
-        Secret: "",
         Configuration: undefined,
         OnlineServices: undefined,
         Groups: [],
@@ -857,9 +870,6 @@ export const Vault = {
         }
         if (message.CurrentVersion !== 0) {
             writer.uint32(64).int32(message.CurrentVersion);
-        }
-        if (message.Secret !== "") {
-            writer.uint32(18).string(message.Secret);
         }
         if (message.Configuration !== undefined) {
             Configuration.encode(
@@ -906,13 +916,6 @@ export const Vault = {
                     }
 
                     message.CurrentVersion = reader.int32();
-                    continue;
-                case 2:
-                    if (tag !== 18) {
-                        break;
-                    }
-
-                    message.Secret = reader.string();
                     continue;
                 case 3:
                     if (tag !== 26) {
@@ -973,7 +976,6 @@ export const Vault = {
         const message = createBaseVault();
         message.Version = object.Version ?? 0;
         message.CurrentVersion = object.CurrentVersion ?? 0;
-        message.Secret = object.Secret ?? "";
         message.Configuration =
             object.Configuration !== undefined && object.Configuration !== null
                 ? Configuration.fromPartial(object.Configuration)

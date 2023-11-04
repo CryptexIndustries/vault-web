@@ -37,7 +37,10 @@ message VaultMetadata {
 }
 
 message EncryptedBlob {
+    // The version of the vault as the point of creation
     int32 Version = 8;
+    // The current version of the vault, which chages when the vault is upgraded
+    int32 CurrentVersion = 9;
     EncryptionAlgorithm Algorithm = 1;
     KeyDerivationFunction KeyDerivationFunc = 2;
 
@@ -83,7 +86,8 @@ message Vault {
     int32 Version = 1;
     // The current version of the vault, which chages when the vault is upgraded
     int32 CurrentVersion = 8;
-    string Secret = 2; 
+    // This was where the Secret was stored in the previous version of the vault, but it is no longer used
+    reserved 2;
     Configuration Configuration = 3;
     OnlineServices OnlineServices = 4;
     repeated Group Groups = 5;

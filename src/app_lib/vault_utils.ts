@@ -120,7 +120,12 @@ export namespace VaultEncryption {
     >;
 
     export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
+        /*
+         * NOTE: This property is **not** serialized and saved in the vault
+         */
+        private LATEST_VERSION = 2;
         public Version: number;
+        public CurrentVersion = 0;
         public Algorithm: VaultUtilTypes.EncryptionAlgorithm;
         public KeyDerivationFunc: VaultUtilTypes.KeyDerivationFunction;
         public KDFConfigArgon2ID:
@@ -142,7 +147,7 @@ export namespace VaultEncryption {
             salt: string,
             headerIV: string
         ) {
-            this.Version = 1;
+            this.Version = this.LATEST_VERSION;
             this.Algorithm = algorithm;
             this.KeyDerivationFunc = keyDerivationFunc;
             this.KDFConfigArgon2ID = kdfConfigArgon2ID ?? undefined;
@@ -150,6 +155,64 @@ export namespace VaultEncryption {
             this.Blob = blob;
             this.Salt = salt;
             this.HeaderIV = headerIV;
+        }
+
+        /**
+         * Upgrades the encrypted blob object to the latest version.
+         * @returns An object containing the following:
+         * - upgraded: Whether the vault was upgraded or not.
+         * - version: The new version of the vault.
+         * - requiresSave: Whether the vault needs to be saved in order to persist the changes.
+         */
+        public upgrade(): {
+            /**
+             * Whether the vault was upgraded or not.
+             */
+            upgraded: boolean;
+            /**
+             * The new version of the vault.
+             */
+            version: number;
+            /**
+             * Whether the vault needs to be saved in order to persist the changes.
+             */
+            requiresSave: boolean;
+        } {
+            // NOTE: Only CurrentVersion changes during upgrades, Version stays the same as it was when the Blob object was created
+            /**
+             * Version 2
+             *  - Upgrade reasons:
+             *      - The vault is no longer decrypted using the clear-text secret, it is decrypted using a hashed version of the secret
+             *      - Since the old version of the blob is encrypted using the clear-text secret, we need to re-encrypt it using the hashed secret next time the vault is saved
+             *  - Other bigger changes (no upgrade needed):
+             *      - The vault secret is no longer saved in the vault itself, it is saved in some other place
+             */
+
+            const result = {
+                upgraded: false,
+                version: this.CurrentVersion,
+                requiresSave: false,
+            };
+
+            // NOTE: Check for the current version first, then for the version at vault creation (so we don't trigger on vault create)
+            if (this.CurrentVersion < 2 && this.Version < 2) {
+                console.warn(
+                    `Upgrading encrypted blob object to version 2 (from version ${this.CurrentVersion}) ...`
+                );
+
+                // NOTE: There are no steps that need to be taken to upgrade to version 2, just set the current version to 2
+
+                // Set the current version to 2
+                this.CurrentVersion = 2;
+
+                console.warn("Upgraded encrypted blob object to version 2.");
+
+                result.upgraded = true;
+                result.version = this.CurrentVersion;
+                result.requiresSave = true;
+            }
+
+            return result;
         }
 
         /**
@@ -192,7 +255,7 @@ export namespace VaultEncryption {
 
     export const EncryptDataBlob = async (
         blob: Uint8Array,
-        secret: string,
+        secret: Uint8Array,
         algorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
         kdfConfigArgon2ID: KeyDerivationConfig_Argon2ID,
@@ -227,7 +290,7 @@ export namespace VaultEncryption {
 
     export const DecryptDataBlob = async (
         blob: EncryptedBlob,
-        secret: string,
+        secret: Uint8Array,
         algorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
         configuration: KeyDerivationConfig_Argon2ID | KeyDerivationConfig_PBKDF2
@@ -257,15 +320,29 @@ export namespace VaultEncryption {
         }
     };
 
+    /**
+     * Hashes the provided data using the SHA-256 algorithm.
+     * @param data - The data to hash
+     * @returns The hashed data
+     */
+    export const hashSecret = async (data: string): Promise<Uint8Array> => {
+        return new Uint8Array(
+            await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(data)
+            )
+        );
+    };
+
     class KeyDerivation {
         public static async deriveKeyPBKDF2(
-            secret: string,
+            secret: Uint8Array,
             salt: Uint8Array,
             configuration: KeyDerivationConfig_PBKDF2
         ): Promise<CryptoKey> {
             const key = await crypto.subtle.importKey(
                 "raw",
-                new TextEncoder().encode(secret),
+                secret,
                 { name: "PBKDF2" },
                 false,
                 ["deriveKey"]
@@ -289,7 +366,7 @@ export namespace VaultEncryption {
 
         public static async deriveKeyArgon2ID(
             keyLength: number,
-            secret: string,
+            secret: Uint8Array,
             salt: Uint8Array,
             configuration: KeyDerivationConfig_Argon2ID
         ): Promise<Uint8Array> {
@@ -300,7 +377,7 @@ export namespace VaultEncryption {
 
             return sodium.crypto_pwhash(
                 keyLength,
-                new TextEncoder().encode(secret),
+                secret,
                 salt,
                 configuration.opsLimit,
                 memLimitActual,
@@ -312,7 +389,7 @@ export namespace VaultEncryption {
     class AES {
         static async encryptBlobAES256(
             blob: Uint8Array,
-            secret: string,
+            secret: Uint8Array,
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
@@ -390,7 +467,7 @@ export namespace VaultEncryption {
 
         static async decryptBlobAES256(
             blob: EncryptedBlob,
-            secret: string,
+            secret: Uint8Array,
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
@@ -455,7 +532,7 @@ export namespace VaultEncryption {
     class XChaCha20Poly1305 {
         static async encryptBlob(
             blob: Uint8Array,
-            secret: string,
+            secret: Uint8Array,
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
@@ -527,7 +604,7 @@ export namespace VaultEncryption {
 
         static async decryptBlob(
             encryptedBlob: EncryptedBlob,
-            secret: string,
+            secret: Uint8Array,
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
@@ -1124,7 +1201,11 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         vaultMetadata.LastUsed = undefined;
 
         // Instantiate a new vault to encrypt
-        const freshVault = new Vault(formData.Secret, seedVault, seedCount);
+        const freshVault = new Vault(
+            await VaultEncryption.hashSecret(formData.Secret),
+            seedVault,
+            seedCount
+        );
 
         // Serialize the vault instance
         const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
@@ -1132,7 +1213,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         // Encrypt the vault using default encryption
         vaultMetadata.Blob = await VaultEncryption.EncryptDataBlob(
             _vaultBytes,
-            formData.Secret,
+            freshVault.Secret,
             formData.Encryption,
             formData.EncryptionKeyDerivationFunction,
             formData.EncryptionConfig, // TODO: Get this TF out of here
@@ -1185,8 +1266,8 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
     /**
      * Decrypts the vault blob and returns it.
-     * @param secret The secret to decrypt the vault with
-     * @param encryptionAlgorithm The encryption algorithm used to encrypt the vault (taken from the blob or overriden by the user)
+     * @param secret - The secret to decrypt the vault with
+     * @param encryptionAlgorithm - The encryption algorithm used to encrypt the vault (taken from the blob or overriden by the user)
      * @returns The decrypted vault object
      */
     public async decryptVault(
@@ -1199,9 +1280,22 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             throw new Error("Vault blob is null");
         }
 
+        const blobUpgradeResult = this.Blob.upgrade();
+
+        // Hash the secret
+        let hashedSecret = await VaultEncryption.hashSecret(secret);
+
+        const encryptionData = new Uint8Array(hashedSecret);
+        let decryptionData = new Uint8Array(hashedSecret);
+
+        // DELETEME_UPGRADE: Remove this after the upgrade period is over (6 months)
+        if (blobUpgradeResult.upgraded && blobUpgradeResult.version === 2) {
+            decryptionData = new Uint8Array(new TextEncoder().encode(secret));
+        }
+
         const decryptedVaultString = await VaultEncryption.DecryptDataBlob(
             this.Blob,
-            secret,
+            decryptionData,
             encryptionAlgorithm,
             keyDerivationFunc,
             keyDerivationFuncConfig
@@ -1210,8 +1304,10 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const vaultRawParsed =
             VaultUtilTypes.Vault.decode(decryptedVaultString);
 
+        // Set the decryptionSecret in the session storage
+        // Which is then used to encrypt the vault when saving
         const vaultObject: Vault = Object.assign(
-            new Vault(secret),
+            new Vault(encryptionData),
             vaultRawParsed
         );
 
@@ -1258,7 +1354,13 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             vaultObject.Configuration
         );
 
-        vaultObject.upgrade(vaultRawParsed.CurrentVersion);
+        // Upgrade the vault object if necessary
+        vaultObject.upgrade();
+
+        // Take care of the encrypted blob upgrade
+        if (blobUpgradeResult.requiresSave) {
+            this.save(vaultObject);
+        }
 
         // Assign the deserialized data to the Vault object
         return vaultObject;
@@ -1320,7 +1422,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const rawData = VaultUtilTypes.VaultMetadata.decode(data);
 
         console.debug(
-            `Metadata version: ${rawData.Version} || Blob version: ${rawData.Blob?.Version}`
+            `Metadata [${rawData.Name}] version: ${rawData.Version} || encrypted blob version: ${rawData.Blob?.Version} || DB Index: ${dbIndex}`
         );
 
         const vaultMetadata = Object.assign(new VaultMetadata(), rawData);
@@ -1928,8 +2030,8 @@ export class OnlineServicesAccount
     /**
      * Decrypts the data that was deserialized for signing in to online services.
      * This is used when linking devices (from outside the vault)
-     * @param encryptedData The data to decrypt (as a base64 string)
-     * @param secret The secret to decrypt the data with
+     * @param encryptedData - The data to decrypt (as a base64 string)
+     * @param secret - The secret to decrypt the data with
      * @returns The decrypted data as an OnlineServicesAccountInterface object
      * @throws An error if the decryption fails or the data is invalid
      */
@@ -1953,7 +2055,7 @@ export class OnlineServicesAccount
 
         const decrypted = await VaultEncryption.DecryptDataBlob(
             encryptedBlob,
-            secret,
+            await VaultEncryption.hashSecret(secret),
             encryptedBlob.Algorithm,
             encryptedBlob.KeyDerivationFunc,
             encryptedBlob.KeyDerivationFunc ===
@@ -1983,9 +2085,9 @@ export class OnlineServicesAccount
 
     /**
      * Encrypts and serializes the data that will be used for signing in to online services on another device.
-     * @param userID The generated user ID (account ID)
-     * @param publicKey The generated public key
-     * @param privateKey The generated private key
+     * @param userID - The generated user ID (account ID)
+     * @param publicKey - The generated public key
+     * @param privateKey - The generated private key
      * @returns An object containing the encrypted data and the secret used to encrypt it
      */
     public static async encryptTransferableData(
@@ -1994,7 +2096,7 @@ export class OnlineServicesAccount
         privateKey: string
     ): Promise<{
         encryptedDataB64: string;
-        secret: string;
+        mnemonic: string;
     }> {
         // Even though isBound checks for null, we do the explicit check here to avoid TS errors
         if (!userID.length || !publicKey.length || !privateKey.length) {
@@ -2004,7 +2106,9 @@ export class OnlineServicesAccount
         }
 
         // Generate a random passphrase with which to encrypt the data - 128 bits
-        const secret: string = bip39.generateMnemonic(wordlist, 128);
+        const mnemonic = bip39.generateMnemonic(wordlist, 128);
+
+        const secret = await VaultEncryption.hashSecret(mnemonic);
 
         const newEncryptedBlob: VaultEncryption.EncryptedBlob =
             VaultEncryption.EncryptedBlob.CreateDefault();
@@ -2038,7 +2142,7 @@ export class OnlineServicesAccount
 
         return {
             encryptedDataB64,
-            secret,
+            mnemonic,
         };
     }
 }
@@ -2097,20 +2201,30 @@ class Group implements VaultUtilTypes.Group, GroupSchemaType {
 }
 
 export class Vault implements VaultUtilTypes.Vault {
-    // NOTE: This property is **not** serialized and saved in the vault
+    /*
+     * NOTE: This property is **not** serialized and saved in the vault
+     */
     private LATEST_VERSION = 2;
+
+    /**
+     * NOTE: This property is **not** serialized and saved in the vault
+     * The secret used to encrypt the vault while it's in memory.
+     * It is also use to decrypt the vault data (if it's encrypted using symmetric encryption).
+     */
+    public Secret = new Uint8Array();
+
     public Version: number;
     public CurrentVersion = 0;
-    public Secret: string;
     public Configuration: Configuration = new Configuration();
     public OnlineServices: OnlineServicesAccount;
     public Groups: Group[] = [];
     public Credentials: Credential.VaultCredential[];
     public Diffs: VaultUtilTypes.Diff[] = [];
 
-    constructor(secret = "", seedData = false, seedCount = 0) {
+    constructor(secret = new Uint8Array(), seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
         this.Secret = secret;
+
         this.OnlineServices = new OnlineServicesAccount();
         this.Credentials = seedData ? this.seedVault(seedCount) : [];
     }
@@ -2119,7 +2233,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * Upgrades the vault to the latest version. Makes changes to the vault in place - if the vault is not in the latest version, it will be upgraded.
      * @param oldVersion - The version of the vault to upgrade from. Usually the value of the CurrentVersion property but from the clean-deserialized vault.
      */
-    public upgrade(oldVersion: number): void {
+    public upgrade(): void {
         // NOTE: Only CurrentVersion changes during upgrades, Version stays the same as it was when the vault was created
         /**
          * Version 2
@@ -2130,15 +2244,17 @@ export class Vault implements VaultUtilTypes.Vault {
          *      - Changed the way the synchronization messsages are serialized and deserialized (to be more compact and efficient)
          */
         // NOTE: Check for the current version first, then for the version at vault creation (so we don't trigger on vault create)
-        if (oldVersion < 2 && this.Version < 2) {
-            console.warn("Upgrading vault to version 2...");
+        if (this.CurrentVersion < 2 && this.Version < 2) {
+            console.warn(
+                `Upgrading Vault object to version 2 (from version ${this.CurrentVersion})...`
+            );
             // Clear the list of diffs
             this.Diffs = [];
 
             // Set the current version to 2
             this.CurrentVersion = 2;
 
-            console.warn("Upgraded vault to version 2.");
+            console.warn("Upgraded Vault object to version 2.");
         }
     }
 

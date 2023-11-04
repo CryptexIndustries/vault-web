@@ -1,11 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import NextCors from "nextjs-cors";
 import Pusher from "pusher";
-import { getServerAuthSession } from "../../../server/common/get-server-auth-session";
 import { PrismaClient } from "@prisma/client";
+import Cors from "cors";
+
+import { getServerAuthSession } from "../../../server/common/get-server-auth-session";
 import { env } from "../../../env/client.mjs";
 import { env as serverEnv } from "../../../env/server.mjs";
 import { checkRatelimitPusher } from "../../../server/common/ratelimiting";
+import runMiddleware from "../../../server/common/api-middleware";
+
+const cors = Cors({
+    methods: ["POST"],
+    origin: process.env.NEXT_PUBLIC_APP_URL,
+    optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
+});
 
 const pusher = new Pusher({
     appId: env.NEXT_PUBLIC_PUSHER_APP_ID,
@@ -22,12 +30,7 @@ const prisma = new PrismaClient();
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     // This api handler is supposed to be accessed from this domain
     // This way we don't query the database for every request
-    await NextCors(req, res, {
-        // Options
-        methods: ["POST"],
-        origin: process.env.NEXT_PUBLIC_APP_URL,
-        optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-    });
+    await runMiddleware(req, res, cors);
 
     const ip: string = (req.headers?.["x-forwarded-for"] ??
         "127.0.0.1") as string;
@@ -124,7 +127,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             console.error(
                 "[PUSHER] None of the devices belong to the user",
                 session.user.id,
-                extractedDeviceIDs
+                extractedDeviceIDs,
             );
             res.status(401).send("Unauthorized");
             return;

@@ -1,11 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import { buffer } from "micro";
+import { PrismaClient } from "@prisma/client";
+import Cors from "cors";
 
 import { StripeConfiguration } from "../../utils/stripe";
-import { PrismaClient } from "@prisma/client";
-import NextCors from "nextjs-cors";
 import { initUserSubscriptionTier } from "../../utils/subscription";
+import runMiddleware from "../../server/common/api-middleware";
 
 // Stripe requires the raw body to construct the event.
 export const config = {
@@ -13,6 +14,12 @@ export const config = {
         bodyParser: false,
     },
 };
+
+const cors = Cors({
+    methods: ["POST"],
+    origin: "*",
+    optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
+})
 
 const stripe = new Stripe(
     process.env.STRIPE_SECRET_KEY ?? "",
@@ -26,12 +33,7 @@ export default async function handler(
     req: NextApiRequest,
     res: NextApiResponse
 ) {
-    await NextCors(req, res, {
-        // Options
-        methods: ["POST"],
-        origin: "*",
-        optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-    });
+    await runMiddleware(req, res, cors);
 
     if (req.method === "POST") {
         const buf = await buffer(req);

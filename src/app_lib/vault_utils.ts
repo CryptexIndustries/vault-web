@@ -1283,7 +1283,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const blobUpgradeResult = this.Blob.upgrade();
 
         // Hash the secret
-        let hashedSecret = await VaultEncryption.hashSecret(secret);
+        const hashedSecret = await VaultEncryption.hashSecret(secret);
 
         const encryptionData = new Uint8Array(hashedSecret);
         let decryptionData = new Uint8Array(hashedSecret);

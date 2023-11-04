@@ -6500,7 +6500,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         }
 
         // Show the user a note and the mnemonic passphrase to enter on the other device
-        setFormValue("mnemonic", encryptedTransferableData.secret);
+        setFormValue("mnemonic", encryptedTransferableData.mnemonic);
         // setFormValue("showingMnemonic", true);
 
         return {
@@ -6997,77 +6997,77 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
                                     {readyForOtherDevice &&
                                         isOperationInProgress && (
-                                        <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
-                                            <p className="text-md w-full text-center text-slate-600 underline">
+                                            <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
+                                                <p className="text-md w-full text-center text-slate-600 underline">
                                                     Tips for linking to the
                                                     other device
-                                            </p>
-                                            {/* Show a nicely formatted tip on how to
+                                                </p>
+                                                {/* Show a nicely formatted tip on how to
                                             load the data into the other device */}
-                                            {selectedLinkMethod ===
-                                                LinkMethod.QRCode &&
-                                                readyForOtherDevice && (
-                                                    <>
-                                                        <p className="text-md text-slate-600">
+                                                {selectedLinkMethod ===
+                                                    LinkMethod.QRCode &&
+                                                    readyForOtherDevice && (
+                                                        <>
+                                                            <p className="text-md text-slate-600">
                                                                 1. Scan the QR
                                                                 Code with the
                                                                 other device by
                                                                 opening the{" "}
-                                                            <strong>
+                                                                <strong>
                                                                     Link a
                                                                     Device
-                                                            </strong>{" "}
-                                                            dialog and then
-                                                            selecting{" "}
-                                                            <strong>
-                                                                QR Code
-                                                            </strong>
-                                                        </p>
-                                                        <p className="text-md text-slate-600">
+                                                                </strong>{" "}
+                                                                dialog and then
+                                                                selecting{" "}
+                                                                <strong>
+                                                                    QR Code
+                                                                </strong>
+                                                            </p>
+                                                            <p className="text-md text-slate-600">
                                                                 2. Once the QR
                                                                 code is
                                                                 successfully
                                                                 scanned, enter
                                                                 the decryption
-                                                            passphrase shown
-                                                            below.
-                                                        </p>
-                                                    </>
-                                                )}
-                                            {selectedLinkMethod ===
-                                                LinkMethod.File &&
-                                                readyForOtherDevice && (
-                                                    <>
-                                                        <p className="text-md text-slate-600">
-                                                            1. Load the file
-                                                            into the other
+                                                                passphrase shown
+                                                                below.
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                {selectedLinkMethod ===
+                                                    LinkMethod.File &&
+                                                    readyForOtherDevice && (
+                                                        <>
+                                                            <p className="text-md text-slate-600">
+                                                                1. Load the file
+                                                                into the other
                                                                 device by
                                                                 opening the{" "}
-                                                            <strong>
+                                                                <strong>
                                                                     Link a
                                                                     Device
-                                                            </strong>{" "}
-                                                            dialog and then
-                                                            selecting{" "}
-                                                            <strong>
-                                                                Using a file
-                                                            </strong>
-                                                        </p>
-                                                        <p className="text-md text-slate-600">
+                                                                </strong>{" "}
+                                                                dialog and then
+                                                                selecting{" "}
+                                                                <strong>
+                                                                    Using a file
+                                                                </strong>
+                                                            </p>
+                                                            <p className="text-md text-slate-600">
                                                                 2. Once the file
                                                                 is loaded, enter
                                                                 the decryption
-                                                            passphrase shown
-                                                            below.
-                                                        </p>
-                                                    </>
-                                                )}
-                                            <p className="text-md text-slate-600">
+                                                                passphrase shown
+                                                                below.
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                <p className="text-md text-slate-600">
                                                     3. Follow the instructions
                                                     on the other device.
-                                            </p>
-                                        </div>
-                                    )}
+                                                </p>
+                                            </div>
+                                        )}
 
                                     {selectedLinkMethod === LinkMethod.QRCode &&
                                         readyForOtherDevice && (

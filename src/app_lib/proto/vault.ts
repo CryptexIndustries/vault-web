@@ -233,7 +233,7 @@ function createBaseKeyDerivationConfigArgon2ID(): KeyDerivationConfigArgon2ID {
 export const KeyDerivationConfigArgon2ID = {
     encode(
         message: KeyDerivationConfigArgon2ID,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.memLimit !== 0) {
             writer.uint32(56).int32(message.memLimit);
@@ -246,7 +246,7 @@ export const KeyDerivationConfigArgon2ID = {
 
     decode(
         input: _m0.Reader | Uint8Array,
-        length?: number
+        length?: number,
     ): KeyDerivationConfigArgon2ID {
         const reader =
             input instanceof _m0.Reader ? input : _m0.Reader.create(input);
@@ -279,12 +279,12 @@ export const KeyDerivationConfigArgon2ID = {
     },
 
     create<I extends Exact<DeepPartial<KeyDerivationConfigArgon2ID>, I>>(
-        base?: I
+        base?: I,
     ): KeyDerivationConfigArgon2ID {
         return KeyDerivationConfigArgon2ID.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<KeyDerivationConfigArgon2ID>, I>>(
-        object: I
+        object: I,
     ): KeyDerivationConfigArgon2ID {
         const message = createBaseKeyDerivationConfigArgon2ID();
         message.memLimit = object.memLimit ?? 0;
@@ -300,7 +300,7 @@ function createBaseKeyDerivationConfigPBKDF2(): KeyDerivationConfigPBKDF2 {
 export const KeyDerivationConfigPBKDF2 = {
     encode(
         message: KeyDerivationConfigPBKDF2,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.iterations !== 0) {
             writer.uint32(32).int32(message.iterations);
@@ -310,7 +310,7 @@ export const KeyDerivationConfigPBKDF2 = {
 
     decode(
         input: _m0.Reader | Uint8Array,
-        length?: number
+        length?: number,
     ): KeyDerivationConfigPBKDF2 {
         const reader =
             input instanceof _m0.Reader ? input : _m0.Reader.create(input);
@@ -336,12 +336,12 @@ export const KeyDerivationConfigPBKDF2 = {
     },
 
     create<I extends Exact<DeepPartial<KeyDerivationConfigPBKDF2>, I>>(
-        base?: I
+        base?: I,
     ): KeyDerivationConfigPBKDF2 {
         return KeyDerivationConfigPBKDF2.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<KeyDerivationConfigPBKDF2>, I>>(
-        object: I
+        object: I,
     ): KeyDerivationConfigPBKDF2 {
         const message = createBaseKeyDerivationConfigPBKDF2();
         message.iterations = object.iterations ?? 0;
@@ -363,7 +363,7 @@ function createBaseVaultMetadata(): VaultMetadata {
 export const VaultMetadata = {
     encode(
         message: VaultMetadata,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Version !== 0) {
             writer.uint32(8).int32(message.Version);
@@ -392,7 +392,7 @@ export const VaultMetadata = {
         if (message.Blob !== undefined) {
             EncryptedBlob.encode(
                 message.Blob,
-                writer.uint32(74).fork()
+                writer.uint32(74).fork(),
             ).ldelim();
         }
         return writer;
@@ -469,7 +469,7 @@ export const VaultMetadata = {
 
                     message.Blob = EncryptedBlob.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
             }
@@ -482,12 +482,12 @@ export const VaultMetadata = {
     },
 
     create<I extends Exact<DeepPartial<VaultMetadata>, I>>(
-        base?: I
+        base?: I,
     ): VaultMetadata {
         return VaultMetadata.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<VaultMetadata>, I>>(
-        object: I
+        object: I,
     ): VaultMetadata {
         const message = createBaseVaultMetadata();
         message.Version = object.Version ?? 0;
@@ -523,7 +523,7 @@ function createBaseEncryptedBlob(): EncryptedBlob {
 export const EncryptedBlob = {
     encode(
         message: EncryptedBlob,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Version !== 0) {
             writer.uint32(64).int32(message.Version);
@@ -540,13 +540,13 @@ export const EncryptedBlob = {
         if (message.KDFConfigArgon2ID !== undefined) {
             KeyDerivationConfigArgon2ID.encode(
                 message.KDFConfigArgon2ID,
-                writer.uint32(26).fork()
+                writer.uint32(26).fork(),
             ).ldelim();
         }
         if (message.KDFConfigPBKDF2 !== undefined) {
             KeyDerivationConfigPBKDF2.encode(
                 message.KDFConfigPBKDF2,
-                writer.uint32(34).fork()
+                writer.uint32(34).fork(),
             ).ldelim();
         }
         if (message.Blob.length !== 0) {
@@ -605,7 +605,7 @@ export const EncryptedBlob = {
                     message.KDFConfigArgon2ID =
                         KeyDerivationConfigArgon2ID.decode(
                             reader,
-                            reader.uint32()
+                            reader.uint32(),
                         );
                     continue;
                 case 4:
@@ -615,7 +615,7 @@ export const EncryptedBlob = {
 
                     message.KDFConfigPBKDF2 = KeyDerivationConfigPBKDF2.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
                 case 5:
@@ -649,12 +649,12 @@ export const EncryptedBlob = {
     },
 
     create<I extends Exact<DeepPartial<EncryptedBlob>, I>>(
-        base?: I
+        base?: I,
     ): EncryptedBlob {
         return EncryptedBlob.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<EncryptedBlob>, I>>(
-        object: I
+        object: I,
     ): EncryptedBlob {
         const message = createBaseEncryptedBlob();
         message.Version = object.Version ?? 0;
@@ -665,7 +665,7 @@ export const EncryptedBlob = {
             object.KDFConfigArgon2ID !== undefined &&
             object.KDFConfigArgon2ID !== null
                 ? KeyDerivationConfigArgon2ID.fromPartial(
-                      object.KDFConfigArgon2ID
+                      object.KDFConfigArgon2ID,
                   )
                 : undefined;
         message.KDFConfigPBKDF2 =
@@ -687,7 +687,7 @@ function createBaseGroup(): Group {
 export const Group = {
     encode(
         message: Group,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.ID !== "") {
             writer.uint32(10).string(message.ID);
@@ -769,7 +769,7 @@ function createBaseCustomField(): CustomField {
 export const CustomField = {
     encode(
         message: CustomField,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.ID !== "") {
             writer.uint32(10).string(message.ID);
@@ -832,12 +832,12 @@ export const CustomField = {
     },
 
     create<I extends Exact<DeepPartial<CustomField>, I>>(
-        base?: I
+        base?: I,
     ): CustomField {
         return CustomField.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<CustomField>, I>>(
-        object: I
+        object: I,
     ): CustomField {
         const message = createBaseCustomField();
         message.ID = object.ID ?? "";
@@ -863,7 +863,7 @@ function createBaseVault(): Vault {
 export const Vault = {
     encode(
         message: Vault,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Version !== 0) {
             writer.uint32(8).int32(message.Version);
@@ -874,13 +874,13 @@ export const Vault = {
         if (message.Configuration !== undefined) {
             Configuration.encode(
                 message.Configuration,
-                writer.uint32(26).fork()
+                writer.uint32(26).fork(),
             ).ldelim();
         }
         if (message.OnlineServices !== undefined) {
             OnlineServices.encode(
                 message.OnlineServices,
-                writer.uint32(34).fork()
+                writer.uint32(34).fork(),
             ).ldelim();
         }
         for (const v of message.Groups) {
@@ -924,7 +924,7 @@ export const Vault = {
 
                     message.Configuration = Configuration.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
                 case 4:
@@ -934,7 +934,7 @@ export const Vault = {
 
                     message.OnlineServices = OnlineServices.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
                 case 5:
@@ -950,7 +950,7 @@ export const Vault = {
                     }
 
                     message.Credentials.push(
-                        Credential.decode(reader, reader.uint32())
+                        Credential.decode(reader, reader.uint32()),
                     );
                     continue;
                 case 7:
@@ -1000,7 +1000,7 @@ function createBaseConfiguration(): Configuration {
 export const Configuration = {
     encode(
         message: Configuration,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.MaxDiffCount !== 0) {
             writer.uint32(8).int32(message.MaxDiffCount);
@@ -1033,12 +1033,12 @@ export const Configuration = {
     },
 
     create<I extends Exact<DeepPartial<Configuration>, I>>(
-        base?: I
+        base?: I,
     ): Configuration {
         return Configuration.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<Configuration>, I>>(
-        object: I
+        object: I,
     ): Configuration {
         const message = createBaseConfiguration();
         message.MaxDiffCount = object.MaxDiffCount ?? 0;
@@ -1053,7 +1053,7 @@ function createBaseOnlineServices(): OnlineServices {
 export const OnlineServices = {
     encode(
         message: OnlineServices,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.UserID !== undefined) {
             writer.uint32(10).string(message.UserID);
@@ -1108,7 +1108,7 @@ export const OnlineServices = {
                     }
 
                     message.CreationTimestamp = longToNumber(
-                        reader.int64() as Long
+                        reader.int64() as Long,
                     );
                     continue;
                 case 5:
@@ -1117,7 +1117,7 @@ export const OnlineServices = {
                     }
 
                     message.LinkedDevices.push(
-                        LinkedDevice.decode(reader, reader.uint32())
+                        LinkedDevice.decode(reader, reader.uint32()),
                     );
                     continue;
             }
@@ -1130,12 +1130,12 @@ export const OnlineServices = {
     },
 
     create<I extends Exact<DeepPartial<OnlineServices>, I>>(
-        base?: I
+        base?: I,
     ): OnlineServices {
         return OnlineServices.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<OnlineServices>, I>>(
-        object: I
+        object: I,
     ): OnlineServices {
         const message = createBaseOnlineServices();
         message.UserID = object.UserID ?? undefined;
@@ -1163,7 +1163,7 @@ function createBaseLinkedDevice(): LinkedDevice {
 export const LinkedDevice = {
     encode(
         message: LinkedDevice,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.ID !== "") {
             writer.uint32(10).string(message.ID);
@@ -1234,7 +1234,7 @@ export const LinkedDevice = {
                     }
 
                     message.LinkedAtTimestamp = longToNumber(
-                        reader.int64() as Long
+                        reader.int64() as Long,
                     );
                     continue;
                 case 6:
@@ -1268,12 +1268,12 @@ export const LinkedDevice = {
     },
 
     create<I extends Exact<DeepPartial<LinkedDevice>, I>>(
-        base?: I
+        base?: I,
     ): LinkedDevice {
         return LinkedDevice.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<LinkedDevice>, I>>(
-        object: I
+        object: I,
     ): LinkedDevice {
         const message = createBaseLinkedDevice();
         message.ID = object.ID ?? "";
@@ -1306,7 +1306,7 @@ function createBaseCredential(): Credential {
 export const Credential = {
     encode(
         message: Credential,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.ID !== "") {
             writer.uint32(10).string(message.ID);
@@ -1461,7 +1461,7 @@ export const Credential = {
                     }
 
                     message.CustomFields.push(
-                        CustomField.decode(reader, reader.uint32())
+                        CustomField.decode(reader, reader.uint32()),
                     );
                     continue;
                 case 15:
@@ -1484,7 +1484,7 @@ export const Credential = {
         return Credential.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<Credential>, I>>(
-        object: I
+        object: I,
     ): Credential {
         const message = createBaseCredential();
         message.ID = object.ID ?? "";
@@ -1517,7 +1517,7 @@ function createBasePartialCredential(): PartialCredential {
 export const PartialCredential = {
     encode(
         message: PartialCredential,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.ID !== undefined) {
             writer.uint32(10).string(message.ID);
@@ -1564,7 +1564,7 @@ export const PartialCredential = {
         if (message.ChangeFlags !== undefined) {
             PartialCredentialChanges.encode(
                 message.ChangeFlags,
-                writer.uint32(122).fork()
+                writer.uint32(122).fork(),
             ).ldelim();
         }
         return writer;
@@ -1675,7 +1675,7 @@ export const PartialCredential = {
                     }
 
                     message.CustomFields.push(
-                        CustomField.decode(reader, reader.uint32())
+                        CustomField.decode(reader, reader.uint32()),
                     );
                     continue;
                 case 15:
@@ -1685,7 +1685,7 @@ export const PartialCredential = {
 
                     message.ChangeFlags = PartialCredentialChanges.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
             }
@@ -1698,12 +1698,12 @@ export const PartialCredential = {
     },
 
     create<I extends Exact<DeepPartial<PartialCredential>, I>>(
-        base?: I
+        base?: I,
     ): PartialCredential {
         return PartialCredential.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<PartialCredential>, I>>(
-        object: I
+        object: I,
     ): PartialCredential {
         const message = createBasePartialCredential();
         message.ID = object.ID ?? undefined;
@@ -1753,7 +1753,7 @@ function createBasePartialCredentialChanges(): PartialCredentialChanges {
 export const PartialCredentialChanges = {
     encode(
         message: PartialCredentialChanges,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.TypeHasChanged === true) {
             writer.uint32(8).bool(message.TypeHasChanged);
@@ -1799,7 +1799,7 @@ export const PartialCredentialChanges = {
 
     decode(
         input: _m0.Reader | Uint8Array,
-        length?: number
+        length?: number,
     ): PartialCredentialChanges {
         const reader =
             input instanceof _m0.Reader ? input : _m0.Reader.create(input);
@@ -1909,12 +1909,12 @@ export const PartialCredentialChanges = {
     },
 
     create<I extends Exact<DeepPartial<PartialCredentialChanges>, I>>(
-        base?: I
+        base?: I,
     ): PartialCredentialChanges {
         return PartialCredentialChanges.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<PartialCredentialChanges>, I>>(
-        object: I
+        object: I,
     ): PartialCredentialChanges {
         const message = createBasePartialCredentialChanges();
         message.TypeHasChanged = object.TypeHasChanged ?? false;
@@ -1942,7 +1942,7 @@ function createBaseTOTP(): TOTP {
 export const TOTP = {
     encode(
         message: TOTP,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Label !== "") {
             writer.uint32(10).string(message.Label);
@@ -2035,7 +2035,7 @@ function createBaseDiff(): Diff {
 export const Diff = {
     encode(
         message: Diff,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Hash !== "") {
             writer.uint32(10).string(message.Hash);
@@ -2043,7 +2043,7 @@ export const Diff = {
         if (message.Changes !== undefined) {
             DiffChange.encode(
                 message.Changes,
-                writer.uint32(18).fork()
+                writer.uint32(18).fork(),
             ).ldelim();
         }
         return writer;
@@ -2071,7 +2071,7 @@ export const Diff = {
 
                     message.Changes = DiffChange.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
             }
@@ -2104,7 +2104,7 @@ function createBaseDiffChange(): DiffChange {
 export const DiffChange = {
     encode(
         message: DiffChange,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Type !== 0) {
             writer.uint32(8).int32(message.Type);
@@ -2115,7 +2115,7 @@ export const DiffChange = {
         if (message.Props !== undefined) {
             PartialCredential.encode(
                 message.Props,
-                writer.uint32(26).fork()
+                writer.uint32(26).fork(),
             ).ldelim();
         }
         return writer;
@@ -2150,7 +2150,7 @@ export const DiffChange = {
 
                     message.Props = PartialCredential.decode(
                         reader,
-                        reader.uint32()
+                        reader.uint32(),
                     );
                     continue;
             }
@@ -2166,7 +2166,7 @@ export const DiffChange = {
         return DiffChange.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<DiffChange>, I>>(
-        object: I
+        object: I,
     ): DiffChange {
         const message = createBaseDiffChange();
         message.Type = object.Type ?? 0;
@@ -2186,7 +2186,7 @@ function createBaseSynchronizationMessage(): SynchronizationMessage {
 export const SynchronizationMessage = {
     encode(
         message: SynchronizationMessage,
-        writer: _m0.Writer = _m0.Writer.create()
+        writer: _m0.Writer = _m0.Writer.create(),
     ): _m0.Writer {
         if (message.Command !== 0) {
             writer.uint32(8).int32(message.Command);
@@ -2208,7 +2208,7 @@ export const SynchronizationMessage = {
 
     decode(
         input: _m0.Reader | Uint8Array,
-        length?: number
+        length?: number,
     ): SynchronizationMessage {
         const reader =
             input instanceof _m0.Reader ? input : _m0.Reader.create(input);
@@ -2251,7 +2251,7 @@ export const SynchronizationMessage = {
                     }
 
                     message.LinkedDevices.push(
-                        LinkedDevice.decode(reader, reader.uint32())
+                        LinkedDevice.decode(reader, reader.uint32()),
                     );
                     continue;
             }
@@ -2264,12 +2264,12 @@ export const SynchronizationMessage = {
     },
 
     create<I extends Exact<DeepPartial<SynchronizationMessage>, I>>(
-        base?: I
+        base?: I,
     ): SynchronizationMessage {
         return SynchronizationMessage.fromPartial(base ?? ({} as any));
     },
     fromPartial<I extends Exact<DeepPartial<SynchronizationMessage>, I>>(
-        object: I
+        object: I,
     ): SynchronizationMessage {
         const message = createBaseSynchronizationMessage();
         message.Command = object.Command ?? 0;
@@ -2315,7 +2315,7 @@ export type Exact<P, I extends P> = P extends Builtin
 function longToNumber(long: Long): number {
     if (long.gt(globalThis.Number.MAX_SAFE_INTEGER)) {
         throw new globalThis.Error(
-            "Value is larger than Number.MAX_SAFE_INTEGER"
+            "Value is larger than Number.MAX_SAFE_INTEGER",
         );
     }
     return long.toNumber();

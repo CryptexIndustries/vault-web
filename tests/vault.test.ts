@@ -24,11 +24,11 @@ Object.defineProperty(window, "crypto", {
                     resolve(
                         crypto
                             .createHash(
-                                algorithm.toLowerCase().replace("-", "")
+                                algorithm.toLowerCase().replace("-", ""),
                             )
                             .update(data)
-                            .digest()
-                    )
+                            .digest(),
+                    ),
                 );
             },
         },
@@ -108,7 +108,7 @@ jest.describe("Credentials - General", () => {
 
                     // Check that there are n credentials
                     jest.expect(vault.Credentials.length).toBe(
-                        numberOfCredentials
+                        numberOfCredentials,
                     );
 
                     const sortedLists = [];
@@ -128,7 +128,7 @@ jest.describe("Credentials - General", () => {
             }
             await Promise.all(promises);
         },
-        1500
+        1500,
     );
 });
 
@@ -153,7 +153,7 @@ jest.describe("Groups - CRUD", () => {
 
             if (vault.Groups[0] == null)
                 throw new Error(
-                    "Group was not created properly. Tests should have failed before this."
+                    "Group was not created properly. Tests should have failed before this.",
                 );
 
             // Check that the group has an ID
@@ -167,7 +167,7 @@ jest.describe("Groups - CRUD", () => {
                 Icon: "lock",
             } as Group);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -175,7 +175,7 @@ jest.describe("Groups - CRUD", () => {
         async () => {
             if (vault.Groups[0] == null)
                 throw new Error(
-                    "No group to update. Tests should have failed before this."
+                    "No group to update. Tests should have failed before this.",
                 );
 
             // Update the group
@@ -194,7 +194,7 @@ jest.describe("Groups - CRUD", () => {
                 Icon: "unlock",
             } as Group);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -202,7 +202,7 @@ jest.describe("Groups - CRUD", () => {
         async () => {
             if (vault.Groups[0] == null)
                 throw new Error(
-                    "No group to delete. Tests should have failed before this."
+                    "No group to delete. Tests should have failed before this.",
                 );
 
             // Delete the group
@@ -211,7 +211,7 @@ jest.describe("Groups - CRUD", () => {
             // Check that the group is deleted
             jest.expect(vault.Groups.length).toBe(0);
         },
-        100
+        100,
     );
 });
 
@@ -269,7 +269,7 @@ jest.describe("Credentials - CRUD", () => {
 
             if (!createdCredential)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Check that the credential has an ID
@@ -280,7 +280,7 @@ jest.describe("Credentials - CRUD", () => {
 
             const createdCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // The hash should be present - whatever the value
@@ -304,7 +304,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: createdCredentialRaw.Hash, // This value has been asserted before
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -312,17 +312,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -331,14 +331,14 @@ jest.describe("Credentials - CRUD", () => {
             updatedCredentialForm.Name = "Updated credential";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -348,7 +348,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the name and the DateModified field should have changed, the rest should be the same
@@ -361,7 +361,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -369,17 +369,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -388,14 +388,14 @@ jest.describe("Credentials - CRUD", () => {
             updatedCredentialForm.Username = "Updated username";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -405,7 +405,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the username and the DateModified field should have changed, the rest should be the same
@@ -418,7 +418,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -426,17 +426,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -445,14 +445,14 @@ jest.describe("Credentials - CRUD", () => {
             updatedCredentialForm.Password = "Updated password";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -462,7 +462,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the password and the DateModified field should have changed, the rest should be the same
@@ -476,7 +476,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -484,17 +484,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -503,14 +503,14 @@ jest.describe("Credentials - CRUD", () => {
             updatedCredentialForm.URL = "Updated url";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -520,7 +520,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the url and the DateModified field should have changed, the rest should be the same
@@ -533,7 +533,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -541,17 +541,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -560,14 +560,14 @@ jest.describe("Credentials - CRUD", () => {
             updatedCredentialForm.Notes = "Updated note";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -577,7 +577,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the note and the DateModified field should have changed, the rest should be the same
@@ -590,7 +590,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -598,35 +598,35 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
             const updatedCredentialForm: Credential.CredentialFormSchemaType =
                 initialCredential;
             updatedCredentialForm.Tags = ["Tag1", "Tag2", "Tag3"].join(
-                Credential.TAG_SEPARATOR
+                Credential.TAG_SEPARATOR,
             );
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -636,7 +636,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the tags and the DateModified field should have changed, the rest should be the same
@@ -649,7 +649,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -657,17 +657,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -682,14 +682,14 @@ jest.describe("Credentials - CRUD", () => {
             };
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -699,7 +699,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the TOTP and the DateModified field should have changed, the rest should be the same
@@ -709,13 +709,13 @@ jest.describe("Credentials - CRUD", () => {
                 ...initialCredentialRaw,
                 TOTP: Object.assign(
                     new Credential.TOTP(),
-                    updatedCredentialForm.TOTP
+                    updatedCredentialForm.TOTP,
                 ),
                 DateModified: updatedCredential.DateModified,
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -723,17 +723,17 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null || initialCredential == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -742,14 +742,14 @@ jest.describe("Credentials - CRUD", () => {
             updatedCredentialForm.TOTP = undefined;
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // Check that the credential is updated
@@ -759,7 +759,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check if the hash has changed
             jest.expect(updatedCredential.Hash).not.toBeNull();
             jest.expect(updatedCredential.Hash).not.toEqual(
-                initialCredentialRaw.Hash
+                initialCredentialRaw.Hash,
             );
 
             // Only the TOTP and the DateModified field should have changed, the rest should be the same
@@ -772,7 +772,7 @@ jest.describe("Credentials - CRUD", () => {
                 Hash: updatedCredential.Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -780,7 +780,7 @@ jest.describe("Credentials - CRUD", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to delete. Tests should have failed before this."
+                    "No credential to delete. Tests should have failed before this.",
                 );
 
             // Delete the credential
@@ -789,7 +789,7 @@ jest.describe("Credentials - CRUD", () => {
             // Check that the credential is deleted
             jest.expect(vault.Credentials.length).toBe(0);
         },
-        100
+        100,
     );
 });
 
@@ -842,7 +842,7 @@ jest.describe("Credentials - Diff", () => {
 
             if (!createdCredential)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Check that the credential has an ID
@@ -861,7 +861,7 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(createdCredentialDiffRaw.Changes).not.toBeNull();
             if (!createdCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
@@ -869,7 +869,7 @@ jest.describe("Credentials - Diff", () => {
 
             createdCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                createdCredentialDiffRaw.Changes.Props
+                createdCredentialDiffRaw.Changes.Props,
             );
 
             // The hash should be present - whatever the value
@@ -909,7 +909,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -936,12 +936,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -953,7 +953,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -972,7 +972,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -980,17 +980,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -999,14 +999,14 @@ jest.describe("Credentials - Diff", () => {
             updatedCredentialForm.Name = "Updated credential";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1019,17 +1019,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1060,7 +1060,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1088,12 +1088,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -1105,7 +1105,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -1124,7 +1124,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1132,17 +1132,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -1151,14 +1151,14 @@ jest.describe("Credentials - Diff", () => {
             updatedCredentialForm.Username = "Updated Username";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1171,17 +1171,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1212,7 +1212,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1239,12 +1239,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -1256,7 +1256,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -1275,7 +1275,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1283,17 +1283,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -1302,14 +1302,14 @@ jest.describe("Credentials - Diff", () => {
             updatedCredentialForm.Password = "Updated Password";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1322,17 +1322,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1365,7 +1365,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1392,12 +1392,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -1409,7 +1409,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -1428,7 +1428,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1436,17 +1436,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -1455,14 +1455,14 @@ jest.describe("Credentials - Diff", () => {
             updatedCredentialForm.URL = "Updated URL";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1475,17 +1475,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1516,7 +1516,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1543,12 +1543,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -1560,7 +1560,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -1579,7 +1579,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1587,17 +1587,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -1606,14 +1606,14 @@ jest.describe("Credentials - Diff", () => {
             updatedCredentialForm.Notes = "Updated Notes";
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1626,17 +1626,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1667,7 +1667,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1694,12 +1694,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -1711,7 +1711,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -1730,7 +1730,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1738,35 +1738,35 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
             const updatedCredentialForm: Credential.CredentialFormSchemaType =
                 initialCredentialRaw;
             updatedCredentialForm.Tags = ["Tag1", "Tag2", "Tag3"].join(
-                Credential.TAG_SEPARATOR
+                Credential.TAG_SEPARATOR,
             );
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1779,17 +1779,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1799,7 +1799,7 @@ jest.describe("Credentials - Diff", () => {
                     Type: DiffType.Update,
                     Props: {
                         Tags: ["Tag1", "Tag2", "Tag3"].join(
-                            Credential.TAG_SEPARATOR
+                            Credential.TAG_SEPARATOR,
                         ),
                         CustomFields: [], // This is always present, even if it's empty
                         DateModified: updatedCredential.DateModified,
@@ -1822,7 +1822,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1849,12 +1849,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -1866,7 +1866,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -1885,7 +1885,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -1893,17 +1893,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -1918,14 +1918,14 @@ jest.describe("Credentials - Diff", () => {
             };
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -1938,17 +1938,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -1985,7 +1985,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2012,12 +2012,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -2029,7 +2029,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -2048,7 +2048,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2056,17 +2056,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -2081,14 +2081,14 @@ jest.describe("Credentials - Diff", () => {
             };
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -2101,17 +2101,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -2148,7 +2148,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2175,12 +2175,12 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             const expectedTOTP = new Credential.TOTP();
@@ -2192,7 +2192,7 @@ jest.describe("Credentials - Diff", () => {
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -2211,7 +2211,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2219,17 +2219,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Update the credential
@@ -2239,14 +2239,14 @@ jest.describe("Credentials - Diff", () => {
             updatedCredentialForm.TOTP = null;
 
             const updatedCredential = await vault.updateCredential(
-                updatedCredentialForm
+                updatedCredentialForm,
             );
 
             jest.expect(updatedCredential).not.toBeNull();
 
             if (!updatedCredential)
                 throw new Error(
-                    "Credential was not updated properly. Tests should have failed before this."
+                    "Credential was not updated properly. Tests should have failed before this.",
                 );
 
             // The diff should be present, since we've just updated a credential
@@ -2259,17 +2259,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                updatedCredential.ID
+                updatedCredential.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -2300,7 +2300,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2327,17 +2327,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(newVault.Credentials.length).toBe(1);
             if (newVault.Credentials[0] == null || vault.Credentials[0] == null)
                 throw new Error(
-                    "Credential was not created properly. Tests should have failed before this."
+                    "Credential was not created properly. Tests should have failed before this.",
                 );
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             // Check that the credentials have the expected values
             jest.expect(
-                Object.assign({}, newVault.Credentials[0])
+                Object.assign({}, newVault.Credentials[0]),
             ).toStrictEqual({
                 ID: vault.Credentials[0].ID,
                 Type: ItemType.Credentials,
@@ -2356,7 +2356,7 @@ jest.describe("Credentials - Diff", () => {
                 Hash: vault.Credentials[0].Hash,
             } as Credential.CredentialFormSchemaType);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2372,7 +2372,7 @@ jest.describe("Credentials - Diff", () => {
                 jest.expect(diff.Changes?.Type).toBe(DiffType.Add);
             }
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2380,17 +2380,17 @@ jest.describe("Credentials - Diff", () => {
         async () => {
             if (vault.Credentials[0] == null)
                 throw new Error(
-                    "No credential to update. Tests should have failed before this."
+                    "No credential to update. Tests should have failed before this.",
                 );
 
             const initialCredentialRaw = Object.assign(
                 {},
-                vault.Credentials[0]
+                vault.Credentials[0],
             );
 
             // Wait a bit to make sure the DateModified field is different
             await new Promise((resolve) =>
-                setTimeout(resolve, timeBetweenTests)
+                setTimeout(resolve, timeBetweenTests),
             );
 
             // Delete the credential
@@ -2406,17 +2406,17 @@ jest.describe("Credentials - Diff", () => {
             jest.expect(updatedCredentialDiffRaw.Changes).not.toBeNull();
             if (!updatedCredentialDiffRaw.Changes)
                 throw new Error(
-                    "Diff was not created properly. Tests should have failed before this."
+                    "Diff was not created properly. Tests should have failed before this.",
                 );
 
             // The ID should be present - whatever the value
             jest.expect(updatedCredentialDiffRaw.Changes.ID).toEqual(
-                initialCredentialRaw.ID
+                initialCredentialRaw.ID,
             );
 
             updatedCredentialDiffRaw.Changes.Props = Object.assign(
                 {},
-                updatedCredentialDiffRaw.Changes.Props
+                updatedCredentialDiffRaw.Changes.Props,
             );
 
             jest.expect(updatedCredentialDiffRaw).toStrictEqual({
@@ -2428,7 +2428,7 @@ jest.describe("Credentials - Diff", () => {
                 },
             } as Diff);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2453,13 +2453,13 @@ jest.describe("Credentials - Diff", () => {
 
             // Compare the hashes of the vaults
             jest.expect(await newVault.getLatestHash()).toBe(
-                await vault.getLatestHash()
+                await vault.getLatestHash(),
             );
 
             // Check that the credentials are in the vault
             jest.expect(newVault.Credentials.length).toBe(0);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2493,7 +2493,7 @@ jest.describe("Credentials - Diff", () => {
                 jest.expect(diff.Hash).toBe(hashes[10 - i]);
             }
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2519,7 +2519,7 @@ jest.describe("Credentials - Diff", () => {
                 jest.expect(diffs.length).toBe(i);
             }
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2529,7 +2529,7 @@ jest.describe("Credentials - Diff", () => {
 
             jest.expect(diffs.length).toBe(0);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2540,7 +2540,7 @@ jest.describe("Credentials - Diff", () => {
             // Expect a single diff (credential which has been created as an "Add" diff)
             jest.expect(diffs.length).toBe(0);
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2553,7 +2553,7 @@ jest.describe("Credentials - Diff", () => {
             // This is to ensure smooth operation of new device synchronization (not required, but recommended)
             jest.expect(vault.Diffs.length).toBe(1);
         },
-        100
+        100,
     );
 
     jest.it("Empty vault with credentials", async () => {
@@ -2572,14 +2572,14 @@ jest.describe("Credentials - Diff", () => {
         credential.URL = "URL";
         credential.Notes = "Notes";
         credential.Tags = ["Tag1", "Tag2", "Tag3"].join(
-            Credential.TAG_SEPARATOR
+            Credential.TAG_SEPARATOR,
         );
         credential.TOTP = undefined;
         credential.CustomFields = [];
 
         // When the vault is empty, we expect a certain hash
         jest.expect(await vault.getLatestHash()).toEqual(
-            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709",
         );
 
         // await vault.createCredential(credential);
@@ -2595,7 +2595,7 @@ jest.describe("Credentials - Diff", () => {
         const latestHash = await vault.getLatestHash();
         jest.expect(latestHash).not.toBeNull();
         jest.expect(latestHash).not.toEqual(
-            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709",
         );
 
         // Try to get diffs since hash
@@ -2644,7 +2644,7 @@ jest.describe("Import", () => {
 
                 // Check that the credentials have the expected values
                 jest.expect(
-                    Object.assign({}, vault.Credentials[0])
+                    Object.assign({}, vault.Credentials[0]),
                 ).toStrictEqual({
                     ID: vault.Credentials[0]?.ID ?? "",
                     Type: ItemType.Credentials,
@@ -2663,7 +2663,7 @@ jest.describe("Import", () => {
                 } as Credential.CredentialFormSchemaType);
 
                 jest.expect(
-                    Object.assign({}, vault.Credentials[1])
+                    Object.assign({}, vault.Credentials[1]),
                 ).toStrictEqual({
                     ID: vault.Credentials[1]?.ID ?? "",
                     Type: ItemType.Credentials,
@@ -2682,7 +2682,7 @@ jest.describe("Import", () => {
                 } as Credential.CredentialFormSchemaType);
 
                 jest.expect(
-                    Object.assign({}, vault.Credentials[2])
+                    Object.assign({}, vault.Credentials[2]),
                 ).toStrictEqual({
                     ID: vault.Credentials[2]?.ID ?? "",
                     Type: ItemType.Credentials,
@@ -2725,10 +2725,10 @@ jest.describe("Import", () => {
                 },
                 (err) => {
                     throw err;
-                }
+                },
             );
         },
-        100
+        100,
     );
 
     jest.it(
@@ -2839,9 +2839,8 @@ jest.describe("Import", () => {
                 type: "application/json",
             });
 
-            const { credentials, groups } = await Import.BitwardenJSON(
-                fakeJSONFile
-            );
+            const { credentials, groups } =
+                await Import.BitwardenJSON(fakeJSONFile);
 
             // Create the groups
             for (const group of groups) {
@@ -2940,6 +2939,6 @@ jest.describe("Import", () => {
                 Icon: "",
             } as Group);
         },
-        100
+        100,
     );
 });

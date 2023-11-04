@@ -376,7 +376,7 @@ export const credentialsRouterGenerateRecoveryToken = protectedProcedure
 
 export const credentialsRouterClearRecoveryToken = protectedProcedure
     .output(z.boolean())
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx }) => {
         if (!checkRatelimitUserRecoveryCreate(ctx.userIP)) {
             throw trpcRatelimitError;
         }

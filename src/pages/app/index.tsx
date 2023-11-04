@@ -11,7 +11,6 @@ import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
-// import { focusAtom } from "jotai-optics";
 import * as OTPAuth from "otpauth";
 import { autoPlacement, shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
@@ -123,7 +122,6 @@ import {
     DivergenceSolveDialog,
     type DivergenceSolveShowDialogFnPropType,
 } from "../../components/dialog/synchronization";
-// import isEqual from "react-fast-compare";
 
 dayjs.extend(RelativeTime);
 
@@ -141,21 +139,21 @@ const unlockedVaultWriteOnlyAtom = atom(
             : val);
 
         set(unlockedVaultAtom, Object.assign(new Vault(), vault));
-    }
+    },
 );
 const isVaultUnlockedAtom = selectAtom(
     unlockedVaultMetadataAtom,
-    (vault) => vault !== null
+    (vault) => vault !== null,
 );
 const onlineServicesAccountAtom = selectAtom(
     unlockedVaultAtom,
-    (vault) => vault?.OnlineServices
+    (vault) => vault?.OnlineServices,
 );
 const webRTCConnectionsAtom = atom(new Synchronization.WebRTCConnections());
 
 const unbindAccountFromVault = async (
     vaultMetadata: VaultMetadata,
-    vault: Vault
+    vault: Vault,
 ) => {
     // Unbind the account
     vault.OnlineServices.unbindAccount();
@@ -261,7 +259,7 @@ const VaultListItem: React.FC<VaultListItemProps> = ({
                     });
                 }
             },
-            null
+            null,
         );
     };
 
@@ -651,9 +649,18 @@ const KeyDerivationFunctionSelectbox: React.FC<{
 };
 
 const UnlockVaultDialog: React.FC<{
-    visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-    selected: React.MutableRefObject<VaultMetadata | undefined>;
-}> = ({ visibleState, selected }) => {
+    showDialogFnRef: React.MutableRefObject<
+        (vaultMetadata: VaultMetadata) => void
+    >;
+}> = ({ showDialogFnRef }) => {
+    const [visible, setVisible] = useState(false);
+    const selected = useRef<VaultMetadata | undefined>(undefined);
+
+    showDialogFnRef.current = (vaultMetadata: VaultMetadata) => {
+        selected.current = vaultMetadata;
+        setVisible(true);
+    };
+
     const formSchema = env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
         ? VaultEncryption.unlockVaultWCaptchaFormSchema
         : VaultEncryption.unlockVaultFormSchema;
@@ -717,14 +724,14 @@ const UnlockVaultDialog: React.FC<{
                 formData.Secret,
                 formData.Encryption,
                 formData.EncryptionKeyDerivationFunction,
-                formData.EncryptionConfig
+                formData.EncryptionConfig,
             );
 
             // Initialize the vault account
             const res = await cryptexAccountInit(
                 formData.CaptchaToken,
                 vault.OnlineServices.UserID,
-                vault.OnlineServices.PrivateKey
+                vault.OnlineServices.PrivateKey,
             );
 
             if (!res.success && !res.offline && res.authResponse) {
@@ -733,11 +740,11 @@ const UnlockVaultDialog: React.FC<{
                     {
                         autoClose: false,
                         closeButton: true,
-                    }
+                    },
                 );
                 console.error(
                     "Failed to authenticate with CryptexVault services.",
-                    res.authResponse.error
+                    res.authResponse.error,
                 );
             }
 
@@ -768,9 +775,11 @@ const UnlockVaultDialog: React.FC<{
 
     const hideDialog = async (force = false) => {
         const hide = () => {
-            visibleState[1](false);
-            // selected.current = undefined; // Reset the selected vault
-            resetForm(defaultValues);
+            setVisible(false);
+            setTimeout(() => {
+                selected.current = undefined; // Reset the selected vault
+                resetForm(defaultValues);
+            }, DIALOG_BLUR_TIME);
         };
 
         const isOnlyCaptchaDirty =
@@ -824,13 +833,13 @@ const UnlockVaultDialog: React.FC<{
                 if (window.turnstile) window.turnstile.remove();
             }
         };
-    }, [selected, selected.current, resetForm, visibleState]);
+    }, [selected, selected.current, resetForm]);
 
     return (
         <GenericModal
             key="vault-unlock-modal"
             inhibitDismissOnClickOutside={isSubmitting}
-            visibleState={[visibleState[0], () => hideDialog()]}
+            visibleState={[visible, () => hideDialog()]}
         >
             <Body>
                 <div className="flex flex-col items-center text-center">
@@ -946,7 +955,7 @@ const UnlockVaultDialog: React.FC<{
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "EncryptionKeyDerivationFunction"
+                                                "EncryptionKeyDerivationFunction",
                                             ).toString() !==
                                             KeyDerivationFunction.Argon2ID.toString(),
                                     })}
@@ -1030,7 +1039,7 @@ const UnlockVaultDialog: React.FC<{
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "EncryptionKeyDerivationFunction"
+                                                "EncryptionKeyDerivationFunction",
                                             ).toString() !==
                                             KeyDerivationFunction.PBKDF2.toString(),
                                     })}
@@ -1198,7 +1207,7 @@ const CreateVaultDialog: React.FC<{
             const vaultMetadata = await VaultMetadata.createNewVault(
                 data,
                 dev_seedVault,
-                dev_seedCount.current
+                dev_seedCount.current,
             );
             // console.timeEnd("create-vault");
 
@@ -1217,7 +1226,7 @@ const CreateVaultDialog: React.FC<{
                 data.Secret,
                 data.Encryption,
                 data.EncryptionKeyDerivationFunction,
-                data.EncryptionConfig
+                data.EncryptionConfig,
             );
             // console.debug("Decrypted vault:", _);
 
@@ -1397,7 +1406,7 @@ const CreateVaultDialog: React.FC<{
                                         type="number"
                                         onChange={(e) =>
                                             (dev_seedCount.current = parseInt(
-                                                e.target.value
+                                                e.target.value,
                                             ))
                                         }
                                         defaultValue={dev_seedCount.current}
@@ -1483,7 +1492,7 @@ const CreateVaultDialog: React.FC<{
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "EncryptionKeyDerivationFunction"
+                                                "EncryptionKeyDerivationFunction",
                                             ).toString() !==
                                             KeyDerivationFunction.Argon2ID.toString(),
                                     })}
@@ -1567,7 +1576,7 @@ const CreateVaultDialog: React.FC<{
                                     className={clsx({
                                         hidden:
                                             watch(
-                                                "EncryptionKeyDerivationFunction"
+                                                "EncryptionKeyDerivationFunction",
                                             ).toString() !==
                                             KeyDerivationFunction.PBKDF2.toString(),
                                     })}
@@ -1684,13 +1693,13 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
     }
 
     const [currentState, setCurrentState] = useState<State>(
-        State.LinkingMethod
+        State.LinkingMethod,
     );
     const [isOperationInProgress, setOperationInProgress] = useState(false);
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const addToProgressLog = (
         message: string,
-        type: "done" | "info" | "warn" | "error" = "done"
+        type: "done" | "info" | "warn" | "error" = "done",
     ) => {
         const newProgressLog = [{ message, type }, ...progressLogRef.current];
         progressLogRef.current = newProgressLog;
@@ -1708,7 +1717,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             z.object({
                 message: z.string(),
                 type: z.enum(["done", "info", "warn", "error"]),
-            })
+            }),
         ),
     });
     type VaultLinkingFormSchemaType = z.infer<typeof vaultLinkingFormSchema>;
@@ -1783,7 +1792,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         try {
             decryptedData = await OnlineServicesAccount.decryptTransferableData(
                 formData.encryptedData,
-                formData.decryptionPassphrase
+                formData.decryptionPassphrase,
             );
 
             // Validate the decrypted data
@@ -1810,7 +1819,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             const response = await cryptexAccountSignIn(
                 decryptedData.UserID,
                 decryptedData.PrivateKey,
-                formData.captchaToken
+                formData.captchaToken,
             );
 
             // Validate the auth data
@@ -1837,7 +1846,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
     };
 
     const connectToOnlineServices = async (
-        decryptedData: OnlineServicesAccountInterface
+        decryptedData: OnlineServicesAccountInterface,
     ) => {
         //---
         // Start setting up the WebRTC connection so it is ready when we need it
@@ -1845,14 +1854,14 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         webRTConnection.onconnectionstatechange = () => {
             console.debug(
                 "WebRTC connection state changed:",
-                webRTConnection.connectionState
+                webRTConnection.connectionState,
             );
 
             if (webRTConnection.connectionState === "connected") {
                 // console.debug("WebRTC connection established.");
                 addToProgressLog(
                     "Private connection established, disconnecting from CryptexVault Online Services...",
-                    "info"
+                    "info",
                 );
 
                 // We're connected directly to the other device, so disconnect from the online services
@@ -1865,7 +1874,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                 // console.debug("WebRTC connection lost.");
                 addToProgressLog(
                     "Private connection has been terminated.",
-                    "info"
+                    "info",
                 );
 
                 setOperationInProgress(false);
@@ -1881,7 +1890,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                 try {
                     // Get the message and make sure it's a Uint8Array
                     const rawVaultMetadata: Uint8Array = new Uint8Array(
-                        event.data
+                        event.data,
                     );
 
                     // Parse the vault metadata
@@ -1897,7 +1906,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                     console.error("Failed to receive the vault.", e);
                     addToProgressLog(
                         "Failed to receive the vault - check the console for details. Please try again or contact support.",
-                        "error"
+                        "error",
                     );
                 }
 
@@ -1907,7 +1916,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
                 addToProgressLog(
                     "It is safe to close this dialog now.",
-                    "info"
+                    "info",
                 );
             };
 
@@ -1947,7 +1956,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             if (iceCandidatesGenerated === 0 && !event.candidate) {
                 addToProgressLog(
                     "Failed to generate any ICE candidates. WEBRTC failure.",
-                    "error"
+                    "error",
                 );
 
                 setOperationInProgress(false);
@@ -1963,21 +1972,21 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         onlineWSServicesEndpoint.connection.bind("connecting", () => {
             addToProgressLog(
                 "Connecting to CryptexVault Online Services...",
-                "info"
+                "info",
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("connected", () => {
             addToProgressLog(
                 "Connected to CryptexVault Online Services.",
-                "done"
+                "done",
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("disconnected", () => {
             addToProgressLog(
                 "Dropped connection from CryptexVault Online Services.",
-                "info"
+                "info",
             );
         });
 
@@ -1986,7 +1995,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
             addToProgressLog(
                 "An error occurred while setting up a private connection.",
-                "error"
+                "error",
             );
 
             setOperationInProgress(false);
@@ -1999,7 +2008,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         wsChannel.bind("pusher:subscription_succeeded", () => {
             addToProgressLog(
                 "Waiting for other device to notice us...",
-                "info"
+                "info",
             );
         });
 
@@ -2014,7 +2023,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                 if (data.type === "offer") {
                     console.debug("Received WebRTC offer:", data.data);
                     await webRTConnection.setRemoteDescription(
-                        data.data as RTCSessionDescriptionInit
+                        data.data as RTCSessionDescriptionInit,
                     );
 
                     // Send the answer
@@ -2028,15 +2037,15 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
                     addToProgressLog(
                         "Finishing establishing private connection...",
-                        "info"
+                        "info",
                     );
                 } else if (data.type === "ice-candidate") {
                     console.debug("Received WebRTC ice candidate:", data.data);
                     await webRTConnection.addIceCandidate(
-                        data.data as RTCIceCandidateInit
+                        data.data as RTCIceCandidateInit,
                     );
                 }
-            }
+            },
         );
 
         setOperationInProgress(false);
@@ -2181,7 +2190,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                                                         {
                                                             message:
                                                                 "Captcha error",
-                                                        }
+                                                        },
                                                     );
                                                 }}
                                                 onExpire={() => onChange("")}
@@ -2265,16 +2274,16 @@ const WelcomeScreen: React.FC = ({}) => {
     const showWarningDialog: WarningDialogShowFn = (
         description: string,
         onConfirm: () => void,
-        onDismiss: (() => void) | null
+        onDismiss: (() => void) | null,
     ) => {
         showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
     };
 
     const _encryptedVaults = useLiveQuery(() =>
-        VaultStorage.db.vaults.toArray()
+        VaultStorage.db.vaults.toArray(),
     );
     const encryptedVaults = _encryptedVaults?.map((metadata) =>
-        VaultMetadata.decodeMetadataBinary(metadata.data, metadata.id)
+        VaultMetadata.decodeMetadataBinary(metadata.data, metadata.id),
     );
 
     const createVaultDialogVisible = useState(false);
@@ -2283,7 +2292,7 @@ const WelcomeScreen: React.FC = ({}) => {
     const createVaultDialogVaultInstance = useRef<Vault | undefined>(undefined);
     const showCreateVaultDialog = (
         mode: CreateVaultDialogMode = CreateVaultDialogMode.Blank,
-        vaultInstance?: Vault
+        vaultInstance?: Vault,
     ) => {
         setCreateVaultDialogMode(mode);
         createVaultDialogVaultInstance.current = vaultInstance;
@@ -2291,7 +2300,7 @@ const WelcomeScreen: React.FC = ({}) => {
     };
 
     const deviceLinkingDialogShowDialogFnRef = useRef<(() => void) | null>(
-        null
+        null,
     );
 
     // NOTE: Hardcoded for now, will come from the user's settings in the future
@@ -2302,15 +2311,11 @@ const WelcomeScreen: React.FC = ({}) => {
         shouldShowUnlockDialogWhenAlone &&
         !showOnFirstRenderTriggered.current;
 
-    const selectedVault = useRef<VaultMetadata | undefined>(undefined);
-    const unlockVaultDialogVisible = useState<boolean>(false);
-    const showUnlockVaultDialog = (vaultMetadata: VaultMetadata) => {
-        // Set the selected vault
-        selectedVault.current = vaultMetadata;
-
-        // Show the unlock vault dialog
-        unlockVaultDialogVisible[1](true);
-    };
+    const showUnlockVaultDialogFnRef = useRef<
+        (vaultMetadata: VaultMetadata) => void
+    >(() => {
+        // No-op
+    });
 
     const restoreVaultDialogVisible = useState(false);
     const showRestoreVaultDialog = () => restoreVaultDialogVisible[1](true);
@@ -2342,15 +2347,18 @@ const WelcomeScreen: React.FC = ({}) => {
 
     const hasVaults = encryptedVaults && encryptedVaults.length > 0;
 
-    // If there is only one vault, automatically show the unlock dialog
-    if (
-        unlockDialogVisibleOnFirstRender &&
-        !showOnFirstRenderTriggered.current
-    ) {
-        showOnFirstRenderTriggered.current = true;
-        if (hasVaults) selectedVault.current = encryptedVaults[0];
-        unlockVaultDialogVisible[1](true);
-    }
+    useEffect(() => {
+        // If there is only one vault, automatically show the unlock dialog
+        if (
+            unlockDialogVisibleOnFirstRender &&
+            !showOnFirstRenderTriggered.current
+        ) {
+            showOnFirstRenderTriggered.current = true;
+            if (hasVaults && encryptedVaults && encryptedVaults[0] != null) {
+                showUnlockVaultDialogFnRef.current(encryptedVaults[0]);
+            }
+        }
+    }, [hasVaults]);
 
     // console.log("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
 
@@ -2373,7 +2381,9 @@ const WelcomeScreen: React.FC = ({}) => {
                                 <VaultListItem
                                     key={`vaultmetadata-${i}`}
                                     vaultMetadata={item}
-                                    onClick={showUnlockVaultDialog}
+                                    onClick={() =>
+                                        showUnlockVaultDialogFnRef.current(item)
+                                    }
                                     showWarningDialogCallback={
                                         showWarningDialog
                                     }
@@ -2461,10 +2471,7 @@ const WelcomeScreen: React.FC = ({}) => {
                 showDialogFnRef={deviceLinkingDialogShowDialogFnRef}
             />
             <RestoreVaultDialog visibleState={restoreVaultDialogVisible} />
-            <UnlockVaultDialog
-                visibleState={unlockVaultDialogVisible}
-                selected={selectedVault}
-            />
+            <UnlockVaultDialog showDialogFnRef={showUnlockVaultDialogFnRef} />
             <CredentialsGeneratorDialog
                 showDialogFnRef={showCredentialsGeneratorDialogFnRef}
             />
@@ -2588,7 +2595,7 @@ const RestoreVaultDialog: React.FC<{
 
         try {
             const validEncryptedData = VaultEncryption.EncryptedBlob.fromBinary(
-                new Uint8Array(await file.arrayBuffer())
+                new Uint8Array(await file.arrayBuffer()),
             );
 
             setValidFile(validEncryptedData);
@@ -2813,7 +2820,7 @@ const FeatureVotingDialog: React.FC<{
                     console.error("Error placing vote.", error);
                     toast.error("Error placing vote.");
                 },
-            }
+            },
         );
     };
 
@@ -2978,7 +2985,7 @@ const FeatureVotingDialog: React.FC<{
                                                                         onClick={() =>
                                                                             placeNewVote(
                                                                                 round.id,
-                                                                                item.id
+                                                                                item.id,
                                                                             )
                                                                         }
                                                                         loading={
@@ -2998,7 +3005,7 @@ const FeatureVotingDialog: React.FC<{
                                                 ))}
                                             </Disclosure.Panel>
                                         </Disclosure>
-                                    )
+                                    ),
                                 )}
                             </div>
                         )}
@@ -3066,14 +3073,14 @@ const AccountDialog: React.FC<{
                     router.reload();
                 } catch (err) {
                     toast.error(
-                        "An error occured while deleting your user account. Please try again later."
+                        "An error occured while deleting your user account. Please try again later.",
                     );
                     console.error(err);
                 }
 
                 setOngoingOperation(false);
             },
-            null
+            null,
         );
     };
 
@@ -3099,7 +3106,7 @@ const AccountDialog: React.FC<{
                     console.error("Error sending verification email:", error);
                 }
                 toast.error(
-                    "Error sending verification email. Please try again later."
+                    "Error sending verification email. Please try again later.",
                 );
             }
 
@@ -3130,17 +3137,17 @@ const AccountDialog: React.FC<{
                         } else {
                             console.error(
                                 "Error clearing recovery phrase:",
-                                error
+                                error,
                             );
                         }
                         toast.error(
-                            "Error clearing recovery phrase. Please try again later."
+                            "Error clearing recovery phrase. Please try again later.",
                         );
                     }
 
                     setOngoingOperation(false);
                 },
-                null
+                null,
             );
         };
 
@@ -3164,7 +3171,7 @@ const AccountDialog: React.FC<{
                         <p className="text-left text-base text-gray-600">
                             Last verification:{" "}
                             {new Date(
-                                session.user.confirmed_at
+                                session.user.confirmed_at,
                             ).toLocaleDateString()}
                         </p>
                     )}
@@ -3173,7 +3180,7 @@ const AccountDialog: React.FC<{
                             <p className="text-left text-base text-gray-600">
                                 Verify before:{" "}
                                 {new Date(
-                                    session.user.confirmation_period_expires_at
+                                    session.user.confirmation_period_expires_at,
                                 ).toLocaleDateString()}
                             </p>
                         )}
@@ -3207,7 +3214,7 @@ const AccountDialog: React.FC<{
                         <p className="text-left text-base text-gray-600">
                             Date of backup:{" "}
                             {new Date(
-                                session.user.recovery_token_created_at
+                                session.user.recovery_token_created_at,
                             ).toLocaleDateString()}
                         </p>
                     )}
@@ -3491,7 +3498,7 @@ const AccountDialog: React.FC<{
 
                     setOngoingOperation(false);
                 },
-                null
+                null,
             );
         };
 
@@ -3505,7 +3512,7 @@ const AccountDialog: React.FC<{
                     {registeredDevices?.map((device) => {
                         const resolvedDeviceName =
                             unlockedVault?.OnlineServices.getLinkedDevice(
-                                device.deviceID
+                                device.deviceID,
                             )?.Name;
                         const isCurrentDevice =
                             device.id === session?.user?.accountID;
@@ -3547,7 +3554,7 @@ const AccountDialog: React.FC<{
                                         >
                                             {device.created_at
                                                 ? new Date(
-                                                      device.created_at
+                                                      device.created_at,
                                                   ).toLocaleString()
                                                 : "Unknown"}
                                         </p>
@@ -3784,7 +3791,7 @@ const RecoveryGenerationDialog: React.FC<{
                     updateId: "recovery-generation-toast",
                     closeButton: true,
                     autoClose: 3000,
-                }
+                },
             );
         }
     };
@@ -3912,9 +3919,9 @@ const AccountHeaderWidget: React.FC<{
             async () =>
                 await unbindAccountFromVault(
                     unlockedVaultMetadata,
-                    unlockedVault
+                    unlockedVault,
                 ),
-            null
+            null,
         );
     };
 
@@ -4188,7 +4195,7 @@ const ImportDataDialog: React.FC<{
 
     const importCredentials = async (
         credentials: PartialCredential[],
-        groups: GroupSchemaType[] = []
+        groups: GroupSchemaType[] = [],
     ) => {
         // Add the credentials to the vault
         const vault = unlockedVault;
@@ -4209,7 +4216,7 @@ const ImportDataDialog: React.FC<{
         setUnlockedVault(async () => vault);
 
         toast.success(
-            `Successfully imported ${credentials.length} credentials.`
+            `Successfully imported ${credentials.length} credentials.`,
         );
 
         hideDialog();
@@ -4254,14 +4261,14 @@ const ImportDataDialog: React.FC<{
             (error) => {
                 console.error("Error parsing CSV file", error);
                 toast.error(
-                    "Failed to extract column names from CSV file. More details in the console."
+                    "Failed to extract column names from CSV file. More details in the console.",
                 );
-            }
+            },
         );
     };
 
     const submitGenericCSVImport = async (
-        formData: Import.FieldsSchemaType
+        formData: Import.FieldsSchemaType,
     ) => {
         if (isOperationInProgress || !selectedFileRef.current) return;
         setIsOperationInProgress(true);
@@ -4285,18 +4292,18 @@ const ImportDataDialog: React.FC<{
                 (error) => {
                     console.error("Error importing CSV file", error);
                     toast.error(
-                        "Failed to import CSV file. More details in the console."
+                        "Failed to import CSV file. More details in the console.",
                     );
                     setIsOperationInProgress(false);
-                }
+                },
             );
         } catch (error) {
             console.error(
                 "Fatal error while parsing the provided CSV file",
-                error
+                error,
             );
             toast.error(
-                "Failed to parse CSV file. More details in the console."
+                "Failed to parse CSV file. More details in the console.",
             );
         }
     };
@@ -4310,9 +4317,8 @@ const ImportDataDialog: React.FC<{
         setIsOperationInProgress(true);
 
         try {
-            const { credentials, groups } = await Import.BitwardenJSON(
-                fileData
-            );
+            const { credentials, groups } =
+                await Import.BitwardenJSON(fileData);
 
             if (credentials.length) {
                 await importCredentials(credentials, groups);
@@ -4322,7 +4328,7 @@ const ImportDataDialog: React.FC<{
         } catch (error) {
             console.error("Error importing Bitwarden JSON file", error);
             toast.error(
-                "Failed to import Bitwarden JSON file. More details in the console."
+                "Failed to import Bitwarden JSON file. More details in the console.",
             );
         }
         setIsOperationInProgress(false);
@@ -4419,7 +4425,7 @@ const ImportDataDialog: React.FC<{
                                                 register={register(field)}
                                             />
                                         </div>
-                                    )
+                                    ),
                                 )}
 
                                 <div className="mt-2 flex w-full flex-col rounded border border-gray-200 p-2">
@@ -4528,7 +4534,7 @@ const VaultSettingsDialog: React.FC<{
 
                 toast.success("Synchronization list cleared.");
             },
-            null
+            null,
         );
     };
 
@@ -4555,7 +4561,7 @@ const VaultSettingsDialog: React.FC<{
             await Backup.trigger(
                 Backup.Type.Manual,
                 unlockedVault,
-                vaultMetadata.Blob
+                vaultMetadata.Blob,
             );
 
             toast.success("Vault backup complete", {
@@ -4604,7 +4610,7 @@ const VaultSettingsDialog: React.FC<{
                                 Created:{" "}
                                 <b>
                                     {new Date(
-                                        vaultMetadata.CreatedAt
+                                        vaultMetadata.CreatedAt,
                                     ).toLocaleDateString()}
                                 </b>
                             </p>
@@ -5011,7 +5017,7 @@ const CredentialDialog: React.FC<{
     const defaultValues = () => {
         const obj: Credential.CredentialFormSchemaType = Object.assign(
             {},
-            new Credential.VaultCredential()
+            new Credential.VaultCredential(),
         );
         obj.ID = null; // This is set to null to indicate that this is a new credential
         return obj;
@@ -5278,7 +5284,7 @@ const CredentialDialog: React.FC<{
                         closeButton: false,
                         toastId: "saving-vault-data",
                         updateId: "saving-vault-data",
-                    }
+                    },
                 );
             }
 
@@ -5306,7 +5312,7 @@ const CredentialDialog: React.FC<{
                                 Created at:{" "}
                                 <b>
                                     {new Date(
-                                        selected.current.DateCreated
+                                        selected.current.DateCreated,
                                     ).toLocaleDateString()}
                                 </b>
                                 {
@@ -5317,7 +5323,7 @@ const CredentialDialog: React.FC<{
                                             Updated at:{" "}
                                             <b>
                                                 {new Date(
-                                                    selected.current.DateModified
+                                                    selected.current.DateModified,
                                                 ).toLocaleDateString()}
                                             </b>
                                         </>
@@ -5331,7 +5337,7 @@ const CredentialDialog: React.FC<{
                                             Last password change:{" "}
                                             <b>
                                                 {new Date(
-                                                    selected.current.DatePasswordChanged
+                                                    selected.current.DatePasswordChanged,
                                                 ).toLocaleDateString()}
                                             </b>
                                         </>
@@ -5608,7 +5614,7 @@ enum AccountDialogMode {
 type AccountDialogTabBarProps = {
     currentFormMode: AccountDialogMode;
     changeFormMode: (
-        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp,
     ) => void;
 };
 
@@ -5669,11 +5675,11 @@ const AccountSignUpSignInDialog: React.FC<{
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const [currentFormMode, setCurrentFormMode] = useState(
-        AccountDialogMode.SignUp
+        AccountDialogMode.SignUp,
     );
 
     const changeFormMode = (
-        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp,
     ) => {
         // Clear the submit function reference
         // signInSubmitFnRef.current = null;
@@ -5704,7 +5710,7 @@ const AccountSignUpSignInDialog: React.FC<{
     const bindAccount = async (
         userID: string,
         privateKey: string,
-        publicKey: string
+        publicKey: string,
     ) => {
         if (!vault) return;
 
@@ -5785,7 +5791,7 @@ const AccountDialogRecoverForm: React.FC<{
     bindAccountFn: (
         userId: string,
         privateKey: string,
-        publicKey: string
+        publicKey: string,
     ) => Promise<void>;
     hideDialogFn: () => void;
 }> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
@@ -5839,7 +5845,7 @@ const AccountDialogRecoverForm: React.FC<{
         // Hash the recovery phrase
         const hashRaw = await crypto.subtle.digest(
             "SHA-256",
-            new TextEncoder().encode(formData.recoveryPhrase)
+            new TextEncoder().encode(formData.recoveryPhrase),
         );
 
         const hash = Buffer.from(hashRaw).toString("hex");
@@ -5856,7 +5862,7 @@ const AccountDialogRecoverForm: React.FC<{
             await bindAccountFn(
                 newUserId,
                 keyPair.privateKey,
-                keyPair.publicKey
+                keyPair.publicKey,
             );
 
             toast.update("recovery-generating-keys", {
@@ -5868,7 +5874,7 @@ const AccountDialogRecoverForm: React.FC<{
             cryptexAccountSignIn(
                 newUserId,
                 keyPair.privateKey,
-                formData.captchaToken
+                formData.captchaToken,
             );
 
             // Hide the dialog
@@ -6000,7 +6006,7 @@ const AccountDialogSignUpForm: React.FC<{
     bindAccountFn: (
         userID: string,
         privateKey: string,
-        publicKey: string
+        publicKey: string,
     ) => Promise<void>;
     hideDialogFn: () => void;
 }> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
@@ -6064,7 +6070,7 @@ const AccountDialogSignUpForm: React.FC<{
             cryptexAccountSignIn(
                 userID,
                 keyPair.privateKey,
-                formData.captchaToken
+                formData.captchaToken,
             );
 
             // Hide the dialog
@@ -6191,7 +6197,7 @@ const EmailNotVerifiedDialog: React.FC = () => {
     const [visibleState, setVisibleState] = useState<boolean>(
         session?.user != null &&
             session.user.confirmed_at == null &&
-            !didVerificationPeriodExpire
+            !didVerificationPeriodExpire,
     );
     const hideDialogFn = () => setVisibleState(false);
 
@@ -6366,7 +6372,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const addToProgressLog = (
         message: string,
-        type: "done" | "info" | "warn" | "error" = "done"
+        type: "done" | "info" | "warn" | "error" = "done",
     ) => {
         const newProgressLog = [{ message, type }, ...progressLogRef.current];
         progressLogRef.current = newProgressLog;
@@ -6386,7 +6392,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             z.object({
                 message: z.string(),
                 type: z.enum(["done", "info", "warn", "error"]),
-            })
+            }),
         ),
         mnemonic: z.string().default(""),
     });
@@ -6446,7 +6452,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         } catch (e) {
             addToProgressLog(
                 "Failed to generate keys for the device.",
-                "error"
+                "error",
             );
             throw e;
         }
@@ -6456,7 +6462,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         try {
             addToProgressLog(
                 "Registering credentials with the server...",
-                "info"
+                "info",
             );
             userID = await linkNewDevice({
                 publicKey: keypair.publicKey,
@@ -6466,12 +6472,12 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             if (e instanceof TRPCClientError) {
                 addToProgressLog(
                     `Failed to register credentials with the server: ${e.message}`,
-                    "error"
+                    "error",
                 );
             } else {
                 addToProgressLog(
                     "Failed to register credentials with the server.",
-                    "error"
+                    "error",
                 );
             }
             throw e;
@@ -6482,19 +6488,19 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         try {
             addToProgressLog(
                 "Encrypting and serializing credentials...",
-                "info"
+                "info",
             );
             encryptedTransferableData =
                 await OnlineServicesAccount.encryptTransferableData(
                     userID,
                     keypair.publicKey,
-                    keypair.privateKey
+                    keypair.privateKey,
                 );
             addToProgressLog("Encrypted and serialized credentials.");
         } catch (e) {
             addToProgressLog(
                 "Failed to encrypt and serialize credentials.",
-                "error"
+                "error",
             );
             throw e;
         }
@@ -6516,7 +6522,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         generatedKeyPair: {
             publicKey: string;
             privateKey: string;
-        }
+        },
     ) => {
         // Start setting up the WebRTC connection
         const webRTConnection = await newWebRTCConnection();
@@ -6529,7 +6535,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             if (webRTConnection.connectionState === "connected") {
                 addToProgressLog(
                     "Private connection established, disconnecting from CryptexVault Online Services...",
-                    "info"
+                    "info",
                 );
 
                 // Since we're connected directly to the other device, we can disconnect from the Online Services
@@ -6542,7 +6548,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 // Handle disconnection from the other device
                 addToProgressLog(
                     "Private connection has been terminated",
-                    "info"
+                    "info",
                 );
 
                 setIsOperationInProgress(false);
@@ -6556,7 +6562,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             // console.log("Data channel opened.", event);
             addToProgressLog(
                 "Trying to send data to the other device...",
-                "info"
+                "info",
             );
 
             // Check if we have valid vault data to send
@@ -6568,10 +6574,10 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             ) {
                 addToProgressLog(
                     "Cannot find vault metadata or the vault itself.",
-                    "error"
+                    "error",
                 );
                 console.error(
-                    "Cannot find vault metadata or unlocked vault data."
+                    "Cannot find vault metadata or unlocked vault data.",
                 );
 
                 // Close the data channel
@@ -6589,7 +6595,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             {
                 addToProgressLog(
                     "Packaging vault data for transmission...",
-                    "info"
+                    "info",
                 );
 
                 // Prepare the vault data for transmission
@@ -6601,9 +6607,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
                 addToProgressLog("Vault data packaged. Encrypting...", "info");
 
-                const encryptedBlobObj = await vaultMetadata.exportForLinking(
-                    exportedVault
-                );
+                const encryptedBlobObj =
+                    await vaultMetadata.exportForLinking(exportedVault);
 
                 // Send the encrypted data to the other device
                 webRTCDataChannel.send(encryptedBlobObj);
@@ -6620,13 +6625,13 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             {
                 addToProgressLog(
                     "Saving new linked device to vault...",
-                    "info"
+                    "info",
                 );
 
                 setUnlockedVault(async (prev) => {
                     prev.OnlineServices.addLinkedDevice(
                         userID,
-                        getFormValues("deviceName")
+                        getFormValues("deviceName"),
                     );
                     await vaultMetadata.save(unlockedVault);
 
@@ -6645,7 +6650,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         webRTCDataChannel.onerror = () => {
             addToProgressLog(
                 "Failed to send vault data. Data channel error.",
-                "error"
+                "error",
             );
 
             // Close the WebRTC connection
@@ -6680,7 +6685,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             if (iceCandidatesGenerated === 0 && !event.candidate) {
                 addToProgressLog(
                     "Failed to generate any ICE candidates. WebRTC error.",
-                    "error"
+                    "error",
                 );
 
                 // Close the WebRTC connection
@@ -6703,7 +6708,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             // }
             addToProgressLog(
                 "An error occurred while setting up a private connection.",
-                "error"
+                "error",
             );
 
             setIsOperationInProgress(false);
@@ -6730,7 +6735,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
                     addToProgressLog(
                         "Rollback - Failed to remove device from account.",
-                        "error"
+                        "error",
                     );
                 }
 
@@ -6770,15 +6775,15 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 if (data.type === "ice-candidate") {
                     console.debug("Adding ICE candidate.");
                     await webRTConnection.addIceCandidate(
-                        data.data as RTCIceCandidateInit
+                        data.data as RTCIceCandidateInit,
                     );
                 } else if (data.type === "answer") {
                     console.debug("Setting remote description.", data.data);
                     await webRTConnection.setRemoteDescription(
-                        data.data as RTCSessionDescriptionInit
+                        data.data as RTCSessionDescriptionInit,
                     );
                 }
-            }
+            },
         );
     };
 
@@ -7188,7 +7193,7 @@ const EditLinkedDeviceDialog: React.FC<{
     };
 
     const [syncTimeoutValue, setSyncTimeoutValue] = useState(
-        selectedDevice.current?.SyncTimeout ?? false
+        selectedDevice.current?.SyncTimeout ?? false,
     );
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
@@ -7226,7 +7231,7 @@ const EditLinkedDeviceDialog: React.FC<{
 
         setUnlockedVault(async (prev) => {
             const originalLinkedDevice = prev.OnlineServices.LinkedDevices.find(
-                (d) => d.ID === selectedDevice.current?.ID
+                (d) => d.ID === selectedDevice.current?.ID,
             );
 
             if (originalLinkedDevice != null) {
@@ -7234,7 +7239,7 @@ const EditLinkedDeviceDialog: React.FC<{
                 originalLinkedDevice.setAutoConnect(form.autoConnect);
                 originalLinkedDevice.setSyncTimeout(form.syncTimeout);
                 originalLinkedDevice.setSyncTimeoutPeriod(
-                    form.syncTimeoutPeriod
+                    form.syncTimeoutPeriod,
                 );
             }
 
@@ -7269,7 +7274,7 @@ const EditLinkedDeviceDialog: React.FC<{
                             {selectedDevice.current?.LinkedAtTimestamp && (
                                 <>
                                     {new Date(
-                                        selectedDevice.current.LinkedAtTimestamp
+                                        selectedDevice.current.LinkedAtTimestamp,
                                     ).toLocaleString()}
                                 </>
                             )}
@@ -7286,7 +7291,7 @@ const EditLinkedDeviceDialog: React.FC<{
                             {selectedDevice.current?.LastSync ? (
                                 <>
                                     {new Date(
-                                        selectedDevice.current.LastSync
+                                        selectedDevice.current.LastSync,
                                     ).toLocaleString()}
                                 </>
                             ) : (
@@ -7492,7 +7497,7 @@ const DashboardSidebarSynchronization: React.FC<{
         // No-op
     });
     const editLinkedDeviceDialogSelectedDeviceRef = useRef<LinkedDevice | null>(
-        null
+        null,
     );
     const showDivergenceSolveDialogRef =
         useRef<DivergenceSolveShowDialogFnPropType | null>(null);
@@ -7501,7 +7506,7 @@ const DashboardSidebarSynchronization: React.FC<{
     const setupOnlineServices = (
         onConnect = () => {
             // NO-OP
-        }
+        },
     ) => {
         if (!unlockedVault) return;
 
@@ -7543,7 +7548,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
         onlineWSServicesEndpoint.connection.bind("disconnected", () => {
             console.debug(
-                "Changed status to offline - connection disconnected"
+                "Changed status to offline - connection disconnected",
             );
 
             // Both statuses mean that we're not connected to the server, but this makes the status more clear to the end user
@@ -7579,7 +7584,7 @@ const DashboardSidebarSynchronization: React.FC<{
     // This handler is used when we receive a message over WebRTC
     const onWebRTCMessageHandler = (
         dataChannelInstance: RTCDataChannel,
-        device: LinkedDevice
+        device: LinkedDevice,
     ): ((event: MessageEvent) => Promise<void>) => {
         return async (event: MessageEvent<ArrayBuffer>) => {
             if (unlockedVault == null) {
@@ -7588,25 +7593,25 @@ const DashboardSidebarSynchronization: React.FC<{
 
             console.debug(
                 "[WebRTC Message Handler] Received WebRTC message",
-                event
+                event,
             );
 
             // Convert the data from ArrayBuffer to Uint8Array
             const message = Synchronization.Message.parse(
-                new Uint8Array(event.data)
+                new Uint8Array(event.data),
             );
 
             console.debug(
                 `[WebRTC Message Handler] Parsed WebRTC message - command: ${
                     SynchronizationMessageCommand[message.Command]
                 }`,
-                message
+                message,
             );
 
             if (message.Command === Synchronization.Command.SyncRequest) {
                 // If we receive a request to sync, we will send a response
                 console.debug(
-                    "[WebRTC Message Handler] Received request to sync"
+                    "[WebRTC Message Handler] Received request to sync",
                 );
 
                 const myHash = await unlockedVault.getLatestHash();
@@ -7615,7 +7620,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     Synchronization.Command.SyncResponse,
                     myHash,
                     undefined,
-                    []
+                    [],
                 );
 
                 // If the hashes are the same - we're in sync
@@ -7626,12 +7631,12 @@ const DashboardSidebarSynchronization: React.FC<{
                 // -- If we can create a diff list, we send the diff list along with our latest hash
                 if (message.Hash === myHash) {
                     console.debug(
-                        "[WebRTC Message Handler] Received request to sync - in sync"
+                        "[WebRTC Message Handler] Received request to sync - in sync",
                     );
 
                     // Update the last sync timestamp
                     unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID
+                        (d) => d.ID === device.ID,
                     )?.updateLastSync();
                     setUnlockedVault((pre) => {
                         pre.OnlineServices.LinkedDevices =
@@ -7640,7 +7645,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     });
                 } else {
                     console.debug(
-                        "[WebRTC Message Handler] Received request to sync - out of sync"
+                        "[WebRTC Message Handler] Received request to sync - out of sync",
                     );
 
                     // NOTE: Should we check whether or not the message.hash is null?
@@ -7649,16 +7654,16 @@ const DashboardSidebarSynchronization: React.FC<{
                     // In case our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs/hashes, request a full sync
                     if (myHash == null) {
                         console.debug(
-                            "[WebRTC Message Handler] Received request to sync - out of sync - requesting full sync"
+                            "[WebRTC Message Handler] Received request to sync - out of sync - requesting full sync",
                         );
 
                         responseMessage.setCommand(
-                            Synchronization.Command.SyncRequest
+                            Synchronization.Command.SyncRequest,
                         );
                     } else {
                         // If we have a hash, we can try to send the diff list, fall back to sending all hashes if we can't find the hash
                         const diffList = await unlockedVault.getDiffsSinceHash(
-                            message.Hash ?? null
+                            message.Hash ?? null,
                         );
 
                         // If the diff list is empty, we couldn't find the hash - send every hash we have and let the other device decide from which hash to start
@@ -7668,19 +7673,19 @@ const DashboardSidebarSynchronization: React.FC<{
 
                             console.debug(
                                 "[WebRTC Message Handler] Couldn't find the received hash - sending diff list to resolve the conflict. Diff list:",
-                                diffList
+                                diffList,
                             );
                         } else {
                             responseMessage.setCommand(
-                                Synchronization.Command.SyncResponseAllHashes
+                                Synchronization.Command.SyncResponseAllHashes,
                             );
                             responseMessage.setHash(
-                                unlockedVault.getAllHashes().join(",")
+                                unlockedVault.getAllHashes().join(","),
                             );
 
                             console.debug(
                                 "[WebRTC Message Handler] Couldn't find the received hash - sending all hashes to resolve the conflict. Hashes:",
-                                responseMessage.Hash
+                                responseMessage.Hash,
                             );
                         }
                     }
@@ -7693,13 +7698,13 @@ const DashboardSidebarSynchronization: React.FC<{
             ) {
                 // If we receive a response with all hashes, we will try to find the first hash that we have in common
                 console.debug(
-                    "[WebRTC Message Handler] Received response with all hashes"
+                    "[WebRTC Message Handler] Received response with all hashes",
                 );
 
                 // Chech if someone is messing with us
                 if (message.Hash == null) {
                     console.warn(
-                        "[WebRTC Message Handler] Received response with all hashes - but the hash is null"
+                        "[WebRTC Message Handler] Received response with all hashes - but the hash is null",
                     );
                     return;
                 }
@@ -7715,7 +7720,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     "firstHashInCommon",
                     firstHashInCommon,
                     unlockedVault.getAllHashes(),
-                    hashes
+                    hashes,
                 );
 
                 // We found a common hash, calculate the diff and send it to the other device with our latest hash (use the ResponseSync command)
@@ -7733,27 +7738,29 @@ const DashboardSidebarSynchronization: React.FC<{
 
                     console.debug(
                         "[WebRTC Message Handler] Found a hash in common - sending response to sync... Current vault data:",
-                        unlockedVault
+                        unlockedVault,
                     );
 
                     const responseMessage = Synchronization.Message.prepare(
                         Synchronization.Command.SyncResponse,
                         await unlockedVault.getLatestHash(),
                         divergenceAtHash,
-                        await unlockedVault.getDiffsSinceHash(firstHashInCommon)
+                        await unlockedVault.getDiffsSinceHash(
+                            firstHashInCommon,
+                        ),
                     ).serialize();
 
                     dataChannelInstance.send(responseMessage);
 
                     toast.info(
-                        "[Synchronization] Found a common history - syncing..."
+                        "[Synchronization] Found a common history - syncing...",
                     );
                 } else {
                     console.warn(
-                        "[Synchronization] Couldn't find a common history - requesting divergence solve"
+                        "[Synchronization] Couldn't find a common history - requesting divergence solve",
                     );
                     toast.warn(
-                        "[Synchronization] Synchronization will require manual intervention, please wait..."
+                        "[Synchronization] Synchronization will require manual intervention, please wait...",
                     );
 
                     // Send a request to solve the divergence
@@ -7761,7 +7768,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         Synchronization.Command.DivergenceSolveRequest,
                         undefined,
                         undefined,
-                        []
+                        [],
                     ).serialize();
                     dataChannelInstance.send(responseMessage);
                 }
@@ -7771,14 +7778,14 @@ const DashboardSidebarSynchronization: React.FC<{
                 // Check if we have the same hash - in sync
                 if (message.Hash === (await unlockedVault.getLatestHash())) {
                     console.debug(
-                        "[WebRTC Message Handler] Received response to sync - in sync"
+                        "[WebRTC Message Handler] Received response to sync - in sync",
                     );
 
                     toast.info("[Synchronization] Devices are synchronized");
 
                     // Update the last sync timestamp
                     unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID
+                        (d) => d.ID === device.ID,
                     )?.updateLastSync();
                     setUnlockedVault((pre) => {
                         pre.OnlineServices.LinkedDevices =
@@ -7790,7 +7797,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 }
                 // We're out of sync - try to apply the diffs and check if we're in sync
                 console.debug(
-                    "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list"
+                    "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list",
                 );
                 toast.info("[Synchronization] Validating diff list...", {
                     autoClose: false,
@@ -7802,7 +7809,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 const mockUnlockedVault = new Vault();
                 for (const c of unlockedVault.Credentials) {
                     mockUnlockedVault.Credentials.push(
-                        Object.assign(new Credential.VaultCredential(), c)
+                        Object.assign(new Credential.VaultCredential(), c),
                     );
                 }
 
@@ -7815,14 +7822,14 @@ const DashboardSidebarSynchronization: React.FC<{
                 const hashMatches = mockVaultHash === message.Hash;
 
                 console.debug(
-                    `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.Hash} => ${hashMatches}`
+                    `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.Hash} => ${hashMatches}`,
                 );
 
                 // Check if our new hash is the same as the other device's hash
                 // If we received a divergence hash, we're diverged and can skip this check
                 if (hashMatches || message.DivergenceHash) {
                     console.debug(
-                        "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault"
+                        "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault",
                     );
                     toast.update("validating-diff-list", {
                         autoClose: 1,
@@ -7839,7 +7846,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         // So we can send them to the other device after we apply the diffs that we received from the other device
                         (
                             await unlockedVault.getDiffsSinceHash(
-                                message.DivergenceHash
+                                message.DivergenceHash,
                             )
                         ).forEach((diff) => {
                             diffsNotKnownByOtherDevice.push(diff);
@@ -7853,7 +7860,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                     // Update the last sync timestamp
                     unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID
+                        (d) => d.ID === device.ID,
                     )?.updateLastSync();
                     // setUnlockedVault((pre) => {
                     //     if (pre == null) {
@@ -7874,18 +7881,18 @@ const DashboardSidebarSynchronization: React.FC<{
                     if (hashMatches) {
                         // We're in sync - no diverging between the devices
                         console.debug(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => in sync"
+                            "[WebRTC Message Handler] Received response to sync - out of sync => in sync",
                         );
                         toast.success(
                             "[Synchronization] Successfully synced with the other device",
                             {
                                 toastId: "applying-diff-list",
                                 updateId: "applying-diff-list",
-                            }
+                            },
                         );
                     } else if (!hashMatches && message.DivergenceHash) {
                         console.debug(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device"
+                            "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device",
                         );
 
                         toast.info(
@@ -7893,7 +7900,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             {
                                 toastId: "applying-diff-list",
                                 updateId: "applying-diff-list",
-                            }
+                            },
                         );
 
                         // If it isn't, we're diverging
@@ -7901,7 +7908,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             Synchronization.Command.SyncResponse,
                             latestHash,
                             undefined,
-                            diffsNotKnownByOtherDevice
+                            diffsNotKnownByOtherDevice,
                         ).serialize();
 
                         dataChannelInstance.send(syncMessage);
@@ -7913,11 +7920,11 @@ const DashboardSidebarSynchronization: React.FC<{
                                 toastId: "applying-diff-list",
                                 updateId: "applying-diff-list",
                                 autoClose: 3000,
-                            }
+                            },
                         );
 
                         console.error(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to apply the received changes"
+                            "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to apply the received changes",
                         );
                     }
                 } else {
@@ -7926,14 +7933,14 @@ const DashboardSidebarSynchronization: React.FC<{
                         {
                             toastId: "validating-diff-list",
                             updateId: "validating-diff-list",
-                        }
+                        },
                     );
                     console.error(
-                        "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data"
+                        "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data",
                     );
                     console.debug(
                         "[WebRTC Message Handler] Mock vault data:",
-                        mockUnlockedVault
+                        mockUnlockedVault,
                     );
                 }
             } else if (
@@ -7941,7 +7948,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 Synchronization.Command.DivergenceSolveRequest
             ) {
                 console.warn(
-                    "[Synchronization] Received divergence solve request - responding..."
+                    "[Synchronization] Received divergence solve request - responding...",
                 );
                 toast.info(
                     "[Synchronization] Devices diverged - preparing the differences...",
@@ -7949,7 +7956,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         autoClose: false,
                         toastId: "generating-diff-list",
                         updateId: "generating-diff-list",
-                    }
+                    },
                 );
 
                 // Wait for a second to make sure the toast is shown
@@ -7959,7 +7966,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     Synchronization.Command.DivergenceSolve,
                     undefined,
                     undefined,
-                    await unlockedVault.getDiffsSinceHash(null)
+                    await unlockedVault.getDiffsSinceHash(null),
                 ).serialize();
 
                 dataChannelInstance.send(divergenceSolveResponse);
@@ -7969,13 +7976,13 @@ const DashboardSidebarSynchronization: React.FC<{
                     {
                         toastId: "generating-diff-list",
                         updateId: "generating-diff-list",
-                    }
+                    },
                 );
             } else if (
                 message.Command === Synchronization.Command.DivergenceSolve
             ) {
                 const theirChanges = message.Diffs.filter(
-                    (i) => i.Changes != null
+                    (i) => i.Changes != null,
                 ).map((i) => i.Changes?.Props) as PartialCredential[];
 
                 // Open a dialog for the user to select which differences to apply
@@ -7989,17 +7996,17 @@ const DashboardSidebarSynchronization: React.FC<{
                                 autoClose: false,
                                 toastId: "applying-diff-list",
                                 updateId: "applying-diff-list",
-                            }
+                            },
                         );
 
                         await Synchronization.Process.divergenceSolveConfirm(
                             unlockedVault,
-                            diffsToApply
+                            diffsToApply,
                         );
 
                         // Update the last sync timestamp
                         unlockedVault.OnlineServices.LinkedDevices.find(
-                            (d) => d.ID === device.ID
+                            (d) => d.ID === device.ID,
                         )?.updateLastSync();
                         // setUnlockedVault((pre) => {
                         //     if (pre == null) {
@@ -8020,7 +8027,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             {
                                 toastId: "applying-diff-list",
                                 updateId: "applying-diff-list",
-                            }
+                            },
                         );
 
                         // Send the diffsToSend to the other device
@@ -8029,7 +8036,7 @@ const DashboardSidebarSynchronization: React.FC<{
                                 Synchronization.Command.SyncResponse,
                                 await unlockedVault.getLatestHash(),
                                 undefined,
-                                diffsToSend
+                                diffsToSend,
                             ).serialize();
 
                         dataChannelInstance.send(divergenceSolveResponse);
@@ -8037,9 +8044,9 @@ const DashboardSidebarSynchronization: React.FC<{
                     () => {
                         // Warn the user that the vaults are still diverged
                         toast.warn(
-                            "[Synchronization] The vaults are still diverged - you can try to solve the differences again by synchronizing the vaults"
+                            "[Synchronization] The vaults are still diverged - you can try to solve the differences again by synchronizing the vaults",
                         );
-                    }
+                    },
                 );
             } else if (
                 message.Command === Synchronization.Command.LinkedDevicesList
@@ -8053,26 +8060,26 @@ const DashboardSidebarSynchronization: React.FC<{
 
                 const isDeviceRoot =
                     unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID
+                        (d) => d.ID === device.ID,
                     )?.IsRoot;
 
                 if (!isDeviceRoot) {
                     console.warn(
-                        `[WebRTC Message Handler] Received linked devices list from '${device.Name}' - but the device is not root - ignoring`
+                        `[WebRTC Message Handler] Received linked devices list from '${device.Name}' - but the device is not root - ignoring`,
                     );
                     return;
                 }
 
                 console.debug(
                     "[WebRTC Message Handler] Received linked devices list",
-                    message.LinkedDevices
+                    message.LinkedDevices,
                 );
 
                 const changesOccured =
                     Synchronization.Process.linkedDevicesList(
                         unlockedVault,
                         message,
-                        device.ID
+                        device.ID,
                     );
 
                 if (changesOccured) {
@@ -8081,13 +8088,13 @@ const DashboardSidebarSynchronization: React.FC<{
                     // Save the vault
                     await unlockedVaultMetadata?.save(unlockedVault);
                     toast.info(
-                        "[Synchronization] Successfully updated the list of linked devices"
+                        "[Synchronization] Successfully updated the list of linked devices",
                     );
                 }
             } else {
                 console.warn(
                     "[WebRTC Message Handler] Received invalid command",
-                    message.Command
+                    message.Command,
                 );
             }
         };
@@ -8095,7 +8102,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
     const sendLinkedDevicesList = (
         dataChannel: RTCDataChannel,
-        devicesToExclude: string[]
+        devicesToExclude: string[],
     ) => {
         if (session?.user?.isRoot && unlockedVault) {
             const linkedDevicesPayload = Synchronization.Message.prepare(
@@ -8103,7 +8110,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 undefined,
                 undefined,
                 [],
-                unlockedVault.OnlineServices.getLinkedDevices(devicesToExclude)
+                unlockedVault.OnlineServices.getLinkedDevices(devicesToExclude),
             ).serialize();
 
             // Send the payload
@@ -8135,7 +8142,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 // If we have linked devices, connect to online services
                 if (previousValue === 0 && currentValue > 0) {
                     console.debug(
-                        "New linked devices, triggering online services setup"
+                        "New linked devices, triggering online services setup",
                     );
                     setupOnlineServices();
                 }
@@ -8159,7 +8166,7 @@ const DashboardSidebarSynchronization: React.FC<{
             trpc.account.removeDevice.useMutation();
 
         const [webRTCConnections, setWebRTCConnections] = useAtom(
-            webRTCConnectionsAtom
+            webRTCConnectionsAtom,
         );
 
         const commonChannelName = React.useMemo(
@@ -8168,9 +8175,9 @@ const DashboardSidebarSynchronization: React.FC<{
                     onlineServices.CreationTimestamp,
                     onlineServices.UserID ?? "",
                     device.ID,
-                    device.LinkedAtTimestamp
+                    device.LinkedAtTimestamp,
                 ),
-            [onlineServices, device]
+            [onlineServices, device],
         );
 
         const webRTConnection = webRTCConnections.get(device.ID);
@@ -8181,7 +8188,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 prev.setState(device.ID, state);
                 return Object.assign(
                     new Synchronization.WebRTCConnections(),
-                    prev
+                    prev,
                 );
             });
         };
@@ -8190,18 +8197,18 @@ const DashboardSidebarSynchronization: React.FC<{
 
         const initLink = (
             peerConnection: RTCPeerConnection,
-            dataChannel: RTCDataChannel
+            dataChannel: RTCDataChannel,
         ) => {
             setWebRTCConnections((prev) => {
                 prev.upsert(
                     device.ID,
                     peerConnection,
                     dataChannel,
-                    Synchronization.LinkStatus.Connected
+                    Synchronization.LinkStatus.Connected,
                 );
                 return Object.assign(
                     new Synchronization.WebRTCConnections(),
-                    prev
+                    prev,
                 );
             });
         };
@@ -8211,7 +8218,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 prev.remove(device.ID);
                 return Object.assign(
                     new Synchronization.WebRTCConnections(),
-                    prev
+                    prev,
                 );
             });
             if (onlineWSServicesEndpoint && unsubscribe) {
@@ -8228,7 +8235,7 @@ const DashboardSidebarSynchronization: React.FC<{
             if (!webRTConnection) {
                 console.warn(
                     "[Manual Sync] Not connected to device",
-                    device.ID
+                    device.ID,
                 );
                 return;
             }
@@ -8240,7 +8247,7 @@ const DashboardSidebarSynchronization: React.FC<{
             console.debug(
                 "[Manual Sync] Sending request to device",
                 device.ID,
-                currentHash
+                currentHash,
             );
 
             // Send a message to the device
@@ -8248,7 +8255,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 Synchronization.Command.SyncRequest,
                 currentHash,
                 undefined,
-                []
+                [],
             ).serialize();
             webRTConnection.DataChannel?.send(syncRequestPayload);
         };
@@ -8281,10 +8288,10 @@ const DashboardSidebarSynchronization: React.FC<{
                     } catch (err) {
                         console.warn(
                             "Tried to remove device from online services but failed",
-                            err
+                            err,
                         );
                         toast.warn(
-                            "Couldn't remove device from online services. Please remove the device manually in the Account dialog."
+                            "Couldn't remove device from online services. Please remove the device manually in the Account dialog.",
                         );
                     }
 
@@ -8294,11 +8301,11 @@ const DashboardSidebarSynchronization: React.FC<{
                     } catch (err) {
                         console.error("Failed to save vault metadata", err);
                         toast.error(
-                            "Failed to save vault data. There is a high probability of data loss."
+                            "Failed to save vault data. There is a high probability of data loss.",
                         );
                     }
                 },
-                null
+                null,
             );
         };
 
@@ -8311,14 +8318,14 @@ const DashboardSidebarSynchronization: React.FC<{
                     .some(
                         (c) =>
                             c.name === commonChannelName &&
-                            (c.subscribed || c.subscriptionPending)
+                            (c.subscribed || c.subscriptionPending),
                     )
             ) {
                 setWebRTCConnections((prev) => {
                     prev.setManualDisconnect(device.ID, true);
                     return Object.assign(
                         new Synchronization.WebRTCConnections(),
-                        prev
+                        prev,
                     );
                 });
 
@@ -8328,7 +8335,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     prev.setManualDisconnect(device.ID, false);
                     return Object.assign(
                         new Synchronization.WebRTCConnections(),
-                        prev
+                        prev,
                     );
                 });
 
@@ -8434,7 +8441,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 console.debug(
                     "[setupDeviceLinks] Skipping autoconnect to",
                     device.ID,
-                    "because it was manually disconnected"
+                    "because it was manually disconnected",
                 );
                 return;
             }
@@ -8454,12 +8461,12 @@ const DashboardSidebarSynchronization: React.FC<{
                     .some(
                         (c) =>
                             c.name === commonChannelName &&
-                            (c.subscribed || c.subscriptionPending)
+                            (c.subscribed || c.subscriptionPending),
                     )
             ) {
                 console.debug(
                     "[setupDeviceLinks] Already subscribed to channel",
-                    commonChannelName
+                    commonChannelName,
                 );
 
                 if (
@@ -8473,7 +8480,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
             console.debug(
                 "[setupDeviceLinks] Trying to connect to device",
-                device
+                device,
             );
 
             const channel =
@@ -8503,19 +8510,19 @@ const DashboardSidebarSynchronization: React.FC<{
                     weAreFirst = context.count === 1;
                     console.debug(
                         "Subscription succeeded",
-                        weAreFirst ? "--We're first" : "--We're NOT first"
+                        weAreFirst ? "--We're first" : "--We're NOT first",
                     );
 
                     _webRTConnection = await newWebRTCConnection();
                     _webRTConnection.onconnectionstatechange = () => {
                         console.debug(
                             "Connection state changed",
-                            _webRTConnection?.connectionState
+                            _webRTConnection?.connectionState,
                         );
                         if (_webRTConnection?.connectionState === "connected") {
                             console.debug(
                                 "Private connection established -",
-                                commonChannelName
+                                commonChannelName,
                             );
 
                             // Clean up the channel subscription
@@ -8523,25 +8530,28 @@ const DashboardSidebarSynchronization: React.FC<{
                             channel.unbind();
 
                             if (device.SyncTimeout) {
-                                setTimeout(() => {
-                                    console.debug(
-                                        "Sync timeout reached - disconnecting from the private channel"
-                                    );
-                                    tearDownLink();
-                                }, Math.abs(device.SyncTimeoutPeriod) * 1000);
+                                setTimeout(
+                                    () => {
+                                        console.debug(
+                                            "Sync timeout reached - disconnecting from the private channel",
+                                        );
+                                        tearDownLink();
+                                    },
+                                    Math.abs(device.SyncTimeoutPeriod) * 1000,
+                                );
                             }
                         } else if (
                             _webRTConnection?.connectionState === "connecting"
                         ) {
                             setLinkStatus(
-                                Synchronization.LinkStatus.Connecting
+                                Synchronization.LinkStatus.Connecting,
                             );
                         } else if (
                             _webRTConnection?.connectionState === "disconnected"
                         ) {
                             console.debug(
                                 "Private connection disconnected -",
-                                commonChannelName
+                                commonChannelName,
                             );
 
                             // Remove the connection from the list
@@ -8556,7 +8566,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     if (weAreFirst) {
                         // Since we're first, we need to create a data channel
                         const dataChannel = _webRTConnection.createDataChannel(
-                            `sync-${device.ID}`
+                            `sync-${device.ID}`,
                         );
                         dataChannel.onopen = () => {
                             console.debug("[1st] Data channel opened");
@@ -8570,7 +8580,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         };
                         dataChannel.onmessage = onWebRTCMessageHandler(
                             dataChannel,
-                            device
+                            device,
                         );
                         dataChannel.onclose = () => {
                             console.debug("[1st] Data channel closed");
@@ -8595,7 +8605,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         if (event && event.candidate) {
                             console.debug(
                                 "Sending ICE candidate",
-                                event.candidate
+                                event.candidate,
                             );
                             channel.trigger(commonEventName, {
                                 type: "ice-candidate",
@@ -8610,7 +8620,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         if (event?.candidate == null) {
                             console.debug(
                                 "Sending ICE completed event",
-                                event.candidate
+                                event.candidate,
                             );
 
                             channel.trigger(commonEventName, {
@@ -8629,7 +8639,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             setLinkStatus(Synchronization.LinkStatus.Failure);
                         }
                     };
-                }
+                },
             );
 
             channel.bind(
@@ -8638,19 +8648,19 @@ const DashboardSidebarSynchronization: React.FC<{
                     console.debug(
                         "ws received",
                         data,
-                        `|| Are we first? ${weAreFirst}`
+                        `|| Are we first? ${weAreFirst}`,
                     );
 
                     if (data.type === "ice-candidate") {
                         if (data.data) {
                             await _webRTConnection?.addIceCandidate(
-                                data.data as RTCIceCandidateInit
+                                data.data as RTCIceCandidateInit,
                             );
                         } else if (
                             _webRTConnection?.connectionState != "connecting"
                         ) {
                             toast.warn(
-                                `[Synchronization] Failed to connect to ${device.Name}`
+                                `[Synchronization] Failed to connect to ${device.Name}`,
                             );
                         }
                     }
@@ -8659,7 +8669,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         // If we're first, we sent the offer, so we need to handle the answer
                         if (data.type === "answer") {
                             await _webRTConnection?.setRemoteDescription(
-                                data.data as RTCSessionDescriptionInit
+                                data.data as RTCSessionDescriptionInit,
                             );
                         }
                     } else {
@@ -8667,7 +8677,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         if (data.type === "offer") {
                             if (!_webRTConnection) {
                                 console.error(
-                                    "WebRTC connection not initialized"
+                                    "WebRTC connection not initialized",
                                 );
                                 return;
                             }
@@ -8692,7 +8702,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                                 dataChannel.onmessage = onWebRTCMessageHandler(
                                     dataChannel,
-                                    device
+                                    device,
                                 );
 
                                 dataChannel.onclose = () => {
@@ -8711,7 +8721,7 @@ const DashboardSidebarSynchronization: React.FC<{
                                 dataChannel.onerror = (event) => {
                                     console.debug(
                                         "[2nd] Data channel error",
-                                        event
+                                        event,
                                     );
 
                                     // Clean up the WebRTC connection
@@ -8720,7 +8730,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             };
 
                             await _webRTConnection.setRemoteDescription(
-                                data.data as RTCSessionDescriptionInit
+                                data.data as RTCSessionDescriptionInit,
                             );
 
                             // Create an answer and set it as the local description
@@ -8737,7 +8747,7 @@ const DashboardSidebarSynchronization: React.FC<{
                             console.debug("Answer sent", answer);
                         }
                     }
-                }
+                },
             );
 
             // When the other device connects, send an offer if we are the first to connect
@@ -8747,7 +8757,7 @@ const DashboardSidebarSynchronization: React.FC<{
                 async (osDevice: { id: string }) => {
                     if (!_webRTConnection) {
                         console.error(
-                            "[Member] WebRTC connection not initialized"
+                            "[Member] WebRTC connection not initialized",
                         );
                         return;
                     }
@@ -8766,7 +8776,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     } as PusherSignalingMessagesType);
 
                     console.debug("Offer sent", dataToSend);
-                }
+                },
             );
         };
 
@@ -8914,7 +8924,7 @@ const DashboardSidebarSynchronization: React.FC<{
                                                                   }
                                                                 : () =>
                                                                       option.onClick(
-                                                                          device
+                                                                          device,
                                                                       )
                                                         }
                                                     >
@@ -9024,7 +9034,7 @@ const DashboardSidebarSynchronization: React.FC<{
                         onClick={async () => {
                             console.debug(
                                 "[DEBUG] Clear Diff list - before -",
-                                unlockedVault.Diffs
+                                unlockedVault.Diffs,
                             );
 
                             unlockedVault.Diffs = [];
@@ -9033,7 +9043,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
                             console.debug(
                                 "[DEBUG] Clear Diff list - after -",
-                                unlockedVault.Diffs
+                                unlockedVault.Diffs,
                             );
                         }}
                     />
@@ -9138,7 +9148,7 @@ const VaultDashboard: React.FC = ({}) => {
     const showWarningDialog: WarningDialogShowFn = (
         description: string,
         onConfirm: () => void,
-        onDismiss: (() => void) | null
+        onDismiss: (() => void) | null,
     ) => {
         showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
     };
@@ -9189,7 +9199,7 @@ const VaultDashboard: React.FC = ({}) => {
                         closeButton: true,
                         toastId: "lock-vault",
                         updateId: "lock-vault",
-                    }
+                    },
                 );
             }
 
@@ -9496,7 +9506,7 @@ const CredentialCard: React.FC<{
                             pauseOnFocusLoss: false,
                             updateId: "copy-otp",
                             toastId: "copy-otp",
-                        }
+                        },
                     );
 
                     // let timePassed = 0;
@@ -9569,14 +9579,14 @@ const CredentialCard: React.FC<{
                                     closeButton: true,
                                     toastId: "remove-credential",
                                     updateId: "remove-credential",
-                                }
+                                },
                             );
                         }
 
                         return newVault;
                     });
                 },
-                null
+                null,
             );
         },
     });
@@ -9726,11 +9736,11 @@ const CredentialsList: React.FC<{
     const [filter, setFilter] = useState("");
 
     const selectedCredential = useRef<Credential.VaultCredential | undefined>(
-        undefined
+        undefined,
     );
     const showCredentialsDialogRef = useRef<(() => void) | null>(null);
     const showCredentialDialog = (showNewCredentialsDialogFn.current = (
-        credential?: Credential.VaultCredential
+        credential?: Credential.VaultCredential,
     ) => {
         // Set the selected credential
         selectedCredential.current = credential;
@@ -9753,7 +9763,7 @@ const CredentialsList: React.FC<{
 
                 if (
                     credential.Username.toLowerCase().includes(
-                        filter.toLowerCase()
+                        filter.toLowerCase(),
                     )
                 )
                     return true;

@@ -90,6 +90,7 @@ import {
     newVaultFormSchema,
     vaultRestoreFormSchema,
     Import,
+    Export,
 } from "../../app_lib/vault_utils";
 import {
     TOTPAlgorithm,
@@ -2310,7 +2311,7 @@ const WelcomeScreen: React.FC = ({}) => {
         encryptedVaults?.length === 1 &&
         shouldShowUnlockDialogWhenAlone &&
         !showOnFirstRenderTriggered.current;
-
+    const hasVaults = encryptedVaults && encryptedVaults.length > 0;
     const showUnlockVaultDialogFnRef = useRef<
         (vaultMetadata: VaultMetadata) => void
     >(() => {
@@ -2344,8 +2345,6 @@ const WelcomeScreen: React.FC = ({}) => {
             Icon: IconRestoreVault,
         },
     ];
-
-    const hasVaults = encryptedVaults && encryptedVaults.length > 0;
 
     useEffect(() => {
         // If there is only one vault, automatically show the unlock dialog
@@ -4540,6 +4539,48 @@ const VaultSettingsDialog: React.FC<{
 
     const showImportDataDialog = () => importDataDialogShowFnRef.current();
 
+    const triggerDataExport = async () => {
+        showWarningDialog(
+            `You are about to export your vault as a clear-text JSON file. It is unsafe to store this file on your device.\nMake sure to store it in a safe place.`,
+            async () => {
+                // Clear the sync list
+                setIsLoading(true);
+
+                toast.info("Exporting data...", {
+                    autoClose: false,
+                    closeButton: false,
+                    updateId: "export-data",
+                    toastId: "export-data",
+                });
+
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+                try {
+                    Export.vaultToJSON(unlockedVault);
+
+                    toast.success("Data successfuly exported.", {
+                        autoClose: 3000,
+                        closeButton: true,
+                        updateId: "export-data",
+                        toastId: "export-data",
+                    });
+                } catch (error) {
+                    toast.error("An error occured while exporting the data.", {
+                        autoClose: 3000,
+                        closeButton: true,
+                        updateId: "export-data",
+                        toastId: "export-data",
+                    });
+
+                    console.error("Error while exporting vault", error);
+                }
+
+                setIsLoading(false);
+            },
+            null,
+        );
+    };
+
     const manualVaultBackup = async () => {
         setIsLoading(true);
 
@@ -4615,43 +4656,8 @@ const VaultSettingsDialog: React.FC<{
                                 </b>
                             </p>
                         </div>
-                        <div className="flex w-full flex-col text-left">
-                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
-                                <p className="text-lg font-bold text-slate-800">
-                                    Synchronization
-                                </p>
-                                <p className="mt-2 text-base text-gray-600">
-                                    Clear the synchronization list to remedy any
-                                    synchronization issues or to decrease the
-                                    vault size. This has to be done on all
-                                    linked devices manually.
-                                </p>
-                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                    <ButtonFlat
-                                        text="Clear Synchronization List"
-                                        type={ButtonType.Secondary}
-                                        onClick={clearSyncList}
-                                        disabled={isLoading}
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
-                                <p className="text-lg font-bold text-slate-800">
-                                    Import
-                                </p>
-                                <p className="mt-2 text-base text-gray-600">
-                                    Import data from third-party applications.
-                                </p>
-                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                    <ButtonFlat
-                                        text="Import Data"
-                                        type={ButtonType.Secondary}
-                                        onClick={showImportDataDialog}
-                                        disabled={isLoading}
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-4 rounded-lg bg-gray-100 p-4">
+                        <div className="mt-4 flex w-full flex-col gap-4 text-left">
+                            <div className="rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Backup
                                 </p>
@@ -4670,7 +4676,43 @@ const VaultSettingsDialog: React.FC<{
                                     />
                                 </div>
                             </div>
-                            <div className="mt-4 rounded-lg bg-gray-100 p-4 opacity-50">
+                            <div className="flex flex-row gap-2">
+                                <div className="rounded-lg bg-gray-100 p-4">
+                                    <p className="text-lg font-bold text-slate-800">
+                                        Import
+                                    </p>
+                                    <p className="mt-2 text-base text-gray-600">
+                                        Import data from third-party
+                                        applications.
+                                    </p>
+                                    <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                        <ButtonFlat
+                                            text="Import Data"
+                                            type={ButtonType.Secondary}
+                                            onClick={showImportDataDialog}
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="rounded-lg bg-gray-100 p-4">
+                                    <p className="text-lg font-bold text-slate-800">
+                                        Export
+                                    </p>
+                                    <p className="mt-2 text-base text-gray-600">
+                                        Export your vault as a clear-text JSON
+                                        file for import into other applications.
+                                    </p>
+                                    <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                        <ButtonFlat
+                                            text="Export Data"
+                                            type={ButtonType.Secondary}
+                                            onClick={triggerDataExport}
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="rounded-lg bg-gray-100 p-4 opacity-50">
                                 <p className="text-lg font-bold text-slate-800">
                                     Encryption
                                 </p>
@@ -4698,6 +4740,25 @@ const VaultSettingsDialog: React.FC<{
                                         }}
                                         // disabled={isLoading}
                                         disabled={true}
+                                    />
+                                </div>
+                            </div>
+                            <div className="rounded-lg bg-gray-100 p-4">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Synchronization
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    Clear the synchronization list to remedy any
+                                    synchronization issues or to decrease the
+                                    vault size. This has to be done on all
+                                    linked devices manually.
+                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <ButtonFlat
+                                        text="Clear Synchronization List"
+                                        type={ButtonType.Secondary}
+                                        onClick={clearSyncList}
+                                        disabled={isLoading}
                                     />
                                 </div>
                             </div>

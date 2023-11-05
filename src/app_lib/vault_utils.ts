@@ -24,7 +24,7 @@ export namespace VaultEncryption {
         public iterations: number;
 
         constructor(
-            iterations: number = KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS
+            iterations: number = KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
         ) {
             this.iterations = iterations;
         }
@@ -49,7 +49,7 @@ export namespace VaultEncryption {
 
         constructor(
             memLimit: number = KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
-            opsLimit: number = KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT
+            opsLimit: number = KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
         ) {
             this.memLimit = memLimit;
             this.opsLimit = opsLimit;
@@ -74,7 +74,7 @@ export namespace VaultEncryption {
                 },
                 {
                     message: `Memory limit must be above ${KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT}`,
-                }
+                },
             ),
         opsLimit: z.coerce
             .number()
@@ -88,7 +88,7 @@ export namespace VaultEncryption {
                 },
                 {
                     message: `Operation limit must be between ${KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT} and ${KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT}`,
-                }
+                },
             ),
         iterations: z.coerce
             .number()
@@ -145,7 +145,7 @@ export namespace VaultEncryption {
             kdfConfigPBKDF2: VaultUtilTypes.KeyDerivationConfigPBKDF2 | null,
             blob: Uint8Array,
             salt: string,
-            headerIV: string
+            headerIV: string,
         ) {
             this.Version = this.LATEST_VERSION;
             this.Algorithm = algorithm;
@@ -197,7 +197,7 @@ export namespace VaultEncryption {
             // NOTE: Check for the current version first, then for the version at vault creation (so we don't trigger on vault create)
             if (this.CurrentVersion < 2 && this.Version < 2) {
                 console.warn(
-                    `Upgrading encrypted blob object to version 2 (from version ${this.CurrentVersion}) ...`
+                    `Upgrading encrypted blob object to version 2 (from version ${this.CurrentVersion}) ...`,
                 );
 
                 // NOTE: There are no steps that need to be taken to upgrade to version 2, just set the current version to 2
@@ -228,7 +228,7 @@ export namespace VaultEncryption {
                 null,
                 new Uint8Array(),
                 "",
-                ""
+                "",
             );
         }
 
@@ -248,7 +248,7 @@ export namespace VaultEncryption {
                     : null,
                 obj.Blob,
                 obj.Salt,
-                obj.HeaderIV
+                obj.HeaderIV,
             );
         }
     }
@@ -259,7 +259,7 @@ export namespace VaultEncryption {
         algorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
         kdfConfigArgon2ID: KeyDerivationConfig_Argon2ID,
-        kdfConfigPBKDF2: KeyDerivationConfig_PBKDF2
+        kdfConfigPBKDF2: KeyDerivationConfig_PBKDF2,
     ): Promise<EncryptedBlob> => {
         // FIXME: This is a temporary fix to prevent the compiler from complaining about the union type
         const configuration:
@@ -276,14 +276,14 @@ export namespace VaultEncryption {
                     blob,
                     secret,
                     keyDerivationFunction,
-                    configuration
+                    configuration,
                 );
             case VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305:
                 return await XChaCha20Poly1305.encryptBlob(
                     blob,
                     secret,
                     keyDerivationFunction,
-                    configuration
+                    configuration,
                 );
         }
     };
@@ -293,7 +293,9 @@ export namespace VaultEncryption {
         secret: Uint8Array,
         algorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
-        configuration: KeyDerivationConfig_Argon2ID | KeyDerivationConfig_PBKDF2
+        configuration:
+            | KeyDerivationConfig_Argon2ID
+            | KeyDerivationConfig_PBKDF2,
     ): Promise<Uint8Array> => {
         // Verify that the blob is an Uint8Array
         if (!(blob.Blob instanceof Uint8Array)) {
@@ -306,14 +308,14 @@ export namespace VaultEncryption {
                     blob,
                     secret,
                     keyDerivationFunction,
-                    configuration
+                    configuration,
                 );
             case VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305:
                 return await XChaCha20Poly1305.decryptBlob(
                     blob,
                     secret,
                     keyDerivationFunction,
-                    configuration
+                    configuration,
                 );
             default:
                 throw new Error("Invalid encryption algorithm");
@@ -329,8 +331,8 @@ export namespace VaultEncryption {
         return new Uint8Array(
             await crypto.subtle.digest(
                 "SHA-256",
-                new TextEncoder().encode(data)
-            )
+                new TextEncoder().encode(data),
+            ),
         );
     };
 
@@ -338,14 +340,14 @@ export namespace VaultEncryption {
         public static async deriveKeyPBKDF2(
             secret: Uint8Array,
             salt: Uint8Array,
-            configuration: KeyDerivationConfig_PBKDF2
+            configuration: KeyDerivationConfig_PBKDF2,
         ): Promise<CryptoKey> {
             const key = await crypto.subtle.importKey(
                 "raw",
                 secret,
                 { name: "PBKDF2" },
                 false,
-                ["deriveKey"]
+                ["deriveKey"],
             );
 
             const derivedKey = await crypto.subtle.deriveKey(
@@ -358,7 +360,7 @@ export namespace VaultEncryption {
                 key,
                 { name: "AES-GCM", length: 256 },
                 true,
-                ["encrypt", "decrypt"]
+                ["encrypt", "decrypt"],
             );
 
             return derivedKey;
@@ -368,7 +370,7 @@ export namespace VaultEncryption {
             keyLength: number,
             secret: Uint8Array,
             salt: Uint8Array,
-            configuration: KeyDerivationConfig_Argon2ID
+            configuration: KeyDerivationConfig_Argon2ID,
         ): Promise<Uint8Array> {
             await sodium.ready;
 
@@ -381,7 +383,7 @@ export namespace VaultEncryption {
                 salt,
                 configuration.opsLimit,
                 memLimitActual,
-                sodium.crypto_pwhash_ALG_ARGON2ID13
+                sodium.crypto_pwhash_ALG_ARGON2ID13,
             );
         }
     }
@@ -393,7 +395,7 @@ export namespace VaultEncryption {
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
-                | KeyDerivationConfig_PBKDF2
+                | KeyDerivationConfig_PBKDF2,
         ): Promise<EncryptedBlob> {
             if (keyDerivationFuncConfig == undefined) {
                 throw new Error("Key derivation function config is undefined");
@@ -412,7 +414,7 @@ export namespace VaultEncryption {
                 derivedKey = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2
+                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2,
                 );
             } else if (
                 keyDerivationFunc ===
@@ -422,7 +424,7 @@ export namespace VaultEncryption {
                     32, // Key length in bytes (256 bits) for AES-256
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID
+                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID,
                 );
 
                 derivedKey = await crypto.subtle.importKey(
@@ -430,7 +432,7 @@ export namespace VaultEncryption {
                     key,
                     { name: "AES-GCM", length: 256 },
                     false,
-                    ["encrypt", "decrypt"]
+                    ["encrypt", "decrypt"],
                 );
             } else {
                 throw new Error("Invalid key derivation function");
@@ -443,7 +445,7 @@ export namespace VaultEncryption {
                     iv,
                 },
                 derivedKey,
-                blob
+                blob,
             );
 
             const encryptedBlob = new Uint8Array(encrypted);
@@ -461,7 +463,7 @@ export namespace VaultEncryption {
                     : null,
                 encryptedBlob,
                 Buffer.from(salt).toString("base64"),
-                Buffer.from(iv).toString("base64")
+                Buffer.from(iv).toString("base64"),
             );
         }
 
@@ -471,7 +473,7 @@ export namespace VaultEncryption {
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
-                | KeyDerivationConfig_PBKDF2
+                | KeyDerivationConfig_PBKDF2,
         ): Promise<Uint8Array> {
             if (keyDerivationFuncConfig == undefined) {
                 throw new Error("Key derivation function config is undefined");
@@ -491,7 +493,7 @@ export namespace VaultEncryption {
                 derivedKey = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2
+                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2,
                 );
             } else if (
                 keyDerivationFunc ===
@@ -501,7 +503,7 @@ export namespace VaultEncryption {
                     32, // Key length in bytes (256 bits) for AES-256
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID
+                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID,
                 );
 
                 derivedKey = await crypto.subtle.importKey(
@@ -509,7 +511,7 @@ export namespace VaultEncryption {
                     key,
                     { name: "AES-GCM", length: 256 },
                     false,
-                    ["encrypt", "decrypt"]
+                    ["encrypt", "decrypt"],
                 );
             } else {
                 throw new Error("Invalid key derivation function");
@@ -521,7 +523,7 @@ export namespace VaultEncryption {
                     iv,
                 },
                 derivedKey,
-                encryptedBlob
+                encryptedBlob,
             );
 
             // return new TextDecoder().decode(decrypted);
@@ -536,7 +538,7 @@ export namespace VaultEncryption {
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
-                | KeyDerivationConfig_PBKDF2
+                | KeyDerivationConfig_PBKDF2,
         ): Promise<EncryptedBlob> {
             if (keyDerivationFuncConfig == undefined) {
                 throw new Error("Key derivation function config is undefined");
@@ -545,7 +547,7 @@ export namespace VaultEncryption {
             await sodium.ready;
 
             const salt = sodium.randombytes_buf(
-                sodium.crypto_shorthash_KEYBYTES
+                sodium.crypto_shorthash_KEYBYTES,
             );
             let key: Uint8Array;
 
@@ -556,7 +558,7 @@ export namespace VaultEncryption {
                 const _key = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2
+                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2,
                 );
                 const rawKey = await crypto.subtle.exportKey("raw", _key);
 
@@ -569,7 +571,7 @@ export namespace VaultEncryption {
                     sodium.crypto_secretstream_xchacha20poly1305_KEYBYTES,
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID
+                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID,
                 );
             } else {
                 throw new Error("Invalid key derivation function");
@@ -582,7 +584,7 @@ export namespace VaultEncryption {
                 state_out,
                 blob,
                 null,
-                sodium.crypto_secretstream_xchacha20poly1305_TAG_MESSAGE
+                sodium.crypto_secretstream_xchacha20poly1305_TAG_MESSAGE,
             );
 
             return new EncryptedBlob(
@@ -598,7 +600,7 @@ export namespace VaultEncryption {
                     : null,
                 c1,
                 Buffer.from(salt).toString("base64"),
-                Buffer.from(header).toString("base64")
+                Buffer.from(header).toString("base64"),
             );
         }
 
@@ -608,7 +610,7 @@ export namespace VaultEncryption {
             keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
             keyDerivationFuncConfig:
                 | KeyDerivationConfig_Argon2ID
-                | KeyDerivationConfig_PBKDF2
+                | KeyDerivationConfig_PBKDF2,
         ): Promise<Uint8Array> {
             if (keyDerivationFuncConfig == undefined) {
                 throw new Error("Key derivation function config is undefined");
@@ -629,7 +631,7 @@ export namespace VaultEncryption {
                 const _key = await KeyDerivation.deriveKeyPBKDF2(
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2
+                    keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2,
                 );
                 const rawKey = await crypto.subtle.exportKey("raw", _key);
 
@@ -642,7 +644,7 @@ export namespace VaultEncryption {
                     sodium.crypto_secretstream_xchacha20poly1305_KEYBYTES,
                     secret,
                     salt,
-                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID
+                    keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID,
                 );
             } else {
                 throw new Error("Invalid key derivation function");
@@ -651,11 +653,11 @@ export namespace VaultEncryption {
             const state_in =
                 sodium.crypto_secretstream_xchacha20poly1305_init_pull(
                     header,
-                    key
+                    key,
                 );
             const r1 = sodium.crypto_secretstream_xchacha20poly1305_pull(
                 state_in,
-                c1
+                c1,
             );
 
             if (typeof r1 === "boolean" && r1 === false) {
@@ -701,7 +703,7 @@ export namespace VaultStorage {
      */
     export async function saveVault(
         index: number | undefined,
-        data: Uint8Array
+        data: Uint8Array,
     ): Promise<void> {
         if (index != null) {
             await db.vaults.update(index, {
@@ -755,14 +757,14 @@ export namespace Backup {
     export const trigger = async (
         type: Type,
         vaultInstance: Vault,
-        existingEncryptedBlob: VaultEncryption.EncryptedBlob
+        existingEncryptedBlob: VaultEncryption.EncryptedBlob,
     ): Promise<void> => {
         // Clone the vault instance and remove the online services
         // NOTE: Need to clone the OnlineServicesAccount object too because it still has a reference to the vault instance
         const cleanVault = Object.assign(new Vault(), vaultInstance);
         const cleanOnlineServices = Object.assign(
             new OnlineServicesAccount(),
-            vaultInstance.OnlineServices
+            vaultInstance.OnlineServices,
         );
         cleanVault.OnlineServices = cleanOnlineServices;
 
@@ -778,7 +780,7 @@ export namespace Backup {
             existingEncryptedBlob.Algorithm,
             existingEncryptedBlob.KeyDerivationFunc,
             existingEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-            existingEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+            existingEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
         );
 
         if (type === Type.Manual) {
@@ -790,15 +792,45 @@ export namespace Backup {
     };
 
     const manualBackup = async (
-        encryptedBlob: VaultEncryption.EncryptedBlob
+        encryptedBlob: VaultEncryption.EncryptedBlob,
     ) => {
         const data =
             VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish();
+
         const blob = new Blob([data], { type: "application/octet-stream" });
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
+
         a.href = url;
         a.download = `cryptexvault-bk-${Date.now()}.cryx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+}
+
+export namespace Export {
+    export const vaultToJSON = (vaultInstance: Vault) => {
+        // Make sure to remove all unnecessary properties from the vault by manually creating a new object
+        const sanitizedVault = {
+            Groups: vaultInstance.Groups,
+            Credentials: vaultInstance.Credentials,
+        };
+
+        const stringifiedData = JSON.stringify(sanitizedVault, null, 4);
+
+        console.debug("Deserialized vault: ", stringifiedData);
+
+        // Trigger data download
+        const blob = new Blob([stringifiedData], {
+            type: "application/json",
+        });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+
+        a.href = url;
+        a.download = `cryptexvault-export-${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -900,7 +932,7 @@ export namespace Import {
     export const CSVGetColNames = (
         file: File,
         onSuccess: (columnNames: string[]) => void,
-        onFailure: (error: Error) => void
+        onFailure: (error: Error) => void,
     ): void => {
         // const Papa = dynamic(() => import("papaparse"));
 
@@ -929,9 +961,9 @@ export namespace Import {
         file: File,
         fields: FieldsSchemaType,
         onSuccess: (
-            credentials: VaultUtilTypes.PartialCredential[]
+            credentials: VaultUtilTypes.PartialCredential[],
         ) => Promise<void>,
-        onFailure: (error: Error) => void
+        onFailure: (error: Error) => void,
     ): Promise<void> => {
         Papa.parse(file, {
             header: true,
@@ -939,14 +971,14 @@ export namespace Import {
             download: false,
             worker: true,
             complete: async function (
-                results: Papa.ParseResult<unknown> | null
+                results: Papa.ParseResult<unknown> | null,
             ) {
                 if (!results) return;
 
                 const extractValue = (
                     row: FieldsSchemaType,
                     field: Fields,
-                    defaultValue?: string
+                    defaultValue?: string,
                 ): string | undefined => {
                     const value = row[field] ?? defaultValue;
                     if (value == undefined || value === "") return undefined;
@@ -954,7 +986,7 @@ export namespace Import {
                 };
 
                 const parseTags = (
-                    tags: string | undefined
+                    tags: string | undefined,
                 ): string | undefined => {
                     if (tags == undefined || tags === "") return undefined;
                     return tags
@@ -963,7 +995,7 @@ export namespace Import {
                 };
 
                 const tryParseNumber = (
-                    value: string | undefined
+                    value: string | undefined,
                 ): string | number | undefined => {
                     if (value == undefined || value === "") return undefined;
                     // Try to parse the value as a number
@@ -975,7 +1007,7 @@ export namespace Import {
                 };
 
                 const parseDate = (
-                    date: string | number | undefined
+                    date: string | number | undefined,
                 ): string | undefined => {
                     if (date == undefined || date === "") return undefined;
                     try {
@@ -983,14 +1015,14 @@ export namespace Import {
                     } catch (error) {
                         console.error(
                             "Failed to parse value as a date.",
-                            error
+                            error,
                         );
                         throw error;
                     }
                 };
 
                 const createTOTP = (
-                    secret: string | undefined
+                    secret: string | undefined,
                 ): Credential.TOTP | undefined => {
                     if (secret == undefined || secret === "") return undefined;
                     const totp = new Credential.TOTP();
@@ -1011,17 +1043,19 @@ export namespace Import {
                             URL: extractValue(row, "URL"),
                             Notes: extractValue(row, "Notes"),
                             DateCreated: parseDate(
-                                tryParseNumber(extractValue(row, "DateCreated"))
+                                tryParseNumber(
+                                    extractValue(row, "DateCreated"),
+                                ),
                             ),
                             DateModified: parseDate(
                                 tryParseNumber(
-                                    extractValue(row, "DateModified")
-                                )
+                                    extractValue(row, "DateModified"),
+                                ),
                             ),
                             DatePasswordChanged: parseDate(
                                 tryParseNumber(
-                                    extractValue(row, "DatePasswordChanged")
-                                )
+                                    extractValue(row, "DatePasswordChanged"),
+                                ),
                             ),
                             TOTP: createTOTP(extractValue(row, "TOTP")),
                             CustomFields: [],
@@ -1043,7 +1077,7 @@ export namespace Import {
     };
 
     export const BitwardenJSON = (
-        file: File
+        file: File,
     ): Promise<{
         credentials: VaultUtilTypes.PartialCredential[];
         groups: Group[];
@@ -1098,7 +1132,7 @@ export namespace Import {
                         credential.DatePasswordChanged =
                             item.passwordHistory && item.passwordHistory[0]
                                 ? new Date(
-                                      item.passwordHistory[0].lastUsedDate
+                                      item.passwordHistory[0].lastUsedDate,
                                   ).toISOString()
                                 : undefined;
 
@@ -1191,7 +1225,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     public static async createNewVault(
         formData: NewVaultFormSchemaType,
         seedVault = false,
-        seedCount = 0
+        seedCount = 0,
     ): Promise<VaultMetadata> {
         const vaultMetadata = new VaultMetadata();
 
@@ -1204,7 +1238,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const freshVault = new Vault(
             await VaultEncryption.hashSecret(formData.Secret),
             seedVault,
-            seedCount
+            seedCount,
         );
 
         // Serialize the vault instance
@@ -1217,7 +1251,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             formData.Encryption,
             formData.EncryptionKeyDerivationFunction,
             formData.EncryptionConfig, // TODO: Get this TF out of here
-            formData.EncryptionConfig // TODO: Move this too
+            formData.EncryptionConfig, // TODO: Move this too
         );
 
         return vaultMetadata;
@@ -1253,14 +1287,14 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                 this.Blob
                     .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
                 this.Blob
-                    .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+                    .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
             );
         }
 
         // Serialize the vault metadata and save it to the database
         await VaultStorage.saveVault(
             this.DBIndex,
-            VaultUtilTypes.VaultMetadata.encode(this).finish()
+            VaultUtilTypes.VaultMetadata.encode(this).finish(),
         );
     }
 
@@ -1274,7 +1308,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         secret: string,
         encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
-        keyDerivationFuncConfig: VaultEncryption.VaultEncryptionConfigurationsFormElementType
+        keyDerivationFuncConfig: VaultEncryption.VaultEncryptionConfigurationsFormElementType,
     ): Promise<Vault> {
         if (this.Blob == null) {
             throw new Error("Vault blob is null");
@@ -1298,7 +1332,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             decryptionData,
             encryptionAlgorithm,
             keyDerivationFunc,
-            keyDerivationFuncConfig
+            keyDerivationFuncConfig,
         );
 
         const vaultRawParsed =
@@ -1308,12 +1342,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         // Which is then used to encrypt the vault when saving
         const vaultObject: Vault = Object.assign(
             new Vault(encryptionData),
-            vaultRawParsed
+            vaultRawParsed,
         );
 
         vaultObject.OnlineServices = Object.assign(
             new OnlineServicesAccount(),
-            vaultObject.OnlineServices
+            vaultObject.OnlineServices,
         );
 
         // Go through each linked device and assign it to a new object
@@ -1322,7 +1356,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             vaultObject.OnlineServices.LinkedDevices.map(
                 (device: LinkedDevice) => {
                     return Object.assign(new LinkedDevice(), device);
-                }
+                },
             );
 
         // Go through each credential and assign it to a new object
@@ -1331,14 +1365,14 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                 if (credential.TOTP) {
                     credential.TOTP = Object.assign(
                         new Credential.TOTP(),
-                        credential.TOTP
+                        credential.TOTP,
                     );
                 }
                 return Object.assign(
                     new Credential.VaultCredential(),
-                    credential
+                    credential,
                 );
-            }
+            },
         );
 
         // There is no instantiable class for the Diff object so this is commented out for now
@@ -1351,7 +1385,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
         vaultObject.Configuration = Object.assign(
             new Configuration(),
-            vaultObject.Configuration
+            vaultObject.Configuration,
         );
 
         // Upgrade the vault object if necessary
@@ -1383,11 +1417,11 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * @returns A new VaultMetadata object ready to be saved for linking
      */
     public async exportForLinking(
-        cleanVaultInstance: Vault
+        cleanVaultInstance: Vault,
     ): Promise<Uint8Array> {
         if (this.Blob == null) {
             throw new Error(
-                "Cannot export metadata for linking without an encrypted blob."
+                "Cannot export metadata for linking without an encrypted blob.",
             );
         }
 
@@ -1409,7 +1443,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             this.Blob
                 .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
             this.Blob
-                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
         );
 
         return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
@@ -1417,12 +1451,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
     public static decodeMetadataBinary(
         data: Uint8Array,
-        dbIndex?: number
+        dbIndex?: number,
     ): VaultMetadata {
         const rawData = VaultUtilTypes.VaultMetadata.decode(data);
 
         console.debug(
-            `Metadata [${rawData.Name}] version: ${rawData.Version} || encrypted blob version: ${rawData.Blob?.Version} || DB Index: ${dbIndex}`
+            `Metadata [${rawData.Name}] version: ${rawData.Version} || encrypted blob version: ${rawData.Blob?.Version} || DB Index: ${dbIndex}`,
         );
 
         const vaultMetadata = Object.assign(new VaultMetadata(), rawData);
@@ -1433,7 +1467,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         if (vaultMetadata.Blob != null) {
             vaultMetadata.Blob = Object.assign(
                 VaultEncryption.EncryptedBlob.CreateDefault(),
-                vaultMetadata.Blob
+                vaultMetadata.Blob,
             );
         }
 
@@ -1528,7 +1562,7 @@ export namespace Credential {
                 Name: z.string(),
                 Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
                 Value: z.string(),
-            })
+            }),
         ),
     });
     export type CredentialFormSchemaType = z.infer<typeof credentialFormSchema>;
@@ -1552,7 +1586,7 @@ export namespace Credential {
         public Hash: string | undefined;
 
         constructor(
-            form?: CredentialFormSchemaType | VaultUtilTypes.PartialCredential
+            form?: CredentialFormSchemaType | VaultUtilTypes.PartialCredential,
         ) {
             this.ID = form?.ID ? String(form.ID).trim() : ulid();
 
@@ -1578,7 +1612,7 @@ export namespace Credential {
 
         public update(
             form?: CredentialFormSchemaType,
-            diff?: VaultUtilTypes.DiffChange
+            diff?: VaultUtilTypes.DiffChange,
         ) {
             if (diff && diff.Props && diff.Props.ChangeFlags) {
                 if (diff.Props.ChangeFlags.TypeHasChanged)
@@ -1728,7 +1762,7 @@ export namespace Credential {
 
             const hash = await crypto.subtle.digest(
                 "SHA-1",
-                new TextEncoder().encode(data)
+                new TextEncoder().encode(data),
             );
 
             this.Hash = Buffer.from(hash).toString("hex");
@@ -1747,7 +1781,7 @@ export namespace Credential {
      */
     export const getChanges = (
         prevCredential: VaultCredential | undefined,
-        nextCredential: VaultCredential
+        nextCredential: VaultCredential,
     ): VaultUtilTypes.DiffChange | null => {
         // If the previous credential doesn't exist, then this is a new credential
         if (!prevCredential) {
@@ -1859,7 +1893,7 @@ export namespace Credential {
                 (key) =>
                     changeFlags[
                         key as keyof VaultUtilTypes.PartialCredentialChanges
-                    ] as boolean
+                    ] as boolean,
             )
         ) {
             return {
@@ -1906,7 +1940,7 @@ export class LinkedDevice
         linkedAtTimestamp = Date.now(),
         autoConnect = true,
         syncTimeout = false,
-        syncTimeoutPeriod = 30
+        syncTimeoutPeriod = 30,
     ) {
         this.ID = deviceID;
         this.Name = deviceName;
@@ -1961,7 +1995,7 @@ export class OnlineServicesAccount
     public bindAccount(
         userID: string,
         publicKey: string,
-        privateKey: string
+        privateKey: string,
     ): void {
         this.UserID = userID;
         this.PublicKey = publicKey;
@@ -1993,7 +2027,7 @@ export class OnlineServicesAccount
         linkedAtTimestamp = Date.now(),
         autoConnect?: boolean,
         syncTimeout?: boolean,
-        syncTimeoutPeriod?: number
+        syncTimeoutPeriod?: number,
     ): void {
         this.LinkedDevices.push(
             new LinkedDevice(
@@ -2003,14 +2037,14 @@ export class OnlineServicesAccount
                 linkedAtTimestamp,
                 autoConnect,
                 syncTimeout,
-                syncTimeoutPeriod
-            )
+                syncTimeoutPeriod,
+            ),
         );
     }
 
     public removeLinkedDevice(deviceID: string): void {
         this.LinkedDevices = this.LinkedDevices.filter(
-            (device) => device.ID !== deviceID
+            (device) => device.ID !== deviceID,
         );
     }
 
@@ -2022,7 +2056,7 @@ export class OnlineServicesAccount
 
     public getLinkedDevices(excludedIDs: string[] = []): LinkedDevice[] {
         return this.LinkedDevices.filter(
-            (device) => !excludedIDs.includes(device.ID)
+            (device) => !excludedIDs.includes(device.ID),
         );
     }
     //#endregion Linked Devices
@@ -2037,7 +2071,7 @@ export class OnlineServicesAccount
      */
     public static async decryptTransferableData(
         encryptedData: string,
-        secret: string
+        secret: string,
     ): Promise<OnlineServicesAccountInterface> {
         // Convert the encrypted data to a Buffer (from a base64 string)
         const [blob, salt, header_iv] = encryptedData.split(":");
@@ -2061,11 +2095,11 @@ export class OnlineServicesAccount
             encryptedBlob.KeyDerivationFunc ===
                 VaultUtilTypes.KeyDerivationFunction.Argon2ID
                 ? (encryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID)
-                : (encryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2)
+                : (encryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2),
         );
 
         const decryptedData: OnlineServicesAccountInterface = JSON.parse(
-            Buffer.from(decrypted).toString()
+            Buffer.from(decrypted).toString(),
         );
 
         // Some basic validation
@@ -2093,7 +2127,7 @@ export class OnlineServicesAccount
     public static async encryptTransferableData(
         userID: string,
         publicKey: string,
-        privateKey: string
+        privateKey: string,
     ): Promise<{
         encryptedDataB64: string;
         mnemonic: string;
@@ -2101,7 +2135,7 @@ export class OnlineServicesAccount
         // Even though isBound checks for null, we do the explicit check here to avoid TS errors
         if (!userID.length || !publicKey.length || !privateKey.length) {
             throw new Error(
-                "Cannot create transferable data. One or more of the required fields is empty."
+                "Cannot create transferable data. One or more of the required fields is empty.",
             );
         }
 
@@ -2120,7 +2154,7 @@ export class OnlineServicesAccount
         };
 
         newEncryptedBlob.Blob = Buffer.from(
-            JSON.stringify(dataToEncrypt, null, 0)
+            JSON.stringify(dataToEncrypt, null, 0),
         );
 
         // Encrypt the data using the passphrase
@@ -2130,12 +2164,12 @@ export class OnlineServicesAccount
             newEncryptedBlob.Algorithm,
             newEncryptedBlob.KeyDerivationFunc,
             newEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-            newEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2
+            newEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
         );
 
         // Convert the encrypted data to a base64 string
         const encryptdBase64Blob = Buffer.from(_encryptedData.Blob).toString(
-            "base64"
+            "base64",
         );
 
         const encryptedDataB64 = `${encryptdBase64Blob}:${_encryptedData.Salt}:${_encryptedData.HeaderIV}`;
@@ -2246,7 +2280,7 @@ export class Vault implements VaultUtilTypes.Vault {
         // NOTE: Check for the current version first, then for the version at vault creation (so we don't trigger on vault create)
         if (this.CurrentVersion < 2 && this.Version < 2) {
             console.warn(
-                `Upgrading Vault object to version 2 (from version ${this.CurrentVersion})...`
+                `Upgrading Vault object to version 2 (from version ${this.CurrentVersion})...`,
             );
             // Clear the list of diffs
             this.Diffs = [];
@@ -2327,7 +2361,7 @@ export class Vault implements VaultUtilTypes.Vault {
         // Generate a hash of the credentials hashes
         const credentialsHash = await crypto.subtle.digest(
             "SHA-1",
-            Buffer.from(concatedHashes)
+            Buffer.from(concatedHashes),
         );
 
         // Return the hash as a hex string
@@ -2364,7 +2398,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * @returns An array of existing credentials (as additions) if the hash is null or the vault has no diffs
      */
     public async getDiffsSinceHash(
-        hash: string | null
+        hash: string | null,
     ): Promise<VaultUtilTypes.Diff[]> {
         // If the hash is null, return the credentials as additions
         if (hash === null) {
@@ -2402,7 +2436,7 @@ export class Vault implements VaultUtilTypes.Vault {
     private async createDiff(changes: VaultUtilTypes.DiffChange | null) {
         if (this.Configuration.InhibitDiffGeneration) {
             console.debug(
-                "Diff generation inhibited. Early return from createDiff."
+                "Diff generation inhibited. Early return from createDiff.",
             );
             return;
         }
@@ -2430,7 +2464,7 @@ export class Vault implements VaultUtilTypes.Vault {
             // - Result: 286 - 95 + 1 = 192 -> 192 diffs from the start of the array are removed
             // - Amount of diffs currently: 286 - 192 = 94 (diffs saved)
             this.Diffs = this.Diffs.slice(
-                this.Diffs.length - this.Configuration.MaxDiffCount + 1
+                this.Diffs.length - this.Configuration.MaxDiffCount + 1,
             );
         }
 
@@ -2493,7 +2527,7 @@ export class Vault implements VaultUtilTypes.Vault {
     public async createCredential(
         data:
             | Credential.CredentialFormSchemaType
-            | VaultUtilTypes.PartialCredential
+            | VaultUtilTypes.PartialCredential,
     ): Promise<Credential.VaultCredential | null> {
         console.time("createCredential");
 
@@ -2530,7 +2564,7 @@ export class Vault implements VaultUtilTypes.Vault {
      */
     public async updateCredential(
         formData?: Credential.CredentialFormSchemaType,
-        diff?: VaultUtilTypes.DiffChange
+        diff?: VaultUtilTypes.DiffChange,
     ): Promise<Credential.VaultCredential | null> {
         console.time("updateCredential");
         // If the ID is missing, throw an error (this covers the case where we receive form data or a diff)
@@ -2553,13 +2587,13 @@ export class Vault implements VaultUtilTypes.Vault {
         // NOTE: The data.ID will never be null or empty here because we check for it in the if statement above
         const existingCreds: Credential.VaultCredential | undefined =
             this.Credentials.find(
-                (i) => i.ID.toLowerCase() === credentialId?.toLowerCase()
+                (i) => i.ID.toLowerCase() === credentialId?.toLowerCase(),
             );
 
         if (!existingCreds) {
             console.timeLog(
                 "updateCredential",
-                "Credential not found. Early return."
+                "Credential not found. Early return.",
             );
             console.timeEnd("updateCredential");
 
@@ -2581,7 +2615,7 @@ export class Vault implements VaultUtilTypes.Vault {
 
         const changes = Credential.getChanges(
             originalCredentials,
-            moddedCredentials
+            moddedCredentials,
         );
 
         if (changes) {
@@ -2625,7 +2659,7 @@ export class Vault implements VaultUtilTypes.Vault {
     //#region Group Methods
     public upsertGroup(form: GroupSchemaType): void {
         const existingGroup: Group | undefined = this.Groups.find(
-            (g) => g.ID === form.ID
+            (g) => g.ID === form.ID,
         );
 
         // let changes: Credential.DiffChange | null = null;
@@ -2667,11 +2701,11 @@ export class Vault implements VaultUtilTypes.Vault {
      * @returns A new Vault object ready for serialization and transfer
      */
     public packageForLinking(
-        newOnlineServicesAccount: OnlineServicesAccountInterface
+        newOnlineServicesAccount: OnlineServicesAccountInterface,
     ): Vault {
         if (!this.OnlineServices.isBound() || !this.OnlineServices.UserID) {
             throw new Error(
-                "Cannot package the vault for linking. The vault is not bound to an account."
+                "Cannot package the vault for linking. The vault is not bound to an account.",
             );
         }
 
@@ -2681,7 +2715,7 @@ export class Vault implements VaultUtilTypes.Vault {
             !newOnlineServicesAccount.PrivateKey
         ) {
             throw new Error(
-                "Cannot package the vault for linking. The new account is missing required information."
+                "Cannot package the vault for linking. The new account is missing required information.",
             );
         }
 
@@ -2696,7 +2730,7 @@ export class Vault implements VaultUtilTypes.Vault {
         vaultCopy.OnlineServices.bindAccount(
             newOnlineServicesAccount.UserID,
             newOnlineServicesAccount.PublicKey,
-            newOnlineServicesAccount.PrivateKey
+            newOnlineServicesAccount.PrivateKey,
         );
 
         // Get the name of the computer
@@ -2707,7 +2741,7 @@ export class Vault implements VaultUtilTypes.Vault {
             this.OnlineServices.UserID,
             deviceName,
             true,
-            this.OnlineServices.CreationTimestamp
+            this.OnlineServices.CreationTimestamp,
         );
 
         // Make sure we add all the other linked devices to this vault
@@ -2719,7 +2753,7 @@ export class Vault implements VaultUtilTypes.Vault {
                 device.LinkedAtTimestamp,
                 device.AutoConnect,
                 device.SyncTimeout,
-                device.SyncTimeoutPeriod
+                device.SyncTimeoutPeriod,
             );
         });
 
@@ -2750,7 +2784,7 @@ export namespace Synchronization {
             hash?: string,
             divergenceHash?: string,
             diffs?: VaultUtilTypes.Diff[],
-            linkedDevices?: VaultUtilTypes.LinkedDevice[]
+            linkedDevices?: VaultUtilTypes.LinkedDevice[],
         ) {
             this.Command = command;
             this.Hash = hash;
@@ -2764,14 +2798,14 @@ export namespace Synchronization {
             hash: string | undefined,
             divergenceHash: string | undefined,
             diffs: VaultUtilTypes.Diff[],
-            linkedDevices?: VaultUtilTypes.LinkedDevice[]
+            linkedDevices?: VaultUtilTypes.LinkedDevice[],
         ): Message {
             return new Message(
                 command,
                 hash,
                 divergenceHash,
                 diffs,
-                linkedDevices
+                linkedDevices,
             );
         }
 
@@ -2782,7 +2816,7 @@ export namespace Synchronization {
                 decoded.Hash,
                 decoded.DivergenceHash,
                 decoded.Diffs,
-                decoded.LinkedDevices
+                decoded.LinkedDevices,
             );
         }
 
@@ -2803,7 +2837,7 @@ export namespace Synchronization {
         }
 
         public setLinkedDevicesList(
-            linkedDevicesList: LinkedDeviceSchemaType[]
+            linkedDevicesList: LinkedDeviceSchemaType[],
         ): void {
             this.LinkedDevices = linkedDevicesList;
         }
@@ -2861,7 +2895,7 @@ export namespace Synchronization {
             id: string,
             connection: RTCPeerConnection,
             dataChannel: RTCDataChannel,
-            state: LinkStatus
+            state: LinkStatus,
         ): void {
             // Make sure the connection doesn't already exist
             if (this.connections.has(id)) {
@@ -2909,7 +2943,7 @@ export namespace Synchronization {
                 console.debug(
                     "Tried to set state for non-existent connection.",
                     id,
-                    state
+                    state,
                 );
             }
         }
@@ -2922,7 +2956,7 @@ export namespace Synchronization {
                 console.debug(
                     "Tried to set manual disconnect for non-existent connection.",
                     id,
-                    state
+                    state,
                 );
             }
         }
@@ -2954,7 +2988,7 @@ export namespace Synchronization {
          */
         public static async divergenceSolveConfirm(
             unlockedVault: Vault,
-            diffsToApply: VaultUtilTypes.Diff[]
+            diffsToApply: VaultUtilTypes.Diff[],
         ) {
             // Apply the diffsToApply to the vault
             await unlockedVault.applyDiffs(diffsToApply);
@@ -2971,20 +3005,20 @@ export namespace Synchronization {
         public static linkedDevicesList(
             unlockedVault: Vault,
             message: Message,
-            deviceId: string
+            deviceId: string,
         ) {
             if (!message.LinkedDevices.length) return false;
 
             let changesOccured = false;
 
             const devicesInReceivedList = message.LinkedDevices.map(
-                (d) => d.ID
+                (d) => d.ID,
             );
             const devicesInCurrentList =
                 unlockedVault.OnlineServices.LinkedDevices.map((d) => d.ID);
             const currentDeviceCount = devicesInCurrentList.length;
             const intersection = devicesInReceivedList.filter((d) =>
-                devicesInCurrentList.includes(d)
+                devicesInCurrentList.includes(d),
             );
 
             // Update the IsRoot property of the devices that are in both lists
@@ -2992,10 +3026,10 @@ export namespace Synchronization {
                 if (message.LinkedDevices) {
                     const existingLinkedDevice =
                         unlockedVault.OnlineServices.LinkedDevices.find(
-                            (ld) => ld.ID === d
+                            (ld) => ld.ID === d,
                         );
                     const receivedLinkedDevice = message.LinkedDevices.find(
-                        (ld) => ld.ID === d
+                        (ld) => ld.ID === d,
                     );
 
                     if (
@@ -3017,7 +3051,7 @@ export namespace Synchronization {
                 unlockedVault.OnlineServices.LinkedDevices.filter(
                     (d) =>
                         devicesInReceivedList.includes(d.ID) ||
-                        d.ID === deviceId
+                        d.ID === deviceId,
                 );
             changesOccured ||=
                 currentDeviceCount !==
@@ -3027,7 +3061,7 @@ export namespace Synchronization {
             message.LinkedDevices.forEach((d) => {
                 if (
                     !unlockedVault.OnlineServices.LinkedDevices.find(
-                        (ld) => ld.ID === d.ID
+                        (ld) => ld.ID === d.ID,
                     )
                 ) {
                     changesOccured = true;
@@ -3038,7 +3072,7 @@ export namespace Synchronization {
                         d.LinkedAtTimestamp,
                         d.AutoConnect,
                         d.SyncTimeout,
-                        d.SyncTimeoutPeriod
+                        d.SyncTimeoutPeriod,
                     );
                 }
             });

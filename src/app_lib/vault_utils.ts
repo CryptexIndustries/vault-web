@@ -976,11 +976,12 @@ export namespace Import {
                 if (!results) return;
 
                 const extractValue = (
-                    row: FieldsSchemaType,
+                    row: object,
                     field: Fields,
                     defaultValue?: string,
                 ): string | undefined => {
-                    const value = row[field] ?? defaultValue;
+                    const key = (fields[field] ?? field) as keyof typeof row;
+                    const value = row[key] ?? defaultValue;
                     if (value == undefined || value === "") return undefined;
                     return value;
                 };
@@ -1033,7 +1034,7 @@ export namespace Import {
                 const credentials: VaultUtilTypes.PartialCredential[] = [];
 
                 try {
-                    for (const row of results.data as FieldsSchemaType[]) {
+                    for (const row of results.data as object[]) {
                         const credential: VaultUtilTypes.PartialCredential = {
                             ID: undefined,
                             Name: extractValue(row, "Name", "Import"),

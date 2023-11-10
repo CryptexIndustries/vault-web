@@ -2629,7 +2629,7 @@ jest.describe("Import", () => {
             vault.Configuration.SaveOnlyLatestDiffWhenNoLinked = true;
 
             // Import a CSV
-            const csv = `Name,Username,Password,URL,Notes,Tags
+            const csv = `Title,User,Passwd,Web,Comment,Tag
         Credential 1,Username 1,Password 1,URL 1,Notes 1,"Tag1,Tag2"
         Credential 2,Username 2,Password 2,URL 2,Notes 2,"Tag1,Tag3"
         Credential 3,Username 3,Password 3,URL 3,Notes 3,"Tag2,Tag3"`;
@@ -2704,12 +2704,12 @@ jest.describe("Import", () => {
             await Import.CSV(
                 fakeCSVFile,
                 {
-                    Name: "Name",
-                    Username: "Username",
-                    Password: "Password",
-                    URL: "URL",
-                    Notes: "Notes",
-                    Tags: "Tags",
+                    Name: "Title",
+                    Username: "User",
+                    Password: "Passwd",
+                    URL: "Web",
+                    Notes: "Comment",
+                    Tags: "Tag",
                     TagDelimiter: ",",
                     DateCreated: null,
                     DateModified: null,

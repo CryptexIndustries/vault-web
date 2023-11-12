@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 export const booleanString = (
-    /** @type {z.ZodDefault<z.ZodTypeAny>} */ schema
+    /** @type {z.ZodDefault<z.ZodTypeAny>} */ schema,
 ) =>
     z.preprocess((a) => {
         if (typeof a === "string") {
@@ -16,7 +16,7 @@ export const booleanString = (
 
 // Same thing but for numbers
 export const numberString = (
-    /** @type {z.ZodDefault<z.ZodTypeAny>} */ schema
+    /** @type {z.ZodDefault<z.ZodTypeAny>} */ schema,
 ) =>
     z.preprocess((a) => {
         if (typeof a === "string") {
@@ -62,54 +62,54 @@ export const serverSchema = z.object({
     UPSTASH_RATELIMIT_DURATION_AUTH: z.string().default("5s"),
 
     UPSTASH_RATELIMIT_ENABLE_USER_VERIFICATION: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_USER_VERIFICATION: numberString(
-        z.number().default(3)
+        z.number().default(3),
     ),
     UPSTASH_RATELIMIT_DURATION_USER_VERIFICATION: z.string().default("10m"),
 
     UPSTASH_RATELIMIT_ENABLE_REGISTER: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_REGISTER: numberString(z.number().default(1)),
     UPSTASH_RATELIMIT_DURATION_REGISTER: z.string().default("1m"),
 
     // ------------
     UPSTASH_RATELIMIT_ENABLE_RECOVERY: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_RECOVERY: numberString(z.number().default(3)),
     UPSTASH_RATELIMIT_DURATION_RECOVERY: z.string().default("1h"),
     UPSTASH_RATELIMIT_ENABLE_RECOVERY_CREATE: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_RECOVERY_CREATE: numberString(
-        z.number().default(3)
+        z.number().default(3),
     ),
     UPSTASH_RATELIMIT_DURATION_RECOVERY_CREATE: z.string().default("1h"),
     // ------------
 
     UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_DB: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_PAYMENTROUTER_DB: numberString(
-        z.number().default(3)
+        z.number().default(3),
     ),
     UPSTASH_RATELIMIT_DURATION_PAYMENTROUTER_DB: z.string().default("5s"),
     UPSTASH_RATELIMIT_ENABLE_PAYMENTROUTER_NODB: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_PAYMENTROUTER_NODB: numberString(
-        z.number().default(3)
+        z.number().default(3),
     ),
     UPSTASH_RATELIMIT_DURATION_PAYMENTROUTER_NODB: z.string().default("5s"),
 
     UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_FEATUREVOTINGROUTER: numberString(
-        z.number().default(3)
+        z.number().default(3),
     ),
     UPSTASH_RATELIMIT_DURATION_FEATUREVOTINGROUTER: z.string().default("10s"),
     UPSTASH_RATELIMIT_ENABLE_FEATUREVOTINGROUTER_MUTATION: z
@@ -123,33 +123,33 @@ export const serverSchema = z.object({
         .default("1m"),
 
     UPSTASH_RATELIMIT_ENABLE_NOTIFYMEROUTER: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_NOTIFYMEROUTER: numberString(
-        z.number().default(5)
+        z.number().default(5),
     ),
     UPSTASH_RATELIMIT_DURATION_NOTIFYMEROUTER: z.string().default("1m"),
 
     UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_QUERY: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_ACCOUNTROUTER_QUERY: numberString(
-        z.number().default(4)
+        z.number().default(4),
     ),
     UPSTASH_RATELIMIT_DURATION_ACCOUNTROUTER_QUERY: z.string().default("10s"),
     UPSTASH_RATELIMIT_ENABLE_ACCOUNTROUTER_MUTATION: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_ACCOUNTROUTER_MUTATION: numberString(
-        z.number().default(5)
+        z.number().default(5),
     ),
     UPSTASH_RATELIMIT_DURATION_ACCOUNTROUTER_MUTATION: z.string().default("5s"),
 
     UPSTASH_RATELIMIT_ENABLE_API_PUSHER: booleanString(
-        z.boolean().default(false)
+        z.boolean().default(false),
     ),
     UPSTASH_RATELIMIT_N_REQUESTS_API_PUSHER: numberString(
-        z.number().default(5)
+        z.number().default(5),
     ),
     UPSTASH_RATELIMIT_DURATION_API_PUSHER: z.string().default("30s"),
 

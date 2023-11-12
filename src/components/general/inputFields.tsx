@@ -33,19 +33,34 @@ export const ClipboardButton = ({ value }: { value?: string }) => {
 
 export const FormSelectboxField: React.FC<{
     register: UseFormRegisterReturn;
-    options: string[];
-}> = ({ register, options }) => {
+    options?: string[];
+    optionsEnum?: Record<string, string>;
+}> = ({ register, options, optionsEnum }) => {
     return (
         <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
             <select
                 className="w-full truncate bg-gray-200 text-gray-900"
                 {...register}
             >
-                {options.map((option) => (
-                    <option key={option} value={option}>
-                        {option}
-                    </option>
-                ))}
+                {
+                    // If there is an options array, use that
+                    options &&
+                        options.map((option) => (
+                            <option key={option} value={option}>
+                                {option}
+                            </option>
+                        ))
+                }
+
+                {
+                    // If there is an optionsEnum, use that instead
+                    optionsEnum &&
+                        Object.entries(optionsEnum).map(([key, value]) => (
+                            <option key={key} value={key}>
+                                {value}
+                            </option>
+                        ))
+                }
             </select>
         </div>
     );
@@ -65,7 +80,11 @@ type FormInputFieldProps = {
     additionalButtons?: React.ReactNode;
 };
 
-export const FormInputField: React.FC<FormInputFieldProps> = ({
+export const FormInputField: React.FC<
+    FormInputFieldProps & {
+        register?: UseFormRegisterReturn;
+    }
+> = ({
     label,
     type = "text",
     placeholder,
@@ -77,6 +96,7 @@ export const FormInputField: React.FC<FormInputFieldProps> = ({
     credentialsGeneratorFnRef,
     clipboardButton = false,
     additionalButtons,
+    register,
 }) => {
     const [showPassword, setShowPassword] = React.useState(false);
 
@@ -90,10 +110,11 @@ export const FormInputField: React.FC<FormInputFieldProps> = ({
                     autoCapitalize={autoCapitalize}
                     className="mt-1 w-full rounded-md bg-gray-200 px-4 py-2 text-gray-900"
                     onKeyDown={onKeyDown}
-                    onChange={onChange}
-                    onBlur={onBlur}
+                    onChange={!register ? onChange : undefined}
+                    onBlur={!register ? onBlur : undefined}
                     value={value}
                     autoComplete={type === "password" ? "none" : undefined}
+                    {...register}
                 />
                 {type === "password" && (
                     <button

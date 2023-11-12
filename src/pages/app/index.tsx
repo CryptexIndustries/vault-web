@@ -76,21 +76,17 @@ import { signUpFormSchema } from "../../app_lib/online_services_utils";
 import {
     Backup,
     Credential,
-    type GroupSchemaType,
     LinkedDevice,
-    NewVaultFormSchemaType,
     OnlineServicesAccount,
     OnlineServicesAccountInterface,
     Synchronization,
     Vault,
     VaultEncryption,
     VaultMetadata,
-    VaultRestoreFormSchema,
     VaultStorage,
-    newVaultFormSchema,
-    vaultRestoreFormSchema,
     Import,
     Export,
+    FormSchemas,
 } from "../../app_lib/vault_utils";
 import {
     TOTPAlgorithm,
@@ -118,6 +114,7 @@ import {
     FormNumberInputField,
     FormTextAreaField,
     ClipboardButton,
+    FormBaseNumberInputField,
 } from "../../components/general/inputFields";
 import {
     DivergenceSolveDialog,
@@ -127,6 +124,17 @@ import {
 dayjs.extend(RelativeTime);
 
 const DIALOG_BLUR_TIME = 200;
+
+const enumToRecord = (enumObject: object): Record<string, string> =>
+    Object.keys(enumObject).reduce((acc, key) => {
+        const _key = key as keyof typeof enumObject;
+
+        // If the key is not a number, skip it
+        if (isNaN(Number(_key))) return acc;
+
+        acc[_key] = enumObject[_key];
+        return acc;
+    }, {});
 
 const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 const unlockedVaultAtom = atom(new Vault());
@@ -595,57 +603,242 @@ const IconRestoreVault: React.FC = () => {
     );
 };
 
-const EncryptionAlgorithmSelectbox: React.FC<{
-    onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
-    onBlur: () => void;
-    value: EncryptionAlgorithm;
-}> = ({ onChange, onBlur, value }) => {
-    // Only use the numeric values of the enum to create the selectbox
-    const encryptionOptions: number[] = Object.values(EncryptionAlgorithm)
-        .filter((key) => !isNaN(Number(key)))
-        .map((key) => Number(key));
-    return (
-        <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
-            <select
-                className="w-full bg-gray-200 text-gray-900"
-                onChange={onChange}
-                onBlur={onBlur}
-                value={value}
-            >
-                {encryptionOptions.map((key) => (
-                    <option key={key} value={key}>
-                        {EncryptionAlgorithm[key]}
-                    </option>
-                ))}
-            </select>
-        </div>
-    );
-};
+const EncryptionFormGroup: React.FC<{
+    handleSubmitFn: React.MutableRefObject<
+        (
+            onValid: (data: FormSchemas.EncryptionFormGroupSchemaType) => void,
+        ) => () => Promise<void>
+    >;
+    defaultValues?: FormSchemas.EncryptionFormGroupSchemaType;
+    resetFormFn?: React.MutableRefObject<() => void>;
+    isDirtyFn?: React.MutableRefObject<() => boolean>;
+    onEnterKeyPressFnRef?: React.MutableRefObject<() => void>;
+    credentialsGeneratorFnRef?: React.MutableRefObject<() => void>;
+    showSecretHelpText?: boolean;
+}> = ({
+    handleSubmitFn,
+    defaultValues,
+    resetFormFn,
+    isDirtyFn,
+    onEnterKeyPressFnRef,
+    credentialsGeneratorFnRef,
+    showSecretHelpText = false,
+}) => {
+    const {
+        handleSubmit,
+        register,
+        formState: { errors, isDirty },
+        reset: resetForm,
+        watch,
+    } = useForm<FormSchemas.EncryptionFormGroupSchemaType>({
+        resolver: zodResolver(FormSchemas.encryptionFormGroupSchema),
+        defaultValues: defaultValues ?? {
+            Secret: "",
+            Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
+            EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
+            EncryptionConfig: {
+                iterations:
+                    VaultEncryption.KeyDerivationConfig_PBKDF2
+                        .DEFAULT_ITERATIONS,
+                memLimit:
+                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                        .DEFAULT_MEM_LIMIT,
+                opsLimit:
+                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                        .DEFAULT_OPS_LIMIT,
+            },
+        },
+    });
 
-const KeyDerivationFunctionSelectbox: React.FC<{
-    onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
-    onBlur: () => void;
-    value: KeyDerivationFunction;
-}> = ({ onChange, onBlur, value }) => {
-    // Only use the numeric values of the enum to create the selectbox
-    const keyDerivationOptions: number[] = Object.values(KeyDerivationFunction)
-        .filter((key) => !isNaN(Number(key)))
-        .map((key) => Number(key));
+    handleSubmitFn.current = handleSubmit;
+
+    if (resetFormFn) {
+        resetFormFn.current = resetForm;
+    }
+
+    if (isDirtyFn) {
+        isDirtyFn.current = () => isDirty;
+    }
+
     return (
-        <div className="mt-1 rounded-md bg-gray-200 px-3 py-2">
-            <select
-                className="w-full bg-gray-200 text-gray-900"
-                onChange={onChange}
-                onBlur={onBlur}
-                value={value}
-            >
-                {keyDerivationOptions.map((key) => (
-                    <option key={key} value={key}>
-                        {KeyDerivationFunction[key]}
-                    </option>
-                ))}
-            </select>
-        </div>
+        <>
+            <div className="mt-4 flex flex-col">
+                <FormInputField
+                    label="Secret *"
+                    type="password"
+                    onKeyDown={
+                        onEnterKeyPressFnRef
+                            ? (e) => {
+                                  if (e.key === "Enter") {
+                                      onEnterKeyPressFnRef.current();
+                                  }
+                              }
+                            : undefined
+                    }
+                    placeholder={
+                        showSecretHelpText
+                            ? "E.g. My super secr3t p4ssphrase"
+                            : undefined
+                    }
+                    autoCapitalize="none"
+                    credentialsGeneratorFnRef={credentialsGeneratorFnRef}
+                    value={undefined}
+                    register={register("Secret")}
+                />
+                {errors.Secret && (
+                    <p className="text-red-500">{errors.Secret.message}</p>
+                )}
+                {showSecretHelpText && (
+                    <p className="mt-2 text-sm text-gray-600">
+                        This is the secret that you will use to unlock your
+                        vault.
+                    </p>
+                )}
+            </div>
+            <div className="mt-4">
+                <AccordionItem
+                    title="Advanced"
+                    buttonClassName="bg-gray-500"
+                    innerClassName={"bg-slate-100 rounded-b-md px-2 py-1"}
+                >
+                    <div className="flex flex-col">
+                        <>
+                            <label className="text-gray-600">
+                                Encryption Algorithm *
+                            </label>
+                            <FormSelectboxField
+                                optionsEnum={enumToRecord(EncryptionAlgorithm)}
+                                register={register("Encryption", {
+                                    valueAsNumber: true,
+                                })}
+                            />
+
+                            {/* {!errors.vaultEncryption && (
+                                <p className="ml-3 mt-2 text-sm text-gray-600">
+                                    {
+                                        VaultEncryption
+                                            .vaultEncryptionDescriptions[
+                                            value
+                                        ]
+                                    }
+                                </p>
+                            )} */}
+                        </>
+                        {errors.Encryption && (
+                            <p className="text-red-500">
+                                {errors.Encryption.message}
+                            </p>
+                        )}
+                    </div>
+                    <div className="mt-4 flex flex-col">
+                        <>
+                            <label className="text-gray-600">
+                                Encryption Key Derivation Function *
+                            </label>
+                            <FormSelectboxField
+                                optionsEnum={enumToRecord(
+                                    KeyDerivationFunction,
+                                )}
+                                register={register(
+                                    "EncryptionKeyDerivationFunction",
+                                    {
+                                        valueAsNumber: true,
+                                    },
+                                )}
+                            />
+                        </>
+                        {errors.EncryptionKeyDerivationFunction && (
+                            <p className="text-red-500">
+                                {errors.EncryptionKeyDerivationFunction.message}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Depending on which encryption method is chosen switch between different options */}
+                    {/* Argon2ID options */}
+                    <div
+                        className={clsx({
+                            hidden:
+                                watch(
+                                    "EncryptionKeyDerivationFunction",
+                                ).toString() !==
+                                KeyDerivationFunction.Argon2ID.toString(),
+                        })}
+                    >
+                        <div className="mt-4 flex flex-col">
+                            <FormBaseNumberInputField
+                                label="Memory Limit"
+                                valueLabel="MiB"
+                                min={
+                                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                                        .MIN_MEM_LIMIT
+                                }
+                                register={register("EncryptionConfig.memLimit")}
+                            />
+                            {errors.EncryptionConfig?.memLimit && (
+                                <p className="text-red-500">
+                                    {errors.EncryptionConfig?.memLimit.message}
+                                </p>
+                            )}
+                        </div>
+                        <div className="mt-4 flex flex-col">
+                            <FormBaseNumberInputField
+                                label="Operations Limit"
+                                min={
+                                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                                        .MIN_OPS_LIMIT
+                                }
+                                max={
+                                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                                        .MAX_OPS_LIMIT
+                                }
+                                register={register("EncryptionConfig.opsLimit")}
+                            />
+                            {errors.EncryptionConfig?.opsLimit && (
+                                <p className="text-red-500">
+                                    {errors.EncryptionConfig?.opsLimit.message}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* PBKDF2 options */}
+                    <div
+                        className={clsx({
+                            hidden:
+                                watch(
+                                    "EncryptionKeyDerivationFunction",
+                                ).toString() !==
+                                KeyDerivationFunction.PBKDF2.toString(),
+                        })}
+                    >
+                        <div className="mt-4 flex flex-col">
+                            <FormBaseNumberInputField
+                                label="Iterations"
+                                min={1}
+                                register={register(
+                                    "EncryptionConfig.iterations",
+                                )}
+                            />
+                            {errors.EncryptionConfig?.iterations && (
+                                <p className="text-red-500">
+                                    {
+                                        errors.EncryptionConfig?.iterations
+                                            .message
+                                    }
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {errors.EncryptionConfig && (
+                        <p className="text-red-500">
+                            {errors.EncryptionConfig.message}
+                        </p>
+                    )}
+                </AccordionItem>
+            </div>
+        </>
     );
 };
 
@@ -663,116 +856,142 @@ const UnlockVaultDialog: React.FC<{
     };
 
     const formSchema = env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
-        ? VaultEncryption.unlockVaultWCaptchaFormSchema
-        : VaultEncryption.unlockVaultFormSchema;
+        ? FormSchemas.unlockVaultWCaptchaFormSchema
+        : FormSchemas.unlockVaultFormSchema;
 
     type UnlockVaultFormSchemaType = z.infer<typeof formSchema>;
 
+    const encryptionFormDefaultValues: FormSchemas.EncryptionFormGroupSchemaType =
+        {
+            Secret: "",
+            Encryption: selected.current?.Blob?.Algorithm ?? 0,
+            EncryptionKeyDerivationFunction:
+                selected.current?.Blob?.KeyDerivationFunc ?? 0,
+            EncryptionConfig: {
+                iterations:
+                    selected.current?.Blob?.KDFConfigPBKDF2?.iterations ??
+                    VaultEncryption.KeyDerivationConfig_PBKDF2
+                        .DEFAULT_ITERATIONS,
+                memLimit:
+                    selected.current?.Blob?.KDFConfigArgon2ID?.memLimit ??
+                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                        .DEFAULT_MEM_LIMIT,
+                opsLimit:
+                    selected.current?.Blob?.KDFConfigArgon2ID?.opsLimit ??
+                    VaultEncryption.KeyDerivationConfig_Argon2ID
+                        .DEFAULT_OPS_LIMIT,
+            },
+        };
+
     const defaultValues: UnlockVaultFormSchemaType = {
-        Secret: "",
-        Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
-        EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
-        EncryptionConfig: {
-            iterations:
-                VaultEncryption.KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
-            memLimit:
-                VaultEncryption.KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
-            opsLimit:
-                VaultEncryption.KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
-        },
         CaptchaToken: "",
     };
     const {
         handleSubmit,
         control,
         setError: setFormError,
-        formState: { errors, isSubmitting, isDirty, dirtyFields },
+        formState: { errors, isSubmitting, dirtyFields },
         reset: resetForm,
-        watch,
     } = useForm<UnlockVaultFormSchemaType>({
         resolver: zodResolver(formSchema),
         defaultValues: defaultValues,
     });
 
+    const handleSubmitEncryptionForm = useRef<
+        (
+            onValid?: (data: FormSchemas.EncryptionFormGroupSchemaType) => void,
+        ) => () => Promise<void>
+    >(() => async () => {});
+    const resetEncryptionGroupForm = useRef(() => {});
+    const isEncryptionGroupFormDirty = useRef(() => false);
+
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
     const busyRef = useRef(false);
 
-    const onSubmit = async (formData: UnlockVaultFormSchemaType) => {
-        if (busyRef.current) {
-            return;
-        }
-
-        busyRef.current = true;
-
-        if (!selected.current) {
-            toast.error("No vault selected!");
-            return;
-        }
-
-        toast.info("Attempting vault unlock...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "vault-unlock",
-            updateId: "vault-unlock",
-        });
-
-        // A little delay to make sure the toast is shown
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        try {
-            const vault = await selected.current.decryptVault(
-                formData.Secret,
-                formData.Encryption,
-                formData.EncryptionKeyDerivationFunction,
-                formData.EncryptionConfig,
-            );
-
-            // Initialize the vault account
-            const res = await cryptexAccountInit(
-                formData.CaptchaToken,
-                vault.OnlineServices.UserID,
-                vault.OnlineServices.PrivateKey,
-            );
-
-            if (!res.success && !res.offline && res.authResponse) {
-                toast.error(
-                    `Failed to authenticate with CryptexVault services. ${res.authResponse.error}`,
-                    {
-                        autoClose: false,
-                        closeButton: true,
-                    },
-                );
-                console.error(
-                    "Failed to authenticate with CryptexVault services.",
-                    res.authResponse.error,
-                );
+    const onSubmit = async (formData: UnlockVaultFormSchemaType) =>
+        handleSubmitEncryptionForm.current(async (encryptionFormData) => {
+            if (busyRef.current) {
+                return;
             }
 
-            // Set the vault metadata and vault atoms
-            setUnlockedVaultMetadata(selected.current);
-            setUnlockedVault(vault);
+            busyRef.current = true;
 
-            toast.update("vault-unlock", {
-                render: "Decryption successful.",
-                type: "success",
-                autoClose: 3000,
-                closeButton: true,
+            if (!selected.current) {
+                toast.error("No vault selected!");
+                return;
+            }
+
+            toast.info("Attempting vault unlock...", {
+                autoClose: false,
+                closeButton: false,
+                toastId: "vault-unlock",
+                updateId: "vault-unlock",
             });
 
-            hideDialog(true);
-        } catch (e) {
-            console.error("Failed to decrypt vault.", e);
-            toast.update("vault-unlock", {
-                render: "Failed to decrypt vault",
-                type: "error",
-                autoClose: 3000,
-                pauseOnHover: false,
-                closeButton: true,
-            });
-        }
-        busyRef.current = false;
-    };
+            // A little delay to make sure the toast is shown
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            try {
+                const vault = await selected.current.decryptVault(
+                    encryptionFormData.Secret,
+                    encryptionFormData.Encryption,
+                    encryptionFormData.EncryptionKeyDerivationFunction,
+                    encryptionFormData.EncryptionConfig,
+                );
+
+                // Initialize the vault account
+                const res = await cryptexAccountInit(
+                    formData.CaptchaToken,
+                    vault.OnlineServices.UserID,
+                    vault.OnlineServices.PrivateKey,
+                );
+
+                if (!res.success && !res.offline && res.authResponse) {
+                    toast.error(
+                        `Failed to authenticate with CryptexVault services. ${res.authResponse.error}`,
+                        {
+                            autoClose: false,
+                            closeButton: true,
+                        },
+                    );
+                    console.error(
+                        "Failed to authenticate with CryptexVault services.",
+                        res.authResponse.error,
+                    );
+                }
+
+                // Set the vault metadata and vault atoms
+                setUnlockedVaultMetadata(selected.current);
+                setUnlockedVault(vault);
+
+                toast.update("vault-unlock", {
+                    render: "Decryption successful.",
+                    type: "success",
+                    autoClose: 3000,
+                    closeButton: true,
+                });
+
+                hideDialog(true);
+            } catch (e) {
+                console.error("Failed to decrypt vault.", e);
+                toast.update("vault-unlock", {
+                    render: "Failed to decrypt vault",
+                    type: "error",
+                    autoClose: 3000,
+                    pauseOnHover: false,
+                    closeButton: true,
+                });
+            }
+            busyRef.current = false;
+        })();
+
+    const onSubmitButtonPressedFnRef = useRef(() => {
+        handleSubmit(onSubmit, () =>
+            // This is here to make sure the encryption form is validated even if the main form has failed validation
+            handleSubmitEncryptionForm.current(() => {})(),
+        )();
+    });
 
     const hideDialog = async (force = false) => {
         const hide = () => {
@@ -780,6 +999,7 @@ const UnlockVaultDialog: React.FC<{
             setTimeout(() => {
                 selected.current = undefined; // Reset the selected vault
                 resetForm(defaultValues);
+                resetEncryptionGroupForm.current();
             }, DIALOG_BLUR_TIME);
         };
 
@@ -787,7 +1007,11 @@ const UnlockVaultDialog: React.FC<{
             Object.keys(dirtyFields).length === 1 && dirtyFields.CaptchaToken;
 
         // Check if the form has been modified (only if we are not forcing)
-        if (isDirty && !force && !isOnlyCaptchaDirty) {
+        if (
+            isEncryptionGroupFormDirty.current() &&
+            !force &&
+            !isOnlyCaptchaDirty
+        ) {
             // If it has, ask the user if they want to discard the changes
             if (confirm("Are you sure you want to discard your changes?")) {
                 hide();
@@ -802,26 +1026,10 @@ const UnlockVaultDialog: React.FC<{
         // Set the form fields to the selected vault's encryption algorithm
         if (selected.current && selected.current.Blob) {
             resetForm({
-                Secret: "",
-                Encryption: selected.current.Blob.Algorithm,
-                EncryptionKeyDerivationFunction:
-                    selected.current.Blob.KeyDerivationFunc,
-                EncryptionConfig: {
-                    iterations:
-                        selected.current.Blob.KDFConfigPBKDF2?.iterations ??
-                        VaultEncryption.KeyDerivationConfig_PBKDF2
-                            .DEFAULT_ITERATIONS,
-                    memLimit:
-                        selected.current.Blob.KDFConfigArgon2ID?.memLimit ??
-                        VaultEncryption.KeyDerivationConfig_Argon2ID
-                            .DEFAULT_MEM_LIMIT,
-                    opsLimit:
-                        selected.current.Blob.KDFConfigArgon2ID?.opsLimit ??
-                        VaultEncryption.KeyDerivationConfig_Argon2ID
-                            .DEFAULT_OPS_LIMIT,
-                },
                 CaptchaToken: "",
             });
+
+            resetEncryptionGroupForm.current();
             // If we're in development, automatically unlock the vault
             // if (process.env.NODE_ENV === "development") {
             //     setValue("vaultSecret", "This is insane");
@@ -859,231 +1067,13 @@ const UnlockVaultDialog: React.FC<{
                         </b>
                     </p>
                     <div className="flex w-full flex-col text-left">
-                        <div className="mt-2 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Secret"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <FormInputField
-                                            label="Secret *"
-                                            type="password"
-                                            autoCapitalize="none"
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                    handleSubmit(onSubmit)();
-                                                }
-                                            }}
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.Secret && (
-                                <p className="text-red-500">
-                                    {errors.Secret.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Encryption"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Encryption Algorithm *
-                                        </label>
-                                        <EncryptionAlgorithmSelectbox
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.Encryption && (
-                                <p className="text-red-500">
-                                    {errors.Encryption.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="EncryptionKeyDerivationFunction"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Encryption Key Derivation Function *
-                                        </label>
-                                        <KeyDerivationFunctionSelectbox
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.EncryptionKeyDerivationFunction && (
-                                <p className="text-red-500">
-                                    {
-                                        errors.EncryptionKeyDerivationFunction
-                                            .message
-                                    }
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4">
-                            <AccordionItem
-                                title="Advanced"
-                                buttonClassName="bg-gray-500"
-                                innerClassName={
-                                    "bg-slate-100 rounded-b-md px-2 py-5"
-                                }
-                            >
-                                {/* Depending on which encryption method is chosen switch between different options */}
-                                {/* Argon2ID options */}
-                                <div
-                                    className={clsx({
-                                        hidden:
-                                            watch(
-                                                "EncryptionKeyDerivationFunction",
-                                            ).toString() !==
-                                            KeyDerivationFunction.Argon2ID.toString(),
-                                    })}
-                                >
-                                    <div className="flex flex-col">
-                                        <Controller
-                                            control={control}
-                                            name="EncryptionConfig.memLimit"
-                                            render={({
-                                                field: {
-                                                    onChange,
-                                                    onBlur,
-                                                    value,
-                                                },
-                                            }) => (
-                                                <FormNumberInputField
-                                                    label="Memory Limit"
-                                                    valueLabel="MiB"
-                                                    min={
-                                                        VaultEncryption
-                                                            .KeyDerivationConfig_Argon2ID
-                                                            .MIN_MEM_LIMIT
-                                                    }
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            )}
-                                        />
-                                        {errors.EncryptionConfig?.memLimit && (
-                                            <p className="text-red-500">
-                                                {
-                                                    errors.EncryptionConfig
-                                                        ?.memLimit.message
-                                                }
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="mt-4 flex flex-col">
-                                        <Controller
-                                            control={control}
-                                            name="EncryptionConfig.opsLimit"
-                                            render={({
-                                                field: {
-                                                    onChange,
-                                                    onBlur,
-                                                    value,
-                                                },
-                                            }) => (
-                                                <FormNumberInputField
-                                                    label="Operations Limit"
-                                                    min={
-                                                        VaultEncryption
-                                                            .KeyDerivationConfig_Argon2ID
-                                                            .MIN_OPS_LIMIT
-                                                    }
-                                                    max={
-                                                        VaultEncryption
-                                                            .KeyDerivationConfig_Argon2ID
-                                                            .MAX_OPS_LIMIT
-                                                    }
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            )}
-                                        />
-                                        {errors.EncryptionConfig?.opsLimit && (
-                                            <p className="text-red-500">
-                                                {
-                                                    errors.EncryptionConfig
-                                                        ?.opsLimit.message
-                                                }
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* PBKDF2 options */}
-                                <div
-                                    className={clsx({
-                                        hidden:
-                                            watch(
-                                                "EncryptionKeyDerivationFunction",
-                                            ).toString() !==
-                                            KeyDerivationFunction.PBKDF2.toString(),
-                                    })}
-                                >
-                                    <div className="flex flex-col">
-                                        <Controller
-                                            control={control}
-                                            name="EncryptionConfig.iterations"
-                                            render={({
-                                                field: {
-                                                    onChange,
-                                                    onBlur,
-                                                    value,
-                                                },
-                                            }) => (
-                                                <FormNumberInputField
-                                                    label="Iterations"
-                                                    min={1}
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            )}
-                                        />
-                                        {errors.EncryptionConfig
-                                            ?.iterations && (
-                                            <p className="text-red-500">
-                                                {
-                                                    errors.EncryptionConfig
-                                                        ?.iterations.message
-                                                }
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {errors.EncryptionConfig && (
-                                    <p className="text-red-500">
-                                        {errors.EncryptionConfig.message}
-                                    </p>
-                                )}
-                            </AccordionItem>
-                        </div>
+                        <EncryptionFormGroup
+                            handleSubmitFn={handleSubmitEncryptionForm}
+                            defaultValues={encryptionFormDefaultValues}
+                            onEnterKeyPressFnRef={onSubmitButtonPressedFnRef}
+                            resetFormFn={resetEncryptionGroupForm}
+                            isDirtyFn={isEncryptionGroupFormDirty}
+                        />
 
                         {env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA && (
                             <div className="mt-4 flex flex-col items-center">
@@ -1133,7 +1123,7 @@ const UnlockVaultDialog: React.FC<{
                 <ButtonFlat
                     text="Unlock"
                     className="sm:ml-2"
-                    onClick={handleSubmit(onSubmit)}
+                    onClick={onSubmitButtonPressedFnRef.current}
                     disabled={isSubmitting}
                     loading={isSubmitting}
                 />
@@ -1166,53 +1156,27 @@ const CreateVaultDialog: React.FC<{
         control,
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
-        watch,
-    } = useForm<NewVaultFormSchemaType>({
-        resolver: zodResolver(newVaultFormSchema),
+    } = useForm<FormSchemas.NewVaultFormSchemaType>({
+        resolver: zodResolver(FormSchemas.newVaultFormSchema),
         defaultValues: {
             Name: "",
             Description: "",
-            Secret: "",
-            Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
-            EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
-            EncryptionConfig: {
-                iterations:
-                    VaultEncryption.KeyDerivationConfig_PBKDF2
-                        .DEFAULT_ITERATIONS,
-                memLimit:
-                    VaultEncryption.KeyDerivationConfig_Argon2ID
-                        .DEFAULT_MEM_LIMIT,
-                opsLimit:
-                    VaultEncryption.KeyDerivationConfig_Argon2ID
-                        .DEFAULT_OPS_LIMIT,
-            },
         },
     });
 
+    const handleSubmitEncryptionForm = useRef<
+        (
+            onValid?: (data: FormSchemas.EncryptionFormGroupSchemaType) => void,
+        ) => () => Promise<void>
+    >(() => async () => {});
+    const resetEncryptionGroupForm = useRef(() => {});
+    const isEncryptionGroupFormDirty = useRef(() => false);
+
     const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-    const onSubmit = async (data: NewVaultFormSchemaType) => {
-        toast.info("Generating vault...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "create-vault",
-            updateId: "create-vault",
-        });
-
-        // Leave time for the UI to update
-        await delay(100);
-
-        try {
-            // console.time("create-vault");
-            // Create a new vault
-            const vaultMetadata = await VaultMetadata.createNewVault(
-                data,
-                dev_seedVault,
-                dev_seedCount.current,
-            );
-            // console.timeEnd("create-vault");
-
-            toast.warning("Verifying vault...", {
+    const onSubmit = async (data: FormSchemas.NewVaultFormSchemaType) =>
+        handleSubmitEncryptionForm.current(async (encryptionFormData) => {
+            toast.info("Generating vault...", {
                 autoClose: false,
                 closeButton: false,
                 toastId: "create-vault",
@@ -1222,35 +1186,56 @@ const CreateVaultDialog: React.FC<{
             // Leave time for the UI to update
             await delay(100);
 
-            // Verify that the vault has been properly encrypted - try to decrypt it
-            await vaultMetadata.decryptVault(
-                data.Secret,
-                data.Encryption,
-                data.EncryptionKeyDerivationFunction,
-                data.EncryptionConfig,
-            );
-            // console.debug("Decrypted vault:", _);
+            try {
+                // console.time("create-vault");
+                // Create a new vault
+                const vaultMetadata = await VaultMetadata.createNewVault(
+                    data,
+                    encryptionFormData,
+                    dev_seedVault,
+                    dev_seedCount.current,
+                );
+                // console.timeEnd("create-vault");
 
-            // Vault encryption/decryption is working, save the vault
-            await vaultMetadata.save(null);
+                toast.warning("Verifying vault...", {
+                    autoClose: false,
+                    closeButton: false,
+                    toastId: "create-vault",
+                    updateId: "create-vault",
+                });
 
-            toast.success("Vault created.", {
-                autoClose: 3000,
-                toastId: "create-vault",
-                updateId: "create-vault",
-            });
+                // Leave time for the UI to update
+                await delay(100);
 
-            hideDialog(true);
-        } catch (error) {
-            console.error("Failed to create a new vault.", error);
-            toast.update("create-vault", {
-                render: `Failed to create a new vault.`,
-                type: toast.TYPE.ERROR,
-                progress: 0,
-                autoClose: 3000,
-            });
-        }
-    };
+                // Verify that the vault has been properly encrypted - try to decrypt it
+                await vaultMetadata.decryptVault(
+                    encryptionFormData.Secret,
+                    encryptionFormData.Encryption,
+                    encryptionFormData.EncryptionKeyDerivationFunction,
+                    encryptionFormData.EncryptionConfig,
+                );
+                // console.debug("Decrypted vault:", _);
+
+                // Vault encryption/decryption is working, save the vault
+                await vaultMetadata.save(null);
+
+                toast.success("Vault created.", {
+                    autoClose: 3000,
+                    toastId: "create-vault",
+                    updateId: "create-vault",
+                });
+
+                hideDialog(true);
+            } catch (error) {
+                console.error("Failed to create a new vault.", error);
+                toast.update("create-vault", {
+                    render: `Failed to create a new vault.`,
+                    type: toast.TYPE.ERROR,
+                    progress: 0,
+                    autoClose: 3000,
+                });
+            }
+        })();
 
     const hideDialog = async (force = false) => {
         const hide = () => {
@@ -1258,11 +1243,12 @@ const CreateVaultDialog: React.FC<{
 
             setTimeout(() => {
                 resetForm();
+                resetEncryptionGroupForm.current();
             }, DIALOG_BLUR_TIME);
         };
 
         // Check if the form has been modified (only if we are not forcing)
-        if (isDirty && !force) {
+        if ((isDirty || isEncryptionGroupFormDirty.current()) && !force) {
             // If it has, ask the user if they want to discard the changes
             if (confirm("Are you sure you want to discard your changes?")) {
                 hide();
@@ -1344,46 +1330,13 @@ const CreateVaultDialog: React.FC<{
                                 </p>
                             )}
                         </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Secret"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <FormInputField
-                                            label="Secret *"
-                                            type="text"
-                                            placeholder="E.g. My super secr3t p4ssphrase"
-                                            autoCapitalize="none"
-                                            credentialsGeneratorFnRef={
-                                                showCredentialsGeneratorDialogFn
-                                            }
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.Secret && (
-                                <p className="text-red-500">
-                                    {errors.Secret.message}
-                                </p>
-                            )}
-                            <p className="mt-2 text-sm text-gray-600">
-                                This is the secret that you will use to unlock
-                                your vault.
-                            </p>
-                        </div>
 
                         {process.env.NODE_ENV === "development" && (
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-gray-900">
                                     Development Options
                                 </p>
-                                <div className="mt-4 flex items-center gap-2">
+                                <div className="mt-2 flex items-center gap-2">
                                     <label className="text-gray-600">
                                         Seed Vault
                                     </label>
@@ -1415,212 +1368,16 @@ const CreateVaultDialog: React.FC<{
                                 </div>
                             </div>
                         )}
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Encryption"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Encryption Algorithm *
-                                        </label>
-                                        <EncryptionAlgorithmSelectbox
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
 
-                                        {/* {!errors.vaultEncryption && (
-                                            <p className="ml-3 mt-2 text-sm text-gray-600">
-                                                {
-                                                    VaultEncryption
-                                                        .vaultEncryptionDescriptions[
-                                                        value
-                                                    ]
-                                                }
-                                            </p>
-                                        )} */}
-                                    </>
-                                )}
-                            />
-                            {errors.Encryption && (
-                                <p className="text-red-500">
-                                    {errors.Encryption.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="EncryptionKeyDerivationFunction"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Encryption Key Derivation Function *
-                                        </label>
-                                        <KeyDerivationFunctionSelectbox
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.EncryptionKeyDerivationFunction && (
-                                <p className="text-red-500">
-                                    {
-                                        errors.EncryptionKeyDerivationFunction
-                                            .message
-                                    }
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4">
-                            <AccordionItem
-                                title="Advanced"
-                                buttonClassName="bg-gray-500"
-                                innerClassName={
-                                    "bg-slate-100 rounded-b-md px-2 py-5"
-                                }
-                            >
-                                {/* Depending on which encryption method is chosen switch between different options */}
-                                {/* Argon2ID options */}
-                                <div
-                                    className={clsx({
-                                        hidden:
-                                            watch(
-                                                "EncryptionKeyDerivationFunction",
-                                            ).toString() !==
-                                            KeyDerivationFunction.Argon2ID.toString(),
-                                    })}
-                                >
-                                    <div className="flex flex-col">
-                                        <Controller
-                                            control={control}
-                                            name="EncryptionConfig.memLimit"
-                                            render={({
-                                                field: {
-                                                    onChange,
-                                                    onBlur,
-                                                    value,
-                                                },
-                                            }) => (
-                                                <FormNumberInputField
-                                                    label="Memory Limit"
-                                                    valueLabel="MiB"
-                                                    min={
-                                                        VaultEncryption
-                                                            .KeyDerivationConfig_Argon2ID
-                                                            .MIN_MEM_LIMIT
-                                                    }
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            )}
-                                        />
-                                        {errors.EncryptionConfig?.memLimit && (
-                                            <p className="text-red-500">
-                                                {
-                                                    errors.EncryptionConfig
-                                                        ?.memLimit.message
-                                                }
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="mt-4 flex flex-col">
-                                        <Controller
-                                            control={control}
-                                            name="EncryptionConfig.opsLimit"
-                                            render={({
-                                                field: {
-                                                    onChange,
-                                                    onBlur,
-                                                    value,
-                                                },
-                                            }) => (
-                                                <FormNumberInputField
-                                                    label="Operations Limit"
-                                                    min={
-                                                        VaultEncryption
-                                                            .KeyDerivationConfig_Argon2ID
-                                                            .MIN_OPS_LIMIT
-                                                    }
-                                                    max={
-                                                        VaultEncryption
-                                                            .KeyDerivationConfig_Argon2ID
-                                                            .MAX_OPS_LIMIT
-                                                    }
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            )}
-                                        />
-                                        {errors.EncryptionConfig?.opsLimit && (
-                                            <p className="text-red-500">
-                                                {
-                                                    errors.EncryptionConfig
-                                                        ?.opsLimit.message
-                                                }
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* PBKDF2 options */}
-                                <div
-                                    className={clsx({
-                                        hidden:
-                                            watch(
-                                                "EncryptionKeyDerivationFunction",
-                                            ).toString() !==
-                                            KeyDerivationFunction.PBKDF2.toString(),
-                                    })}
-                                >
-                                    <div className="flex flex-col">
-                                        <Controller
-                                            control={control}
-                                            name="EncryptionConfig.iterations"
-                                            render={({
-                                                field: {
-                                                    onChange,
-                                                    onBlur,
-                                                    value,
-                                                },
-                                            }) => (
-                                                <FormNumberInputField
-                                                    label="Iterations"
-                                                    min={1}
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            )}
-                                        />
-                                        {errors.EncryptionConfig
-                                            ?.iterations && (
-                                            <p className="text-red-500">
-                                                {
-                                                    errors.EncryptionConfig
-                                                        ?.iterations.message
-                                                }
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {errors.EncryptionConfig && (
-                                    <p className="text-red-500">
-                                        {errors.EncryptionConfig.message}
-                                    </p>
-                                )}
-                            </AccordionItem>
-                        </div>
+                        <EncryptionFormGroup
+                            handleSubmitFn={handleSubmitEncryptionForm}
+                            resetFormFn={resetEncryptionGroupForm}
+                            isDirtyFn={isEncryptionGroupFormDirty}
+                            credentialsGeneratorFnRef={
+                                showCredentialsGeneratorDialogFn
+                            }
+                            showSecretHelpText={true}
+                        />
                     </div>
                 </div>
             </Body>
@@ -1629,7 +1386,10 @@ const CreateVaultDialog: React.FC<{
                 <ButtonFlat
                     text="Create"
                     className="sm:ml-2"
-                    onClick={handleSubmit(onSubmit)}
+                    onClick={handleSubmit(onSubmit, () =>
+                        // This is here to make sure the encryption form is validated even if the main form has failed validation
+                        handleSubmitEncryptionForm.current(() => {})(),
+                    )}
                     disabled={isSubmitting}
                     loading={isSubmitting}
                 />
@@ -2576,8 +2336,8 @@ const RestoreVaultDialog: React.FC<{
         control,
         formState: { errors, isSubmitting },
         reset: resetForm,
-    } = useForm<VaultRestoreFormSchema>({
-        resolver: zodResolver(vaultRestoreFormSchema),
+    } = useForm<FormSchemas.VaultRestoreFormSchema>({
+        resolver: zodResolver(FormSchemas.vaultRestoreFormSchema),
         defaultValues: {
             Name: `Restored Vault ${new Date().toLocaleString()}`,
         },
@@ -2620,7 +2380,7 @@ const RestoreVaultDialog: React.FC<{
         setIsLoading(false);
     };
 
-    const onSubmit = async (data: VaultRestoreFormSchema) => {
+    const onSubmit = async (data: FormSchemas.VaultRestoreFormSchema) => {
         if (!validFile) {
             return;
         }
@@ -4194,7 +3954,7 @@ const ImportDataDialog: React.FC<{
 
     const importCredentials = async (
         credentials: PartialCredential[],
-        groups: GroupSchemaType[] = [],
+        groups: FormSchemas.GroupSchemaType[] = [],
     ) => {
         // Add the credentials to the vault
         const vault = unlockedVault;
@@ -4477,10 +4237,148 @@ const ImportDataDialog: React.FC<{
     );
 };
 
+const ChangeVaultEncryptionConfigDialog: React.FC<{
+    showDialogFnRef: React.MutableRefObject<() => void>;
+    showCredentialsGeneratorDialogFnRef: React.MutableRefObject<() => void>;
+}> = ({ showDialogFnRef, showCredentialsGeneratorDialogFnRef }) => {
+    const [visible, setVisible] = useState(false);
+    showDialogFnRef.current = () => setVisible(true);
+
+    const [isLoading, setIsLoading] = useState(false);
+
+    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const unlockedVault = useAtomValue(unlockedVaultAtom);
+
+    const handleSubmitEncryptionForm = useRef<
+        (
+            onValid?: (data: FormSchemas.EncryptionFormGroupSchemaType) => void,
+        ) => () => Promise<void>
+    >(() => async () => {});
+    const resetEncryptionGroupForm = useRef(() => {});
+    const isEncryptionGroupFormDirty = useRef(() => false);
+
+    const hideDialog = (force = false) => {
+        const hide = () => {
+            setVisible(false);
+
+            setTimeout(() => {
+                resetEncryptionGroupForm.current();
+            }, DIALOG_BLUR_TIME);
+        };
+
+        // Check if the form has been modified (only if we are not forcing)
+        if (isEncryptionGroupFormDirty.current() && !force) {
+            // If it has, ask the user if they want to discard the changes
+            if (confirm("Are you sure you want to discard your changes?")) {
+                hide();
+            }
+        } else {
+            // If not, just hide the modal
+            hide();
+        }
+    };
+
+    const onSubmit = async (
+        data: FormSchemas.EncryptionFormGroupSchemaType,
+    ) => {
+        setIsLoading(true);
+
+        toast.info("Changing encryption configuration...", {
+            autoClose: false,
+            closeButton: false,
+            updateId: "change-encryption-config",
+            toastId: "change-encryption-config",
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        try {
+            await vaultMetadata?.save(unlockedVault, data);
+
+            toast.success("Encryption configuration changed.", {
+                autoClose: 3000,
+                closeButton: true,
+                updateId: "change-encryption-config",
+                toastId: "change-encryption-config",
+            });
+
+            hideDialog(true);
+        } catch (error) {
+            toast.error("An error occured while saving the vault metadata.", {
+                autoClose: 3000,
+                closeButton: true,
+                updateId: "change-encryption-config",
+                toastId: "change-encryption-config",
+            });
+            console.error("Error while saving vault metadata", error);
+        }
+
+        setIsLoading(false);
+    };
+
+    return (
+        <GenericModal
+            key="change-vault-encryption-config-modal"
+            visibleState={[visible, () => hideDialog()]}
+            inhibitDismissOnClickOutside={isLoading}
+        >
+            <Body className="flex w-full flex-col">
+                <p className="w-full text-center text-2xl font-bold text-gray-900">
+                    Change Vault Encryption Configuration
+                </p>
+
+                <div className="mt-4 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
+                    <ExclamationTriangleIcon
+                        className="h-7 w-7 text-slate-800"
+                        aria-hidden="true"
+                    />
+                    <p className="text-sm text-slate-700">
+                        <span className="font-bold">Note:</span> This operation
+                        might take a while to complete, depending on the vault
+                        size and the encryption configuration you are changing
+                        to.
+                    </p>
+                </div>
+
+                <EncryptionFormGroup
+                    handleSubmitFn={handleSubmitEncryptionForm}
+                    resetFormFn={resetEncryptionGroupForm}
+                    isDirtyFn={isEncryptionGroupFormDirty}
+                    credentialsGeneratorFnRef={
+                        showCredentialsGeneratorDialogFnRef
+                    }
+                    showSecretHelpText={true}
+                />
+            </Body>
+
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text="Save"
+                    className="sm:ml-2"
+                    onClick={handleSubmitEncryptionForm.current(onSubmit)}
+                    disabled={isLoading}
+                    loading={isLoading}
+                />
+                <ButtonFlat
+                    text="Cancel"
+                    type={ButtonType.Secondary}
+                    onClick={() => hideDialog()}
+                    disabled={isLoading}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+
 const VaultSettingsDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<() => void>;
     showWarningDialog: WarningDialogShowFn;
-}> = ({ showDialogFnRef, showWarningDialog }) => {
+    showCredentialsGeneratorDialogFnRef: React.MutableRefObject<() => void>;
+}> = ({
+    showDialogFnRef,
+    showWarningDialog,
+    showCredentialsGeneratorDialogFnRef,
+}) => {
     const [visibleState, setVisibleState] = useState(false);
     const hideDialog = (force?: boolean) => {
         const hide = () => {
@@ -4515,6 +4413,10 @@ const VaultSettingsDialog: React.FC<{
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
 
     const importDataDialogShowFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+
+    const changeEncryptionConfigDialogShowFnRef = useRef<() => void>(() => {
         // No-op
     });
 
@@ -4712,34 +4614,24 @@ const VaultSettingsDialog: React.FC<{
                                     </div>
                                 </div>
                             </div>
-                            <div className="rounded-lg bg-gray-100 p-4 opacity-50">
+                            <div className="rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Encryption
                                 </p>
                                 <p className="mt-2 text-base text-gray-600">
                                     You can change the encryption key or the
-                                    algorithm used to encrypt your vault. This
-                                    will re-encrypt your vault with the new
-                                    settings.
+                                    algorithm used to encrypt your vault. Using
+                                    this, you can re-encrypt your vault with the
+                                    new settings.
                                 </p>
                                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
                                     <ButtonFlat
-                                        text="Change Encryption Key"
+                                        text="Change Encryption Configuration"
                                         type={ButtonType.Secondary}
-                                        onClick={() => {
-                                            // TODO
-                                        }}
-                                        // disabled={isLoading}
-                                        disabled={true}
-                                    />
-                                    <ButtonFlat
-                                        text="Change Encryption Algorithm"
-                                        type={ButtonType.Secondary}
-                                        onClick={() => {
-                                            // TODO
-                                        }}
-                                        // disabled={isLoading}
-                                        disabled={true}
+                                        onClick={
+                                            changeEncryptionConfigDialogShowFnRef.current
+                                        }
+                                        disabled={isLoading}
                                     />
                                 </div>
                             </div>
@@ -4784,6 +4676,12 @@ const VaultSettingsDialog: React.FC<{
                 </Footer>
             </GenericModal>
             <ImportDataDialog showDialogFnRef={importDataDialogShowFnRef} />
+            <ChangeVaultEncryptionConfigDialog
+                showDialogFnRef={changeEncryptionConfigDialogShowFnRef}
+                showCredentialsGeneratorDialogFnRef={
+                    showCredentialsGeneratorDialogFnRef
+                }
+            />
         </>
     );
 };
@@ -9406,6 +9304,9 @@ const VaultDashboard: React.FC = ({}) => {
             <VaultSettingsDialog
                 showDialogFnRef={showVaultSettingsDialogRef}
                 showWarningDialog={showWarningDialog}
+                showCredentialsGeneratorDialogFnRef={
+                    showCredentialsGeneratorDialogFnRef
+                }
             />
             <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
             <AccountSignUpSignInDialog

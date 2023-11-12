@@ -56,69 +56,6 @@ export namespace VaultEncryption {
         }
     }
 
-    export const vaultEncryptionFormElement = z
-        .nativeEnum(VaultUtilTypes.EncryptionAlgorithm)
-        .default(VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305);
-
-    export const vaultEncryptionKeyDerivationFunctionFormElement = z
-        .nativeEnum(VaultUtilTypes.KeyDerivationFunction)
-        .default(VaultUtilTypes.KeyDerivationFunction.Argon2ID);
-
-    export const vaultEncryptionConfigurationsFormElement = z.object({
-        memLimit: z.coerce
-            .number()
-            .default(KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT)
-            .refine(
-                (x) => {
-                    return x >= KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT;
-                },
-                {
-                    message: `Memory limit must be above ${KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT}`,
-                },
-            ),
-        opsLimit: z.coerce
-            .number()
-            .default(KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT)
-            .refine(
-                (x) => {
-                    return (
-                        x >= KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT &&
-                        x <= KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
-                    );
-                },
-                {
-                    message: `Operation limit must be between ${KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT} and ${KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT}`,
-                },
-            ),
-        iterations: z.coerce
-            .number()
-            .default(KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS),
-    });
-    export type VaultEncryptionConfigurationsFormElementType = z.infer<
-        typeof vaultEncryptionConfigurationsFormElement
-    >;
-
-    // export const vaultEncryptionDescriptions = {
-    //     XChaCha20Poly1305:
-    //         "Uses Argon2ID under the hood - resistant to GPU and ASIC attacks (more secure), slower, and requires more memory.",
-    //     AES256: "Uses PBKDF2 under the hood - faster, not resistant to GPU and ASIC attacks (less secure).",
-    // };
-
-    export const unlockVaultFormSchema = z.object({
-        Secret: z.string().min(1, requiredFieldError),
-        Encryption: vaultEncryptionFormElement,
-        EncryptionKeyDerivationFunction:
-            vaultEncryptionKeyDerivationFunctionFormElement,
-        EncryptionConfig: vaultEncryptionConfigurationsFormElement,
-        CaptchaToken: z.string(),
-    });
-    export const unlockVaultWCaptchaFormSchema = unlockVaultFormSchema.extend({
-        CaptchaToken: z.string().nonempty("Captcha is required."),
-    });
-    export type UnlockVaultFormSchemaType = z.infer<
-        typeof unlockVaultFormSchema
-    >;
-
     export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
         /*
          * NOTE: This property is **not** serialized and saved in the vault
@@ -1224,7 +1161,8 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * @returns A new VaultMetadata object ready to be saved to the database
      */
     public static async createNewVault(
-        formData: NewVaultFormSchemaType,
+        formData: FormSchemas.NewVaultFormSchemaType,
+        encryptionFormData: FormSchemas.EncryptionFormGroupSchemaType,
         seedVault = false,
         seedCount = 0,
     ): Promise<VaultMetadata> {
@@ -1237,7 +1175,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
         // Instantiate a new vault to encrypt
         const freshVault = new Vault(
-            await VaultEncryption.hashSecret(formData.Secret),
+            await VaultEncryption.hashSecret(encryptionFormData.Secret),
             seedVault,
             seedCount,
         );
@@ -1249,10 +1187,10 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         vaultMetadata.Blob = await VaultEncryption.EncryptDataBlob(
             _vaultBytes,
             freshVault.Secret,
-            formData.Encryption,
-            formData.EncryptionKeyDerivationFunction,
-            formData.EncryptionConfig, // TODO: Get this TF out of here
-            formData.EncryptionConfig, // TODO: Move this too
+            encryptionFormData.Encryption,
+            encryptionFormData.EncryptionKeyDerivationFunction,
+            encryptionFormData.EncryptionConfig, // TODO: Get this TF out of here
+            encryptionFormData.EncryptionConfig, // TODO: Move this too
         );
 
         return vaultMetadata;
@@ -1263,8 +1201,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * If the vault instance is not null, encrypt it, add it to the blob and save it to the database.
      * If the vault instance is null, just save the existing blob to the database.
      * @param vaultInstance The fresh vault instance to save to the database
+     * @param encryptionConfigFormSchema The encryption configuration form schema (in case we're modifying the encryption configuration)
      */
-    public async save(vaultInstance: Vault | null): Promise<void> {
+    public async save(
+        vaultInstance: Vault | null,
+        encryptionConfigFormSchema?: FormSchemas.EncryptionFormGroupSchemaType,
+    ): Promise<void> {
         if (this.Blob == null) {
             throw new Error("Cannot save, vault blob is null");
         }
@@ -1275,6 +1217,13 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             // Update the last used date only if we're actually updating the vault
             this.LastUsed = new Date().toISOString();
 
+            // If the encryption configuration form schema is provided, update the vault Secret
+            if (encryptionConfigFormSchema) {
+                vaultInstance.Secret = await VaultEncryption.hashSecret(
+                    encryptionConfigFormSchema.Secret,
+                );
+            }
+
             // Serialize the vault instance
             const _vaultBytes =
                 VaultUtilTypes.Vault.encode(vaultInstance).finish();
@@ -1283,12 +1232,15 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             this.Blob = await VaultEncryption.EncryptDataBlob(
                 _vaultBytes,
                 vaultInstance.Secret,
-                this.Blob.Algorithm,
-                this.Blob.KeyDerivationFunc,
-                this.Blob
-                    .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-                this.Blob
-                    .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
+                encryptionConfigFormSchema?.Encryption ?? this.Blob.Algorithm,
+                encryptionConfigFormSchema?.EncryptionKeyDerivationFunction ??
+                    this.Blob.KeyDerivationFunc,
+                (encryptionConfigFormSchema?.EncryptionConfig ??
+                    this.Blob
+                        .KDFConfigArgon2ID) as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+                (encryptionConfigFormSchema?.EncryptionConfig ??
+                    this.Blob
+                        .KDFConfigPBKDF2) as VaultUtilTypes.KeyDerivationConfigPBKDF2,
             );
         }
 
@@ -1309,7 +1261,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         secret: string,
         encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
-        keyDerivationFuncConfig: VaultEncryption.VaultEncryptionConfigurationsFormElementType,
+        keyDerivationFuncConfig: FormSchemas.VaultEncryptionConfigurationsFormElementType,
     ): Promise<Vault> {
         if (this.Blob == null) {
             throw new Error("Vault blob is null");
@@ -2214,14 +2166,7 @@ class Configuration implements VaultUtilTypes.Configuration {
     }
 }
 
-const GroupSchema = z.object({
-    ID: z.string().nullable(),
-    Name: z.string(),
-    Icon: z.string(),
-    Color: z.string(),
-});
-export type GroupSchemaType = z.infer<typeof GroupSchema>;
-class Group implements VaultUtilTypes.Group, GroupSchemaType {
+class Group implements VaultUtilTypes.Group, FormSchemas.GroupSchemaType {
     public ID: string;
     public Name: string;
     public Icon: string;
@@ -2658,7 +2603,7 @@ export class Vault implements VaultUtilTypes.Vault {
     //#endregion Credential Methods
 
     //#region Group Methods
-    public upsertGroup(form: GroupSchemaType): void {
+    public upsertGroup(form: FormSchemas.GroupSchemaType): void {
         const existingGroup: Group | undefined = this.Groups.find(
             (g) => g.ID === form.ID,
         );
@@ -3083,20 +3028,106 @@ export namespace Synchronization {
     }
 }
 
-//#region Schemas
-export const newVaultFormSchema = z.object({
-    Name: z.string().min(1, requiredFieldError).max(255, "Name is too long"),
-    Description: z.string().max(500, "Description is too long"),
-    Secret: z.string().min(1, requiredFieldError),
-    Encryption: VaultEncryption.vaultEncryptionFormElement,
-    EncryptionKeyDerivationFunction:
-        VaultEncryption.vaultEncryptionKeyDerivationFunctionFormElement,
-    EncryptionConfig: VaultEncryption.vaultEncryptionConfigurationsFormElement,
-});
-export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
+export namespace FormSchemas {
+    export const vaultEncryptionFormElement = z
+        .nativeEnum(VaultUtilTypes.EncryptionAlgorithm)
+        .default(VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305);
 
-export const vaultRestoreFormSchema = z.object({
-    Name: z.string().min(1, requiredFieldError),
-});
-export type VaultRestoreFormSchema = z.infer<typeof vaultRestoreFormSchema>;
-//#endregion Schemas
+    export const vaultEncryptionKeyDerivationFunctionFormElement = z
+        .nativeEnum(VaultUtilTypes.KeyDerivationFunction)
+        .default(VaultUtilTypes.KeyDerivationFunction.Argon2ID);
+
+    export const vaultEncryptionConfigurationsFormElement = z.object({
+        memLimit: z.coerce
+            .number()
+            .default(
+                VaultEncryption.KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+            )
+            .refine(
+                (x) => {
+                    return (
+                        x >=
+                        VaultEncryption.KeyDerivationConfig_Argon2ID
+                            .MIN_MEM_LIMIT
+                    );
+                },
+                {
+                    message: `Memory limit must be above ${VaultEncryption.KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT}`,
+                },
+            ),
+        opsLimit: z.coerce
+            .number()
+            .default(
+                VaultEncryption.KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+            )
+            .refine(
+                (x) => {
+                    return (
+                        x >=
+                            VaultEncryption.KeyDerivationConfig_Argon2ID
+                                .MIN_OPS_LIMIT &&
+                        x <=
+                            VaultEncryption.KeyDerivationConfig_Argon2ID
+                                .MAX_OPS_LIMIT
+                    );
+                },
+                {
+                    message: `Operation limit must be between ${VaultEncryption.KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT} and ${VaultEncryption.KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT}`,
+                },
+            ),
+        iterations: z.coerce
+            .number()
+            .default(
+                VaultEncryption.KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
+            ),
+    });
+    export type VaultEncryptionConfigurationsFormElementType = z.infer<
+        typeof vaultEncryptionConfigurationsFormElement
+    >;
+
+    // export const vaultEncryptionDescriptions = {
+    //     XChaCha20Poly1305:
+    //         "Uses Argon2ID under the hood - resistant to GPU and ASIC attacks (more secure), slower, and requires more memory.",
+    //     AES256: "Uses PBKDF2 under the hood - faster, not resistant to GPU and ASIC attacks (less secure).",
+    // };
+
+    export const unlockVaultFormSchema = z.object({
+        CaptchaToken: z.string(),
+    });
+    export const unlockVaultWCaptchaFormSchema = unlockVaultFormSchema.extend({
+        CaptchaToken: z.string().nonempty("Captcha is required."),
+    });
+
+    export const encryptionFormGroupSchema = z.object({
+        Secret: z.string().min(1, requiredFieldError),
+        Encryption: vaultEncryptionFormElement,
+        EncryptionKeyDerivationFunction:
+            vaultEncryptionKeyDerivationFunctionFormElement,
+        EncryptionConfig: vaultEncryptionConfigurationsFormElement,
+    });
+    export type EncryptionFormGroupSchemaType = z.infer<
+        typeof encryptionFormGroupSchema
+    >;
+
+    export const newVaultFormSchema = z.object({
+        Name: z
+            .string()
+            .min(1, requiredFieldError)
+            .max(255, "Name is too long"),
+        Description: z.string().max(500, "Description is too long"),
+    });
+    export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
+
+    export const vaultRestoreFormSchema = z.object({
+        Name: z.string().min(1, requiredFieldError),
+    });
+    export type VaultRestoreFormSchema = z.infer<typeof vaultRestoreFormSchema>;
+
+    export const GroupSchema = z.object({
+        ID: z.string().nullable(),
+        Name: z.string(),
+        Icon: z.string(),
+        Color: z.string(),
+    });
+    export type GroupSchemaType = z.infer<typeof GroupSchema>;
+}

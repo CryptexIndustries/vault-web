@@ -45,7 +45,7 @@ type InfobipResponse = {
                 name: string;
                 description: string;
             };
-        }
+        },
     ];
     requestError?: {
         serviceException: {
@@ -69,7 +69,7 @@ const sendRequest = async (data: FormData): Promise<InfobipResponse> => {
 
 export const sendVerificationEmail = async (
     to: string,
-    body: string
+    body: string,
 ): Promise<InfobipResponse> => {
     if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
         throw new Error("[EMAIL] Infobip not configured. Skipping...");
@@ -111,7 +111,7 @@ export const sendVerificationEmail = async (
 
 export const sendContactEmail = async (
     from: string,
-    message: string
+    message: string,
 ): Promise<InfobipResponse> => {
     if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
         throw new Error("[EMAIL] Infobip not configured. Skipping...");
@@ -131,7 +131,38 @@ export const sendContactEmail = async (
             <hr />
             <br />
             <p>${message}</p>
+        `,
+    );
+
+    return sendRequest(data);
+};
+
+export const sendFeedbackEmail = async (
+    from: string,
+    userID: string,
+    reason: "Feature" | "Bug" | "General",
+    message: string,
+): Promise<InfobipResponse> => {
+    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
+        throw new Error("[EMAIL] Infobip not configured. Skipping...");
+    }
+
+    const data = new FormData();
+    data.append("from", `CryptexVault <${env.EMAIL_CONTACT_US_SENDER}>`);
+    data.append("to", env.EMAIL_CONTACT_US_RECEIVER);
+    data.append("replyTo", from);
+    data.append("subject", "CryptexVault - Feedback Form Submission");
+    data.append(
+        "html",
         `
+            <h1>Feedback Form Submission</h1>
+            <p><strong>From:</strong> ${from} (${userID})</p>
+            <p><strong>Reason:</strong> ${reason}</p>
+            <br />
+            <hr />
+            <br />
+            <p>${message}</p>
+        `,
     );
 
     return sendRequest(data);

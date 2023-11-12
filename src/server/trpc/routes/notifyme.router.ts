@@ -4,8 +4,8 @@ import {
     checkRatelimitNotifyme,
     trpcRatelimitError,
 } from "../../common/ratelimiting";
-import { publicProcedure } from "../trpc";
-import { sendContactEmail } from "../../common/email";
+import { protectedProcedure, publicProcedure } from "../trpc";
+import { sendContactEmail, sendFeedbackEmail } from "../../common/email";
 
 export const notifyMeRouterRegister = publicProcedure
     .input(
@@ -13,7 +13,7 @@ export const notifyMeRouterRegister = publicProcedure
             email: z.string().email(),
             ref: z.enum(["enterprise-tier"]).nullable(),
             captchaToken: z.string(),
-        })
+        }),
     )
     .mutation(async ({ ctx, input }) => {
         if (!checkRatelimitNotifyme(ctx.userIP)) {
@@ -58,7 +58,7 @@ export const notifyMeRouterContact = publicProcedure
             email: z.string().email(),
             message: z.string().max(500),
             captchaToken: z.string(),
-        })
+        }),
     )
     .mutation(async ({ ctx, input }) => {
         if (!checkRatelimitNotifyme(ctx.userIP)) {
@@ -82,6 +82,48 @@ export const notifyMeRouterContact = publicProcedure
             };
         } catch (error: unknown) {
             console.error(`[notifyme.contact] Error sending email: ${error}`);
+            return {
+                success: false,
+                message: "Something went wrong.",
+            };
+        }
+    });
+
+export const feedbackRouter = protectedProcedure
+    .input(
+        z.object({
+            reason: z.enum(["Feature", "Bug", "General"]),
+            message: z.string().max(500),
+            captchaToken: z.string(),
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+        if (!checkRatelimitNotifyme(ctx.userIP)) {
+            throw trpcRatelimitError;
+        }
+
+        // Send a request to the Captcha API to verify the user's response
+        const verification = await validateCaptcha(input.captchaToken);
+
+        // If the user's response was invalid, return an error
+        if (!verification.success) {
+            throw new Error("Failed to validate captcha");
+        }
+
+        try {
+            await sendFeedbackEmail(
+                ctx.session.user.email,
+                ctx.session.user.id,
+                input.reason,
+                input.message,
+            );
+
+            return {
+                success: true,
+                message: "",
+            };
+        } catch (error: unknown) {
+            console.error(`[notifyme.feedback] Error sending email: ${error}`);
             return {
                 success: false,
                 message: "Something went wrong.",

@@ -51,6 +51,7 @@ import {
     InformationCircleIcon,
     ExclamationCircleIcon,
     TableCellsIcon,
+    ChatBubbleBottomCenterTextIcon,
 } from "@heroicons/react/20/solid";
 
 import { Turnstile } from "@marsidev/react-turnstile";
@@ -120,6 +121,7 @@ import {
     DivergenceSolveDialog,
     type DivergenceSolveShowDialogFnPropType,
 } from "../../components/dialog/synchronization";
+import FeedbackDialog from "../../components/dialog/feedbackDialog";
 
 dayjs.extend(RelativeTime);
 
@@ -9117,6 +9119,9 @@ const VaultDashboard: React.FC = ({}) => {
     const showAccountSignUpSignInDialogRef = useRef<(() => void) | null>(null);
     const showRecoveryGenerationDialogRef = useRef<(() => void) | null>(null);
     const showFeatureVotingDialogRef = useRef<(() => void) | null>(null);
+    const showFeedbackDialogFnRef = useRef<() => void>(() => {
+        // No-op
+    });
     const showVaultSettingsDialogRef = useRef<() => void>(() => {
         // No-op
     });
@@ -9258,6 +9263,13 @@ const VaultDashboard: React.FC = ({}) => {
                                     showFeatureVotingDialogRef.current?.()
                                 }
                             />
+                            <DashboardSidebarMenuItem
+                                Icon={ChatBubbleBottomCenterTextIcon}
+                                text="Contact Us"
+                                onClick={() =>
+                                    showFeedbackDialogFnRef.current?.()
+                                }
+                            />
                             <p className="text-sm text-slate-500">Vault</p>
                             <DashboardSidebarMenuItem
                                 Icon={KeyIcon}
@@ -9323,6 +9335,7 @@ const VaultDashboard: React.FC = ({}) => {
             <CredentialsGeneratorDialog
                 showDialogFnRef={showCredentialsGeneratorDialogFnRef}
             />
+            <FeedbackDialog showDialogFnRef={showFeedbackDialogFnRef} />
         </>
     );
 };

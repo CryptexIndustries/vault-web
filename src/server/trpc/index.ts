@@ -11,6 +11,7 @@ import {
 import {
     notifyMeRouterRegister,
     notifyMeRouterContact,
+    feedbackRouter,
 } from "./routes/notifyme.router";
 import {
     accountRouterGetLinkingConfiguration,
@@ -35,6 +36,7 @@ const mainRouter = router({
     notifyme: router({
         register: notifyMeRouterRegister,
         contact: notifyMeRouterContact,
+        feedback: feedbackRouter,
     }),
     credentials: router({
         generateAuthNonce: credentialsRouterGenerateAuthNonce,

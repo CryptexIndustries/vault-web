@@ -63,7 +63,7 @@ export const GenericModal: React.FC<ModalProps> = ({
         <Transition.Root show={isVisible} as={Fragment}>
             <Dialog
                 as="div"
-                className="relative z-10"
+                className="relative"
                 onClose={inhibitDismissOnClickOutside ? dummyFn : _onDismiss}
             >
                 <Transition.Child
@@ -78,17 +78,17 @@ export const GenericModal: React.FC<ModalProps> = ({
                     <div className="fixed inset-0 bg-black bg-opacity-10 backdrop-blur-sm transition-opacity duration-150" />
                 </Transition.Child>
 
-                <div className="fixed inset-0 z-10 overflow-y-auto">
-                    <div className="mt-4 flex justify-center text-center sm:mt-0 sm:items-center md:min-h-full">
-                        <Transition.Child
-                            as={Fragment}
-                            enter="ease-out duration-300"
-                            enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                            enterTo="opacity-100 translate-y-0 sm:scale-100"
-                            leave="ease-in duration-200"
-                            leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-                            leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                        >
+                <Transition.Child
+                    as={Fragment}
+                    enter="ease-out duration-300"
+                    enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                    enterTo="opacity-100 translate-y-0 sm:scale-100"
+                    leave="ease-in duration-200"
+                    leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+                    leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                >
+                    <div className="fixed inset-0 overflow-y-auto">
+                        <div className="mt-4 flex justify-center text-center sm:mt-0 sm:items-center md:min-h-full">
                             <Dialog.Panel className="relative w-full transform overflow-hidden rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
                                 {childrenTitle ? (
                                     <div className="flex justify-center bg-gray-50 px-4 py-3 sm:justify-start">
@@ -97,9 +97,9 @@ export const GenericModal: React.FC<ModalProps> = ({
                                 ) : null}
                                 {children}
                             </Dialog.Panel>
-                        </Transition.Child>
+                        </div>
                     </div>
-                </div>
+                </Transition.Child>
             </Dialog>
         </Transition.Root>
     );

@@ -4357,7 +4357,9 @@ const ChangeVaultEncryptionConfigDialog: React.FC<{
                 <ButtonFlat
                     text="Save"
                     className="sm:ml-2"
-                    onClick={handleSubmitEncryptionForm.current(onSubmit)}
+                    onClick={() =>
+                        handleSubmitEncryptionForm.current(onSubmit)()
+                    }
                     disabled={isLoading}
                     loading={isLoading}
                 />

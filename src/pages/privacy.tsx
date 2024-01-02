@@ -37,15 +37,19 @@ const PrivacyPolicy: NextPage = () => {
                                 account or the application itself)
                             </h3>
                             <p className="pt-2 text-justify">
-                                We collect as little information about the user
-                                as possible. The only information we collect is
-                                the user&apos;s email address and browser user
-                                agent, the email is used to identify the user
-                                and to send them emails regarding their account,
-                                and the browser user agent is used to help the
-                                user identify the other devices they have logged
-                                in from. We do not collect nor share this data
-                                or any other data to any third parties.
+                                We prioritize minimal data collection from our
+                                users. The information we gather includes the
+                                user&apos;s IP address, email address, and
+                                browser user agent. The email address is
+                                utilized for user identification, verification
+                                and to facilitate account-related
+                                communications. The browser user agent assists
+                                users in recognizing other devices they have
+                                logged in from. The IP address is saved only for
+                                the duration of active sessions, primarily for
+                                security and rate-limiting purposes. We do not
+                                collect any additional data. Furthermore, we do
+                                not share this data with any third parties.
                             </p>
                             <h3 className="mt-5 text-xl font-bold">
                                 1.3. Payment Information

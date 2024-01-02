@@ -16,6 +16,8 @@ import { initUserSubscriptionTier } from "../../../utils/subscription";
 import validateCaptcha from "../../../utils/captcha";
 import { checkAuthRatelimit } from "../../../server/common/ratelimiting";
 import { PrismaAdapter } from "../../../server/common/prisma-adapter";
+import ipFromHeaders from "../../../server/common/ip-collection";
+import type { IncomingHttpHeaders } from "http";
 
 // Used for nonce generation and verification
 const redis = Redis.fromEnv();
@@ -64,7 +66,7 @@ declare module "next-auth" {
 
 export function requestWrapper(
     req: NextApiRequest,
-    res: NextApiResponse
+    res: NextApiResponse,
 ): [req: NextApiRequest, res: NextApiResponse, opts: NextAuthOptions] {
     const generateSessionToken = () => randomUUID();
 
@@ -135,11 +137,12 @@ export function requestWrapper(
                     credentials:
                         | Record<string | number | symbol, string>
                         | undefined,
-                    req
+                    req,
                 ) => {
                     // Get the ip address of the request
-                    const ip: string =
-                        req.headers?.["x-forwarded-for"] ?? "127.0.0.1";
+                    const ip: string = ipFromHeaders(
+                        req.headers as IncomingHttpHeaders,
+                    );
 
                     if (!checkAuthRatelimit(ip)) {
                         return null;
@@ -159,7 +162,7 @@ export function requestWrapper(
                         if (!credentials?.captchaToken) return null;
 
                         const response = await validateCaptcha(
-                            credentials.captchaToken
+                            credentials.captchaToken,
                         );
 
                         if (!response.success) return null;
@@ -191,7 +194,7 @@ export function requestWrapper(
                     const isProd = env.NODE_ENV === "production";
                     const nonce = isProd
                         ? await redis.get<string>(
-                              `auth-nonce-${credentials.nonce}`
+                              `auth-nonce-${credentials.nonce}`,
                           )
                         : null;
 
@@ -201,7 +204,7 @@ export function requestWrapper(
                     // Remove the nonce from the redis cache
                     if (isProd)
                         await redis.del(
-                            `auth-nonce-${credentials.signedNonce}`
+                            `auth-nonce-${credentials.signedNonce}`,
                         );
 
                     // Verify the nonce signature
@@ -209,7 +212,7 @@ export function requestWrapper(
                     // If the signature is valid, return the user object
                     const signatureValid = await validateSignature(
                         credentials.signature,
-                        account.public_key
+                        account.public_key,
                     );
 
                     if (!signatureValid) return null;
@@ -232,7 +235,7 @@ export function requestWrapper(
                         if (user.email_verification_expires_at < new Date()) {
                             // If it the expiry has passed, disable the account
                             throw new Error(
-                                "Your email verification period has expired and the account has been disabled. Please contact support to re-enable your account."
+                                "Your email verification period has expired and the account has been disabled. Please contact support to re-enable your account.",
                             );
                         }
                     }
@@ -256,12 +259,12 @@ export function requestWrapper(
                 if (
                     req.query.nextauth?.includes("callback") &&
                     req.query.nextauth.includes(
-                        CREDENTIAL_PROVIDERS.CryptexKeyBased
+                        CREDENTIAL_PROVIDERS.CryptexKeyBased,
                     ) &&
                     req.method === "POST"
                 ) {
                     const cookie = getCookie(
-                        opts.cookies?.sessionToken?.name ?? sessionTokenName
+                        opts.cookies?.sessionToken?.name ?? sessionTokenName,
                     )?.toString();
 
                     if (cookie) return cookie;
@@ -275,7 +278,7 @@ export function requestWrapper(
                 if (
                     req.query.nextauth?.includes("callback") &&
                     req.query.nextauth.includes(
-                        CREDENTIAL_PROVIDERS.CryptexKeyBased
+                        CREDENTIAL_PROVIDERS.CryptexKeyBased,
                     ) &&
                     req.method === "POST"
                 ) {
@@ -309,23 +312,17 @@ export function requestWrapper(
                 if (
                     req.query.nextauth?.includes("callback") &&
                     req.query.nextauth?.includes(
-                        CREDENTIAL_PROVIDERS.CryptexKeyBased
+                        CREDENTIAL_PROVIDERS.CryptexKeyBased,
                     ) &&
                     req.method === "POST"
                 ) {
                     if (user) {
                         const sessionToken = generateSessionToken();
                         const sessionExpiry = fromDate(
-                            opts.session?.maxAge ?? defaultSessionExpiery
+                            opts.session?.maxAge ?? defaultSessionExpiery,
                         );
 
-                        // Or x-vercel-forwarded-for?
-                        const forwarded = req.headers[
-                            "x-forwarded-for"
-                        ] as string;
-                        const ip = forwarded
-                            ? forwarded.split(/, /)[0]
-                            : req.socket.remoteAddress;
+                        const ip = ipFromHeaders(req.headers);
 
                         try {
                             // Making this an upsert means that if the user already has a session, it will be updated with the new session token and expiry
@@ -354,7 +351,7 @@ export function requestWrapper(
                         } catch (err) {
                             console.error(
                                 "[NextAuth] Failed to create session.",
-                                err
+                                err,
                             );
                             throw new Error("Failed to create session");
                         }
@@ -363,7 +360,11 @@ export function requestWrapper(
                             opts.cookies?.sessionToken?.name ??
                                 sessionTokenName,
                             sessionToken,
-                            { ...opts.cookies?.sessionToken?.options, req, res }
+                            {
+                                ...opts.cookies?.sessionToken?.options,
+                                req,
+                                res,
+                            },
                         );
 
                         // Check whether or not a subscription exists for the user, if it doesn't then create one for the free plan
@@ -371,7 +372,7 @@ export function requestWrapper(
                             initUserSubscriptionTier(
                                 prisma,
                                 user.id,
-                                user.email
+                                user.email,
                             );
 
                         return true;

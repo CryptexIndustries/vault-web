@@ -5,6 +5,7 @@ import { Session } from "next-auth";
 import { getServerAuthSession } from "../common/get-server-auth-session";
 import { prisma } from "../db/client";
 import { NextApiRequest } from "next";
+import ipFromHeaders from "../common/ip-collection";
 
 type CreateContextOptions = {
     session: Session | null;
@@ -30,7 +31,7 @@ export const createContextInner = async (opts: CreateContextOptions) => {
  * @link https://trpc.io/docs/context
  **/
 export const createContext = async (
-    opts: trpcNext.CreateNextContextOptions
+    opts: trpcNext.CreateNextContextOptions,
 ) => {
     const { req, res } = opts;
 
@@ -40,7 +41,7 @@ export const createContext = async (
     return await createContextInner({
         session,
         req,
-        userIP: (req.headers?.["x-forwarded-for"] ?? "127.0.0.1") as string,
+        userIP: ipFromHeaders(req.headers),
     });
 };
 

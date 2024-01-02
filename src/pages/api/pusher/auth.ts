@@ -8,6 +8,7 @@ import { env } from "../../../env/client.mjs";
 import { env as serverEnv } from "../../../env/server.mjs";
 import { checkRatelimitPusher } from "../../../server/common/ratelimiting";
 import runMiddleware from "../../../server/common/api-middleware";
+import ipFromHeaders from "../../../server/common/ip-collection";
 
 const cors = Cors({
     methods: ["POST"],
@@ -32,8 +33,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     // This way we don't query the database for every request
     await runMiddleware(req, res, cors);
 
-    const ip: string = (req.headers?.["x-forwarded-for"] ??
-        "127.0.0.1") as string;
+    const ip = ipFromHeaders(req.headers);
     if (!checkRatelimitPusher(ip)) {
         res.status(429).send("Too Many Requests");
         return;

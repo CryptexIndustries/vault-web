@@ -32,7 +32,7 @@ import { env } from "../../env/server.mjs";
 }
 */
 
-type InfobipResponse = {
+type InfobipEmailSendResponse = {
     bulkId?: string;
     messages?: [
         {
@@ -47,6 +47,9 @@ type InfobipResponse = {
             };
         },
     ];
+    /*
+     * In case we receive anything other than 200 OK, this will be populated with the error message.
+     */
     requestError?: {
         serviceException: {
             messageId: string;
@@ -55,7 +58,72 @@ type InfobipResponse = {
     };
 };
 
-const sendRequest = async (data: FormData): Promise<InfobipResponse> => {
+type InfobipEmailValidationResponse = {
+    /*
+     * The email address that was validated.
+     */
+    to: string;
+    /*
+     * Represents the status of the recipient email address.
+     */
+    validMailbox: "true" | "false" | "unknown";
+    /*
+     * Represents syntax of recipient email address.
+     */
+    validSyntax: boolean;
+    /*
+     * Is this an email address that accepts all emails sent to them.
+     */
+    catchAll: boolean;
+    /*
+     * Suggests a possible correction for the recipient email address.
+     */
+    didYouMean: boolean;
+    /*
+     * Whether or not the email address is disposable.
+     */
+    disposable: boolean;
+    /*
+     * Whether or not the email address is associated with a company/department/group of recipients instead of an individual.
+     */
+    roleBased: boolean;
+    /**
+     * INBOX_FULL - The user quota exceeded / The user inbox is full / The user doesn't accept any more requests.
+     * UNEXPECTED_FAILURE - The mail Server returned a temporary error.
+     * THROTTLED - The mail server is not allowing us momentarily because of too many requests.
+     * TIMED_OUT - The Mail Server took a longer time to respond / there was a delay in the network.
+     * TEMP_REJECTION - Mail server temporarily rejected.
+     * UNABLE_TO_CONNECT - Unable to connect to the Mail Server.
+     */
+    reason?:
+        | "INBOX_FULL"
+        | "UNEXPECTED_FAILURE"
+        | "THROTTLED"
+        | "TIMED_OUT"
+        | "TEMP_REJECTION"
+        | "UNABLE_TO_CONNECT";
+    /*
+     * In case we receive anything other than 200 OK, this will be populated with the error message.
+     */
+    requestError?: {
+        serviceException: {
+            messageId:
+                | "BAD_REQUEST"
+                | "UNAUTHORIZED"
+                | "TOO_MANY_REQUESTS"
+                | "GENERAL_ERROR";
+            text: string;
+        };
+    };
+};
+
+const sendEmailRequest = async (
+    data: FormData,
+): Promise<InfobipEmailSendResponse> => {
+    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY) {
+        throw new Error("[EMAIL] Infobip not configured. Skipping...");
+    }
+
     const response = await fetch(`${env.INFOBIP_BASE_URL}/email/3/send`, {
         method: "POST",
         headers: {
@@ -67,11 +135,37 @@ const sendRequest = async (data: FormData): Promise<InfobipResponse> => {
     return response.json();
 };
 
+export const tryValidateEmailAddress = async (
+    to: string,
+): Promise<InfobipEmailValidationResponse | null> => {
+    if (!env.INFOBIP_EMAIL_VALIDATION) {
+        return null;
+    }
+
+    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY) {
+        throw new Error("[EMAIL] Infobip not configured. Skipping...");
+    }
+
+    const response = await fetch(`${env.INFOBIP_BASE_URL}/email/2/validation`, {
+        method: "POST",
+        headers: {
+            Authorization: `App ${env.INFOBIP_API_KEY}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify({
+            to,
+        }),
+    });
+
+    return response.json();
+};
+
 export const sendVerificationEmail = async (
     to: string,
     body: string,
-): Promise<InfobipResponse> => {
-    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
+): Promise<InfobipEmailSendResponse> => {
+    if (!env.EMAIL_SENDER) {
         throw new Error("[EMAIL] Infobip not configured. Skipping...");
     }
 
@@ -106,14 +200,14 @@ export const sendVerificationEmail = async (
     // xhr.setRequestHeader("Authorization", `App ${env.INFOBIP_API_KEY}`);
     // xhr.send(data);
 
-    return sendRequest(data);
+    return sendEmailRequest(data);
 };
 
 export const sendContactEmail = async (
     from: string,
     message: string,
-): Promise<InfobipResponse> => {
-    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
+): Promise<InfobipEmailSendResponse> => {
+    if (!env.EMAIL_SENDER) {
         throw new Error("[EMAIL] Infobip not configured. Skipping...");
     }
 
@@ -134,7 +228,7 @@ export const sendContactEmail = async (
         `,
     );
 
-    return sendRequest(data);
+    return sendEmailRequest(data);
 };
 
 export const sendFeedbackEmail = async (
@@ -142,8 +236,8 @@ export const sendFeedbackEmail = async (
     userID: string,
     reason: "Feature" | "Bug" | "General",
     message: string,
-): Promise<InfobipResponse> => {
-    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY || !env.EMAIL_SENDER) {
+): Promise<InfobipEmailSendResponse> => {
+    if (!env.EMAIL_SENDER) {
         throw new Error("[EMAIL] Infobip not configured. Skipping...");
     }
 
@@ -165,5 +259,5 @@ export const sendFeedbackEmail = async (
         `,
     );
 
-    return sendRequest(data);
+    return sendEmailRequest(data);
 };

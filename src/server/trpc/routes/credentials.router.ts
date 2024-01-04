@@ -26,7 +26,10 @@ import {
     verificationTemplate,
 } from "../../common/identity-confirmation";
 import { protectedProcedure, publicProcedure } from "../trpc";
-import { sendVerificationEmail } from "../../common/email";
+import {
+    tryValidateEmailAddress,
+    sendVerificationEmail,
+} from "../../common/email";
 
 const redis = Redis.fromEnv();
 
@@ -54,7 +57,7 @@ export const credentialsRouterGenerateAuthNonce = publicProcedure
             // We just log the error and return the nonce
             console.error(
                 "[TRPC - credentials.generateAuthNonce] Failed to save nonce to redis.",
-                e
+                e,
             );
         }
 
@@ -67,7 +70,7 @@ export const credentialsRouterRegisterUser = publicProcedure
             email: z.string().email(),
             publicKey: z.string().max(256, "Invalid public key"),
             captchaToken: z.string(),
-        })
+        }),
     )
     .output(z.string())
     .mutation(async ({ ctx, input }) => {
@@ -81,6 +84,31 @@ export const credentialsRouterRegisterUser = publicProcedure
         // If the user's response was invalid, return an error
         if (!verification.success) {
             throw trpcCaptchaError;
+        }
+
+        const emailValidation = await tryValidateEmailAddress(input.email);
+
+        // In case the email validation is enabled, we check if the email address is valid
+        if (emailValidation) {
+            // In case we received 200 OK
+            if (!emailValidation.requestError) {
+                if (
+                    emailValidation.validMailbox != "true" ||
+                    !emailValidation.validSyntax
+                ) {
+                    throw new trpc.TRPCError({
+                        code: "BAD_REQUEST",
+                        message: "Invalid email address",
+                    });
+                }
+            } else {
+                // In case we received anything other than 200 OK, we can't validate the email address
+                // We just log the error and continue
+                console.error(
+                    "[TRPC - credentials.register-user] Failed to validate email address.",
+                    emailValidation.requestError,
+                );
+            }
         }
 
         // Check if the user already exists (by email)
@@ -129,7 +157,7 @@ export const credentialsRouterRegisterUser = publicProcedure
         } catch (e) {
             console.error(
                 "[TRPC - credentials.register-user] Failed to register user.",
-                e
+                e,
             );
             throw new trpc.TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
@@ -146,12 +174,12 @@ export const credentialsRouterRegisterUser = publicProcedure
             //  Send the confirmation email
             await sendVerificationEmail(
                 input.email,
-                verificationTemplate(link)
+                verificationTemplate(link),
             );
         } catch (e) {
             console.error(
                 "[TRPC - credentials.register-user] Failed to send verification email.",
-                e
+                e,
             );
         }
         return accountId;
@@ -162,7 +190,7 @@ export const credentialsRouterConfirm = publicProcedure
         z.object({
             captchaToken: z.string().nonempty(),
             token: z.string(),
-        })
+        }),
     )
     .mutation(async ({ ctx, input }) => {
         if (!checkRatelimitUserVerification(ctx.userIP)) {
@@ -180,7 +208,7 @@ export const credentialsRouterConfirm = publicProcedure
         // Check if the token that the user provided is valid
         const isTokenValid = await confirmVerificationToken(
             ctx.prisma,
-            input.token
+            input.token,
         );
 
         // If the token is invalid, throw an error
@@ -220,7 +248,7 @@ export const credentialsRouterResendVerificationEmail =
         // Create a new confirmation link
         const link = await issueNewVerificationToken(
             ctx.prisma,
-            ctx.session.user.id
+            ctx.session.user.id,
         );
 
         //  Send the confirmation email
@@ -236,7 +264,7 @@ export const credentialsRecover = publicProcedure
                 .length(64, "Invalid recovery phrase"),
             publicKey: z.string().max(256, "Invalid public key"),
             captchaToken: z.string(),
-        })
+        }),
     )
     .output(z.string())
     .mutation(async ({ ctx, input }) => {

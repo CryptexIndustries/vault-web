@@ -2157,11 +2157,11 @@ const WelcomeScreen: React.FC = ({}) => {
                     <>
                         <div className="flex flex-col items-center justify-center">
                             <p className="text-center text-4xl font-bold">
-                                Welcome to CryptexVault
+                                Welcome to Cryptex Vault
                             </p>
                             <p className="text-center text-base text-slate-400">
-                                CryptexVault is a decentralized password manager
-                                that allows <br />
+                                Cryptex Vault is a decentralized password
+                                manager that allows <br />
                                 you to manage your digital identity and access
                                 services <br />
                                 without having to trust any third party.

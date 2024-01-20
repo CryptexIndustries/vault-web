@@ -28,10 +28,10 @@ import { PAYMENT_TIERS } from "../utils/subscription";
 import { NotifyMeReference } from "../components/index/notifyMeForm";
 
 const NotifyMeForm = React.lazy(
-    () => import("../components/index/notifyMeForm")
+    () => import("../components/index/notifyMeForm"),
 );
 const ContactUsForm = React.lazy(
-    () => import("../components/index/contactUsForm")
+    () => import("../components/index/contactUsForm"),
 );
 
 enum FeatureState {
@@ -340,7 +340,7 @@ const Index: NextPage = ({}) => {
                                 </p>
                                 <p className="ml-4 text-justify text-gray-300 sm:text-start">
                                     Cryptex Vault is a fully decentralized
-                                    identity manager. It allows you to store and
+                                    password manager. It allows you to store and
                                     use your credentials, secrets and other
                                     information in a secure way using the web
                                     application and browser extensions. The web
@@ -722,7 +722,7 @@ const Index: NextPage = ({}) => {
                                         className="px-10 py-5"
                                         onClick={() => {
                                             setNotifyMeModalReference(
-                                                "enterprise-tier"
+                                                "enterprise-tier",
                                             );
                                             showNotifyMeModal();
                                         }}

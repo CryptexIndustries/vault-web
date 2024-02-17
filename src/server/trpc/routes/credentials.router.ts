@@ -1,6 +1,6 @@
 // import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import * as trpc from "@trpc/server";
-import { randomUUID, createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 import { z } from "zod";
 
@@ -8,6 +8,8 @@ import { Redis } from "@upstash/redis";
 
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
+
+import argon2 from "argon2";
 
 import { env } from "../../../env/server.mjs";
 import validateCaptcha, { trpcCaptchaError } from "../../../utils/captcha";
@@ -32,6 +34,14 @@ import {
 } from "../../common/email";
 
 const redis = Redis.fromEnv();
+
+const userRecoveryArgon2Config: argon2.Options & { raw?: false } = {
+    type: argon2.argon2id,
+    parallelism: 4, // 4 threads (each thread has a memory pool of memoryCost bytes)
+    memoryCost: 2 ** 16, // 64MiB
+    timeCost: 3, // 3 iterations (3 passes over the memory)
+    // salt: ..., // NOTE: We don't need to provide a salt, argon2 will generate a random salt
+};
 
 export const credentialsRouterGenerateAuthNonce = publicProcedure
     .output(z.string())
@@ -259,9 +269,7 @@ export const credentialsRecover = publicProcedure
     .input(
         z.object({
             userId: z.string().max(100, "Invalid user ID"),
-            recoveryPhraseHash: z
-                .string()
-                .length(64, "Invalid recovery phrase"),
+            recoveryPhrase: z.string().max(256, "Invalid recovery phrase"),
             publicKey: z.string().max(256, "Invalid public key"),
             captchaToken: z.string(),
         }),
@@ -299,13 +307,32 @@ export const credentialsRecover = publicProcedure
             });
         }
 
+        // Make the error intentionally vague
+        const wrongRecoveryPhraseErr = new trpc.TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid request",
+        });
+
         // Check if the recovery phrase matches
-        // Make the error intentionally vague to prevent brute force attacks
-        if (existingUser.recovery_token !== input.recoveryPhraseHash) {
-            throw new trpc.TRPCError({
-                code: "BAD_REQUEST",
-                message: "Invalid request",
-            });
+        // For legacy recovery tokens, we don't use argon2, we use sha256 then compare the hashes
+        // NOTE: Remove the legacy recovery token check after a few months - then reset the recovery tokens for the users that haven't logged in
+        if (!existingUser.recovery_token.startsWith("$argon2id$")) {
+            // NOTE: In the legacy implementation, we hashed the recovery token using sha256 on the client side, then we compare the hashes
+            const sha256Hashed = createHash("sha256")
+                .update(input.recoveryPhrase)
+                .digest("hex");
+
+            if (existingUser.recovery_token !== sha256Hashed) {
+                throw wrongRecoveryPhraseErr;
+            }
+        } else if (
+            // The new implementation uses argon2 to verify the recovery token
+            !(await argon2.verify(
+                existingUser.recovery_token,
+                input.recoveryPhrase,
+            ))
+        ) {
+            throw wrongRecoveryPhraseErr;
         }
 
         // Remove all existing accounts for this user
@@ -378,12 +405,27 @@ export const credentialsRouterGenerateRecoveryToken = protectedProcedure
         }
 
         // Generate a 256-bit mnemonic
-        const token = bip39.generateMnemonic(wordlist, 256);
+        const recoveryPhrase = bip39.generateMnemonic(wordlist, 256);
 
-        // Hash the mnemonic
-        const _hash = createHash("sha256");
-        _hash.update(token);
-        const hashedToken = _hash.digest("hex");
+        let hashedToken: string;
+
+        try {
+            // Hash the mnemonic
+            hashedToken = await argon2.hash(
+                recoveryPhrase,
+                userRecoveryArgon2Config,
+            );
+        } catch (err) {
+            console.error(
+                "[TRPC - credentials.generateRecoveryToken] Failed to hash the recovery token.",
+                err,
+            );
+
+            throw new trpc.TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to hash the recovery token",
+            });
+        }
 
         // Create a recovery token for the user
         await ctx.prisma.user.update({
@@ -398,7 +440,7 @@ export const credentialsRouterGenerateRecoveryToken = protectedProcedure
 
         return {
             userId: ctx.session.user.id,
-            token,
+            token: recoveryPhrase,
         };
     });
 

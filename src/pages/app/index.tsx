@@ -5805,18 +5805,10 @@ const AccountDialogRecoverForm: React.FC<{
             updateId: "recovery-generating-keys",
         });
 
-        // Hash the recovery phrase
-        const hashRaw = await crypto.subtle.digest(
-            "SHA-256",
-            new TextEncoder().encode(formData.recoveryPhrase),
-        );
-
-        const hash = Buffer.from(hashRaw).toString("hex");
-
         try {
             const newUserId = await recoverUser({
                 userId: formData.userId,
-                recoveryPhraseHash: hash,
+                recoveryPhrase: formData.recoveryPhrase,
                 publicKey: keyPair.publicKey,
                 captchaToken: formData.captchaToken,
             });

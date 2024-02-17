@@ -31,6 +31,7 @@
         "@upstash/ratelimit": "^0.4.4",
         "@upstash/redis": "^1.24.3",
         "@zxing/browser": "^0.1.4",
+        "argon2": "0.31.2",
         "clsx": "^2.0.0",
         "cookies-next": "^2.1.1",
         "cors": "^2.8.5",

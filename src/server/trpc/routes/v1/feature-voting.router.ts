@@ -1,21 +1,17 @@
 import { z } from "zod";
 import * as trpc from "@trpc/server";
-import {
-    checkRatelimitFeatureVoting,
-    trpcRatelimitError,
-} from "../../common/ratelimiting";
-import { protectedProcedure } from "../trpc";
+import { protectedProcedure } from "../../trpc";
+import { checkRatelimitter } from "../../../common/ratelimiting";
 
 export const featureVotingRouterOpenRoundExists = protectedProcedure
-    .output(
-        z.object({
-            result: z.boolean(),
-        })
-    )
+    .output(z.boolean())
     .query(async ({ ctx }) => {
-        if (!checkRatelimitFeatureVoting(ctx.userIP, false)) {
-            throw trpcRatelimitError;
-        }
+        await checkRatelimitter(
+            ctx.apiKeyHash,
+            "FEATURE_VOTING_OPEN_ROUND_EXISTS",
+            1,
+            "1m",
+        );
 
         // Check the end date of the round and compare it to the current date
         const openRound = await ctx.prisma.featureVotingRounds.findFirst({
@@ -34,9 +30,7 @@ export const featureVotingRouterOpenRoundExists = protectedProcedure
         });
 
         // Return a boolean result if an open round exists
-        return {
-            result: openRound ? true : false,
-        };
+        return openRound ? true : false;
     });
 
 export const featureVotingRouterGetRounds = protectedProcedure
@@ -58,24 +52,27 @@ export const featureVotingRouterGetRounds = protectedProcedure
                                 .array(
                                     z.object({
                                         id: z.string(),
-                                    })
+                                    }),
                                 )
                                 .optional(),
-                        })
+                        }),
                     ),
                     active: z.boolean().optional(), // If the round is active (between start and end date)
                     // votes: z.number().optional(), // The number of votes this round has received (if the round is done / not active)
                     userCanVote: z.boolean().optional(), // If the user can vote in this round (if the round is active and the user is logged in)
                     votedId: z.string().optional(), // The item ID the user has voted for (if the user has voted)
-                })
+                }),
             ),
             incorrectTier: z.boolean(), // If the user is logged in but has a tier that does not allow voting
-        })
+        }),
     )
     .query(async ({ ctx }) => {
-        if (!checkRatelimitFeatureVoting(ctx.userIP, false)) {
-            throw trpcRatelimitError;
-        }
+        await checkRatelimitter(
+            ctx.apiKeyHash,
+            "FEATURE_VOTING_GET_ROUNDS",
+            2,
+            "1m",
+        );
 
         // Return the latest two rounds
         const rounds: {
@@ -139,34 +136,14 @@ export const featureVotingRouterGetRounds = protectedProcedure
         });
 
         // Get the users tier and tier configuration
-        const tierFeatureFlags = await ctx.prisma.user.findUnique({
-            where: {
-                id: ctx.session?.user?.id,
-            },
-            select: {
-                subscription: {
-                    select: {
-                        configuration: {
-                            select: {
-                                feature_voting: true,
-                            },
-                        },
-                    },
-                },
-            },
-        });
-
-        const canUserVote =
-            tierFeatureFlags?.subscription?.flat().some((tier) => {
-                return tier?.configuration?.feature_voting;
-            }) ?? false;
+        const canUserVote = ctx.user.subscriptionConfig.feature_voting;
 
         const votes = await ctx.prisma.featureVotingVotes.findMany({
             where: {
                 round_id: {
                     in: rounds.map((round) => round.id),
                 },
-                user_id: ctx.session?.user?.id,
+                user_id: ctx.user.id,
             },
             select: {
                 round_id: true,
@@ -179,15 +156,14 @@ export const featureVotingRouterGetRounds = protectedProcedure
             round.active = false;
             round.items = items.filter((item) => item.round_id === round.id);
             round.userCanVote = false;
-            round.votedId = votes.find(
-                (vote) => vote.round_id === round.id
-            )?.item_id;
+            round.votedId = votes.find((vote) => vote.round_id === round.id)
+                ?.item_id;
 
             if (round.start <= new Date() && round.end >= new Date()) {
                 round.active = true;
 
-                // If user is logged in, check if they have voted in this round
-                if (ctx.session?.user && canUserVote) {
+                // Check if they have voted in this round
+                if (canUserVote) {
                     round.userCanVote = !round.votedId;
                 }
             }
@@ -204,36 +180,19 @@ export const featureVotingRouterPlaceVote = protectedProcedure
         z.object({
             roundId: z.string(),
             itemId: z.string(),
-        })
+        }),
     )
     .output(z.object({ success: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-        if (!checkRatelimitFeatureVoting(ctx.userIP, true)) {
-            throw trpcRatelimitError;
-        }
+        await checkRatelimitter(
+            ctx.apiKeyHash,
+            "FEATURE_VOTING_PLACE_VOTE",
+            2,
+            "1m",
+        );
 
         // Check if the user has a tier that allows voting
-        const tierFeatureFlags = await ctx.prisma.user.findUnique({
-            where: {
-                id: ctx.session.user.id,
-            },
-            select: {
-                subscription: {
-                    select: {
-                        configuration: {
-                            select: {
-                                feature_voting: true,
-                            },
-                        },
-                    },
-                },
-            },
-        });
-
-        const canUserVote =
-            tierFeatureFlags?.subscription?.flat().some((tier) => {
-                return tier?.configuration?.feature_voting;
-            }) ?? false;
+        const canUserVote = ctx.user.subscriptionConfig.feature_voting;
 
         if (!canUserVote) {
             throw new trpc.TRPCError({
@@ -270,7 +229,7 @@ export const featureVotingRouterPlaceVote = protectedProcedure
         const vote = await ctx.prisma.featureVotingVotes.findFirst({
             where: {
                 round_id: input.roundId,
-                user_id: ctx.session?.user?.id,
+                user_id: ctx.user.id,
             },
             select: {
                 id: true,
@@ -307,7 +266,7 @@ export const featureVotingRouterPlaceVote = protectedProcedure
             data: {
                 round_id: input.roundId,
                 item_id: input.itemId,
-                user_id: ctx.session?.user?.id,
+                user_id: ctx.user.id,
             },
         });
 

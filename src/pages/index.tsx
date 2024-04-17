@@ -24,7 +24,7 @@ import Spinner from "../components/general/spinner";
 import PageFooter from "../components/general/footer";
 import HTMLHeader from "../components/html_header";
 import HTMLMain from "../components/html_main";
-import { PAYMENT_TIERS } from "../utils/subscription";
+import { PAYMENT_TIERS } from "../server/utils/subscription";
 import { NotifyMeReference } from "../components/index/notifyMeForm";
 
 const NotifyMeForm = React.lazy(

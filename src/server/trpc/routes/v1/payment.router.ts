@@ -1,4 +1,3 @@
-// import Stripe from "stripe";
 import { z } from "zod";
 import {
     createCheckoutSession,
@@ -16,12 +15,9 @@ import {
 import {
     GetSubscriptionOutputSchemaType,
     getSubscriptionOutputSchema,
-} from "../../../schemes/payment_router";
-import {
-    checkRatelimitPaymentRouter,
-    trpcRatelimitError,
-} from "../../common/ratelimiting";
-import { protectedProcedure } from "../trpc";
+} from "../../../../schemes/payment_router";
+import { protectedProcedure } from "../../trpc";
+import { checkRatelimitter } from "../../../common/ratelimiting";
 
 // const StripeSubscriptionStatusZod: z.ZodType<Stripe.Subscription.Status> =
 //     z.enum([
@@ -45,31 +41,32 @@ export const paymentRouterGetCheckoutURL = protectedProcedure
                     ])
                     .default(PAYMENT_TIERS.premiumMonthly),
             })
-            .default({ tier: PAYMENT_TIERS.premiumMonthly })
+            .default({ tier: PAYMENT_TIERS.premiumMonthly }),
     )
     .output(z.string().nullable())
     .query(async ({ ctx, input }) => {
-        if (!checkRatelimitPaymentRouter(ctx.userIP, false)) {
-            throw trpcRatelimitError;
-        }
+        await checkRatelimitter(
+            ctx.apiKeyHash,
+            "PAYMENT_GET_CHECKOUT_URL",
+            3,
+            "10s",
+        );
 
         const priceId = GetPriceID(input.tier as PRICE_ID_KEY);
 
         if (!priceId?.length) {
             console.error(
-                `[TRPC - payment.getCheckoutURL] Invalid price ID. Tried: ${priceId} from ${input.tier}`
+                `[TRPC - payment.getCheckoutURL] Invalid price ID. Tried: ${priceId} from ${input.tier}`,
             );
         }
 
         try {
-            const id = await createCheckoutSession(
-                ctx.session.user.email,
-                priceId
-            );
+            const id = await createCheckoutSession(ctx.user.id, priceId);
 
             return await getCheckoutUrl(id);
         } catch (error) {
             console.error(error);
+
             throw new trpc.TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
                 message: "Something went wrong",
@@ -80,13 +77,16 @@ export const paymentRouterGetCheckoutURL = protectedProcedure
 export const paymentRouterGetSubscription = protectedProcedure
     .output(getSubscriptionOutputSchema)
     .query(async ({ ctx }) => {
-        if (!checkRatelimitPaymentRouter(ctx.userIP, true)) {
-            throw trpcRatelimitError;
-        }
+        await checkRatelimitter(
+            ctx.apiKeyHash,
+            "PAYMENT_GET_SUBSCRIPTION",
+            3,
+            "10s",
+        );
 
         const subscriptionData = await ctx.prisma.subscription.findFirst({
             where: {
-                user_id: ctx.session.user.id,
+                user_id: ctx.user.id,
             },
             select: {
                 created_at: true,
@@ -96,53 +96,38 @@ export const paymentRouterGetSubscription = protectedProcedure
                 cancel_at_period_end: true,
                 product_id: true,
                 customer_id: true,
-                configuration: true,
             },
         });
 
         // Number of linked devices corresponds to the number of accounts with the same user ID
-        const linkedDevices = await ctx.prisma.account.count({
-            where: {
-                userId: ctx.session.user.id,
-            },
-        });
+        // This does not include the main device
+        const linkedDevices =
+            (await ctx.prisma.aPIKey.count({
+                where: {
+                    user_id: ctx.user.id,
+                },
+            })) - 1;
 
         const output: GetSubscriptionOutputSchemaType = {
-            created_at: subscriptionData?.created_at,
-            expires_at: subscriptionData?.expires_at,
+            createdAt: subscriptionData?.created_at,
+            expiresAt: subscriptionData?.expires_at,
             status: subscriptionData?.status, // as Stripe.Subscription.Status,
-            payment_status: subscriptionData?.payment_status,
-            cancel_at_period_end: subscriptionData?.cancel_at_period_end,
-            product_id: subscriptionData?.product_id,
-            product_name:
+            paymentStatus: subscriptionData?.payment_status,
+            cancelAtPeriodEnd: subscriptionData?.cancel_at_period_end,
+            productId: subscriptionData?.product_id,
+            productName:
                 REVERSE_TIER_MAP[
                     subscriptionData?.product_id ?? PAYMENT_TIERS.standard
                 ]?.toUpperCase() ?? "Unknown",
-            customer_id: subscriptionData?.customer_id,
+            // customerId: subscriptionData?.customer_id,
             nonFree:
                 REVERSE_TIER_MAP[
                     subscriptionData?.product_id ?? PAYMENT_TIERS.standard
                 ] !== PAYMENT_TIERS.standard,
-            configuration: null,
+            resourceStatus: {
+                linkedDevices: linkedDevices,
+            },
         };
-
-        // The subscription configuration is null if the subscription is not configured in the db
-        if (subscriptionData?.configuration) {
-            output.configuration = {
-                linking_allowed: subscriptionData.configuration.linking_allowed,
-                linked_devices: linkedDevices,
-                linked_devices_limit: subscriptionData.configuration.max_links,
-                feature_voting: subscriptionData.configuration.feature_voting,
-                credentials_borrowing:
-                    subscriptionData.configuration.credentials_borrowing,
-                automated_backups:
-                    subscriptionData.configuration.automated_backups,
-            };
-        } else {
-            console.error(
-                "[TRPC - payment.getSubscription] Subscription configuration is null. This can only happen if we got a subscription product_id for which there is no configuration in the db."
-            );
-        }
 
         return output;
     });
@@ -150,13 +135,16 @@ export const paymentRouterGetSubscription = protectedProcedure
 export const paymentRouterGetCustomerPortal = protectedProcedure
     .output(z.string().nullable())
     .query(async ({ ctx }) => {
-        if (!checkRatelimitPaymentRouter(ctx.userIP, true)) {
-            throw trpcRatelimitError;
-        }
+        await checkRatelimitter(
+            ctx.apiKeyHash,
+            "PAYMENT_GET_CUSTOMER_PORTAL",
+            3,
+            "10s",
+        );
 
         const subscription = await ctx.prisma.subscription.findFirst({
             where: {
-                user_id: ctx.session.user.id,
+                user_id: ctx.user.id,
             },
             select: {
                 customer_id: true,
@@ -177,13 +165,14 @@ export const paymentRouterGetCustomerPortal = protectedProcedure
 
         try {
             const session = await getBillingPortalSession(
-                subscription.customer_id
+                subscription.customer_id,
             );
+
             return session.url;
         } catch (error) {
             console.error(
                 "[TRPC - payment.getCustomerPortal] Failed to get user billing portal session URL.",
-                error
+                error,
             );
             throw new trpc.TRPCError({
                 code: "INTERNAL_SERVER_ERROR",

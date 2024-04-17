@@ -41,15 +41,14 @@ type CaptchaResponse = {
  * @returns Captcha response
  * @throws Error if TURNSTILE_SECRET is not defined
  * @throws Error if the call to the captcha API fails
+ * @throws TRPCError if the captcha token is invalid
  */
-export default async function validateCaptcha(
-    token: string
-): Promise<CaptchaResponse> {
+export default async function validateCaptcha(token: string) {
     if (!process.env.TURNSTILE_SECRET) {
         throw new Error("TURNSTILE_SECRET is not defined");
     }
 
-    return await fetch(
+    const res: CaptchaResponse = await fetch(
         "https://challenges.cloudflare.com/turnstile/v0/siteverify",
         {
             method: "POST",
@@ -60,11 +59,15 @@ export default async function validateCaptcha(
                 secret: process.env.TURNSTILE_SECRET,
                 response: token,
             }),
-        }
+        },
     ).then((res) => res.json());
+
+    if (!res?.success) {
+        throw trpcCaptchaError;
+    }
 }
 
-export const trpcCaptchaError = new TRPCError({
+const trpcCaptchaError = new TRPCError({
     code: "BAD_REQUEST",
     message: "Failed to validate captcha.",
 });

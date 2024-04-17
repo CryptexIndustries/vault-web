@@ -1,11 +1,9 @@
 // src/pages/_app.tsx
-import { httpBatchLink } from "@trpc/client/links/httpBatchLink";
-import { loggerLink } from "@trpc/client/links/loggerLink";
 import { withTRPC } from "@trpc/next";
 import type { AppType } from "next/dist/shared/lib/utils";
-import superjson from "superjson";
-import type { AppRouter } from "../server/trpc";
+import type { VersionedRouter } from "../server/trpc";
 import "../styles/globals.css";
+import { reactQueryClientConfig } from "../utils/trpc";
 
 const MyApp: AppType = ({ Component, pageProps: { ...pageProps } }) => {
     return <Component {...pageProps} />;
@@ -17,32 +15,8 @@ const getBaseUrl = () => {
     return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
 };
 
-export default withTRPC<AppRouter>({
-    config() {
-        /**
-         * If you want to use SSR, you need to use the server's full URL
-         * @link https://trpc.io/docs/ssr
-         */
-        const url = `${getBaseUrl()}/api/trpc`;
-
-        return {
-            links: [
-                loggerLink({
-                    enabled: (opts) =>
-                        process.env.NODE_ENV === "development" ||
-                        (opts.direction === "down" &&
-                            opts.result instanceof Error),
-                }),
-                httpBatchLink({ url }),
-            ],
-            url,
-            transformer: superjson,
-            /**
-             * @link https://react-query.tanstack.com/reference/QueryClient
-             */
-            // queryClientConfig: { defaultOptions: { queries: { staleTime: 60 } } },
-        };
-    },
+export default withTRPC<VersionedRouter>({
+    config: () => reactQueryClientConfig(getBaseUrl()),
     /**
      * @link https://trpc.io/docs/ssr
      */

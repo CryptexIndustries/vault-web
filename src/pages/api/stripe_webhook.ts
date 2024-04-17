@@ -4,8 +4,11 @@ import { buffer } from "micro";
 import { PrismaClient } from "@prisma/client";
 import Cors from "cors";
 
-import { StripeConfiguration } from "../../utils/stripe";
-import { initUserSubscriptionTier } from "../../utils/subscription";
+import { StripeConfiguration } from "../../server/utils/stripe";
+import {
+    updateSubscription,
+    upsertUserSubscriptionTier,
+} from "../../server/utils/subscription";
 import runMiddleware from "../../server/common/api-middleware";
 
 // Stripe requires the raw body to construct the event.
@@ -19,19 +22,60 @@ const cors = Cors({
     methods: ["POST"],
     origin: "*",
     optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-})
+});
 
 const stripe = new Stripe(
     process.env.STRIPE_SECRET_KEY ?? "",
-    StripeConfiguration
+    StripeConfiguration,
 );
 
 const prisma = new PrismaClient();
 
+const removeAllButOldestAPIKey = async (
+    prisma: PrismaClient,
+    userId: string,
+) => {
+    // Here we delete all user API keys in the database
+    // Pull all API keys from the database and remove all but the oldest one
+    const apiKeys = await prisma.aPIKey.findMany({
+        where: {
+            user_id: userId,
+        },
+        orderBy: {
+            created_at: "asc",
+        },
+    });
+
+    // We want to keep the oldest API key
+    // NOTE: The apiKeys[0].id is always defined - if the item at index 0 exists
+    if (apiKeys.length > 1 && apiKeys[0]?.id) {
+        await prisma.aPIKey.deleteMany({
+            where: {
+                user_id: userId,
+                id: {
+                    not: apiKeys[0].id,
+                },
+            },
+        });
+
+        if (!apiKeys[0].root) {
+            // If the API key is not a root key, we want to make it a root key
+            await prisma.aPIKey.update({
+                where: {
+                    id: apiKeys[0].id,
+                },
+                data: {
+                    root: true,
+                },
+            });
+        }
+    }
+};
+
 // Docs: https://stripe.com/docs/api
 export default async function handler(
     req: NextApiRequest,
-    res: NextApiResponse
+    res: NextApiResponse,
 ) {
     await runMiddleware(req, res, cors);
 
@@ -53,13 +97,13 @@ export default async function handler(
             // On error, log and return the error message
             if (err instanceof Stripe.errors.StripeSignatureVerificationError) {
                 console.error(
-                    `[Stripe] Failed to parse webhook event. Error message: ${err.message}`
+                    `[Stripe] Failed to parse webhook event. Error message: ${err.message}`,
                 );
                 res.status(400).send("Bad signature");
             } else {
                 // Unknown server error
                 console.error(
-                    `[Stripe] Failed to parse webhook event. Error: ${err}`
+                    `[Stripe] Failed to parse webhook event. Error: ${err}`,
                 );
                 res.status(500).send("Internal server error");
             }
@@ -79,7 +123,7 @@ export default async function handler(
 
             if (!invoice?.id?.length) {
                 console.error(
-                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} || Error: Invalid invoice ID`
+                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} || Error: Invalid invoice ID`,
                 );
 
                 // Don't send an error, because we don't want to retry the webhook
@@ -88,7 +132,18 @@ export default async function handler(
             }
 
             const customerId = invoice.customer as string;
-            const customerEmail = invoice.customer_email;
+            const metadataUserID = invoice.subscription_details?.metadata
+                ?.user_id as string;
+
+            if (!metadataUserID?.length) {
+                console.error(
+                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} CustomerID: ${customerId} || Error: Missing metadataUserID`,
+                );
+
+                // Don't send an error, because we don't want to retry the webhook
+                res.status(200).send({ received: true });
+                return;
+            }
 
             // Early exit if the invoice is invalid
             if (
@@ -96,38 +151,22 @@ export default async function handler(
                 typeof invoice?.subscription !== "string"
             ) {
                 console.error(
-                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Invalid invoice`
+                    `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} CustomerID: ${customerId} UserID: ${metadataUserID} || Error: Invalid invoice`,
                 );
 
                 // Don't send an error, because we don't want to retry the webhook
                 res.status(200).send({ received: true });
                 return;
             }
-
-            // Early exit if the customer email is invalid
-            if (!customerEmail?.length) {
-                console.error(
-                    `[Stripe] [${event.type}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Invalid customerEmail`
-                );
-
-                // Don't send an error, because we don't want to retry the webhook
-                res.status(200).send({ received: true });
-                return;
-            }
-
-            // console.log(
-            //     event.type + " -----",
-            //     customerId,
-            //     customerEmail,
-            //     invoice
-            // );
 
             await updateSubscription(
+                prisma,
+                res,
                 event.type,
                 customerId,
-                customerEmail,
+                metadataUserID,
                 invoice.subscription,
-                res
+                invoice.status?.toString(),
             );
         } else if (
             event.type === "customer.subscription.created" ||
@@ -141,7 +180,7 @@ export default async function handler(
 
             if (!customerId?.length) {
                 console.error(
-                    `[Stripe] [${event.type}] || CustomerID: ${customerId} || Error: Missing customerId`
+                    `[Stripe] [${event.type}] || CustomerID: ${customerId} || Error: Missing customerId`,
                 );
 
                 // Don't send an error, because we don't want to retry the webhook
@@ -157,33 +196,24 @@ export default async function handler(
             // If the customer was deleted, escape early
             if (customer.deleted) {
                 console.debug(
-                    `[Stripe] [${event.type}] || CustomerID: ${customerId} || Error: Customer was deleted, cannot upsert subscription`
+                    `[Stripe] [${event.type}] || CustomerID: ${customerId} || Error: Customer was deleted, cannot upsert subscription`,
                 );
 
-                // Don't send an error, because we don't want to retry the webhook
+                // Don't return an error, because we don't want to retry the webhook
                 res.status(200).send({ received: true });
                 return;
             }
 
-            const customerEmail = customer.email;
-
-            // Early exit if the customer email is invalid
-            if (!customerEmail?.length) {
-                console.error(
-                    `[Stripe] [${event.type}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Invalid customerEmail`
-                );
-
-                // Don't send an error, because we don't want to retry the webhook
-                res.status(200).send({ received: true });
-                return;
-            }
+            const metadataUserID = event.data.object.metadata
+                ?.user_id as string;
 
             await updateSubscription(
+                prisma,
+                res,
                 event.type,
                 customerId,
-                customerEmail,
+                metadataUserID,
                 _subscription.id as string,
-                res
             );
         } else if (event.type === "customer.subscription.deleted") {
             // Here we get the customer.subscription.deleted event
@@ -194,7 +224,7 @@ export default async function handler(
 
             if (!customerId?.length) {
                 console.error(
-                    `[Stripe] [customer.subscription.deleted] || CustomerID: ${customerId} || Error: Missing customerId`
+                    `[Stripe] [customer.subscription.deleted] || CustomerID: ${customerId} || Error: Missing customerId`,
                 );
 
                 res.status(200).send({ received: true });
@@ -214,24 +244,19 @@ export default async function handler(
                 },
                 select: {
                     user_id: true,
-                    email: true,
                 },
             });
 
             if (deletedSubscription) {
-                // Here we delete all user API keys in the database
-                await prisma.aPIKey.deleteMany({
-                    where: {
-                        user_id: deletedSubscription.user_id,
-                    },
-                });
-
-                // Initialize the users tier only if the user ID is provided (we have to know which user to initialize the tier data for)
-                await initUserSubscriptionTier(
+                await removeAllButOldestAPIKey(
                     prisma,
                     deletedSubscription.user_id,
-                    deletedSubscription.email,
-                    true
+                );
+
+                // Initialize the users tier only if the user ID is provided (we have to know which user to initialize the tier data for)
+                await upsertUserSubscriptionTier(
+                    prisma,
+                    deletedSubscription.user_id,
                 );
             }
         } else if (event.type === "customer.deleted") {
@@ -244,7 +269,7 @@ export default async function handler(
 
             if (!customerEmail?.length) {
                 console.error(
-                    `[Stripe] [customer.deleted] || CustomerID: ${customerId} || Error: Invalid customerEmail`
+                    `[Stripe] [customer.deleted] || CustomerID: ${customerId} || Error: Invalid customerEmail`,
                 );
 
                 // Don't send an error, because we don't want to retry the webhook
@@ -261,14 +286,10 @@ export default async function handler(
                         {
                             customer_id: customerId,
                         },
-                        {
-                            email: customerEmail,
-                        },
                     ],
                 },
                 select: {
                     user_id: true,
-                    email: true,
                 },
             });
 
@@ -283,19 +304,15 @@ export default async function handler(
                     },
                 });
 
-                // Here we delete all user API keys in the database
-                await prisma.aPIKey.deleteMany({
-                    where: {
-                        user_id: deletedSubscription.user_id,
-                    },
-                });
-
-                // Initialize the users tier only if the user ID is provided (we have to know which user to initialize the tier data for)
-                await initUserSubscriptionTier(
+                await removeAllButOldestAPIKey(
                     prisma,
                     deletedSubscription.user_id,
-                    deletedSubscription.email,
-                    true
+                );
+
+                // Initialize the users tier only if the user ID is provided (we have to know which user to initialize the tier data for)
+                await upsertUserSubscriptionTier(
+                    prisma,
+                    deletedSubscription.user_id,
                 );
             } else {
                 // console.debug(
@@ -317,80 +334,3 @@ export default async function handler(
 
     res.status(200).send({ received: true });
 }
-
-const updateSubscription = async (
-    eventType: string,
-    customerId: string,
-    customerEmail: string,
-    subscriptionId: string,
-    res: NextApiResponse
-) => {
-    // Get user_id with the email
-    const userId = (
-        await prisma.user.findFirst({
-            where: {
-                email: customerEmail,
-            },
-            select: {
-                id: true,
-            },
-        })
-    )?.id;
-
-    if (!userId?.length) {
-        console.error(
-            `[Stripe] [${eventType}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Could not find user with email in database`
-        );
-
-        // Don't send an error, because we don't want to retry the webhook
-        res.status(200).send({ received: true });
-        return;
-    }
-
-    // Get the customers subscription from stripe
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-    // Validate the Stripe subscription object
-    if (!subscription) {
-        console.error(
-            `[Stripe] [${eventType}] || CustomerID: ${customerId} Customer email: ${customerEmail} || Error: Could not find users subscription`
-        );
-
-        // Don't send an error, because we don't want to retry the webhook
-        res.status(200).send({ received: true });
-        return;
-    }
-
-    // NOTE: THIS MIGHT BE UNNECESSARY
-    // Fetch the latest invoice from stripe
-    const invoice = await stripe.invoices.retrieve(
-        subscription.latest_invoice as string
-    );
-
-    // Here we update the subscription in the database
-    await prisma.subscription.upsert({
-        create: {
-            user_id: userId,
-            customer_id: customerId,
-            email: customerEmail,
-            created_at: new Date(subscription.current_period_start * 1000),
-            expires_at: new Date(subscription.current_period_end * 1000),
-            status: subscription.status.toString(),
-            payment_status: invoice.status?.toString(),
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            product_id: subscription.items.data[0]?.plan.product?.toString(),
-        },
-        update: {
-            customer_id: customerId,
-            created_at: new Date(subscription.current_period_start * 1000),
-            expires_at: new Date(subscription.current_period_end * 1000),
-            status: subscription.status.toString(),
-            payment_status: invoice.status?.toString(),
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            product_id: subscription.items.data[0]?.plan.product?.toString(),
-        },
-        where: {
-            email: customerEmail, // This is a reliable way to find the subscription since we got the user ID using the email
-        },
-    });
-};

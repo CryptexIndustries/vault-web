@@ -1,36 +1,21 @@
 import Stripe from "stripe";
 import { Stripe as StripeNS } from "stripe";
-import { Stripe as StripeJS, loadStripe } from "@stripe/stripe-js";
-import { env } from "../env/server.mjs";
-
-// This is a frontend helper function, so we can use the publishable key
-let stripePromiseFrontend: Promise<StripeJS | null>;
-const getStripeFrontent = () => {
-    if (!stripePromiseFrontend) {
-        stripePromiseFrontend = loadStripe(
-            process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""
-        );
-    }
-    return stripePromiseFrontend;
-};
-
-export default getStripeFrontent;
+import { env } from "../../env/client.mjs";
 
 export const StripeConfiguration: StripeNS.StripeConfig = {
     // https://github.com/stripe/stripe-node#configuration
-    apiVersion: "2022-08-01",
+    apiVersion: "2023-10-16",
 };
 
 // This is a backend function, so we can use the secret key
 const stripeBackend = new Stripe(
     process.env.STRIPE_SECRET_KEY ?? "",
-    StripeConfiguration
+    StripeConfiguration,
 );
 export const createCheckoutSession = async (
-    userEmail: string,
-    priceId: string
+    userID: string,
+    priceId: string,
 ): Promise<string> => {
-    // NOTE: If we're using the customer id, we can't pass the email
     const checkoutSession = await stripeBackend.checkout.sessions.create({
         mode: "subscription",
         line_items: [
@@ -42,8 +27,11 @@ export const createCheckoutSession = async (
         automatic_tax: {
             enabled: true,
         },
-        customer_email: userEmail,
-        // customer: currentCustomerId,
+        subscription_data: {
+            metadata: {
+                user_id: userID,
+            },
+        },
         success_url: `${env.NEXT_PUBLIC_APP_URL}/app?checkout_success=true`,
         cancel_url: `${env.NEXT_PUBLIC_APP_URL}/app?checkout_success=false`,
     });
@@ -52,7 +40,7 @@ export const createCheckoutSession = async (
 };
 
 export const getBillingPortalSession = async (
-    customerId: string
+    customerId: string,
 ): Promise<Stripe.Response<Stripe.BillingPortal.Session>> =>
     await stripeBackend.billingPortal.sessions.create({
         customer: customerId,
@@ -62,6 +50,12 @@ export const getBillingPortalSession = async (
     });
 
 export const getCheckoutUrl = async (
-    checkoutSessionId: string
+    checkoutSessionId: string,
 ): Promise<string | null> =>
     (await stripeBackend.checkout.sessions.retrieve(checkoutSessionId)).url;
+
+export const getSubscription = async (id: string) =>
+    await stripeBackend.subscriptions.retrieve(id);
+
+export const getLatestInvoice = async (id: string) =>
+    await stripeBackend.invoices.retrieve(id);

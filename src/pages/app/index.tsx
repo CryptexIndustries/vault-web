@@ -1,7 +1,5 @@
 import React, { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import { GetStaticProps } from "next";
-import { SessionProvider, signOut, useSession } from "next-auth/react";
-import { useRouter } from "next/router";
 
 import { toast } from "react-toastify";
 import { Controller, useForm } from "react-hook-form";
@@ -9,8 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
-import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
-import { selectAtom } from "jotai/utils";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import * as OTPAuth from "otpauth";
 import { autoPlacement, shift, useFloating } from "@floating-ui/react-dom";
 import { z } from "zod";
@@ -42,9 +39,7 @@ import {
     WifiIcon,
     LinkIcon,
     Cog8ToothIcon,
-    ShareIcon,
     HandThumbUpIcon,
-    ArrowUturnUpIcon,
     CalendarIcon,
     XCircleIcon,
     ChevronUpIcon,
@@ -56,7 +51,7 @@ import {
 
 import { Turnstile } from "@marsidev/react-turnstile";
 
-import { trpc } from "../../utils/trpc";
+import { trpc, trpcReact } from "../../utils/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { HTMLHeaderPWA } from "../../components/html_header";
 import HTMLMain from "../../components/html_main";
@@ -65,10 +60,9 @@ import { Body, Footer, GenericModal } from "../../components/general/modal";
 import { ButtonFlat, ButtonType } from "../../components/general/buttons";
 import {
     SignUpFormSchemaType,
+    constructLinkPresenceChannelName,
     constructSyncChannelName,
-    cryptexAccountInit,
-    cryptexAccountSignIn,
-    generateKeyPair,
+    extractIDFromAPIKey,
     navigateToCheckout,
     newWSPusherInstance,
     newWebRTCConnection,
@@ -79,7 +73,6 @@ import {
     Credential,
     LinkedDevice,
     OnlineServicesAccount,
-    OnlineServicesAccountInterface,
     Synchronization,
     Vault,
     VaultEncryption,
@@ -122,6 +115,20 @@ import {
     type DivergenceSolveShowDialogFnPropType,
 } from "../../components/dialog/synchronization";
 import FeedbackDialog from "../../components/dialog/feedbackDialog";
+import {
+    clearOnlineServicesAPIKey,
+    isVaultUnlockedAtom,
+    onlineServicesDataAtom,
+    onlineServicesBoundAtom,
+    onlineServicesConnectionStatusAtom,
+    onlineServicesStore,
+    setOnlineServicesAPIKey,
+    unlockedVaultAtom,
+    unlockedVaultMetadataAtom,
+    unlockedVaultWriteOnlyAtom,
+    webRTCConnectionsAtom,
+    OnlineServicesStatusHelpers,
+} from "../../utils/atoms";
 
 dayjs.extend(RelativeTime);
 
@@ -138,41 +145,92 @@ const enumToRecord = (enumObject: object): Record<string, string> =>
         return acc;
     }, {});
 
-const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
-const unlockedVaultAtom = atom(new Vault());
-const unlockedVaultWriteOnlyAtom = atom(
-    (get): Vault => {
-        return get(unlockedVaultAtom);
-    },
-    async (get, set, val: ((pre: Vault) => Promise<Vault> | Vault) | Vault) => {
-        const vault: Vault = await (typeof val === "function"
-            ? val(get(unlockedVaultAtom))
-            : val);
+const useClearOnlineServicesDataAtom = () => {
+    const setOnlineServicesData = useSetAtom(onlineServicesDataAtom);
+    const setOnlineServicesConnectionStatus = useSetAtom(
+        onlineServicesConnectionStatusAtom,
+    );
+    return () => {
+        setOnlineServicesData(null);
+        setOnlineServicesConnectionStatus(() =>
+            OnlineServicesStatusHelpers.setDisconnected(),
+        );
+    };
+};
 
-        set(unlockedVaultAtom, Object.assign(new Vault(), vault));
-    },
-);
-const isVaultUnlockedAtom = selectAtom(
-    unlockedVaultMetadataAtom,
-    (vault) => vault !== null,
-);
-const onlineServicesAccountAtom = selectAtom(
-    unlockedVaultAtom,
-    (vault) => vault?.OnlineServices,
-);
-const webRTCConnectionsAtom = atom(new Synchronization.WebRTCConnections());
+const useFetchOnlineServicesData = () => {
+    const setOnlineServicesRemoteUserData = useSetAtom(onlineServicesDataAtom);
+    const setOnlineServicesConnectionStatus = useSetAtom(
+        onlineServicesConnectionStatusAtom,
+    );
 
-const unbindAccountFromVault = async (
-    vaultMetadata: VaultMetadata,
-    vault: Vault,
-) => {
-    // Unbind the account
-    vault.OnlineServices.unbindAccount();
+    return async () => {
+        setOnlineServicesConnectionStatus(() =>
+            OnlineServicesStatusHelpers.setConnecting(),
+        );
+        try {
+            const config = await trpc.v1.user.configuration.query();
 
-    // Save the vault
-    vaultMetadata.save(vault);
+            const osData = onlineServicesStore.get(onlineServicesDataAtom);
+            if (!osData || !osData.key.length) {
+                console.error(
+                    "Tried to fetch online services data, but the API key was invalid.",
+                );
 
-    signOut({ redirect: false });
+                setOnlineServicesConnectionStatus(() =>
+                    OnlineServicesStatusHelpers.setFailed("Malformed API key."),
+                );
+
+                return;
+            }
+
+            // console.warn("Fetched Online Services data.", osData, config);
+            setOnlineServicesRemoteUserData({
+                key: osData.key, // Same key, but this one is of correct type (not null)
+                remoteData: config,
+            });
+
+            setOnlineServicesConnectionStatus(() =>
+                OnlineServicesStatusHelpers.setConnected(),
+            );
+        } catch (e) {
+            console.error("Error refreshing online services data.", e);
+
+            if (e instanceof TRPCClientError) {
+                if (e.data?.code === "E_UNAUTHORIZED") {
+                    setOnlineServicesConnectionStatus(() =>
+                        OnlineServicesStatusHelpers.setFailed(
+                            "Authorization failed",
+                        ),
+                    );
+                } else {
+                    setOnlineServicesConnectionStatus(() =>
+                        OnlineServicesStatusHelpers.setFailed(
+                            "Failed to connect.",
+                        ),
+                    );
+                }
+            } else {
+                setOnlineServicesConnectionStatus(() =>
+                    OnlineServicesStatusHelpers.setFailed("Could not connect."),
+                );
+            }
+        }
+    };
+};
+
+const useUnbindOnlineServices = () => {
+    const clearOnlineServicesData = useClearOnlineServicesDataAtom();
+
+    return async (vaultMetadata: VaultMetadata, vault: Vault) => {
+        clearOnlineServicesAPIKey();
+
+        vault.OnlineServices.unbindAccount();
+
+        await vaultMetadata.save(vault);
+
+        clearOnlineServicesData();
+    };
 };
 
 // Function for opening the browsers file picker
@@ -857,11 +915,11 @@ const UnlockVaultDialog: React.FC<{
         setVisible(true);
     };
 
-    const formSchema = env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
-        ? FormSchemas.unlockVaultWCaptchaFormSchema
-        : FormSchemas.unlockVaultFormSchema;
+    const refreshOnlineServicesRemoteData = useFetchOnlineServicesData();
 
-    type UnlockVaultFormSchemaType = z.infer<typeof formSchema>;
+    type UnlockVaultFormSchemaType = z.infer<
+        typeof FormSchemas.unlockVaultFormSchema
+    >;
 
     const encryptionFormDefaultValues: FormSchemas.EncryptionFormGroupSchemaType =
         {
@@ -890,12 +948,10 @@ const UnlockVaultDialog: React.FC<{
     };
     const {
         handleSubmit,
-        control,
-        setError: setFormError,
-        formState: { errors, isSubmitting, dirtyFields },
+        formState: { isSubmitting, dirtyFields },
         reset: resetForm,
     } = useForm<UnlockVaultFormSchemaType>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(FormSchemas.unlockVaultFormSchema),
         defaultValues: defaultValues,
     });
 
@@ -911,7 +967,7 @@ const UnlockVaultDialog: React.FC<{
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
     const busyRef = useRef(false);
 
-    const onSubmit = async (formData: UnlockVaultFormSchemaType) =>
+    const onSubmit = async () =>
         handleSubmitEncryptionForm.current(async (encryptionFormData) => {
             if (busyRef.current) {
                 return;
@@ -934,34 +990,14 @@ const UnlockVaultDialog: React.FC<{
             // A little delay to make sure the toast is shown
             await new Promise((resolve) => setTimeout(resolve, 100));
 
+            let vault;
             try {
-                const vault = await selected.current.decryptVault(
+                vault = await selected.current.decryptVault(
                     encryptionFormData.Secret,
                     encryptionFormData.Encryption,
                     encryptionFormData.EncryptionKeyDerivationFunction,
                     encryptionFormData.EncryptionConfig,
                 );
-
-                // Initialize the vault account
-                const res = await cryptexAccountInit(
-                    formData.CaptchaToken,
-                    vault.OnlineServices.UserID,
-                    vault.OnlineServices.PrivateKey,
-                );
-
-                if (!res.success && !res.offline && res.authResponse) {
-                    toast.error(
-                        `Failed to authenticate with CryptexVault services. ${res.authResponse.error}`,
-                        {
-                            autoClose: false,
-                            closeButton: true,
-                        },
-                    );
-                    console.error(
-                        "Failed to authenticate with CryptexVault services.",
-                        res.authResponse.error,
-                    );
-                }
 
                 // Set the vault metadata and vault atoms
                 setUnlockedVaultMetadata(selected.current);
@@ -985,6 +1021,24 @@ const UnlockVaultDialog: React.FC<{
                     closeButton: true,
                 });
             }
+
+            if (
+                vault &&
+                vault.OnlineServices.isBound() &&
+                vault.OnlineServices.APIKey
+            ) {
+                setOnlineServicesAPIKey(vault.OnlineServices.APIKey);
+
+                try {
+                    await refreshOnlineServicesRemoteData();
+                } catch (e) {
+                    console.error(
+                        "Failed to refresh online services remote data.",
+                        e,
+                    );
+                }
+            }
+
             busyRef.current = false;
         })();
 
@@ -1038,12 +1092,6 @@ const UnlockVaultDialog: React.FC<{
             //     handleSubmit(onSubmit)();
             // }
         }
-
-        return () => {
-            if (env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA) {
-                if (window.turnstile) window.turnstile.remove();
-            }
-        };
     }, [selected, selected.current, resetForm]);
 
     return (
@@ -1076,47 +1124,6 @@ const UnlockVaultDialog: React.FC<{
                             resetFormFn={resetEncryptionGroupForm}
                             isDirtyFn={isEncryptionGroupFormDirty}
                         />
-
-                        {env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA && (
-                            <div className="mt-4 flex flex-col items-center">
-                                <Controller
-                                    control={control}
-                                    name="CaptchaToken"
-                                    render={({ field: { onChange } }) => (
-                                        <Turnstile
-                                            options={{
-                                                theme: "light",
-                                                size: "normal",
-                                                language: "auto",
-                                                refreshExpired: "manual",
-                                            }}
-                                            siteKey={
-                                                env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-                                            }
-                                            onError={() => {
-                                                setFormError("CaptchaToken", {
-                                                    message: "Captcha error",
-                                                });
-                                            }}
-                                            onExpire={() => {
-                                                onChange("");
-                                                setFormError("CaptchaToken", {
-                                                    message: "Captch expired",
-                                                });
-                                            }}
-                                            onSuccess={(token) =>
-                                                onChange(token)
-                                            }
-                                        />
-                                    )}
-                                />
-                                {errors.CaptchaToken && (
-                                    <p className="text-red-500">
-                                        {errors.CaptchaToken.message}
-                                    </p>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </Body>
@@ -1471,11 +1478,8 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const vaultLinkingFormSchema = z.object({
-        encryptedData: z.string().nonempty(),
-        decryptionPassphrase: z.string().nonempty(),
-        captchaToken: env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA
-            ? z.string().nonempty("Captcha is required.")
-            : z.string(),
+        encryptedData: z.string().min(1),
+        decryptionPassphrase: z.string().min(1),
         progressLog: z.array(
             z.object({
                 message: z.string(),
@@ -1496,7 +1500,6 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         defaultValues: {
             encryptedData: "",
             decryptionPassphrase: "",
-            captchaToken: "",
             progressLog: [],
         },
     });
@@ -1551,19 +1554,15 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         await new Promise((res) => setTimeout(res, 100));
 
         // Try to decrypt the data - setError if it fails
-        let decryptedData: OnlineServicesAccountInterface;
+        let apiKey: string;
         try {
-            decryptedData = await OnlineServicesAccount.decryptTransferableData(
+            apiKey = await OnlineServicesAccount.decryptTransferableData(
                 formData.encryptedData,
                 formData.decryptionPassphrase,
             );
 
             // Validate the decrypted data
-            if (
-                !decryptedData.UserID?.length ||
-                !decryptedData.PublicKey?.length ||
-                !decryptedData.PrivateKey?.length
-            ) {
+            if (!apiKey?.length) {
                 throw new Error("Invalid decrypted data.");
             }
         } catch (e) {
@@ -1577,40 +1576,17 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             return;
         }
 
-        // Try to authenticate silently
-        try {
-            const response = await cryptexAccountSignIn(
-                decryptedData.UserID,
-                decryptedData.PrivateKey,
-                formData.captchaToken,
-            );
-
-            // Validate the auth data
-            if (response.success != true || !response.authResponse) {
-                throw new Error("Invalid auth data.");
-            }
-        } catch (e) {
-            console.error("Failed to authenticate.", e);
-            setFormError("decryptionPassphrase", {
-                type: "value",
-                message: "Failed to authenticate to online services.",
-            });
-
-            setOperationInProgress(false);
-            return;
-        }
-
         setCurrentState(State.LinkingInProgress);
 
         // Delay a bit for the UI to update
         await new Promise((res) => setTimeout(res, 100));
 
-        await connectToOnlineServices(decryptedData);
+        await connectToOnlineServices(apiKey);
     };
 
-    const connectToOnlineServices = async (
-        decryptedData: OnlineServicesAccountInterface,
-    ) => {
+    const connectToOnlineServices = async (apiKey: string) => {
+        setOnlineServicesAPIKey(apiKey);
+
         //---
         // Start setting up the WebRTC connection so it is ready when we need it
         const webRTConnection = await newWebRTCConnection();
@@ -1623,7 +1599,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             if (webRTConnection.connectionState === "connected") {
                 // console.debug("WebRTC connection established.");
                 addToProgressLog(
-                    "Private connection established, disconnecting from CryptexVault Online Services...",
+                    "Private connection established, disconnecting from Cryptex Vault Online Services...",
                     "info",
                 );
 
@@ -1733,29 +1709,31 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         // We use this to exchange the WebRTC offer and ice candidates
         const onlineWSServicesEndpoint = newWSPusherInstance();
         onlineWSServicesEndpoint.connection.bind("connecting", () => {
+            clearOnlineServicesAPIKey();
             addToProgressLog(
-                "Connecting to CryptexVault Online Services...",
+                "Connecting to Cryptex Vault Online Services...",
                 "info",
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("connected", () => {
             addToProgressLog(
-                "Connected to CryptexVault Online Services.",
+                "Connected to Cryptex Vault Online Services.",
                 "done",
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("disconnected", () => {
+            clearOnlineServicesAPIKey();
             addToProgressLog(
-                "Dropped connection from CryptexVault Online Services.",
+                "Dropped connection from Cryptex Vault Online Services.",
                 "info",
             );
         });
 
         onlineWSServicesEndpoint.connection.bind("error", (err: object) => {
             console.error("WS error:", err);
-
+            clearOnlineServicesAPIKey();
             addToProgressLog(
                 "An error occurred while setting up a private connection.",
                 "error",
@@ -1764,8 +1742,8 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             setOperationInProgress(false);
         });
 
-        // The predefined channel name is based on the user ID
-        const channelName = `presence-link-${decryptedData.UserID}`;
+        // The predefined channel name is based on the device ID
+        const channelName = constructLinkPresenceChannelName(apiKey);
         // Subscribe to own channel
         const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
         wsChannel.bind("pusher:subscription_succeeded", () => {
@@ -1931,44 +1909,6 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                                 <p className="text-red-500">
                                     {errors.decryptionPassphrase.message}
                                 </p>
-                            )}
-                            {env.NEXT_PUBLIC_SIGNIN_VALIDATE_CAPTCHA && (
-                                <div className="mt-5 flex flex-col items-center">
-                                    <Controller
-                                        control={control}
-                                        name="captchaToken"
-                                        render={({ field: { onChange } }) => (
-                                            <Turnstile
-                                                options={{
-                                                    theme: "light",
-                                                    size: "normal",
-                                                    language: "auto",
-                                                }}
-                                                siteKey={
-                                                    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-                                                }
-                                                onError={() => {
-                                                    setFormError(
-                                                        "captchaToken",
-                                                        {
-                                                            message:
-                                                                "Captcha error",
-                                                        },
-                                                    );
-                                                }}
-                                                onExpire={() => onChange("")}
-                                                onSuccess={(token) =>
-                                                    onChange(token)
-                                                }
-                                            />
-                                        )}
-                                    />
-                                    {errors.captchaToken && (
-                                        <p className="text-red-500">
-                                            {errors.captchaToken.message}
-                                        </p>
-                                    )}
-                                </div>
                             )}
                         </>
                     )}
@@ -2537,23 +2477,25 @@ const RestoreVaultDialog: React.FC<{
 const FeatureVotingDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
-    const session = useSession();
-
     const [visibleState, setVisibleState] = useState(false);
     const hideModal = () => setVisibleState(false);
     showDialogFnRef.current = () => setVisibleState(true);
 
-    const hasSession = !!session && !!session.data;
+    const onlineServicesBound = useAtomValue(onlineServicesBoundAtom);
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
 
-    // Get the featureVoting.getRounds trpc query if the user is logged in
+    // Get the featureVoting.rounds trpc query if the user is logged in
     const {
         data: featureVotingRounds,
         isLoading: isLoadingRounds,
         refetch: refetchRounds,
         remove: removeRoundsData,
-    } = trpc.featureVoting.getRounds.useQuery(undefined, {
+    } = trpcReact.v1.featureVoting.rounds.useQuery(undefined, {
         retryDelay: 10000,
-        enabled: hasSession,
+        enabled:
+            onlineServicesBound &&
+            !!onlineServicesData?.remoteData &&
+            visibleState,
         refetchOnWindowFocus: false,
     });
 
@@ -2562,7 +2504,7 @@ const FeatureVotingDialog: React.FC<{
 
     // A mutation for featureVoting.placeVote
     const { mutate: placeVote, isLoading: isPlacingVoteInProgress } =
-        trpc.featureVoting.placeVote.useMutation({
+        trpcReact.v1.featureVoting.placeVote.useMutation({
             retryDelay: 10000,
         });
 
@@ -2586,11 +2528,11 @@ const FeatureVotingDialog: React.FC<{
     };
 
     useEffect(() => {
-        // When the session clears, refetch the rounds
-        if (!hasSession) {
+        // Make sure we can refetch the rounds data if onlineServices object changes
+        if (!onlineServicesBound) {
             removeRoundsData();
         }
-    }, [session]);
+    }, [onlineServicesBound]);
 
     return (
         <GenericModal
@@ -2606,7 +2548,7 @@ const FeatureVotingDialog: React.FC<{
                     <div className="mt-2 flex w-full flex-col items-center text-left">
                         {
                             // If the user is not logged in, tell them to log in
-                            !hasSession && (
+                            !onlineServicesBound && (
                                 <p className="text-center text-base text-gray-600">
                                     You need to be logged in to online services
                                     in order to view and vote on features.
@@ -2615,23 +2557,24 @@ const FeatureVotingDialog: React.FC<{
                         }
 
                         {/* Show a call to action message if there are rounds and incorrectTier boolean flag is true */}
-                        {hasSession && featureVotingRounds?.incorrectTier && (
-                            <>
-                                {" "}
-                                <p className="text-left text-base text-gray-600">
-                                    Your tier does not allow you to vote on
-                                    features.{" "}
-                                </p>
-                                <p className="text-left text-base text-gray-600">
-                                    Please upgrade your account to enable
-                                    voting.
-                                </p>
-                            </>
-                        )}
+                        {onlineServicesBound &&
+                            featureVotingRounds?.incorrectTier && (
+                                <>
+                                    {" "}
+                                    <p className="text-left text-base text-gray-600">
+                                        Your tier does not allow you to vote on
+                                        features.{" "}
+                                    </p>
+                                    <p className="text-left text-base text-gray-600">
+                                        Please upgrade your account to enable
+                                        voting.
+                                    </p>
+                                </>
+                            )}
 
                         {
                             // If the user is logged in, but there are no open rounds, tell them there are no open rounds
-                            hasSession && numberOfOpenRounds === 0 && (
+                            onlineServicesBound && numberOfOpenRounds === 0 && (
                                 <p className="line-clamp-2 text-left text-base text-gray-600">
                                     There are currently no voting rounds open.
                                 </p>
@@ -2639,7 +2582,7 @@ const FeatureVotingDialog: React.FC<{
                         }
                         {
                             // If the user is logged in, and there are open rounds, show the open rounds
-                            hasSession && numberOfOpenRounds > 0 && (
+                            onlineServicesBound && numberOfOpenRounds > 0 && (
                                 <p className="line-clamp-2 text-left text-base text-gray-600">
                                     There is currently a voting round open.
                                 </p>
@@ -2806,16 +2749,28 @@ const AccountDialog: React.FC<{
     const [isVisible, setIsVisible] = useState(false);
     showDialogFnRef.current = () => setIsVisible(true);
 
-    const { data: session, update: refreshSessionData } = useSession();
-    const router = useRouter();
-
     const [ongoingOperation, setOngoingOperation] = useState(false);
 
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const onlineServicesBound = unlockedVault.OnlineServices.isBound();
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
+    const unbindOnlineServices = useUnbindOnlineServices();
 
     // Prepare the user deletion trpc call
-    const { mutateAsync: deleteUser } = trpc.account.deleteUser.useMutation();
+    const { mutateAsync: deleteUser } = trpcReact.v1.user.delete.useMutation();
+
+    const {
+        data: linkedDevices,
+        refetch: refetchRegisteredDevices,
+        isFetching: fetchingLinkedDevices,
+    } = trpcReact.v1.device.linked.useQuery(undefined, {
+        refetchOnWindowFocus: false,
+        enabled:
+            onlineServicesBound &&
+            !!onlineServicesData?.remoteData?.root &&
+            isVisible,
+    });
 
     const deleteUserAccount = async () => {
         if (!vaultMetadata) return;
@@ -2827,11 +2782,11 @@ const AccountDialog: React.FC<{
 
                 try {
                     await deleteUser();
-                    await unbindAccountFromVault(vaultMetadata, unlockedVault);
+                    await unbindOnlineServices(vaultMetadata, unlockedVault);
 
                     toast.success("User account deleted.");
 
-                    router.reload();
+                    setIsVisible(false);
                 } catch (err) {
                     toast.error(
                         "An error occured while deleting your user account. Please try again later.",
@@ -2846,38 +2801,12 @@ const AccountDialog: React.FC<{
     };
 
     const Account: React.FC = () => {
-        const {
-            mutateAsync: sendVerificationEmail,
-            isLoading: isSendingEmail,
-        } = trpc.credentials.resendVerificationEmail.useMutation();
-
-        const resendVerificationEmail = async () => {
-            if (!session) return;
-
-            setOngoingOperation(true);
-
-            try {
-                await sendVerificationEmail();
-
-                toast.success("Verification email sent.");
-            } catch (error) {
-                if (error instanceof TRPCClientError) {
-                    console.error(error.message);
-                } else {
-                    console.error("Error sending verification email:", error);
-                }
-                toast.error(
-                    "Error sending verification email. Please try again later.",
-                );
-            }
-
-            setOngoingOperation(false);
-        };
+        const fetchOnlineServicesData = useFetchOnlineServicesData();
 
         const {
             mutateAsync: _clearRecoveryPhrase,
             isLoading: isClearingRecoveryPhrase,
-        } = trpc.credentials.clearRecoveryToken.useMutation();
+        } = trpcReact.v1.user.clearRecoveryToken.useMutation();
 
         const clearRecoveryPhrase = async () => {
             showWarningDialogFn(
@@ -2890,8 +2819,8 @@ const AccountDialog: React.FC<{
 
                         toast.success("Recovery phrase cleared.");
 
-                        // Refresh the session data
-                        await refreshSessionData();
+                        // Refresh the remote user data
+                        await fetchOnlineServicesData();
                     } catch (error) {
                         if (error instanceof TRPCClientError) {
                             console.error(error.message);
@@ -2917,70 +2846,29 @@ const AccountDialog: React.FC<{
 
         return (
             <>
-                <div className="mt-2 flex flex-col">
-                    <div className="flex items-center gap-1">
-                        <p className="text-left text-base text-gray-600">
-                            Status:
-                        </p>
-                        {session?.user?.confirmed_at ? (
-                            <p className="text-green-500">Verified</p>
-                        ) : (
-                            <p className="text-red-500">Not Verified</p>
-                        )}
-                    </div>
-                    {session?.user?.confirmed_at && (
-                        <p className="text-left text-base text-gray-600">
-                            Last verification:{" "}
-                            {new Date(
-                                session.user.confirmed_at,
-                            ).toLocaleDateString()}
-                        </p>
-                    )}
-                    {!session?.user?.confirmed_at &&
-                        session?.user?.confirmation_period_expires_at && (
-                            <p className="text-left text-base text-gray-600">
-                                Verify before:{" "}
-                                {new Date(
-                                    session.user.confirmation_period_expires_at,
-                                ).toLocaleDateString()}
-                            </p>
-                        )}
-                </div>
-                {!session?.user?.confirmed_at && (
-                    <div className="mt-2 flex flex-col">
-                        <ButtonFlat
-                            type={ButtonType.Secondary}
-                            text="Resend Confirmation Email"
-                            onClick={resendVerificationEmail}
-                            disabled={isSendingEmail}
-                            loading={isSendingEmail}
-                        />
-                    </div>
-                )}
-
-                <hr className="my-3" />
-
                 <div className="flex flex-col">
                     <div className="flex items-center gap-1">
                         <p className="text-left text-base text-gray-600">
                             Recovery Phrase:
                         </p>
-                        {session?.user?.recovery_token_created ? (
+                        {onlineServicesData?.remoteData
+                            ?.recoveryTokenCreatedAt ? (
                             <p className="text-green-500">Backed up</p>
                         ) : (
                             <p className="text-red-500">Not Backed up</p>
                         )}
                     </div>
-                    {session?.user?.recovery_token_created_at && (
+                    {onlineServicesData?.remoteData?.recoveryTokenCreatedAt && (
                         <p className="text-left text-base text-gray-600">
                             Date of backup:{" "}
                             {new Date(
-                                session.user.recovery_token_created_at,
+                                onlineServicesData?.remoteData
+                                    ?.recoveryTokenCreatedAt,
                             ).toLocaleDateString()}
                         </p>
                     )}
                 </div>
-                {!session?.user?.recovery_token_created && (
+                {!onlineServicesData?.remoteData?.recoveryTokenCreatedAt && (
                     <div className="flex flex-row items-center gap-1">
                         <div>
                             <InformationCircleIcon className="h-5 w-5 text-gray-500" />
@@ -2999,15 +2887,15 @@ const AccountDialog: React.FC<{
                         </div>
                     </div>
                 )}
-                {!session?.user?.isRoot && (
+                {!onlineServicesData?.remoteData?.root && (
                     <div className="mt-2 flex flex-col">
                         <p className="text-left text-base text-gray-600">
                             Use the root device to generate a recovery phrase.
                         </p>
                     </div>
                 )}
-                {session?.user?.recovery_token_created &&
-                    session?.user?.isRoot && (
+                {onlineServicesData?.remoteData?.recoveryTokenCreatedAt &&
+                    onlineServicesData?.remoteData?.root && (
                         <div className="mt-2 flex flex-col">
                             <ButtonFlat
                                 type={ButtonType.Secondary}
@@ -3018,8 +2906,8 @@ const AccountDialog: React.FC<{
                             />
                         </div>
                     )}
-                {!session?.user?.recovery_token_created &&
-                    session?.user?.isRoot && (
+                {!onlineServicesData?.remoteData?.recoveryTokenCreatedAt &&
+                    onlineServicesData?.remoteData?.root && (
                         <div className="mt-2 flex flex-col">
                             <ButtonFlat
                                 type={ButtonType.Secondary}
@@ -3034,14 +2922,25 @@ const AccountDialog: React.FC<{
     };
 
     const SubscriptionMenu: React.FC = () => {
-        const router = useRouter();
+        const [isCustomerPortalLoading, setIsCustomerPortalLoading] =
+            useState(false);
 
-        const { data: customerPortalURL } =
-            trpc.payment.getCustomerPortal.useQuery(undefined, {
-                refetchOnWindowFocus: false,
-                enabled:
-                    (subscriptionData && subscriptionData.nonFree) ?? false,
-            });
+        const openCustomerPortal = async () => {
+            if (!(subscriptionData && subscriptionData.nonFree)) return;
+
+            setIsCustomerPortalLoading(true);
+
+            try {
+                await openCustomerPortal();
+            } catch (error) {
+                console.error("Error opening customer portal.", error);
+                toast.error(
+                    "Error opening customer portal. Please try again later.",
+                );
+            } finally {
+                setIsCustomerPortalLoading(false);
+            }
+        };
 
         if (dataLoading) {
             return (
@@ -3072,45 +2971,42 @@ const AccountDialog: React.FC<{
         return (
             <div className="flex max-w-md flex-col rounded-md border-slate-500 p-5">
                 <p className="text-2xl font-medium text-slate-800">
-                    {subscriptionData.product_name}
+                    {subscriptionData.productName}
                 </p>
                 <div className="mt-2 p-2">
                     <div className="flex items-center space-x-2">
                         <CalendarIcon className="mr-2 inline-block h-5 w-5" />
                         <p>Started on</p>
                         <p className="text-slate-700">
-                            {subscriptionData.created_at?.toLocaleDateString()}
+                            {subscriptionData.createdAt?.toLocaleDateString()}
                         </p>
                     </div>
-                    {subscriptionData.expires_at && (
+                    {subscriptionData.expiresAt && (
                         <div className="flex items-center space-x-2">
                             <ClockIcon className="mr-2 inline-block h-5 w-5" />
                             <p>
-                                {subscriptionData.cancel_at_period_end
+                                {subscriptionData.cancelAtPeriodEnd
                                     ? "Expires on"
                                     : "Next billing"}
                             </p>
                             <p className="text-slate-700">
-                                {subscriptionData.expires_at?.toLocaleDateString()}
+                                {subscriptionData.expiresAt?.toLocaleDateString()}
                             </p>
                         </div>
                     )}
-                    {subscriptionData.configuration &&
-                        subscriptionData.configuration.linking_allowed && (
+                    {onlineServicesData?.remoteData &&
+                        onlineServicesData.remoteData.canLink && (
                             <div className="flex items-center space-x-2">
                                 <DevicePhoneMobileIcon className="mr-2 inline-block h-5 w-5" />
                                 <p className="text-slate-700">
                                     {
-                                        subscriptionData.configuration
-                                            .linked_devices
+                                        subscriptionData.resourceStatus
+                                            .linkedDevices
                                     }{" "}
                                 </p>
                                 <p>of </p>
                                 <p className="text-slate-700">
-                                    {
-                                        subscriptionData.configuration
-                                            .linked_devices_limit
-                                    }{" "}
+                                    {onlineServicesData.remoteData.maxLinks}{" "}
                                 </p>
                                 <p>linked devices</p>
                             </div>
@@ -3131,38 +3027,35 @@ const AccountDialog: React.FC<{
                         <CloudArrowUpIcon className="mr-2 inline-block h-5 w-5" />
                         <p>Create encrypted backups</p>
                     </div>
-                    {subscriptionData.nonFree &&
+                    {/* {subscriptionData.nonFree &&
                         subscriptionData.configuration?.automated_backups && (
                             <div className="flex items-center space-x-2">
                                 <ArrowUturnUpIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Automated encrypted backups</p>
                             </div>
-                        )}
+                        )} */}
                     {subscriptionData.nonFree &&
-                        subscriptionData.configuration?.feature_voting && (
+                        onlineServicesData?.remoteData?.canFeatureVote && (
                             <div className="flex items-center space-x-2">
                                 <HandThumbUpIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Feature voting</p>
                             </div>
                         )}
-                    {subscriptionData.nonFree &&
+                    {/* {subscriptionData.nonFree &&
                         subscriptionData.configuration
-                            ?.credentials_borrowing && (
+                            ?.credentialsBorrowing && (
                             <div className="flex items-center space-x-2">
                                 <ShareIcon className="mr-2 inline-block h-5 w-5" />
                                 <p>Credentials borrowing</p>
                             </div>
-                        )}
+                        )} */}
                 </div>
                 <div className="mt-2 flex flex-col">
                     {subscriptionData.nonFree ? (
                         <ButtonFlat
                             text="Manage Subscription"
-                            disabled={!customerPortalURL}
-                            onClick={async () => {
-                                if (customerPortalURL)
-                                    router.push(customerPortalURL);
-                            }}
+                            loading={isCustomerPortalLoading}
+                            onClick={openCustomerPortal}
                         ></ButtonFlat>
                     ) : (
                         <ButtonFlat
@@ -3177,16 +3070,67 @@ const AccountDialog: React.FC<{
     };
 
     const RegisteredDevices: React.FC = () => {
-        const { data: registeredDevices, refetch: refetchRegisteredDevices } =
-            trpc.account.getRegisteredDevices.useQuery(undefined, {
-                refetchOnWindowFocus: false,
-                enabled: !!session && session.user?.isRoot,
-            });
-
         const { mutateAsync: removeDevice } =
-            trpc.account.removeDevice.useMutation();
+            trpcReact.v1.device.remove.useMutation();
 
-        if (!registeredDevices && session?.user?.isRoot) {
+        const { mutateAsync: _setRoot } =
+            trpcReact.v1.device.setRoot.useMutation();
+
+        const setRoot = (id: string, currentStatus: boolean) => {
+            const message = currentStatus
+                ? "Do you really want to demote the selected device from root device? This will prevent the device from managing registered devices and account settings."
+                : "Do you really want to promote the selected device to root device? This will allow the device to manage registered devices and account settings.";
+
+            showWarningDialogFn(
+                message,
+                async () => {
+                    setOngoingOperation(true);
+
+                    try {
+                        await _setRoot({
+                            id,
+                            root: !currentStatus,
+                        });
+                        refetchRegisteredDevices();
+                    } catch (error) {
+                        console.error(
+                            "Error while setting device status.",
+                            error,
+                        );
+                        toast.error(
+                            "Failure while setting device Root status.",
+                        );
+                    }
+
+                    setOngoingOperation(false);
+                },
+                null,
+            );
+        };
+
+        const tempRmFn = (id: string) => {
+            showWarningDialogFn(
+                "Do you really want to remove the selected device? This will prevent the device from accessing the online services.",
+                async () => {
+                    setOngoingOperation(true);
+
+                    try {
+                        await removeDevice({
+                            id,
+                        });
+                        refetchRegisteredDevices();
+                    } catch (error) {
+                        console.error("Error unlinking device.", error);
+                        toast.error("Error unlinking device.");
+                    }
+
+                    setOngoingOperation(false);
+                },
+                null,
+            );
+        };
+
+        if (!linkedDevices && onlineServicesData?.remoteData?.root) {
             // Something went wrong
             return (
                 <div className="mt-2 flex w-full flex-col gap-2 text-left">
@@ -3198,7 +3142,7 @@ const AccountDialog: React.FC<{
                     </p>
                 </div>
             );
-        } else if (!registeredDevices && !session?.user?.isRoot) {
+        } else if (!linkedDevices && !onlineServicesData?.remoteData?.root) {
             // Only the root device is allowed to see and manage registered devices
             return (
                 <div className="mt-2 flex w-full flex-col gap-2 text-left">
@@ -3213,7 +3157,7 @@ const AccountDialog: React.FC<{
             );
         }
 
-        if (!subscriptionData?.configuration?.linking_allowed) {
+        if (!onlineServicesData?.remoteData?.canLink) {
             return (
                 <div className="mt-2 flex w-full flex-col gap-2 text-left">
                     <p className="line-clamp-2 text-left text-base text-gray-600">
@@ -3226,7 +3170,7 @@ const AccountDialog: React.FC<{
             );
         }
 
-        if (!registeredDevices?.length) {
+        if (!linkedDevices?.length) {
             // No registered devices found - should not happen
             return (
                 <div className="mt-2 flex w-full flex-col gap-2 text-left">
@@ -3241,42 +3185,21 @@ const AccountDialog: React.FC<{
             );
         }
 
-        const tempRmFn = async (id: string) => {
-            showWarningDialogFn(
-                "Do you really want to remove the selected device? This will prevent the device from accessing the online services.",
-                async () => {
-                    setOngoingOperation(true);
-
-                    try {
-                        await removeDevice({
-                            deviceId: id,
-                        });
-                        refetchRegisteredDevices();
-                    } catch (error) {
-                        console.error("Error unlinking device.", error);
-                        toast.error("Error unlinking device.");
-                    }
-
-                    setOngoingOperation(false);
-                },
-                null,
-            );
-        };
-
         return (
             <div className="overflow-auto">
                 <p className="mt-2 text-lg">
-                    Currently Registered ({registeredDevices?.length} /{" "}
-                    {subscriptionData.configuration.linked_devices_limit})
+                    Currently Registered ({linkedDevices.length - 1} /{" "}
+                    {onlineServicesData?.remoteData?.maxLinks})
                 </p>
                 <div className="mt-2 flex max-h-52 flex-col gap-2 overflow-y-auto overflow-x-clip">
-                    {registeredDevices?.map((device) => {
+                    {linkedDevices?.map((device) => {
                         const resolvedDeviceName =
                             unlockedVault?.OnlineServices.getLinkedDevice(
-                                device.deviceID,
+                                device.id,
                             )?.Name;
                         const isCurrentDevice =
-                            device.id === session?.user?.accountID;
+                            device.id ===
+                            unlockedVault.OnlineServices.deviceID();
 
                         let deviceDescription = "";
                         const name = (function () {
@@ -3313,22 +3236,43 @@ const AccountDialog: React.FC<{
                                             className="text-sm text-gray-500"
                                             title="Created at"
                                         >
-                                            {device.created_at
+                                            {device.createdAt
                                                 ? new Date(
-                                                      device.created_at,
+                                                      device.createdAt,
                                                   ).toLocaleString()
                                                 : "Unknown"}
                                         </p>
-                                        {device.root && (
-                                            <div className="flex items-center space-x-2">
-                                                <p title="Device that created the account">
-                                                    Root
-                                                </p>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center space-x-2">
+                                            <p
+                                                title={
+                                                    device.root
+                                                        ? "Device can manage registered devices and account settings."
+                                                        : "Device cannot manage registered devices and account settings."
+                                                }
+                                            >
+                                                <ButtonFlat
+                                                    text={
+                                                        device.root
+                                                            ? "Demote"
+                                                            : "Promote"
+                                                    }
+                                                    type={ButtonType.Tertiary}
+                                                    onClick={() =>
+                                                        setRoot(
+                                                            device.id,
+                                                            device.root,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        ongoingOperation ||
+                                                        isCurrentDevice
+                                                    }
+                                                ></ButtonFlat>
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="mt-2 flex items-center space-x-2">
+                                {/* <div className="mt-2 flex items-center space-x-2">
                                     {device.userAgent && device.ip ? (
                                         <>
                                             <p
@@ -3350,25 +3294,20 @@ const AccountDialog: React.FC<{
                                             session.
                                         </p>
                                     )}
-                                </div>
+                                </div> */}
                                 <div
                                     className={clsx({
                                         "mt-2 flex justify-start space-x-2":
                                             true,
-                                        hidden:
-                                            session?.user?.accountID ===
-                                            device.id,
+                                        hidden: isCurrentDevice,
                                     })}
                                 >
                                     <ButtonFlat
                                         text="Remove"
-                                        onClick={async () =>
-                                            await tempRmFn(device.deviceID)
-                                        }
+                                        type={ButtonType.Tertiary}
+                                        onClick={() => tempRmFn(device.id)}
                                         disabled={
-                                            ongoingOperation ||
-                                            session?.user?.accountID ===
-                                                device.id
+                                            ongoingOperation || isCurrentDevice
                                         }
                                     ></ButtonFlat>
                                 </div>
@@ -3382,13 +3321,13 @@ const AccountDialog: React.FC<{
 
     return (
         <GenericModal
-            key="account-management-modal"
+            key="online-services-modal"
             visibleState={[isVisible, setIsVisible]}
         >
             <Body>
                 <div className="flex flex-col items-center text-center">
                     <p className="text-2xl font-bold text-gray-900">
-                        Account Management
+                        Online Services
                     </p>
 
                     {hasDataLoadingError && (
@@ -3420,9 +3359,27 @@ const AccountDialog: React.FC<{
                             </div>
 
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
-                                <p className="text-lg font-bold text-slate-800">
-                                    Registered Devices
-                                </p>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-lg font-bold text-slate-800">
+                                        Registered Devices
+                                    </p>
+
+                                    <div>
+                                        <ButtonFlat
+                                            type={ButtonType.Secondary}
+                                            text="Refresh"
+                                            onClick={async () =>
+                                                await refetchRegisteredDevices()
+                                            }
+                                            loading={fetchingLinkedDevices}
+                                            disabled={
+                                                ongoingOperation ||
+                                                !onlineServicesData?.remoteData
+                                                    ?.root
+                                            }
+                                        ></ButtonFlat>
+                                    </div>
+                                </div>
                                 <RegisteredDevices />
                             </div>
 
@@ -3431,7 +3388,7 @@ const AccountDialog: React.FC<{
                                     General
                                 </p>
                                 <div className="mt-2 flex flex-col">
-                                    {!session?.user?.isRoot && (
+                                    {!onlineServicesData?.remoteData?.root && (
                                         // Only the root device can delete the account
                                         <p className="my-2 text-base text-gray-600">
                                             You can only delete your account
@@ -3444,7 +3401,8 @@ const AccountDialog: React.FC<{
                                         onClick={deleteUserAccount}
                                         disabled={
                                             ongoingOperation ||
-                                            !session?.user?.isRoot
+                                            !onlineServicesData?.remoteData
+                                                ?.root
                                         }
                                     ></ButtonFlat>
                                 </div>
@@ -3455,8 +3413,8 @@ const AccountDialog: React.FC<{
                                 className={clsx({
                                     "absolute inset-0 items-center justify-center backdrop-blur-sm":
                                         true,
-                                    flex: !session,
-                                    hidden: session,
+                                    flex: !onlineServicesBound,
+                                    hidden: onlineServicesBound,
                                 })}
                             >
                                 <div className="flex flex-col items-center justify-center space-y-2 text-center">
@@ -3504,16 +3462,16 @@ const RecoveryGenerationDialog: React.FC<{
         }, DIALOG_BLUR_TIME);
     };
 
-    const { update: refreshSessionData } = useSession();
-
     const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
     const [userId, setUserId] = useState<string>("");
     const [recoveryPhrase, setRecoveryPhrase] = useState<string>("");
 
+    const refreshOnlineServicesRemoteUserData = useFetchOnlineServicesData();
+
     const {
         mutateAsync: _generateRecoveryPhrase,
         isLoading: isGeneratingRecoveryPhrase,
-    } = trpc.credentials.generateRecoveryToken.useMutation();
+    } = trpcReact.v1.user.generateRecoveryToken.useMutation();
 
     const generateRecoveryPhrase = async () => {
         toast.info("Generating recovery phrase...", {
@@ -3537,8 +3495,8 @@ const RecoveryGenerationDialog: React.FC<{
             setUserId(payload.userId);
             setShowRecoveryPhrase(true);
 
-            // Refresh the session data
-            await refreshSessionData();
+            // Refresh the remote user data
+            await refreshOnlineServicesRemoteUserData();
         } catch (error) {
             if (error instanceof TRPCClientError) {
                 console.error(error.message);
@@ -3646,9 +3604,14 @@ const AccountHeaderWidget: React.FC<{
     showWarningDialogFn,
     showRecoveryGenerationDialogFnRef,
 }) => {
-    const { data: session, status: sessionStatus } = useSession();
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const onlineServicesBound = unlockedVault.OnlineServices.isBound();
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
+    const onlineServicesConnectionStatus = useAtomValue(
+        onlineServicesConnectionStatusAtom,
+    );
+    const unbindOnlineServices = useUnbindOnlineServices();
 
     const showAccountDialogFnRef = useRef<() => void>(() => {
         // Do nothing
@@ -3662,12 +3625,12 @@ const AccountHeaderWidget: React.FC<{
         data: subscriptionData,
         isLoading: isSubscriptionDataLoading,
         isError: hasSubscriptionDataError,
-    } = trpc.payment.getSubscription.useQuery(undefined, {
+    } = trpcReact.v1.payment.subscription.useQuery(undefined, {
         refetchOnWindowFocus: false,
         enabled:
-            !!session &&
             !!unlockedVault &&
-            unlockedVault.OnlineServices.isBound(),
+            unlockedVault.OnlineServices.isBound() &&
+            !!onlineServicesData?.remoteData,
     });
 
     const signOutCallback = () => {
@@ -3678,31 +3641,13 @@ const AccountHeaderWidget: React.FC<{
             Make sure you have generated a account recovery phrase in the Account dialog. \
             You can use that recovery phrase to regain access to your account after signing out.`,
             async () =>
-                await unbindAccountFromVault(
+                await unbindOnlineServices(
                     unlockedVaultMetadata,
                     unlockedVault,
                 ),
             null,
         );
     };
-
-    // This should not happed, but if it does, sign out the user
-    // if (!session && unlockedVault) {
-    //     signOut({ redirect: false });
-    // }
-    if (!unlockedVault || !unlockedVault.OnlineServices.isBound()) {
-        return (
-            <button
-                className="group flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-700 p-1 px-3 text-base font-medium text-white transition-colors hover:bg-slate-800 hover:text-opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75"
-                onClick={showAccountSignUpSignInDialog}
-            >
-                <div className="text-center">
-                    <p className="text-slate-50">Not Signed In</p>
-                    <p className="text-slate-400">Log in to continue</p>
-                </div>
-            </button>
-        );
-    }
 
     return (
         <>
@@ -3718,76 +3663,51 @@ const AccountHeaderWidget: React.FC<{
                             <Popover.Button
                                 ref={refs.setReference}
                                 className={popoverButtonClasses}
+                                onClick={
+                                    !onlineServicesBound
+                                        ? showAccountSignUpSignInDialog
+                                        : undefined
+                                }
                             >
                                 <div className="flex cursor-pointer items-center gap-2 rounded-lg p-1 px-2 transition-colors hover:bg-slate-800">
-                                    <div className="flex flex-col text-right">
-                                        {session && (
-                                            <>
-                                                <p
-                                                    className="max-w-[200px] truncate capitalize text-slate-50"
-                                                    title={
-                                                        session.user?.name ?? ""
-                                                    }
-                                                >
-                                                    {session.user?.name}
-                                                </p>
-                                                <p
-                                                    className="max-w-[200px] truncate text-slate-400"
-                                                    title={
-                                                        session.user?.email ??
-                                                        ""
-                                                    }
-                                                >
-                                                    {session.user?.email}
-                                                </p>
-                                            </>
-                                        )}
-
-                                        {!session &&
-                                            sessionStatus ===
-                                                "unauthenticated" && (
-                                                <div className="text-center">
-                                                    <p className="max-w-xs truncate capitalize text-slate-50">
-                                                        Not Authenticated
-                                                    </p>
-                                                    <p className="max-w-xs truncate text-slate-400">
-                                                        Failed to authenticate
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                        {!session &&
-                                            sessionStatus === "loading" && (
-                                                <p className="max-w-xs truncate text-slate-400">
-                                                    Authenticating...
-                                                </p>
-                                            )}
+                                    <div className="flex flex-col text-left">
+                                        <p className="max-w-[200px] truncate capitalize text-slate-50">
+                                            Online Services
+                                        </p>
+                                        <p
+                                            className="max-w-xs text-left text-slate-400"
+                                            title={
+                                                onlineServicesConnectionStatus.statusDescription
+                                            }
+                                        >
+                                            {
+                                                onlineServicesConnectionStatus.statusDescription
+                                            }
+                                        </p>
                                     </div>
                                     <div
                                         className={clsx({
                                             "flex items-center justify-center rounded-md border border-slate-500 px-3 py-3 text-sm":
                                                 true,
-                                            "text-yellow-500": [
-                                                "loading",
-                                            ].includes(sessionStatus),
-                                            "text-green-500": [
-                                                "authenticated",
-                                            ].includes(sessionStatus),
-                                            "text-red-500": [
-                                                "unauthenticated",
-                                            ].includes(sessionStatus),
+                                            "text-slate-500 shadow-md shadow-slate-500":
+                                                !onlineServicesBound &&
+                                                onlineServicesConnectionStatus.status ===
+                                                    "DISCONNECTED",
+                                            "text-yellow-500 shadow-md shadow-yellow-500":
+                                                onlineServicesBound &&
+                                                onlineServicesConnectionStatus.status ===
+                                                    "CONNECTING",
+                                            "text-green-500 shadow-md shadow-green-500":
+                                                onlineServicesBound &&
+                                                onlineServicesConnectionStatus.status ===
+                                                    "CONNECTED",
+                                            "text-red-500 shadow-md shadow-red-500":
+                                                (onlineServicesBound &&
+                                                    onlineServicesConnectionStatus.status ===
+                                                        "DISCONNECTED") ||
+                                                onlineServicesConnectionStatus.status ===
+                                                    "FAILED",
                                         })}
-                                        title={
-                                            sessionStatus === "loading"
-                                                ? "Authenticating..."
-                                                : sessionStatus ===
-                                                  "authenticated"
-                                                ? "Authenticated"
-                                                : sessionStatus ===
-                                                  "unauthenticated"
-                                                ? "Disconnected"
-                                                : ""
-                                        }
                                     >
                                         <WifiIcon className="h-5 w-5 text-inherit" />
                                     </div>
@@ -3812,8 +3732,11 @@ const AccountHeaderWidget: React.FC<{
                                             className={clsx({
                                                 "flex-col gap-4 bg-slate-700 p-4":
                                                     true,
-                                                flex: session,
-                                                hidden: !session,
+                                                flex: onlineServicesBound,
+                                                hidden:
+                                                    !onlineServicesBound ||
+                                                    onlineServicesConnectionStatus.status !==
+                                                        "CONNECTED",
                                             })}
                                         >
                                             {/* Display the pill for the users tier */}
@@ -3830,7 +3753,7 @@ const AccountHeaderWidget: React.FC<{
                                                 </p>
                                                 <p className="rounded-lg border border-slate-500 px-2 py-1 text-xs text-slate-50">
                                                     {
-                                                        subscriptionData?.product_name
+                                                        subscriptionData?.productName
                                                     }
                                                 </p>
                                             </div>
@@ -3870,7 +3793,6 @@ const AccountHeaderWidget: React.FC<{
                                                 className="text-slate-200 sm:w-full"
                                                 type={ButtonType.Secondary}
                                                 text="Sign Out"
-                                                // This is used because we can't get to the warning dialog from here
                                                 onClick={signOutCallback}
                                             />
                                         </div>
@@ -5572,12 +5494,12 @@ const VaultTitle: React.FC<{ title: string }> = ({ title }) => {
 //#region Vault account management
 enum AccountDialogMode {
     Recover = "Recover",
-    SignUp = "Sign Up",
+    Register = "Register",
 }
 type AccountDialogTabBarProps = {
     currentFormMode: AccountDialogMode;
     changeFormMode: (
-        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp,
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.Register,
     ) => void;
 };
 
@@ -5617,7 +5539,7 @@ const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
     );
 };
 
-const AccountSignUpSignInDialog: React.FC<{
+const OnlineServicesSignUpRestoreDialog: React.FC<{
     showDialogFnRef: React.MutableRefObject<(() => void) | null>;
     vaultMetadata: VaultMetadata;
     showRecoveryGenerationDialogFnRef: React.MutableRefObject<
@@ -5628,21 +5550,23 @@ const AccountSignUpSignInDialog: React.FC<{
     vaultMetadata,
     showRecoveryGenerationDialogFnRef,
 }) => {
-    const vault = useAtomValue(onlineServicesAccountAtom);
+    // const vault = useAtomValue(onlineServicesAccountAtom);
+    const onlineServicesBound = useAtomValue(onlineServicesBoundAtom);
+    const fetchOnlineServicesData = useFetchOnlineServicesData();
 
     // TODO: Show this dialog only if the user is actually online
-    const [visible, setVisible] = useState(!vault?.isBound() ?? false);
+    const [visible, setVisible] = useState(!onlineServicesBound);
     showDialogFnRef.current = () => setVisible(true);
     const hideDialog = () => setVisible(false);
 
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const [currentFormMode, setCurrentFormMode] = useState(
-        AccountDialogMode.SignUp,
+        AccountDialogMode.Register,
     );
 
     const changeFormMode = (
-        newFormMode: AccountDialogMode.Recover | AccountDialogMode.SignUp,
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.Register,
     ) => {
         // Clear the submit function reference
         // signInSubmitFnRef.current = null;
@@ -5663,23 +5587,20 @@ const AccountSignUpSignInDialog: React.FC<{
         ) {
             await recoverSubmitFnRef.current();
         } else if (
-            currentFormMode === AccountDialogMode.SignUp &&
+            currentFormMode === AccountDialogMode.Register &&
             signUpSubmitFnRef.current
         ) {
             await signUpSubmitFnRef.current?.();
         }
     };
 
-    const bindAccount = async (
-        userID: string,
-        privateKey: string,
-        publicKey: string,
-    ) => {
-        if (!vault) return;
-
-        // Save the UserID, public/private key to the vault
+    const bindAccount = async (apiKey: string) => {
+        // Save the authentication data to the vault
         setUnlockedVault(async (pre) => {
-            pre.OnlineServices.bindAccount(userID, publicKey, privateKey);
+            pre.OnlineServices.bindAccount(apiKey);
+
+            setOnlineServicesAPIKey(apiKey);
+            await fetchOnlineServicesData();
 
             try {
                 await vaultMetadata.save(pre);
@@ -5720,7 +5641,7 @@ const AccountSignUpSignInDialog: React.FC<{
                         hideDialogFn={hideDialog}
                     />
                 ) : (
-                    <AccountDialogSignUpForm
+                    <AccountDialogRegisterForm
                         submittingState={isSubmitting}
                         submitFnRef={signUpSubmitFnRef}
                         vaultMetadata={vaultMetadata}
@@ -5751,19 +5672,15 @@ const AccountSignUpSignInDialog: React.FC<{
 const AccountDialogRecoverForm: React.FC<{
     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
-    bindAccountFn: (
-        userId: string,
-        privateKey: string,
-        publicKey: string,
-    ) => Promise<void>;
+    bindAccountFn: (apiKey: string) => Promise<void>;
     hideDialogFn: () => void;
 }> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
     const [, setIsSubmitting] = submittingState;
 
     const recoverFormSchema = z.object({
-        userId: z.string().nonempty("This field is required").max(100),
-        recoveryPhrase: z.string().nonempty("This field is required"),
-        captchaToken: z.string().nonempty("Captch is required"),
+        userId: z.string().min(1, "This field is required").max(100),
+        recoveryPhrase: z.string().min(1, "This field is required"),
+        captchaToken: z.string().min(1, "Captch is required"),
     });
     type RecoverFormSchemaType = z.infer<typeof recoverFormSchema>;
 
@@ -5782,55 +5699,34 @@ const AccountDialogRecoverForm: React.FC<{
     });
 
     const { mutateAsync: recoverUser } =
-        trpc.credentials.recoverAccount.useMutation();
+        trpcReact.v1.user.recover.useMutation();
 
     const onSubmit = async (formData: RecoverFormSchemaType) => {
         setIsSubmitting(true);
-
-        toast.info("Generating keys...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "recovery-generating-keys",
-            updateId: "recovery-generating-keys",
-        });
-
-        // Generate a public/private key pair
-        const keyPair = await generateKeyPair();
 
         // Send the public key and the email to the server
         toast.info("Contacting the server...", {
             autoClose: false,
             closeButton: false,
-            toastId: "recovery-generating-keys",
-            updateId: "recovery-generating-keys",
+            toastId: "recovery-contacting-server",
+            updateId: "recovery-contacting-server",
         });
 
         try {
-            const newUserId = await recoverUser({
+            const apiKey = await recoverUser({
                 userId: formData.userId,
                 recoveryPhrase: formData.recoveryPhrase,
-                publicKey: keyPair.publicKey,
+                // publicKey: keyPair.publicKey,
                 captchaToken: formData.captchaToken,
             });
 
-            // Save the UserID, public/private key to the vault
-            await bindAccountFn(
-                newUserId,
-                keyPair.privateKey,
-                keyPair.publicKey,
-            );
+            // Save the API key to the vault
+            await bindAccountFn(apiKey);
 
-            toast.update("recovery-generating-keys", {
+            toast.update("recovery-contacting-server", {
                 autoClose: 1000,
                 closeButton: true,
             });
-
-            // Sign in - NOTE: don't await this, we don't want to wait for the server to respond
-            cryptexAccountSignIn(
-                newUserId,
-                keyPair.privateKey,
-                formData.captchaToken,
-            );
 
             // Hide the dialog
             hideDialogFn();
@@ -5844,8 +5740,8 @@ const AccountDialogRecoverForm: React.FC<{
             toast.error("Recovery failed. Please try again.", {
                 autoClose: 3000,
                 closeButton: true,
-                toastId: "recovery-generating-keys",
-                updateId: "recovery-generating-keys",
+                toastId: "recovery-contacting-server",
+                updateId: "recovery-contacting-server",
             });
         }
         setIsSubmitting(false);
@@ -5954,15 +5850,11 @@ const AccountDialogRecoverForm: React.FC<{
     );
 };
 
-const AccountDialogSignUpForm: React.FC<{
+const AccountDialogRegisterForm: React.FC<{
     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
     vaultMetadata: VaultMetadata;
-    bindAccountFn: (
-        userID: string,
-        privateKey: string,
-        publicKey: string,
-    ) => Promise<void>;
+    bindAccountFn: (apiKey: string) => Promise<void>;
     hideDialogFn: () => void;
 }> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
     const [, setIsSubmitting] = submittingState;
@@ -5975,61 +5867,41 @@ const AccountDialogSignUpForm: React.FC<{
     } = useForm<SignUpFormSchemaType>({
         resolver: zodResolver(signUpFormSchema),
         defaultValues: {
-            email: "",
             captchaToken: "",
         },
     });
 
     const { mutateAsync: register_user } =
-        trpc.credentials.registerUser.useMutation();
+        trpcReact.v1.user.register.useMutation();
 
     const onSubmit = async (formData: SignUpFormSchemaType) => {
         setIsSubmitting(true);
-
-        toast.info("Generating keys...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "signup-generating-keys",
-            updateId: "signup-generating-keys",
-        });
-
-        // Generate a public/private key pair
-        const keyPair = await generateKeyPair();
 
         // Send the public key and the email to the server
         toast.info("Contacting the server...", {
             autoClose: false,
             closeButton: false,
-            toastId: "signup-generating-keys",
-            updateId: "signup-generating-keys",
+            toastId: "register-user",
+            updateId: "register-user",
         });
 
         try {
-            const userID = await register_user({
-                email: formData.email,
-                publicKey: keyPair.publicKey,
+            const apiKey = await register_user({
                 captchaToken: formData.captchaToken,
             });
 
-            // Save the UserID, public/private key to the vault
-            await bindAccountFn(userID, keyPair.privateKey, keyPair.publicKey);
+            // Save the api key
+            await bindAccountFn(apiKey);
+
+            // Hide the dialog
+            hideDialogFn();
 
             toast.success("Successfully registered user.", {
                 autoClose: 3000,
                 closeButton: true,
-                toastId: "signup-generating-keys",
-                updateId: "signup-generating-keys",
+                toastId: "register-user",
+                updateId: "register-user",
             });
-
-            // Sign in - NOTE: don't await this, we don't want to wait for the server to respond
-            cryptexAccountSignIn(
-                userID,
-                keyPair.privateKey,
-                formData.captchaToken,
-            );
-
-            // Hide the dialog
-            hideDialogFn();
         } catch (e) {
             console.error("Failed to register user.", e);
 
@@ -6041,8 +5913,8 @@ const AccountDialogSignUpForm: React.FC<{
             toast.error(message, {
                 autoClose: 3000,
                 closeButton: true,
-                toastId: "signup-generating-keys",
-                updateId: "signup-generating-keys",
+                toastId: "register-user",
+                updateId: "register-user",
             });
         }
         setIsSubmitting(false);
@@ -6076,31 +5948,6 @@ const AccountDialogSignUpForm: React.FC<{
                 </p>
             </div>
 
-            <div className="mt-2 flex flex-col">
-                <Controller
-                    control={control}
-                    name="email"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                        <FormInputField
-                            label="Email *"
-                            placeholder="Type in your email address"
-                            type="email"
-                            autoCapitalize="none"
-                            onChange={onChange}
-                            onBlur={onBlur}
-                            value={value}
-                        />
-                    )}
-                />
-                {errors.email && (
-                    <p className="text-red-500">{errors.email.message}</p>
-                )}
-                <p className="text-xs text-gray-500">
-                    We will send you a confirmation email to verify your email
-                    address. Verify your email address to complete the
-                    registration. The link will expire after 24 hours.
-                </p>
-            </div>
             <div className="mt-2 flex flex-col items-center">
                 <Controller
                     control={control}
@@ -6130,67 +5977,6 @@ const AccountDialogSignUpForm: React.FC<{
                 )}
             </div>
         </div>
-    );
-};
-
-const EmailNotVerifiedDialog: React.FC = () => {
-    const { data: session } = useSession();
-
-    // Check if the verification period has expired
-    // The same condition is used in the server to check if the verification period has expired
-    const didVerificationPeriodExpire =
-        session?.user &&
-        session.user.confirmation_period_expires_at &&
-        new Date(session.user.confirmation_period_expires_at) < new Date();
-
-    // Show time to expiery if didVerificationPeriodExpire is false using dayjs
-    const timeToExpiry = didVerificationPeriodExpire
-        ? null
-        : dayjs(session?.user?.confirmation_period_expires_at).fromNow();
-
-    // If we have a session and confirmed_at is null and the verification period has not expired, show the dialog
-    const [visibleState, setVisibleState] = useState<boolean>(
-        session?.user != null &&
-            session.user.confirmed_at == null &&
-            !didVerificationPeriodExpire,
-    );
-    const hideDialogFn = () => setVisibleState(false);
-
-    return (
-        <GenericModal
-            key="verify-email-dialog"
-            visibleState={[visibleState, setVisibleState]}
-        >
-            <Body>
-                <div className="flex flex-col items-center text-center">
-                    <ExclamationTriangleIcon
-                        className="h-10 w-10 text-red-500"
-                        aria-hidden="true"
-                    />
-                    <p className="text-2xl font-bold text-gray-900">Warning</p>
-                    <br />
-                    <p className="mt-2 text-center text-base text-gray-600">
-                        Your email address has not been verified.
-                    </p>
-                    <p className="mt-2 text-center text-base text-gray-600">
-                        Please check your email inbox and verify your email
-                        address.
-                    </p>
-                    <p className="mt-2 text-center text-base text-gray-600">
-                        The account will be deactivated <b>{timeToExpiry}</b>,
-                        if you don&apos;t verify your email address.
-                    </p>
-                </div>
-            </Body>
-
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                <ButtonFlat
-                    text="Close"
-                    type={ButtonType.Secondary}
-                    onClick={hideDialogFn}
-                />
-            </Footer>
-        </GenericModal>
     );
 };
 
@@ -6313,26 +6099,16 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         }, DIALOG_BLUR_TIME);
     };
 
-    const { data: session } = useSession();
-    const hasSession = session != null;
-
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
 
     const [selectedLinkMethod, setSelectedLinkMethod] =
         useState<LinkMethod | null>(null);
     const [isOperationInProgress, setIsOperationInProgress] = useState(false);
     const [readyForOtherDevice, setReadyForOtherDevice] = useState(false);
     const progressLogRef = useRef<ProgressLogType[]>([]);
-    const addToProgressLog = (
-        message: string,
-        type: "done" | "info" | "warn" | "error" = "done",
-    ) => {
-        const newProgressLog = [{ message, type }, ...progressLogRef.current];
-        progressLogRef.current = newProgressLog;
-        setFormValue("progressLog", newProgressLog);
-    };
     const cancelFnRef = useRef<() => void>(() => {
         // No-op
     });
@@ -6370,75 +6146,53 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
     const encryptedTransferableDataRef = useRef<string>("");
 
-    const {
-        data: linkingAccountConfiguration,
-        isError: linkingAccountConfigurationError,
-    } = trpc.account.getLinkingConfiguration.useQuery(undefined, {
-        refetchOnWindowFocus: false,
-        enabled:
-            !!session &&
-            !!unlockedVault &&
-            unlockedVault.OnlineServices.isBound(),
-    });
-
     const { mutateAsync: linkNewDevice } =
-        trpc.account.linkDevice.useMutation();
-    const removeDevice = trpc.account.removeDevice.useMutation();
+        trpcReact.v1.device.link.useMutation();
+    const removeDevice = trpcReact.v1.device.remove.useMutation();
+
+    const addToProgressLog = (
+        message: string,
+        type: "done" | "info" | "warn" | "error" = "done",
+    ) => {
+        const newProgressLog = [{ message, type }, ...progressLogRef.current];
+        progressLogRef.current = newProgressLog;
+        setFormValue("progressLog", newProgressLog);
+    };
 
     const startLinkingProcess = async (): Promise<{
-        userID: string;
+        apiKey: string;
         encryptedTransferableData: string;
-        generatedKeyPair: {
-            publicKey: string;
-            privateKey: string;
-        };
     }> => {
         if (!unlockedVault) {
             addToProgressLog("No unlocked vault found.", "error");
             throw new Error("No unlocked vault found.");
         }
 
-        // Generate a set of keys for the device
-        let keypair;
-        try {
-            addToProgressLog("Generating keys for the device...", "info");
-            keypair = await generateKeyPair();
-            addToProgressLog("Generated keys for the device.");
-        } catch (e) {
-            addToProgressLog(
-                "Failed to generate keys for the device.",
-                "error",
-            );
-            throw e;
-        }
-
         // Run the account.linkDevice mutation
-        let userID: string;
+        let apiKey: string;
         try {
             addToProgressLog(
-                "Registering credentials with the server...",
+                "Registering a new device with the server...",
                 "info",
             );
-            userID = await linkNewDevice({
-                publicKey: keypair.publicKey,
-            });
-            addToProgressLog("Registered credentials with the server.");
+            apiKey = await linkNewDevice();
+            addToProgressLog("Device registered.");
         } catch (e) {
             if (e instanceof TRPCClientError) {
                 addToProgressLog(
-                    `Failed to register credentials with the server: ${e.message}`,
+                    `Failed to register the device with the server: ${e.message}`,
                     "error",
                 );
             } else {
                 addToProgressLog(
-                    "Failed to register credentials with the server.",
+                    "Failed to register the device with the server.",
                     "error",
                 );
             }
             throw e;
         }
 
-        // Encrypt the received UserID and PrivateKey with a random mnemonic passphrase
+        // Encrypt the received key with a random mnemonic passphrase
         let encryptedTransferableData;
         try {
             addToProgressLog(
@@ -6446,11 +6200,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 "info",
             );
             encryptedTransferableData =
-                await OnlineServicesAccount.encryptTransferableData(
-                    userID,
-                    keypair.publicKey,
-                    keypair.privateKey,
-                );
+                await OnlineServicesAccount.encryptTransferableData(apiKey);
             addToProgressLog("Encrypted and serialized credentials.");
         } catch (e) {
             addToProgressLog(
@@ -6465,20 +6215,15 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         // setFormValue("showingMnemonic", true);
 
         return {
-            userID,
+            apiKey,
             encryptedTransferableData:
                 encryptedTransferableData?.encryptedDataB64,
-            generatedKeyPair: keypair,
         };
     };
 
-    const finishLinkingProcess = async (
-        userID: string,
-        generatedKeyPair: {
-            publicKey: string;
-            privateKey: string;
-        },
-    ) => {
+    const finishLinkingProcess = async (apiKey: string) => {
+        const deviceID = extractIDFromAPIKey(apiKey);
+
         // Start setting up the WebRTC connection
         const webRTConnection = await newWebRTCConnection();
         webRTConnection.onconnectionstatechange = () => {
@@ -6522,11 +6267,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
             // Check if we have valid vault data to send
             // In reality, this should never happen, but we'll check anyway to make the typescript compiler happy
-            if (
-                !vaultMetadata ||
-                !unlockedVault ||
-                !unlockedVault.OnlineServices.UserID
-            ) {
+            if (!vaultMetadata || !unlockedVault) {
                 addToProgressLog(
                     "Cannot find vault metadata or the vault itself.",
                     "error",
@@ -6554,11 +6295,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 );
 
                 // Prepare the vault data for transmission
-                const exportedVault = unlockedVault.packageForLinking({
-                    UserID: userID,
-                    PublicKey: generatedKeyPair.publicKey,
-                    PrivateKey: generatedKeyPair.privateKey,
-                });
+                const exportedVault = unlockedVault.packageForLinking(apiKey);
 
                 addToProgressLog("Vault data packaged. Encrypting...", "info");
 
@@ -6585,7 +6322,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 
                 setUnlockedVault(async (prev) => {
                     prev.OnlineServices.addLinkedDevice(
-                        userID,
+                        deviceID,
                         getFormValues("deviceName"),
                     );
                     await vaultMetadata.save(unlockedVault);
@@ -6669,7 +6406,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
             setIsOperationInProgress(false);
         });
 
-        const channelName = `presence-link-${userID}`;
+        const channelName = constructLinkPresenceChannelName(apiKey);
         const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
         wsChannel.bind("pusher:subscription_succeeded", () => {
             setReadyForOtherDevice(true);
@@ -6683,7 +6420,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 // Try to remove the device from the account - if it fails, we'll just have to leave it there for the user to remove manually
                 try {
                     await removeDevice.mutateAsync({
-                        deviceId: userID,
+                        id: deviceID,
                     });
                 } catch (err) {
                     console.error("Failed to remove device:", err);
@@ -6784,7 +6521,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         // Meaning only unexpected errors should be caught here
         try {
             // Trigger linking
-            const { userID, encryptedTransferableData, generatedKeyPair } =
+            const { apiKey, encryptedTransferableData } =
                 await startLinkingProcess();
 
             if (type === LinkMethod.File) {
@@ -6799,7 +6536,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 throw new Error("Unknown linking method.");
             }
 
-            await finishLinkingProcess(userID, generatedKeyPair);
+            await finishLinkingProcess(apiKey);
         } catch (e) {
             console.error("Failed to link device.", e);
 
@@ -6811,10 +6548,9 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         }
     };
 
+    const hasCredentials = unlockedVault.OnlineServices.isBound();
     const isWrongTier =
-        linkingAccountConfiguration &&
-        session &&
-        !linkingAccountConfiguration.can_link;
+        !hasCredentials && !!!onlineServicesData?.remoteData?.canLink;
 
     return (
         <GenericModal
@@ -6829,17 +6565,17 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 </div>
                 <div className="flex w-full flex-col">
                     {
-                        // If the user is not logged in, tell them to log in
-                        !hasSession && (
+                        // If the user is not registered
+                        !hasCredentials && (
                             <p className="text-center text-base text-gray-600">
-                                You need to be logged in to online services in
-                                order to link devices to your vault.
+                                You need to be registered with the online
+                                services in order to link devices to your vault.
                             </p>
                         )
                     }
                     {
                         // If there was an error while fetching the linking configuration, tell the user
-                        linkingAccountConfigurationError && (
+                        onlineServicesData == null && (
                             <p className="text-center text-base text-gray-600">
                                 Failed to fetch linking configuration. Please
                                 try again later.
@@ -6857,7 +6593,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                         </>
                     )}
                     {!isWrongTier &&
-                        hasSession &&
+                        hasCredentials &&
                         selectedLinkMethod == null && (
                             <>
                                 <p className="text-center text-base text-gray-600">
@@ -6942,7 +6678,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                         )}
 
                     {!isWrongTier &&
-                        hasSession &&
+                        hasCredentials &&
                         selectedLinkMethod != null && (
                             <div className="flex flex-col gap-2">
                                 <div className="mt-2 flex flex-col items-center gap-2">
@@ -7425,8 +7161,6 @@ let onlineWSServicesEndpoint: Pusher | null = null;
 const DashboardSidebarSynchronization: React.FC<{
     showWarningFn: WarningDialogShowFn;
 }> = ({ showWarningFn }) => {
-    const { data: session } = useSession();
-
     enum OnlineServicesStatus {
         NoAccount = "No Account",
         NoDevices = "No Devices",
@@ -7441,6 +7175,7 @@ const DashboardSidebarSynchronization: React.FC<{
 
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const linkedDevicesLen = unlockedVault?.OnlineServices.LinkedDevices.length;
@@ -7464,6 +7199,12 @@ const DashboardSidebarSynchronization: React.FC<{
         },
     ) => {
         if (!unlockedVault) return;
+
+        if (!onlineServicesData?.remoteData) {
+            setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
+            console.debug("Skipping online services setup - no initial data");
+            return;
+        }
 
         if (!unlockedVault.OnlineServices.isBound()) {
             setOnlineServicesStatus(OnlineServicesStatus.NoAccount);
@@ -8059,7 +7800,7 @@ const DashboardSidebarSynchronization: React.FC<{
         dataChannel: RTCDataChannel,
         devicesToExclude: string[],
     ) => {
-        if (session?.user?.isRoot && unlockedVault) {
+        if (onlineServicesData?.remoteData?.root && unlockedVault) {
             const linkedDevicesPayload = Synchronization.Message.prepare(
                 Synchronization.Command.LinkedDevicesList,
                 undefined,
@@ -8118,7 +7859,7 @@ const DashboardSidebarSynchronization: React.FC<{
         const optionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
         const { mutateAsync: removeDevice } =
-            trpc.account.removeDevice.useMutation();
+            trpcReact.v1.device.remove.useMutation();
 
         const [webRTCConnections, setWebRTCConnections] = useAtom(
             webRTCConnectionsAtom,
@@ -8128,7 +7869,7 @@ const DashboardSidebarSynchronization: React.FC<{
             () =>
                 constructSyncChannelName(
                     onlineServices.CreationTimestamp,
-                    onlineServices.UserID ?? "",
+                    onlineServices.deviceID() ?? "",
                     device.ID,
                     device.LinkedAtTimestamp,
                 ),
@@ -8216,11 +7957,15 @@ const DashboardSidebarSynchronization: React.FC<{
         };
 
         const unlinkDevice = async (device: LinkedDevice) => {
-            if (!unlockedVault || !unlockedVaultMetadata || !session) {
+            if (
+                !unlockedVault ||
+                !unlockedVaultMetadata ||
+                !unlockedVault.OnlineServices.isBound()
+            ) {
                 return;
             }
 
-            if (!session.user?.isRoot) {
+            if (!onlineServicesData?.remoteData?.root) {
                 toast.error("Only the root device can unlink other devices.");
                 return;
             }
@@ -8238,7 +7983,7 @@ const DashboardSidebarSynchronization: React.FC<{
                     // Try to remove the device from the online services
                     try {
                         await removeDevice({
-                            deviceId: device.ID,
+                            id: device.ID,
                         });
                     } catch (err) {
                         console.warn(
@@ -8363,7 +8108,7 @@ const DashboardSidebarSynchronization: React.FC<{
             }
 
             // If we have a user identifier, we can try to subscribe
-            const ownIdentifier = onlineServices.UserID;
+            const ownIdentifier = onlineServices.deviceID();
             if (!ownIdentifier) return;
 
             // This will be the event name that we will use to communicate over the pusher channel
@@ -9052,17 +8797,17 @@ const DashboardSidebarMenuItem: React.FC<{
 const DashboardSidebarMenuFeatureVoting: React.FC<{
     onClick?: () => void;
 }> = ({ onClick }) => {
-    const session = useSession();
-
     // This component is separate so that we don't rerender the whole dashboard
     // If the TRPC call resolves to a different value
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
 
     // Fetch the featureVoting.openRound trpc query if we're logged in (have a session)
     const { data: openRoundExists } =
-        trpc.featureVoting.openRoundExists.useQuery(undefined, {
+        trpcReact.v1.featureVoting.openRoundExists.useQuery(undefined, {
             retry: false,
-            enabled: !!session && !!session.data,
+            enabled: !!onlineServicesData?.remoteData,
             refetchOnWindowFocus: false,
+            trpc: {},
         });
 
     return (
@@ -9070,7 +8815,7 @@ const DashboardSidebarMenuFeatureVoting: React.FC<{
             Icon={ArrowUpCircleIcon}
             text="Feature Voting"
             onClick={onClick}
-            pulsatingIndicatorVisible={openRoundExists?.result}
+            pulsatingIndicatorVisible={openRoundExists ?? false}
         />
     );
 };
@@ -9082,6 +8827,7 @@ const VaultDashboard: React.FC = ({}) => {
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+    const clearOnlineServicesData = useClearOnlineServicesDataAtom();
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const sidebarSelector = ".sidebar-event-selector";
@@ -9148,6 +8894,7 @@ const VaultDashboard: React.FC = ({}) => {
                     updateId: "lock-vault",
                 });
 
+                clearOnlineServicesData();
                 setUnlockedVaultMetadata(null);
             } catch (e) {
                 console.error(`Failed to save vault: ${e}`);
@@ -9315,7 +9062,7 @@ const VaultDashboard: React.FC = ({}) => {
                 }
             />
             <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
-            <AccountSignUpSignInDialog
+            <OnlineServicesSignUpRestoreDialog
                 showDialogFnRef={showAccountSignUpSignInDialogRef}
                 vaultMetadata={vaultMetadata}
                 showRecoveryGenerationDialogFnRef={
@@ -9325,7 +9072,6 @@ const VaultDashboard: React.FC = ({}) => {
             <RecoveryGenerationDialog
                 showDialogFnRef={showRecoveryGenerationDialogRef}
             />
-            <EmailNotVerifiedDialog />
             <CredentialsGeneratorDialog
                 showDialogFnRef={showCredentialsGeneratorDialogFnRef}
             />
@@ -9815,7 +9561,7 @@ const AppIndex: React.FC = () => {
     const webRTConnections = useSetAtom(webRTCConnectionsAtom);
 
     // TODO: Check for multiple rerenderings of this component
-    // console.log("MAIN RERENDER", unlockedVault);
+    // console.log("MAIN RERENDER", isVaultUnlocked);
     // NOTE: To implement a loading screen, we can use the !vaults check
 
     useEffect(() => {
@@ -9829,24 +9575,13 @@ const AppIndex: React.FC = () => {
     }, [isVaultUnlocked]);
 
     return (
-        <SessionProvider refetchWhenOffline={false} refetchInterval={60 * 60}>
+        <>
             <HTMLHeaderPWA
-                title="CryptexVault"
+                title="Cryptex Vault"
                 description="Decentralized Password Manager"
             />
 
             <HTMLMain additionalClasses="content flex min-h-screen grow flex-col overflow-clip">
-                {/* <h1>App</h1>
-                {session ? (
-                    <div>
-                        <h2>Logged in as {session.user?.email}</h2>
-                    </div>
-                ) : (
-                    <div>
-                        <h2>Not signed in</h2>
-                    </div>
-                )} */}
-
                 <VaultDashboard />
 
                 {
@@ -9855,7 +9590,7 @@ const AppIndex: React.FC = () => {
                 }
             </HTMLMain>
             <NotificationContainer pauseOnHover={false} />
-        </SessionProvider>
+        </>
     );
 };
 

@@ -101,9 +101,15 @@ export const ButtonFlat: React.FC<ButtonFlatProps> = ({
                 [className ?? ""]: true,
             })}
             onClick={onClick}
-            disabled={disabled}
+            disabled={disabled || loading}
         >
-            {loading ? <Spinner size={5} /> : [text]}
+            {text}
+            {loading ? (
+                <>
+                    <div className="ml-4"></div>
+                    <Spinner size={5} />
+                </>
+            ) : null}
         </button>
     );
 };

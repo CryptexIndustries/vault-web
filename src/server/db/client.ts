@@ -1,7 +1,7 @@
 // src/server/db/client.ts
 import { PrismaClient } from "@prisma/client";
 import { env } from "../../env/server.mjs";
-import { initProductConfiguration } from "../../utils/subscription";
+import { initProductConfiguration } from "../utils/subscription";
 
 declare global {
     // eslint-disable-next-line no-var

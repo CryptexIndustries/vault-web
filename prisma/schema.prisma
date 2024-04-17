@@ -8,88 +8,32 @@ generator client {
 
 datasource db {
     // Use "sqlite" for local development (offline), "mysql" for production or development (online)
-    provider = "mysql"
+    provider = "postgresql"
 
     // NOTE: When using postgresql, mysql or sqlserver, uncomment the @db.text annotations in model Account below
     // Further reading: 
     // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
     // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url          = env("DATABASE_URL")
-    relationMode = "prisma"
+    url = env("DATABASE_URL")
+    // relationMode = "prisma"
 }
 
 model User {
-    id                            String               @id @default(cuid())
-    name                          String?              @db.VarChar(255)
-    email                         String               @unique
-    emailVerified                 String?              @map("email_verified") // This is not used, only junk from next-auth
-    email_verified_at             DateTime?
-    email_verification_expires_at DateTime             @default(now())
-    created_at                    DateTime             @default(now())
-    recovery_token                String?              @db.Text // Hashed token used for account recovery
-    recovery_token_created_at     DateTime? // When the recovery token was created (has a value when recovery token is set)
-    accounts                      Account[]
-    sessions                      Session[]
-    verification_tokens           VerificationToken[]
-    subscription                  Subscription[]
-    api_keys                      APIKey[]
-    FeatureVotingVotes            FeatureVotingVotes[]
-}
+    id                        String        @id @default(cuid())
+    created_at                DateTime      @default(now())
+    recovery_token            String?       @db.Text // Hashed token used for account recovery
+    recovery_token_created_at DateTime? // When the recovery token was created (has a value when recovery token is set)
+    subscription              Subscription?
+    api_keys                  APIKey[]
 
-model Account {
-    id                String   @id @default(cuid())
-    userId            String
-    type              String
-    provider          String
-    providerAccountId String
-    public_key        String?  @db.Text
-    created_at        DateTime @default(now())
-    root              Boolean  @default(false)
-    refresh_token     String?  @db.Text // This is not used, only junk from next-auth
-    access_token      String?  @db.Text // This is not used, only junk from next-auth
-    expires_at        Int? // This is not used, only junk from next-auth
-    token_type        String? // This is not used, only junk from next-auth
-    scope             String? // This is not used, only junk from next-auth
-    id_token          String?  @db.Text // This is not used, only junk from next-auth
-    session_state     String?  @db.Text // This is not used, only junk from next-auth
-    session           Session?
-    user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([providerAccountId])
-    @@index([userId])
-}
-
-model Session {
-    id           String   @id @default(cuid())
-    userId       String
-    account_id   String   @unique
-    sessionToken String   @unique
-    expires      DateTime
-    created_at   DateTime @default(now())
-    user_agent   String?  @db.VarChar(255)
-    ip           String?
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    account      Account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
-
-    @@index([userId])
-}
-
-model VerificationToken {
-    id      String   @id @default(cuid())
-    user_id String   @unique
-    token   String   @unique
-    expires DateTime
-    user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-    @@unique([id, token, user_id])
-    @@index([user_id])
+    feature_votes FeatureVotingVotes[]
 }
 
 model Subscription {
     id                   String                @id @default(cuid())
     user_id              String                @unique
     customer_id          String                @unique
-    email                String                @unique
+    // email                String                @unique
     created_at           DateTime
     expires_at           DateTime?
     status               String?
@@ -106,23 +50,23 @@ model Subscription {
 model ProductConfiguration {
     id                    String         @id @default(cuid())
     product_id            String         @unique
-    allowed_api_keys      Int            @default(0) // OBSOLETE
     linking_allowed       Boolean        @default(false)
-    max_links             Int            @default(1) // This includes the current account
+    max_links             Int            @default(0) // TODO: This shouldn't count the current account, ATM it does
     always_connected      Boolean        @default(false) // Always connected to the WS server - from vault decryption
     feature_voting        Boolean        @default(false)
     credentials_borrowing Boolean        @default(false)
-    automated_backups     Boolean        @default(false)
+    promoting_to_root     Boolean        @default(false)
     subscriptions         Subscription[]
 }
 
 model APIKey {
     id         String    @id @default(cuid())
     user_id    String
-    name       String
-    created_at DateTime  @default(now())
-    last_used  DateTime?
-    key        String    @unique
+    created_at DateTime  @default(now()) // When the key was created
+    last_used  DateTime? // When the key was last used (null if never used)
+    key        String    @unique // The Argon2id hash of the key
+    purpose    String // Possible values: "web", "mobile", "browser", "cli"
+    root       Boolean   @default(false) // If the key has root access
     user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
     @@index([user_id])

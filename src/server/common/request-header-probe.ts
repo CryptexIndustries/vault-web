@@ -1,6 +1,6 @@
 import { IncomingHttpHeaders } from "http";
 
-const ipFromHeaders = (headers: IncomingHttpHeaders): string => {
+export const ipFromHeaders = (headers: IncomingHttpHeaders): string => {
     // Check if the "Cf-Connecting-IP" header is present, and if so, return it. Otherwise, return the "x-forwarded-for" header.
     if (headers?.["cf-connecting-ip"]) {
         return headers["cf-connecting-ip"] as string;
@@ -15,4 +15,16 @@ const ipFromHeaders = (headers: IncomingHttpHeaders): string => {
     }
 };
 
-export default ipFromHeaders;
+export const apiKeyFromHeaders = (
+    headers: IncomingHttpHeaders,
+): string | null => {
+    if (headers?.authorization) {
+        const authHeader: string = headers.authorization;
+
+        if (authHeader?.length) {
+            return authHeader;
+        }
+    }
+
+    return null;
+};

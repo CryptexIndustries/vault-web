@@ -1,16 +1,16 @@
-import { toast } from "react-toastify";
-import { trpc } from "../../utils/trpc";
-import { z } from "zod";
-import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "react-toastify";
+import { z } from "zod";
 import { env } from "../../env/client.mjs";
+import { trpcReact } from "../../utils/trpc";
 
 export type NotifyMeReference = "enterprise-tier" | null;
 
 const formSchema = z.object({
     email: z.string().email("This is a required field."),
-    captchaToken: z.string().nonempty("Captcha is required."),
+    captchaToken: z.string().min(1, "Captcha is required."),
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -43,22 +43,17 @@ const NotifyMeForm: React.FC<NotifyMeFormProps> = ({
         },
     });
 
-    const { mutate: notifyMeRegister } = trpc.notifyme.register.useMutation({
-        onSuccess: async (data) => {
-            if (data.success === true) {
+    const { mutate: notifyMeRegister } =
+        trpcReact.v1.feedback.notifyMe.useMutation({
+            onSuccess: async () => {
                 hideModalFn();
                 toast.success("You will be notified when we're launching!");
-            } else {
+            },
+            onError(error) {
                 toast.error("Something went wrong. Please try again later.");
-                if (data != null && data.message != null)
-                    console.error(data.message);
-            }
-        },
-        onError(error) {
-            toast.error("Something went wrong. Please try again later.");
-            console.error(error);
-        },
-    });
+                console.error(error);
+            },
+        });
 
     const onSubmit = async (formData: FormSchemaType) => {
         setInProgress(true);

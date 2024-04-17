@@ -28,6 +28,11 @@ export enum CustomFieldType {
     Date = 3,
 }
 
+export enum PusherAuthTransport {
+    AJAX = 0,
+    JSONP = 1,
+}
+
 export enum TOTPAlgorithm {
     SHA1 = 0,
     SHA256 = 1,
@@ -119,12 +124,74 @@ export interface Configuration {
 }
 
 /** #region OnlineServices */
+export interface OnlineServicesSTUNConfiguration {
+    ID: string;
+    Name: string;
+    Host: string;
+}
+
+export interface OnlineServicesTURNConfiguration {
+    ID: string;
+    Name: string;
+    Host: string;
+    Username: string;
+    Password: string;
+}
+
+export interface OnlineServicesPusherConfiguration {
+    ID: string;
+    Name: string;
+    Key: string;
+    Host: string;
+    ServicePort: string;
+    SecureServicePort: string;
+    UserAuthEndpoint?: string | undefined;
+    UserAuthTransport?: PusherAuthTransport | undefined;
+    UserAuthHeaders: { [key: string]: string };
+    ChannelAuthEndpoint?: string | undefined;
+    ChannelAuthTransport?: PusherAuthTransport | undefined;
+    ChannelAuthHeaders: { [key: string]: string };
+}
+
+export interface OnlineServicesPusherConfiguration_UserAuthHeadersEntry {
+    key: string;
+    value: string;
+}
+
+export interface OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry {
+    key: string;
+    value: string;
+}
+
+export interface OnlineServiceConfiguration {
+    STUNServers: OnlineServicesSTUNConfiguration[];
+    TURNServers: OnlineServicesTURNConfiguration[];
+    PusherServers: OnlineServicesPusherConfiguration[];
+}
+
 export interface OnlineServices {
+    /**
+     * This field is being deprecated in favor of the APIKey field
+     *
+     * @deprecated
+     */
     UserID?: string | undefined;
+    /**
+     * This field is being deprecated in favor of the APIKey field
+     *
+     * @deprecated
+     */
     PublicKey?: string | undefined;
+    /**
+     * This field is being deprecated in favor of the APIKey field
+     *
+     * @deprecated
+     */
     PrivateKey?: string | undefined;
+    APIKey?: string | undefined;
     CreationTimestamp: number;
     LinkedDevices: LinkedDevice[];
+    Configuration: OnlineServiceConfiguration | undefined;
 }
 
 export interface LinkedDevice {
@@ -1046,8 +1113,677 @@ export const Configuration = {
     },
 };
 
+function createBaseOnlineServicesSTUNConfiguration(): OnlineServicesSTUNConfiguration {
+    return { ID: "", Name: "", Host: "" };
+}
+
+export const OnlineServicesSTUNConfiguration = {
+    encode(
+        message: OnlineServicesSTUNConfiguration,
+        writer: _m0.Writer = _m0.Writer.create(),
+    ): _m0.Writer {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.Host !== "") {
+            writer.uint32(26).string(message.Host);
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number,
+    ): OnlineServicesSTUNConfiguration {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseOnlineServicesSTUNConfiguration();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                case 3:
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Host = reader.string();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<OnlineServicesSTUNConfiguration>, I>>(
+        base?: I,
+    ): OnlineServicesSTUNConfiguration {
+        return OnlineServicesSTUNConfiguration.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<
+        I extends Exact<DeepPartial<OnlineServicesSTUNConfiguration>, I>,
+    >(object: I): OnlineServicesSTUNConfiguration {
+        const message = createBaseOnlineServicesSTUNConfiguration();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.Host = object.Host ?? "";
+        return message;
+    },
+};
+
+function createBaseOnlineServicesTURNConfiguration(): OnlineServicesTURNConfiguration {
+    return { ID: "", Name: "", Host: "", Username: "", Password: "" };
+}
+
+export const OnlineServicesTURNConfiguration = {
+    encode(
+        message: OnlineServicesTURNConfiguration,
+        writer: _m0.Writer = _m0.Writer.create(),
+    ): _m0.Writer {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.Host !== "") {
+            writer.uint32(26).string(message.Host);
+        }
+        if (message.Username !== "") {
+            writer.uint32(34).string(message.Username);
+        }
+        if (message.Password !== "") {
+            writer.uint32(42).string(message.Password);
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number,
+    ): OnlineServicesTURNConfiguration {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseOnlineServicesTURNConfiguration();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                case 3:
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Host = reader.string();
+                    continue;
+                case 4:
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Username = reader.string();
+                    continue;
+                case 5:
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.Password = reader.string();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<OnlineServicesTURNConfiguration>, I>>(
+        base?: I,
+    ): OnlineServicesTURNConfiguration {
+        return OnlineServicesTURNConfiguration.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<
+        I extends Exact<DeepPartial<OnlineServicesTURNConfiguration>, I>,
+    >(object: I): OnlineServicesTURNConfiguration {
+        const message = createBaseOnlineServicesTURNConfiguration();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.Host = object.Host ?? "";
+        message.Username = object.Username ?? "";
+        message.Password = object.Password ?? "";
+        return message;
+    },
+};
+
+function createBaseOnlineServicesPusherConfiguration(): OnlineServicesPusherConfiguration {
+    return {
+        ID: "",
+        Name: "",
+        Key: "",
+        Host: "",
+        ServicePort: "",
+        SecureServicePort: "",
+        UserAuthHeaders: {},
+        ChannelAuthHeaders: {},
+    };
+}
+
+export const OnlineServicesPusherConfiguration = {
+    encode(
+        message: OnlineServicesPusherConfiguration,
+        writer: _m0.Writer = _m0.Writer.create(),
+    ): _m0.Writer {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.Key !== "") {
+            writer.uint32(26).string(message.Key);
+        }
+        if (message.Host !== "") {
+            writer.uint32(34).string(message.Host);
+        }
+        if (message.ServicePort !== "") {
+            writer.uint32(42).string(message.ServicePort);
+        }
+        if (message.SecureServicePort !== "") {
+            writer.uint32(50).string(message.SecureServicePort);
+        }
+        if (message.UserAuthEndpoint !== undefined) {
+            writer.uint32(58).string(message.UserAuthEndpoint);
+        }
+        if (message.UserAuthTransport !== undefined) {
+            writer.uint32(64).int32(message.UserAuthTransport);
+        }
+        Object.entries(message.UserAuthHeaders).forEach(([key, value]) => {
+            OnlineServicesPusherConfiguration_UserAuthHeadersEntry.encode(
+                { key: key as any, value },
+                writer.uint32(74).fork(),
+            ).ldelim();
+        });
+        if (message.ChannelAuthEndpoint !== undefined) {
+            writer.uint32(82).string(message.ChannelAuthEndpoint);
+        }
+        if (message.ChannelAuthTransport !== undefined) {
+            writer.uint32(88).int32(message.ChannelAuthTransport);
+        }
+        Object.entries(message.ChannelAuthHeaders).forEach(([key, value]) => {
+            OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry.encode(
+                { key: key as any, value },
+                writer.uint32(98).fork(),
+            ).ldelim();
+        });
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number,
+    ): OnlineServicesPusherConfiguration {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseOnlineServicesPusherConfiguration();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                case 3:
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Key = reader.string();
+                    continue;
+                case 4:
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Host = reader.string();
+                    continue;
+                case 5:
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.ServicePort = reader.string();
+                    continue;
+                case 6:
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.SecureServicePort = reader.string();
+                    continue;
+                case 7:
+                    if (tag !== 58) {
+                        break;
+                    }
+
+                    message.UserAuthEndpoint = reader.string();
+                    continue;
+                case 8:
+                    if (tag !== 64) {
+                        break;
+                    }
+
+                    message.UserAuthTransport = reader.int32() as any;
+                    continue;
+                case 9:
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    const entry9 =
+                        OnlineServicesPusherConfiguration_UserAuthHeadersEntry.decode(
+                            reader,
+                            reader.uint32(),
+                        );
+                    if (entry9.value !== undefined) {
+                        message.UserAuthHeaders[entry9.key] = entry9.value;
+                    }
+                    continue;
+                case 10:
+                    if (tag !== 82) {
+                        break;
+                    }
+
+                    message.ChannelAuthEndpoint = reader.string();
+                    continue;
+                case 11:
+                    if (tag !== 88) {
+                        break;
+                    }
+
+                    message.ChannelAuthTransport = reader.int32() as any;
+                    continue;
+                case 12:
+                    if (tag !== 98) {
+                        break;
+                    }
+
+                    const entry12 =
+                        OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry.decode(
+                            reader,
+                            reader.uint32(),
+                        );
+                    if (entry12.value !== undefined) {
+                        message.ChannelAuthHeaders[entry12.key] = entry12.value;
+                    }
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<OnlineServicesPusherConfiguration>, I>>(
+        base?: I,
+    ): OnlineServicesPusherConfiguration {
+        return OnlineServicesPusherConfiguration.fromPartial(
+            base ?? ({} as any),
+        );
+    },
+    fromPartial<
+        I extends Exact<DeepPartial<OnlineServicesPusherConfiguration>, I>,
+    >(object: I): OnlineServicesPusherConfiguration {
+        const message = createBaseOnlineServicesPusherConfiguration();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.Key = object.Key ?? "";
+        message.Host = object.Host ?? "";
+        message.ServicePort = object.ServicePort ?? "";
+        message.SecureServicePort = object.SecureServicePort ?? "";
+        message.UserAuthEndpoint = object.UserAuthEndpoint ?? undefined;
+        message.UserAuthTransport = object.UserAuthTransport ?? undefined;
+        message.UserAuthHeaders = Object.entries(
+            object.UserAuthHeaders ?? {},
+        ).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+            if (value !== undefined) {
+                acc[key] = globalThis.String(value);
+            }
+            return acc;
+        }, {});
+        message.ChannelAuthEndpoint = object.ChannelAuthEndpoint ?? undefined;
+        message.ChannelAuthTransport = object.ChannelAuthTransport ?? undefined;
+        message.ChannelAuthHeaders = Object.entries(
+            object.ChannelAuthHeaders ?? {},
+        ).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+            if (value !== undefined) {
+                acc[key] = globalThis.String(value);
+            }
+            return acc;
+        }, {});
+        return message;
+    },
+};
+
+function createBaseOnlineServicesPusherConfiguration_UserAuthHeadersEntry(): OnlineServicesPusherConfiguration_UserAuthHeadersEntry {
+    return { key: "", value: "" };
+}
+
+export const OnlineServicesPusherConfiguration_UserAuthHeadersEntry = {
+    encode(
+        message: OnlineServicesPusherConfiguration_UserAuthHeadersEntry,
+        writer: _m0.Writer = _m0.Writer.create(),
+    ): _m0.Writer {
+        if (message.key !== "") {
+            writer.uint32(10).string(message.key);
+        }
+        if (message.value !== "") {
+            writer.uint32(18).string(message.value);
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number,
+    ): OnlineServicesPusherConfiguration_UserAuthHeadersEntry {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message =
+            createBaseOnlineServicesPusherConfiguration_UserAuthHeadersEntry();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.key = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.value = reader.string();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<
+        I extends Exact<
+            DeepPartial<OnlineServicesPusherConfiguration_UserAuthHeadersEntry>,
+            I
+        >,
+    >(base?: I): OnlineServicesPusherConfiguration_UserAuthHeadersEntry {
+        return OnlineServicesPusherConfiguration_UserAuthHeadersEntry.fromPartial(
+            base ?? ({} as any),
+        );
+    },
+    fromPartial<
+        I extends Exact<
+            DeepPartial<OnlineServicesPusherConfiguration_UserAuthHeadersEntry>,
+            I
+        >,
+    >(object: I): OnlineServicesPusherConfiguration_UserAuthHeadersEntry {
+        const message =
+            createBaseOnlineServicesPusherConfiguration_UserAuthHeadersEntry();
+        message.key = object.key ?? "";
+        message.value = object.value ?? "";
+        return message;
+    },
+};
+
+function createBaseOnlineServicesPusherConfiguration_ChannelAuthHeadersEntry(): OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry {
+    return { key: "", value: "" };
+}
+
+export const OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry = {
+    encode(
+        message: OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry,
+        writer: _m0.Writer = _m0.Writer.create(),
+    ): _m0.Writer {
+        if (message.key !== "") {
+            writer.uint32(10).string(message.key);
+        }
+        if (message.value !== "") {
+            writer.uint32(18).string(message.value);
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number,
+    ): OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message =
+            createBaseOnlineServicesPusherConfiguration_ChannelAuthHeadersEntry();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.key = reader.string();
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.value = reader.string();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<
+        I extends Exact<
+            DeepPartial<OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry>,
+            I
+        >,
+    >(base?: I): OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry {
+        return OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry.fromPartial(
+            base ?? ({} as any),
+        );
+    },
+    fromPartial<
+        I extends Exact<
+            DeepPartial<OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry>,
+            I
+        >,
+    >(object: I): OnlineServicesPusherConfiguration_ChannelAuthHeadersEntry {
+        const message =
+            createBaseOnlineServicesPusherConfiguration_ChannelAuthHeadersEntry();
+        message.key = object.key ?? "";
+        message.value = object.value ?? "";
+        return message;
+    },
+};
+
+function createBaseOnlineServiceConfiguration(): OnlineServiceConfiguration {
+    return { STUNServers: [], TURNServers: [], PusherServers: [] };
+}
+
+export const OnlineServiceConfiguration = {
+    encode(
+        message: OnlineServiceConfiguration,
+        writer: _m0.Writer = _m0.Writer.create(),
+    ): _m0.Writer {
+        for (const v of message.STUNServers) {
+            OnlineServicesSTUNConfiguration.encode(
+                v!,
+                writer.uint32(10).fork(),
+            ).ldelim();
+        }
+        for (const v of message.TURNServers) {
+            OnlineServicesTURNConfiguration.encode(
+                v!,
+                writer.uint32(18).fork(),
+            ).ldelim();
+        }
+        for (const v of message.PusherServers) {
+            OnlineServicesPusherConfiguration.encode(
+                v!,
+                writer.uint32(26).fork(),
+            ).ldelim();
+        }
+        return writer;
+    },
+
+    decode(
+        input: _m0.Reader | Uint8Array,
+        length?: number,
+    ): OnlineServiceConfiguration {
+        const reader =
+            input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        let end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseOnlineServiceConfiguration();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.STUNServers.push(
+                        OnlineServicesSTUNConfiguration.decode(
+                            reader,
+                            reader.uint32(),
+                        ),
+                    );
+                    continue;
+                case 2:
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.TURNServers.push(
+                        OnlineServicesTURNConfiguration.decode(
+                            reader,
+                            reader.uint32(),
+                        ),
+                    );
+                    continue;
+                case 3:
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.PusherServers.push(
+                        OnlineServicesPusherConfiguration.decode(
+                            reader,
+                            reader.uint32(),
+                        ),
+                    );
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<OnlineServiceConfiguration>, I>>(
+        base?: I,
+    ): OnlineServiceConfiguration {
+        return OnlineServiceConfiguration.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<OnlineServiceConfiguration>, I>>(
+        object: I,
+    ): OnlineServiceConfiguration {
+        const message = createBaseOnlineServiceConfiguration();
+        message.STUNServers =
+            object.STUNServers?.map((e) =>
+                OnlineServicesSTUNConfiguration.fromPartial(e),
+            ) || [];
+        message.TURNServers =
+            object.TURNServers?.map((e) =>
+                OnlineServicesTURNConfiguration.fromPartial(e),
+            ) || [];
+        message.PusherServers =
+            object.PusherServers?.map((e) =>
+                OnlineServicesPusherConfiguration.fromPartial(e),
+            ) || [];
+        return message;
+    },
+};
+
 function createBaseOnlineServices(): OnlineServices {
-    return { CreationTimestamp: 0, LinkedDevices: [] };
+    return {
+        CreationTimestamp: 0,
+        LinkedDevices: [],
+        Configuration: undefined,
+    };
 }
 
 export const OnlineServices = {
@@ -1064,11 +1800,20 @@ export const OnlineServices = {
         if (message.PrivateKey !== undefined) {
             writer.uint32(26).string(message.PrivateKey);
         }
+        if (message.APIKey !== undefined) {
+            writer.uint32(50).string(message.APIKey);
+        }
         if (message.CreationTimestamp !== 0) {
             writer.uint32(32).int64(message.CreationTimestamp);
         }
         for (const v of message.LinkedDevices) {
             LinkedDevice.encode(v!, writer.uint32(42).fork()).ldelim();
+        }
+        if (message.Configuration !== undefined) {
+            OnlineServiceConfiguration.encode(
+                message.Configuration,
+                writer.uint32(58).fork(),
+            ).ldelim();
         }
         return writer;
     },
@@ -1102,6 +1847,13 @@ export const OnlineServices = {
 
                     message.PrivateKey = reader.string();
                     continue;
+                case 6:
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.APIKey = reader.string();
+                    continue;
                 case 4:
                     if (tag !== 32) {
                         break;
@@ -1118,6 +1870,16 @@ export const OnlineServices = {
 
                     message.LinkedDevices.push(
                         LinkedDevice.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                case 7:
+                    if (tag !== 58) {
+                        break;
+                    }
+
+                    message.Configuration = OnlineServiceConfiguration.decode(
+                        reader,
+                        reader.uint32(),
                     );
                     continue;
             }
@@ -1141,9 +1903,14 @@ export const OnlineServices = {
         message.UserID = object.UserID ?? undefined;
         message.PublicKey = object.PublicKey ?? undefined;
         message.PrivateKey = object.PrivateKey ?? undefined;
+        message.APIKey = object.APIKey ?? undefined;
         message.CreationTimestamp = object.CreationTimestamp ?? 0;
         message.LinkedDevices =
             object.LinkedDevices?.map((e) => LinkedDevice.fromPartial(e)) || [];
+        message.Configuration =
+            object.Configuration !== undefined && object.Configuration !== null
+                ? OnlineServiceConfiguration.fromPartial(object.Configuration)
+                : undefined;
         return message;
     },
 };

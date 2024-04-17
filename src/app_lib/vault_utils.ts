@@ -1929,47 +1929,62 @@ export class LinkedDevice
     }
 }
 
-export interface OnlineServicesAccountInterface {
-    UserID?: string;
-    PublicKey?: string;
-    PrivateKey?: string;
+export class OnlineServiceConfiguration
+    implements VaultUtilTypes.OnlineServiceConfiguration
+{
+    STUNServers: VaultUtilTypes.OnlineServicesSTUNConfiguration[];
+    TURNServers: VaultUtilTypes.OnlineServicesTURNConfiguration[];
+    PusherServers: VaultUtilTypes.OnlineServicesPusherConfiguration[];
+
+    constructor() {
+        this.STUNServers = [];
+        this.TURNServers = [];
+        this.PusherServers = [];
+    }
 }
 
-export class OnlineServicesAccount
-    implements VaultUtilTypes.OnlineServices, OnlineServicesAccountInterface
-{
+export class OnlineServicesAccount implements VaultUtilTypes.OnlineServices {
+    // TODO: Remove the UserID, PublicKey and PrivateKey checks after the upgrade period is over
     public UserID?: string;
     public PublicKey?: string;
     public PrivateKey?: string;
+
+    public APIKey?: string;
     public CreationTimestamp = Date.now();
 
     public LinkedDevices: LinkedDevice[] = [];
 
-    public bindAccount(
-        userID: string,
-        publicKey: string,
-        privateKey: string,
-    ): void {
-        this.UserID = userID;
-        this.PublicKey = publicKey;
-        this.PrivateKey = privateKey;
+    Configuration: VaultUtilTypes.OnlineServiceConfiguration =
+        new OnlineServiceConfiguration();
+
+    public bindAccount(apiKey: string): void {
+        this.APIKey = apiKey;
         this.CreationTimestamp = Date.now();
     }
 
     public unbindAccount(): void {
+        // TODO: Remove the UserID, PublicKey and PrivateKey checks after the upgrade period is over
         this.UserID = undefined;
         this.PublicKey = undefined;
         this.PrivateKey = undefined;
+
+        this.APIKey = undefined;
         this.CreationTimestamp = Date.now();
         this.LinkedDevices = [];
     }
 
     public isBound(): boolean {
         return (
-            this.UserID != null &&
-            this.PublicKey != null &&
-            this.PrivateKey != null
+            // TODO: Remove the UserID, PublicKey and PrivateKey checks after the upgrade period is over
+            (this.UserID != null &&
+                this.PublicKey != null &&
+                this.PrivateKey != null) ||
+            this.APIKey != null
         );
+    }
+
+    public deviceID(): string | null {
+        return this.APIKey?.slice(36) ?? null;
     }
 
     //#region Linked Devices
@@ -2015,8 +2030,9 @@ export class OnlineServicesAccount
     //#endregion Linked Devices
 
     /**
-     * Decrypts the data that was deserialized for signing in to online services.
+     * Decrypts the data that was deserialized for authenticating with online services.
      * This is used when linking devices (from outside the vault)
+     * TODO: Move this to the VaultEncryption class
      * @param encryptedData - The data to decrypt (as a base64 string)
      * @param secret - The secret to decrypt the data with
      * @returns The decrypted data as an OnlineServicesAccountInterface object
@@ -2025,7 +2041,7 @@ export class OnlineServicesAccount
     public static async decryptTransferableData(
         encryptedData: string,
         secret: string,
-    ): Promise<OnlineServicesAccountInterface> {
+    ): Promise<string> {
         // Convert the encrypted data to a Buffer (from a base64 string)
         const [blob, salt, header_iv] = encryptedData.split(":");
 
@@ -2051,44 +2067,29 @@ export class OnlineServicesAccount
                 : (encryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2),
         );
 
-        const decryptedData: OnlineServicesAccountInterface = JSON.parse(
-            Buffer.from(decrypted).toString(),
-        );
+        const decryptedAPIKey = Buffer.from(decrypted).toString();
 
         // Some basic validation
-        if (
-            !decryptedData.hasOwnProperty("UserID") ||
-            !decryptedData.hasOwnProperty("PublicKey") ||
-            !decryptedData.hasOwnProperty("PrivateKey") ||
-            decryptedData.UserID === "" ||
-            decryptedData.PublicKey === "" ||
-            decryptedData.PrivateKey === ""
-        ) {
+        if (!decryptedAPIKey?.length) {
             throw new Error("Invalid data. Parsing failed.");
         }
 
-        return decryptedData;
+        return decryptedAPIKey;
     }
 
     /**
      * Encrypts and serializes the data that will be used for signing in to online services on another device.
-     * @param userID - The generated user ID (account ID)
-     * @param publicKey - The generated public key
-     * @param privateKey - The generated private key
+     * @param apiKey - The API key to encrypt
      * @returns An object containing the encrypted data and the secret used to encrypt it
      */
-    public static async encryptTransferableData(
-        userID: string,
-        publicKey: string,
-        privateKey: string,
-    ): Promise<{
+    public static async encryptTransferableData(apiKey: string): Promise<{
         encryptedDataB64: string;
         mnemonic: string;
     }> {
         // Even though isBound checks for null, we do the explicit check here to avoid TS errors
-        if (!userID.length || !publicKey.length || !privateKey.length) {
+        if (!apiKey.length) {
             throw new Error(
-                "Cannot create transferable data. One or more of the required fields is empty.",
+                "Cannot create transferable data. API Key is empty.",
             );
         }
 
@@ -2100,15 +2101,7 @@ export class OnlineServicesAccount
         const newEncryptedBlob: VaultEncryption.EncryptedBlob =
             VaultEncryption.EncryptedBlob.CreateDefault();
 
-        const dataToEncrypt: OnlineServicesAccountInterface = {
-            UserID: userID,
-            PublicKey: publicKey,
-            PrivateKey: privateKey,
-        };
-
-        newEncryptedBlob.Blob = Buffer.from(
-            JSON.stringify(dataToEncrypt, null, 0),
-        );
+        newEncryptedBlob.Blob = Buffer.from(apiKey);
 
         // Encrypt the data using the passphrase
         const _encryptedData = await VaultEncryption.EncryptDataBlob(
@@ -2121,11 +2114,11 @@ export class OnlineServicesAccount
         );
 
         // Convert the encrypted data to a base64 string
-        const encryptdBase64Blob = Buffer.from(_encryptedData.Blob).toString(
+        const encryptedBase64Blob = Buffer.from(_encryptedData.Blob).toString(
             "base64",
         );
 
-        const encryptedDataB64 = `${encryptdBase64Blob}:${_encryptedData.Salt}:${_encryptedData.HeaderIV}`;
+        const encryptedDataB64 = `${encryptedBase64Blob}:${_encryptedData.Salt}:${_encryptedData.HeaderIV}`;
 
         return {
             encryptedDataB64,
@@ -2646,22 +2639,17 @@ export class Vault implements VaultUtilTypes.Vault {
      * @param newOnlineServicesAccount Credentials for the new account to bind to the vault (that will be used on the other device)
      * @returns A new Vault object ready for serialization and transfer
      */
-    public packageForLinking(
-        newOnlineServicesAccount: OnlineServicesAccountInterface,
-    ): Vault {
-        if (!this.OnlineServices.isBound() || !this.OnlineServices.UserID) {
+    public packageForLinking(apiKey: string): Vault {
+        const thisDeviceID = this.OnlineServices.deviceID();
+        if (!this.OnlineServices.isBound() || !thisDeviceID) {
             throw new Error(
                 "Cannot package the vault for linking. The vault is not bound to an account.",
             );
         }
 
-        if (
-            !newOnlineServicesAccount.UserID ||
-            !newOnlineServicesAccount.PublicKey ||
-            !newOnlineServicesAccount.PrivateKey
-        ) {
+        if (!apiKey) {
             throw new Error(
-                "Cannot package the vault for linking. The new account is missing required information.",
+                "Cannot package the vault for linking. The new account doesn't have a valid API key.",
             );
         }
 
@@ -2673,18 +2661,14 @@ export class Vault implements VaultUtilTypes.Vault {
 
         // Clear the online services account and re-bind it with the new account for the other device
         vaultCopy.OnlineServices = new OnlineServicesAccount();
-        vaultCopy.OnlineServices.bindAccount(
-            newOnlineServicesAccount.UserID,
-            newOnlineServicesAccount.PublicKey,
-            newOnlineServicesAccount.PrivateKey,
-        );
+        vaultCopy.OnlineServices.bindAccount(apiKey);
 
-        // Get the name of the computer
+        // Since this device is the one linking, we can call it the root device
         const deviceName = "Root Device";
 
         // Plant this device as a linked device in the new vault
         vaultCopy.OnlineServices.addLinkedDevice(
-            this.OnlineServices.UserID,
+            thisDeviceID,
             deviceName,
             true,
             this.OnlineServices.CreationTimestamp,

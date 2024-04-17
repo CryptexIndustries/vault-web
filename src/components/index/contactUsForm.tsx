@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-import { trpc } from "../../utils/trpc";
+import { trpcReact } from "../../utils/trpc";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +12,7 @@ const formSchema = z.object({
         .string()
         .min(10, "Message needs to be larger than 10 characters.")
         .max(500, "Message needs to be smaller than 500 characters."),
-    captchaToken: z.string().nonempty("Captcha is required."),
+    captchaToken: z.string().min(1, "Captcha is required."),
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -44,16 +44,10 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
         },
     });
 
-    const { mutate: sendMessage } = trpc.notifyme.contact.useMutation({
-        onSuccess: async (data) => {
-            if (data.success === true) {
-                hideModalFn();
-                toast.success("Successfully sent!");
-            } else {
-                toast.error("Something went wrong. Please try again later.");
-                if (data != null && data.message != null)
-                    console.error(data.message);
-            }
+    const { mutate: sendMessage } = trpcReact.v1.feedback.contact.useMutation({
+        onSuccess: async () => {
+            hideModalFn();
+            toast.success("Successfully sent!");
         },
         onError(error) {
             toast.error("Something went wrong. Please try again later.");

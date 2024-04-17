@@ -1,72 +1,71 @@
 // src/server/router/index.ts
+import { router } from "./trpc";
 import {
-    credentialsRouterGenerateAuthNonce,
-    credentialsRouterRegisterUser,
-    credentialsRouterConfirm,
-    credentialsRouterResendVerificationEmail,
-    credentialsRouterClearRecoveryToken,
-    credentialsRouterGenerateRecoveryToken,
-    credentialsRecover,
-} from "./routes/credentials.router";
+    userRouterDelete,
+    userRouterGenerateRecoveryToken,
+    userRouterConfiguration,
+    userRouterRecover,
+    userRouterRegister,
+} from "./routes/v1/user.router";
 import {
-    notifyMeRouterRegister,
-    notifyMeRouterContact,
-    feedbackRouter,
-} from "./routes/notifyme.router";
+    deviceRouterLinked,
+    deviceRouterLink,
+    deviceRouterRemove,
+    deviceRouterSignalingAuth,
+    deviceRouterSignalingAuthChannel,
+    deviceRouterSetRoot,
+} from "./routes/v1/device.router";
 import {
-    accountRouterGetLinkingConfiguration,
-    accountRouterLinkDevice,
-    accountRouterRemoveDevice,
-    accountRouterGetRegisteredDevices,
-    accountRouterDeleteUser,
-} from "./routes/account.router";
+    feedbackRouterContact,
+    feedbackRouterGiveFeedback,
+    feedbackRouterNotifyMe,
+} from "./routes/v1/feedback.router";
+import {
+    featureVotingRouterGetRounds,
+    featureVotingRouterOpenRoundExists,
+    featureVotingRouterPlaceVote,
+} from "./routes/v1/feature-voting.router";
 import {
     paymentRouterGetCheckoutURL,
-    paymentRouterGetSubscription,
     paymentRouterGetCustomerPortal,
-} from "./routes/payment.router";
-import {
-    featureVotingRouterOpenRoundExists,
-    featureVotingRouterGetRounds,
-    featureVotingRouterPlaceVote,
-} from "./routes/feature-voting.router";
-import { router } from "./trpc";
+    paymentRouterGetSubscription,
+} from "./routes/v1/payment.router";
 
-const mainRouter = router({
-    notifyme: router({
-        register: notifyMeRouterRegister,
-        contact: notifyMeRouterContact,
-        feedback: feedbackRouter,
-    }),
-    credentials: router({
-        generateAuthNonce: credentialsRouterGenerateAuthNonce,
-        registerUser: credentialsRouterRegisterUser,
-        confirm: credentialsRouterConfirm,
-        resendVerificationEmail: credentialsRouterResendVerificationEmail,
-        recoverAccount: credentialsRecover,
-        generateRecoveryToken: credentialsRouterGenerateRecoveryToken,
-        clearRecoveryToken: credentialsRouterClearRecoveryToken,
-    }),
-    account: router({
-        getLinkingConfiguration: accountRouterGetLinkingConfiguration,
-        linkDevice: accountRouterLinkDevice,
-        removeDevice: accountRouterRemoveDevice,
-        getRegisteredDevices: accountRouterGetRegisteredDevices,
-        deleteUser: accountRouterDeleteUser,
-    }),
-    payment: router({
-        getCheckoutURL: paymentRouterGetCheckoutURL,
-        getSubscription: paymentRouterGetSubscription,
-        getCustomerPortal: paymentRouterGetCustomerPortal,
-    }),
-    featureVoting: router({
-        openRoundExists: featureVotingRouterOpenRoundExists,
-        getRounds: featureVotingRouterGetRounds,
-        placeVote: featureVotingRouterPlaceVote,
+const _versionedRouter = router({
+    v1: router({
+        feedback: router({
+            notifyMe: feedbackRouterNotifyMe,
+            contact: feedbackRouterContact,
+            feedback: feedbackRouterGiveFeedback,
+        }),
+        user: router({
+            register: userRouterRegister,
+            recover: userRouterRecover,
+            generateRecoveryToken: userRouterGenerateRecoveryToken,
+            clearRecoveryToken: userRouterGenerateRecoveryToken,
+            configuration: userRouterConfiguration,
+            delete: userRouterDelete,
+        }),
+        device: router({
+            link: deviceRouterLink,
+            remove: deviceRouterRemove,
+            linked: deviceRouterLinked,
+            setRoot: deviceRouterSetRoot,
+            signalingAuth: deviceRouterSignalingAuth,
+            signalingAuthChannel: deviceRouterSignalingAuthChannel,
+        }),
+        featureVoting: router({
+            openRoundExists: featureVotingRouterOpenRoundExists,
+            rounds: featureVotingRouterGetRounds,
+            placeVote: featureVotingRouterPlaceVote,
+        }),
+        payment: router({
+            checkoutURL: paymentRouterGetCheckoutURL,
+            customerPortal: paymentRouterGetCustomerPortal,
+            subscription: paymentRouterGetSubscription,
+        }),
     }),
 });
 
-export const appRouter = mainRouter;
-
-// export type definition of API
-export type AppRouter = typeof appRouter;
+export const versionedRouter = _versionedRouter;
+export type VersionedRouter = typeof versionedRouter;

@@ -1,10 +1,5 @@
 // NOTE: In order to run bundle analysis, this file needs to be a .js file
 
-// Comment out this part if using ANALYZE=true
-import { env } from "./src/env/server.mjs";
-
-import withPWA from "next-pwa";
-
 /**
  * Don't be scared of the generics here.
  * All they do is to give us autocompletion when using this.
@@ -16,7 +11,6 @@ import withPWA from "next-pwa";
 function defineNextConfig(config) {
     return config;
 }
-
 const headers = () => {
     return [
         {
@@ -56,36 +50,6 @@ const headers = () => {
     ];
 };
 
-const _withPWA = withPWA({
-    dest: "public",
-    // disable: process.env.NODE_ENV === "development",
-    register: true,
-    scope: "/",
-    sw: "/app/service-worker.js",
-    reloadOnOnline: false,
-    skipWaiting: true,
-    buildExcludes: ["app-build-manifest.json"],
-    dynamicStartUrl: false,
-    cacheStartUrl: false,
-    runtimeCaching: [
-        {
-            urlPattern: ({ url }) => url.pathname.startsWith("/api"),
-            handler: "NetworkOnly",
-        },
-        // Make sure we update /app when we're online but still cache it
-        {
-            urlPattern: ({ url }) => url.pathname.startsWith("/app"),
-            handler: "NetworkFirst",
-            options: {
-                cacheName: "app-cache",
-                cacheableResponse: {
-                    statuses: [0, 200],
-                },
-            },
-        },
-    ],
-});
-
 // Remove console logs from production build, but keep errors and warnings
 // Development build will still have all console logs
 const rmConsoleFromBuild =
@@ -94,7 +58,6 @@ const rmConsoleFromBuild =
         : {
               exclude: ["error", "warn"],
           };
-
 const nextConfig = {
     reactStrictMode: true,
     swcMinify: true,
@@ -116,7 +79,7 @@ const nextConfig = {
 };
 
 // Comment out this part if using ANALYZE=true
-export default _withPWA(defineNextConfig(nextConfig));
+export default defineNextConfig(nextConfig);
 
 // Uncomment this part if using ANALYZE=true
 // const withBundleAnalyzer = require("@next/bundle-analyzer")({

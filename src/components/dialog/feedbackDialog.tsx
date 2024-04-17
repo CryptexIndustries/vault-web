@@ -1,16 +1,17 @@
-import React from "react";
-import { toast } from "react-toastify";
-import { trpc } from "../../utils/trpc";
-import { z } from "zod";
-import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Turnstile } from "@marsidev/react-turnstile";
+import React from "react";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "react-toastify";
+import { z } from "zod";
+import { trpcReact } from "../../utils/trpc";
 
+import { useAtomValue } from "jotai";
 import { env } from "../../env/client.mjs";
-import { GenericModal, Body, Footer } from "../general/modal";
+import { onlineServicesBoundAtom } from "../../utils/atoms";
 import { ButtonFlat, ButtonType } from "../general/buttons";
 import { FormSelectboxField } from "../general/inputFields";
-import { useSession } from "next-auth/react";
+import { Body, Footer, GenericModal } from "../general/modal";
 
 const formSchema = z.object({
     reason: z.enum(["Feature", "Bug", "General"]),
@@ -37,7 +38,7 @@ const FeedbackDialog: React.FC<{
         }, 200);
     };
 
-    const { data: session } = useSession();
+    const boundToOnlineServices = useAtomValue(onlineServicesBoundAtom);
 
     const [isInProgress, setInProgress] = React.useState(false);
 
@@ -57,16 +58,10 @@ const FeedbackDialog: React.FC<{
         },
     });
 
-    const { mutate: sendMessage } = trpc.notifyme.feedback.useMutation({
-        onSuccess: async (data) => {
-            if (data.success === true) {
-                hideDialog();
-                toast.success("Successfully sent!");
-            } else {
-                toast.error("Something went wrong. Please try again later.");
-                if (data != null && data.message != null)
-                    console.error(data.message);
-            }
+    const { mutate: sendMessage } = trpcReact.v1.feedback.feedback.useMutation({
+        onSuccess: async () => {
+            hideDialog();
+            toast.success("Successfully sent!");
         },
         onError(error) {
             toast.error("Something went wrong. Please try again later.");
@@ -106,7 +101,7 @@ const FeedbackDialog: React.FC<{
                         feedback.
                     </p>
                     {/* Overlay that is active if the session is null */}
-                    {!session && (
+                    {!boundToOnlineServices && (
                         <div
                             className={
                                 "absolute inset-0 flex items-center justify-center backdrop-blur-sm"
@@ -122,7 +117,7 @@ const FeedbackDialog: React.FC<{
                             </div>
                         </div>
                     )}
-                    {session && (
+                    {boundToOnlineServices && (
                         <div className="flex w-full flex-col items-center space-y-4 text-center">
                             <div className="flex w-full flex-col text-left">
                                 <p className="text-gray-600">Reason</p>

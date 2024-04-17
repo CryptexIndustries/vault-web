@@ -100,13 +100,62 @@ message Configuration {
 }
 
 //#region OnlineServices
+message OnlineServicesSTUNConfiguration {
+    string ID = 1;
+    string Name = 2;
+    string Host = 3;
+}
+
+message OnlineServicesTURNConfiguration {
+    string ID = 1;
+    string Name = 2;
+    string Host = 3;
+    string Username = 4;
+    string Password = 5;
+}
+
+enum PusherAuthTransport {
+    AJAX = 0;
+    JSONP = 1;
+};
+
+message OnlineServicesPusherConfiguration {
+    string ID = 1;
+    string Name = 2;
+    string Key = 3;
+    string Host = 4;
+    string ServicePort = 5;
+    string SecureServicePort = 6;
+
+    optional string UserAuthEndpoint = 7;
+    optional PusherAuthTransport UserAuthTransport = 8;
+    map<string, string> UserAuthHeaders  = 9;
+
+    optional string ChannelAuthEndpoint = 10;
+    optional PusherAuthTransport ChannelAuthTransport = 11;
+    map<string, string> ChannelAuthHeaders = 12;
+}
+
+message OnlineServiceConfiguration {
+    repeated OnlineServicesSTUNConfiguration STUNServers = 1;
+    repeated OnlineServicesTURNConfiguration TURNServers = 2;
+    repeated OnlineServicesPusherConfiguration PusherServers = 3;
+}
+
 message OnlineServices {
-    optional string UserID = 1;
-    optional string PublicKey = 2;
-    optional string PrivateKey = 3;
+    // This field is being deprecated in favor of the APIKey field
+    optional string UserID = 1 [deprecated = true];
+    // This field is being deprecated in favor of the APIKey field
+    optional string PublicKey = 2 [deprecated = true];
+    // This field is being deprecated in favor of the APIKey field
+    optional string PrivateKey = 3 [deprecated = true];
+
+    optional string APIKey = 6;
     int64 CreationTimestamp = 4;
 
     repeated LinkedDevice LinkedDevices = 5;
+
+    OnlineServiceConfiguration Configuration = 7;
 }
 
 message LinkedDevice {

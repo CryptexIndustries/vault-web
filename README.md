@@ -2,7 +2,7 @@
 
 ## Required steps
 
--   Install NodeJS 16 `nodejs-lts-gallium`
+-   Install NodeJS 20 `nodejs-lts-iron`
 -   Install NPM `npm`
 -   Install project dependencies
     -   `npm install`
@@ -13,7 +13,7 @@
 
 ## Optional utilities
 
--   Stripe
+-   Emulate Stripe
     -   Install `stripe-cli`
         -   Windows: follow the docs
         -   Linux: `yay -Syy stripe-cli`

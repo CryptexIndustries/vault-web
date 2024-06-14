@@ -18,34 +18,34 @@ export type OnlineServicesData = {
     } | null;
 };
 
-type OnlineServicesStatus = {
+type OnlineServicesAuthenticationStatus = {
     status: "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "FAILED";
     statusDescription: string;
 };
 
-export class OnlineServicesStatusHelpers {
-    static setConnected(): OnlineServicesStatus {
+export class OnlineServicesAuthenticationStatusHelpers {
+    static setConnected(): OnlineServicesAuthenticationStatus {
         return {
             status: "CONNECTED",
-            statusDescription: "Connected",
+            statusDescription: "Signed in",
         };
     }
 
-    static setConnecting(): OnlineServicesStatus {
+    static setConnecting(): OnlineServicesAuthenticationStatus {
         return {
             status: "CONNECTING",
-            statusDescription: "Connecting...",
+            statusDescription: "Signing in...",
         };
     }
 
-    static setDisconnected(): OnlineServicesStatus {
+    static setDisconnected(): OnlineServicesAuthenticationStatus {
         return {
             status: "DISCONNECTED",
             statusDescription: "Disconnected",
         };
     }
 
-    static setFailed(error?: string): OnlineServicesStatus {
+    static setFailed(error?: string): OnlineServicesAuthenticationStatus {
         return {
             status: "FAILED",
             statusDescription: error ?? "Unknown failure occurred",
@@ -78,10 +78,11 @@ export const onlineServicesBoundAtom = selectAtom(unlockedVaultAtom, (vault) =>
 
 export const onlineServicesStore = createStore();
 export const onlineServicesDataAtom = atom<OnlineServicesData | null>(null);
-export const onlineServicesConnectionStatusAtom = atom<OnlineServicesStatus>({
-    status: "DISCONNECTED",
-    statusDescription: "Disconnected",
-});
+export const onlineServicesAuthConnectionStatusAtom =
+    atom<OnlineServicesAuthenticationStatus>({
+        status: "DISCONNECTED",
+        statusDescription: "Disconnected",
+    });
 export const webRTCConnectionsAtom = atom(
     new Synchronization.WebRTCConnections(),
 );

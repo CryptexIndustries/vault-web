@@ -120,14 +120,14 @@ import {
     isVaultUnlockedAtom,
     onlineServicesDataAtom,
     onlineServicesBoundAtom,
-    onlineServicesConnectionStatusAtom,
+    onlineServicesAuthConnectionStatusAtom,
     onlineServicesStore,
     setOnlineServicesAPIKey,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
     unlockedVaultWriteOnlyAtom,
     webRTCConnectionsAtom,
-    OnlineServicesStatusHelpers,
+    OnlineServicesAuthenticationStatusHelpers,
 } from "../../utils/atoms";
 
 dayjs.extend(RelativeTime);
@@ -148,12 +148,12 @@ const enumToRecord = (enumObject: object): Record<string, string> =>
 const useClearOnlineServicesDataAtom = () => {
     const setOnlineServicesData = useSetAtom(onlineServicesDataAtom);
     const setOnlineServicesConnectionStatus = useSetAtom(
-        onlineServicesConnectionStatusAtom,
+        onlineServicesAuthConnectionStatusAtom,
     );
     return () => {
         setOnlineServicesData(null);
         setOnlineServicesConnectionStatus(() =>
-            OnlineServicesStatusHelpers.setDisconnected(),
+            OnlineServicesAuthenticationStatusHelpers.setDisconnected(),
         );
     };
 };
@@ -161,12 +161,12 @@ const useClearOnlineServicesDataAtom = () => {
 const useFetchOnlineServicesData = () => {
     const setOnlineServicesRemoteUserData = useSetAtom(onlineServicesDataAtom);
     const setOnlineServicesConnectionStatus = useSetAtom(
-        onlineServicesConnectionStatusAtom,
+        onlineServicesAuthConnectionStatusAtom,
     );
 
     return async () => {
         setOnlineServicesConnectionStatus(() =>
-            OnlineServicesStatusHelpers.setConnecting(),
+            OnlineServicesAuthenticationStatusHelpers.setConnecting(),
         );
         try {
             const config = await trpc.v1.user.configuration.query();
@@ -178,7 +178,9 @@ const useFetchOnlineServicesData = () => {
                 );
 
                 setOnlineServicesConnectionStatus(() =>
-                    OnlineServicesStatusHelpers.setFailed("Malformed API key."),
+                    OnlineServicesAuthenticationStatusHelpers.setFailed(
+                        "Malformed API key.",
+                    ),
                 );
 
                 return;
@@ -191,7 +193,7 @@ const useFetchOnlineServicesData = () => {
             });
 
             setOnlineServicesConnectionStatus(() =>
-                OnlineServicesStatusHelpers.setConnected(),
+                OnlineServicesAuthenticationStatusHelpers.setConnected(),
             );
         } catch (e) {
             console.error("Error refreshing online services data.", e);
@@ -199,20 +201,22 @@ const useFetchOnlineServicesData = () => {
             if (e instanceof TRPCClientError) {
                 if (e.data?.code === "E_UNAUTHORIZED") {
                     setOnlineServicesConnectionStatus(() =>
-                        OnlineServicesStatusHelpers.setFailed(
+                        OnlineServicesAuthenticationStatusHelpers.setFailed(
                             "Authorization failed",
                         ),
                     );
                 } else {
                     setOnlineServicesConnectionStatus(() =>
-                        OnlineServicesStatusHelpers.setFailed(
+                        OnlineServicesAuthenticationStatusHelpers.setFailed(
                             "Failed to connect.",
                         ),
                     );
                 }
             } else {
                 setOnlineServicesConnectionStatus(() =>
-                    OnlineServicesStatusHelpers.setFailed("Could not connect."),
+                    OnlineServicesAuthenticationStatusHelpers.setFailed(
+                        "Could not connect.",
+                    ),
                 );
             }
         }
@@ -1848,20 +1852,20 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                                 icon={
                                     <SpeakerWaveIcon className="h-5 w-5 text-gray-900" />
                                 }
-                                iconCaption="Transfer with sound"
-                                description="Link the devices using sound"
+                                iconCaption="Sound"
+                                description="Use sound to link the devices"
                                 // disabled={
                                 //     isSubmitting ||
                                 //     (validInput !== ValidInput.Sound && validInput !== null)
                                 // }
-                                disabled={true} // FIXME: Sound transfer is not implemented yet
+                                disabled={true} // TODO: Sound transfer is not implemented yet
                                 // validInput={validInput === ValidInput.Sound}
                             />
                             <BlockWideButton
                                 icon={
                                     <DocumentTextIcon className="h-5 w-5 text-gray-900" />
                                 }
-                                iconCaption="Using a file"
+                                iconCaption="File"
                                 description="Load a file from your device to link the devices"
                                 onClick={fileMethod}
                                 disabled={isOperationInProgress}
@@ -3608,8 +3612,8 @@ const AccountHeaderWidget: React.FC<{
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const onlineServicesBound = unlockedVault.OnlineServices.isBound();
     const onlineServicesData = useAtomValue(onlineServicesDataAtom);
-    const onlineServicesConnectionStatus = useAtomValue(
-        onlineServicesConnectionStatusAtom,
+    const onlineServicesAuthConnectionStatus = useAtomValue(
+        onlineServicesAuthConnectionStatusAtom,
     );
     const unbindOnlineServices = useUnbindOnlineServices();
 
@@ -3677,11 +3681,11 @@ const AccountHeaderWidget: React.FC<{
                                         <p
                                             className="max-w-xs text-left text-slate-400"
                                             title={
-                                                onlineServicesConnectionStatus.statusDescription
+                                                onlineServicesAuthConnectionStatus.statusDescription
                                             }
                                         >
                                             {
-                                                onlineServicesConnectionStatus.statusDescription
+                                                onlineServicesAuthConnectionStatus.statusDescription
                                             }
                                         </p>
                                     </div>
@@ -3691,21 +3695,21 @@ const AccountHeaderWidget: React.FC<{
                                                 true,
                                             "text-slate-500 shadow-md shadow-slate-500":
                                                 !onlineServicesBound &&
-                                                onlineServicesConnectionStatus.status ===
+                                                onlineServicesAuthConnectionStatus.status ===
                                                     "DISCONNECTED",
                                             "text-yellow-500 shadow-md shadow-yellow-500":
                                                 onlineServicesBound &&
-                                                onlineServicesConnectionStatus.status ===
+                                                onlineServicesAuthConnectionStatus.status ===
                                                     "CONNECTING",
                                             "text-green-500 shadow-md shadow-green-500":
                                                 onlineServicesBound &&
-                                                onlineServicesConnectionStatus.status ===
+                                                onlineServicesAuthConnectionStatus.status ===
                                                     "CONNECTED",
                                             "text-red-500 shadow-md shadow-red-500":
                                                 (onlineServicesBound &&
-                                                    onlineServicesConnectionStatus.status ===
+                                                    onlineServicesAuthConnectionStatus.status ===
                                                         "DISCONNECTED") ||
-                                                onlineServicesConnectionStatus.status ===
+                                                onlineServicesAuthConnectionStatus.status ===
                                                     "FAILED",
                                         })}
                                     >
@@ -3735,7 +3739,7 @@ const AccountHeaderWidget: React.FC<{
                                                 flex: onlineServicesBound,
                                                 hidden:
                                                     !onlineServicesBound ||
-                                                    onlineServicesConnectionStatus.status !==
+                                                    onlineServicesAuthConnectionStatus.status !==
                                                         "CONNECTED",
                                             })}
                                         >
@@ -6597,8 +6601,12 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                         selectedLinkMethod == null && (
                             <>
                                 <p className="text-center text-base text-gray-600">
-                                    Name the device you want to link and select
-                                    a method to link it.
+                                    In order to enable data synchronization
+                                    between two devices, you need to link them.
+                                </p>
+                                <p className="text-center text-base text-gray-600">
+                                    Choose one of the available linking methods
+                                    below to start.
                                 </p>
 
                                 <div className="my-5 flex flex-col gap-2">
@@ -6611,7 +6619,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                             <>
                                                 <FormInputField
                                                     label="Device name"
-                                                    placeholder="Type in a name for the device"
+                                                    placeholder="Linked device name"
                                                     onChange={onChange}
                                                     onBlur={onBlur}
                                                     value={value}
@@ -6628,15 +6636,10 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                                 </p>
                                             )
                                     }
-                                    <div className="w-full text-center">
+                                    <div className="w-full">
                                         <p className="mt-1 text-xs text-gray-500">
-                                            This name will be used to identify
-                                            the device.
-                                        </p>{" "}
-                                        <p className="text-xs text-gray-500">
-                                            This is stored in your vault and is
-                                            not sent to the server as it is not
-                                            necessary for authentication
+                                            This name will be used to help you
+                                            differentiate between devices.
                                         </p>
                                     </div>
                                 </div>
@@ -6646,7 +6649,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                         <CameraIcon className="h-5 w-5 text-gray-900" />
                                     }
                                     iconCaption="QR code"
-                                    description="Generate a QR code to scan with the other device"
+                                    description="Generate a QR code to link the devices"
                                     onClick={() => onSubmit(LinkMethod.QRCode)}
                                     disabled={isOperationInProgress}
                                 />
@@ -6655,13 +6658,13 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                     icon={
                                         <SpeakerWaveIcon className="h-5 w-5 text-gray-900" />
                                     }
-                                    iconCaption="Transfer with sound"
-                                    description="Link the devices using sound"
+                                    iconCaption="Sound"
+                                    description="Use sound to link the devices"
                                     // disabled={
                                     //     isSubmitting ||
                                     //     (validInput !== ValidInput.Sound && validInput !== null)
                                     // }
-                                    disabled={true} // FIXME: Sound transfer is not implemented yet
+                                    disabled={true} // TODO: Sound transfer is not implemented yet
                                     // validInput={validInput === ValidInput.Sound}
                                 />
 
@@ -6669,8 +6672,8 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                     icon={
                                         <DocumentTextIcon className="h-5 w-5 text-gray-900" />
                                     }
-                                    iconCaption="Using a file"
-                                    description="Generate a file to transfer to the other device"
+                                    iconCaption="File"
+                                    description="Generate a file to link devices manually"
                                     onClick={() => onSubmit(LinkMethod.File)}
                                     disabled={isOperationInProgress}
                                 />

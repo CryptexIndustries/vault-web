@@ -1105,7 +1105,15 @@ const UnlockVaultDialog: React.FC<{
             visibleState={[visible, () => hideDialog()]}
         >
             <Body>
-                <div className="flex flex-col items-center text-center">
+                <div
+                    className="flex flex-col items-center text-center"
+                    onKeyDown={(e) => {
+                        // In case the user presses the CTRL + Enter key - fire the form submit event
+                        if (e.ctrlKey && e.key === "Enter") {
+                            onSubmitButtonPressedFnRef.current();
+                        }
+                    }}
+                >
                     <p className="text-2xl font-bold text-gray-900">
                         Unlock vault
                     </p>

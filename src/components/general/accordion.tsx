@@ -1,4 +1,9 @@
-import { Disclosure, Transition } from "@headlessui/react";
+import {
+    Disclosure,
+    DisclosureButton,
+    DisclosurePanel,
+    Transition,
+} from "@headlessui/react";
 import { ChevronUpIcon } from "@heroicons/react/20/solid";
 import { clsx } from "clsx";
 import React from "react";
@@ -32,10 +37,10 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
     buttonClassName = "bg-colorPrimary",
     innerClassName = "text-md px-4 pb-2 text-gray-200",
 }) => (
-    <Disclosure>
+    <Disclosure as="div">
         {({ open }) => (
             <>
-                <Disclosure.Button
+                <DisclosureButton
                     className={clsx({
                         "text-md flex w-full items-center justify-between rounded-lg px-4 py-2 text-left font-medium text-white hover:opacity-90 focus:outline-none focus-visible:opacity-90 focus-visible:ring focus-visible:ring-opacity-75":
                             true,
@@ -49,7 +54,7 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
                             "rotate-180 transform": open,
                         })}
                     />
-                </Disclosure.Button>
+                </DisclosureButton>
                 <Transition
                     enter="transition duration-100 ease-out"
                     enterFrom="transform scale-95 opacity-0"
@@ -57,11 +62,11 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
                     leave="transition duration-75 ease-out"
                     leaveFrom="transform scale-100 opacity-100"
                     leaveTo="transform scale-95 opacity-0"
-                    className={`${innerClassName}`}
+                    // className={`${innerClassName}`}
                 >
-                    <Disclosure.Panel className={`${innerClassName}`}>
+                    <DisclosurePanel className={`${innerClassName}`}>
                         {children}
-                    </Disclosure.Panel>
+                    </DisclosurePanel>
                 </Transition>
             </>
         )}

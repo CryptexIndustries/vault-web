@@ -1,44 +1,72 @@
-import React, { useState } from "react";
-import { Body, Footer, GenericModal } from "../general/modal";
+import React, { useEffect, useRef, useState } from "react";
+import { Body, Footer, GenericModal, Title } from "../general/modal";
 import { ButtonFlat, ButtonType } from "../general/buttons";
-import { Credential } from "../../app_lib/vault_utils";
-import { DiffType, PartialCredential, Diff } from "../../app_lib/proto/vault";
-import clsx from "clsx";
+import { Credential } from "../../app_lib/vault-utils";
+import {
+    DiffChange,
+    DiffType,
+    PartialCredential,
+    Diff,
+} from "../../app_lib/proto/vault";
 import { WarningDialogShowFn } from "./warning";
+import dayjs from "dayjs";
+import { FormSelectboxField } from "../general/input-fields";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "react-toastify";
+import { ExclamationTriangleIcon } from "@heroicons/react/20/solid";
 
-export type DivergenceSolveShowDialogFnPropType = (
+// enum SolveStrategy {
+//     Manual,
+//     Latest,
+//     ThisVaultPriority,
+//     OtherVaultPriority,
+// }
+
+enum DiffItemChoice {
+    KeepOurs,
+    KeepTheirs,
+    KeepBoth,
+    // KeepBoth,
+    Remove,
+    Keep,
+}
+
+export type ManualSyncShowDialogFnPropType = (
     ourCredentials: Credential.VaultCredential[],
     theirCredentials: PartialCredential[],
     onConfirm: OnSuccessCallback,
-    onCancel: OnCancelCallback
+    onCancel: OnCancelCallback,
 ) => void;
 
 type OnSuccessCallback = (
     diffsToApply: Diff[],
-    diffsToSend: Diff[]
+    diffsToSend: Diff[],
 ) => Promise<void>;
 type OnCancelCallback = () => void;
 
-export const DivergenceSolveDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<DivergenceSolveShowDialogFnPropType | null>;
+export const ManualSynchronizationDialog: React.FC<{
+    showDialogFnRef: React.RefObject<ManualSyncShowDialogFnPropType>;
     showWarningDialog: WarningDialogShowFn;
 }> = ({ showDialogFnRef, showWarningDialog }) => {
     const [dialogVisible, setDialogVisible] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    const ourCredentialsRef = React.useRef<Credential.VaultCredential[]>([]);
-    const theirCredentialsRef = React.useRef<Credential.VaultCredential[]>([]);
-    const onSuccessRef = React.useRef<OnSuccessCallback>();
-    const onCancelRef = React.useRef<OnCancelCallback>();
+    const ourCredentialsRef = useRef<Credential.VaultCredential[]>([]);
+    const theirCredentialsRef = useRef<Credential.VaultCredential[]>([]);
+    const onSuccessRef = useRef<OnSuccessCallback>(undefined);
+    const onCancelRef = useRef<OnCancelCallback>(undefined);
 
-    const [selectedDiffHashes, setSelectedDiffHashes] = useState<string[]>([]);
     const [differences, setDifferences] = useState<Diff[]>([]);
+    // const [solveStrategy, setSolveStrategy] = useState(SolveStrategy.Manual);
+    const diffItemSelection = useRef<Map<string, DiffItemChoice>>(new Map());
 
     showDialogFnRef.current = (
         ourCredentials: Credential.VaultCredential[],
         theirCredentials: PartialCredential[],
         onSuccess: OnSuccessCallback,
-        onCancel: OnCancelCallback
+        onCancel: OnCancelCallback,
     ) => {
         ourCredentialsRef.current = ourCredentials;
 
@@ -56,9 +84,9 @@ export const DivergenceSolveDialog: React.FC<{
     };
 
     const hideDialog = (force = false) => {
-        if ((loading || selectedDiffHashes.length) && !force) {
+        if ((loading || diffItemSelection.current.size) && !force) {
             const hide = window.confirm(
-                "Are you sure you want to cancel? This will discard all changes."
+                "Are you sure you want to cancel? This will discard all changes.",
             );
 
             if (!hide) return;
@@ -74,7 +102,7 @@ export const DivergenceSolveDialog: React.FC<{
             theirCredentialsRef.current = [];
             onSuccessRef.current = undefined;
             onCancelRef.current = undefined;
-            setSelectedDiffHashes([]);
+            diffItemSelection.current = new Map();
             setDifferences([]);
         }, 200);
     };
@@ -90,108 +118,120 @@ export const DivergenceSolveDialog: React.FC<{
 
         for (const ourCredential of ourCredentialsRef.current) {
             const theirCredential = theirCredentialsRef.current.find(
-                (theirCredential) => theirCredential.ID === ourCredential.ID
+                (theirCredential) => theirCredential.ID === ourCredential.ID,
             );
 
             // const ourHash = await ourCredential.hash();
-            const parsedOurCredential = Object.assign(
+            const ourCredentialParsed = Object.assign(
                 new Credential.VaultCredential(),
-                ourCredential
+                ourCredential,
             );
-            const parsedTheirCredential = theirCredential
+            const theirCredentialParsed = theirCredential
                 ? Object.assign(
                       new Credential.VaultCredential(),
-                      theirCredential
+                      theirCredential,
                   )
                 : null;
 
-            if (parsedTheirCredential) {
-                const ourHash = await parsedOurCredential.hash();
-                const theirHash = await parsedTheirCredential.hash();
-                if (ourHash !== theirHash) {
-                    // Modification
-                    const _diff: Diff = {
-                        Hash: theirHash,
-                        Changes: {
-                            Type: DiffType.Update,
-                            ID: parsedTheirCredential.ID,
-                            Props: parsedTheirCredential,
-                        },
-                    };
-                    // TODO: Use this to show the changes in the UI
-                    if (_diff.Changes && _diff.Changes.Props)
-                        _diff.Changes.Props.ChangeFlags = Credential.getChanges(
-                            parsedOurCredential,
-                            parsedTheirCredential
-                        )?.Props?.ChangeFlags;
-                    _differences.push(_diff);
-                } else {
-                    // Same
-                }
-            } else {
+            // If we couldn't find the matching credential
+            if (!theirCredentialParsed) {
                 // Removal
-                _differences.push({
-                    Hash: await parsedOurCredential.hash(),
+                const item = {
+                    Hash: await ourCredentialParsed.hash(),
                     Changes: {
                         Type: DiffType.Delete,
-                        ID: parsedOurCredential.ID,
-                        Props: parsedOurCredential,
+                        ID: ourCredentialParsed.ID,
+                        Props: ourCredentialParsed,
                     },
-                });
+                };
+
+                _differences.push(item);
+
+                onDiffItemChoiceChange(
+                    item.Hash,
+                    initialDiffItemState(item.Changes.Type),
+                );
+
+                // Stop processing the credential
+                continue;
+            }
+
+            const ourHash = await ourCredentialParsed.hash();
+            const theirHash = await theirCredentialParsed.hash();
+            if (ourHash !== theirHash) {
+                // Modification
+                const _diff: Diff = {
+                    Hash: theirHash,
+                    Changes: {
+                        Type: DiffType.Update,
+                        ID: theirCredentialParsed.ID,
+                        Props: theirCredentialParsed,
+                    },
+                };
+                // TODO: Use this to show the changes in the UI
+                if (_diff.Changes && _diff.Changes.Props)
+                    _diff.Changes.Props.ChangeFlags = Credential.getChanges(
+                        ourCredentialParsed,
+                        theirCredentialParsed,
+                    )?.Props?.ChangeFlags;
+
+                if (_diff.Changes) {
+                    _differences.push(_diff);
+
+                    onDiffItemChoiceChange(
+                        _diff.Hash,
+                        initialDiffItemState(_diff.Changes.Type),
+                    );
+                }
+            } else {
+                // Same
             }
         }
 
         for (const theirCredential of theirCredentialsRef.current) {
             const ourCredential = ourCredentialsRef.current.find(
-                (ourCredential) => ourCredential.ID === theirCredential.ID
+                (ourCredential) => ourCredential.ID === theirCredential.ID,
             );
 
-            const parsedTheirCredential = Object.assign(
+            // If our version exists, stop processing this credential
+            // We're only processing the additions here
+            if (ourCredential) continue;
+
+            const theirCredentialParsed = Object.assign(
                 new Credential.VaultCredential(),
-                theirCredential
+                theirCredential,
             );
 
-            if (!ourCredential) {
-                // Addition
-                _differences.push({
-                    Hash: await parsedTheirCredential.hash(),
-                    Changes: {
-                        Type: DiffType.Add,
-                        ID: parsedTheirCredential.ID,
-                        Props: parsedTheirCredential,
-                    },
-                });
-            }
+            // Addition
+            const item = {
+                Hash: await theirCredentialParsed.hash(),
+                Changes: {
+                    Type: DiffType.Add,
+                    ID: theirCredentialParsed.ID,
+                    Props: theirCredentialParsed,
+                },
+            };
+            _differences.push(item);
+
+            onDiffItemChoiceChange(
+                item.Hash,
+                initialDiffItemState(item.Changes.Type),
+            );
         }
 
         setDifferences(_differences);
         setLoading(false);
     };
 
-    const numberOfAdditions = differences.filter(
-        (diff) => diff.Changes?.Type === DiffType.Add
-    ).length;
-    const numberOfModifications = differences.filter(
-        (diff) => diff.Changes?.Type === DiffType.Update
-    ).length;
-    const numberOfDeletions = differences.filter(
-        (diff) => diff.Changes?.Type === DiffType.Delete
-    ).length;
+    const initialDiffItemState = (diffType: DiffType): DiffItemChoice => {
+        if (diffType === DiffType.Add || diffType === DiffType.Delete)
+            return DiffItemChoice.Keep;
 
-    const selectAll = (checked: boolean) => {
-        if (!checked) {
-            setSelectedDiffHashes([]);
-        } else {
-            setSelectedDiffHashes(differences.map((diff) => diff.Hash));
-        }
+        return DiffItemChoice.KeepBoth;
     };
 
-    const selectDiff = (hash: string, checked: boolean) => {
-        if (!checked) {
-            setSelectedDiffHashes(selectedDiffHashes.filter((h) => h !== hash));
-        } else {
-            setSelectedDiffHashes([...selectedDiffHashes, hash]);
-        }
+    const onDiffItemChoiceChange = (hash: string, choice: DiffItemChoice) => {
+        diffItemSelection.current.set(hash, choice);
     };
 
     const onConfirm = async () => {
@@ -201,79 +241,153 @@ export const DivergenceSolveDialog: React.FC<{
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         console.debug(
-            "DivergenceSolveDialog confirm",
-            selectedDiffHashes,
-            differences.map((i) => DiffType[i.Changes?.Type ?? 0])
+            "[ManualSynchronizationDialog] Confirm",
+            diffItemSelection.current,
+            differences.map((i) => DiffType[i.Changes?.Type ?? DiffType.Add]),
         );
 
         const diffsToApply: Diff[] = [];
         const diffsToSend: Diff[] = [];
 
-        for (const _diff of differences) {
-            const diffType = _diff.Changes?.Type ?? 0;
+        for (const [changeHash, changeType] of diffItemSelection.current) {
+            const diff = differences.find((i) => i.Hash === changeHash);
 
-            const diff = JSON.parse(JSON.stringify(_diff));
-
-            // Changes cannot be undefined
-            if (!diff.Changes) {
+            if (!diff?.Changes) {
+                console.warn(
+                    "[ManualSynchronizationDialog] Came across a diff without changes. This should never happen.",
+                );
                 continue;
             }
 
-            if (selectedDiffHashes.includes(diff.Hash)) {
-                if (diffType === DiffType.Add) {
+            const theirCredential = theirCredentialsRef.current.find(
+                (i) => i.ID === diff.Changes?.ID,
+            );
+            const ourCredential = ourCredentialsRef.current.find(
+                (i) => i.ID === diff.Changes?.ID,
+            );
+
+            if (!theirCredential && !ourCredential) {
+                // Hold yer horses!
+                console.warn(
+                    "[ManualSynchronizationDialog] Found a diff that is not present in either of the vaults. This should never happen.",
+                );
+                continue;
+            }
+
+            if (changeType === DiffItemChoice.Keep) {
+                diff.Changes.Type = DiffType.Add;
+                diff.Changes.Props = ourCredential ?? theirCredential;
+
+                if (theirCredential) {
+                    // Need to generate an "Add" diff for this vault
                     diffsToApply.push(diff);
-                } else if (diffType === DiffType.Update) {
+                } else if (ourCredential) {
+                    // Need to generate an "Add" diff for the other vault
+                    diffsToSend.push(diff);
+                }
+            } else if (changeType === DiffItemChoice.Remove) {
+                diff.Changes.Type = DiffType.Delete;
+                diff.Changes.Props = undefined;
+
+                if (theirCredential) {
+                    // Need to send a "Remove" diff for the other vault
+                    diffsToSend.push(diff);
+                }
+
+                if (ourCredential) {
+                    // Need to send a "Remove" diff for this vault
                     diffsToApply.push(diff);
-                } else if (diffType === DiffType.Delete) {
-                    diff.Changes.Props = undefined;
-                    diffsToApply.push(diff);
+                }
+            } else if (changeType === DiffItemChoice.KeepOurs) {
+                if (!diff.Changes?.Props) {
+                    console.warn(
+                        "[ManualSynchronizationDialog] Modify diff had no Props.",
+                    );
+                    continue;
+                }
+
+                const c = Object.assign(diff.Changes.Props, ourCredential);
+                diff.Changes.Props = c;
+
+                diffsToSend.push(diff);
+            } else if (changeType === DiffItemChoice.KeepTheirs) {
+                if (!diff.Changes?.Props) {
+                    console.warn(
+                        "[ManualSynchronizationDialog] Modify diff had no Props.",
+                    );
+                    continue;
+                }
+
+                const c = Object.assign(diff.Changes.Props, theirCredential);
+                diff.Changes.Props = c;
+
+                diffsToApply.push(diff);
+            } else if (changeType === DiffItemChoice.KeepBoth) {
+                // Remove the item from both vaults
+                diff.Changes.Type = DiffType.Delete;
+                diff.Changes.Props = undefined;
+                diffsToApply.push(diff);
+                diffsToSend.push(diff);
+
+                const craftDiff = async (
+                    credential: Credential.VaultCredential,
+                ) => {
+                    let freshCredential = Object.assign({}, credential);
+
+                    // Remove the ID from the credential so we generate a fresh one
+                    freshCredential.ID = "";
+                    freshCredential.Name = `${freshCredential.Name} [${dayjs(freshCredential.DateModified).toString()}]`;
+                    freshCredential = new Credential.VaultCredential(
+                        freshCredential,
+                    );
+
+                    // Generate a fresh diff skeleton
+                    const newDiff = Object.assign({}, diff);
+                    newDiff.Hash = await freshCredential.hash();
+
+                    // Generate an addition diff
+                    newDiff.Changes =
+                        Credential.getChanges(undefined, freshCredential) ??
+                        undefined;
+                    return newDiff;
+                };
+
+                // Add our item to both vaults
+                if (ourCredential) {
+                    const newDiff = await craftDiff(ourCredential);
+                    diffsToApply.push(newDiff);
+                    diffsToSend.push(newDiff);
+                }
+
+                // Add their item to both vaults
+                if (theirCredential) {
+                    const newDiff = await craftDiff(theirCredential);
+                    diffsToApply.push(newDiff);
+                    diffsToSend.push(newDiff);
                 }
             } else {
-                if (diffType === DiffType.Add) {
-                    // If the user didn't select this "Addition" diff, then we need to send it to the other device as a removal
-                    diff.Changes.Type = DiffType.Delete;
-                    diff.Changes.Props = undefined;
-                    diffsToSend.push(diff);
-                } else if (diffType === DiffType.Update) {
-                    // If the user didn't select this "Modification" diff, then we need to send our version of the credential to the other device
-                    const ourCredential = ourCredentialsRef.current.find(
-                        (ourCredential) => ourCredential.ID === diff.Changes?.ID
-                    );
-                    if (ourCredential) {
-                        // Set the ChangeFlags to the changes between our credential and the diff credential (same is done above in case we take the other device's version)
-                        const ourCredentialCast =
-                            ourCredential as PartialCredential;
-                        if (diff.Changes && diff.Changes.Props)
-                            ourCredentialCast.ChangeFlags =
-                                Credential.getChanges(
-                                    ourCredential,
-                                    diff.Changes.Props
-                                )?.Props?.ChangeFlags;
+                console.error(
+                    "[ManualSynchronizationDialog] Invalid diff item choice:",
+                    changeType,
+                    diff,
+                );
 
-                        diff.Changes.Props = ourCredentialCast;
-                        diffsToSend.push(diff);
-                    } else {
-                        console.error(
-                            "[DivergenceSolveDialog] Could not find our version of the credential for this modification diff (this should never happen)",
-                            diff
-                        );
-                    }
-                } else if (diffType === DiffType.Delete) {
-                    // If the user didn't select this "Removal" diff, then we need to send it to the other device as an addition
-                    diff.Changes.Type = DiffType.Add;
-                    diffsToSend.push(diff);
-                }
+                toast.error(
+                    "Invalid diff item choice. This should never happen.",
+                );
+                setLoading(false);
+                return;
             }
         }
 
         console.debug(
-            "diffsToApply",
-            diffsToApply.map((i) => DiffType[i.Changes?.Type ?? 0])
+            "[ManualSynchronizationDialog] diffsToApply",
+            diffsToApply.map((i) => DiffType[i.Changes?.Type ?? 0]),
         );
 
         console.debug(
-            "diffsToSend",
-            diffsToSend.map((i) => DiffType[i.Changes?.Type ?? 0])
+            "[ManualSynchronizationDialog] diffsToSend",
+            diffsToSend.map((i) => DiffType[i.Changes?.Type ?? 0]),
         );
 
         showWarningDialog(
@@ -285,7 +399,7 @@ export const DivergenceSolveDialog: React.FC<{
             },
             () => {
                 setLoading(false);
-            }
+            },
         );
     };
 
@@ -295,87 +409,107 @@ export const DivergenceSolveDialog: React.FC<{
 
     return (
         <GenericModal
-            key="divergence-solver-modal"
+            key="manual-synchronization-modal"
             visibleState={[dialogVisible, cancel]}
+            childrenTitle={<Title>Manual synchronization</Title>}
         >
             <Body>
-                <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold">Solve Divergence</h1>
-                    <p className="mt-2 text-slate-800">
-                        The vaults have diverged.
-                    </p>
-                    <p className="text-slate-800">
-                        {/* Please select which changes to apply to this vault. */}
-                        Please select the changes you would like to apply to
-                        this vault.
-                    </p>
-                    <p className="text-slate-800">
-                        After confirmation, the same changes will be applied to
-                        the remote vault - bringing them back in sync.
-                    </p>
-                    {/* Show a count of the differences by type */}
-                    <div className="mt-4 flex w-full flex-row justify-center">
-                        <div className="flex flex-col items-center rounded-l-md border-y border-l bg-green-100 p-2">
-                            <p className="text-slate-800">Additions</p>
-                            <p className="text-sm font-bold text-slate-800">
-                                {numberOfAdditions}
+                <div className="flex flex-col">
+                    <div className="mb-2 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
+                        <ExclamationTriangleIcon
+                            className="h-7 w-7 text-slate-800"
+                            aria-hidden="true"
+                        />
+                        <p className="text-sm text-slate-700">
+                            <span className="font-bold">
+                                Detected {differences.length} simultaneous
+                                changes to the vaults.
+                            </span>
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <p className="text-sm text-slate-700">
+                                Please decide what to do with the changes.
                             </p>
-                        </div>
-                        <div className="flex flex-col items-center border-y bg-yellow-100 p-2">
-                            <p className="text-slate-800">Modifications</p>
-                            <p className="text-sm font-bold text-slate-800">
-                                {numberOfModifications}
-                            </p>
-                        </div>
-                        <div className="flex flex-col items-center rounded-r-md border-y border-r bg-red-100 p-2">
-                            <p className="text-slate-800">Removals</p>
-                            <p className="text-sm font-bold text-slate-800">
-                                {numberOfDeletions}
+                            <p className="text-sm text-slate-700">
+                                After your confirmation, the changes will be
+                                applied to this, and the other device.
                             </p>
                         </div>
                     </div>
-                    <div className="mt-4 w-full items-start">
-                        {/* Select all checkbox with a count of currently selected items */}
-                        <div className="flex flex-row items-start justify-between space-x-2 p-4 py-0">
-                            <div
-                                className="flex cursor-pointer space-x-2"
-                                onClick={() =>
-                                    selectAll(
-                                        !(
-                                            selectedDiffHashes.length ===
-                                            differences.length
+                    {/* TODO: Implement quick actions */}
+                    <div className="flex flex-row items-start justify-between space-x-2 p-4 py-0">
+                        {/* <p>Strategy</p>
+                            <div className="flex space-x-2 text-sm">
+                                <button
+                                    className={clsx({
+                                        "border border-slate-200":
+                                            solveStrategy ===
+                                            SolveStrategy.Manual,
+                                    })}
+                                    onClick={() =>
+                                        setSolveStrategy(SolveStrategy.Manual)
+                                    }
+                                >
+                                    Manual
+                                </button>
+                                <button
+                                    className={clsx({
+                                        "border border-slate-200":
+                                            solveStrategy ===
+                                            SolveStrategy.Latest,
+                                    })}
+                                    onClick={() =>
+                                        setSolveStrategy(SolveStrategy.Latest)
+                                    }
+                                >
+                                    Take Latest
+                                </button>
+                                <button
+                                    className={clsx({
+                                        "border border-slate-200":
+                                            solveStrategy ===
+                                            SolveStrategy.ThisVaultPriority,
+                                    })}
+                                    onClick={() =>
+                                        setSolveStrategy(
+                                            SolveStrategy.ThisVaultPriority,
                                         )
-                                    )
-                                }
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={
-                                        selectedDiffHashes.length ===
-                                        differences.length
                                     }
-                                    onChange={(e) =>
-                                        selectAll(e.target.checked)
+                                >
+                                    This Vault
+                                </button>
+                                <button
+                                    className={clsx({
+                                        "border border-slate-200":
+                                            solveStrategy ===
+                                            SolveStrategy.OtherVaultPriority,
+                                    })}
+                                    onClick={() =>
+                                        setSolveStrategy(
+                                            SolveStrategy.OtherVaultPriority,
+                                        )
                                     }
-                                />
-                                <p className="text-slate-800">Select All</p>
-                            </div>
-                            <p className="text-slate-600">
-                                {selectedDiffHashes.length} selected
-                            </p>
-                        </div>
-                        <div className="flex max-h-56 flex-col space-y-2 overflow-auto rounded bg-slate-200 p-2">
-                            {differences.map((difference, index) => (
+                                >
+                                    Other Vault
+                                </button>
+                            </div> */}
+                    </div>
+                    <div className="flex max-h-64 flex-col space-y-2 overflow-auto border border-slate-200 p-2">
+                        {differences.map((diff, index) => {
+                            if (!diff.Changes) return null;
+
+                            return (
                                 <DiffItem
                                     key={index}
-                                    difference={difference}
-                                    checked={selectedDiffHashes.includes(
-                                        difference.Hash
+                                    hash={diff.Hash}
+                                    difference={diff.Changes}
+                                    initialState={initialDiffItemState(
+                                        diff.Changes.Type,
                                     )}
-                                    onChangeFn={selectDiff}
+                                    onChangeFn={onDiffItemChoiceChange}
                                 />
-                            ))}
-                        </div>
+                            );
+                        })}
                     </div>
                 </div>
             </Body>
@@ -399,35 +533,55 @@ export const DivergenceSolveDialog: React.FC<{
 };
 
 const DiffItem: React.FC<{
-    difference: Diff;
-    checked: boolean;
-    onChangeFn: (hash: string, checked: boolean) => void;
-}> = ({ difference, checked, onChangeFn }) => {
-    const diffType = difference.Changes?.Type ?? DiffType.Add;
-    const name = difference.Changes?.Props?.Name ?? "Untitled";
-    const username = difference.Changes?.Props?.Username ?? "";
+    hash: string;
+    difference: DiffChange;
+    initialState: DiffItemChoice;
+    onChangeFn: (hash: string, action: DiffItemChoice) => void;
+}> = ({ hash, difference, initialState, onChangeFn }) => {
+    const diffType = difference.Type;
+    const name = difference.Props?.Name ?? "Untitled";
+    const username = difference.Props?.Username ?? "";
+
+    const options: Record<number, string> = {};
+
+    if (diffType === DiffType.Update) {
+        options[DiffItemChoice.KeepOurs] = "Keep ours";
+        options[DiffItemChoice.KeepTheirs] = "Keep theirs";
+        options[DiffItemChoice.KeepBoth] = "Keep both";
+        options[DiffItemChoice.Remove] = "Remove";
+    } else {
+        options[DiffItemChoice.Keep] = "Keep";
+        options[DiffItemChoice.Remove] = "Remove";
+    }
+
+    const formSchema = z.object({
+        Option: z.nativeEnum(DiffItemChoice),
+    });
+    type formSchemaType = z.infer<typeof formSchema>;
+    const { control, register } = useForm<formSchemaType>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            Option: initialState,
+        },
+    });
+
+    const selectedValue = useWatch({
+        name: "Option",
+        control: control,
+        defaultValue: initialState,
+    });
+
+    useEffect(() => {
+        // NOTE: Have to convert the string to a number as it gets passed as a string
+        onChangeFn(hash, Number(selectedValue));
+    }, [selectedValue]);
 
     return (
         <div
-            className={clsx({
-                "flex cursor-pointer flex-row items-center space-x-2 space-y-1 rounded bg-slate-400/50 p-1 px-3 drop-shadow-sm transition-all hover:drop-shadow-md":
-                    true,
-                "shadow shadow-red-400": diffType === DiffType["Delete"],
-                "shadow shadow-green-400": diffType === DiffType["Add"],
-                "shadow shadow-yellow-400": diffType === DiffType["Update"],
-            })}
-            onClick={() => {
-                // setChecked(!checked);
-                onChangeFn(difference.Hash, !checked);
-            }}
+            className={
+                "flex flex-col space-y-2 rounded border border-slate-400 px-3 py-2 shadow drop-shadow-sm transition-all hover:drop-shadow-md md:flex-row md:items-center md:space-x-2 md:space-y-2"
+            }
         >
-            <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => {
-                    // No-op
-                }}
-            />
             <div className="flex flex-grow flex-col items-start text-start">
                 <span
                     className="line-clamp-2 font-bold text-slate-800"
@@ -437,26 +591,32 @@ const DiffItem: React.FC<{
                 </span>
                 {username.length ? (
                     <span
-                        className="line-clamp-1 text-sm text-slate-600"
+                        className="line-clamp-1 text-sm text-slate-700"
                         title={username}
                     >
                         {username}
                     </span>
                 ) : (
-                    <span className="text-sm italic text-slate-600">
+                    <span className="text-sm italic text-slate-700">
                         No username
                     </span>
                 )}
-            </div>
-            <span className="text-sm text-slate-800">
-                {
+
+                <span className="text-xs text-slate-600">
                     {
-                        [DiffType["Delete"]]: "Remove from this vault",
-                        [DiffType["Add"]]: "Add to this vault",
-                        [DiffType["Update"]]: "Update this vault",
-                    }[diffType]
-                }
-            </span>
+                        {
+                            [DiffType["Delete"]]: "- Exists only in this vault",
+                            [DiffType["Add"]]:
+                                "- Exists only in the other vault",
+                            [DiffType["Update"]]: "- Exists in both vaults",
+                        }[diffType]
+                    }
+                </span>
+            </div>
+            <FormSelectboxField
+                register={register("Option")}
+                optionsEnum={options}
+            ></FormSelectboxField>
         </div>
     );
 };

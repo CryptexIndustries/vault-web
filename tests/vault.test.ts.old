@@ -1,8 +1,8 @@
-import * as jest from "@jest/globals";
+//import * as jest from "@jest/globals";
 
 import crypto from "crypto";
 
-import { Credential, Vault, Import } from "../src/app_lib/vault_utils";
+import { Credential, Vault, Import } from "../src/app_lib/vault-utils";
 import {
     TOTPAlgorithm,
     ItemType,

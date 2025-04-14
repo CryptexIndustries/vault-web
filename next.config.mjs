@@ -40,11 +40,11 @@ const headers = () => {
                     key: "Permissions-Policy",
                     value: "microphone=(), geolocation=(), interest-cohort=()",
                 },
-                {
-                    // Allow the service worker to be loaded from all domains
-                    key: "Service-Worker-Allowed",
-                    value: "/",
-                },
+                // {
+                //     // Allow the service worker to be loaded from all domains
+                //     key: "Service-Worker-Allowed",
+                //     value: "/",
+                // },
             ],
         },
     ];
@@ -60,7 +60,6 @@ const rmConsoleFromBuild =
           };
 const nextConfig = {
     reactStrictMode: true,
-    swcMinify: true,
     images: {
         domains: ["play.google.com"],
     },

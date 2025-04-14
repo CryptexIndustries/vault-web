@@ -13,7 +13,7 @@ import Link from "next/link";
 import { clsx } from "clsx";
 
 import { Body, Footer, GenericModal } from "../components/general/modal";
-import NotificationContainer from "../components/general/notificationContainer";
+import NotificationContainer from "../components/general/notification-container";
 import { Accordion, AccordionItem } from "../components/general/accordion";
 import {
     AnchorFullRoundFade,
@@ -22,16 +22,16 @@ import {
 } from "../components/general/buttons";
 import Spinner from "../components/general/spinner";
 import PageFooter from "../components/general/footer";
-import HTMLHeader from "../components/html_header";
-import HTMLMain from "../components/html_main";
+import HTMLHeader from "../components/html-header";
+import HTMLMain from "../components/html-main";
 import { PAYMENT_TIERS } from "../server/utils/subscription";
-import { NotifyMeReference } from "../components/index/notifyMeForm";
+import { NotifyMeReference } from "../components/index/notify-me-form";
 
 const NotifyMeForm = React.lazy(
-    () => import("../components/index/notifyMeForm"),
+    () => import("../components/index/notify-me-form"),
 );
 const ContactUsForm = React.lazy(
-    () => import("../components/index/contactUsForm"),
+    () => import("../components/index/contact-us-form"),
 );
 
 enum FeatureState {

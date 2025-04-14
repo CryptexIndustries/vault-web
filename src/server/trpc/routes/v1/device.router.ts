@@ -12,6 +12,11 @@ import { checkRatelimitter } from "../../../common/ratelimiting";
 
 export const deviceRouterLink = protectedProcedure
     // .input(z.object({ purpose: z.nativeEnum(APIKeyPurpose) }))
+    .input(
+        z.object({
+            root: z.boolean(),
+        }),
+    )
     .output(z.string())
     .mutation(async ({ ctx }) => {
         await checkRatelimitter(ctx.apiKeyHash, "DEVICE_LINK", 2, "1m");

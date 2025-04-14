@@ -1,149 +1,168 @@
-import React, { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import { GetStaticProps } from "next";
+import React, {
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+    type RefObject,
+} from "react";
 
-import { toast } from "react-toastify";
-import { Controller, useForm } from "react-hook-form";
+import {
+    Disclosure,
+    DisclosureButton,
+    DisclosurePanel,
+    Menu,
+    MenuButton,
+    MenuItem,
+    MenuItems,
+    Popover,
+    PopoverButton,
+    PopoverPanel,
+    Transition,
+} from "@headlessui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLiveQuery } from "dexie-react-hooks";
-import { Disclosure, Menu, Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import * as OTPAuth from "otpauth";
-import { autoPlacement, shift, useFloating } from "@floating-ui/react-dom";
+import { Control, Controller, useForm, useWatch } from "react-hook-form";
+import { toast } from "react-toastify";
 import { z } from "zod";
-import type Pusher from "pusher-js";
 
 import dayjs from "dayjs";
 import RelativeTime from "dayjs/plugin/relativeTime";
 
 import {
-    EllipsisVerticalIcon,
-    ChevronDownIcon,
-    FunnelIcon,
-    Bars3Icon,
-    XMarkIcon,
+    ArrowPathIcon,
     ArrowTopRightOnSquareIcon,
+    ArrowUpCircleIcon,
+    Bars3Icon,
+    CalendarIcon,
+    CameraIcon,
+    ChatBubbleBottomCenterTextIcon,
+    CheckCircleIcon,
+    ChevronDownIcon,
+    ChevronUpIcon,
+    ClockIcon,
+    CloudArrowUpIcon,
+    Cog8ToothIcon,
+    DevicePhoneMobileIcon,
+    DocumentTextIcon,
+    EllipsisVerticalIcon,
+    ExclamationCircleIcon,
+    ExclamationTriangleIcon,
+    FunnelIcon,
+    GlobeAltIcon,
+    HandThumbUpIcon,
+    InformationCircleIcon,
+    KeyIcon,
+    LinkIcon,
     LockClosedIcon,
     PlusCircleIcon,
-    CheckCircleIcon,
-    ArrowUpCircleIcon,
-    ExclamationTriangleIcon,
-    CameraIcon,
     SpeakerWaveIcon,
-    DocumentTextIcon,
-    ClockIcon,
-    DevicePhoneMobileIcon,
-    ArrowPathIcon,
-    CloudArrowUpIcon,
-    KeyIcon,
-    WifiIcon,
-    LinkIcon,
-    Cog8ToothIcon,
-    HandThumbUpIcon,
-    CalendarIcon,
-    XCircleIcon,
-    ChevronUpIcon,
-    InformationCircleIcon,
-    ExclamationCircleIcon,
     TableCellsIcon,
-    ChatBubbleBottomCenterTextIcon,
+    WifiIcon,
+    XCircleIcon,
+    XMarkIcon,
 } from "@heroicons/react/20/solid";
 
 import { Turnstile } from "@marsidev/react-turnstile";
 
-import { trpc, trpcReact } from "../../utils/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { HTMLHeaderPWA } from "../../components/html_header";
-import HTMLMain from "../../components/html_main";
-import NotificationContainer from "../../components/general/notificationContainer";
-import { Body, Footer, GenericModal } from "../../components/general/modal";
-import { ButtonFlat, ButtonType } from "../../components/general/buttons";
 import {
     SignUpFormSchemaType,
     constructLinkPresenceChannelName,
-    constructSyncChannelName,
     extractIDFromAPIKey,
     navigateToCheckout,
-    newWSPusherInstance,
-    newWebRTCConnection,
-} from "../../app_lib/online_services_utils";
-import { signUpFormSchema } from "../../app_lib/online_services_utils";
+    signUpFormSchema,
+} from "../../app_lib/online-services";
+import * as VaultUtilTypes from "../../app_lib/proto/vault";
+import * as SynchronizationUtils from "../../app_lib/synchronization-utils";
+import * as Synchronization from "../../app_lib/synchronization";
 import {
     Backup,
     Credential,
+    Export,
+    FormSchemas,
+    Import,
+    LinkedDevices,
     LinkedDevice,
-    OnlineServicesAccount,
-    Synchronization,
+    LinkingPackage,
     Vault,
     VaultEncryption,
     VaultMetadata,
     VaultStorage,
-    Import,
-    Export,
-    FormSchemas,
-} from "../../app_lib/vault_utils";
+} from "../../app_lib/vault-utils";
+import { ButtonFlat, ButtonType } from "../../components/general/buttons";
 import {
-    TOTPAlgorithm,
-    EncryptionAlgorithm,
-    KeyDerivationFunction,
-    type PartialCredential,
-    Diff,
-    SynchronizationMessageCommand,
-} from "../../app_lib/proto/vault";
-import NavBar from "../../components/navbar";
+    Body,
+    Footer,
+    GenericModal,
+    Title,
+} from "../../components/general/modal";
+import NotificationContainer from "../../components/general/notification-container";
+import { HTMLHeaderPWA } from "../../components/html-header";
+import HTMLMain from "../../components/html-main";
+import { trpc, trpcReact } from "../../utils/trpc";
+
+import { autoPlacement, shift, useFloating } from "@floating-ui/react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/router";
+import { Virtuoso } from "react-virtuoso";
+import { CredentialsGeneratorDialog } from "../../components/dialog/credentials-generator";
+import FeedbackDialog from "../../components/dialog/feedback-dialog";
+import {
+    ManualSynchronizationDialog,
+    type ManualSyncShowDialogFnPropType,
+} from "../../components/dialog/synchronization";
 import {
     WarningDialog,
     WarningDialogShowFn,
 } from "../../components/dialog/warning";
 import { AccordionItem } from "../../components/general/accordion";
-import { GetSubscriptionOutputSchemaType } from "../../schemes/payment_router";
-import Spinner from "../../components/general/spinner";
-import { env } from "../../env/client.mjs";
-import dynamic from "next/dynamic";
-import QrReader from "../../components/general/qrScanner";
-import { CredentialsGeneratorDialog } from "../../components/dialog/credentialsGenerator";
 import {
-    FormInputField,
-    FormSelectboxField,
-    FormNumberInputField,
-    FormTextAreaField,
     ClipboardButton,
     FormBaseNumberInputField,
-} from "../../components/general/inputFields";
+    FormInputCheckbox,
+    FormInputField,
+    FormNumberInputField,
+    FormSelectboxField,
+    FormTextAreaField,
+} from "../../components/general/input-fields";
+import QrReader from "../../components/general/qr-scanner";
+import Spinner from "../../components/general/spinner";
+import NavBar from "../../components/navbar";
 import {
-    DivergenceSolveDialog,
-    type DivergenceSolveShowDialogFnPropType,
-} from "../../components/dialog/synchronization";
-import FeedbackDialog from "../../components/dialog/feedbackDialog";
+    SynchronizationConfigurationDialog,
+    SynchronizationServersSelectboxes,
+} from "../../components/synchronization/sync-configuration";
+import { env } from "../../env/client.mjs";
+import { GetSubscriptionOutputSchemaType } from "../../schemes/payment_router";
 import {
+    OnlineServicesAuthenticationStatusHelpers,
     clearOnlineServicesAPIKey,
     isVaultUnlockedAtom,
-    onlineServicesDataAtom,
-    onlineServicesBoundAtom,
+    linkedDevicesAtom,
     onlineServicesAuthConnectionStatusAtom,
+    onlineServicesBoundAtom,
+    onlineServicesDataAtom,
     onlineServicesStore,
     setOnlineServicesAPIKey,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
     unlockedVaultWriteOnlyAtom,
-    webRTCConnectionsAtom,
-    OnlineServicesAuthenticationStatusHelpers,
+    vaultGet,
 } from "../../utils/atoms";
+import {
+    DIALOG_BLUR_TIME,
+    enumToRecord,
+    ONLINE_SERVICES_SELECTION_ID,
+} from "../../utils/consts";
+
+const GlobalSyncConnectionController =
+    new Synchronization.SyncConnectionController();
 
 dayjs.extend(RelativeTime);
-
-const DIALOG_BLUR_TIME = 200;
-
-const enumToRecord = (enumObject: object): Record<string, string> =>
-    Object.keys(enumObject).reduce((acc, key) => {
-        const _key = key as keyof typeof enumObject;
-
-        // If the key is not a number, skip it
-        if (isNaN(Number(_key))) return acc;
-
-        acc[_key] = enumObject[_key];
-        return acc;
-    }, {});
 
 const useClearOnlineServicesDataAtom = () => {
     const setOnlineServicesData = useSetAtom(onlineServicesDataAtom);
@@ -229,7 +248,7 @@ const useUnbindOnlineServices = () => {
     return async (vaultMetadata: VaultMetadata, vault: Vault) => {
         clearOnlineServicesAPIKey();
 
-        vault.OnlineServices.unbindAccount();
+        LinkedDevices.unbindAccount(vault.LinkedDevices);
 
         await vaultMetadata.save(vault);
 
@@ -238,7 +257,14 @@ const useUnbindOnlineServices = () => {
 };
 
 // Function for opening the browsers file picker
-const openFilePicker = async (inputRef: React.RefObject<HTMLInputElement>) => {
+const openFilePicker = async (
+    inputRef: React.RefObject<HTMLInputElement | null>,
+) => {
+    if (!inputRef.current) {
+        console.warn("File input not found.");
+        return;
+    }
+
     // Clear the input field - this is done so that the user can select the same file again
     if (inputRef.current) inputRef.current.value = "";
 
@@ -262,17 +288,30 @@ const openFilePicker = async (inputRef: React.RefObject<HTMLInputElement>) => {
     });
 };
 
-const readFile = async (file: File): Promise<string> =>
+// const readFile = async (file: File): Promise<string> =>
+//     new Promise((resolve, reject) => {
+//         const reader = new FileReader();
+//         reader.onload = () => {
+//             if (reader.result) {
+//                 resolve(reader.result as string);
+//             } else {
+//                 reject("Failed to read file.");
+//             }
+//         };
+//         reader.readAsText(file);
+//     });
+
+const readFileBinary = async (file: File): Promise<Uint8Array> =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
             if (reader.result) {
-                resolve(reader.result as string);
+                resolve(new Uint8Array(reader.result as ArrayBuffer));
             } else {
                 reject("Failed to read file.");
             }
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     });
 
 enum LinkMethod {
@@ -432,10 +471,10 @@ const VaultListItem: React.FC<VaultListItemProps> = ({
                 </div>
             </div>
             <Menu as="div" className="relative">
-                <Menu.Button ref={optionsButtonRef}>
+                <MenuButton ref={optionsButtonRef}>
                     <EllipsisVerticalIcon className="h-6 w-6 text-gray-400" />
-                </Menu.Button>
-                <Transition
+                </MenuButton>
+                {/* <Transition
                     as={React.Fragment}
                     enter="transition ease-out duration-100"
                     enterFrom="transform opacity-0 scale-95"
@@ -443,34 +482,34 @@ const VaultListItem: React.FC<VaultListItemProps> = ({
                     leave="transition ease-in duration-75"
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
-                >
-                    <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-gray-700 shadow-lg focus:outline-none">
-                        <div className="py-1">
-                            {options.map((option, index) => (
-                                <Menu.Item
-                                    key={`vault-${vaultBlob.HeaderIV}-${index}`}
-                                >
-                                    {({ active }) => {
-                                        const hoverClass = clsx({
-                                            "bg-gray-800 text-white": active,
-                                            "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                                true,
-                                        });
-                                        return (
-                                            <a
-                                                href="#"
-                                                className={hoverClass}
-                                                onClick={option.onClick}
-                                            >
-                                                {option.Name}
-                                            </a>
-                                        );
-                                    }}
-                                </Menu.Item>
-                            ))}
-                        </div>
-                    </Menu.Items>
-                </Transition>
+                > */}
+                <MenuItems className="absolute right-0 z-10 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-gray-700 shadow-lg focus:outline-none">
+                    <div className="py-1">
+                        {options.map((option, index) => (
+                            <MenuItem
+                                key={`vault-${vaultBlob.HeaderIV}-${index}`}
+                            >
+                                {({ active }) => {
+                                    const hoverClass = clsx({
+                                        "bg-gray-800 text-white": active,
+                                        "flex px-4 py-2 text-sm font-semibold text-gray-200":
+                                            true,
+                                    });
+                                    return (
+                                        <a
+                                            href="#"
+                                            className={hoverClass}
+                                            onClick={option.onClick}
+                                        >
+                                            {option.Name}
+                                        </a>
+                                    );
+                                }}
+                            </MenuItem>
+                        ))}
+                    </div>
+                </MenuItems>
+                {/* </Transition> */}
             </Menu>
         </div>
     );
@@ -509,7 +548,7 @@ const VaultListPopover: React.FC<VaultListPopoverProps> = ({
                 });
                 return (
                     <>
-                        <Popover.Button
+                        <PopoverButton
                             ref={refs.setReference}
                             className={popoverButtonClasses}
                         >
@@ -517,9 +556,9 @@ const VaultListPopover: React.FC<VaultListPopoverProps> = ({
                                 className={chevronDownIconClasses}
                                 aria-hidden="true"
                             />
-                        </Popover.Button>
+                        </PopoverButton>
                         <Transition
-                            as={Fragment}
+                            // as={Fragment}
                             enter="transition ease-out duration-200"
                             enterFrom="opacity-0 translate-y-1"
                             enterTo="opacity-100 translate-y-0"
@@ -527,7 +566,7 @@ const VaultListPopover: React.FC<VaultListPopoverProps> = ({
                             leaveFrom="opacity-100 translate-y-0"
                             leaveTo="opacity-0 translate-y-1"
                         >
-                            <Popover.Panel
+                            <PopoverPanel
                                 ref={refs.setFloating}
                                 style={floatingStyles}
                                 className="z-10 mt-3 w-screen max-w-sm px-4 sm:px-0"
@@ -572,7 +611,7 @@ const VaultListPopover: React.FC<VaultListPopoverProps> = ({
                                     </a>
                                 </div> */}
                                 </div>
-                            </Popover.Panel>
+                            </PopoverPanel>
                         </Transition>
                     </>
                 );
@@ -668,16 +707,16 @@ const IconRestoreVault: React.FC = () => {
 };
 
 const EncryptionFormGroup: React.FC<{
-    handleSubmitFn: React.MutableRefObject<
+    handleSubmitFn: React.RefObject<
         (
             onValid: (data: FormSchemas.EncryptionFormGroupSchemaType) => void,
         ) => () => Promise<void>
     >;
     defaultValues?: FormSchemas.EncryptionFormGroupSchemaType;
-    resetFormFn?: React.MutableRefObject<() => void>;
-    isDirtyFn?: React.MutableRefObject<() => boolean>;
-    onEnterKeyPressFnRef?: React.MutableRefObject<() => void>;
-    credentialsGeneratorFnRef?: React.MutableRefObject<() => void>;
+    resetFormFn?: React.RefObject<() => void>;
+    isDirtyFn?: React.RefObject<() => boolean>;
+    onEnterKeyPressFnRef?: React.RefObject<() => void>;
+    credentialsGeneratorFnRef?: React.RefObject<() => void>;
     showSecretHelpText?: boolean;
 }> = ({
     handleSubmitFn,
@@ -694,12 +733,14 @@ const EncryptionFormGroup: React.FC<{
         formState: { errors, isDirty },
         reset: resetForm,
         watch,
+        setFocus,
     } = useForm<FormSchemas.EncryptionFormGroupSchemaType>({
         resolver: zodResolver(FormSchemas.encryptionFormGroupSchema),
         defaultValues: defaultValues ?? {
             Secret: "",
-            Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
-            EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
+            Encryption: VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+            EncryptionKeyDerivationFunction:
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID,
             EncryptionConfig: {
                 iterations:
                     VaultEncryption.KeyDerivationConfig_PBKDF2
@@ -723,6 +764,10 @@ const EncryptionFormGroup: React.FC<{
     if (isDirtyFn) {
         isDirtyFn.current = () => isDirty;
     }
+
+    useEffect(() => {
+        setFocus("Secret");
+    }, []);
 
     return (
         <>
@@ -771,7 +816,9 @@ const EncryptionFormGroup: React.FC<{
                                 Encryption Algorithm *
                             </label>
                             <FormSelectboxField
-                                optionsEnum={enumToRecord(EncryptionAlgorithm)}
+                                optionsEnum={enumToRecord(
+                                    VaultUtilTypes.EncryptionAlgorithm,
+                                )}
                                 register={register("Encryption", {
                                     valueAsNumber: true,
                                 })}
@@ -801,7 +848,7 @@ const EncryptionFormGroup: React.FC<{
                             </label>
                             <FormSelectboxField
                                 optionsEnum={enumToRecord(
-                                    KeyDerivationFunction,
+                                    VaultUtilTypes.KeyDerivationFunction,
                                 )}
                                 register={register(
                                     "EncryptionKeyDerivationFunction",
@@ -826,7 +873,7 @@ const EncryptionFormGroup: React.FC<{
                                 watch(
                                     "EncryptionKeyDerivationFunction",
                                 ).toString() !==
-                                KeyDerivationFunction.Argon2ID.toString(),
+                                VaultUtilTypes.KeyDerivationFunction.Argon2ID.toString(),
                         })}
                     >
                         <div className="mt-4 flex flex-col">
@@ -873,7 +920,7 @@ const EncryptionFormGroup: React.FC<{
                                 watch(
                                     "EncryptionKeyDerivationFunction",
                                 ).toString() !==
-                                KeyDerivationFunction.PBKDF2.toString(),
+                                VaultUtilTypes.KeyDerivationFunction.PBKDF2.toString(),
                         })}
                     >
                         <div className="mt-4 flex flex-col">
@@ -907,9 +954,7 @@ const EncryptionFormGroup: React.FC<{
 };
 
 const UnlockVaultDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<
-        (vaultMetadata: VaultMetadata) => void
-    >;
+    showDialogFnRef: React.RefObject<(vaultMetadata: VaultMetadata) => void>;
 }> = ({ showDialogFnRef }) => {
     const [visible, setVisible] = useState(false);
     const selected = useRef<VaultMetadata | undefined>(undefined);
@@ -994,7 +1039,7 @@ const UnlockVaultDialog: React.FC<{
             // A little delay to make sure the toast is shown
             await new Promise((resolve) => setTimeout(resolve, 100));
 
-            let vault;
+            let vault: Vault;
             try {
                 vault = await selected.current.decryptVault(
                     encryptionFormData.Secret,
@@ -1002,21 +1047,8 @@ const UnlockVaultDialog: React.FC<{
                     encryptionFormData.EncryptionKeyDerivationFunction,
                     encryptionFormData.EncryptionConfig,
                 );
-
-                // Set the vault metadata and vault atoms
-                setUnlockedVaultMetadata(selected.current);
-                setUnlockedVault(vault);
-
-                toast.update("vault-unlock", {
-                    render: "Decryption successful.",
-                    type: "success",
-                    autoClose: 3000,
-                    closeButton: true,
-                });
-
-                hideDialog(true);
             } catch (e) {
-                console.error("Failed to decrypt vault.", e);
+                console.warn("Failed to decrypt vault.", e);
                 toast.update("vault-unlock", {
                     render: "Failed to decrypt vault",
                     type: "error",
@@ -1024,14 +1056,32 @@ const UnlockVaultDialog: React.FC<{
                     pauseOnHover: false,
                     closeButton: true,
                 });
+
+                return;
             }
+
+            // Set the vault metadata and vault atoms
+            setUnlockedVaultMetadata(selected.current);
+            setUnlockedVault(vault);
+
+            GlobalSyncConnectionController.teardown();
+            GlobalSyncConnectionController.init();
+
+            toast.update("vault-unlock", {
+                render: "Decryption successful.",
+                type: "success",
+                autoClose: 3000,
+                closeButton: true,
+            });
+
+            hideDialog(true);
 
             if (
                 vault &&
-                vault.OnlineServices.isBound() &&
-                vault.OnlineServices.APIKey
+                LinkedDevices.isBound(vault.LinkedDevices) &&
+                vault.LinkedDevices.APIKey
             ) {
-                setOnlineServicesAPIKey(vault.OnlineServices.APIKey);
+                setOnlineServicesAPIKey(vault.LinkedDevices.APIKey);
 
                 try {
                     await refreshOnlineServicesRemoteData();
@@ -1103,6 +1153,7 @@ const UnlockVaultDialog: React.FC<{
             key="vault-unlock-modal"
             inhibitDismissOnClickOutside={isSubmitting}
             visibleState={[visible, () => hideDialog()]}
+            childrenTitle={<Title>Unlock Vault</Title>}
         >
             <Body>
                 <div
@@ -1114,16 +1165,12 @@ const UnlockVaultDialog: React.FC<{
                         }
                     }}
                 >
-                    <p className="text-2xl font-bold text-gray-900">
-                        Unlock vault
-                    </p>
-
-                    <p className="mt-2 text-left text-base text-gray-600">
+                    <p className="text-left text-base text-gray-600">
                         Name: <b>{selected.current?.Name}</b>
                         <br />
                         Saved Encryption:{" "}
                         <b>
-                            {EncryptionAlgorithm[
+                            {VaultUtilTypes.EncryptionAlgorithm[
                                 selected.current?.Blob?.Algorithm ?? 0
                             ] ?? "Unknown"}
                         </b>
@@ -1166,8 +1213,8 @@ enum CreateVaultDialogMode {
 const CreateVaultDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     mode: CreateVaultDialogMode;
-    vaultInstance: React.MutableRefObject<Vault | undefined>;
-    showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
+    vaultInstance: React.RefObject<Vault | undefined>;
+    showCredentialsGeneratorDialogFn: React.RefObject<() => void>;
 }> = ({ visibleState, showCredentialsGeneratorDialogFn }) => {
     const [dev_seedVault, setdev_seedVault] = useState(false);
     const dev_seedCount = useRef<number>(100);
@@ -1218,23 +1265,24 @@ const CreateVaultDialog: React.FC<{
                 );
                 // console.timeEnd("create-vault");
 
-                toast.warning("Verifying vault...", {
-                    autoClose: false,
-                    closeButton: false,
-                    toastId: "create-vault",
-                    updateId: "create-vault",
-                });
+                // TODO: Remove this section because it's more of a test than a proper solution
+                // toast.warning("Verifying vault...", {
+                //     autoClose: false,
+                //     closeButton: false,
+                //     toastId: "create-vault",
+                //     updateId: "create-vault",
+                // });
 
                 // Leave time for the UI to update
                 await delay(100);
 
-                // Verify that the vault has been properly encrypted - try to decrypt it
-                await vaultMetadata.decryptVault(
-                    encryptionFormData.Secret,
-                    encryptionFormData.Encryption,
-                    encryptionFormData.EncryptionKeyDerivationFunction,
-                    encryptionFormData.EncryptionConfig,
-                );
+                // // Verify that the vault has been properly encrypted - try to decrypt it
+                // await vaultMetadata.decryptVault(
+                //     encryptionFormData.Secret,
+                //     encryptionFormData.Encryption,
+                //     encryptionFormData.EncryptionKeyDerivationFunction,
+                //     encryptionFormData.EncryptionConfig,
+                // );
                 // console.debug("Decrypted vault:", _);
 
                 // Vault encryption/decryption is working, save the vault
@@ -1284,14 +1332,11 @@ const CreateVaultDialog: React.FC<{
         <GenericModal
             key="vault-creation-dialog"
             visibleState={[visibleState[0], () => hideDialog()]}
+            childrenTitle={<Title>Create a new Vault</Title>}
         >
             <Body>
                 <div className="flex flex-col items-center text-center">
-                    <p className="text-2xl font-bold text-gray-900">
-                        Create a new Vault
-                    </p>
-
-                    <p className="mt-2 text-base text-gray-600">
+                    <p className="text-base text-gray-600">
                         We recommend you to use a secret in the form of a
                         passphrase which is generally a password composed of a
                         sentence or a combination of words and tend to be longer
@@ -1450,7 +1495,7 @@ const BlockWideButton: React.FC<{
 );
 
 const LinkDeviceOutsideVaultDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
+    showDialogFnRef: React.RefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
     const [visible, setVisible] = useState(false);
     showDialogFnRef.current = () => setVisible(true);
@@ -1489,8 +1534,9 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const encryptedPackageRaw = useRef<LinkingPackage | null>(null);
+
     const vaultLinkingFormSchema = z.object({
-        encryptedData: z.string().min(1),
         decryptionPassphrase: z.string().min(1),
         progressLog: z.array(
             z.object({
@@ -1510,7 +1556,6 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
     } = useForm<VaultLinkingFormSchemaType>({
         resolver: zodResolver(vaultLinkingFormSchema),
         defaultValues: {
-            encryptedData: "",
             decryptionPassphrase: "",
             progressLog: [],
         },
@@ -1530,9 +1575,14 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             // Show the file picker
             const fileData = await openFilePicker(fileInputRef);
 
+            if (!fileData) return;
+
             // Load the file
-            const encryptedData = await readFile(fileData);
-            setFormValue("encryptedData", encryptedData);
+            const encryptedData = await readFileBinary(fileData);
+
+            // Deserialize the data
+            encryptedPackageRaw.current =
+                LinkingPackage.fromBinary(encryptedData);
 
             // If we were able to load the file, move to the next step which is decryption
             setCurrentState(State.DecryptionPassphrase);
@@ -1549,10 +1599,17 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         setCurrentState(State.QRCodeScanning);
     };
 
+    /**
+     * This is called after the user successfully scans a QR code
+     * @param data The QR code content
+     */
     const qrCodeMethodCallback = async (data: string) => {
         console.debug("QR code result:", data);
 
-        setFormValue("encryptedData", data);
+        // Deserialize the data
+        encryptedPackageRaw.current = LinkingPackage.fromBase64(data);
+
+        // setFormValue("encryptedData", data);
         setCurrentState(State.DecryptionPassphrase);
     };
 
@@ -1560,23 +1617,25 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
      * This is called after the user enters the decryption passphrase
      */
     const onSubmit = async (formData: VaultLinkingFormSchemaType) => {
+        if (encryptedPackageRaw.current == null) {
+            toast.error("Invalid encrypted package.");
+            return;
+        }
+
         setOperationInProgress(true);
 
         // Delay a bit for the UI to update
         await new Promise((res) => setTimeout(res, 100));
 
-        // Try to decrypt the data - setError if it fails
-        let apiKey: string;
-        try {
-            apiKey = await OnlineServicesAccount.decryptTransferableData(
-                formData.encryptedData,
-                formData.decryptionPassphrase,
-            );
+        // Decrypt the data, then call the startLinkingProcess function
+        let decryptedLinkingPackage: VaultUtilTypes.LinkingPackageBlob | null =
+            null;
 
-            // Validate the decrypted data
-            if (!apiKey?.length) {
-                throw new Error("Invalid decrypted data.");
-            }
+        try {
+            decryptedLinkingPackage =
+                await encryptedPackageRaw.current.decryptPackage(
+                    formData.decryptionPassphrase,
+                );
         } catch (e) {
             console.error("Failed to decrypt the data.", e);
             setFormError("decryptionPassphrase", {
@@ -1588,20 +1647,40 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             return;
         }
 
+        if (decryptedLinkingPackage == null) {
+            toast.error("Invalid decrypted data.");
+            setOperationInProgress(false);
+            return;
+        }
+
         setCurrentState(State.LinkingInProgress);
 
         // Delay a bit for the UI to update
         await new Promise((res) => setTimeout(res, 100));
 
-        await connectToOnlineServices(apiKey);
+        await startLinkingProcess(decryptedLinkingPackage);
     };
 
-    const connectToOnlineServices = async (apiKey: string) => {
-        setOnlineServicesAPIKey(apiKey);
+    const startLinkingProcess = async (
+        linkingPackage: VaultUtilTypes.LinkingPackageBlob,
+    ) => {
+        const usesOnlineServices =
+            linkingPackage.SignalingServer == null ||
+            !linkingPackage.STUNServers.length ||
+            !linkingPackage.TURNServers.length;
+
+        if (linkingPackage.APIKey) {
+            setOnlineServicesAPIKey(linkingPackage.APIKey);
+        } else {
+            clearOnlineServicesAPIKey();
+        }
 
         //---
         // Start setting up the WebRTC connection so it is ready when we need it
-        const webRTConnection = await newWebRTCConnection();
+        const webRTConnection = Synchronization.initWebRTC(
+            linkingPackage.STUNServers,
+            linkingPackage.TURNServers,
+        );
         webRTConnection.onconnectionstatechange = () => {
             console.debug(
                 "WebRTC connection state changed:",
@@ -1611,13 +1690,13 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             if (webRTConnection.connectionState === "connected") {
                 // console.debug("WebRTC connection established.");
                 addToProgressLog(
-                    "Private connection established, disconnecting from Cryptex Vault Online Services...",
+                    "Private connection established, dropping Signaling server connection...",
                     "info",
                 );
 
-                // We're connected directly to the other device, so disconnect from the online services
-                onlineWSServicesEndpoint.disconnect();
-                onlineWSServicesEndpoint.unbind();
+                // We're connected directly to the other device, so disconnect from the signaling server
+                signalingServer.disconnect();
+                signalingServer.unbind();
             } else if (
                 webRTConnection.connectionState === "disconnected" ||
                 webRTConnection.connectionState === "failed"
@@ -1637,7 +1716,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
             const receiveChannel = event.channel;
             receiveChannel.onmessage = async (event) => {
-                addToProgressLog("Receiving vault...", "info");
+                addToProgressLog("Receiving Vault data...", "info");
                 try {
                     // Get the message and make sure it's a Uint8Array
                     const rawVaultMetadata: Uint8Array = new Uint8Array(
@@ -1646,17 +1725,19 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
                     // Parse the vault metadata
                     const newVaultMetadata =
-                        VaultMetadata.decodeMetadataBinary(rawVaultMetadata);
+                        VaultMetadata.deserializeMetadataBinary(
+                            rawVaultMetadata,
+                        );
 
                     await newVaultMetadata.save(null);
 
-                    addToProgressLog("Vault received.");
+                    addToProgressLog("Vault data received.");
 
-                    toast.success("Vault received.");
+                    toast.success("Vault data received.");
                 } catch (e) {
-                    console.error("Failed to receive the vault.", e);
+                    console.error("Failed to receive Vault data.", e);
                     addToProgressLog(
-                        "Failed to receive the vault - check the console for details. Please try again or contact support.",
+                        "Failed to receive Vault data - check the console for details. Please try again or contact support.",
                         "error",
                     );
                 }
@@ -1666,7 +1747,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                 webRTConnection.close();
 
                 addToProgressLog(
-                    "It is safe to close this dialog now.",
+                    "Done. It's safe to close this dialog now.",
                     "info",
                 );
             };
@@ -1696,7 +1777,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
             console.debug("WebRTC ICE candidate:", event);
             if (event.candidate) {
                 console.debug("Sending WebRTC ice candidate:", event.candidate);
-                wsChannel.trigger("client-link", {
+                signalingServerChannel.trigger("client-link", {
                     type: "ice-candidate",
                     data: event.candidate,
                 });
@@ -1706,44 +1787,48 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
             if (iceCandidatesGenerated === 0 && !event.candidate) {
                 addToProgressLog(
-                    "Failed to generate any ICE candidates. WEBRTC failure.",
+                    "Failed to generate ICE candidates. WebRTC failure.",
                     "error",
                 );
 
                 setOperationInProgress(false);
 
                 webRTConnection.close();
-                onlineWSServicesEndpoint.disconnect();
+                signalingServer.disconnect();
             }
         };
 
-        // Connect to the online services
-        // We use this to exchange the WebRTC offer and ice candidates
-        const onlineWSServicesEndpoint = newWSPusherInstance();
-        onlineWSServicesEndpoint.connection.bind("connecting", () => {
+        // Init the signaling server connection object
+        // We use this to exchange the WebRTC offer and ICE candidates
+        const signalingServer = Synchronization.initPusherInstance(
+            linkingPackage.SignalingServer,
+            linkingPackage.ID,
+        );
+        signalingServer.connection.bind("connecting", () => {
             clearOnlineServicesAPIKey();
             addToProgressLog(
-                "Connecting to Cryptex Vault Online Services...",
+                usesOnlineServices
+                    ? "Connecting to Cryptex Vault Online Services..."
+                    : "Connecting to the Signaling Server...",
                 "info",
             );
         });
 
-        onlineWSServicesEndpoint.connection.bind("connected", () => {
+        signalingServer.connection.bind("connected", () => {
             addToProgressLog(
-                "Connected to Cryptex Vault Online Services.",
+                usesOnlineServices
+                    ? "Connected to Cryptex Vault Online Services."
+                    : "Connected to the Signaling Server.",
                 "done",
             );
         });
 
-        onlineWSServicesEndpoint.connection.bind("disconnected", () => {
+        signalingServer.connection.bind("disconnected", () => {
             clearOnlineServicesAPIKey();
-            addToProgressLog(
-                "Dropped connection from Cryptex Vault Online Services.",
-                "info",
-            );
+            addToProgressLog("Dropped Signaling Server connection.", "info");
         });
 
-        onlineWSServicesEndpoint.connection.bind("error", (err: object) => {
+        signalingServer.connection.bind("error", (err: object) => {
             console.error("WS error:", err);
             clearOnlineServicesAPIKey();
             addToProgressLog(
@@ -1755,17 +1840,21 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         });
 
         // The predefined channel name is based on the device ID
-        const channelName = constructLinkPresenceChannelName(apiKey);
+        const channelName = constructLinkPresenceChannelName(
+            usesOnlineServices && linkingPackage.APIKey
+                ? linkingPackage.APIKey
+                : linkingPackage.ID,
+        );
         // Subscribe to own channel
-        const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
-        wsChannel.bind("pusher:subscription_succeeded", () => {
+        const signalingServerChannel = signalingServer.subscribe(channelName);
+        signalingServerChannel.bind("pusher:subscription_succeeded", () => {
             addToProgressLog(
                 "Waiting for other device to notice us...",
                 "info",
             );
         });
 
-        wsChannel.bind(
+        signalingServerChannel.bind(
             "client-link",
             async (data: {
                 type: "offer" | "ice-candidate";
@@ -1783,7 +1872,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                     const answer = await webRTConnection.createAnswer();
                     await webRTConnection.setLocalDescription(answer);
                     console.debug("Sending WebRTC answer:", answer);
-                    wsChannel.trigger("client-link", {
+                    signalingServerChannel.trigger("client-link", {
                         type: "answer",
                         data: answer,
                     });
@@ -1893,6 +1982,10 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
                         onResult={(result) => {
                             if (result) {
                                 qrCodeMethodCallback(result.getText());
+                            } else {
+                                toast.warn(
+                                    "Failed to scan QR code. Please try again.",
+                                );
                             }
                         }}
                     />
@@ -1985,10 +2078,12 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 };
 
 const WelcomeScreen: React.FC = ({}) => {
+    const router = useRouter();
+
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
     const showWarningDialog: WarningDialogShowFn = (
         description: string,
-        onConfirm: () => void,
+        onConfirm: (() => void) | null,
         onDismiss: (() => void) | null,
     ) => {
         showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
@@ -1998,7 +2093,7 @@ const WelcomeScreen: React.FC = ({}) => {
         VaultStorage.db.vaults.toArray(),
     );
     const encryptedVaults = _encryptedVaults?.map((metadata) =>
-        VaultMetadata.decodeMetadataBinary(metadata.data, metadata.id),
+        VaultMetadata.deserializeMetadataBinary(metadata.data, metadata.id),
     );
 
     const createVaultDialogVisible = useState(false);
@@ -2071,6 +2166,13 @@ const WelcomeScreen: React.FC = ({}) => {
                 showUnlockVaultDialogFnRef.current(encryptedVaults[0]);
             }
         }
+
+        return () => {
+            // Remove any fragments from the URL - make sure the sideview isn't visible on vault unlock (when on mobile)
+            router.replace(router.pathname, undefined, {
+                shallow: true,
+            });
+        };
     }, [hasVaults]);
 
     // console.log("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
@@ -2487,7 +2589,7 @@ const RestoreVaultDialog: React.FC<{
 };
 
 const FeatureVotingDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
+    showDialogFnRef: React.RefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
     const [visibleState, setVisibleState] = useState(false);
     const hideModal = () => setVisibleState(false);
@@ -2501,7 +2603,7 @@ const FeatureVotingDialog: React.FC<{
         data: featureVotingRounds,
         isLoading: isLoadingRounds,
         refetch: refetchRounds,
-        remove: removeRoundsData,
+        // remove: removeRoundsData,
     } = trpcReact.v1.featureVoting.rounds.useQuery(undefined, {
         retryDelay: 10000,
         enabled:
@@ -2515,7 +2617,7 @@ const FeatureVotingDialog: React.FC<{
         featureVotingRounds?.rounds.filter((i) => i.active).length ?? 0;
 
     // A mutation for featureVoting.placeVote
-    const { mutate: placeVote, isLoading: isPlacingVoteInProgress } =
+    const { mutate: placeVote, isPending: isPlacingVoteInProgress } =
         trpcReact.v1.featureVoting.placeVote.useMutation({
             retryDelay: 10000,
         });
@@ -2541,23 +2643,20 @@ const FeatureVotingDialog: React.FC<{
 
     useEffect(() => {
         // Make sure we can refetch the rounds data if onlineServices object changes
-        if (!onlineServicesBound) {
-            removeRoundsData();
-        }
+        // if (!onlineServicesBound) {
+        //     removeRoundsData();
+        // }
     }, [onlineServicesBound]);
 
     return (
         <GenericModal
             key="feature-voting-modal"
             visibleState={[visibleState, setVisibleState]}
+            childrenTitle={<Title>Feature Voting</Title>}
         >
             <Body>
                 <div className="flex flex-col items-center text-center">
-                    <p className="text-2xl font-bold text-gray-900">
-                        Feature Voting
-                    </p>
-
-                    <div className="mt-2 flex w-full flex-col items-center text-left">
+                    <div className="flex w-full flex-col items-center text-left">
                         {
                             // If the user is not logged in, tell them to log in
                             !onlineServicesBound && (
@@ -2604,7 +2703,7 @@ const FeatureVotingDialog: React.FC<{
                     <div className="flex w-full flex-col text-left">
                         {/* Map the feature voting rounds if the loading is done, show a loading indicator otherwise */}
                         {!isLoadingRounds && featureVotingRounds && (
-                            <div className="mt-4 flex flex-col">
+                            <div className="mt-2 flex flex-col">
                                 {featureVotingRounds.rounds.map(
                                     (round, index) => (
                                         <Disclosure
@@ -2742,11 +2841,9 @@ const FeatureVotingDialog: React.FC<{
 };
 
 const AccountDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<() => void>;
+    showDialogFnRef: React.RefObject<() => void>;
     showWarningDialogFn: WarningDialogShowFn;
-    showRecoveryGenerationDialogFnRef: React.MutableRefObject<
-        (() => void) | null
-    >;
+    showRecoveryGenerationDialogFnRef: React.RefObject<(() => void) | null>;
     subscriptionData?: GetSubscriptionOutputSchemaType;
     dataLoading: boolean;
     hasDataLoadingError: boolean;
@@ -2765,7 +2862,9 @@ const AccountDialog: React.FC<{
 
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const onlineServicesBound = unlockedVault.OnlineServices.isBound();
+    const onlineServicesBound = LinkedDevices.isBound(
+        unlockedVault.LinkedDevices,
+    );
     const onlineServicesData = useAtomValue(onlineServicesDataAtom);
     const unbindOnlineServices = useUnbindOnlineServices();
 
@@ -2817,7 +2916,7 @@ const AccountDialog: React.FC<{
 
         const {
             mutateAsync: _clearRecoveryPhrase,
-            isLoading: isClearingRecoveryPhrase,
+            isPending: isClearingRecoveryPhrase,
         } = trpcReact.v1.user.clearRecoveryToken.useMutation();
 
         const clearRecoveryPhrase = async () => {
@@ -2874,8 +2973,7 @@ const AccountDialog: React.FC<{
                         <p className="text-left text-base text-gray-600">
                             Date of backup:{" "}
                             {new Date(
-                                onlineServicesData?.remoteData
-                                    ?.recoveryTokenCreatedAt,
+                                onlineServicesData?.remoteData?.recoveryTokenCreatedAt,
                             ).toLocaleDateString()}
                         </p>
                     )}
@@ -3206,12 +3304,11 @@ const AccountDialog: React.FC<{
                 <div className="mt-2 flex max-h-52 flex-col gap-2 overflow-y-auto overflow-x-clip">
                     {linkedDevices?.map((device) => {
                         const resolvedDeviceName =
-                            unlockedVault?.OnlineServices.getLinkedDevice(
-                                device.id,
+                            unlockedVault.LinkedDevices.Devices.find(
+                                (d) => d.ID === device.id,
                             )?.Name;
                         const isCurrentDevice =
-                            device.id ===
-                            unlockedVault.OnlineServices.deviceID();
+                            device.id === unlockedVault.LinkedDevices.ID;
 
                         let deviceDescription = "";
                         const name = (function () {
@@ -3335,15 +3432,12 @@ const AccountDialog: React.FC<{
         <GenericModal
             key="online-services-modal"
             visibleState={[isVisible, setIsVisible]}
+            childrenTitle={<Title>Online Services</Title>}
         >
             <Body>
                 <div className="flex flex-col items-center text-center">
-                    <p className="text-2xl font-bold text-gray-900">
-                        Online Services
-                    </p>
-
                     {hasDataLoadingError && (
-                        <div className="mt-2 flex w-full flex-col items-center text-left">
+                        <div className="flex w-full flex-col items-center text-left">
                             <p className="line-clamp-2 text-left text-base text-gray-600">
                                 There was an error loading your account
                                 information.
@@ -3355,7 +3449,7 @@ const AccountDialog: React.FC<{
                     )}
 
                     {!hasDataLoadingError && (
-                        <div className="mt-2 flex w-full flex-col text-left">
+                        <div className="flex w-full flex-col text-left">
                             <div className="mt-4 rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Account
@@ -3459,7 +3553,7 @@ const AccountDialog: React.FC<{
 };
 
 const RecoveryGenerationDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
+    showDialogFnRef: React.RefObject<(() => void) | null>;
 }> = ({ showDialogFnRef }) => {
     const [isVisible, setIsVisible] = useState(false);
     showDialogFnRef.current = () => setIsVisible(true);
@@ -3482,7 +3576,7 @@ const RecoveryGenerationDialog: React.FC<{
 
     const {
         mutateAsync: _generateRecoveryPhrase,
-        isLoading: isGeneratingRecoveryPhrase,
+        isPending: isGeneratingRecoveryPhrase,
     } = trpcReact.v1.user.generateRecoveryToken.useMutation();
 
     const generateRecoveryPhrase = async () => {
@@ -3608,9 +3702,7 @@ const RecoveryGenerationDialog: React.FC<{
 const AccountHeaderWidget: React.FC<{
     showAccountSignUpSignInDialog: () => void;
     showWarningDialogFn: WarningDialogShowFn;
-    showRecoveryGenerationDialogFnRef: React.MutableRefObject<
-        (() => void) | null
-    >;
+    showRecoveryGenerationDialogFnRef: React.RefObject<(() => void) | null>;
 }> = ({
     showAccountSignUpSignInDialog,
     showWarningDialogFn,
@@ -3618,7 +3710,9 @@ const AccountHeaderWidget: React.FC<{
 }) => {
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const onlineServicesBound = unlockedVault.OnlineServices.isBound();
+    const onlineServicesBound = LinkedDevices.isBound(
+        unlockedVault.LinkedDevices,
+    );
     const onlineServicesData = useAtomValue(onlineServicesDataAtom);
     const onlineServicesAuthConnectionStatus = useAtomValue(
         onlineServicesAuthConnectionStatusAtom,
@@ -3641,7 +3735,7 @@ const AccountHeaderWidget: React.FC<{
         refetchOnWindowFocus: false,
         enabled:
             !!unlockedVault &&
-            unlockedVault.OnlineServices.isBound() &&
+            LinkedDevices.isBound(unlockedVault.LinkedDevices) &&
             !!onlineServicesData?.remoteData,
     });
 
@@ -3672,7 +3766,7 @@ const AccountHeaderWidget: React.FC<{
                     });
                     return (
                         <>
-                            <Popover.Button
+                            <PopoverButton
                                 ref={refs.setReference}
                                 className={popoverButtonClasses}
                                 onClick={
@@ -3724,9 +3818,9 @@ const AccountHeaderWidget: React.FC<{
                                         <WifiIcon className="h-5 w-5 text-inherit" />
                                     </div>
                                 </div>
-                            </Popover.Button>
+                            </PopoverButton>
                             <Transition
-                                as={Fragment}
+                                // as={Fragment}
                                 enter="transition ease-out duration-200"
                                 enterFrom="opacity-0 translate-y-1"
                                 enterTo="opacity-100 translate-y-0"
@@ -3734,7 +3828,7 @@ const AccountHeaderWidget: React.FC<{
                                 leaveFrom="opacity-100 translate-y-0"
                                 leaveTo="opacity-0 translate-y-1"
                             >
-                                <Popover.Panel
+                                <PopoverPanel
                                     ref={refs.setFloating}
                                     style={floatingStyles}
                                     className="z-10 w-[200px] max-w-md px-4 sm:px-0"
@@ -3809,7 +3903,7 @@ const AccountHeaderWidget: React.FC<{
                                             />
                                         </div>
                                     </div>
-                                </Popover.Panel>
+                                </PopoverPanel>
                             </Transition>
                         </>
                     );
@@ -3830,7 +3924,7 @@ const AccountHeaderWidget: React.FC<{
 };
 
 const ImportDataDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<() => void>;
+    showDialogFnRef: React.RefObject<() => void>;
 }> = ({ showDialogFnRef }) => {
     const [visible, setVisible] = useState(false);
     showDialogFnRef.current = () => setVisible(true);
@@ -3889,7 +3983,7 @@ const ImportDataDialog: React.FC<{
     const parsedColumns = useRef<string[]>([]);
 
     const importCredentials = async (
-        credentials: PartialCredential[],
+        credentials: VaultUtilTypes.PartialCredential[],
         groups: FormSchemas.GroupSchemaType[] = [],
     ) => {
         // Add the credentials to the vault
@@ -3935,6 +4029,8 @@ const ImportDataDialog: React.FC<{
     const prepareGenericCSVImport = async () => {
         // Bring up the file picker
         const fileData = await openFilePicker(fileInputRef);
+
+        if (!fileData) return;
 
         selectedFileRef.current = fileData;
 
@@ -4006,6 +4102,8 @@ const ImportDataDialog: React.FC<{
     const parseBitwardenExport = async () => {
         // Bring up the file picker
         const fileData = await openFilePicker(fileInputRef);
+
+        if (!fileData) return;
 
         selectedFileRef.current = fileData;
 
@@ -4174,8 +4272,8 @@ const ImportDataDialog: React.FC<{
 };
 
 const ChangeVaultEncryptionConfigDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<() => void>;
-    showCredentialsGeneratorDialogFnRef: React.MutableRefObject<() => void>;
+    showDialogFnRef: React.RefObject<() => void>;
+    showCredentialsGeneratorDialogFnRef: React.RefObject<() => void>;
 }> = ({ showDialogFnRef, showCredentialsGeneratorDialogFnRef }) => {
     const [visible, setVisible] = useState(false);
     showDialogFnRef.current = () => setVisible(true);
@@ -4309,9 +4407,9 @@ const ChangeVaultEncryptionConfigDialog: React.FC<{
 };
 
 const VaultSettingsDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<() => void>;
+    showDialogFnRef: React.RefObject<() => void>;
     showWarningDialog: WarningDialogShowFn;
-    showCredentialsGeneratorDialogFnRef: React.MutableRefObject<() => void>;
+    showCredentialsGeneratorDialogFnRef: React.RefObject<() => void>;
 }> = ({
     showDialogFnRef,
     showWarningDialog,
@@ -4473,14 +4571,12 @@ const VaultSettingsDialog: React.FC<{
             <GenericModal
                 key="vault-settings-modal"
                 visibleState={[visibleState, () => hideDialog()]}
+                childrenTitle={<Title>Vault Settings</Title>}
+                width="3xl"
             >
                 <Body>
                     <div className="flex flex-col items-center text-center">
-                        <p className="text-2xl font-bold text-gray-900">
-                            Vault Settings
-                        </p>
-
-                        <div className="mt-2 flex w-full flex-col items-center text-left">
+                        <div className="flex w-full flex-col items-center text-left">
                             <p
                                 className="line-clamp-2 text-left text-base text-gray-600"
                                 title={vaultMetadata.Name}
@@ -4621,6 +4717,3454 @@ const VaultSettingsDialog: React.FC<{
                 }
             />
         </>
+    );
+};
+
+const VaultTitle: React.FC<{ title: string }> = ({ title }) => {
+    return (
+        <div className="flex flex-col items-center justify-center overflow-hidden overflow-ellipsis">
+            {/* <p className="text-sm font-bold text-slate-400">Current Vault</p> */}
+            <p
+                className="line-clamp-2 max-w-xs overflow-ellipsis text-center text-2xl font-bold text-slate-50 md:line-clamp-1"
+                title={title}
+            >
+                {title}
+            </p>
+        </div>
+    );
+};
+
+//#region Vault account management
+enum AccountDialogMode {
+    Recover = "Recover",
+    Register = "Register",
+}
+type AccountDialogTabBarProps = {
+    currentFormMode: AccountDialogMode;
+    changeFormMode: (
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.Register,
+    ) => void;
+};
+
+const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
+    currentFormMode,
+    changeFormMode,
+}) => {
+    return (
+        <div className="mb-9 flex flex-row justify-center">
+            {Object.keys(AccountDialogMode).map((key, index) => {
+                const mode =
+                    AccountDialogMode[key as keyof typeof AccountDialogMode];
+                return (
+                    <button
+                        type="button"
+                        key={`account-dialog-tabbutton-${mode}`}
+                        className={clsx({
+                            "bg-gray-100 text-gray-900":
+                                currentFormMode === mode,
+                            "text-gray-500 hover:text-gray-700":
+                                currentFormMode !== mode,
+                            "rounded-l-md": index === 0,
+                            "rounded-r-md": index === 1,
+                            "rounded-md":
+                                Object.keys(AccountDialogMode).length === 1,
+                            "w-auto border border-gray-300 px-4 py-3 text-sm font-medium":
+                                true,
+                        })}
+                        onClick={() => changeFormMode(mode)}
+                        autoFocus={currentFormMode === mode}
+                    >
+                        {mode}
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
+
+const OnlineServicesSignUpRestoreDialog: React.FC<{
+    showDialogFnRef: React.RefObject<(() => void) | null>;
+    vaultMetadata: VaultMetadata;
+    showRecoveryGenerationDialogFnRef: React.RefObject<(() => void) | null>;
+}> = ({
+    showDialogFnRef,
+    vaultMetadata,
+    showRecoveryGenerationDialogFnRef,
+}) => {
+    // const vault = useAtomValue(onlineServicesAccountAtom);
+    const onlineServicesBound = useAtomValue(onlineServicesBoundAtom);
+    const fetchOnlineServicesData = useFetchOnlineServicesData();
+
+    // TODO: Show this dialog only if the user is actually online
+    const [visible, setVisible] = useState(!onlineServicesBound);
+    showDialogFnRef.current = () => setVisible(true);
+    const hideDialog = () => setVisible(false);
+
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+
+    const [currentFormMode, setCurrentFormMode] = useState(
+        AccountDialogMode.Register,
+    );
+
+    const changeFormMode = (
+        newFormMode: AccountDialogMode.Recover | AccountDialogMode.Register,
+    ) => {
+        // Clear the submit function reference
+        // signInSubmitFnRef.current = null;
+
+        setCurrentFormMode(newFormMode);
+    };
+
+    const isSubmitting = useState(false);
+    const isFormSubmitting = isSubmitting[0];
+
+    const recoverSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
+    const signUpSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
+
+    const onConfirm = async () => {
+        if (
+            currentFormMode === AccountDialogMode.Recover &&
+            recoverSubmitFnRef.current
+        ) {
+            await recoverSubmitFnRef.current();
+        } else if (
+            currentFormMode === AccountDialogMode.Register &&
+            signUpSubmitFnRef.current
+        ) {
+            await signUpSubmitFnRef.current?.();
+        }
+    };
+
+    const bindAccount = async (apiKey: string) => {
+        // Save the authentication data to the vault
+        setUnlockedVault(async (pre) => {
+            LinkedDevices.bindAccount(pre.LinkedDevices, apiKey);
+
+            setOnlineServicesAPIKey(apiKey);
+            await fetchOnlineServicesData();
+
+            try {
+                await vaultMetadata.save(pre);
+                toast.success("Account bound successfully.", {
+                    autoClose: 3000,
+                    closeButton: true,
+                });
+
+                // Show the recovery generation dialog - good practice to generate a recovery phrase after binding an account
+                showRecoveryGenerationDialogFnRef.current?.();
+            } catch (e) {
+                console.error("Failed to save vault.", e);
+                toast.error("Failed to save vault.", {
+                    closeButton: true,
+                });
+            }
+            return pre;
+        });
+    };
+
+    return (
+        <GenericModal
+            visibleState={[visible, setVisible]}
+            inhibitDismissOnClickOutside
+        >
+            <Body>
+                <div className="mt-2">
+                    <AccountDialogTabBar
+                        currentFormMode={currentFormMode}
+                        changeFormMode={changeFormMode}
+                    />
+                </div>
+                {currentFormMode === AccountDialogMode.Recover ? (
+                    <AccountDialogRecoverForm
+                        submittingState={isSubmitting}
+                        submitFnRef={recoverSubmitFnRef}
+                        bindAccountFn={bindAccount}
+                        hideDialogFn={hideDialog}
+                    />
+                ) : (
+                    <AccountDialogRegisterForm
+                        submittingState={isSubmitting}
+                        submitFnRef={signUpSubmitFnRef}
+                        vaultMetadata={vaultMetadata}
+                        bindAccountFn={bindAccount}
+                        hideDialogFn={hideDialog}
+                    />
+                )}
+            </Body>
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text={currentFormMode}
+                    className="sm:ml-2"
+                    onClick={onConfirm}
+                    disabled={isFormSubmitting}
+                    loading={isFormSubmitting}
+                />
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    onClick={hideDialog}
+                    disabled={isFormSubmitting}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+
+const AccountDialogRecoverForm: React.FC<{
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
+    submitFnRef: React.RefObject<(() => Promise<void>) | null>;
+    bindAccountFn: (apiKey: string) => Promise<void>;
+    hideDialogFn: () => void;
+}> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
+    const [, setIsSubmitting] = submittingState;
+
+    const recoverFormSchema = z.object({
+        userId: z.string().min(1, "This field is required").max(100),
+        recoveryPhrase: z.string().min(1, "This field is required"),
+        captchaToken: z.string().min(1, "Captch is required"),
+    });
+    type RecoverFormSchemaType = z.infer<typeof recoverFormSchema>;
+
+    const {
+        control,
+        handleSubmit,
+        setError: setFormError,
+        formState: { errors },
+    } = useForm<RecoverFormSchemaType>({
+        resolver: zodResolver(recoverFormSchema),
+        defaultValues: {
+            userId: "",
+            recoveryPhrase: "",
+            captchaToken: "",
+        },
+    });
+
+    const { mutateAsync: recoverUser } =
+        trpcReact.v1.user.recover.useMutation();
+
+    const onSubmit = async (formData: RecoverFormSchemaType) => {
+        setIsSubmitting(true);
+
+        // Send the public key and the email to the server
+        toast.info("Contacting the server...", {
+            autoClose: false,
+            closeButton: false,
+            toastId: "recovery-contacting-server",
+            updateId: "recovery-contacting-server",
+        });
+
+        try {
+            const apiKey = await recoverUser({
+                userId: formData.userId,
+                recoveryPhrase: formData.recoveryPhrase,
+                // publicKey: keyPair.publicKey,
+                captchaToken: formData.captchaToken,
+            });
+
+            // Save the API key to the vault
+            await bindAccountFn(apiKey);
+
+            toast.update("recovery-contacting-server", {
+                autoClose: 1000,
+                closeButton: true,
+            });
+
+            // Hide the dialog
+            hideDialogFn();
+        } catch (e) {
+            console.error("Failed to recover user.", e);
+
+            if (e instanceof TRPCClientError) {
+                console.error(e.message);
+            }
+
+            toast.error("Recovery failed. Please try again.", {
+                autoClose: 3000,
+                closeButton: true,
+                toastId: "recovery-contacting-server",
+                updateId: "recovery-contacting-server",
+            });
+        }
+        setIsSubmitting(false);
+    };
+
+    submitFnRef.current = handleSubmit(onSubmit);
+
+    useEffect(() => {
+        return () => {
+            if (window.turnstile) window.turnstile.remove();
+        };
+    }, []);
+
+    return (
+        <div className="flex w-full flex-col text-left">
+            <div className="mb-2 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
+                <ExclamationTriangleIcon
+                    className="h-7 w-7 text-slate-800"
+                    aria-hidden="true"
+                />
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> On successful
+                    recovery, the account will be bound to this device. You will
+                    not be able to recover the account on another device. If
+                    there were any other devices linked to the account, they
+                    will be unlinked - you will have to link them again.
+                </p>
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> This device will be
+                    marked as a root device. Only the root device will be able
+                    to link other devices and remove them.
+                </p>
+            </div>
+
+            <div className="mt-2 flex flex-col">
+                <Controller
+                    control={control}
+                    name="userId"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <FormInputField
+                            label="User ID *"
+                            placeholder="Type in your User ID"
+                            type="text"
+                            autoCapitalize="none"
+                            onChange={onChange}
+                            onBlur={onBlur}
+                            value={value}
+                        />
+                    )}
+                />
+                {errors.userId && (
+                    <p className="text-red-500">{errors.userId.message}</p>
+                )}
+            </div>
+            <div className="mt-2 flex flex-col">
+                <Controller
+                    control={control}
+                    name="recoveryPhrase"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <FormInputField
+                            label="Recovery Phrase *"
+                            placeholder="Type in your recovery phrase"
+                            type="text"
+                            autoCapitalize="none"
+                            onChange={onChange}
+                            onBlur={onBlur}
+                            value={value}
+                        />
+                    )}
+                />
+                {errors.recoveryPhrase && (
+                    <p className="text-red-500">
+                        {errors.recoveryPhrase.message}
+                    </p>
+                )}
+            </div>
+            <div className="mt-2 flex flex-col items-center">
+                <Controller
+                    control={control}
+                    name="captchaToken"
+                    render={({ field: { onChange } }) => (
+                        <Turnstile
+                            options={{
+                                theme: "light",
+                                size: "normal",
+                                language: "auto",
+                            }}
+                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                            onError={() => {
+                                setFormError("captchaToken", {
+                                    message: "Captcha error",
+                                });
+                            }}
+                            onExpire={() => onChange("")}
+                            onSuccess={(token) => onChange(token)}
+                        />
+                    )}
+                />
+                {errors.captchaToken && (
+                    <p className="text-red-500">
+                        {errors.captchaToken.message}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const AccountDialogRegisterForm: React.FC<{
+    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
+    submitFnRef: React.RefObject<(() => Promise<void>) | null>;
+    vaultMetadata: VaultMetadata;
+    bindAccountFn: (apiKey: string) => Promise<void>;
+    hideDialogFn: () => void;
+}> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
+    const [, setIsSubmitting] = submittingState;
+
+    const {
+        control,
+        handleSubmit,
+        setError: setFormError,
+        formState: { errors },
+    } = useForm<SignUpFormSchemaType>({
+        resolver: zodResolver(signUpFormSchema),
+        defaultValues: {
+            captchaToken: "",
+        },
+    });
+
+    const { mutateAsync: register_user } =
+        trpcReact.v1.user.register.useMutation();
+
+    const onSubmit = async (formData: SignUpFormSchemaType) => {
+        setIsSubmitting(true);
+
+        // Send the public key and the email to the server
+        toast.info("Contacting the server...", {
+            autoClose: false,
+            closeButton: false,
+            toastId: "register-user",
+            updateId: "register-user",
+        });
+
+        try {
+            const apiKey = await register_user({
+                captchaToken: formData.captchaToken,
+            });
+
+            // Save the api key
+            await bindAccountFn(apiKey);
+
+            // Hide the dialog
+            hideDialogFn();
+
+            toast.success("Successfully registered user.", {
+                autoClose: 3000,
+                closeButton: true,
+                toastId: "register-user",
+                updateId: "register-user",
+            });
+        } catch (e) {
+            console.error("Failed to register user.", e);
+
+            let message = "Failed to register user.";
+            if (e instanceof TRPCClientError) {
+                message = e.message;
+            }
+
+            toast.error(message, {
+                autoClose: 3000,
+                closeButton: true,
+                toastId: "register-user",
+                updateId: "register-user",
+            });
+        }
+        setIsSubmitting(false);
+    };
+
+    submitFnRef.current = handleSubmit(onSubmit);
+
+    useEffect(() => {
+        return () => {
+            if (window.turnstile) window.turnstile.remove();
+        };
+    }, []);
+
+    return (
+        <div className="flex w-full flex-col text-left">
+            <div className="mb-2 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
+                <ExclamationTriangleIcon
+                    className="h-7 w-7 text-slate-800"
+                    aria-hidden="true"
+                />
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> Once you sign in,
+                    make sure to save your vault somewhere safe. If you lose
+                    access to the vault, you will not be able to recover your
+                    account.
+                </p>
+                <p className="text-sm text-slate-700">
+                    <span className="font-bold">Note:</span> This device will be
+                    marked as a root device. Only the root device will be able
+                    to link other devices and remove them.
+                </p>
+            </div>
+
+            <div className="mt-2 flex flex-col items-center">
+                <Controller
+                    control={control}
+                    name="captchaToken"
+                    render={({ field: { onChange } }) => (
+                        <Turnstile
+                            options={{
+                                theme: "light",
+                                size: "normal",
+                                language: "auto",
+                            }}
+                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                            onError={() => {
+                                setFormError("captchaToken", {
+                                    message: "Captcha error",
+                                });
+                            }}
+                            onExpire={() => onChange("")}
+                            onSuccess={(token) => onChange(token)}
+                        />
+                    )}
+                />
+                {errors.captchaToken && (
+                    <p className="text-red-500">
+                        {errors.captchaToken.message}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+//#endregion Vault account management
+
+//#region Linking vaults
+
+type ProgressLogType = {
+    message: string;
+    type: "done" | "info" | "warn" | "error";
+};
+const EventLogDisclosure: React.FC<{
+    title: string;
+    log: ProgressLogType[];
+}> = ({ title, log }) => {
+    return (
+        <div className="flex flex-col">
+            <Disclosure as="div" defaultOpen={true}>
+                {({ open }) => (
+                    <>
+                        <DisclosureButton className="flex flex-col justify-between rounded-t-lg bg-slate-100 p-4">
+                            <div className="flex w-full items-center justify-between">
+                                <p className="line-clamp-2 text-lg font-bold text-gray-900">
+                                    {title}
+                                </p>
+                                {
+                                    // Rotate the chevron icon if the panel is open
+                                    open && (
+                                        <ChevronUpIcon className="h-6 w-6 text-gray-500" />
+                                    )
+                                }
+                                {
+                                    // Rotate the chevron icon if the panel is closed
+                                    !open && (
+                                        <ChevronDownIcon className="h-6 w-6 text-gray-500" />
+                                    )
+                                }
+                            </div>
+                        </DisclosureButton>
+                        <DisclosurePanel>
+                            <div className="flex max-h-52 flex-col gap-2 overflow-y-auto rounded-b-md bg-slate-50 p-2">
+                                {log.map((log, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex flex-row items-center gap-2 rounded-xl bg-slate-200 p-2"
+                                    >
+                                        <div>
+                                            {log.type == "done" && (
+                                                <CheckCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-green-500"
+                                                    }
+                                                />
+                                            )}
+                                            {log.type == "info" && (
+                                                <InformationCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-blue-500"
+                                                    }
+                                                />
+                                            )}
+                                            {log.type == "warn" && (
+                                                <ExclamationCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-yellow-500"
+                                                    }
+                                                />
+                                            )}
+                                            {log.type == "error" && (
+                                                <XCircleIcon
+                                                    className={
+                                                        "h-5 w-5 text-red-500"
+                                                    }
+                                                />
+                                            )}
+                                        </div>
+                                        <p className="text-gray-900">
+                                            {log.message}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </DisclosurePanel>
+                    </>
+                )}
+            </Disclosure>
+        </div>
+    );
+};
+
+const QRCode: React.FC<{
+    value: string;
+    clickCallback?: () => void;
+}> = ({ value, clickCallback }) => {
+    const DynamicQRCode = dynamic(() => import("react-qr-code"));
+
+    return (
+        <Suspense fallback={<Spinner />}>
+            <DynamicQRCode value={value} onClick={clickCallback} />
+        </Suspense>
+    );
+};
+
+const LinkDeviceInsideVaultDialog: React.FC<{
+    showDialogFnRef: React.RefObject<(() => void) | null>;
+    showWarningDialog: WarningDialogShowFn;
+    showSignInDialog: React.RefObject<(() => void) | null>;
+}> = ({ showDialogFnRef, showWarningDialog, showSignInDialog }) => {
+    const [visible, setVisible] = useState(false);
+    showDialogFnRef.current = () => setVisible(true);
+    const hideDialog = () => {
+        setVisible(false);
+
+        setTimeout(() => {
+            resetForm();
+            setSelectedLinkMethod(null);
+            setIsOperationInProgress(false);
+            setReadyForOtherDevice(false);
+            progressLogRef.current = [];
+        }, DIALOG_BLUR_TIME);
+    };
+
+    const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const setLinkedDevices = useSetAtom(linkedDevicesAtom);
+    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
+
+    const isSignedIn = LinkedDevices.isBound(unlockedVault.LinkedDevices);
+    const tierAllowsLinkingWithOnlineServices =
+        isSignedIn && !!onlineServicesData?.remoteData?.canLink;
+
+    const [selectedLinkMethod, setSelectedLinkMethod] =
+        useState<LinkMethod | null>(null);
+    const [isOperationInProgress, setIsOperationInProgress] = useState(false);
+    const [readyForOtherDevice, setReadyForOtherDevice] = useState(false);
+    const progressLogRef = useRef<ProgressLogType[]>([]);
+    const cancelFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+
+    const linkingDeviceFormSchema = z.object({
+        deviceName: z
+            .string()
+            .min(1, "Device name cannot be empty.")
+            .max(150, "Device name cannot be longer than 150 characters.")
+            .default("My Device"),
+        signalingServerID: z
+            .string()
+            .min(1, "Signaling server cannot be empty.")
+            .default(ONLINE_SERVICES_SELECTION_ID),
+        stunServerID: z
+            .string()
+            .min(1, "STUN server cannot be empty.")
+            .default(ONLINE_SERVICES_SELECTION_ID),
+        turnServerID: z
+            .string()
+            .min(1, "TURN server cannot be empty.")
+            .default(ONLINE_SERVICES_SELECTION_ID),
+        progressLog: z.array(
+            z.object({
+                message: z.string(),
+                type: z.enum(["done", "info", "warn", "error"]),
+            }),
+        ),
+        rootDevice: z.boolean().default(false),
+        mnemonic: z.string().default(""),
+    });
+    type LinkingDeviceFormSchemaType = z.infer<typeof linkingDeviceFormSchema>;
+    const {
+        control,
+        register,
+        handleSubmit,
+        setValue: setFormValue,
+        getValues: getFormValues,
+        formState: { errors, isValid: isFormValid },
+        reset: resetForm,
+    } = useForm<LinkingDeviceFormSchemaType>({
+        resolver: zodResolver(linkingDeviceFormSchema),
+        defaultValues: {
+            deviceName: "My Device",
+            signalingServerID: ONLINE_SERVICES_SELECTION_ID,
+            stunServerID: ONLINE_SERVICES_SELECTION_ID,
+            turnServerID: ONLINE_SERVICES_SELECTION_ID,
+            progressLog: [],
+            mnemonic: "",
+        },
+    });
+
+    const encryptedTransferableDataRef = useRef<string>("");
+
+    const { mutateAsync: linkNewDevice } =
+        trpcReact.v1.device.link.useMutation();
+    const removeDevice = trpcReact.v1.device.remove.useMutation();
+
+    const addToProgressLog = (
+        message: string,
+        type: "done" | "info" | "warn" | "error" = "done",
+    ) => {
+        const newProgressLog = [{ message, type }, ...progressLogRef.current];
+        progressLogRef.current = newProgressLog;
+        setFormValue("progressLog", newProgressLog);
+    };
+
+    const prepareConnectionPackage = async (
+        usesOnlineServices: boolean,
+        isDeviceRoot: boolean,
+        stunServers: VaultUtilTypes.STUNServerConfiguration[],
+        turnServers: VaultUtilTypes.TURNServerConfiguration[],
+        signalingServer:
+            | VaultUtilTypes.SignalingServerConfiguration
+            | undefined,
+    ): Promise<{
+        ID: string;
+        apiKey?: string;
+        linkingPackage: LinkingPackage;
+    }> => {
+        const returnData: {
+            ID: string;
+            apiKey?: string;
+            linkingPackage: LinkingPackage;
+        } = {
+            ID: "",
+            apiKey: undefined,
+            linkingPackage: new LinkingPackage(new Uint8Array(0), "", ""),
+        };
+
+        if (usesOnlineServices) {
+            // Run the account.linkDevice mutation and set the ID and API key properties
+            try {
+                addToProgressLog(
+                    "Registering a new device with the server...",
+                    "info",
+                );
+
+                const apiKey = await linkNewDevice({
+                    root: isDeviceRoot,
+                });
+                returnData.ID = extractIDFromAPIKey(apiKey);
+                returnData.apiKey = apiKey;
+
+                addToProgressLog("Device registered.");
+            } catch (e) {
+                if (e instanceof TRPCClientError) {
+                    addToProgressLog(
+                        `Failed to register the device with the server: ${e.message}`,
+                        "error",
+                    );
+                } else {
+                    addToProgressLog(
+                        "Failed to register the device with the server.",
+                        "error",
+                    );
+                }
+                throw e;
+            }
+        } else {
+            // Generate a random ID using the ULID library
+            returnData.ID = LinkedDevices.generateNewDeviceID();
+            returnData.apiKey = undefined;
+        }
+
+        // Create a linking package
+        try {
+            addToProgressLog(
+                "Encrypting and serializing linking package...",
+                "info",
+            );
+
+            const { linkingPackage, mnemonic } =
+                await LinkingPackage.createNewPackage({
+                    ID: returnData.ID,
+                    APIKey: returnData.apiKey,
+                    STUNServers: stunServers,
+                    TURNServers: turnServers,
+                    SignalingServer: signalingServer,
+                });
+
+            returnData.linkingPackage = linkingPackage;
+
+            addToProgressLog("Encrypted and serialized linking package.");
+
+            // Show the user a note and the mnemonic passphrase to enter on the other device
+            setFormValue("mnemonic", mnemonic);
+        } catch (e) {
+            addToProgressLog(
+                "Failed to encrypt and serialize linking package.",
+                "error",
+            );
+            throw e;
+        }
+
+        return returnData;
+    };
+
+    const startLinkingProcess = async (
+        usesOnlineServices: boolean,
+        deviceName: string,
+        deviceID: string,
+        deviceAPIKey: string | undefined,
+        isDeviceRoot: boolean,
+        stunServers: VaultUtilTypes.STUNServerConfiguration[],
+        turnServers: VaultUtilTypes.TURNServerConfiguration[],
+        signalingServer:
+            | VaultUtilTypes.SignalingServerConfiguration
+            | undefined,
+    ) => {
+        // Start setting up the WebRTC connection
+        const webRTConnection = Synchronization.initWebRTC(
+            stunServers,
+            turnServers,
+        );
+
+        webRTConnection.onconnectionstatechange = () => {
+            // console.debug(
+            //     "WebRTC connection state changed:",
+            //     webRTConnection.connectionState
+            // );
+
+            if (webRTConnection.connectionState === "connected") {
+                addToProgressLog(
+                    "Private connection established, dropping Signaling server connection...",
+                    "info",
+                );
+
+                // Since we're connected directly to the other device, we can disconnect from the Signaling Server
+                signalingServerConnection.disconnect();
+                signalingServerConnection.unbind();
+            } else if (
+                webRTConnection.connectionState === "disconnected" ||
+                webRTConnection.connectionState === "failed"
+            ) {
+                // Handle disconnection from the other device
+                addToProgressLog(
+                    "Private connection has been terminated",
+                    "info",
+                );
+
+                setIsOperationInProgress(false);
+            }
+        };
+
+        // Create a data channel
+        const webRTCDataChannel = webRTConnection.createDataChannel("linking");
+        // Once the data channel is open, start sending the encrypted vault package
+        webRTCDataChannel.onopen = async () => {
+            // console.log("Data channel opened.", event);
+            addToProgressLog(
+                "Trying to send data to the other device...",
+                "info",
+            );
+
+            // Check if we have valid vault data to send
+            // In reality, this should never happen, but we'll check anyway to make the typescript compiler happy
+            if (!vaultMetadata || !unlockedVault) {
+                addToProgressLog(
+                    "Cannot find Vault metadata or the Vault itself.",
+                    "error",
+                );
+                console.error(
+                    "Cannot find Vault metadata or unlocked Vault data.",
+                );
+
+                // Close the data channel
+                webRTCDataChannel.close();
+
+                // Close the WebRTC connection
+                webRTConnection.close();
+
+                setIsOperationInProgress(false);
+
+                // Prevent further execution
+                return;
+            }
+
+            {
+                addToProgressLog(
+                    "Packaging Vault data for transmission...",
+                    "info",
+                );
+
+                // Prepare the vault data for transmission
+                const exportedVault = Vault.packageForLinking(
+                    unlockedVault,
+                    deviceID,
+                    deviceAPIKey,
+                    stunServers.map((i) => i.ID),
+                    turnServers.map((i) => i.ID),
+                    signalingServer?.ID ?? ONLINE_SERVICES_SELECTION_ID,
+                );
+
+                addToProgressLog("Vault data packaged. Encrypting...", "info");
+
+                const encryptedBlobObj =
+                    await vaultMetadata.exportForLinking(exportedVault);
+
+                // Send the encrypted data to the other device
+                webRTCDataChannel.send(encryptedBlobObj);
+            }
+
+            addToProgressLog("Vault data successfully sent.");
+
+            // Close the data channel
+            webRTCDataChannel.close();
+            // NOTE: Make sure not to close the WebRTC connection here, as we could still be transmitting data
+            // NOTE: The other device will close the connection once it's done receiving data
+
+            // Save the new linked device to this vault
+            {
+                addToProgressLog(
+                    "Saving new linked device to Vault...",
+                    "info",
+                );
+
+                // setUnlockedVault(async (prev) => {
+                //     LinkedDevices.addLinkedDevice(
+                //         prev.LinkedDevices,
+                //         deviceID,
+                //         deviceName,
+                //         isDeviceRoot,
+                //         stunServers.map((i) => i.ID),
+                //         turnServers.map((i) => i.ID),
+                //         signalingServer?.ID,
+                //     );
+
+                //     await vaultMetadata.save(unlockedVault);
+
+                //     return prev;
+                // });
+                console.warn(
+                    "Number of linked devices",
+                    unlockedVault.LinkedDevices.Devices.length,
+                );
+                LinkedDevices.addLinkedDevice(
+                    unlockedVault.LinkedDevices,
+                    deviceID,
+                    deviceName,
+                    isDeviceRoot,
+                    stunServers.map((i) => i.ID),
+                    turnServers.map((i) => i.ID),
+                    signalingServer?.ID,
+                );
+                setLinkedDevices([...unlockedVault.LinkedDevices.Devices]);
+                console.warn(
+                    "Number of linked devices",
+                    unlockedVault.LinkedDevices.Devices.length,
+                );
+                // TODO: Check if this saves the old or the new data
+                vaultMetadata.save(unlockedVault);
+
+                addToProgressLog("New linked device saved.");
+            }
+
+            toast.success("Successfully linked device.", {
+                closeButton: true,
+            });
+
+            addToProgressLog("It is safe to close this dialog now.", "info");
+        };
+        webRTCDataChannel.onerror = () => {
+            addToProgressLog(
+                "Failed to send Vault data. Data channel error.",
+                "error",
+            );
+
+            // Close the WebRTC connection
+            webRTCDataChannel.close();
+            webRTConnection.close();
+
+            setIsOperationInProgress(false);
+        };
+        webRTCDataChannel.onclose = () => {
+            // console.debug("Data channel closed.", event);
+
+            // Close the WebRTC connection
+            webRTConnection.close();
+
+            setIsOperationInProgress(false);
+        };
+
+        let iceCandidatesGenerated = 0;
+        // On ICE candidate, send it to the other device
+        // This is called after we call setLocalDescription, that's why we have access to the wsChannel object
+        webRTConnection.onicecandidate = (event) => {
+            console.debug("WebRTC ICE candidate:", event);
+            if (event.candidate) {
+                wsChannel.trigger("client-link", {
+                    type: "ice-candidate",
+                    data: event.candidate,
+                });
+
+                iceCandidatesGenerated++;
+            }
+
+            if (iceCandidatesGenerated === 0 && !event.candidate) {
+                addToProgressLog(
+                    "Failed to generate any ICE candidates. WebRTC error.",
+                    "error",
+                );
+
+                // Close the WebRTC connection
+                webRTCDataChannel.close();
+                webRTConnection.close();
+
+                signalingServerConnection.disconnect();
+
+                setIsOperationInProgress(false);
+            }
+        };
+
+        // Connect to WS and wait for the other device
+        const signalingServerConnection = Synchronization.initPusherInstance(
+            signalingServer,
+            unlockedVault.LinkedDevices.ID,
+        );
+        signalingServerConnection.connection.bind(
+            "pusher:connection_established",
+            () => {
+                console.debug("-- Connected to custom signaling server --");
+
+                addToProgressLog(
+                    "Connected to custom signaling server.",
+                    "info",
+                );
+            },
+        );
+
+        signalingServerConnection.connection.bind("error", (err: object) => {
+            console.error("WS error:", err);
+            // NOTE: Should we handle specific errors?
+            // if (err.error.data.code === 4004) {
+            //     // log('Over limit!');
+            // }
+            addToProgressLog(
+                "An error occurred while setting up a private connection.",
+                "error",
+            );
+
+            setIsOperationInProgress(false);
+        });
+
+        const channelName = constructLinkPresenceChannelName(
+            usesOnlineServices && deviceAPIKey ? deviceAPIKey : deviceID,
+        );
+        const wsChannel = signalingServerConnection.subscribe(channelName);
+        wsChannel.bind("pusher:subscription_succeeded", () => {
+            setReadyForOtherDevice(true);
+            cancelFnRef.current = async () => {
+                // Close the WS connection
+                signalingServerConnection.disconnect();
+
+                setIsOperationInProgress(false);
+                setReadyForOtherDevice(false);
+
+                if (usesOnlineServices) {
+                    addToProgressLog(
+                        "Rollback - Cleaning up the registration...",
+                        "info",
+                    );
+
+                    // Try to remove the device from the account - if it fails, we'll just have to leave it there for the user to remove manually
+                    try {
+                        await removeDevice.mutateAsync({
+                            id: deviceID,
+                        });
+                    } catch (err) {
+                        console.error("Failed to remove device:", err);
+
+                        addToProgressLog(
+                            "Rollback - Failed to remove device from account.",
+                            "error",
+                        );
+                    }
+                }
+
+                addToProgressLog("Linking process cancelled.", "error");
+                toast.error("Linking process cancelled.");
+            };
+            addToProgressLog("Waiting for other device to connect...", "info");
+        });
+
+        // When the user connects, send the WebRTC offer to the other device
+        wsChannel.bind("pusher:member_added", async () => {
+            addToProgressLog("Found other device.");
+
+            addToProgressLog("Creating a private connection...", "info");
+
+            // When the device connects, create a WebRTC offer
+            const offer = await webRTConnection.createOffer();
+            await webRTConnection.setLocalDescription(offer);
+
+            // Send the offer to the other device
+            wsChannel.trigger("client-link", {
+                type: "offer",
+                data: offer,
+            });
+        });
+
+        // Receive WebRTC events from the other device
+        // Used to receive the offer and ICE candidates - establishing the connection
+        wsChannel.bind(
+            "client-link",
+            async (data: {
+                type: "ice-candidate" | "answer";
+                data: RTCIceCandidateInit | RTCSessionDescriptionInit;
+            }) => {
+                console.debug("Received data from other device.", data);
+
+                if (data.type === "ice-candidate") {
+                    console.debug("Adding ICE candidate.");
+                    await webRTConnection.addIceCandidate(
+                        data.data as RTCIceCandidateInit,
+                    );
+                } else if (data.type === "answer") {
+                    console.debug("Setting remote description.", data.data);
+                    await webRTConnection.setRemoteDescription(
+                        data.data as RTCSessionDescriptionInit,
+                    );
+                }
+            },
+        );
+    };
+
+    const fileMethod = (
+        _deviceName: string,
+        encryptedLinkingPackage: Uint8Array,
+    ) => {
+        // Save it to a file with a .cryxa extension
+        const blob = new Blob([encryptedLinkingPackage], {
+            type: "application/octet-stream",
+        });
+
+        // Normalize the device name
+        const deviceName = _deviceName.replaceAll(" ", "-").toLowerCase();
+
+        // Save the file
+        const fileName = `vault-linking-${deviceName}-${Date.now()}.cryxa`;
+        const link = document.createElement("a");
+        link.href = window.URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+
+        // Clean up the URL
+        URL.revokeObjectURL(link.href);
+    };
+
+    const qrCodeMethod = (encryptedLinkingPackageB64: string) => {
+        // Set the encryptedTransferableDataRef to the encrypted data
+        // By the time this method is called, the QR Code component should be mounted
+        encryptedTransferableDataRef.current = encryptedLinkingPackageB64;
+    };
+
+    const onSubmit = async (type: LinkMethod) => {
+        // If the form is not valid, submit it to show the errors
+        if (!isFormValid) {
+            handleSubmit(() => {
+                // No-op
+            })();
+            return;
+        }
+
+        const deviceName = getFormValues("deviceName");
+        const isDeviceRoot = getFormValues("rootDevice");
+
+        // Get the selected servers
+        const _selectedSignalingServerID = getFormValues("signalingServerID");
+        // NOTE: This is in preparation for multiple STUN and TURN server selection capabilities
+        const _selectedSTUNServerIDs = [getFormValues("stunServerID")];
+        const _selectedTURNServerIDs = [getFormValues("turnServerID")];
+
+        // In case the user selected the "Online Services" option, check if their tier allows linking
+        if (
+            _selectedSignalingServerID === ONLINE_SERVICES_SELECTION_ID ||
+            _selectedSTUNServerIDs[0] === ONLINE_SERVICES_SELECTION_ID ||
+            _selectedTURNServerIDs[0] === ONLINE_SERVICES_SELECTION_ID
+        ) {
+            if (!isSignedIn) {
+                // If the user doesn't have a bound account, show a warning dialog with the confirmation to open the sign-in dialog
+                showWarningDialog(
+                    "You need to be signed in to use the Online Services.",
+                    () => {
+                        // Close this dialog
+                        hideDialog();
+
+                        showSignInDialog.current?.();
+                    },
+                    null,
+                    "Sign In",
+                    "By signing in, you will be able to link devices to this Vault using the Online Services.",
+                );
+                return;
+            } else if (!tierAllowsLinkingWithOnlineServices) {
+                // If the user doesn't have a tier that allows linking, show a warning dialog with the confirmation to upgrade their tier
+                showWarningDialog(
+                    "Upgrade your tier to enable linking with the Online Services.",
+                    async () => {
+                        hideDialog();
+
+                        // showAccountDialog.current?.();
+                        await navigateToCheckout();
+                    },
+                    null,
+                    "Upgrade",
+                    "",
+                );
+                return;
+            }
+        }
+
+        setSelectedLinkMethod(type);
+        setIsOperationInProgress(true);
+
+        const signalingServer =
+            unlockedVault.LinkedDevices.SignalingServers.find(
+                (server) => server.ID === _selectedSignalingServerID,
+            );
+        const stunServers = unlockedVault.LinkedDevices.STUNServers.filter(
+            (server) => _selectedSTUNServerIDs.includes(server.ID),
+        );
+        const turnServers = unlockedVault.LinkedDevices.TURNServers.filter(
+            (server) => _selectedTURNServerIDs.includes(server.ID),
+        );
+
+        // In case any of the servers are not found, we'll conclude that the link should be setup over Cryptex Vault Online Services
+        const usesOnlineServices =
+            signalingServer == null ||
+            !stunServers.length ||
+            !turnServers.length;
+
+        // We exploit this try-catch block to catch any errors that may occur and stop execution in case of an error
+        // All expected errors should be handled inside each method that can throw them
+        // Meaning, only unexpected errors should be caught here
+        try {
+            // Craft the connection package
+            const connectionPackage = await prepareConnectionPackage(
+                usesOnlineServices,
+                isDeviceRoot,
+                stunServers,
+                turnServers,
+                signalingServer,
+            );
+
+            if (type === LinkMethod.File) {
+                // Generate the file with the encrypted data for the other device
+                fileMethod(
+                    deviceName,
+                    connectionPackage.linkingPackage.toBinary(),
+                );
+            } else if (type === LinkMethod.QRCode) {
+                // Make sure that a QR Code with the encrypted data is generated
+                qrCodeMethod(connectionPackage.linkingPackage.toBase64());
+            } else if (type === LinkMethod.Sound) {
+                throw new Error("Not implemented.");
+            } else {
+                throw new Error("Unknown linking method.");
+            }
+
+            await startLinkingProcess(
+                usesOnlineServices,
+                deviceName,
+                connectionPackage.ID,
+                connectionPackage.apiKey,
+                isDeviceRoot,
+                stunServers,
+                turnServers,
+                signalingServer,
+            );
+        } catch (e) {
+            console.error("Failed to link device.", e);
+
+            toast.error(
+                "Failed to link device. Please check the console for details.",
+                {
+                    closeButton: true,
+                },
+            );
+
+            setIsOperationInProgress(false);
+        }
+    };
+
+    const RootDeviceCheckboxOnlineServices: React.FC<{
+        formControl: Control<LinkingDeviceFormSchemaType>;
+    }> = ({ formControl }) => {
+        const signalingServerID = useWatch({
+            control: formControl,
+            name: "signalingServerID",
+            defaultValue: ONLINE_SERVICES_SELECTION_ID,
+        });
+        const stunServerID = useWatch({
+            control: formControl,
+            name: "stunServerID",
+            defaultValue: ONLINE_SERVICES_SELECTION_ID,
+        });
+        const turnServerID = useWatch({
+            control: formControl,
+            name: "turnServerID",
+            defaultValue: ONLINE_SERVICES_SELECTION_ID,
+        });
+
+        if (
+            signalingServerID == ONLINE_SERVICES_SELECTION_ID ||
+            stunServerID == ONLINE_SERVICES_SELECTION_ID ||
+            turnServerID == ONLINE_SERVICES_SELECTION_ID
+        ) {
+            return (
+                <FormInputCheckbox
+                    label="Link as the root device"
+                    valueLabel="Whether or not we should automatically connect to this device when it is available."
+                    register={register("rootDevice")}
+                />
+            );
+        }
+
+        return null;
+    };
+
+    return (
+        <GenericModal
+            visibleState={[visible, () => hideDialog()]}
+            inhibitDismissOnClickOutside={isOperationInProgress}
+            childrenTitle={<Title>Link a Device</Title>}
+        >
+            <Body className="flex w-full flex-col">
+                {/* {
+                        // If the user is not registered
+                        !hasCredentials && (
+                            <p className="text-center text-base text-gray-600">
+                                You need to be registered with the online
+                                services in order to link devices to your vault.
+                            </p>
+                        )
+                    } */}
+                {/* {
+                        // If there was an error while fetching the linking configuration, tell the user
+                        onlineServicesData == null && (
+                            <p className="text-center text-base text-gray-600">
+                                Failed to fetch linking configuration. Please
+                                try again later.
+                            </p>
+                        )
+                    } */}
+                {/* {isWrongTier && (
+                        <>
+                            <p className="text-center text-base text-gray-600">
+                                Your tier does not allow linking devices.
+                            </p>
+                            <p className="text-center text-base text-gray-600">
+                                Please upgrade your account to link devices.
+                            </p>
+                        </>
+                    )} */}
+                {
+                    // !isWrongTier &&
+                    //     hasCredentials &&
+                    selectedLinkMethod == null && (
+                        <>
+                            <p className="text-center text-base text-gray-600">
+                                In order to enable data synchronization between
+                                two devices, you need to link them.
+                            </p>
+                            <p className="text-center text-base text-gray-600">
+                                Choose one of the available linking methods
+                                below to start.
+                            </p>
+
+                            <div className="my-5 flex flex-col">
+                                <Controller
+                                    control={control}
+                                    name="deviceName"
+                                    render={({
+                                        field: { onChange, onBlur, value },
+                                    }) => (
+                                        <>
+                                            <FormInputField
+                                                label="Device name"
+                                                placeholder="Linked device name"
+                                                onChange={onChange}
+                                                onBlur={onBlur}
+                                                value={value}
+                                            />
+                                        </>
+                                    )}
+                                />
+                                {
+                                    // If the device name is invalid, show an error
+                                    errors.deviceName &&
+                                        errors.deviceName.message && (
+                                            <p className="text-red-500">
+                                                {errors.deviceName.message}
+                                            </p>
+                                        )
+                                }
+                                <div className="w-full">
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        This name will be used to help you
+                                        differentiate between devices.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mb-2 flex w-full flex-col">
+                                <SynchronizationServersSelectboxes
+                                    synchronizationConfiguration={{
+                                        SignalingServers:
+                                            unlockedVault.LinkedDevices
+                                                .SignalingServers,
+                                        STUNServers:
+                                            unlockedVault.LinkedDevices
+                                                .STUNServers,
+                                        TURNServers:
+                                            unlockedVault.LinkedDevices
+                                                .TURNServers,
+                                    }}
+                                    registerSignaling={register(
+                                        "signalingServerID",
+                                    )}
+                                    registerSTUN={register("stunServerID")}
+                                    registerTURN={register("turnServerID")}
+                                />
+                                {errors.signalingServerID &&
+                                    errors.signalingServerID.message && (
+                                        <p className="text-red-500">
+                                            {errors.signalingServerID.message}
+                                        </p>
+                                    )}
+                                {errors.stunServerID &&
+                                    errors.stunServerID.message && (
+                                        <p className="text-red-500">
+                                            {errors.stunServerID.message}
+                                        </p>
+                                    )}
+                                {errors.turnServerID &&
+                                    errors.turnServerID.message && (
+                                        <p className="text-red-500">
+                                            {errors.turnServerID.message}
+                                        </p>
+                                    )}
+                            </div>
+
+                            <div className="mb-2">
+                                <RootDeviceCheckboxOnlineServices
+                                    formControl={control}
+                                />
+                            </div>
+
+                            {/* <p className="mb-2 text-center text-base text-slate-600">
+                                <b>Note:</b> You need to be signed in to use the
+                                Online Services.
+                            </p> */}
+
+                            <BlockWideButton
+                                icon={
+                                    <CameraIcon className="h-5 w-5 text-gray-900" />
+                                }
+                                iconCaption="QR code"
+                                description="Generate a QR code to link the devices"
+                                onClick={() => onSubmit(LinkMethod.QRCode)}
+                                disabled={isOperationInProgress}
+                            />
+
+                            <BlockWideButton
+                                icon={
+                                    <SpeakerWaveIcon className="h-5 w-5 text-gray-900" />
+                                }
+                                iconCaption="Sound"
+                                description="Use sound to link the devices"
+                                // disabled={
+                                //     isSubmitting ||
+                                //     (validInput !== ValidInput.Sound && validInput !== null)
+                                // }
+                                disabled={true} // TODO: Sound transfer is not implemented yet
+                                // validInput={validInput === ValidInput.Sound}
+                            />
+
+                            <BlockWideButton
+                                icon={
+                                    <DocumentTextIcon className="h-5 w-5 text-gray-900" />
+                                }
+                                iconCaption="File"
+                                description="Generate a file to link devices manually"
+                                onClick={() => onSubmit(LinkMethod.File)}
+                                disabled={isOperationInProgress}
+                            />
+                        </>
+                    )
+                }
+
+                {
+                    // !isWrongTier &&
+                    //     hasCredentials &&
+                    selectedLinkMethod != null && (
+                        <div className="flex flex-col gap-2">
+                            <div className="mt-2 flex flex-col items-center gap-2">
+                                {/* Show the operation in progress indicator - pulsating text */}
+                                {isOperationInProgress && (
+                                    <div className="flex items-center">
+                                        <p className="animate-pulse text-gray-900">
+                                            Waiting for device...
+                                        </p>
+                                    </div>
+                                )}
+
+                                {readyForOtherDevice &&
+                                    isOperationInProgress && (
+                                        <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
+                                            <p className="text-md w-full text-center text-slate-600 underline">
+                                                Tips for linking to the other
+                                                device
+                                            </p>
+                                            {/* Show a nicely formatted tip on how to
+                                            load the data into the other device */}
+                                            {selectedLinkMethod ===
+                                                LinkMethod.QRCode &&
+                                                readyForOtherDevice && (
+                                                    <>
+                                                        <p className="text-md text-slate-600">
+                                                            1. Scan the QR Code
+                                                            with the other
+                                                            device by opening
+                                                            the{" "}
+                                                            <strong>
+                                                                Link a Device
+                                                            </strong>{" "}
+                                                            dialog and then
+                                                            selecting{" "}
+                                                            <strong>
+                                                                QR Code
+                                                            </strong>
+                                                        </p>
+                                                        <p className="text-md text-slate-600">
+                                                            2. Once the QR code
+                                                            is successfully
+                                                            scanned, enter the
+                                                            decryption
+                                                            passphrase shown
+                                                            below.
+                                                        </p>
+                                                    </>
+                                                )}
+                                            {selectedLinkMethod ===
+                                                LinkMethod.File &&
+                                                readyForOtherDevice && (
+                                                    <>
+                                                        <p className="text-md text-slate-600">
+                                                            1. Load the file
+                                                            into the other
+                                                            device by opening
+                                                            the{" "}
+                                                            <strong>
+                                                                Link a Device
+                                                            </strong>{" "}
+                                                            dialog and then
+                                                            selecting{" "}
+                                                            <strong>
+                                                                Using a file
+                                                            </strong>
+                                                        </p>
+                                                        <p className="text-md text-slate-600">
+                                                            2. Once the file is
+                                                            loaded, enter the
+                                                            decryption
+                                                            passphrase shown
+                                                            below.
+                                                        </p>
+                                                    </>
+                                                )}
+                                            <p className="text-md text-slate-600">
+                                                3. Follow the instructions on
+                                                the other device.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                {selectedLinkMethod === LinkMethod.QRCode &&
+                                    readyForOtherDevice && (
+                                        <QRCode
+                                            value={
+                                                encryptedTransferableDataRef.current
+                                            }
+                                        />
+                                    )}
+
+                                {/* Show the mnemonic */}
+                                {isOperationInProgress && (
+                                    <Controller
+                                        control={control}
+                                        name="mnemonic"
+                                        render={({ field: { value } }) => (
+                                            <div
+                                                className={clsx({
+                                                    "flex flex-col items-center gap-2":
+                                                        true,
+                                                    hidden: !value.length,
+                                                })}
+                                            >
+                                                <p className="select-all rounded-md bg-gray-200 p-2 text-gray-900">
+                                                    {value}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Enter this mnemonic on the
+                                                    other device when prompted.
+                                                </p>
+                                            </div>
+                                        )}
+                                    />
+                                )}
+                            </div>
+                            <Controller
+                                control={control}
+                                name="progressLog"
+                                render={({ field: { value } }) => (
+                                    <EventLogDisclosure
+                                        title="Event log"
+                                        log={value}
+                                    />
+                                )}
+                            />
+                        </div>
+                    )
+                }
+            </Body>
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text="Cancel"
+                    type={ButtonType.Secondary}
+                    className={clsx({
+                        "sm:ml-2": true,
+                        hidden: !readyForOtherDevice || !isOperationInProgress,
+                    })}
+                    disabled={!isOperationInProgress}
+                    onClick={() => cancelFnRef.current()}
+                />
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    className={clsx({
+                        hidden: isOperationInProgress,
+                    })}
+                    onClick={hideDialog}
+                    disabled={isOperationInProgress}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+
+const EditLinkedDeviceDialog: React.FC<{
+    showDialogFnRef: React.RefObject<(selectedDevice: LinkedDevice) => void>;
+    // selectedDevice: React.RefObject<LinkedDevice | null>;
+    vaultMetadata: VaultMetadata | null;
+}> = ({ showDialogFnRef, vaultMetadata }) => {
+    const [visible, setVisible] = useState(false);
+    const [selectedDevice, setSelectedDevice] = useState<LinkedDevice | null>(
+        null,
+    );
+
+    showDialogFnRef.current = (selectedDevice: LinkedDevice) => {
+        if (selectedDevice == null) return;
+
+        // Set the initial form values
+        resetForm({
+            name: selectedDevice.Name,
+            autoConnect: selectedDevice.AutoConnect,
+            syncTimeout: selectedDevice.SyncTimeout,
+            syncTimeoutPeriod: selectedDevice.SyncTimeoutPeriod ?? 1,
+            stunServerIDs:
+                selectedDevice.STUNServerIDs[0] ?? ONLINE_SERVICES_SELECTION_ID,
+            turnServerIDs:
+                selectedDevice.TURNServerIDs[0] ?? ONLINE_SERVICES_SELECTION_ID,
+            signalingServerID: selectedDevice.SignalingServerID,
+        });
+
+        setSelectedDevice(selectedDevice);
+        setVisible(true);
+    };
+    const hideDialog = (force = false) => {
+        const hide = () => {
+            setVisible(false);
+
+            // Reset the form with a delay for better UX
+            setTimeout(() => {
+                resetForm();
+                // selectedDevice.current = null;
+            }, DIALOG_BLUR_TIME);
+        };
+
+        // Check if the form has been modified (only if we are not forcing)
+        if (isDirty && !force) {
+            // If it has, ask the user if they want to discard the changes
+            if (confirm("Are you sure you want to discard your changes?")) {
+                hide();
+            }
+        } else {
+            // If not, just hide the modal
+            hide();
+        }
+    };
+
+    const setLinkedDevices = useSetAtom(linkedDevicesAtom);
+    const unlockedVault = useAtomValue(unlockedVaultAtom);
+
+    const formSchema = z.object({
+        name: z.string().min(1).max(200),
+        autoConnect: z.boolean(),
+        syncTimeout: z.boolean(),
+        syncTimeoutPeriod: z.coerce.number().int().min(1),
+        stunServerIDs: z.string().min(1), // stunServerIDs: z.array(z.string()).nonempty(),
+        turnServerIDs: z.string().min(1), // turnServerIDs: z.array(z.string()).nonempty(),
+        signalingServerID: z
+            .string()
+            .min(1, "Signaling server cannot be empty."),
+    });
+    type FormSchema = z.infer<typeof formSchema>;
+    const {
+        handleSubmit,
+        register,
+        watch,
+        formState: { errors, isSubmitting, isDirty },
+        reset: resetForm,
+    } = useForm<FormSchema>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            name: "",
+            autoConnect: false,
+            syncTimeout: false,
+            syncTimeoutPeriod: 1,
+            stunServerIDs: ONLINE_SERVICES_SELECTION_ID,
+            turnServerIDs: ONLINE_SERVICES_SELECTION_ID,
+            signalingServerID: ONLINE_SERVICES_SELECTION_ID,
+        },
+    });
+
+    const syncTimeoutValue = watch(
+        "syncTimeout",
+        selectedDevice?.SyncTimeout ?? false,
+    );
+
+    const onSubmit = async (form: FormSchema) => {
+        if (selectedDevice == null || vaultMetadata == null || !isDirty) {
+            hideDialog();
+            return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const originalLinkedDevice = unlockedVault.LinkedDevices.Devices.find(
+            (d) => d.ID === selectedDevice?.ID,
+        );
+
+        if (originalLinkedDevice != null) {
+            originalLinkedDevice.setName = form.name;
+            originalLinkedDevice.setAutoConnect = form.autoConnect;
+            originalLinkedDevice.setSyncTimeout = form.syncTimeout;
+            originalLinkedDevice.setSyncTimeoutPeriod = form.syncTimeoutPeriod;
+            originalLinkedDevice.setSTUNServers = [form.stunServerIDs];
+            originalLinkedDevice.setTURNServers = [form.turnServerIDs];
+            originalLinkedDevice.setSignalingServer = form.signalingServerID;
+        }
+        setLinkedDevices([...unlockedVault.LinkedDevices.Devices]);
+
+        await vaultMetadata.save(unlockedVault);
+
+        hideDialog(true);
+    };
+
+    return (
+        <GenericModal
+            key="edit-linked-device"
+            visibleState={[
+                visible && selectedDevice != null,
+                () => hideDialog(),
+            ]}
+            childrenTitle={<Title>Edit Linked Device</Title>}
+        >
+            <Body>
+                <div className="flex flex-col text-center">
+                    <div className="flex w-full flex-col items-center text-left">
+                        <p
+                            className="line-clamp-2 text-left text-base text-gray-600"
+                            title={"Name of the linked device"}
+                        >
+                            <span className="font-bold">Name:</span>{" "}
+                            {selectedDevice?.Name}
+                        </p>
+                        <p
+                            className="line-clamp-2 text-left text-base text-gray-600"
+                            title={"When the device was linked to this vault"}
+                        >
+                            <span className="font-bold">Linked on:</span>{" "}
+                            {selectedDevice?.LinkedAtTimestamp && (
+                                <>
+                                    {new Date(
+                                        selectedDevice.LinkedAtTimestamp,
+                                    ).toLocaleString()}
+                                </>
+                            )}
+                        </p>
+                        <p
+                            className="line-clamp-2 text-left text-base text-gray-600"
+                            title={
+                                "When the data was last synchronized with this device"
+                            }
+                        >
+                            <span className="font-bold">
+                                Last Synchronized:
+                            </span>{" "}
+                            {selectedDevice?.LastSync ? (
+                                <>
+                                    {new Date(
+                                        selectedDevice.LastSync,
+                                    ).toLocaleString()}
+                                </>
+                            ) : (
+                                "Never synchronized"
+                            )}
+                        </p>
+                        <p
+                            className="line-clamp-2 text-left text-base text-gray-600"
+                            title={
+                                "Whether or not this is the main device for this vault"
+                            }
+                        >
+                            <span className="font-bold">Root Device:</span>{" "}
+                            {selectedDevice?.IsRoot ? "Yes" : "No"}
+                        </p>
+                    </div>
+                    <div className="flex w-full flex-col space-y-3 text-left">
+                        <div className="flex flex-col">
+                            <FormInputField
+                                label="Name *"
+                                placeholder="Name of the device"
+                                type="text"
+                                autoCapitalize="words"
+                                register={register("name")}
+                            />
+                            {errors.name && (
+                                <p className="text-red-500">
+                                    {errors.name.message}
+                                </p>
+                            )}
+                        </div>
+                        <div className="mb-2 flex w-full flex-col">
+                            <SynchronizationServersSelectboxes
+                                synchronizationConfiguration={{
+                                    SignalingServers:
+                                        unlockedVault.LinkedDevices
+                                            .SignalingServers,
+                                    STUNServers:
+                                        unlockedVault.LinkedDevices.STUNServers,
+                                    TURNServers:
+                                        unlockedVault.LinkedDevices.TURNServers,
+                                }}
+                                registerSignaling={register(
+                                    "signalingServerID",
+                                )}
+                                registerSTUN={register("stunServerIDs")}
+                                registerTURN={register("turnServerIDs")}
+                            />
+                            {errors.signalingServerID &&
+                                errors.signalingServerID.message && (
+                                    <p className="text-red-500">
+                                        {errors.signalingServerID.message}
+                                    </p>
+                                )}
+                            {errors.stunServerIDs &&
+                                errors.stunServerIDs.message && (
+                                    <p className="text-red-500">
+                                        {errors.stunServerIDs.message}
+                                    </p>
+                                )}
+                            {errors.turnServerIDs &&
+                                errors.turnServerIDs.message && (
+                                    <p className="text-red-500">
+                                        {errors.turnServerIDs.message}
+                                    </p>
+                                )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <FormInputCheckbox
+                                label="Auto Connect"
+                                register={register("autoConnect")}
+                                valueLabel="Whether or not we should automatically connect to this device when it is available."
+                            />
+                            {errors.name && (
+                                <p className="text-red-500">
+                                    {errors.name.message}
+                                </p>
+                            )}
+                        </div>
+                        <div>
+                            <div className="flex items-center space-x-2">
+                                <FormInputCheckbox
+                                    label="Impose a synchronization window"
+                                    register={register("syncTimeout")}
+                                    valueLabel="The synchronization will only be possible when manually triggered and will only last for the specified amount of time."
+                                />
+                                {errors.name && (
+                                    <p className="text-red-500">
+                                        {errors.name.message}
+                                    </p>
+                                )}
+                            </div>
+                            {syncTimeoutValue && (
+                                <div
+                                    className="mt-2 flex flex-col pl-8"
+                                    title="The amount of time to stay connected to the device."
+                                >
+                                    <div
+                                        className={clsx({
+                                            "border-l pl-2": true,
+                                        })}
+                                    >
+                                        <FormNumberInputField
+                                            label=""
+                                            valueLabel="seconds"
+                                            min={1}
+                                            register={register(
+                                                "syncTimeoutPeriod",
+                                            )}
+                                        />
+                                    </div>
+                                    {errors.syncTimeoutPeriod && (
+                                        <p className="text-red-500">
+                                            {errors.syncTimeoutPeriod.message}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </Body>
+
+            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                <ButtonFlat
+                    text="Save"
+                    className="sm:ml-2"
+                    type={ButtonType.Primary}
+                    onClick={handleSubmit(onSubmit)}
+                    disabled={isSubmitting}
+                    loading={isSubmitting}
+                />
+                <ButtonFlat
+                    text="Close"
+                    type={ButtonType.Secondary}
+                    onClick={() => hideDialog()}
+                    disabled={isSubmitting}
+                />
+            </Footer>
+        </GenericModal>
+    );
+};
+//#endregion Linking vaults
+
+//#region Sidebar
+const SidebarSyncDeviceListItem: React.FC<{
+    item: LinkedDevice;
+    showEditDialog: RefObject<(device: LinkedDevice) => void>;
+    unlinkDevice: (id: string) => Promise<void>;
+    showManualSyncDialog: RefObject<ManualSyncShowDialogFnPropType>;
+}> = ({ item, showEditDialog, unlinkDevice, showManualSyncDialog }) => {
+    const device = item;
+    const [lastSync, setLastSync] = useState(
+        device.LastSync ? dayjs(device.LastSync) : null,
+    );
+    const optionsButtonRef = useRef<HTMLButtonElement | null>(null);
+    const [signalingStatus, setSignalingServerStatus] =
+        useState<SynchronizationUtils.SignalingStatus>(
+            GlobalSyncConnectionController.getSignalingStatus(
+                device.SignalingServerID,
+            ),
+        );
+    const [webRTCStatus, setWebRTCStatus] =
+        useState<SynchronizationUtils.WebRTCStatus>(
+            GlobalSyncConnectionController.getWebRTCStatus(device.ID),
+        );
+    const webRTCConnectedOrConnecting =
+        webRTCStatus === SynchronizationUtils.WebRTCStatus.Connected ||
+        webRTCStatus === SynchronizationUtils.WebRTCStatus.Connecting;
+
+    // console.warn("DEVICE RERENDER", device);
+
+    const contextMenuOptions: {
+        disabled: boolean;
+        visible: boolean;
+        name: string;
+        onClick: (device: LinkedDevice) => Promise<void>;
+    }[] = [
+        {
+            disabled: false,
+            visible: !webRTCConnectedOrConnecting,
+            name: "Connect",
+            onClick: async () => {
+                GlobalSyncConnectionController.connectDevice(device);
+            },
+        },
+        {
+            disabled: false,
+            visible: webRTCConnectedOrConnecting,
+            name: "Disconnect",
+            onClick: async () => {
+                GlobalSyncConnectionController.disconnectDevice(device);
+            },
+        },
+        {
+            disabled: false,
+            visible:
+                webRTCStatus === SynchronizationUtils.WebRTCStatus.Connected,
+            name: "Synchronize now",
+            onClick: async () => {
+                GlobalSyncConnectionController.transmitSyncRequest(device.ID);
+            },
+        },
+        {
+            disabled: false,
+            visible: true,
+            name: "Unlink device",
+            onClick: async (device) => {
+                await unlinkDevice(device.ID);
+            },
+        },
+        {
+            disabled: false,
+            visible: true,
+            name: "Edit",
+            onClick: async (device) => {
+                showEditDialog.current(device);
+            },
+        },
+    ];
+
+    const syncSignalingEventHandler = (
+        event: SynchronizationUtils.SCCEvent<SynchronizationUtils.SignalingEventData>,
+    ) => {
+        console.debug(
+            `[INDEX - SCC Verbose] Received sync Signaling event from device ${device.ID}:`,
+            event,
+        );
+        setSignalingServerStatus(event.data.connectionState);
+
+        if (
+            device.AutoConnect &&
+            event.data.connectionState ===
+                SynchronizationUtils.SignalingStatus.Connected &&
+            webRTCConnectedOrConnecting
+        ) {
+            GlobalSyncConnectionController.connectDevice(device);
+        }
+    };
+
+    const syncWebRTCEventHandler = (
+        event: SynchronizationUtils.SCCEvent<SynchronizationUtils.WebRTCEventData>,
+    ) => {
+        console.debug(
+            `[INDEX - SCC Verbose] Received sync WebRTC event from device ${device.ID}:`,
+            event,
+        );
+
+        if (
+            event.data.event ===
+            SynchronizationUtils.WebRTCMessageEventType.Synchronized
+        ) {
+            device.updateLastSync();
+
+            // NOTE: This doesn't cause a re-render, so had to do the setLastSync
+            // setDevice((oldVal) => device);
+
+            setLastSync(dayjs(device.LastSync));
+        }
+
+        if (
+            event.data.event ===
+                SynchronizationUtils.WebRTCMessageEventType
+                    .ManualSyncNecessary &&
+            event.data.message != null
+        ) {
+            // Trigger the manual synchronization dialog
+            const credentials = vaultGet().Credentials;
+            const theirCredentials: VaultUtilTypes.PartialCredential[] =
+                event.data.message.Diffs.map(
+                    (i) => i.Changes?.Props ?? null,
+                ).filter((i) => i != null);
+
+            showManualSyncDialog.current(
+                credentials,
+                theirCredentials,
+                async (
+                    diffsToApply: VaultUtilTypes.Diff[],
+                    diffsToSend: VaultUtilTypes.Diff[],
+                ) => {
+                    console.debug(
+                        "[SidebarSyncDeviceListItem] Device solve confirmed. diffsToApply:",
+                        diffsToApply,
+                        "diffsToSend:",
+                        diffsToSend,
+                    );
+
+                    await GlobalSyncConnectionController.applyManualSynchronization(
+                        diffsToApply,
+                    );
+
+                    // Send the manual synchronization solution
+                    GlobalSyncConnectionController.transmitManualSyncSolve(
+                        device.ID,
+                        diffsToSend,
+                    );
+                },
+                () => {
+                    // Warn the user that the vaults are still diverged
+                    toast.warn(
+                        "Failed to solve the vault divergence. The vaults are still diverged.",
+                    );
+                },
+            );
+        }
+
+        if (
+            event.type ===
+            SynchronizationUtils.SyncConnectionControllerEventType
+                .ConnectionStatus
+        ) {
+            setWebRTCStatus(event.data.connectionState);
+
+            // Mind the SyncTimeout configuration
+            if (
+                device.SyncTimeout &&
+                event.data.connectionState ===
+                    SynchronizationUtils.WebRTCStatus.Connected
+            ) {
+                const period = Math.abs(device.SyncTimeoutPeriod) * 1000;
+                console.debug(
+                    `[SidebarSyncDeviceListItem] ID: ${device.ID} | Name: ${device.Name} > SyncTimeout enabled. Will disconnect in ${period}s.`,
+                );
+                setTimeout(() => {
+                    GlobalSyncConnectionController.disconnectDevice(device);
+                    console.debug(
+                        `[SidebarSyncDeviceListItem] ID: ${device.ID} | Name: ${device.Name} > SyncTimeout expired. Disconnecting...`,
+                    );
+                }, period);
+            } else if (
+                event.data.connectionState ===
+                    SynchronizationUtils.WebRTCStatus.Disconnected ||
+                event.data.connectionState ===
+                    SynchronizationUtils.WebRTCStatus.Failed
+            ) {
+                // Clean up connection and try to reconnect if we're configured to do so
+                if (device.AutoConnect) {
+                    GlobalSyncConnectionController.disconnectDevice(device);
+                    GlobalSyncConnectionController.connectDevice(device);
+                }
+            }
+        }
+    };
+
+    useEffect(() => {
+        // Bind a message receiver for this device
+        const handlerID =
+            GlobalSyncConnectionController.registerSyncSignalingHandler(
+                device.SignalingServerID,
+                syncSignalingEventHandler,
+            );
+
+        if (!handlerID) {
+            console.error(
+                `[INDEX - SCC Verbose] Failed to register sync signaling handler for device ${device.ID}`,
+            );
+            return;
+        }
+
+        GlobalSyncConnectionController.registerSyncWebRTCHandler(
+            device.ID,
+            syncWebRTCEventHandler,
+        );
+
+        if (device.AutoConnect) {
+            GlobalSyncConnectionController.connectDevice(device);
+        }
+
+        // Set up a timer to refresh the last sync date every minute
+        const timerID = setInterval(() => {
+            if (device.LastSync) setLastSync(dayjs(device.LastSync));
+        }, 60000);
+
+        return () => {
+            // Remove any message receiver for this device
+            if (handlerID) {
+                GlobalSyncConnectionController.removeSyncSignalingHandler(
+                    device.SignalingServerID,
+                    handlerID,
+                );
+            }
+            GlobalSyncConnectionController.removeSyncWebRTCHandler(device.ID);
+
+            // Clean up the connection
+            GlobalSyncConnectionController.disconnectDevice(device);
+
+            clearInterval(timerID);
+        };
+    }, []);
+
+    return (
+        <div
+            className="ml-2 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500"
+            onContextMenu={(e) => {
+                e.preventDefault();
+                optionsButtonRef.current?.click();
+            }}
+        >
+            <div>
+                <DevicePhoneMobileIcon className="h-5 w-5" />
+            </div>
+            <div className="flex flex-grow flex-col overflow-x-hidden py-1">
+                <p
+                    className="line-clamp-1 overflow-hidden text-base font-medium"
+                    title={device.Name}
+                >
+                    {device.Name}
+                </p>
+                <div className="flex flex-col items-start">
+                    <div className="flex gap-2">
+                        <p
+                            title="Signaling status"
+                            className={clsx({
+                                "flex h-full items-center rounded border px-1 text-xs capitalize":
+                                    true,
+                                "border-green-500/50 text-green-500":
+                                    signalingStatus ===
+                                    SynchronizationUtils.SignalingStatus
+                                        .Connected,
+                                "border-red-500/50 text-red-500":
+                                    signalingStatus ===
+                                        SynchronizationUtils.SignalingStatus
+                                            .Disconnected ||
+                                    signalingStatus ===
+                                        SynchronizationUtils.SignalingStatus
+                                            .Failed,
+                                "border-yellow-500/50 text-yellow-500":
+                                    signalingStatus ===
+                                        SynchronizationUtils.SignalingStatus
+                                            .Connecting ||
+                                    signalingStatus ===
+                                        SynchronizationUtils.SignalingStatus
+                                            .Unavailable,
+                            })}
+                        >
+                            {signalingStatus ===
+                                SynchronizationUtils.SignalingStatus
+                                    .Connected && "Connected"}
+                            {signalingStatus ===
+                                SynchronizationUtils.SignalingStatus
+                                    .Connecting && (
+                                <span className="ml-1 animate-pulse">
+                                    Connecting...
+                                </span>
+                            )}
+                            {signalingStatus ===
+                                SynchronizationUtils.SignalingStatus
+                                    .Disconnected && "Disconnected"}
+                            {signalingStatus ===
+                                SynchronizationUtils.SignalingStatus
+                                    .Unavailable && "Disconnected"}
+                            {signalingStatus ===
+                                SynchronizationUtils.SignalingStatus.Failed &&
+                                "Failed"}
+                        </p>
+
+                        {/* WebRTC status */}
+                        <p
+                            title="Device connection status"
+                            className={clsx({
+                                "flex h-full items-center rounded border px-1 text-xs capitalize":
+                                    true,
+                                "border-green-500/50 text-green-500":
+                                    webRTCStatus ===
+                                    SynchronizationUtils.WebRTCStatus.Connected,
+                                "border-red-500/50 text-red-500":
+                                    webRTCStatus ===
+                                        SynchronizationUtils.WebRTCStatus
+                                            .Disconnected ||
+                                    webRTCStatus ===
+                                        SynchronizationUtils.WebRTCStatus
+                                            .Failed,
+                                "border-yellow-500/50 text-yellow-500":
+                                    webRTCStatus ===
+                                    SynchronizationUtils.WebRTCStatus
+                                        .Connecting,
+                            })}
+                        >
+                            {webRTCStatus ===
+                                SynchronizationUtils.WebRTCStatus.Connected &&
+                                "Connected"}
+                            {webRTCStatus ===
+                                SynchronizationUtils.WebRTCStatus
+                                    .Connecting && (
+                                <span className="ml-1 animate-pulse">
+                                    Connecting...
+                                </span>
+                            )}
+                            {webRTCStatus ===
+                                SynchronizationUtils.WebRTCStatus
+                                    .Disconnected && "Disconnected"}
+                            {webRTCStatus ===
+                                SynchronizationUtils.WebRTCStatus.Failed &&
+                                "Failed"}
+                        </p>
+                    </div>
+
+                    {/* Last synchronization date */}
+                    <p
+                        className="text-xs normal-case text-slate-300/50"
+                        title="Last synchronization"
+                    >
+                        {lastSync?.fromNow() ?? "Never"}
+                    </p>
+                </div>
+            </div>
+            <Menu as="div" className="relative">
+                <MenuButton
+                    ref={optionsButtonRef}
+                    className="flex h-full items-center"
+                >
+                    <EllipsisVerticalIcon className="h-6 w-6 text-slate-400" />
+                </MenuButton>
+                {/* <Transition
+                    // as={React.Fragment}
+                    enter="transition ease-out duration-100"
+                    enterFrom="transform opacity-0 scale-95"
+                    enterTo="transform opacity-100 scale-100"
+                    leave="transition ease-in duration-75"
+                    leaveFrom="transform opacity-100 scale-100"
+                    leaveTo="transform opacity-0 scale-95"
+                > */}
+                <MenuItems className="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none">
+                    <div className="py-1">
+                        {contextMenuOptions.map((option, index) => (
+                            <MenuItem key={index}>
+                                {({ focus: active }) => {
+                                    const hoverClass = clsx({
+                                        "bg-gray-900 text-white select-none":
+                                            active && !option.disabled,
+                                        "flex px-4 py-2 text-sm font-semibold text-gray-200":
+                                            true,
+                                        "pointer-events-none opacity-50":
+                                            option.disabled,
+                                        hidden: !option.visible,
+                                    });
+                                    return (
+                                        <a
+                                            className={hoverClass}
+                                            onClick={
+                                                option.disabled
+                                                    ? () => {
+                                                          // NO-OP
+                                                      }
+                                                    : () =>
+                                                          option.onClick(device)
+                                            }
+                                        >
+                                            {option.name}
+                                        </a>
+                                    );
+                                }}
+                            </MenuItem>
+                        ))}
+                    </div>
+                </MenuItems>
+                {/* </Transition> */}
+            </Menu>
+        </div>
+    );
+};
+
+const SidebarSyncDeviceList: React.FC<{
+    showWarningFn: WarningDialogShowFn;
+    showLinkedDeviceEditDialog: RefObject<(device: LinkedDevice) => void>;
+    showManualSyncDialog: RefObject<ManualSyncShowDialogFnPropType>;
+}> = ({ showWarningFn, showLinkedDeviceEditDialog, showManualSyncDialog }) => {
+    const [linkedVaultDevices, setLinkedDevices] = useAtom(linkedDevicesAtom);
+    const { mutateAsync: removeFromOnlineServices } =
+        trpcReact.v1.device.remove.useMutation();
+
+    console.error("!!LINKED DEVICES LIST HAS UPDATED!!");
+
+    const linkedDevicesCount = linkedVaultDevices.length;
+
+    const _unlinkDevice = async (id: string) => {
+        // Remove the device from the Vault and the UI
+        setLinkedDevices((devices) => {
+            return LinkedDevices.removeLinkedDevice(devices, id);
+        });
+
+        // TODO: Try this only if the device is not bound to the online services
+        await removeFromOnlineServices({
+            id,
+        }).catch((err) => {
+            console.warn(
+                "Tried to remove device from online services, but failed.",
+                err,
+            );
+        });
+    };
+
+    const unlinkDevice = async (id: string) => {
+        showWarningFn(
+            "Removing the link between these devices will prevent you from syncing your credentials between them.",
+            async () => {
+                await _unlinkDevice(id);
+            },
+            null,
+        );
+    };
+
+    return (
+        <div className="my-2 flex h-px w-full grow overflow-y-auto border-y border-y-slate-700">
+            {/* If there are devices, show a list of them */}
+            {linkedDevicesCount > 0 && (
+                <div className="flex h-full w-full flex-col gap-2 overflow-y-auto">
+                    {linkedVaultDevices.map((device, i) => {
+                        return (
+                            <SidebarSyncDeviceListItem
+                                key={`linked-device-${i}`}
+                                // deviceAtom={deviceAtom}
+                                item={device}
+                                showEditDialog={showLinkedDeviceEditDialog}
+                                unlinkDevice={unlinkDevice}
+                                showManualSyncDialog={showManualSyncDialog}
+                            />
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* If there are no devices, show a message */}
+            {linkedDevicesCount === 0 && (
+                <div className="flex w-full flex-col items-center justify-center gap-2 text-center">
+                    <p className="text-sm font-bold text-slate-400">
+                        No linked devices
+                    </p>
+                    <p className="text-xs text-slate-500">
+                        You have no linked devices. Link a device to sync your
+                        credentials.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DashboardSidebarMenuFeatureVoting: React.FC<{
+    onClick?: () => void;
+}> = ({ onClick }) => {
+    // This component is separate so that we don't rerender the whole dashboard
+    // If the TRPC call resolves to a different value
+    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
+
+    // Fetch the featureVoting.openRound trpc query if we're logged in (have a session)
+    const { data: openRoundExists } =
+        trpcReact.v1.featureVoting.openRoundExists.useQuery(undefined, {
+            retry: false,
+            enabled: !!onlineServicesData?.remoteData,
+            refetchOnWindowFocus: false,
+            trpc: {},
+        });
+
+    return (
+        <SidebarMenuItem
+            Icon={ArrowUpCircleIcon}
+            text="Feature Voting"
+            onClick={onClick}
+            pulsatingIndicatorVisible={openRoundExists ?? false}
+        />
+    );
+};
+
+const SidebarMenuItem: React.FC<{
+    Icon: typeof ArrowUpCircleIcon; // Take the type of an arbitrary icon
+    text: string;
+    onClick?: () => void;
+    pulsatingIndicatorVisible?: boolean;
+}> = ({ Icon, text, onClick, pulsatingIndicatorVisible }) => {
+    return (
+        <div
+            className="ml-5 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500"
+            onClick={onClick}
+        >
+            <Icon className="h-7 w-7" />
+            <div className="flex gap-1">
+                <p className="text-base font-semibold">{text}</p>
+                <span
+                    className={clsx({
+                        "relative flex h-3 w-3": true,
+                        hidden: !pulsatingIndicatorVisible,
+                    })}
+                >
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5668] opacity-75"></span>
+                    <span className="absolute inline-flex h-3 w-3 rounded-full bg-[#FF5668]"></span>
+                </span>
+            </div>
+        </div>
+    );
+};
+
+const SidebarMenuItemCompact: React.FC<{
+    Icon: typeof ArrowUpCircleIcon; // Take the type of an arbitrary icon
+    text: string;
+    onClick?: () => void;
+    pulsatingIndicatorVisible?: boolean;
+}> = ({ Icon, text, onClick, pulsatingIndicatorVisible }) => {
+    return (
+        <div
+            className="flex cursor-pointer items-center text-slate-400 hover:text-slate-500"
+            onClick={onClick}
+            title={text}
+        >
+            <Icon className="h-6 w-6" />
+            <span
+                className={clsx({
+                    "relative flex h-3 w-3": true,
+                    hidden: !pulsatingIndicatorVisible,
+                })}
+            >
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5668] opacity-75"></span>
+                <span className="absolute inline-flex h-3 w-3 rounded-full bg-[#FF5668]"></span>
+            </span>
+        </div>
+    );
+};
+//#endregion Sidebar
+
+//#region Vault dashboard
+const VaultDashboard: React.FC = ({}) => {
+    // console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+
+    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+    const clearOnlineServicesData = useClearOnlineServicesDataAtom();
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+    const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
+    const showWarningDialog: WarningDialogShowFn = (
+        description: string,
+        onConfirm: (() => void) | null,
+        onDismiss: (() => void) | null,
+        confirmationButtonText?: string,
+        descriptionSecondPart?: string,
+    ) => {
+        showWarningDialogFnRef.current?.(
+            description,
+            onConfirm,
+            onDismiss,
+            confirmationButtonText,
+            descriptionSecondPart,
+        );
+    };
+
+    const triggerNewCredentialModeFn = useRef<() => void>(() => {});
+
+    const showAccountSignUpSignInDialogRef = useRef<(() => void) | null>(null);
+    const showRecoveryGenerationDialogRef = useRef<(() => void) | null>(null);
+    const showFeatureVotingDialogRef = useRef<(() => void) | null>(null);
+    const showFeedbackDialogFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+    const showVaultSettingsDialogRef = useRef<() => void>(() => {
+        // No-op
+    });
+
+    const showCredentialsGeneratorDialogFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+
+    const showLinkingDeviceDialogFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+    const showSynchronizationConfigurationDialogFnRef = useRef<() => void>(
+        () => {
+            // No-op
+        },
+    );
+    const showLinkedDeviceEditDialogFnRef = useRef<
+        (device: LinkedDevice) => void
+    >((d) => {
+        // No-op
+    });
+    const showManualSyncDialogFnRef = useRef<ManualSyncShowDialogFnPropType>(
+        () => {
+            // No-op
+        },
+    );
+
+    const lockVaultConfirm = () => {
+        if (!vaultMetadata) return;
+
+        showWarningDialog(
+            "Are you sure you want to lock the vault?",
+            async () => {
+                await _lockVault(vaultMetadata);
+            },
+            () => {
+                // No-op
+            },
+            "Lock Vault",
+            "This will lock the vault and prevent anyone from accessing it.",
+        );
+    };
+
+    const _lockVault = async (vaultMetadata: VaultMetadata) => {
+        toast.info("Securing vault...", {
+            autoClose: false,
+            closeButton: false,
+            toastId: "lock-vault",
+            updateId: "lock-vault",
+        });
+
+        // A little delay to make sure the toast is shown
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // NOTE: Why can't this just be an async function????
+        setUnlockedVault(async (pre) => {
+            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+            // NOTE: This might not work, since we are not awaiting the save function
+            try {
+                await vaultMetadata.save(pre);
+                toast.success("Vault secured.", {
+                    autoClose: 3000,
+                    closeButton: true,
+                    toastId: "lock-vault",
+                    updateId: "lock-vault",
+                });
+
+                clearOnlineServicesData();
+                setUnlockedVaultMetadata(null);
+            } catch (e) {
+                console.error(`Failed to save vault: ${e}`);
+                toast.error(
+                    "Failed to save vault. There is a high possibility of data loss!",
+                    {
+                        closeButton: true,
+                        toastId: "lock-vault",
+                        updateId: "lock-vault",
+                    },
+                );
+            }
+
+            // Clean up the unlocked vault - remove all data from the atom
+            return new Vault();
+        });
+    };
+
+    // console.debug("VaultDashboard RENDER - pre vaultmetadata check", !!vaultMetadata);
+
+    if (!vaultMetadata) return null;
+
+    // console.debug("VaultDashboard RENDER - post vaultmetadata check", !!vaultMetadata);
+
+    return (
+        <>
+            <NavBar
+                overrideLogoUrl={null}
+                className="flex-row flex-nowrap justify-between p-3 px-4 sm:px-3"
+                logoContainerClassName="hidden sm:flex"
+            >
+                <div className="flex transition-all sm:hidden">
+                    {isSidebarOpen ? (
+                        <XMarkIcon
+                            className="h-6 w-6 text-slate-400"
+                            onClick={() => toggleSidebar()}
+                        />
+                    ) : (
+                        <Bars3Icon
+                            className="h-6 w-6 text-slate-400"
+                            onClick={() => toggleSidebar()}
+                        />
+                    )}
+                </div>
+                <div className="hidden md:block">
+                    <VaultTitle title={vaultMetadata.Name} />
+                </div>
+                <AccountHeaderWidget
+                    showAccountSignUpSignInDialog={() =>
+                        showAccountSignUpSignInDialogRef.current?.()
+                    }
+                    showWarningDialogFn={showWarningDialog}
+                    showRecoveryGenerationDialogFnRef={
+                        showRecoveryGenerationDialogRef
+                    }
+                />
+            </NavBar>
+            <div className="flex flex-grow flex-row overflow-hidden">
+                <div
+                    className={clsx({
+                        "flex min-w-0 max-w-[250px] flex-col gap-3 overflow-hidden pt-1 transition-all duration-300 ease-in-out sm:min-w-[250px]":
+                            true,
+                        "w-0 px-0": !isSidebarOpen,
+                        "min-w-[90vw] border-r-2 border-slate-800/60 px-1 sm:border-r-0":
+                            isSidebarOpen,
+                    })}
+                >
+                    <div className="block md:hidden">
+                        <VaultTitle title={vaultMetadata.Name} />
+                    </div>
+                    {/* TODO: This should be made prettier on mobile */}
+                    <div className="block w-full px-5">
+                        <ButtonFlat
+                            text="New Item"
+                            className="w-full"
+                            inhibitAutoWidth={true}
+                            onClick={() => {
+                                triggerNewCredentialModeFn.current?.();
+                                if (isSidebarOpen) toggleSidebar();
+                            }}
+                        />
+                    </div>
+                    <div className="mt-5 flex h-px flex-grow overflow-y-auto overflow-x-clip">
+                        <div className="flex h-full w-full flex-col justify-between pb-2">
+                            <div className="flex grow flex-col">
+                                <p className="text-sm text-slate-500">
+                                    Synchronization
+                                </p>
+                                {/*<DashboardSidebarSynchronization
+                                    showWarningFn={showWarningDialog}
+                                    showSignInDialogFn={
+                                        showAccountSignUpSignInDialogRef
+                                    }
+                                />*/}
+                                <SidebarMenuItem
+                                    Icon={LinkIcon}
+                                    text="Link a Device"
+                                    onClick={() =>
+                                        showLinkingDeviceDialogFnRef.current?.()
+                                    }
+                                />
+                                <SidebarMenuItem
+                                    Icon={GlobeAltIcon}
+                                    text="Configuration"
+                                    onClick={() =>
+                                        showSynchronizationConfigurationDialogFnRef.current?.()
+                                    }
+                                />
+                                <SidebarSyncDeviceList
+                                    showWarningFn={showWarningDialog}
+                                    showLinkedDeviceEditDialog={
+                                        showLinkedDeviceEditDialogFnRef
+                                    }
+                                    showManualSyncDialog={
+                                        showManualSyncDialogFnRef
+                                    }
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <div>
+                                    {process.env.NODE_ENV === "development" && (
+                                        <SidebarMenuItem
+                                            Icon={XMarkIcon}
+                                            text="[DEBUG] Clear Diff list"
+                                            onClick={async () => {
+                                                await setUnlockedVault(
+                                                    (vault) => {
+                                                        console.debug(
+                                                            "[DEBUG] Clear Diff list - before -",
+                                                            vault.Diffs,
+                                                        );
+
+                                                        vault.Diffs = [];
+
+                                                        vaultMetadata.save(
+                                                            vault,
+                                                        );
+
+                                                        console.debug(
+                                                            "[DEBUG] Clear Diff list - after -",
+                                                            vault.Diffs,
+                                                        );
+
+                                                        return vault;
+                                                    },
+                                                );
+                                            }}
+                                        />
+                                    )}
+                                    <DashboardSidebarMenuFeatureVoting
+                                        onClick={() =>
+                                            showFeatureVotingDialogRef.current?.()
+                                        }
+                                    />
+                                    <SidebarMenuItem
+                                        Icon={ChatBubbleBottomCenterTextIcon}
+                                        text="Contact Us"
+                                        onClick={() =>
+                                            showFeedbackDialogFnRef.current?.()
+                                        }
+                                    />
+                                </div>
+                                <div className="flex w-full justify-evenly">
+                                    {/* <p className="text-sm text-slate-500">
+                                        Vault
+                                    </p> */}
+                                    <SidebarMenuItemCompact
+                                        Icon={KeyIcon}
+                                        text="Credentials Generator"
+                                        onClick={() =>
+                                            showCredentialsGeneratorDialogFnRef.current()
+                                        }
+                                    />
+                                    <SidebarMenuItemCompact
+                                        Icon={Cog8ToothIcon}
+                                        text="Settings"
+                                        onClick={() =>
+                                            showVaultSettingsDialogRef.current?.()
+                                        }
+                                    />
+                                    <SidebarMenuItemCompact
+                                        Icon={LockClosedIcon}
+                                        text="Lock Vault"
+                                        // onClick={() => lockVault(vaultMetadata)}
+                                        onClick={() => lockVaultConfirm()}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    className={clsx({
+                        "w-full": true,
+                        "flex flex-grow border-t border-slate-700 sm:rounded-tl-md sm:border-l sm:blur-none":
+                            true,
+                        "pointer-events-none blur-sm sm:pointer-events-auto":
+                            isSidebarOpen,
+                    })}
+                >
+                    <VaultContentWindow
+                        showWarningDialog={showWarningDialog}
+                        triggerNewCredentialModeFnOut={
+                            triggerNewCredentialModeFn
+                        }
+                        showCredentialsGeneratorDialogFnRef={
+                            showCredentialsGeneratorDialogFnRef
+                        }
+                    />
+                </div>
+            </div>
+            <WarningDialog showFnRef={showWarningDialogFnRef} />
+            <VaultSettingsDialog
+                showDialogFnRef={showVaultSettingsDialogRef}
+                showWarningDialog={showWarningDialog}
+                showCredentialsGeneratorDialogFnRef={
+                    showCredentialsGeneratorDialogFnRef
+                }
+            />
+            <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
+            <OnlineServicesSignUpRestoreDialog
+                showDialogFnRef={showAccountSignUpSignInDialogRef}
+                vaultMetadata={vaultMetadata}
+                showRecoveryGenerationDialogFnRef={
+                    showRecoveryGenerationDialogRef
+                }
+            />
+            <RecoveryGenerationDialog
+                showDialogFnRef={showRecoveryGenerationDialogRef}
+            />
+            <CredentialsGeneratorDialog
+                showDialogFnRef={showCredentialsGeneratorDialogFnRef}
+            />
+            <FeedbackDialog showDialogFnRef={showFeedbackDialogFnRef} />
+            <LinkDeviceInsideVaultDialog
+                showDialogFnRef={showLinkingDeviceDialogFnRef}
+                showWarningDialog={showWarningDialog}
+                showSignInDialog={showAccountSignUpSignInDialogRef}
+            />
+            <SynchronizationConfigurationDialog
+                showDialogFnRef={showSynchronizationConfigurationDialogFnRef}
+                showWarningDialog={showWarningDialog}
+            />
+            <EditLinkedDeviceDialog
+                showDialogFnRef={showLinkedDeviceEditDialogFnRef}
+                vaultMetadata={vaultMetadata}
+            />
+            <ManualSynchronizationDialog
+                showDialogFnRef={showManualSyncDialogFnRef}
+                showWarningDialog={showWarningDialog}
+            />
+        </>
+    );
+};
+
+const VaultContentWindow: React.FC<{
+    showWarningDialog: WarningDialogShowFn;
+    /**
+     * Function defined by this component that is used to set the sideview mode to the new credential mode.
+     */
+    triggerNewCredentialModeFnOut: React.RefObject<() => void>;
+    showCredentialsGeneratorDialogFnRef: React.RefObject<() => void>;
+}> = ({
+    showWarningDialog,
+    triggerNewCredentialModeFnOut,
+    showCredentialsGeneratorDialogFnRef,
+}) => {
+    const router = useRouter();
+
+    const vaultCredentials = useAtomValue(unlockedVaultAtom).Credentials;
+    const [filter, setFilter] = useState("");
+
+    const editCredentialModeFn = useRef<
+        (credential: Credential.VaultCredential) => void
+    >(() => {});
+
+    // NOTE: Is this good enough?
+    let filteredCredentials: Credential.VaultCredential[] = [];
+    if (vaultCredentials) {
+        filteredCredentials = vaultCredentials
+            ?.sort((a, b) => a.Name.localeCompare(b.Name))
+            .filter((credential) => {
+                if (filter === "") return true;
+
+                if (
+                    credential.Name.toLowerCase().includes(filter.toLowerCase())
+                )
+                    return true;
+
+                if (
+                    credential.Username.toLowerCase().includes(
+                        filter.toLowerCase(),
+                    )
+                )
+                    return true;
+
+                if (credential.URL.toLowerCase().includes(filter.toLowerCase()))
+                    return true;
+
+                return false;
+            });
+    }
+
+    const sideviewFragmentSet = router.asPath.includes("#sideview");
+    const itemListClasses = clsx({
+        "flex-col": true,
+        "flex w-full": !sideviewFragmentSet,
+        "hidden lg:flex lg:w-full": sideviewFragmentSet,
+    });
+
+    const sideviewPanelClasses = clsx({
+        "w-full flex-grow border-l border-slate-700": true,
+        // flex: !sideviewFragmentSet,
+        // "hidden lg:flex": router.asPath == "/app",
+        flex: sideviewFragmentSet,
+        "hidden lg:flex": !sideviewFragmentSet,
+    });
+
+    console.debug("VaultContentWindow RENDER", sideviewFragmentSet);
+
+    return (
+        <>
+            <div className={itemListClasses}>
+                <SearchBar filter={setFilter} />
+                <div className="my-5 h-px w-full flex-grow justify-center overflow-y-auto overflow-x-hidden px-5">
+                    {filteredCredentials?.length !== 0 && (
+                        <Virtuoso
+                            data={filteredCredentials}
+                            itemContent={(_, credential) => (
+                                <div className="my-2">
+                                    <ListItemCredential
+                                        key={credential.ID}
+                                        credential={credential}
+                                        onClick={() =>
+                                            editCredentialModeFn.current(
+                                                credential,
+                                            )
+                                        }
+                                        showWarningDialog={showWarningDialog}
+                                    />
+                                </div>
+                            )}
+                        />
+                    )}
+                    {!vaultCredentials ||
+                        (filteredCredentials.length === 0 && (
+                            <div className="flex flex-grow flex-col items-center justify-center">
+                                <p className="text-2xl font-bold text-slate-50">
+                                    No items
+                                </p>
+                                {filter.length > 0 && (
+                                    <p className="text-center text-slate-400">
+                                        No items match the filter.
+                                    </p>
+                                )}
+                                {filter.length === 0 && (
+                                    <p className="text-center text-slate-400">
+                                        {" "}
+                                        Press the &quot;New Item&quot; button in
+                                        the sidebar to add a new credential.
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+                </div>
+                {vaultCredentials && vaultCredentials.length > 0 && (
+                    <div className="flex w-full flex-grow-0 items-center justify-center border-t border-slate-700 px-2 py-1">
+                        {filter.length > 0 && (
+                            <p className="text-slate-400">
+                                Filtered items: {filteredCredentials.length} out
+                                of {vaultCredentials.length}
+                            </p>
+                        )}
+                        {filter.length === 0 && (
+                            <p className="text-slate-400">
+                                Items loaded: {vaultCredentials.length}
+                            </p>
+                        )}
+                    </div>
+                )}
+            </div>
+            <div className={sideviewPanelClasses}>
+                <CredentialSideview
+                    newCredentialModeFnOut={triggerNewCredentialModeFnOut}
+                    editCredentialModeFnOut={editCredentialModeFn}
+                    showCredentialsGeneratorDialogFn={
+                        showCredentialsGeneratorDialogFnRef
+                    }
+                    showWarningDialogFn={showWarningDialog}
+                />
+            </div>
+        </>
+    );
+};
+
+// Vault item search bar that resembles the GitHub Projects search bar behaviour
+const SearchBar: React.FC<{
+    filter: React.Dispatch<React.SetStateAction<string>>;
+}> = ({ filter }) => {
+    const { register, watch, getValues, setValue, setFocus } = useForm<{
+        search: string;
+    }>({
+        defaultValues: {
+            search: "",
+        },
+    });
+
+    const inputTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const onInput = () => {
+        // Clear the timeout if it exists
+        if (inputTimeoutRef.current) {
+            clearTimeout(inputTimeoutRef.current);
+        }
+
+        // Set a new timeout
+        inputTimeoutRef.current = setTimeout(() => {
+            // Get the search value
+            const search = getValues("search");
+            console.debug("Search", search);
+
+            filter(search);
+
+            // Clear the timeout
+            inputTimeoutRef.current = null;
+        }, 200);
+    };
+
+    const clearSearch = () => {
+        setValue("search", "");
+        filter("");
+    };
+
+    // On Ctrl+F, focus the search bar
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.key === "f") {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Focus the search bar
+                setFocus("search");
+            }
+        };
+        document.addEventListener("keydown", onKeyDown);
+
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, []);
+
+    return (
+        <div className="flex w-full flex-grow-0 items-center gap-1 border-b border-slate-700 p-2">
+            {
+                // If there is text in the search bar, show the clear button
+                watch("search").length > 0 ? (
+                    <XMarkIcon
+                        className="h-5 w-5 cursor-pointer text-slate-400"
+                        onClick={clearSearch}
+                    />
+                ) : (
+                    <FunnelIcon className="h-5 w-5 text-slate-400" />
+                )
+            }
+            <input
+                type="text"
+                // disabled={true}
+                className="ml-2 flex-grow border-none bg-transparent text-slate-200 outline-none placeholder:text-slate-400"
+                // placeholder="Filter by keyword or by field"
+                title="Ctrl+F to search"
+                placeholder="Filter by keyword (Ctrl+F)"
+                onInput={onInput}
+                {...register("search")}
+            />
+        </div>
+    );
+};
+
+const ListItemCredential: React.FC<{
+    credential: Credential.VaultCredential;
+    onClick: () => void;
+    showWarningDialog: WarningDialogShowFn;
+}> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
+    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const siteFaviconURL = React.useMemo(() => {
+        const faviconUrl = credential.URL.replace(/^https?:\/\//, "");
+        const faviconUrlParts = faviconUrl.split("/");
+        const faviconDomain = faviconUrlParts[0];
+
+        if (!faviconDomain?.length) return "";
+
+        // Try and fetch the favicon from the public api
+        return `https://s2.googleusercontent.com/s2/favicons?domain=${faviconDomain}&sz=64`;
+    }, [credential.URL]);
+
+    const contextBtnRef = useRef<HTMLButtonElement | null>(null);
+    const { refs, floatingStyles } = useFloating({
+        placement: "bottom-end",
+        middleware: [autoPlacement(), shift()],
+    });
+
+    const options: Options[] = [
+        {
+            Name: "Copy Username",
+            onClick: () => {
+                navigator.clipboard.writeText(credential.Username);
+                toast.info("Copied username to clipboard");
+            },
+        },
+    ];
+
+    if (credential.Password) {
+        options.push({
+            Name: "Copy Password",
+            onClick: () => {
+                navigator.clipboard.writeText(credential.Password);
+                toast.info("Copied password to clipboard");
+            },
+        });
+    }
+
+    if (credential.URL) {
+        options.push({
+            Name: "Open URL",
+            onClick: () => {
+                let value = credential.URL;
+                // Add the HTTPS protocol if it's missing
+                if (!value?.startsWith("https://")) {
+                    value = `https://${credential.URL}`;
+                }
+
+                showWarningDialogFn(
+                    `You are about to visit "${value}"?`,
+                    () => {
+                        window.open(value, "_blank");
+                    },
+                    null,
+                );
+            },
+        });
+    }
+
+    if (credential.TOTP) {
+        options.push({
+            Name: "Copy OTP",
+            onClick: () => {
+                if (!credential.TOTP) return;
+
+                const data = credential.TOTP.calculate();
+                if (data) {
+                    navigator.clipboard.writeText(data.code);
+                    toast.info(
+                        `Copied OTP to clipboard; ${data.timeRemaining} seconds left`,
+                        {
+                            autoClose: 3000,
+                            pauseOnFocusLoss: false,
+                            updateId: "copy-otp",
+                            toastId: "copy-otp",
+                        },
+                    );
+
+                    // let timePassed = 0;
+                    // const interval = setInterval(() => {
+                    //     const progress = (data.timeRemaining - timePassed / 1000) / credential.TOTP.Period;
+                    //     toast.info(
+                    //         `Copied OTP to clipboard; ${
+                    //             data.timeRemaining - timePassed / 1000
+                    //         } seconds left`,
+                    //         {
+                    //             progress:
+                    //                 progress,
+                    //             pauseOnFocusLoss: false,
+                    //             updateId: "copy-otp",
+                    //             toastId: "copy-otp",
+                    //             onClick: () => clearInterval(interval),
+                    //         }
+                    //     );
+                    //     timePassed += 1000;
+
+                    //     if (timePassed >= data.timeRemaining * 1000) {
+                    //         toast.dismiss("copy-otp");
+
+                    //         clearInterval(interval);
+                    //     }
+                    // }, 1000);
+                }
+            },
+        });
+    }
+
+    options.push({
+        Name: "Remove",
+        onClick: async () => {
+            if (!unlockedVaultMetadata) return;
+
+            showWarningDialogFn(
+                `You are about to remove the "${credential.Name}" credential.`,
+                async () => {
+                    toast.info("Removing credential...", {
+                        autoClose: false,
+                        closeButton: false,
+                        toastId: "remove-credential",
+                        updateId: "remove-credential",
+                    });
+
+                    // A little delay to make sure the toast is shown
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+
+                    setUnlockedVault(async (pre) => {
+                        const newVault = pre;
+
+                        // Remove the credential from the vault
+                        await newVault.deleteCredential(credential.ID);
+                        try {
+                            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+                            await unlockedVaultMetadata.save(newVault);
+                            toast.success("Credential removed.", {
+                                autoClose: 3000,
+                                closeButton: true,
+                                toastId: "remove-credential",
+                                updateId: "remove-credential",
+                            });
+                        } catch (e) {
+                            console.error(`Failed to save vault: ${e}`);
+                            toast.error(
+                                "Failed to save vault. There is a high possibility of data loss!",
+                                {
+                                    autoClose: 3000,
+                                    closeButton: true,
+                                    toastId: "remove-credential",
+                                    updateId: "remove-credential",
+                                },
+                            );
+                        }
+
+                        return newVault;
+                    });
+                },
+                null,
+            );
+        },
+    });
+
+    const setCtxMenuPosition = (
+        e:
+            | React.MouseEvent<HTMLDivElement>
+            | React.MouseEvent<HTMLButtonElement>,
+    ) => {
+        refs.setPositionReference({
+            getBoundingClientRect() {
+                return {
+                    width: 0,
+                    height: 0,
+                    x: e.clientX,
+                    y: e.clientY,
+                    top: e.clientY,
+                    right: e.clientX,
+                    bottom: e.clientY,
+                    left: e.clientX,
+                };
+            },
+        });
+    };
+
+    const FallbackFavicon: React.FC = () => {
+        return (
+            <div className="flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black">
+                {credential.Name[0]}
+            </div>
+        );
+    };
+
+    return (
+        <div
+            className="flex cursor-pointer items-center justify-between rounded-md bg-gray-700 px-2 shadow-md transition-shadow hover:shadow-[#FF5668]"
+            onContextMenu={(e) => {
+                e.preventDefault();
+                setCtxMenuPosition(e);
+                contextBtnRef.current?.click?.();
+            }}
+        >
+            <div
+                className="flex w-full cursor-pointer items-center justify-between p-2"
+                onClick={onClick}
+            >
+                <div className="flex items-center gap-2">
+                    <div>
+                        {siteFaviconURL ? (
+                            <div className="h-7 w-7 justify-center">
+                                <img
+                                    src={siteFaviconURL}
+                                    className="rounded-full"
+                                    width={28}
+                                    height={28}
+                                    alt={"-"}
+                                />
+                            </div>
+                        ) : (
+                            <FallbackFavicon />
+                        )}
+                    </div>
+                    {/* Credential info */}
+                    <div className="flex flex-col">
+                        <p className="text-md line-clamp-2 break-all font-bold lg:line-clamp-1">
+                            {credential.Name}
+                        </p>
+                        {credential.Username?.trim().length ? (
+                            <p className="line-clamp-2 break-all text-left text-sm text-slate-300 lg:line-clamp-1">
+                                {credential.Username}
+                            </p>
+                        ) : (
+                            <p className="line-clamp-2 break-all text-left text-sm italic text-slate-300 lg:line-clamp-1">
+                                No username
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div onClick={onClick}>
+                {/* Indicators - md+ */}
+                <div className="hidden h-full items-center justify-center gap-3 rounded-sm px-3 md:flex">
+                    {credential.TOTP && (
+                        <p
+                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
+                            title="Contains OTP"
+                        >
+                            OTP
+                        </p>
+                    )}
+                    {credential.Notes && (
+                        <p
+                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
+                            title="Contains additional notes"
+                        >
+                            Notes
+                        </p>
+                    )}
+                </div>
+                {/* Indicators - mobile */}
+                <div className="flex h-full flex-col items-center justify-center gap-3 rounded-sm px-3 text-center md:hidden">
+                    {credential.TOTP && (
+                        <p
+                            className="rounded-md text-xs text-slate-50"
+                            title="Contains OTP"
+                        >
+                            OTP
+                        </p>
+                    )}
+                    {credential.Notes && (
+                        <p
+                            className="rounded-md text-xs text-slate-50"
+                            title="Contains additional notes"
+                        >
+                            Notes
+                        </p>
+                    )}
+                </div>
+            </div>
+            <Menu as="div" className="relative">
+                <MenuButton
+                    ref={(r) => {
+                        refs.setReference(r);
+                        contextBtnRef.current = r;
+                    }}
+                    className="flex h-full items-center"
+                    onClick={(e) => {
+                        if (e.clientX !== 0 && e.clientY !== 0) {
+                            setCtxMenuPosition(e);
+                        }
+                    }}
+                >
+                    <EllipsisVerticalIcon className="h-6 w-6 text-gray-400" />
+                </MenuButton>
+                {/* <Transition
+                    as={React.Fragment}
+                    enter="transition ease-out duration-100"
+                    enterFrom="transform opacity-0 scale-95"
+                    enterTo="transform opacity-100 scale-100"
+                    leave="transition ease-in duration-75"
+                    leaveFrom="transform opacity-100 scale-100"
+                    leaveTo="transform opacity-0 scale-95"
+                > */}
+                <MenuItems
+                    ref={refs.setFloating}
+                    className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-sm bg-gray-800 shadow-lg focus:outline-none"
+                    style={floatingStyles}
+                >
+                    <div className="py-1">
+                        {options.map((option, index) => (
+                            <MenuItem key={index}>
+                                {({ active }) => {
+                                    const hoverClass = clsx({
+                                        "bg-gray-900 text-white": active,
+                                        "flex px-4 py-2 text-sm font-semibold text-gray-200":
+                                            true,
+                                    });
+                                    return (
+                                        <a
+                                            className={hoverClass}
+                                            onClick={option.onClick}
+                                        >
+                                            {option.Name}
+                                        </a>
+                                    );
+                                }}
+                            </MenuItem>
+                        ))}
+                    </div>
+                </MenuItems>
+                {/* </Transition> */}
+            </Menu>
+        </div>
     );
 };
 
@@ -4855,61 +8399,36 @@ const TOTPDialog: React.FC<{
     );
 };
 
-const CredentialDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
-    selected: React.MutableRefObject<Credential.VaultCredential | undefined>;
-    showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
-    // requiredAuth?: boolean; // Not used yet, but will be used to require authentication to view credentials
-}> = ({ showDialogFnRef, selected, showCredentialsGeneratorDialogFn }) => {
+const CredentialSideview: React.FC<{
+    newCredentialModeFnOut: React.RefObject<() => void>;
+    editCredentialModeFnOut: React.RefObject<
+        (credential: Credential.VaultCredential) => void
+    >;
+    showCredentialsGeneratorDialogFn: React.RefObject<() => void>;
+    showWarningDialogFn: WarningDialogShowFn;
+}> = ({
+    newCredentialModeFnOut,
+    editCredentialModeFnOut,
+    showCredentialsGeneratorDialogFn,
+    showWarningDialogFn,
+}) => {
+    enum CredentialSideviewMode {
+        Undefined,
+        New,
+        Edit,
+    }
+
+    const router = useRouter();
+
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const [isDialogVisible, setIsDialogVisible] = useState(false);
-    showDialogFnRef.current = () => {
-        if (selected.current) {
-            const formData: Credential.CredentialFormSchemaType = {
-                ID: selected.current.ID, // This means that the form is in "edit" mode
-                Type: selected.current.Type,
-                GroupID: selected.current.GroupID,
-                Name: selected.current.Name,
-                Username: selected.current.Username,
-                Password: selected.current.Password,
-                TOTP: selected.current.TOTP,
-                Tags: selected.current.Tags,
-                URL: selected.current.URL,
-                Notes: selected.current.Notes,
-                CustomFields: selected.current.CustomFields,
-                DateCreated: selected.current.DateCreated,
-                DateModified: selected.current.DateModified,
-                DatePasswordChanged: selected.current.DatePasswordChanged,
-            };
 
-            resetForm(formData);
-        }
+    const [mode, _setMode] = useState(CredentialSideviewMode.Undefined);
+    const [selectedCredential, _setSelectedCredential] = useState<
+        Credential.VaultCredential | undefined
+    >();
 
-        setIsDialogVisible(true);
-    };
-    const hideDialog = async (force = false) => {
-        const hide = () => {
-            setIsDialogVisible(false);
-
-            // Reset the form with a delay for better UX
-            setTimeout(() => {
-                selected.current = undefined; // Reset the selected credential
-                resetForm(defaultValues);
-            }, DIALOG_BLUR_TIME);
-        };
-
-        // Check if the form has been modified (only if we are not forcing)
-        if (isDirty && !force) {
-            // If it has, ask the user if they want to discard the changes
-            if (confirm("Are you sure you want to discard your changes?")) {
-                hide();
-            }
-        } else {
-            // If not, just hide the modal
-            hide();
-        }
-    };
+    const closeBtnRef = useRef<HTMLButtonElement>(null);
 
     const defaultValues = () => {
         const obj: Credential.CredentialFormSchemaType = Object.assign(
@@ -4922,14 +8441,93 @@ const CredentialDialog: React.FC<{
 
     const {
         handleSubmit,
+        register,
         control,
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
         setValue,
+        getValues: getFormValues,
+        setFocus,
     } = useForm<Credential.CredentialFormSchemaType>({
         resolver: zodResolver(Credential.credentialFormSchema),
         defaultValues: defaultValues(),
     });
+
+    const resetFormValues = (credential: Credential.VaultCredential) => {
+        const formData: Credential.CredentialFormSchemaType = {
+            ID: credential.ID, // This means that the form is in "edit" mode
+            Type: credential.Type,
+            GroupID: credential.GroupID,
+            Name: credential.Name,
+            Username: credential.Username,
+            Password: credential.Password,
+            TOTP: credential.TOTP,
+            Tags: credential.Tags,
+            URL: credential.URL,
+            Notes: credential.Notes,
+            CustomFields: credential.CustomFields,
+            DateCreated: credential.DateCreated,
+            DateModified: credential.DateModified,
+            DatePasswordChanged: credential.DatePasswordChanged,
+        };
+
+        resetForm(formData, {
+            keepDirty: false,
+            keepDirtyValues: false,
+        });
+    };
+
+    const setModeFn = (
+        newMode: CredentialSideviewMode,
+        credential: Credential.VaultCredential | undefined = undefined,
+        ignoreDirtyCheck = false,
+    ) => {
+        const actuallyExecFn = () => {
+            _setMode(newMode);
+            _setSelectedCredential(credential);
+
+            if (newMode !== CredentialSideviewMode.Undefined) {
+                router.push("/app#sideview", undefined, {
+                    shallow: true,
+                });
+            } else {
+                router.push("/app", undefined, {
+                    shallow: true,
+                });
+            }
+
+            if (credential) {
+                resetFormValues(credential);
+            } else {
+                resetForm(defaultValues);
+            }
+        };
+
+        if (
+            mode !== CredentialSideviewMode.Undefined &&
+            isDirty &&
+            !ignoreDirtyCheck
+        ) {
+            showWarningDialogFn(
+                "You have unsaved changes.",
+                actuallyExecFn,
+                null,
+            );
+        } else {
+            actuallyExecFn();
+        }
+    };
+    newCredentialModeFnOut.current = () => {
+        setModeFn(CredentialSideviewMode.New);
+    };
+    editCredentialModeFnOut.current = (
+        credential: Credential.VaultCredential,
+    ) => {
+        setModeFn(CredentialSideviewMode.Edit, credential);
+    };
+    const closeSideview = (force: boolean = false) => {
+        setModeFn(CredentialSideviewMode.Undefined, undefined, force);
+    };
 
     const TOTPDialogVisible = useState(false);
     const showTOTPDialog = () => TOTPDialogVisible[1](true);
@@ -4938,8 +8536,6 @@ const CredentialDialog: React.FC<{
             shouldDirty: true,
         });
     };
-
-    // const setUnlockedVault = useSetAtom(unlockedVaultAtom);
 
     const TagBox: React.FC<{
         value: string | undefined;
@@ -5026,7 +8622,7 @@ const CredentialDialog: React.FC<{
                         />
                     </div>
                 ))}
-                <div className="mt-1 flex flex-row items-center rounded-full bg-gray-200 px-2 py-2">
+                <div className="m-1 flex flex-row items-center rounded-full bg-gray-200 px-2 py-2">
                     <input
                         ref={tagInputRef}
                         className="bg-transparent text-xs text-gray-600 placeholder-gray-400 outline-none"
@@ -5060,16 +8656,28 @@ const CredentialDialog: React.FC<{
 
         // FIXME: Use the code in the TOTP class to calculate the code and time left
         const updateCode = () => {
-            const totp = new OTPAuth.TOTP({
-                issuer: value.Label,
-                secret: value.Secret,
-                period: value.Period,
-                digits: value.Digits,
-                algorithm: TOTPAlgorithm[value.Algorithm],
-            });
-            const code = totp.generate();
+            // Wrap in try/catch to prevent bad values from crashing the app
+            try {
+                const totp = new OTPAuth.TOTP({
+                    issuer: value.Label,
+                    secret: value.Secret.replaceAll(" ", ""),
+                    period: value.Period,
+                    digits: value.Digits,
+                    algorithm: VaultUtilTypes.TOTPAlgorithm[value.Algorithm],
+                });
+                const code = totp.generate();
 
-            codeRef.current = code;
+                codeRef.current = code;
+            } catch (e) {
+                clearTOTP();
+
+                // FIXME: This thing triggers multiple times
+                // console.error("Failed to generate TOTP code.", e);
+                // toast.error("Failed to generate TOTP code.", {
+                //     autoClose: 3000,
+                //     closeButton: false,
+                // });
+            }
         };
 
         const getTOTPTimeLeft = (period: number): number => {
@@ -5126,15 +8734,36 @@ const CredentialDialog: React.FC<{
         );
     };
 
-    const OpenInNewTabButton = ({ value }: { value?: string }) => {
+    const OpenInNewTabButton = ({
+        initialValue,
+        valueFn,
+    }: {
+        initialValue?: string;
+        valueFn?: () => string;
+    }) => {
         return (
             <ArrowTopRightOnSquareIcon
                 className="mx-2 h-5 w-5 flex-grow-0 cursor-pointer text-slate-400 hover:text-slate-500"
                 style={{
-                    display: value ? "block" : "none",
+                    display: initialValue ? "block" : "none",
                 }}
                 aria-hidden="true"
-                onClick={() => window.open(value, "_blank")}
+                onClick={() => {
+                    let value = initialValue ?? valueFn?.();
+
+                    // If the value is not a URL, add the HTTPS protocol
+                    if (!value?.toLowerCase().startsWith("https://")) {
+                        value = `https://${value}`;
+                    }
+
+                    showWarningDialogFn(
+                        `You are about to visit "${value}".`,
+                        () => {
+                            window.open(value, "_blank");
+                        },
+                        null,
+                    );
+                }}
             />
         );
     };
@@ -5170,8 +8799,8 @@ const CredentialDialog: React.FC<{
                     updateId: "saving-vault-data",
                 });
 
-                // Hide the modal
-                hideDialog(true);
+                // Reset the view
+                closeSideview(true);
             } catch (e) {
                 console.error(`Failed to save vault data. ${e}`);
                 toast.error(
@@ -5189,4401 +8818,317 @@ const CredentialDialog: React.FC<{
         });
     };
 
-    return (
-        <GenericModal
-            key="credentials-modal"
-            visibleState={[isDialogVisible, () => hideDialog(false)]}
-        >
-            <Body className="flex w-full flex-col items-center gap-3">
-                <>
-                    <p className="text-center text-2xl font-bold text-gray-900">
-                        Credentials
-                    </p>
+    useEffect(() => {
+        if (mode === CredentialSideviewMode.New) setFocus("Name");
+    }, [mode]);
 
+    return (
+        <div
+            className="flex w-full flex-grow flex-col md:items-center"
+            onKeyDown={(e) => {
+                // In case the user presses the CTRL+Return key, trigger the submit function
+                if (
+                    e.key === "Enter" &&
+                    e.ctrlKey &&
+                    mode !== CredentialSideviewMode.Undefined &&
+                    !isSubmitting &&
+                    isDirty
+                ) {
+                    handleSubmit(onSubmit)();
+                }
+            }}
+        >
+            {/* No items placeholder */}
+            {mode === CredentialSideviewMode.Undefined && (
+                <div className="flex h-full flex-col items-center justify-center text-slate-400">
+                    <p>Select an item on the left to view its details.</p>
+                </div>
+            )}
+            {mode !== CredentialSideviewMode.Undefined && (
+                <div className="flex w-full flex-row items-center justify-between border-b border-slate-700 p-2">
+                    {mode === CredentialSideviewMode.New && (
+                        <span className="max-w-xs truncate text-xl font-bold text-slate-200 2xl:max-w-2xl">
+                            New Credential
+                        </span>
+                    )}
+                    {selectedCredential && (
+                        <span
+                            className="max-w-xs truncate text-xl text-slate-200 2xl:max-w-2xl"
+                            title={selectedCredential.Name}
+                        >
+                            <b>Editing: </b>
+                            {selectedCredential.Name}
+                        </span>
+                    )}
+                    <div className="flex gap-2">
+                        <ButtonFlat
+                            text="Close"
+                            ref_={closeBtnRef}
+                            type={ButtonType.Tertiary}
+                            onClick={() => closeSideview()}
+                            disabled={isSubmitting}
+                        />
+                        <ButtonFlat
+                            text={selectedCredential ? "Save" : "Create"}
+                            type={ButtonType.Primary}
+                            onClick={handleSubmit(onSubmit)}
+                            disabled={isSubmitting || !isDirty}
+                            loading={isSubmitting}
+                            className={clsx({
+                                hidden: !isDirty,
+                            })}
+                        />
+                    </div>
+                </div>
+            )}
+            <div className="flex h-px w-full flex-grow justify-center overflow-y-auto">
+                <div className="my-4 w-full max-w-lg p-4">
                     {
                         // If a credential is selected, show the credential's information
-                        selected.current && (
-                            <p className="mt-2 break-all text-left text-base text-gray-600">
-                                Name: <b>{selected.current.Name}</b>
-                                <br />
-                                Created at:{" "}
-                                <b>
-                                    {new Date(
-                                        selected.current.DateCreated,
-                                    ).toLocaleDateString()}
-                                </b>
+                        selectedCredential && (
+                            <div className="flex w-full flex-wrap justify-evenly gap-x-4 text-base text-slate-200">
+                                <div className="flex justify-center gap-x-2">
+                                    <span>
+                                        <b>Created at:</b>{" "}
+                                    </span>
+                                    <span>
+                                        {new Date(
+                                            selectedCredential.DateCreated,
+                                        ).toLocaleDateString()}
+                                    </span>
+                                </div>
                                 {
                                     // If the credential has been modified, show the date it was modified
-                                    selected.current.DateModified && (
-                                        <>
-                                            <br />
-                                            Updated at:{" "}
-                                            <b>
+                                    selectedCredential.DateModified && (
+                                        <div className="flex justify-center gap-x-2">
+                                            <span>
+                                                <b>Updated at:</b>{" "}
+                                            </span>
+                                            <span>
                                                 {new Date(
-                                                    selected.current.DateModified,
+                                                    selectedCredential.DateModified,
                                                 ).toLocaleDateString()}
-                                            </b>
-                                        </>
+                                            </span>
+                                        </div>
                                     )
                                 }
                                 {
                                     // If the credential has a password, show the date it was last changed
-                                    selected.current.DatePasswordChanged && (
-                                        <>
-                                            <br />
-                                            Last password change:{" "}
-                                            <b>
+                                    selectedCredential.DatePasswordChanged && (
+                                        <div className="flex justify-center gap-x-2">
+                                            <span>
+                                                <b>Last password change:</b>{" "}
+                                            </span>
+                                            <span>
                                                 {new Date(
-                                                    selected.current.DatePasswordChanged,
+                                                    selectedCredential.DatePasswordChanged,
                                                 ).toLocaleDateString()}
-                                            </b>
-                                        </>
+                                            </span>
+                                        </div>
                                     )
                                 }
-                            </p>
+                            </div>
                         )
                     }
-                    <div className="flex w-full flex-col text-left">
-                        <div className="mt-2 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Name"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Name *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            autoCapitalize="none"
-                                            className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
+                    {mode !== CredentialSideviewMode.Undefined && (
+                        <>
+                            <div className="mt-2 flex flex-col">
+                                <FormInputField
+                                    label="Name *"
+                                    type="text"
+                                    darkBackground={true}
+                                    autoCapitalize="none"
+                                    register={register("Name")}
+                                />
+                                {errors.Name && (
+                                    <p className="text-red-500">
+                                        {errors.Name.message}
+                                    </p>
                                 )}
-                            />
-                            {errors.Name && (
-                                <p className="text-red-500">
-                                    {errors.Name.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Username"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <FormInputField
-                                            label="Username"
-                                            type="text"
-                                            autoCapitalize="none"
-                                            clipboardButton={true}
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
+                            </div>
+                            <div className="mt-4 flex flex-col">
+                                <FormInputField
+                                    label="Username"
+                                    type="text"
+                                    darkBackground={true}
+                                    autoCapitalize="none"
+                                    clipboardButton={true}
+                                    register={register("Username")}
+                                />
+                                {errors.Username && (
+                                    <p className="text-red-500">
+                                        {errors.Username.message}
+                                    </p>
                                 )}
-                            />
-                            {errors.Username && (
-                                <p className="text-red-500">
-                                    {errors.Username.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Password"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        {/* <EntropyCalculator value={value} /> */}
-                                        <FormInputField
-                                            label="Password"
-                                            type="password"
-                                            autoCapitalize="none"
-                                            clipboardButton={true}
-                                            credentialsGeneratorFnRef={
-                                                showCredentialsGeneratorDialogFn
-                                            }
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
+                            </div>
+                            <div className="mt-4 flex flex-col">
+                                {/* <EntropyCalculator value={value} /> */}
+                                <FormInputField
+                                    label="Password"
+                                    type="password"
+                                    darkBackground={true}
+                                    autoCapitalize="none"
+                                    clipboardButton={true}
+                                    credentialsGeneratorFnRef={
+                                        showCredentialsGeneratorDialogFn
+                                    }
+                                    register={register("Password")}
+                                />
+                                {errors.Password && (
+                                    <p className="text-red-500">
+                                        {errors.Password.message}
+                                    </p>
                                 )}
-                            />
-                            {errors.Password && (
-                                <p className="text-red-500">
-                                    {errors.Password.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="TOTP"
-                                render={({ field: { onChange, value } }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            TOTP
-                                        </label>
-                                        {
-                                            // If the credential has a TOTP, show the TOTP
-                                            value != null ? (
-                                                <div
-                                                    key="credentials-totp"
-                                                    className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                                                >
-                                                    <TOTPControl
-                                                        onChange={onChange}
-                                                        value={value}
-                                                    />
-                                                </div>
-                                            ) : null
-                                        }
-                                        {
-                                            // If the credential does not have a TOTP, show a button to configure one and a camera icon
-                                            value == null ? (
-                                                <div className="mt-2 flex flex-row items-center">
-                                                    <button
-                                                        className="mt-1 flex-grow rounded-md bg-gray-200 px-4 py-2 text-gray-900 hover:bg-gray-300"
-                                                        onClick={() => {
-                                                            showTOTPDialog();
-                                                        }}
+                            </div>
+                            <div className="mt-4 flex flex-col">
+                                <Controller
+                                    control={control}
+                                    name="TOTP"
+                                    render={({
+                                        field: { onChange, value },
+                                    }) => (
+                                        <>
+                                            <label className="text-slate-400">
+                                                TOTP
+                                            </label>
+                                            {
+                                                // If the credential has a TOTP, show the TOTP
+                                                value != null ? (
+                                                    <div
+                                                        key="credentials-totp"
+                                                        className="mt-1 flex-grow rounded-md bg-slate-200 px-4 py-2 text-slate-900"
                                                     >
-                                                        Configure TOTP
-                                                    </button>
-                                                    {/* <CameraIcon //https://github.com/nimiq/qr-scanner
+                                                        <TOTPControl
+                                                            onChange={onChange}
+                                                            value={value}
+                                                        />
+                                                    </div>
+                                                ) : null
+                                            }
+                                            {
+                                                // If the credential does not have a TOTP, show a button to configure one and a camera icon
+                                                value == null ? (
+                                                    <div className="mt-2 flex flex-row items-center">
+                                                        <button
+                                                            className="mt-1 flex-grow rounded-md bg-slate-700 px-4 py-2 text-slate-100 hover:bg-slate-800"
+                                                            onClick={() => {
+                                                                showTOTPDialog();
+                                                            }}
+                                                        >
+                                                            Configure TOTP
+                                                        </button>
+                                                        {/* <CameraIcon //https://github.com/nimiq/qr-scanner
                                                         className="mx-2 h-5 w-5 cursor-pointer text-gray-400 hover:text-gray-500"
                                                         title="Scan QR code"
                                                         onClick={() => {
                                                             // showQRCodeScanner();
                                                         }}
                                                     /> */}
-                                                </div>
-                                            ) : null
-                                        }
-                                    </>
-                                )}
-                            />
-                            {errors.TOTP && (
-                                <p className="text-red-500">
-                                    {errors.TOTP.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Tags"
-                                render={({ field: { onChange, value } }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Tags
-                                        </label>
-                                        <TagBox
-                                            onChange={onChange}
-                                            value={value}
-                                            // value={value?.split(',,') ?? []}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.Tags && (
-                                <p className="text-red-500">
-                                    {errors.Tags.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="URL"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <FormInputField
-                                            label="Website (URL)"
-                                            type="url"
-                                            autoCapitalize="none"
-                                            clipboardButton={true}
-                                            additionalButtons={
-                                                <OpenInNewTabButton
-                                                    value={value}
-                                                />
+                                                    </div>
+                                                ) : null
                                             }
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
+                                        </>
+                                    )}
+                                />
+                                {errors.TOTP && (
+                                    <p className="text-red-500">
+                                        {errors.TOTP.message}
+                                    </p>
                                 )}
-                            />
-                            {errors.URL && (
-                                <p className="text-red-500">
-                                    {errors.URL.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="mt-4 flex flex-col">
-                            <Controller
-                                control={control}
-                                name="Notes"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <label className="text-gray-600">
-                                            Notes
-                                        </label>
-                                        <textarea
-                                            className="mt-1 min-h-[50px] rounded-md bg-gray-200 px-4 py-2 text-gray-900"
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            value={value}
-                                        />
-                                    </>
+                            </div>
+                            <div className="mt-4 flex flex-col">
+                                <Controller
+                                    control={control}
+                                    name="Tags"
+                                    render={({
+                                        field: { onChange, value },
+                                    }) => (
+                                        <>
+                                            <label className="text-slate-400">
+                                                Tags
+                                            </label>
+                                            <TagBox
+                                                onChange={onChange}
+                                                value={value}
+                                                // value={value?.split(',,') ?? []}
+                                            />
+                                        </>
+                                    )}
+                                />
+                                {errors.Tags && (
+                                    <p className="text-red-500">
+                                        {errors.Tags.message}
+                                    </p>
                                 )}
-                            />
-                            {errors.Notes && (
-                                <p className="text-red-500">
-                                    {errors.Notes.message}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                </>
-                <TOTPDialog
-                    visibleState={TOTPDialogVisible}
-                    submitCallback={setTOTPFormValue}
-                />
-            </Body>
-
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                <ButtonFlat
-                    text={selected.current ? "Save" : "Create"}
-                    className="sm:ml-2"
-                    onClick={handleSubmit(onSubmit)}
-                    disabled={isSubmitting}
-                    loading={isSubmitting}
-                />
-                <ButtonFlat
-                    text="Cancel"
-                    type={ButtonType.Secondary}
-                    onClick={() => hideDialog()}
-                    disabled={isSubmitting}
-                />
-            </Footer>
-        </GenericModal>
-    );
-};
-
-const VaultTitle: React.FC<{ title: string }> = ({ title }) => {
-    return (
-        <div className="flex flex-col items-center justify-center overflow-hidden overflow-ellipsis">
-            <p className="text-sm font-bold text-slate-400">Current Vault</p>
-            <p
-                className="line-clamp-2 max-w-xs overflow-ellipsis text-center text-2xl font-bold text-slate-50 md:line-clamp-1"
-                title={title}
-            >
-                {title}
-            </p>
-        </div>
-    );
-};
-
-//#region Vault account management
-enum AccountDialogMode {
-    Recover = "Recover",
-    Register = "Register",
-}
-type AccountDialogTabBarProps = {
-    currentFormMode: AccountDialogMode;
-    changeFormMode: (
-        newFormMode: AccountDialogMode.Recover | AccountDialogMode.Register,
-    ) => void;
-};
-
-const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
-    currentFormMode,
-    changeFormMode,
-}) => {
-    return (
-        <div className="mb-9 flex flex-row justify-center">
-            {Object.keys(AccountDialogMode).map((key, index) => {
-                const mode =
-                    AccountDialogMode[key as keyof typeof AccountDialogMode];
-                return (
-                    <button
-                        type="button"
-                        key={`account-dialog-tabbutton-${mode}`}
-                        className={clsx({
-                            "bg-gray-100 text-gray-900":
-                                currentFormMode === mode,
-                            "text-gray-500 hover:text-gray-700":
-                                currentFormMode !== mode,
-                            "rounded-l-md": index === 0,
-                            "rounded-r-md": index === 1,
-                            "rounded-md":
-                                Object.keys(AccountDialogMode).length === 1,
-                            "w-auto border border-gray-300 px-4 py-3 text-sm font-medium":
-                                true,
-                        })}
-                        onClick={() => changeFormMode(mode)}
-                        autoFocus={currentFormMode === mode}
-                    >
-                        {mode}
-                    </button>
-                );
-            })}
-        </div>
-    );
-};
-
-const OnlineServicesSignUpRestoreDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
-    vaultMetadata: VaultMetadata;
-    showRecoveryGenerationDialogFnRef: React.MutableRefObject<
-        (() => void) | null
-    >;
-}> = ({
-    showDialogFnRef,
-    vaultMetadata,
-    showRecoveryGenerationDialogFnRef,
-}) => {
-    // const vault = useAtomValue(onlineServicesAccountAtom);
-    const onlineServicesBound = useAtomValue(onlineServicesBoundAtom);
-    const fetchOnlineServicesData = useFetchOnlineServicesData();
-
-    // TODO: Show this dialog only if the user is actually online
-    const [visible, setVisible] = useState(!onlineServicesBound);
-    showDialogFnRef.current = () => setVisible(true);
-    const hideDialog = () => setVisible(false);
-
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-
-    const [currentFormMode, setCurrentFormMode] = useState(
-        AccountDialogMode.Register,
-    );
-
-    const changeFormMode = (
-        newFormMode: AccountDialogMode.Recover | AccountDialogMode.Register,
-    ) => {
-        // Clear the submit function reference
-        // signInSubmitFnRef.current = null;
-
-        setCurrentFormMode(newFormMode);
-    };
-
-    const isSubmitting = useState(false);
-    const isFormSubmitting = isSubmitting[0];
-
-    const recoverSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
-    const signUpSubmitFnRef = useRef<(() => Promise<void>) | null>(null);
-
-    const onConfirm = async () => {
-        if (
-            currentFormMode === AccountDialogMode.Recover &&
-            recoverSubmitFnRef.current
-        ) {
-            await recoverSubmitFnRef.current();
-        } else if (
-            currentFormMode === AccountDialogMode.Register &&
-            signUpSubmitFnRef.current
-        ) {
-            await signUpSubmitFnRef.current?.();
-        }
-    };
-
-    const bindAccount = async (apiKey: string) => {
-        // Save the authentication data to the vault
-        setUnlockedVault(async (pre) => {
-            pre.OnlineServices.bindAccount(apiKey);
-
-            setOnlineServicesAPIKey(apiKey);
-            await fetchOnlineServicesData();
-
-            try {
-                await vaultMetadata.save(pre);
-                toast.success("Account bound successfully.", {
-                    autoClose: 3000,
-                    closeButton: true,
-                });
-
-                // Show the recovery generation dialog - good practice to generate a recovery phrase after binding an account
-                showRecoveryGenerationDialogFnRef.current?.();
-            } catch (e) {
-                console.error("Failed to save vault.", e);
-                toast.error("Failed to save vault.", {
-                    closeButton: true,
-                });
-            }
-            return pre;
-        });
-    };
-
-    return (
-        <GenericModal
-            visibleState={[visible, setVisible]}
-            inhibitDismissOnClickOutside
-        >
-            <Body>
-                <div className="mt-2">
-                    <AccountDialogTabBar
-                        currentFormMode={currentFormMode}
-                        changeFormMode={changeFormMode}
-                    />
-                </div>
-                {currentFormMode === AccountDialogMode.Recover ? (
-                    <AccountDialogRecoverForm
-                        submittingState={isSubmitting}
-                        submitFnRef={recoverSubmitFnRef}
-                        bindAccountFn={bindAccount}
-                        hideDialogFn={hideDialog}
-                    />
-                ) : (
-                    <AccountDialogRegisterForm
-                        submittingState={isSubmitting}
-                        submitFnRef={signUpSubmitFnRef}
-                        vaultMetadata={vaultMetadata}
-                        bindAccountFn={bindAccount}
-                        hideDialogFn={hideDialog}
-                    />
-                )}
-            </Body>
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                <ButtonFlat
-                    text={currentFormMode}
-                    className="sm:ml-2"
-                    onClick={onConfirm}
-                    disabled={isFormSubmitting}
-                    loading={isFormSubmitting}
-                />
-                <ButtonFlat
-                    text="Close"
-                    type={ButtonType.Secondary}
-                    onClick={hideDialog}
-                    disabled={isFormSubmitting}
-                />
-            </Footer>
-        </GenericModal>
-    );
-};
-
-const AccountDialogRecoverForm: React.FC<{
-    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-    submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
-    bindAccountFn: (apiKey: string) => Promise<void>;
-    hideDialogFn: () => void;
-}> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
-    const [, setIsSubmitting] = submittingState;
-
-    const recoverFormSchema = z.object({
-        userId: z.string().min(1, "This field is required").max(100),
-        recoveryPhrase: z.string().min(1, "This field is required"),
-        captchaToken: z.string().min(1, "Captch is required"),
-    });
-    type RecoverFormSchemaType = z.infer<typeof recoverFormSchema>;
-
-    const {
-        control,
-        handleSubmit,
-        setError: setFormError,
-        formState: { errors },
-    } = useForm<RecoverFormSchemaType>({
-        resolver: zodResolver(recoverFormSchema),
-        defaultValues: {
-            userId: "",
-            recoveryPhrase: "",
-            captchaToken: "",
-        },
-    });
-
-    const { mutateAsync: recoverUser } =
-        trpcReact.v1.user.recover.useMutation();
-
-    const onSubmit = async (formData: RecoverFormSchemaType) => {
-        setIsSubmitting(true);
-
-        // Send the public key and the email to the server
-        toast.info("Contacting the server...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "recovery-contacting-server",
-            updateId: "recovery-contacting-server",
-        });
-
-        try {
-            const apiKey = await recoverUser({
-                userId: formData.userId,
-                recoveryPhrase: formData.recoveryPhrase,
-                // publicKey: keyPair.publicKey,
-                captchaToken: formData.captchaToken,
-            });
-
-            // Save the API key to the vault
-            await bindAccountFn(apiKey);
-
-            toast.update("recovery-contacting-server", {
-                autoClose: 1000,
-                closeButton: true,
-            });
-
-            // Hide the dialog
-            hideDialogFn();
-        } catch (e) {
-            console.error("Failed to recover user.", e);
-
-            if (e instanceof TRPCClientError) {
-                console.error(e.message);
-            }
-
-            toast.error("Recovery failed. Please try again.", {
-                autoClose: 3000,
-                closeButton: true,
-                toastId: "recovery-contacting-server",
-                updateId: "recovery-contacting-server",
-            });
-        }
-        setIsSubmitting(false);
-    };
-
-    submitFnRef.current = handleSubmit(onSubmit);
-
-    useEffect(() => {
-        return () => {
-            if (window.turnstile) window.turnstile.remove();
-        };
-    }, []);
-
-    return (
-        <div className="flex w-full flex-col text-left">
-            <div className="mb-2 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
-                <ExclamationTriangleIcon
-                    className="h-7 w-7 text-slate-800"
-                    aria-hidden="true"
-                />
-                <p className="text-sm text-slate-700">
-                    <span className="font-bold">Note:</span> On successful
-                    recovery, the account will be bound to this device. You will
-                    not be able to recover the account on another device. If
-                    there were any other devices linked to the account, they
-                    will be unlinked - you will have to link them again.
-                </p>
-                <p className="text-sm text-slate-700">
-                    <span className="font-bold">Note:</span> This device will be
-                    marked as a root device. Only the root device will be able
-                    to link other devices and remove them.
-                </p>
-            </div>
-
-            <div className="mt-2 flex flex-col">
-                <Controller
-                    control={control}
-                    name="userId"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                        <FormInputField
-                            label="User ID *"
-                            placeholder="Type in your User ID"
-                            type="text"
-                            autoCapitalize="none"
-                            onChange={onChange}
-                            onBlur={onBlur}
-                            value={value}
-                        />
-                    )}
-                />
-                {errors.userId && (
-                    <p className="text-red-500">{errors.userId.message}</p>
-                )}
-            </div>
-            <div className="mt-2 flex flex-col">
-                <Controller
-                    control={control}
-                    name="recoveryPhrase"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                        <FormInputField
-                            label="Recovery Phrase *"
-                            placeholder="Type in your recovery phrase"
-                            type="text"
-                            autoCapitalize="none"
-                            onChange={onChange}
-                            onBlur={onBlur}
-                            value={value}
-                        />
-                    )}
-                />
-                {errors.recoveryPhrase && (
-                    <p className="text-red-500">
-                        {errors.recoveryPhrase.message}
-                    </p>
-                )}
-            </div>
-            <div className="mt-2 flex flex-col items-center">
-                <Controller
-                    control={control}
-                    name="captchaToken"
-                    render={({ field: { onChange } }) => (
-                        <Turnstile
-                            options={{
-                                theme: "light",
-                                size: "normal",
-                                language: "auto",
-                            }}
-                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                            onError={() => {
-                                setFormError("captchaToken", {
-                                    message: "Captcha error",
-                                });
-                            }}
-                            onExpire={() => onChange("")}
-                            onSuccess={(token) => onChange(token)}
-                        />
-                    )}
-                />
-                {errors.captchaToken && (
-                    <p className="text-red-500">
-                        {errors.captchaToken.message}
-                    </p>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const AccountDialogRegisterForm: React.FC<{
-    submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-    submitFnRef: React.MutableRefObject<(() => Promise<void>) | null>;
-    vaultMetadata: VaultMetadata;
-    bindAccountFn: (apiKey: string) => Promise<void>;
-    hideDialogFn: () => void;
-}> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
-    const [, setIsSubmitting] = submittingState;
-
-    const {
-        control,
-        handleSubmit,
-        setError: setFormError,
-        formState: { errors },
-    } = useForm<SignUpFormSchemaType>({
-        resolver: zodResolver(signUpFormSchema),
-        defaultValues: {
-            captchaToken: "",
-        },
-    });
-
-    const { mutateAsync: register_user } =
-        trpcReact.v1.user.register.useMutation();
-
-    const onSubmit = async (formData: SignUpFormSchemaType) => {
-        setIsSubmitting(true);
-
-        // Send the public key and the email to the server
-        toast.info("Contacting the server...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "register-user",
-            updateId: "register-user",
-        });
-
-        try {
-            const apiKey = await register_user({
-                captchaToken: formData.captchaToken,
-            });
-
-            // Save the api key
-            await bindAccountFn(apiKey);
-
-            // Hide the dialog
-            hideDialogFn();
-
-            toast.success("Successfully registered user.", {
-                autoClose: 3000,
-                closeButton: true,
-                toastId: "register-user",
-                updateId: "register-user",
-            });
-        } catch (e) {
-            console.error("Failed to register user.", e);
-
-            let message = "Failed to register user.";
-            if (e instanceof TRPCClientError) {
-                message = e.message;
-            }
-
-            toast.error(message, {
-                autoClose: 3000,
-                closeButton: true,
-                toastId: "register-user",
-                updateId: "register-user",
-            });
-        }
-        setIsSubmitting(false);
-    };
-
-    submitFnRef.current = handleSubmit(onSubmit);
-
-    useEffect(() => {
-        return () => {
-            if (window.turnstile) window.turnstile.remove();
-        };
-    }, []);
-
-    return (
-        <div className="flex w-full flex-col text-left">
-            <div className="mb-2 flex flex-col items-center gap-1 rounded-md border-2 border-yellow-400 p-4">
-                <ExclamationTriangleIcon
-                    className="h-7 w-7 text-slate-800"
-                    aria-hidden="true"
-                />
-                <p className="text-sm text-slate-700">
-                    <span className="font-bold">Note:</span> Once you sign in,
-                    make sure to save your vault somewhere safe. If you lose
-                    access to the vault, you will not be able to recover your
-                    account.
-                </p>
-                <p className="text-sm text-slate-700">
-                    <span className="font-bold">Note:</span> This device will be
-                    marked as a root device. Only the root device will be able
-                    to link other devices and remove them.
-                </p>
-            </div>
-
-            <div className="mt-2 flex flex-col items-center">
-                <Controller
-                    control={control}
-                    name="captchaToken"
-                    render={({ field: { onChange } }) => (
-                        <Turnstile
-                            options={{
-                                theme: "light",
-                                size: "normal",
-                                language: "auto",
-                            }}
-                            siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                            onError={() => {
-                                setFormError("captchaToken", {
-                                    message: "Captcha error",
-                                });
-                            }}
-                            onExpire={() => onChange("")}
-                            onSuccess={(token) => onChange(token)}
-                        />
-                    )}
-                />
-                {errors.captchaToken && (
-                    <p className="text-red-500">
-                        {errors.captchaToken.message}
-                    </p>
-                )}
-            </div>
-        </div>
-    );
-};
-
-//#endregion Vault account management
-
-//#region Linking vaults
-
-type ProgressLogType = {
-    message: string;
-    type: "done" | "info" | "warn" | "error";
-};
-const EventLogDisclosure: React.FC<{
-    title: string;
-    log: ProgressLogType[];
-}> = ({ title, log }) => {
-    return (
-        <div className="flex flex-col">
-            <Disclosure defaultOpen={true}>
-                {({ open }) => (
-                    <>
-                        <Disclosure.Button className="flex flex-col justify-between rounded-t-lg bg-slate-100 p-4">
-                            <div className="flex w-full items-center justify-between">
-                                <p className="line-clamp-2 text-lg font-bold text-gray-900">
-                                    {title}
-                                </p>
-                                {
-                                    // Rotate the chevron icon if the panel is open
-                                    open && (
-                                        <ChevronUpIcon className="h-6 w-6 text-gray-500" />
-                                    )
-                                }
-                                {
-                                    // Rotate the chevron icon if the panel is closed
-                                    !open && (
-                                        <ChevronDownIcon className="h-6 w-6 text-gray-500" />
-                                    )
-                                }
                             </div>
-                        </Disclosure.Button>
-                        <Disclosure.Panel>
-                            <div className="flex max-h-52 flex-col gap-2 overflow-y-auto rounded-b-md bg-slate-50 p-2">
-                                {log.map((log, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex flex-row items-center gap-2 rounded-xl bg-slate-200 p-2"
-                                    >
-                                        <div>
-                                            {log.type == "done" && (
-                                                <CheckCircleIcon
-                                                    className={
-                                                        "h-5 w-5 text-green-500"
-                                                    }
-                                                />
-                                            )}
-                                            {log.type == "info" && (
-                                                <InformationCircleIcon
-                                                    className={
-                                                        "h-5 w-5 text-blue-500"
-                                                    }
-                                                />
-                                            )}
-                                            {log.type == "warn" && (
-                                                <ExclamationCircleIcon
-                                                    className={
-                                                        "h-5 w-5 text-yellow-500"
-                                                    }
-                                                />
-                                            )}
-                                            {log.type == "error" && (
-                                                <XCircleIcon
-                                                    className={
-                                                        "h-5 w-5 text-red-500"
-                                                    }
-                                                />
-                                            )}
-                                        </div>
-                                        <p className="text-gray-900">
-                                            {log.message}
-                                        </p>
-                                    </div>
-                                ))}
+                            <div className="mt-4 flex flex-col">
+                                <FormInputField
+                                    label="Website (URL)"
+                                    type="url"
+                                    darkBackground={true}
+                                    autoCapitalize="none"
+                                    clipboardButton={true}
+                                    additionalButtons={
+                                        <OpenInNewTabButton
+                                            initialValue={
+                                                selectedCredential?.URL
+                                            }
+                                            valueFn={() => getFormValues("URL")}
+                                        />
+                                    }
+                                    register={register("URL")}
+                                />
+                                {errors.URL && (
+                                    <p className="text-red-500">
+                                        {errors.URL.message}
+                                    </p>
+                                )}
                             </div>
-                        </Disclosure.Panel>
-                    </>
-                )}
-            </Disclosure>
-        </div>
-    );
-};
-
-const QRCode: React.FC<{
-    value: string;
-    clickCallback?: () => void;
-}> = ({ value, clickCallback }) => {
-    const DynamicQRCode = dynamic(() => import("react-qr-code"), {
-        suspense: true,
-    });
-
-    return (
-        <Suspense fallback={<Spinner />}>
-            <DynamicQRCode value={value} onClick={clickCallback} />
-        </Suspense>
-    );
-};
-
-const LinkDeviceInsideVaultDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
-}> = ({ showDialogFnRef }) => {
-    const [visible, setVisible] = useState(false);
-    showDialogFnRef.current = () => setVisible(true);
-    const hideDialog = () => {
-        setVisible(false);
-
-        setTimeout(() => {
-            resetForm();
-            setSelectedLinkMethod(null);
-            setIsOperationInProgress(false);
-            setReadyForOtherDevice(false);
-            progressLogRef.current = [];
-        }, DIALOG_BLUR_TIME);
-    };
-
-    const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
-
-    const [selectedLinkMethod, setSelectedLinkMethod] =
-        useState<LinkMethod | null>(null);
-    const [isOperationInProgress, setIsOperationInProgress] = useState(false);
-    const [readyForOtherDevice, setReadyForOtherDevice] = useState(false);
-    const progressLogRef = useRef<ProgressLogType[]>([]);
-    const cancelFnRef = useRef<() => void>(() => {
-        // No-op
-    });
-
-    const linkingDeviceFormSchema = z.object({
-        deviceName: z
-            .string()
-            .min(1, "Device name cannot be empty.")
-            .max(150, "Device name cannot be longer than 150 characters.")
-            .default("My Device"),
-        progressLog: z.array(
-            z.object({
-                message: z.string(),
-                type: z.enum(["done", "info", "warn", "error"]),
-            }),
-        ),
-        mnemonic: z.string().default(""),
-    });
-    type LinkingDeviceFormSchemaType = z.infer<typeof linkingDeviceFormSchema>;
-    const {
-        control,
-        handleSubmit,
-        setValue: setFormValue,
-        getValues: getFormValues,
-        formState: { errors, isValid: isFormValid },
-        reset: resetForm,
-    } = useForm<LinkingDeviceFormSchemaType>({
-        resolver: zodResolver(linkingDeviceFormSchema),
-        defaultValues: {
-            deviceName: "My Device",
-            progressLog: [],
-            mnemonic: "",
-        },
-    });
-
-    const encryptedTransferableDataRef = useRef<string>("");
-
-    const { mutateAsync: linkNewDevice } =
-        trpcReact.v1.device.link.useMutation();
-    const removeDevice = trpcReact.v1.device.remove.useMutation();
-
-    const addToProgressLog = (
-        message: string,
-        type: "done" | "info" | "warn" | "error" = "done",
-    ) => {
-        const newProgressLog = [{ message, type }, ...progressLogRef.current];
-        progressLogRef.current = newProgressLog;
-        setFormValue("progressLog", newProgressLog);
-    };
-
-    const startLinkingProcess = async (): Promise<{
-        apiKey: string;
-        encryptedTransferableData: string;
-    }> => {
-        if (!unlockedVault) {
-            addToProgressLog("No unlocked vault found.", "error");
-            throw new Error("No unlocked vault found.");
-        }
-
-        // Run the account.linkDevice mutation
-        let apiKey: string;
-        try {
-            addToProgressLog(
-                "Registering a new device with the server...",
-                "info",
-            );
-            apiKey = await linkNewDevice();
-            addToProgressLog("Device registered.");
-        } catch (e) {
-            if (e instanceof TRPCClientError) {
-                addToProgressLog(
-                    `Failed to register the device with the server: ${e.message}`,
-                    "error",
-                );
-            } else {
-                addToProgressLog(
-                    "Failed to register the device with the server.",
-                    "error",
-                );
-            }
-            throw e;
-        }
-
-        // Encrypt the received key with a random mnemonic passphrase
-        let encryptedTransferableData;
-        try {
-            addToProgressLog(
-                "Encrypting and serializing credentials...",
-                "info",
-            );
-            encryptedTransferableData =
-                await OnlineServicesAccount.encryptTransferableData(apiKey);
-            addToProgressLog("Encrypted and serialized credentials.");
-        } catch (e) {
-            addToProgressLog(
-                "Failed to encrypt and serialize credentials.",
-                "error",
-            );
-            throw e;
-        }
-
-        // Show the user a note and the mnemonic passphrase to enter on the other device
-        setFormValue("mnemonic", encryptedTransferableData.mnemonic);
-        // setFormValue("showingMnemonic", true);
-
-        return {
-            apiKey,
-            encryptedTransferableData:
-                encryptedTransferableData?.encryptedDataB64,
-        };
-    };
-
-    const finishLinkingProcess = async (apiKey: string) => {
-        const deviceID = extractIDFromAPIKey(apiKey);
-
-        // Start setting up the WebRTC connection
-        const webRTConnection = await newWebRTCConnection();
-        webRTConnection.onconnectionstatechange = () => {
-            // console.debug(
-            //     "WebRTC connection state changed:",
-            //     webRTConnection.connectionState
-            // );
-
-            if (webRTConnection.connectionState === "connected") {
-                addToProgressLog(
-                    "Private connection established, disconnecting from CryptexVault Online Services...",
-                    "info",
-                );
-
-                // Since we're connected directly to the other device, we can disconnect from the Online Services
-                onlineWSServicesEndpoint.disconnect();
-                onlineWSServicesEndpoint.unbind();
-            } else if (
-                webRTConnection.connectionState === "disconnected" ||
-                webRTConnection.connectionState === "failed"
-            ) {
-                // Handle disconnection from the other device
-                addToProgressLog(
-                    "Private connection has been terminated",
-                    "info",
-                );
-
-                setIsOperationInProgress(false);
-            }
-        };
-
-        // Create a data channel
-        const webRTCDataChannel = webRTConnection.createDataChannel("linking");
-        // Once the data channel is open, start sending the encrypted vault package
-        webRTCDataChannel.onopen = async () => {
-            // console.log("Data channel opened.", event);
-            addToProgressLog(
-                "Trying to send data to the other device...",
-                "info",
-            );
-
-            // Check if we have valid vault data to send
-            // In reality, this should never happen, but we'll check anyway to make the typescript compiler happy
-            if (!vaultMetadata || !unlockedVault) {
-                addToProgressLog(
-                    "Cannot find vault metadata or the vault itself.",
-                    "error",
-                );
-                console.error(
-                    "Cannot find vault metadata or unlocked vault data.",
-                );
-
-                // Close the data channel
-                webRTCDataChannel.close();
-
-                // Close the WebRTC connection
-                webRTConnection.close();
-
-                setIsOperationInProgress(false);
-
-                // Prevent further execution
-                return;
-            }
-
-            {
-                addToProgressLog(
-                    "Packaging vault data for transmission...",
-                    "info",
-                );
-
-                // Prepare the vault data for transmission
-                const exportedVault = unlockedVault.packageForLinking(apiKey);
-
-                addToProgressLog("Vault data packaged. Encrypting...", "info");
-
-                const encryptedBlobObj =
-                    await vaultMetadata.exportForLinking(exportedVault);
-
-                // Send the encrypted data to the other device
-                webRTCDataChannel.send(encryptedBlobObj);
-            }
-
-            addToProgressLog("Vault data successfully sent.");
-
-            // Close the data channel
-            webRTCDataChannel.close();
-            // NOTE: Make sure not to close the WebRTC connection here, as we could still be transmitting data
-            // NOTE: The other device will close the connection once it's done receiving data
-
-            // Save the new linked device to this vault
-            {
-                addToProgressLog(
-                    "Saving new linked device to vault...",
-                    "info",
-                );
-
-                setUnlockedVault(async (prev) => {
-                    prev.OnlineServices.addLinkedDevice(
-                        deviceID,
-                        getFormValues("deviceName"),
-                    );
-                    await vaultMetadata.save(unlockedVault);
-
-                    return prev;
-                });
-
-                addToProgressLog("New linked device saved.");
-            }
-
-            toast.success("Successfully linked device.", {
-                closeButton: true,
-            });
-
-            addToProgressLog("It is safe to close this dialog now.", "info");
-        };
-        webRTCDataChannel.onerror = () => {
-            addToProgressLog(
-                "Failed to send vault data. Data channel error.",
-                "error",
-            );
-
-            // Close the WebRTC connection
-            webRTCDataChannel.close();
-            webRTConnection.close();
-
-            setIsOperationInProgress(false);
-        };
-        webRTCDataChannel.onclose = () => {
-            // console.debug("Data channel closed.", event);
-
-            // Close the WebRTC connection
-            webRTConnection.close();
-
-            setIsOperationInProgress(false);
-        };
-
-        let iceCandidatesGenerated = 0;
-        // On ICE candidate, send it to the other device
-        // This is called after we call setLocalDescription, that's why we have access to the wsChannel object
-        webRTConnection.onicecandidate = (event) => {
-            console.debug("WebRTC ICE candidate:", event);
-            if (event.candidate) {
-                wsChannel.trigger("client-link", {
-                    type: "ice-candidate",
-                    data: event.candidate,
-                });
-
-                iceCandidatesGenerated++;
-            }
-
-            if (iceCandidatesGenerated === 0 && !event.candidate) {
-                addToProgressLog(
-                    "Failed to generate any ICE candidates. WebRTC error.",
-                    "error",
-                );
-
-                // Close the WebRTC connection
-                webRTCDataChannel.close();
-                webRTConnection.close();
-
-                onlineWSServicesEndpoint.disconnect();
-
-                setIsOperationInProgress(false);
-            }
-        };
-
-        // Connect to WS and wait for the other device
-        const onlineWSServicesEndpoint = newWSPusherInstance();
-        onlineWSServicesEndpoint.connection.bind("error", (err: object) => {
-            console.error("WS error:", err);
-            // NOTE: Should we handle specific errors?
-            // if (err.error.data.code === 4004) {
-            //     // log('Over limit!');
-            // }
-            addToProgressLog(
-                "An error occurred while setting up a private connection.",
-                "error",
-            );
-
-            setIsOperationInProgress(false);
-        });
-
-        const channelName = constructLinkPresenceChannelName(apiKey);
-        const wsChannel = onlineWSServicesEndpoint.subscribe(channelName);
-        wsChannel.bind("pusher:subscription_succeeded", () => {
-            setReadyForOtherDevice(true);
-            cancelFnRef.current = async () => {
-                // Close the WS connection
-                onlineWSServicesEndpoint.disconnect();
-
-                setIsOperationInProgress(false);
-                setReadyForOtherDevice(false);
-
-                // Try to remove the device from the account - if it fails, we'll just have to leave it there for the user to remove manually
-                try {
-                    await removeDevice.mutateAsync({
-                        id: deviceID,
-                    });
-                } catch (err) {
-                    console.error("Failed to remove device:", err);
-
-                    addToProgressLog(
-                        "Rollback - Failed to remove device from account.",
-                        "error",
-                    );
-                }
-
-                addToProgressLog("Linking process cancelled.", "error");
-                toast.error("Linking process cancelled.");
-            };
-            addToProgressLog("Waiting for other device to connect...", "info");
-        });
-
-        // When the user connects, send the WebRTC offer to the other device
-        wsChannel.bind("pusher:member_added", async () => {
-            addToProgressLog("Found other device.");
-
-            addToProgressLog("Creating a private connection...", "info");
-
-            // When the device connects, create a WebRTC offer
-            const offer = await webRTConnection.createOffer();
-            await webRTConnection.setLocalDescription(offer);
-
-            // Send the offer to the other device
-            wsChannel.trigger("client-link", {
-                type: "offer",
-                data: offer,
-            });
-        });
-
-        // Receive WebRTC events from the other device
-        // Used to receive the offer and ICE candidates - establishing the connection
-        wsChannel.bind(
-            "client-link",
-            async (data: {
-                type: "ice-candidate" | "answer";
-                data: RTCIceCandidateInit | RTCSessionDescriptionInit;
-            }) => {
-                console.debug("Received data from other device.", data);
-
-                if (data.type === "ice-candidate") {
-                    console.debug("Adding ICE candidate.");
-                    await webRTConnection.addIceCandidate(
-                        data.data as RTCIceCandidateInit,
-                    );
-                } else if (data.type === "answer") {
-                    console.debug("Setting remote description.", data.data);
-                    await webRTConnection.setRemoteDescription(
-                        data.data as RTCSessionDescriptionInit,
-                    );
-                }
-            },
-        );
-    };
-
-    const fileMethod = async (encryptedTransferableData: string) => {
-        // Save it to a file with a .cryxa extension
-        const blob = new Blob([encryptedTransferableData], {
-            type: "text/plain;charset=utf-8",
-        });
-
-        // Normalize the device name
-        const deviceName = getFormValues("deviceName")
-            .replaceAll(" ", "-")
-            .toLowerCase();
-
-        // Save the file
-        const fileName = `vault-linking-${deviceName}-${Date.now()}.cryxa`;
-        const link = document.createElement("a");
-        link.href = window.URL.createObjectURL(blob);
-        link.download = fileName;
-        link.click();
-    };
-
-    const qrCodeMethod = async (encryptedTransferableData: string) => {
-        // Set the encryptedTransferableDataRef to the encrypted data
-        // By the time this method is called, the QR Code component should be mounted
-        encryptedTransferableDataRef.current = encryptedTransferableData;
-    };
-
-    const onSubmit = async (type: LinkMethod) => {
-        // If the form is not valid, submit it to show the errors
-        if (!isFormValid) {
-            handleSubmit(() => {
-                // No-op
-            })();
-            return;
-        }
-
-        setSelectedLinkMethod(type);
-        setIsOperationInProgress(true);
-
-        // We exploit this try-catch block to catch any errors that may occur and stop execution in case of an error
-        // All expected errors should be handled inside each method that can throw them
-        // Meaning only unexpected errors should be caught here
-        try {
-            // Trigger linking
-            const { apiKey, encryptedTransferableData } =
-                await startLinkingProcess();
-
-            if (type === LinkMethod.File) {
-                // Generate the file with the encrypted data for the other device
-                fileMethod(encryptedTransferableData);
-            } else if (type === LinkMethod.QRCode) {
-                // Make sure that a QR Code with the encrypted data is generated
-                qrCodeMethod(encryptedTransferableData);
-            } else if (type === LinkMethod.Sound) {
-                throw new Error("Not implemented.");
-            } else {
-                throw new Error("Unknown linking method.");
-            }
-
-            await finishLinkingProcess(apiKey);
-        } catch (e) {
-            console.error("Failed to link device.", e);
-
-            toast.error("Failed to link device.", {
-                closeButton: true,
-            });
-
-            setIsOperationInProgress(false);
-        }
-    };
-
-    const hasCredentials = unlockedVault.OnlineServices.isBound();
-    const isWrongTier =
-        !hasCredentials && !!!onlineServicesData?.remoteData?.canLink;
-
-    return (
-        <GenericModal
-            visibleState={[visible, () => hideDialog()]}
-            inhibitDismissOnClickOutside={isOperationInProgress}
-        >
-            <Body className="flex w-full flex-col items-center gap-3">
-                <div className="">
-                    <p className="text-2xl font-bold text-gray-900">
-                        Link a Device
-                    </p>
-                </div>
-                <div className="flex w-full flex-col">
-                    {
-                        // If the user is not registered
-                        !hasCredentials && (
-                            <p className="text-center text-base text-gray-600">
-                                You need to be registered with the online
-                                services in order to link devices to your vault.
-                            </p>
-                        )
-                    }
-                    {
-                        // If there was an error while fetching the linking configuration, tell the user
-                        onlineServicesData == null && (
-                            <p className="text-center text-base text-gray-600">
-                                Failed to fetch linking configuration. Please
-                                try again later.
-                            </p>
-                        )
-                    }
-                    {isWrongTier && (
-                        <>
-                            <p className="text-center text-base text-gray-600">
-                                Your tier does not allow linking devices.
-                            </p>
-                            <p className="text-center text-base text-gray-600">
-                                Please upgrade your account to link devices.
-                            </p>
+                            <div className="mt-4 flex flex-col">
+                                <FormTextAreaField
+                                    label="Notes"
+                                    darkBackground={true}
+                                    autoCapitalize="none"
+                                    placeholder="Add notes"
+                                    register={register("Notes")}
+                                />
+                                {errors.Notes && (
+                                    <p className="text-red-500">
+                                        {errors.Notes.message}
+                                    </p>
+                                )}
+                            </div>
                         </>
                     )}
-                    {!isWrongTier &&
-                        hasCredentials &&
-                        selectedLinkMethod == null && (
-                            <>
-                                <p className="text-center text-base text-gray-600">
-                                    In order to enable data synchronization
-                                    between two devices, you need to link them.
-                                </p>
-                                <p className="text-center text-base text-gray-600">
-                                    Choose one of the available linking methods
-                                    below to start.
-                                </p>
-
-                                <div className="my-5 flex flex-col gap-2">
-                                    <Controller
-                                        control={control}
-                                        name="deviceName"
-                                        render={({
-                                            field: { onChange, onBlur, value },
-                                        }) => (
-                                            <>
-                                                <FormInputField
-                                                    label="Device name"
-                                                    placeholder="Linked device name"
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    value={value}
-                                                />
-                                            </>
-                                        )}
-                                    />
-                                    {
-                                        // If the device name is invalid, show an error
-                                        errors.deviceName &&
-                                            errors.deviceName.message && (
-                                                <p className="text-red-500">
-                                                    {errors.deviceName.message}
-                                                </p>
-                                            )
-                                    }
-                                    <div className="w-full">
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            This name will be used to help you
-                                            differentiate between devices.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <BlockWideButton
-                                    icon={
-                                        <CameraIcon className="h-5 w-5 text-gray-900" />
-                                    }
-                                    iconCaption="QR code"
-                                    description="Generate a QR code to link the devices"
-                                    onClick={() => onSubmit(LinkMethod.QRCode)}
-                                    disabled={isOperationInProgress}
-                                />
-
-                                <BlockWideButton
-                                    icon={
-                                        <SpeakerWaveIcon className="h-5 w-5 text-gray-900" />
-                                    }
-                                    iconCaption="Sound"
-                                    description="Use sound to link the devices"
-                                    // disabled={
-                                    //     isSubmitting ||
-                                    //     (validInput !== ValidInput.Sound && validInput !== null)
-                                    // }
-                                    disabled={true} // TODO: Sound transfer is not implemented yet
-                                    // validInput={validInput === ValidInput.Sound}
-                                />
-
-                                <BlockWideButton
-                                    icon={
-                                        <DocumentTextIcon className="h-5 w-5 text-gray-900" />
-                                    }
-                                    iconCaption="File"
-                                    description="Generate a file to link devices manually"
-                                    onClick={() => onSubmit(LinkMethod.File)}
-                                    disabled={isOperationInProgress}
-                                />
-                            </>
-                        )}
-
-                    {!isWrongTier &&
-                        hasCredentials &&
-                        selectedLinkMethod != null && (
-                            <div className="flex flex-col gap-2">
-                                <div className="mt-2 flex flex-col items-center gap-2">
-                                    {/* Show the operation in progress indicator - pulsating text */}
-                                    {isOperationInProgress && (
-                                        <div className="flex items-center">
-                                            <p className="animate-pulse text-gray-900">
-                                                Waiting for device...
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {readyForOtherDevice &&
-                                        isOperationInProgress && (
-                                            <div className="flex list-decimal flex-col gap-2 rounded-md bg-slate-200 p-2">
-                                                <p className="text-md w-full text-center text-slate-600 underline">
-                                                    Tips for linking to the
-                                                    other device
-                                                </p>
-                                                {/* Show a nicely formatted tip on how to
-                                            load the data into the other device */}
-                                                {selectedLinkMethod ===
-                                                    LinkMethod.QRCode &&
-                                                    readyForOtherDevice && (
-                                                        <>
-                                                            <p className="text-md text-slate-600">
-                                                                1. Scan the QR
-                                                                Code with the
-                                                                other device by
-                                                                opening the{" "}
-                                                                <strong>
-                                                                    Link a
-                                                                    Device
-                                                                </strong>{" "}
-                                                                dialog and then
-                                                                selecting{" "}
-                                                                <strong>
-                                                                    QR Code
-                                                                </strong>
-                                                            </p>
-                                                            <p className="text-md text-slate-600">
-                                                                2. Once the QR
-                                                                code is
-                                                                successfully
-                                                                scanned, enter
-                                                                the decryption
-                                                                passphrase shown
-                                                                below.
-                                                            </p>
-                                                        </>
-                                                    )}
-                                                {selectedLinkMethod ===
-                                                    LinkMethod.File &&
-                                                    readyForOtherDevice && (
-                                                        <>
-                                                            <p className="text-md text-slate-600">
-                                                                1. Load the file
-                                                                into the other
-                                                                device by
-                                                                opening the{" "}
-                                                                <strong>
-                                                                    Link a
-                                                                    Device
-                                                                </strong>{" "}
-                                                                dialog and then
-                                                                selecting{" "}
-                                                                <strong>
-                                                                    Using a file
-                                                                </strong>
-                                                            </p>
-                                                            <p className="text-md text-slate-600">
-                                                                2. Once the file
-                                                                is loaded, enter
-                                                                the decryption
-                                                                passphrase shown
-                                                                below.
-                                                            </p>
-                                                        </>
-                                                    )}
-                                                <p className="text-md text-slate-600">
-                                                    3. Follow the instructions
-                                                    on the other device.
-                                                </p>
-                                            </div>
-                                        )}
-
-                                    {selectedLinkMethod === LinkMethod.QRCode &&
-                                        readyForOtherDevice && (
-                                            <QRCode
-                                                value={
-                                                    encryptedTransferableDataRef.current
-                                                }
-                                            />
-                                        )}
-
-                                    {/* Show the mnemonic */}
-                                    {isOperationInProgress && (
-                                        <Controller
-                                            control={control}
-                                            name="mnemonic"
-                                            render={({ field: { value } }) => (
-                                                <div
-                                                    className={clsx({
-                                                        "flex flex-col items-center gap-2":
-                                                            true,
-                                                        hidden: !value.length,
-                                                    })}
-                                                >
-                                                    <p className="select-all rounded-md bg-gray-200 p-2 text-gray-900">
-                                                        {value}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        Enter this mnemonic on
-                                                        the other device when
-                                                        prompted.
-                                                    </p>
-                                                </div>
-                                            )}
-                                        />
-                                    )}
-                                </div>
-                                <Controller
-                                    control={control}
-                                    name="progressLog"
-                                    render={({ field: { value } }) => (
-                                        <EventLogDisclosure
-                                            title="Event log"
-                                            log={value}
-                                        />
-                                    )}
-                                />
-                            </div>
-                        )}
-                </div>
-            </Body>
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                <ButtonFlat
-                    text="Cancel"
-                    type={ButtonType.Secondary}
-                    className={clsx({
-                        "sm:ml-2": true,
-                        hidden: !readyForOtherDevice || !isOperationInProgress,
-                    })}
-                    disabled={!isOperationInProgress}
-                    onClick={() => cancelFnRef.current()}
-                />
-                <ButtonFlat
-                    text="Close"
-                    type={ButtonType.Secondary}
-                    className={clsx({
-                        hidden: isOperationInProgress,
-                    })}
-                    onClick={hideDialog}
-                    disabled={isOperationInProgress}
-                />
-            </Footer>
-        </GenericModal>
-    );
-};
-
-const EditLinkedDeviceDialog: React.FC<{
-    showDialogFnRef: React.MutableRefObject<(() => void) | null>;
-    selectedDevice: React.MutableRefObject<LinkedDevice | null>;
-    vaultMetadata: VaultMetadata | null;
-}> = ({ showDialogFnRef, selectedDevice, vaultMetadata }) => {
-    const [visible, setVisible] = useState(false);
-    showDialogFnRef.current = () => {
-        if (selectedDevice.current == null) {
-            return;
-        }
-
-        // Set the initial form values
-        resetForm({
-            name: selectedDevice.current.Name,
-            autoConnect: selectedDevice.current.AutoConnect,
-            syncTimeout: selectedDevice.current.SyncTimeout,
-            syncTimeoutPeriod: selectedDevice.current.SyncTimeoutPeriod,
-        });
-
-        setVisible(true);
-    };
-    const hideDialog = (force = false) => {
-        const hide = () => {
-            setVisible(false);
-
-            // Reset the form with a delay for better UX
-            setTimeout(() => {
-                resetForm();
-                selectedDevice.current = null;
-            }, DIALOG_BLUR_TIME);
-        };
-
-        // Check if the form has been modified (only if we are not forcing)
-        if (isDirty && !force) {
-            // If it has, ask the user if they want to discard the changes
-            if (confirm("Are you sure you want to discard your changes?")) {
-                hide();
-            }
-        } else {
-            // If not, just hide the modal
-            hide();
-        }
-    };
-
-    const [syncTimeoutValue, setSyncTimeoutValue] = useState(
-        selectedDevice.current?.SyncTimeout ?? false,
-    );
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-
-    const formSchema = z.object({
-        name: z.string().nonempty().max(200),
-        autoConnect: z.boolean(),
-        syncTimeout: z.boolean(),
-        syncTimeoutPeriod: z.coerce.number().int().min(1),
-    });
-    type FormSchema = z.infer<typeof formSchema>;
-    const {
-        handleSubmit,
-        control,
-        formState: { errors, isSubmitting, isDirty },
-        reset: resetForm,
-    } = useForm<FormSchema>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            name: "",
-            autoConnect: false,
-            syncTimeout: false,
-            syncTimeoutPeriod: 1,
-        },
-    });
-
-    const onSubmit = async (form: FormSchema) => {
-        if (
-            selectedDevice.current == null ||
-            vaultMetadata == null ||
-            !isDirty
-        ) {
-            hideDialog();
-            return;
-        }
-
-        setUnlockedVault(async (prev) => {
-            const originalLinkedDevice = prev.OnlineServices.LinkedDevices.find(
-                (d) => d.ID === selectedDevice.current?.ID,
-            );
-
-            if (originalLinkedDevice != null) {
-                originalLinkedDevice.setName(form.name);
-                originalLinkedDevice.setAutoConnect(form.autoConnect);
-                originalLinkedDevice.setSyncTimeout(form.syncTimeout);
-                originalLinkedDevice.setSyncTimeoutPeriod(
-                    form.syncTimeoutPeriod,
-                );
-            }
-
-            await vaultMetadata?.save(prev);
-
-            return prev;
-        });
-
-        hideDialog(true);
-    };
-
-    return (
-        <GenericModal
-            key="edit-linked-device"
-            visibleState={[
-                visible && selectedDevice.current != null,
-                () => hideDialog(),
-            ]}
-        >
-            <Body>
-                <div className="flex flex-col text-center">
-                    <p className="line-clamp-2 text-2xl font-bold text-gray-900">
-                        Linked Device - {selectedDevice.current?.Name}
-                    </p>
-
-                    <div className="my-2 flex w-full flex-col items-center text-left">
-                        <p
-                            className="line-clamp-2 text-left text-base text-gray-600"
-                            title={"When the device was linked to this vault"}
-                        >
-                            <span className="font-bold">Linked on:</span>{" "}
-                            {selectedDevice.current?.LinkedAtTimestamp && (
-                                <>
-                                    {new Date(
-                                        selectedDevice.current.LinkedAtTimestamp,
-                                    ).toLocaleString()}
-                                </>
-                            )}
-                        </p>
-                        <p
-                            className="line-clamp-2 text-left text-base text-gray-600"
-                            title={
-                                "When the data was last synchronized with this device"
-                            }
-                        >
-                            <span className="font-bold">
-                                Last Synchronized:
-                            </span>{" "}
-                            {selectedDevice.current?.LastSync ? (
-                                <>
-                                    {new Date(
-                                        selectedDevice.current.LastSync,
-                                    ).toLocaleString()}
-                                </>
-                            ) : (
-                                "Never synchronized"
-                            )}
-                        </p>
-                        <p
-                            className="line-clamp-2 text-left text-base text-gray-600"
-                            title={
-                                "Whether or not this is the main device for this vault"
-                            }
-                        >
-                            <span className="font-bold">Root Device:</span>{" "}
-                            {selectedDevice.current?.IsRoot ? "Yes" : "No"}
-                        </p>
-                    </div>
-                    <div className="flex w-full flex-col space-y-3 text-left">
-                        <div className="flex flex-col">
-                            <Controller
-                                control={control}
-                                name="name"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <FormInputField
-                                        label="Name *"
-                                        placeholder="Name of the device"
-                                        type="text"
-                                        autoCapitalize="words"
-                                        onChange={onChange}
-                                        onBlur={onBlur}
-                                        value={value}
-                                    />
-                                )}
-                            />
-                            {errors.name && (
-                                <p className="text-red-500">
-                                    {errors.name.message}
-                                </p>
-                            )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Controller
-                                control={control}
-                                name="autoConnect"
-                                render={({
-                                    field: { onChange, onBlur, value },
-                                }) => (
-                                    <>
-                                        <div className="flex items-center">
-                                            <label className="flex items-center text-gray-600">
-                                                Auto Connect
-                                            </label>
-                                            <InformationCircleIcon
-                                                className="h-5 w-5 text-gray-600"
-                                                title="Whether or not we should automatically connect to this device when it is available"
-                                            />
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            className="form-checkbox h-5 w-5 text-gray-600"
-                                            onChange={onChange}
-                                            onBlur={onBlur}
-                                            checked={value}
-                                        />
-                                    </>
-                                )}
-                            />
-                            {errors.name && (
-                                <p className="text-red-500">
-                                    {errors.name.message}
-                                </p>
-                            )}
-                        </div>
-                        <div>
-                            <div className="flex items-center space-x-2">
-                                <Controller
-                                    control={control}
-                                    name="syncTimeout"
-                                    render={({
-                                        field: { onChange, onBlur, value },
-                                    }) => {
-                                        // Set the value after a delay to prevent render collisions with the controller
-                                        setTimeout(() => {
-                                            setSyncTimeoutValue(value);
-                                        }, 100);
-                                        return (
-                                            <>
-                                                <div className="flex items-center">
-                                                    <label className="flex items-center text-gray-600">
-                                                        Impose a synchronization
-                                                        window
-                                                    </label>
-                                                    <InformationCircleIcon
-                                                        className="h-5 w-5 text-gray-600"
-                                                        title="The synchronization will only be possible when manually triggered and will only last for the specified amount of time."
-                                                    />
-                                                </div>
-                                                <input
-                                                    type="checkbox"
-                                                    className="form-checkbox h-5 w-5 text-gray-600"
-                                                    onChange={onChange}
-                                                    onBlur={onBlur}
-                                                    checked={value}
-                                                />
-                                            </>
-                                        );
-                                    }}
-                                />
-                                {errors.name && (
-                                    <p className="text-red-500">
-                                        {errors.name.message}
-                                    </p>
-                                )}
-                            </div>
-                            <div
-                                className="flex flex-col"
-                                title="The amount of time to stay connected to the device."
-                            >
-                                <Controller
-                                    control={control}
-                                    name="syncTimeoutPeriod"
-                                    render={({
-                                        field: { onChange, onBlur, value },
-                                    }) => (
-                                        <div
-                                            className={clsx({
-                                                hidden: !syncTimeoutValue,
-                                                "border-l pl-2":
-                                                    syncTimeoutValue,
-                                            })}
-                                        >
-                                            <FormNumberInputField
-                                                label="Allowed window"
-                                                valueLabel="seconds"
-                                                min={1}
-                                                onChange={onChange}
-                                                onBlur={onBlur}
-                                                value={value}
-                                            />
-                                        </div>
-                                    )}
-                                />
-                                {errors.syncTimeoutPeriod && (
-                                    <p className="text-red-500">
-                                        {errors.syncTimeoutPeriod.message}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </Body>
-
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                <ButtonFlat
-                    text="Save"
-                    className="sm:ml-2"
-                    type={ButtonType.Primary}
-                    onClick={handleSubmit(onSubmit)}
-                    disabled={isSubmitting}
-                />
-                <ButtonFlat
-                    text="Close"
-                    type={ButtonType.Secondary}
-                    onClick={() => hideDialog()}
-                    disabled={isSubmitting}
-                />
-            </Footer>
-        </GenericModal>
-    );
-};
-
-let onlineWSServicesEndpoint: Pusher | null = null;
-
-const DashboardSidebarSynchronization: React.FC<{
-    showWarningFn: WarningDialogShowFn;
-}> = ({ showWarningFn }) => {
-    enum OnlineServicesStatus {
-        NoAccount = "No Account",
-        NoDevices = "No Devices",
-        Connecting = "Preparing...",
-        Connected = "Ready",
-        Disconnected = "Not Ready",
-        Unavailable = "Unavailable",
-        Failure = "Failure",
-    }
-    const [onlineServicesStatus, setOnlineServicesStatus] =
-        useState<OnlineServicesStatus>(OnlineServicesStatus.NoAccount);
-
-    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-
-    const linkedDevicesLen = unlockedVault?.OnlineServices.LinkedDevices.length;
-    const linkedDevicesLenRef = useRef<number | null>(null);
-
-    //#region Dialog refs
-    const showLinkingDeviceDialogFnRef = useRef<(() => void) | null>(null);
-    const showEditLinkedDeviceDialogFnRef = useRef<() => void>(() => {
-        // No-op
-    });
-    const editLinkedDeviceDialogSelectedDeviceRef = useRef<LinkedDevice | null>(
-        null,
-    );
-    const showDivergenceSolveDialogRef =
-        useRef<DivergenceSolveShowDialogFnPropType | null>(null);
-    //#endregion Dialog refs
-
-    const setupOnlineServices = (
-        onConnect = () => {
-            // NO-OP
-        },
-    ) => {
-        if (!unlockedVault) return;
-
-        if (!onlineServicesData?.remoteData) {
-            setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
-            console.debug("Skipping online services setup - no initial data");
-            return;
-        }
-
-        if (!unlockedVault.OnlineServices.isBound()) {
-            setOnlineServicesStatus(OnlineServicesStatus.NoAccount);
-            console.debug("Skipping online services setup - no account");
-            return;
-        }
-
-        if (
-            unlockedVault.OnlineServices.isBound() &&
-            unlockedVault.OnlineServices.LinkedDevices.length === 0
-        ) {
-            setOnlineServicesStatus(OnlineServicesStatus.NoDevices);
-            console.debug("Skipping online services setup - no linked devices");
-            return;
-        }
-
-        console.debug("Setting up online services connection...");
-
-        onlineWSServicesEndpoint = newWSPusherInstance();
-
-        onlineWSServicesEndpoint.connection.bind("connecting", () => {
-            console.debug("Changed status to offline - connection connecting");
-            setOnlineServicesStatus(OnlineServicesStatus.Connecting);
-        });
-
-        onlineWSServicesEndpoint.connection.bind("connected", () => {
-            console.debug("Changed status to online - connection established");
-            setOnlineServicesStatus(OnlineServicesStatus.Connected);
-
-            // Setup device links
-            // setupDeviceLinks(specificDeviceID);
-            if (onConnect) {
-                onConnect();
-                onConnect = () => void 0;
-            }
-        });
-
-        onlineWSServicesEndpoint.connection.bind("disconnected", () => {
-            console.debug(
-                "Changed status to offline - connection disconnected",
-            );
-
-            // Both statuses mean that we're not connected to the server, but this makes the status more clear to the end user
-            if (linkedDevicesLenRef.current !== 0) {
-                setOnlineServicesStatus(OnlineServicesStatus.Disconnected);
-            } else {
-                setOnlineServicesStatus(OnlineServicesStatus.NoDevices);
-            }
-        });
-
-        onlineWSServicesEndpoint.connection.bind("unavailable", () => {
-            console.debug("Changed status to offline - connection unavailable");
-            setOnlineServicesStatus(OnlineServicesStatus.Unavailable);
-        });
-
-        onlineWSServicesEndpoint.connection.bind("failed", () => {
-            console.debug("Changed status to offline - connection failed");
-            setOnlineServicesStatus(OnlineServicesStatus.Failure);
-        });
-
-        // setOnlineServices(onlineServices);
-    };
-
-    const cleanupOnlineServices = () => {
-        if (onlineWSServicesEndpoint) {
-            onlineWSServicesEndpoint.disconnect();
-            onlineWSServicesEndpoint.unbind_global();
-
-            onlineWSServicesEndpoint = null;
-        }
-    };
-
-    // This handler is used when we receive a message over WebRTC
-    const onWebRTCMessageHandler = (
-        dataChannelInstance: RTCDataChannel,
-        device: LinkedDevice,
-    ): ((event: MessageEvent) => Promise<void>) => {
-        return async (event: MessageEvent<ArrayBuffer>) => {
-            if (unlockedVault == null) {
-                return;
-            }
-
-            console.debug(
-                "[WebRTC Message Handler] Received WebRTC message",
-                event,
-            );
-
-            // Convert the data from ArrayBuffer to Uint8Array
-            const message = Synchronization.Message.parse(
-                new Uint8Array(event.data),
-            );
-
-            console.debug(
-                `[WebRTC Message Handler] Parsed WebRTC message - command: ${
-                    SynchronizationMessageCommand[message.Command]
-                }`,
-                message,
-            );
-
-            if (message.Command === Synchronization.Command.SyncRequest) {
-                // If we receive a request to sync, we will send a response
-                console.debug(
-                    "[WebRTC Message Handler] Received request to sync",
-                );
-
-                const myHash = await unlockedVault.getLatestHash();
-
-                const responseMessage = Synchronization.Message.prepare(
-                    Synchronization.Command.SyncResponse,
-                    myHash,
-                    undefined,
-                    [],
-                );
-
-                // If the hashes are the same - we're in sync
-                // If the hashes are different - we're out of sync, there are a couple of options:
-                // - If our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs, request a full sync
-                // - If our hash is not null, we try to find the diff between the two hashes
-                // -- If we cannot create a diff list, we send every hash we have and let the other device decide from which hash to start
-                // -- If we can create a diff list, we send the diff list along with our latest hash
-                if (message.Hash === myHash) {
-                    console.debug(
-                        "[WebRTC Message Handler] Received request to sync - in sync",
-                    );
-
-                    // Update the last sync timestamp
-                    unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID,
-                    )?.updateLastSync();
-                    setUnlockedVault((pre) => {
-                        pre.OnlineServices.LinkedDevices =
-                            unlockedVault.OnlineServices.LinkedDevices;
-                        return pre;
-                    });
-                } else {
-                    console.debug(
-                        "[WebRTC Message Handler] Received request to sync - out of sync",
-                    );
-
-                    // NOTE: Should we check whether or not the message.hash is null?
-                    // that way we wouldn't need to use the else block for the multiple situations
-
-                    // In case our hash is null, we don't have any data (unlike the other device) - we don't need to send any diffs/hashes, request a full sync
-                    if (myHash == null) {
-                        console.debug(
-                            "[WebRTC Message Handler] Received request to sync - out of sync - requesting full sync",
-                        );
-
-                        responseMessage.setCommand(
-                            Synchronization.Command.SyncRequest,
-                        );
-                    } else {
-                        // If we have a hash, we can try to send the diff list, fall back to sending all hashes if we can't find the hash
-                        const diffList = await unlockedVault.getDiffsSinceHash(
-                            message.Hash ?? null,
-                        );
-
-                        // If the diff list is empty, we couldn't find the hash - send every hash we have and let the other device decide from which hash to start
-                        // Otherwise, send the diff list we extracted from the vault
-                        if (diffList.length > 0) {
-                            responseMessage.setDiffList(diffList);
-
-                            console.debug(
-                                "[WebRTC Message Handler] Couldn't find the received hash - sending diff list to resolve the conflict. Diff list:",
-                                diffList,
-                            );
-                        } else {
-                            responseMessage.setCommand(
-                                Synchronization.Command.SyncResponseAllHashes,
-                            );
-                            responseMessage.setHash(
-                                unlockedVault.getAllHashes().join(","),
-                            );
-
-                            console.debug(
-                                "[WebRTC Message Handler] Couldn't find the received hash - sending all hashes to resolve the conflict. Hashes:",
-                                responseMessage.Hash,
-                            );
-                        }
-                    }
-                }
-
-                dataChannelInstance.send(responseMessage.serialize());
-            } else if (
-                message.Command ===
-                Synchronization.Command.SyncResponseAllHashes
-            ) {
-                // If we receive a response with all hashes, we will try to find the first hash that we have in common
-                console.debug(
-                    "[WebRTC Message Handler] Received response with all hashes",
-                );
-
-                // Chech if someone is messing with us
-                if (message.Hash == null) {
-                    console.warn(
-                        "[WebRTC Message Handler] Received response with all hashes - but the hash is null",
-                    );
-                    return;
-                }
-
-                const hashes = message.Hash.split(",");
-
-                // Find the first hash that we have in common
-                const firstHashInCommon = unlockedVault
-                    .getAllHashes()
-                    .find((h) => hashes.includes(h));
-
-                console.debug(
-                    "firstHashInCommon",
-                    firstHashInCommon,
-                    unlockedVault.getAllHashes(),
-                    hashes,
-                );
-
-                // We found a common hash, calculate the diff and send it to the other device with our latest hash (use the ResponseSync command)
-                if (firstHashInCommon) {
-                    // Find the index of the common hash in the received hashes array
-                    const firstHashInCommonIndex =
-                        hashes.indexOf(firstHashInCommon);
-
-                    // If the index of the first hash in common is 0, the other device is out of sync - we have the most recent data
-                    // If it's other than 0, we're diverged and we need to request a sync from the other device
-                    const divergenceAtHash =
-                        firstHashInCommonIndex > 0
-                            ? firstHashInCommon
-                            : undefined;
-
-                    console.debug(
-                        "[WebRTC Message Handler] Found a hash in common - sending response to sync... Current vault data:",
-                        unlockedVault,
-                    );
-
-                    const responseMessage = Synchronization.Message.prepare(
-                        Synchronization.Command.SyncResponse,
-                        await unlockedVault.getLatestHash(),
-                        divergenceAtHash,
-                        await unlockedVault.getDiffsSinceHash(
-                            firstHashInCommon,
-                        ),
-                    ).serialize();
-
-                    dataChannelInstance.send(responseMessage);
-
-                    toast.info(
-                        "[Synchronization] Found a common history - syncing...",
-                    );
-                } else {
-                    console.warn(
-                        "[Synchronization] Couldn't find a common history - requesting divergence solve",
-                    );
-                    toast.warn(
-                        "[Synchronization] Synchronization will require manual intervention, please wait...",
-                    );
-
-                    // Send a request to solve the divergence
-                    const responseMessage = Synchronization.Message.prepare(
-                        Synchronization.Command.DivergenceSolveRequest,
-                        undefined,
-                        undefined,
-                        [],
-                    ).serialize();
-                    dataChannelInstance.send(responseMessage);
-                }
-            } else if (
-                message.Command === Synchronization.Command.SyncResponse
-            ) {
-                // Check if we have the same hash - in sync
-                if (message.Hash === (await unlockedVault.getLatestHash())) {
-                    console.debug(
-                        "[WebRTC Message Handler] Received response to sync - in sync",
-                    );
-
-                    toast.info("[Synchronization] Devices are synchronized");
-
-                    // Update the last sync timestamp
-                    unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID,
-                    )?.updateLastSync();
-                    setUnlockedVault((pre) => {
-                        pre.OnlineServices.LinkedDevices =
-                            unlockedVault.OnlineServices.LinkedDevices;
-                        return pre;
-                    });
-
-                    return;
-                }
-                // We're out of sync - try to apply the diffs and check if we're in sync
-                console.debug(
-                    "[WebRTC Message Handler] Received response to sync - out of sync - applying diffs to a mock vault to validate diff list",
-                );
-                toast.info("[Synchronization] Validating diff list...", {
-                    autoClose: false,
-                    toastId: "validating-diff-list",
-                    updateId: "validating-diff-list",
-                });
-
-                // Create a mock vault to try a dry run of the diff application
-                const mockUnlockedVault = new Vault();
-                for (const c of unlockedVault.Credentials) {
-                    mockUnlockedVault.Credentials.push(
-                        Object.assign(new Credential.VaultCredential(), c),
-                    );
-                }
-
-                // Set the online services to the mock vault - we need this to pass the write check for the diffs
-                mockUnlockedVault.OnlineServices = unlockedVault.OnlineServices;
-
-                await mockUnlockedVault.applyDiffs(message.Diffs);
-                const mockVaultHash = await mockUnlockedVault.getLatestHash();
-
-                const hashMatches = mockVaultHash === message.Hash;
-
-                console.debug(
-                    `[WebRTC Message Handler] Applied diffs to mock vault - checking if we're in sync... ${mockVaultHash} === ${message.Hash} => ${hashMatches}`,
-                );
-
-                // Check if our new hash is the same as the other device's hash
-                // If we received a divergence hash, we're diverged and can skip this check
-                if (hashMatches || message.DivergenceHash) {
-                    console.debug(
-                        "[WebRTC Message Handler] Received response to sync - out of sync => in sync - applying diffs to the real vault",
-                    );
-                    toast.update("validating-diff-list", {
-                        autoClose: 1,
-                    });
-                    toast.info("[Synchronization] Applying differences...", {
-                        autoClose: false,
-                        toastId: "applying-diff-list",
-                        updateId: "applying-diff-list",
-                    });
-
-                    const diffsNotKnownByOtherDevice: Diff[] = [];
-                    if (message.DivergenceHash) {
-                        // If we received a divergence hash, we're diverged and we need to save the diffs that the other device doesn't know about
-                        // So we can send them to the other device after we apply the diffs that we received from the other device
-                        (
-                            await unlockedVault.getDiffsSinceHash(
-                                message.DivergenceHash,
-                            )
-                        ).forEach((diff) => {
-                            diffsNotKnownByOtherDevice.push(diff);
-                        });
-                    }
-
-                    await unlockedVault.applyDiffs(message.Diffs);
-
-                    const latestHash = await unlockedVault.getLatestHash();
-                    const hashMatches = latestHash === message.Hash;
-
-                    // Update the last sync timestamp
-                    unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID,
-                    )?.updateLastSync();
-                    // setUnlockedVault((pre) => {
-                    //     if (pre == null) {
-                    //         return pre;
-                    //     } else {
-                    //         pre.OnlineServices.LinkedDevices =
-                    //             unlockedVault.OnlineServices.LinkedDevices;
-                    //         return pre;
-                    //     }
-                    // });
-
-                    // Save the vault
-                    unlockedVaultMetadata?.save(unlockedVault);
-
-                    setUnlockedVault(unlockedVault);
-
-                    // Check if the last hash is the same as the other device's hash
-                    if (hashMatches) {
-                        // We're in sync - no diverging between the devices
-                        console.debug(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => in sync",
-                        );
-                        toast.success(
-                            "[Synchronization] Successfully synced with the other device",
-                            {
-                                toastId: "applying-diff-list",
-                                updateId: "applying-diff-list",
-                            },
-                        );
-                    } else if (!hashMatches && message.DivergenceHash) {
-                        console.debug(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => diverged - sending diff list to the other device",
-                        );
-
-                        toast.info(
-                            "[Synchronization] Devices diverged - sending differences to the other device...",
-                            {
-                                toastId: "applying-diff-list",
-                                updateId: "applying-diff-list",
-                            },
-                        );
-
-                        // If it isn't, we're diverging
-                        const syncMessage = Synchronization.Message.prepare(
-                            Synchronization.Command.SyncResponse,
-                            latestHash,
-                            undefined,
-                            diffsNotKnownByOtherDevice,
-                        ).serialize();
-
-                        dataChannelInstance.send(syncMessage);
-                    } else {
-                        // NOTE: We're here if the hash doesn't match and we don't have a divergence hash - a basic SyncResponse
-                        toast.error(
-                            "Failed to sync - could not apply the received changes",
-                            {
-                                toastId: "applying-diff-list",
-                                updateId: "applying-diff-list",
-                                autoClose: 3000,
-                            },
-                        );
-
-                        console.error(
-                            "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to apply the received changes",
-                        );
-                    }
-                } else {
-                    toast.error(
-                        "Failed to sync - could not apply the received changes",
-                        {
-                            toastId: "validating-diff-list",
-                            updateId: "validating-diff-list",
-                        },
-                    );
-                    console.error(
-                        "[WebRTC Message Handler] Received response to sync - out of sync => out of sync - failed to validate resulting data",
-                    );
-                    console.debug(
-                        "[WebRTC Message Handler] Mock vault data:",
-                        mockUnlockedVault,
-                    );
-                }
-            } else if (
-                message.Command ===
-                Synchronization.Command.DivergenceSolveRequest
-            ) {
-                console.warn(
-                    "[Synchronization] Received divergence solve request - responding...",
-                );
-                toast.info(
-                    "[Synchronization] Devices diverged - preparing the differences...",
-                    {
-                        autoClose: false,
-                        toastId: "generating-diff-list",
-                        updateId: "generating-diff-list",
-                    },
-                );
-
-                // Wait for a second to make sure the toast is shown
-                await new Promise((resolve) => setTimeout(resolve, 100));
-
-                const divergenceSolveResponse = Synchronization.Message.prepare(
-                    Synchronization.Command.DivergenceSolve,
-                    undefined,
-                    undefined,
-                    await unlockedVault.getDiffsSinceHash(null),
-                ).serialize();
-
-                dataChannelInstance.send(divergenceSolveResponse);
-
-                toast.info(
-                    "[Synchronization] Devices diverged - Check the other device to select which differences to apply",
-                    {
-                        toastId: "generating-diff-list",
-                        updateId: "generating-diff-list",
-                    },
-                );
-            } else if (
-                message.Command === Synchronization.Command.DivergenceSolve
-            ) {
-                const theirChanges = message.Diffs.filter(
-                    (i) => i.Changes != null,
-                ).map((i) => i.Changes?.Props) as PartialCredential[];
-
-                // Open a dialog for the user to select which differences to apply
-                showDivergenceSolveDialogRef.current?.(
-                    unlockedVault.Credentials,
-                    theirChanges,
-                    async (diffsToApply, diffsToSend) => {
-                        toast.info(
-                            "[Synchronization] Applying differences...",
-                            {
-                                autoClose: false,
-                                toastId: "applying-diff-list",
-                                updateId: "applying-diff-list",
-                            },
-                        );
-
-                        await Synchronization.Process.divergenceSolveConfirm(
-                            unlockedVault,
-                            diffsToApply,
-                        );
-
-                        // Update the last sync timestamp
-                        unlockedVault.OnlineServices.LinkedDevices.find(
-                            (d) => d.ID === device.ID,
-                        )?.updateLastSync();
-                        // setUnlockedVault((pre) => {
-                        //     if (pre == null) {
-                        //         return pre;
-                        //     } else {
-                        //         pre.OnlineServices.LinkedDevices =
-                        //             unlockedVault.OnlineServices.LinkedDevices;
-                        //         return pre;
-                        //     }
-                        // });
-
-                        // Save the vault
-                        unlockedVaultMetadata?.save(unlockedVault);
-                        setUnlockedVault(unlockedVault);
-
-                        toast.info(
-                            "[Synchronization] Changes applied to this vault. Sending differences to the other device...",
-                            {
-                                toastId: "applying-diff-list",
-                                updateId: "applying-diff-list",
-                            },
-                        );
-
-                        // Send the diffsToSend to the other device
-                        const divergenceSolveResponse =
-                            Synchronization.Message.prepare(
-                                Synchronization.Command.SyncResponse,
-                                await unlockedVault.getLatestHash(),
-                                undefined,
-                                diffsToSend,
-                            ).serialize();
-
-                        dataChannelInstance.send(divergenceSolveResponse);
-                    },
-                    () => {
-                        // Warn the user that the vaults are still diverged
-                        toast.warn(
-                            "[Synchronization] The vaults are still diverged - you can try to solve the differences again by synchronizing the vaults",
-                        );
-                    },
-                );
-            } else if (
-                message.Command === Synchronization.Command.LinkedDevicesList
-            ) {
-                // if (message.LinkedDevices == null) {
-                //     console.debug(
-                //         "[WebRTC Message Handler] Received linked devices list - but the list is null"
-                //     );
-                //     return;
-                // }
-
-                const isDeviceRoot =
-                    unlockedVault.OnlineServices.LinkedDevices.find(
-                        (d) => d.ID === device.ID,
-                    )?.IsRoot;
-
-                if (!isDeviceRoot) {
-                    console.warn(
-                        `[WebRTC Message Handler] Received linked devices list from '${device.Name}' - but the device is not root - ignoring`,
-                    );
-                    return;
-                }
-
-                console.debug(
-                    "[WebRTC Message Handler] Received linked devices list",
-                    message.LinkedDevices,
-                );
-
-                const changesOccured =
-                    Synchronization.Process.linkedDevicesList(
-                        unlockedVault,
-                        message,
-                        device.ID,
-                    );
-
-                if (changesOccured) {
-                    setUnlockedVault(unlockedVault);
-
-                    // Save the vault
-                    await unlockedVaultMetadata?.save(unlockedVault);
-                    toast.info(
-                        "[Synchronization] Successfully updated the list of linked devices",
-                    );
-                }
-            } else {
-                console.warn(
-                    "[WebRTC Message Handler] Received invalid command",
-                    message.Command,
-                );
-            }
-        };
-    };
-
-    const sendLinkedDevicesList = (
-        dataChannel: RTCDataChannel,
-        devicesToExclude: string[],
-    ) => {
-        if (onlineServicesData?.remoteData?.root && unlockedVault) {
-            const linkedDevicesPayload = Synchronization.Message.prepare(
-                Synchronization.Command.LinkedDevicesList,
-                undefined,
-                undefined,
-                [],
-                unlockedVault.OnlineServices.getLinkedDevices(devicesToExclude),
-            ).serialize();
-
-            // Send the payload
-            // Even if the linkedDeviceList is empty, we still need to send it (means we're the only devices linked)
-            dataChannel.send(linkedDevicesPayload);
-        }
-    };
-
-    const showEditLinkedDeviceDialog = (device: LinkedDevice) => {
-        editLinkedDeviceDialogSelectedDeviceRef.current = device;
-        showEditLinkedDeviceDialogFnRef.current();
-    };
-
-    // Make sure we're connected to online services if we have linked devices
-    // This prevents us from connecting to online services if we don't need to
-    // Check if the unlocked vault has loaded
-    if (linkedDevicesLen != null) {
-        const currentValue = linkedDevicesLen;
-        const previousValue = linkedDevicesLenRef.current;
-
-        linkedDevicesLenRef.current = linkedDevicesLen;
-
-        // This prevents the comparison from running on the first render (while the previous value is null)
-        if (previousValue != null) {
-            // If the value has changed, run the comparison
-            if (previousValue !== currentValue) {
-                console.debug("Linked devices changed", currentValue);
-
-                // If we have linked devices, connect to online services
-                if (previousValue === 0 && currentValue > 0) {
-                    console.debug(
-                        "New linked devices, triggering online services setup",
-                    );
-                    setupOnlineServices();
-                }
-
-                // If we don't have linked devices, disconnect from online services
-                if (currentValue === 0 && previousValue > 0) {
-                    cleanupOnlineServices();
-                }
-            }
-        }
-    }
-
-    const DeviceItem: React.FC<{
-        device: LinkedDevice;
-        onlineServices: OnlineServicesAccount;
-        onlineServicesStatus: OnlineServicesStatus;
-    }> = ({ device, onlineServices, onlineServicesStatus }) => {
-        const optionsButtonRef = useRef<HTMLButtonElement | null>(null);
-
-        const { mutateAsync: removeDevice } =
-            trpcReact.v1.device.remove.useMutation();
-
-        const [webRTCConnections, setWebRTCConnections] = useAtom(
-            webRTCConnectionsAtom,
-        );
-
-        const commonChannelName = React.useMemo(
-            () =>
-                constructSyncChannelName(
-                    onlineServices.CreationTimestamp,
-                    onlineServices.deviceID() ?? "",
-                    device.ID,
-                    device.LinkedAtTimestamp,
-                ),
-            [onlineServices, device],
-        );
-
-        const webRTConnection = webRTCConnections.get(device.ID);
-        const linkStatus = webRTConnection.State;
-
-        const setLinkStatus = (state: Synchronization.LinkStatus) => {
-            setWebRTCConnections((prev) => {
-                prev.setState(device.ID, state);
-                return Object.assign(
-                    new Synchronization.WebRTCConnections(),
-                    prev,
-                );
-            });
-        };
-
-        console.debug("DeviceItem render", linkStatus);
-
-        const initLink = (
-            peerConnection: RTCPeerConnection,
-            dataChannel: RTCDataChannel,
-        ) => {
-            setWebRTCConnections((prev) => {
-                prev.upsert(
-                    device.ID,
-                    peerConnection,
-                    dataChannel,
-                    Synchronization.LinkStatus.Connected,
-                );
-                return Object.assign(
-                    new Synchronization.WebRTCConnections(),
-                    prev,
-                );
-            });
-        };
-
-        const tearDownLink = (unsubscribe = false) => {
-            setWebRTCConnections((prev) => {
-                prev.remove(device.ID);
-                return Object.assign(
-                    new Synchronization.WebRTCConnections(),
-                    prev,
-                );
-            });
-            if (onlineWSServicesEndpoint && unsubscribe) {
-                onlineWSServicesEndpoint.unsubscribe(commonChannelName);
-            }
-        };
-
-        const synchronizeNow = async (device: LinkedDevice) => {
-            if (!unlockedVault) {
-                return;
-            }
-
-            // Check if we're connected to the device
-            if (!webRTConnection) {
-                console.warn(
-                    "[Manual Sync] Not connected to device",
-                    device.ID,
-                );
-                return;
-            }
-
-            console.debug("[Manual Sync] Triggered for device", device.ID);
-
-            const currentHash = await unlockedVault.getLatestHash();
-
-            console.debug(
-                "[Manual Sync] Sending request to device",
-                device.ID,
-                currentHash,
-            );
-
-            // Send a message to the device
-            const syncRequestPayload = Synchronization.Message.prepare(
-                Synchronization.Command.SyncRequest,
-                currentHash,
-                undefined,
-                [],
-            ).serialize();
-            webRTConnection.DataChannel?.send(syncRequestPayload);
-        };
-
-        const unlinkDevice = async (device: LinkedDevice) => {
-            if (
-                !unlockedVault ||
-                !unlockedVaultMetadata ||
-                !unlockedVault.OnlineServices.isBound()
-            ) {
-                return;
-            }
-
-            if (!onlineServicesData?.remoteData?.root) {
-                toast.error("Only the root device can unlink other devices.");
-                return;
-            }
-
-            showWarningFn(
-                "Unlinking a device will prevent it from modifying the vault, effectively cutting it off from the rest of the network.",
-                async () => {
-                    tearDownLink(true);
-
-                    unlockedVault.OnlineServices.removeLinkedDevice(device.ID);
-
-                    // Update the vault
-                    setUnlockedVault(unlockedVault);
-
-                    // Try to remove the device from the online services
-                    try {
-                        await removeDevice({
-                            id: device.ID,
-                        });
-                    } catch (err) {
-                        console.warn(
-                            "Tried to remove device from online services but failed",
-                            err,
-                        );
-                        toast.warn(
-                            "Couldn't remove device from online services. Please remove the device manually in the Account dialog.",
-                        );
-                    }
-
-                    // Save the vault metadata
-                    try {
-                        await unlockedVaultMetadata.save(unlockedVault);
-                    } catch (err) {
-                        console.error("Failed to save vault metadata", err);
-                        toast.error(
-                            "Failed to save vault data. There is a high probability of data loss.",
-                        );
-                    }
-                },
-                null,
-            );
-        };
-
-        const disconnectReconnectDevice = () => {
-            if (
-                webRTConnection?.DataChannel?.readyState === "open" ||
-                webRTConnection?.DataChannel?.readyState === "connecting" ||
-                onlineWSServicesEndpoint
-                    ?.allChannels()
-                    .some(
-                        (c) =>
-                            c.name === commonChannelName &&
-                            (c.subscribed || c.subscriptionPending),
-                    )
-            ) {
-                setWebRTCConnections((prev) => {
-                    prev.setManualDisconnect(device.ID, true);
-                    return Object.assign(
-                        new Synchronization.WebRTCConnections(),
-                        prev,
-                    );
-                });
-
-                tearDownLink(true);
-            } else {
-                setWebRTCConnections((prev) => {
-                    prev.setManualDisconnect(device.ID, false);
-                    return Object.assign(
-                        new Synchronization.WebRTCConnections(),
-                        prev,
-                    );
-                });
-
-                // In case we're not connected to online services, this will set it up and then connect to the device
-                setupDeviceLink(true);
-            }
-        };
-
-        const contextMenuOptions: {
-            disabled: boolean;
-            visible: boolean;
-            name: string;
-            onClick: (device: LinkedDevice) => Promise<void>;
-        }[] = [
-            {
-                disabled: linkStatus === Synchronization.LinkStatus.Connecting,
-                visible: linkStatus !== Synchronization.LinkStatus.Connecting,
-                name:
-                    linkStatus === Synchronization.LinkStatus.Connected ||
-                    linkStatus === Synchronization.LinkStatus.WaitingForDevice
-                        ? "Disconnect"
-                        : "Connect",
-                onClick: async () => {
-                    disconnectReconnectDevice();
-                },
-            },
-            {
-                disabled: linkStatus !== Synchronization.LinkStatus.Connected,
-                visible: true,
-                name: "Synchonize now",
-                onClick: async (device) => {
-                    await synchronizeNow(device);
-                },
-            },
-            {
-                disabled: false,
-                visible: true,
-                name: "Unlink device",
-                onClick: async (device) => {
-                    await unlinkDevice(device);
-                },
-            },
-            {
-                disabled: false,
-                visible: true,
-                name: "Edit",
-                onClick: async (device) => {
-                    showEditLinkedDeviceDialog(device);
-                },
-            },
-        ];
-
-        const setupDeviceLink = (forceConnect = false) => {
-            // If we don't have an online services instance, we will try to create one
-            if (
-                !onlineWSServicesEndpoint ||
-                onlineWSServicesEndpoint?.connection.state === "disconnected"
-            ) {
-                setupOnlineServices(() => setupDeviceLink(forceConnect));
-                return;
-            }
-
-            // console.debug(
-            //     "[setupDeviceLinks] Setting up device links... Specific device:",
-            //     deviceID
-            // );
-            // If we're not connected to the signaling server, return
-            if (onlineWSServicesEndpoint?.connection.state !== "connected") {
-                return;
-            }
-
-            // If we have a user identifier, we can try to subscribe
-            const ownIdentifier = onlineServices.deviceID();
-            if (!ownIdentifier) return;
-
-            // This will be the event name that we will use to communicate over the pusher channel
-            const commonEventName = "client-private-connection-setup";
-
-            // Subscribe to a predetermined channel name
-            // Set up event handlers for presence and other events
-            // If we already have a connection to this device, we don't need to do anything
-            if (
-                webRTConnection.State ===
-                    Synchronization.LinkStatus.Connected ||
-                webRTConnection.State ===
-                    Synchronization.LinkStatus.Connecting ||
-                webRTConnection.State ===
-                    Synchronization.LinkStatus.WaitingForDevice
-            ) {
-                return;
-            }
-
-            // Check if we should autoconnect to this device
-            // This check is only relevant if we are not trying to connect to a specific device
-            // if (device.AutoConnect == false && deviceID == null) {
-            if (device.AutoConnect == false && forceConnect == false) {
-                return;
-            }
-
-            // Check if the user disconnected from this device manually
-            // If so, we will not try to connect to it unless the user manually reconnects (deviceID != null)
-            if (webRTConnection.ManualDisconnect && forceConnect == false) {
-                console.debug(
-                    "[setupDeviceLinks] Skipping autoconnect to",
-                    device.ID,
-                    "because it was manually disconnected",
-                );
-                return;
-            }
-
-            // console.debug(
-            //     "[setupDeviceLinks] Current WebRTC connections",
-            //     webRTConnectionsRef.current
-            // );
-
-            // Initialize a new WebRTC connection - so we can communicate directly with the other device
-            let _webRTConnection: RTCPeerConnection | null = null;
-
-            // Check if we're already subscribed to this channel
-            if (
-                onlineWSServicesEndpoint
-                    .allChannels()
-                    .some(
-                        (c) =>
-                            c.name === commonChannelName &&
-                            (c.subscribed || c.subscriptionPending),
-                    )
-            ) {
-                console.debug(
-                    "[setupDeviceLinks] Already subscribed to channel",
-                    commonChannelName,
-                );
-
-                if (
-                    linkStatus !== Synchronization.LinkStatus.WaitingForDevice
-                ) {
-                    setLinkStatus(Synchronization.LinkStatus.WaitingForDevice);
-                }
-
-                return;
-            }
-
-            console.debug(
-                "[setupDeviceLinks] Trying to connect to device",
-                device,
-            );
-
-            const channel =
-                onlineWSServicesEndpoint.subscribe(commonChannelName);
-
-            /**
-             * Short explanation of the following code:
-             *  - We need to set up a WebRTC connection between the two devices using the Pusher channel as a signaling server.
-             *  - If we're the first device to connect, we need to send an offer - the member_added event will be triggered, we set the weAreFirst flag to true.
-             *  - If we're not the first device to connect, we need to wait for the offer, and then send an answer.
-             *  - Both devices need to be able to exchange the ICE candidates.
-             */
-
-            let weAreFirst = false;
-            let iceCandidatesWeGenerated = 0;
-
-            type PusherSignalingMessagesType = {
-                type: "offer" | "answer" | "ice-candidate";
-                data: RTCIceCandidateInit | RTCSessionDescriptionInit | null;
-            };
-
-            channel.bind(
-                "pusher:subscription_succeeded",
-                async (context: { count: number }) => {
-                    setLinkStatus(Synchronization.LinkStatus.WaitingForDevice);
-
-                    weAreFirst = context.count === 1;
-                    console.debug(
-                        "Subscription succeeded",
-                        weAreFirst ? "--We're first" : "--We're NOT first",
-                    );
-
-                    _webRTConnection = await newWebRTCConnection();
-                    _webRTConnection.onconnectionstatechange = () => {
-                        console.debug(
-                            "Connection state changed",
-                            _webRTConnection?.connectionState,
-                        );
-                        if (_webRTConnection?.connectionState === "connected") {
-                            console.debug(
-                                "Private connection established -",
-                                commonChannelName,
-                            );
-
-                            // Clean up the channel subscription
-                            channel.unsubscribe();
-                            channel.unbind();
-
-                            if (device.SyncTimeout) {
-                                setTimeout(
-                                    () => {
-                                        console.debug(
-                                            "Sync timeout reached - disconnecting from the private channel",
-                                        );
-                                        tearDownLink();
-                                    },
-                                    Math.abs(device.SyncTimeoutPeriod) * 1000,
-                                );
-                            }
-                        } else if (
-                            _webRTConnection?.connectionState === "connecting"
-                        ) {
-                            setLinkStatus(
-                                Synchronization.LinkStatus.Connecting,
-                            );
-                        } else if (
-                            _webRTConnection?.connectionState === "disconnected"
-                        ) {
-                            console.debug(
-                                "Private connection disconnected -",
-                                commonChannelName,
-                            );
-
-                            // Remove the connection from the list
-                            // Inhibit reconnecting if the device is not set to auto-connect or if the sync timeout has been reached
-                            tearDownLink();
-                            if (device.AutoConnect && !device.SyncTimeout) {
-                                setupDeviceLink(true);
-                            }
-                        }
-                    };
-
-                    if (weAreFirst) {
-                        // Since we're first, we need to create a data channel
-                        const dataChannel = _webRTConnection.createDataChannel(
-                            `sync-${device.ID}`,
-                        );
-                        dataChannel.onopen = () => {
-                            console.debug("[1st] Data channel opened");
-
-                            // Add the webRTC connection to the list
-                            if (_webRTConnection)
-                                initLink(_webRTConnection, dataChannel);
-
-                            // Send the linked devices list to the other device (only if we're root)
-                            sendLinkedDevicesList(dataChannel, [device.ID]);
-                        };
-                        dataChannel.onmessage = onWebRTCMessageHandler(
-                            dataChannel,
-                            device,
-                        );
-                        dataChannel.onclose = () => {
-                            console.debug("[1st] Data channel closed");
-
-                            // Remove and clean up the WebRTC connection from the list
-                            tearDownLink();
-                            if (device.AutoConnect && !device.SyncTimeout) {
-                                setupDeviceLink(true);
-                            }
-                        };
-                        dataChannel.onerror = (error) => {
-                            console.debug("[1st] Data channel error", error);
-
-                            // Clean up the WebRTC connection
-                            tearDownLink();
-                        };
-                    }
-
-                    // When we acquire an ICE candidate, send it to the other device
-                    // This is being called only after we call setLocalDescription
-                    _webRTConnection.onicecandidate = async (event) => {
-                        if (event && event.candidate) {
-                            console.debug(
-                                "Sending ICE candidate",
-                                event.candidate,
-                            );
-                            channel.trigger(commonEventName, {
-                                type: "ice-candidate",
-                                data: event.candidate,
-                            } as PusherSignalingMessagesType);
-
-                            iceCandidatesWeGenerated++;
-                        }
-
-                        // When the event.candidate object is null - we're done
-                        // NOTE: Might be helpful to send that to the other device and we can show a notification
-                        if (event?.candidate == null) {
-                            console.debug(
-                                "Sending ICE completed event",
-                                event.candidate,
-                            );
-
-                            channel.trigger(commonEventName, {
-                                type: "ice-candidate",
-                                data: null,
-                            } as PusherSignalingMessagesType);
-                        }
-
-                        // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
-                        if (
-                            iceCandidatesWeGenerated === 0 &&
-                            !event.candidate
-                        ) {
-                            console.error("Failed to generate ICE candidates.");
-
-                            setLinkStatus(Synchronization.LinkStatus.Failure);
-                        }
-                    };
-                },
-            );
-
-            channel.bind(
-                commonEventName,
-                async (data: PusherSignalingMessagesType) => {
-                    console.debug(
-                        "ws received",
-                        data,
-                        `|| Are we first? ${weAreFirst}`,
-                    );
-
-                    if (data.type === "ice-candidate") {
-                        if (data.data) {
-                            await _webRTConnection?.addIceCandidate(
-                                data.data as RTCIceCandidateInit,
-                            );
-                        } else if (
-                            _webRTConnection?.connectionState != "connecting"
-                        ) {
-                            toast.warn(
-                                `[Synchronization] Failed to connect to ${device.Name}`,
-                            );
-                        }
-                    }
-
-                    if (weAreFirst) {
-                        // If we're first, we sent the offer, so we need to handle the answer
-                        if (data.type === "answer") {
-                            await _webRTConnection?.setRemoteDescription(
-                                data.data as RTCSessionDescriptionInit,
-                            );
-                        }
-                    } else {
-                        // If we're not first, we received the offer, so we need to handle the answer
-                        if (data.type === "offer") {
-                            if (!_webRTConnection) {
-                                console.error(
-                                    "WebRTC connection not initialized",
-                                );
-                                return;
-                            }
-
-                            // This event is triggered when we're not the first device to connect
-                            _webRTConnection.ondatachannel = (event) => {
-                                console.debug("Data channel received");
-
-                                const dataChannel = event.channel;
-                                dataChannel.onopen = () => {
-                                    console.debug("[2nd] Data channel opened");
-
-                                    // Add the webRTC connection to the list
-                                    if (_webRTConnection)
-                                        initLink(_webRTConnection, dataChannel);
-
-                                    // Send the linked devices list to the other device (only if we're root)
-                                    sendLinkedDevicesList(dataChannel, [
-                                        device.ID,
-                                    ]);
-                                };
-
-                                dataChannel.onmessage = onWebRTCMessageHandler(
-                                    dataChannel,
-                                    device,
-                                );
-
-                                dataChannel.onclose = () => {
-                                    console.debug("[2nd] Data channel closed");
-
-                                    // Remove and clean up the WebRTC connection from the list
-                                    tearDownLink();
-                                    if (
-                                        device.AutoConnect &&
-                                        !device.SyncTimeout
-                                    ) {
-                                        setupDeviceLink(true);
-                                    }
-                                };
-
-                                dataChannel.onerror = (event) => {
-                                    console.debug(
-                                        "[2nd] Data channel error",
-                                        event,
-                                    );
-
-                                    // Clean up the WebRTC connection
-                                    tearDownLink();
-                                };
-                            };
-
-                            await _webRTConnection.setRemoteDescription(
-                                data.data as RTCSessionDescriptionInit,
-                            );
-
-                            // Create an answer and set it as the local description
-                            const answer =
-                                await _webRTConnection.createAnswer();
-                            await _webRTConnection.setLocalDescription(answer);
-
-                            // Send the answer to the other device
-                            channel.trigger(commonEventName, {
-                                type: "answer",
-                                data: answer,
-                            } as PusherSignalingMessagesType);
-
-                            console.debug("Answer sent", answer);
-                        }
-                    }
-                },
-            );
-
-            // When the other device connects, send an offer if we are the first to connect
-            // This only triggers if we are the first to connect
-            channel.bind(
-                "pusher:member_added",
-                async (osDevice: { id: string }) => {
-                    if (!_webRTConnection) {
-                        console.error(
-                            "[Member] WebRTC connection not initialized",
-                        );
-                        return;
-                    }
-
-                    console.debug("Other device connected", osDevice);
-
-                    // Create an offer and set it as the local description
-                    const offer = await _webRTConnection.createOffer();
-                    await _webRTConnection.setLocalDescription(offer);
-
-                    const dataToSend = _webRTConnection.localDescription;
-
-                    channel.trigger(commonEventName, {
-                        type: "offer",
-                        data: offer,
-                    } as PusherSignalingMessagesType);
-
-                    console.debug("Offer sent", dataToSend);
-                },
-            );
-        };
-
-        const lastSynced = device.LastSync
-            ? dayjs(device.LastSync).fromNow()
-            : "Never synced";
-
-        useEffect(() => {
-            // If we manage to connect to online services, we can try to trigger the direct connection setup
-            if (onlineServicesStatus === OnlineServicesStatus.Connected) {
-                setupDeviceLink();
-            }
-        }, [onlineServicesStatus]);
-
-        return (
-            <div
-                key={`device-${device.ID}-${webRTConnection.State}`}
-                className="mr-2 mt-1 flex flex-col gap-2 rounded-md border border-slate-700"
-                onContextMenu={(e) => {
-                    e.preventDefault();
-                    optionsButtonRef.current?.click();
-                }}
-            >
-                <div className="ml-2 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500">
-                    <div>
-                        <DevicePhoneMobileIcon className="h-5 w-5" />
-                    </div>
-                    <div
-                        className="flex flex-grow flex-col overflow-x-hidden py-1"
-                        onClick={async () => await synchronizeNow(device)}
-                    >
-                        <p
-                            className="line-clamp-1 overflow-hidden text-base font-medium"
-                            title={device.Name}
-                        >
-                            {device.Name}
-                        </p>
-                        <div className="flex flex-col items-start">
-                            {/* Connection status */}
-                            <p
-                                className={clsx({
-                                    "flex h-full items-center rounded border px-1 text-xs capitalize":
-                                        true,
-                                    "border-green-500/50 text-green-500":
-                                        webRTConnection.State ===
-                                        Synchronization.LinkStatus.Connected,
-                                    "border-red-500/50 text-red-500":
-                                        webRTConnection.State ===
-                                            Synchronization.LinkStatus
-                                                .Disconnected ||
-                                        webRTConnection.State ===
-                                            Synchronization.LinkStatus.Failure,
-                                    "border-yellow-500/50 text-yellow-500":
-                                        webRTConnection.State ===
-                                            Synchronization.LinkStatus
-                                                .Connecting ||
-                                        webRTConnection.State ===
-                                            Synchronization.LinkStatus
-                                                .WaitingForDevice,
-                                })}
-                            >
-                                {webRTConnection.State ===
-                                    Synchronization.LinkStatus.Connected &&
-                                    "Connected"}
-                                {webRTConnection.State ===
-                                    Synchronization.LinkStatus.Connecting && (
-                                    <span className="ml-1 animate-pulse">
-                                        Connecting...
-                                    </span>
-                                )}
-                                {webRTConnection.State ===
-                                    Synchronization.LinkStatus
-                                        .WaitingForDevice && (
-                                    <span className="ml-1 animate-pulse">
-                                        Waiting for device...
-                                    </span>
-                                )}
-                                {webRTConnection.State ===
-                                    Synchronization.LinkStatus.Disconnected &&
-                                    "Disconnected"}
-                                {webRTConnection.State ===
-                                    Synchronization.LinkStatus.Failure &&
-                                    "Failure"}
-                            </p>
-                            {/* Last synchronization date */}
-                            <p
-                                className="ml-1 text-xs normal-case text-slate-300/50"
-                                title={
-                                    device.LastSync
-                                        ? `Last synchronized ${lastSynced}`
-                                        : "Never synchronized"
-                                }
-                            >
-                                {lastSynced}
-                            </p>
-                        </div>
-                        {/* <span
-                            className={clsx({
-                                "relative flex h-3 w-3": true,
-                                hidden: false,
-                            })}
-                        >
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5668] opacity-75"></span>
-                            <span className="absolute inline-flex h-3 w-3 rounded-full bg-[#FF5668]"></span>
-                        </span> */}
-                    </div>
-                    <Menu as="div" className="relative">
-                        <Menu.Button
-                            ref={optionsButtonRef}
-                            className="flex h-full items-center"
-                        >
-                            <EllipsisVerticalIcon className="h-6 w-6 text-gray-400 hover:text-gray-500" />
-                        </Menu.Button>
-                        <Transition
-                            as={React.Fragment}
-                            enter="transition ease-out duration-100"
-                            enterFrom="transform opacity-0 scale-95"
-                            enterTo="transform opacity-100 scale-100"
-                            leave="transition ease-in duration-75"
-                            leaveFrom="transform opacity-100 scale-100"
-                            leaveTo="transform opacity-0 scale-95"
-                        >
-                            <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none">
-                                <div className="py-1">
-                                    {contextMenuOptions.map((option, index) => (
-                                        <Menu.Item key={index}>
-                                            {({ active }) => {
-                                                const hoverClass = clsx({
-                                                    "bg-gray-900 text-white select-none":
-                                                        active &&
-                                                        !option.disabled,
-                                                    "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                                        true,
-                                                    "pointer-events-none opacity-50":
-                                                        option.disabled,
-                                                    hidden: !option.visible,
-                                                });
-                                                return (
-                                                    <a
-                                                        className={hoverClass}
-                                                        onClick={
-                                                            option.disabled
-                                                                ? () => {
-                                                                      // NO-OP
-                                                                  }
-                                                                : () =>
-                                                                      option.onClick(
-                                                                          device,
-                                                                      )
-                                                        }
-                                                    >
-                                                        {option.name}
-                                                    </a>
-                                                );
-                                            }}
-                                        </Menu.Item>
-                                    ))}
-                                </div>
-                            </Menu.Items>
-                        </Transition>
-                    </Menu>
                 </div>
             </div>
-        );
-    };
-
-    console.debug("OnlineServices - render");
-
-    // This is triggered only once, when the component is mounted (and unmounted)
-    useEffect(() => {
-        console.debug("OnlineServices - useEffect - MOUNT");
-
-        setupOnlineServices();
-
-        // On component unmount - disconnect from the online services and clean up all of the WebRTC connections
-        return () => {
-            console.debug("OnlineServices - useEffect - UNMOUNT");
-
-            // Disconnect from the online services - if we're connected
-            cleanupOnlineServices();
-        };
-    }, []);
-
-    if (!unlockedVault) {
-        return null;
-    }
-
-    return (
-        <div>
-            <DashboardSidebarMenuItem
-                Icon={LinkIcon}
-                text="Link a Device"
-                onClick={() => showLinkingDeviceDialogFnRef.current?.()}
-            />
-            {/* <DashboardSidebarMenuItem
-                Icon={GlobeAltIcon}
-                text="Configuration"
-                onClick={() => showLinkingDeviceDialogFnRef.current?.()}
-            /> */}
-            <div className="mt-1 border-l-2 border-slate-500 pl-2">
-                <div className="flex items-center gap-1">
-                    <p className="text-sm text-slate-500">Online Services</p>
-                    <p className="text-sm text-slate-500"> - </p>
-                    <p
-                        className={clsx({
-                            "text-sm capitalize": true,
-                            "text-slate-500/50":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.NoAccount,
-                            "text-slate-500":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.NoDevices,
-                            "animate-pulse text-slate-500":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.Connecting,
-                            "text-green-500":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.Connected,
-                            "text-red-500":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.Disconnected,
-                            "text-orange-500":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.Unavailable,
-                            "text-red-500/50":
-                                onlineServicesStatus ===
-                                OnlineServicesStatus.Failure,
-                        })}
-                    >
-                        {onlineServicesStatus}
-                    </p>
-                </div>
-                {unlockedVault.OnlineServices.LinkedDevices.map((device) => (
-                    <DeviceItem
-                        key={device.ID}
-                        device={device}
-                        onlineServices={unlockedVault.OnlineServices}
-                        onlineServicesStatus={onlineServicesStatus}
-                    />
-                ))}
-                {
-                    // If there are no linked devices, show a message
-                    onlineServicesStatus === OnlineServicesStatus.NoAccount && (
-                        <p className="mt-2 text-center text-sm text-slate-500">
-                            No linked devices - Link a device to synchronize
-                        </p>
-                    )
-                }
-            </div>
-            {process.env.NODE_ENV === "development" && (
-                <div className="my-3 border-y">
-                    <DashboardSidebarMenuItem
-                        Icon={XMarkIcon}
-                        text="[DEBUG] Clear Diff list"
-                        onClick={async () => {
-                            console.debug(
-                                "[DEBUG] Clear Diff list - before -",
-                                unlockedVault.Diffs,
-                            );
-
-                            unlockedVault.Diffs = [];
-                            setUnlockedVault(unlockedVault);
-                            unlockedVaultMetadata?.save(unlockedVault);
-
-                            console.debug(
-                                "[DEBUG] Clear Diff list - after -",
-                                unlockedVault.Diffs,
-                            );
-                        }}
-                    />
-                </div>
-            )}
-            <LinkDeviceInsideVaultDialog
-                showDialogFnRef={showLinkingDeviceDialogFnRef}
-            />
-            <EditLinkedDeviceDialog
-                showDialogFnRef={showEditLinkedDeviceDialogFnRef}
-                selectedDevice={editLinkedDeviceDialogSelectedDeviceRef}
-                vaultMetadata={unlockedVaultMetadata}
-            />
-            <DivergenceSolveDialog
-                showDialogFnRef={showDivergenceSolveDialogRef}
-                showWarningDialog={showWarningFn}
+            <TOTPDialog
+                visibleState={TOTPDialogVisible}
+                submitCallback={setTOTPFormValue}
             />
         </div>
     );
 };
-//#endregion Linking vaults
-
-const DashboardSidebarMenuItem: React.FC<{
-    Icon: typeof ArrowUpCircleIcon; // Take the type of an arbitrary icon
-    text: string;
-    onClick?: () => void;
-    pulsatingIndicatorVisible?: boolean;
-}> = ({ Icon, text, onClick, pulsatingIndicatorVisible }) => {
-    return (
-        <div
-            className="ml-5 flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-500"
-            onClick={onClick}
-        >
-            <Icon className="h-7 w-7" />
-            <div className="flex gap-1">
-                <p className="text-base font-semibold">{text}</p>
-                <span
-                    className={clsx({
-                        "relative flex h-3 w-3": true,
-                        hidden: !pulsatingIndicatorVisible,
-                    })}
-                >
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5668] opacity-75"></span>
-                    <span className="absolute inline-flex h-3 w-3 rounded-full bg-[#FF5668]"></span>
-                </span>
-            </div>
-        </div>
-    );
-};
-
-const DashboardSidebarMenuFeatureVoting: React.FC<{
-    onClick?: () => void;
-}> = ({ onClick }) => {
-    // This component is separate so that we don't rerender the whole dashboard
-    // If the TRPC call resolves to a different value
-    const onlineServicesData = useAtomValue(onlineServicesDataAtom);
-
-    // Fetch the featureVoting.openRound trpc query if we're logged in (have a session)
-    const { data: openRoundExists } =
-        trpcReact.v1.featureVoting.openRoundExists.useQuery(undefined, {
-            retry: false,
-            enabled: !!onlineServicesData?.remoteData,
-            refetchOnWindowFocus: false,
-            trpc: {},
-        });
-
-    return (
-        <DashboardSidebarMenuItem
-            Icon={ArrowUpCircleIcon}
-            text="Feature Voting"
-            onClick={onClick}
-            pulsatingIndicatorVisible={openRoundExists ?? false}
-        />
-    );
-};
-
-//#region Vault dashboard
-const VaultDashboard: React.FC = ({}) => {
-    // console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-
-    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-    const clearOnlineServicesData = useClearOnlineServicesDataAtom();
-
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const sidebarSelector = ".sidebar-event-selector";
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-    const closeSidebarOnOutsideClick = (e: MouseEvent) => {
-        // TODO: Fix this, isSidebarOpen is always false
-        if (
-            e.target instanceof HTMLElement &&
-            isSidebarOpen &&
-            unlockedVaultAtom
-        ) {
-            if (!e.target.closest(sidebarSelector)) {
-                setIsSidebarOpen(false);
-            }
-        }
-    };
-
-    const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
-    const showWarningDialog: WarningDialogShowFn = (
-        description: string,
-        onConfirm: () => void,
-        onDismiss: (() => void) | null,
-    ) => {
-        showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
-    };
-
-    const showNewCredentialsDialogFnRef = useRef<(() => void) | null>(null);
-
-    const showAccountSignUpSignInDialogRef = useRef<(() => void) | null>(null);
-    const showRecoveryGenerationDialogRef = useRef<(() => void) | null>(null);
-    const showFeatureVotingDialogRef = useRef<(() => void) | null>(null);
-    const showFeedbackDialogFnRef = useRef<() => void>(() => {
-        // No-op
-    });
-    const showVaultSettingsDialogRef = useRef<() => void>(() => {
-        // No-op
-    });
-
-    const showCredentialsGeneratorDialogFnRef = useRef<() => void>(() => {
-        // No-op
-    });
-
-    const lockVault = async (vaultMetadata: VaultMetadata) => {
-        toast.info("Securing vault...", {
-            autoClose: false,
-            closeButton: false,
-            toastId: "lock-vault",
-            updateId: "lock-vault",
-        });
-
-        // A little delay to make sure the toast is shown
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // NOTE: Why can't this just be an async function????
-        setUnlockedVault(async (pre) => {
-            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-            // NOTE: This might not work, since we are not awaiting the save function
-            try {
-                await vaultMetadata.save(pre);
-                toast.success("Vault secured.", {
-                    autoClose: 3000,
-                    closeButton: true,
-                    toastId: "lock-vault",
-                    updateId: "lock-vault",
-                });
-
-                clearOnlineServicesData();
-                setUnlockedVaultMetadata(null);
-            } catch (e) {
-                console.error(`Failed to save vault: ${e}`);
-                toast.error(
-                    "Failed to save vault. There is a high possibility of data loss!",
-                    {
-                        closeButton: true,
-                        toastId: "lock-vault",
-                        updateId: "lock-vault",
-                    },
-                );
-            }
-
-            // Clean up the unlocked vault - remove all data from the atom
-            return new Vault();
-        });
-    };
-
-    useEffect(() => {
-        // Bind the event listener
-        document.addEventListener("click", closeSidebarOnOutsideClick);
-
-        return () => {
-            // Unbind the event listener on clean up
-            document.removeEventListener("click", closeSidebarOnOutsideClick);
-        };
-    }, []);
-
-    // console.log("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
-
-    if (!vaultMetadata) return null;
-
-    // console.log("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
-
-    return (
-        <>
-            <NavBar
-                overrideLogoUrl={null}
-                className="flex-row flex-nowrap justify-between p-3 px-4 sm:px-3"
-                logoContainerClassName="hidden sm:flex"
-            >
-                <div className="flex transition-all sm:hidden">
-                    {isSidebarOpen ? (
-                        <XMarkIcon
-                            className="h-6 w-6 text-slate-400"
-                            onClick={() => toggleSidebar()}
-                        />
-                    ) : (
-                        <Bars3Icon
-                            className="h-6 w-6 text-slate-400"
-                            onClick={() => toggleSidebar()}
-                        />
-                    )}
-                </div>
-                <div className="hidden md:block">
-                    <VaultTitle title={vaultMetadata.Name} />
-                </div>
-                <AccountHeaderWidget
-                    showAccountSignUpSignInDialog={() =>
-                        showAccountSignUpSignInDialogRef.current?.()
-                    }
-                    showWarningDialogFn={showWarningDialog}
-                    showRecoveryGenerationDialogFnRef={
-                        showRecoveryGenerationDialogRef
-                    }
-                />
-            </NavBar>
-            <div className="flex flex-grow flex-row overflow-hidden">
-                <div
-                    className={clsx({
-                        "flex min-w-0 max-w-[250px] flex-col gap-3 overflow-hidden pt-1 transition-all duration-300 ease-in-out sm:min-w-[250px]":
-                            true,
-                        [sidebarSelector.slice(1)]: true, // We use this class to select the sidebar in the closeSidebarOnOutsideClick function
-                        "w-0 px-0": !isSidebarOpen,
-                        "min-w-[90vw] border-r-2 border-slate-800/60 px-1 sm:border-r-0":
-                            isSidebarOpen,
-                    })}
-                >
-                    <div className="block md:hidden">
-                        <VaultTitle title={vaultMetadata.Name} />
-                    </div>
-                    <div className="my-5 block h-1 rounded-md bg-slate-300/25 sm:hidden" />
-                    {/* TODO: This should be made prettier on mobile */}
-                    <div className="block w-full px-5">
-                        <ButtonFlat
-                            text="New Item"
-                            className="w-full"
-                            inhibitAutoWidth={true}
-                            onClick={() =>
-                                showNewCredentialsDialogFnRef.current?.()
-                            }
-                        />
-                    </div>
-                    <div className="mt-5 flex h-px flex-grow gap-5 overflow-y-auto overflow-x-clip">
-                        <div className="flex w-full flex-col gap-2">
-                            <p className="text-sm text-slate-500">
-                                Synchronization
-                            </p>
-                            <DashboardSidebarSynchronization
-                                showWarningFn={showWarningDialog}
-                            />
-                            <p className="text-sm text-slate-500">
-                                CryptexVault
-                            </p>
-                            <DashboardSidebarMenuFeatureVoting
-                                onClick={() =>
-                                    showFeatureVotingDialogRef.current?.()
-                                }
-                            />
-                            <DashboardSidebarMenuItem
-                                Icon={ChatBubbleBottomCenterTextIcon}
-                                text="Contact Us"
-                                onClick={() =>
-                                    showFeedbackDialogFnRef.current?.()
-                                }
-                            />
-                            <p className="text-sm text-slate-500">Vault</p>
-                            <DashboardSidebarMenuItem
-                                Icon={KeyIcon}
-                                text="Credentials Generator"
-                                onClick={() =>
-                                    showCredentialsGeneratorDialogFnRef.current()
-                                }
-                            />
-                            <DashboardSidebarMenuItem
-                                Icon={Cog8ToothIcon}
-                                text="Settings"
-                                onClick={() =>
-                                    showVaultSettingsDialogRef.current?.()
-                                }
-                            />
-                            <DashboardSidebarMenuItem
-                                Icon={LockClosedIcon}
-                                text="Lock Vault"
-                                onClick={() => lockVault(vaultMetadata)}
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div
-                    className={clsx({
-                        "flex flex-grow flex-col border-t border-slate-700 sm:rounded-tl-md sm:border-l sm:blur-none":
-                            true,
-                        "pointer-events-none blur-sm sm:pointer-events-auto":
-                            isSidebarOpen,
-                    })}
-                >
-                    <CredentialsList
-                        showNewCredentialsDialogFn={
-                            showNewCredentialsDialogFnRef
-                        }
-                        showWarningDialog={showWarningDialog}
-                        showCredentialsGeneratorDialogFn={
-                            showCredentialsGeneratorDialogFnRef
-                        }
-                    />
-                </div>
-            </div>
-            <WarningDialog showFnRef={showWarningDialogFnRef} />
-            <VaultSettingsDialog
-                showDialogFnRef={showVaultSettingsDialogRef}
-                showWarningDialog={showWarningDialog}
-                showCredentialsGeneratorDialogFnRef={
-                    showCredentialsGeneratorDialogFnRef
-                }
-            />
-            <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
-            <OnlineServicesSignUpRestoreDialog
-                showDialogFnRef={showAccountSignUpSignInDialogRef}
-                vaultMetadata={vaultMetadata}
-                showRecoveryGenerationDialogFnRef={
-                    showRecoveryGenerationDialogRef
-                }
-            />
-            <RecoveryGenerationDialog
-                showDialogFnRef={showRecoveryGenerationDialogRef}
-            />
-            <CredentialsGeneratorDialog
-                showDialogFnRef={showCredentialsGeneratorDialogFnRef}
-            />
-            <FeedbackDialog showDialogFnRef={showFeedbackDialogFnRef} />
-        </>
-    );
-};
-
-// Vault item search bar that resembles the GitHub Projects search bar behaviour
-const SearchBar: React.FC<{
-    filter: React.Dispatch<React.SetStateAction<string>>;
-}> = ({ filter }) => {
-    const { register, watch, getValues, setValue, setFocus } = useForm<{
-        search: string;
-    }>({
-        defaultValues: {
-            search: "",
-        },
-    });
-
-    const inputTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    const onInput = () => {
-        // Clear the timeout if it exists
-        if (inputTimeoutRef.current) {
-            clearTimeout(inputTimeoutRef.current);
-        }
-
-        // Set a new timeout
-        inputTimeoutRef.current = setTimeout(() => {
-            // Get the search value
-            const search = getValues("search");
-            console.debug("Search", search);
-
-            filter(search);
-
-            // Clear the timeout
-            inputTimeoutRef.current = null;
-        }, 200);
-    };
-
-    const clearSearch = () => {
-        setValue("search", "");
-        filter("");
-    };
-
-    // On Ctrl+F, focus the search bar
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.key === "f") {
-                e.preventDefault();
-                e.stopPropagation();
-
-                // Focus the search bar
-                setFocus("search");
-            }
-        };
-        document.addEventListener("keydown", onKeyDown);
-
-        return () => {
-            document.removeEventListener("keydown", onKeyDown);
-        };
-    }, []);
-
-    return (
-        <div className="flex w-full flex-grow-0 items-center gap-1 border-b border-slate-700 p-2">
-            {
-                // If there is text in the search bar, show the clear button
-                watch("search").length > 0 ? (
-                    <XMarkIcon
-                        className="h-5 w-5 cursor-pointer text-slate-400"
-                        onClick={clearSearch}
-                    />
-                ) : (
-                    <FunnelIcon className="h-5 w-5 text-slate-400" />
-                )
-            }
-            <input
-                type="text"
-                // disabled={true}
-                className="ml-2 flex-grow border-none bg-transparent text-slate-200 outline-none placeholder:text-slate-400"
-                // placeholder="Filter by keyword or by field"
-                title="Ctrl+F to search"
-                placeholder="Filter by keyword (Ctrl+F)"
-                onInput={onInput}
-                {...register("search")}
-            />
-        </div>
-    );
-};
-
-const CredentialCard: React.FC<{
-    credential: Credential.VaultCredential;
-    onClick: () => void;
-    showWarningDialog: WarningDialogShowFn;
-}> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-    const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-
-    const { refs, floatingStyles } = useFloating({
-        placement: "bottom-end",
-        middleware: [autoPlacement()],
-    });
-
-    const options: Options[] = [
-        {
-            Name: "Copy Username",
-            onClick: () => {
-                navigator.clipboard.writeText(credential.Username);
-                toast.info("Copied username to clipboard");
-            },
-        },
-    ];
-
-    if (credential.Password) {
-        options.push({
-            Name: "Copy Password",
-            onClick: () => {
-                navigator.clipboard.writeText(credential.Password);
-                toast.info("Copied password to clipboard");
-            },
-        });
-    }
-
-    if (credential.URL) {
-        options.push({
-            Name: "Open URL",
-            onClick: () => {
-                window.open(credential.URL, "_blank");
-            },
-        });
-    }
-
-    if (credential.TOTP) {
-        options.push({
-            Name: "Copy OTP",
-            onClick: () => {
-                if (!credential.TOTP) return;
-
-                const data = credential.TOTP.calculate();
-                if (data) {
-                    navigator.clipboard.writeText(data.code);
-                    toast.info(
-                        `Copied OTP to clipboard; ${data.timeRemaining} seconds left`,
-                        {
-                            autoClose: 3000,
-                            pauseOnFocusLoss: false,
-                            updateId: "copy-otp",
-                            toastId: "copy-otp",
-                        },
-                    );
-
-                    // let timePassed = 0;
-                    // const interval = setInterval(() => {
-                    //     const progress = (data.timeRemaining - timePassed / 1000) / credential.TOTP.Period;
-                    //     toast.info(
-                    //         `Copied OTP to clipboard; ${
-                    //             data.timeRemaining - timePassed / 1000
-                    //         } seconds left`,
-                    //         {
-                    //             progress:
-                    //                 progress,
-                    //             pauseOnFocusLoss: false,
-                    //             updateId: "copy-otp",
-                    //             toastId: "copy-otp",
-                    //             onClick: () => clearInterval(interval),
-                    //         }
-                    //     );
-                    //     timePassed += 1000;
-
-                    //     if (timePassed >= data.timeRemaining * 1000) {
-                    //         toast.dismiss("copy-otp");
-
-                    //         clearInterval(interval);
-                    //     }
-                    // }, 1000);
-                }
-            },
-        });
-    }
-
-    options.push({
-        Name: "Remove",
-        onClick: async () => {
-            if (!unlockedVaultMetadata) return;
-
-            showWarningDialogFn(
-                `You are about to remove the "${credential.Name}" credential.`,
-                async () => {
-                    toast.info("Removing credential...", {
-                        autoClose: false,
-                        closeButton: false,
-                        toastId: "remove-credential",
-                        updateId: "remove-credential",
-                    });
-
-                    // A little delay to make sure the toast is shown
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-
-                    setUnlockedVault(async (pre) => {
-                        const newVault = pre;
-
-                        // Remove the credential from the vault
-                        await newVault.deleteCredential(credential.ID);
-                        try {
-                            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-                            await unlockedVaultMetadata.save(newVault);
-                            toast.success("Credential removed.", {
-                                autoClose: 3000,
-                                closeButton: true,
-                                toastId: "remove-credential",
-                                updateId: "remove-credential",
-                            });
-                        } catch (e) {
-                            console.error(`Failed to save vault: ${e}`);
-                            toast.error(
-                                "Failed to save vault. There is a high possibility of data loss!",
-                                {
-                                    autoClose: 3000,
-                                    closeButton: true,
-                                    toastId: "remove-credential",
-                                    updateId: "remove-credential",
-                                },
-                            );
-                        }
-
-                        return newVault;
-                    });
-                },
-                null,
-            );
-        },
-    });
-
-    return (
-        <div
-            className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-700 px-2 shadow-md transition-shadow hover:shadow-[#FF5668]"
-            onContextMenu={(e) => {
-                e.preventDefault();
-
-                // Cast the ref to an HTMLElement and click it
-                const optionsButtonRef = refs.reference?.current as HTMLElement;
-                optionsButtonRef?.click();
-            }}
-        >
-            <div
-                className="flex w-full cursor-pointer items-center justify-between p-2"
-                onClick={onClick}
-            >
-                <div className="flex items-center gap-2">
-                    {/* Temporary colored circle */}
-                    <div>
-                        <div className="flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black">
-                            {credential.Name[0]}
-                        </div>
-                    </div>
-                    {/* Credential info */}
-                    <div className="flex flex-col">
-                        <p className="text-md line-clamp-2 break-all font-bold lg:line-clamp-1">
-                            {credential.Name}
-                        </p>
-                        {credential.Username?.trim().length ? (
-                            <p className="line-clamp-2 break-all text-left text-sm text-slate-300 lg:line-clamp-1">
-                                {credential.Username}
-                            </p>
-                        ) : (
-                            <p className="line-clamp-2 break-all text-left text-sm italic text-slate-300 lg:line-clamp-1">
-                                No username
-                            </p>
-                        )}
-                    </div>
-                </div>
-            </div>
-            <div onClick={onClick}>
-                {/* Indicators - md+ */}
-                <div className="hidden h-full items-center justify-center gap-3 rounded-sm px-3 md:flex">
-                    {credential.TOTP && (
-                        <p
-                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
-                            title="Contains OTP"
-                        >
-                            OTP
-                        </p>
-                    )}
-                    {credential.Notes && (
-                        <p
-                            className="rounded-md border border-slate-500 px-3 py-2 text-sm text-slate-50"
-                            title="Contains additional notes"
-                        >
-                            Notes
-                        </p>
-                    )}
-                </div>
-                {/* Indicators - mobile */}
-                <div className="flex h-full flex-col items-center justify-center gap-3 rounded-sm px-3 text-center md:hidden">
-                    {credential.TOTP && (
-                        <p
-                            className="rounded-md text-xs text-slate-50"
-                            title="Contains OTP"
-                        >
-                            OTP
-                        </p>
-                    )}
-                    {credential.Notes && (
-                        <p
-                            className="rounded-md text-xs text-slate-50"
-                            title="Contains additional notes"
-                        >
-                            Notes
-                        </p>
-                    )}
-                </div>
-            </div>
-            <Menu as="div" className="relative">
-                <Menu.Button
-                    ref={refs.setReference}
-                    className="flex h-full items-center"
-                >
-                    <EllipsisVerticalIcon className="h-6 w-6 text-gray-400" />
-                </Menu.Button>
-                <Transition
-                    as={React.Fragment}
-                    enter="transition ease-out duration-100"
-                    enterFrom="transform opacity-0 scale-95"
-                    enterTo="transform opacity-100 scale-100"
-                    leave="transition ease-in duration-75"
-                    leaveFrom="transform opacity-100 scale-100"
-                    leaveTo="transform opacity-0 scale-95"
-                >
-                    <Menu.Items
-                        ref={refs.setFloating}
-                        className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none"
-                        style={floatingStyles}
-                    >
-                        <div className="py-1">
-                            {options.map((option, index) => (
-                                <Menu.Item key={index}>
-                                    {({ active }) => {
-                                        const hoverClass = clsx({
-                                            "bg-gray-900 text-white": active,
-                                            "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                                true,
-                                        });
-                                        return (
-                                            <a
-                                                className={hoverClass}
-                                                onClick={option.onClick}
-                                            >
-                                                {option.Name}
-                                            </a>
-                                        );
-                                    }}
-                                </Menu.Item>
-                            ))}
-                        </div>
-                    </Menu.Items>
-                </Transition>
-            </Menu>
-        </div>
-    );
-};
-
-const CredentialsList: React.FC<{
-    showNewCredentialsDialogFn: React.MutableRefObject<(() => void) | null>;
-    showWarningDialog: WarningDialogShowFn;
-    showCredentialsGeneratorDialogFn: React.MutableRefObject<() => void>;
-}> = ({
-    showNewCredentialsDialogFn,
-    showWarningDialog,
-    showCredentialsGeneratorDialogFn,
-}) => {
-    // This is totally unnecessary, but this is the only way I could get the credentials to rerender when we change the credentials list
-    // Seems that Jotai cannot detect changes if the changes are made to an array (which might be too deep)
-    // TODO: Find a better way to do this
-    const vaultCredentials = useAtomValue(unlockedVaultAtom).Credentials;
-
-    const [filter, setFilter] = useState("");
-
-    const selectedCredential = useRef<Credential.VaultCredential | undefined>(
-        undefined,
-    );
-    const showCredentialsDialogRef = useRef<(() => void) | null>(null);
-    const showCredentialDialog = (showNewCredentialsDialogFn.current = (
-        credential?: Credential.VaultCredential,
-    ) => {
-        // Set the selected credential
-        selectedCredential.current = credential;
-
-        // Show the credential's dialog
-        showCredentialsDialogRef.current?.();
-    });
-
-    let filteredCredentials: Credential.VaultCredential[] = [];
-    if (vaultCredentials) {
-        filteredCredentials = vaultCredentials
-            ?.sort((a, b) => a.Name.localeCompare(b.Name))
-            .filter((credential) => {
-                if (filter === "") return true;
-
-                if (
-                    credential.Name.toLowerCase().includes(filter.toLowerCase())
-                )
-                    return true;
-
-                if (
-                    credential.Username.toLowerCase().includes(
-                        filter.toLowerCase(),
-                    )
-                )
-                    return true;
-
-                if (credential.URL.toLowerCase().includes(filter.toLowerCase()))
-                    return true;
-
-                return false;
-            });
-    }
-
-    console.debug("Credentials list rerender");
-
-    return (
-        <>
-            <SearchBar filter={setFilter} />
-            <div className="my-5 flex h-px w-full flex-grow justify-center overflow-y-auto overflow-x-hidden px-5">
-                {!vaultCredentials ||
-                    (filteredCredentials.length === 0 && (
-                        <div className="flex flex-grow flex-col items-center justify-center">
-                            <p className="text-2xl font-bold text-slate-50">
-                                No items
-                            </p>
-                            {filter.length > 0 && (
-                                <p className="text-center text-slate-400">
-                                    No items match the filter.
-                                </p>
-                            )}
-                            {filter.length === 0 && (
-                                <p className="text-center text-slate-400">
-                                    {" "}
-                                    Press the &quot;New Item&quot; button in the
-                                    sidebar to add a new credential.
-                                </p>
-                            )}
-                        </div>
-                    ))}
-                {vaultCredentials && filteredCredentials.length > 0 && (
-                    <div className="flex w-full max-w-full flex-col gap-3 pb-3 2xl:max-w-7xl">
-                        {filteredCredentials.map((credential) => (
-                            <CredentialCard
-                                key={credential.ID}
-                                credential={credential}
-                                onClick={() => showCredentialDialog(credential)}
-                                showWarningDialog={showWarningDialog}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
-            {vaultCredentials && vaultCredentials.length > 0 && (
-                <div className="flex w-full flex-grow-0 items-center justify-center border-t border-slate-700 px-2 py-1">
-                    {filter.length > 0 && (
-                        <p className="text-slate-400">
-                            Filtered items: {filteredCredentials.length}
-                        </p>
-                    )}
-                    {filter.length === 0 && (
-                        <p className="text-slate-400">
-                            Items loaded: {vaultCredentials.length}
-                        </p>
-                    )}
-                </div>
-            )}
-            <CredentialDialog
-                showDialogFnRef={showCredentialsDialogRef}
-                selected={selectedCredential}
-                showCredentialsGeneratorDialogFn={
-                    showCredentialsGeneratorDialogFn
-                }
-            />
-        </>
-    );
-};
-
 //#endregion Vault dashboard
 
 const AppIndex: React.FC = () => {
     const isVaultUnlocked = useAtomValue(isVaultUnlockedAtom);
-    const webRTConnections = useSetAtom(webRTCConnectionsAtom);
+    // const webRTConnections = useSetAtom(webRTCConnectionsAtom);
 
     // TODO: Check for multiple rerenderings of this component
-    // console.log("MAIN RERENDER", isVaultUnlocked);
     // NOTE: To implement a loading screen, we can use the !vaults check
+    console.debug("MAIN RERENDER", isVaultUnlocked);
 
-    useEffect(() => {
-        return () => {
-            // Clean up all of the WebRTC connections individually
-            webRTConnections((pre) => {
-                pre.cleanup();
-                return pre;
-            });
-        };
-    }, [isVaultUnlocked]);
+    // useEffect(() => {
+    //     return () => {
+    //         console.warn(
+    //             "[SCC - Verbose Signaling] Cleaning up the sync connection controller...",
+    //             isVaultUnlocked,
+    //         );
+    //         // Clean up the synchronization connections, if any
+    //         GlobalSyncConnectionController.teardown();
+    //     };
+    // }, [isVaultUnlocked]);
 
     return (
         <>

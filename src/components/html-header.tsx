@@ -40,7 +40,6 @@ export const HTMLHeaderPWA: React.FC<HTMLHeaderProps> = ({
             <title>{title}</title>
             <meta name="description" content={description} />
             <link rel="icon" href={favicon} />
-            <link rel="manifest" href="/app/manifest.webmanifest" />
 
             <meta name="application-name" content="Cryptex Vault" />
 

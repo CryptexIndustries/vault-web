@@ -16,7 +16,7 @@ const formSchema = z.object({
 type FormSchemaType = z.infer<typeof formSchema>;
 
 export type NotifyMeFormProps = {
-    submitButtonRef: React.RefObject<HTMLButtonElement>;
+    submitButtonRef: React.RefObject<HTMLButtonElement | null>;
     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     hideModalFn: () => void;
     reference: NotifyMeReference;

@@ -10,8 +10,8 @@ import { useAtomValue } from "jotai";
 import { env } from "../../env/client.mjs";
 import { onlineServicesBoundAtom } from "../../utils/atoms";
 import { ButtonFlat, ButtonType } from "../general/buttons";
-import { FormSelectboxField } from "../general/inputFields";
-import { Body, Footer, GenericModal } from "../general/modal";
+import { FormSelectboxField } from "../general/input-fields";
+import { Body, Footer, GenericModal, Title } from "../general/modal";
 
 const formSchema = z.object({
     reason: z.enum(["Feature", "Bug", "General"]),
@@ -89,14 +89,11 @@ const FeedbackDialog: React.FC<{
             key="contact-us-dialog"
             visibleState={[visible, hideDialog]}
             inhibitDismissOnClickOutside={isInProgress}
+            childrenTitle={<Title>Contact us</Title>}
         >
             <Body>
                 <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Contact us
-                    </h1>
-
-                    <p className="mt-2 text-gray-700">
+                    <p className="text-gray-700">
                         Send us your feature requests, bug reports, or general
                         feedback.
                     </p>

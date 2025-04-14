@@ -1,17 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400;0,500;1,300&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400;0,500;1,300&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-    font-family: 'Red Hat Display', sans-serif;
+    font-family: "Red Hat Display", sans-serif;
     font-size: 18px;
     font-weight: 400;
 }
 
 html {
-  scroll-behavior: smooth;
+    scroll-behavior: smooth;
+}
+
+table {
+    @apply w-full;
 }
 
 .main {
@@ -25,15 +29,15 @@ html {
 }
 
 .colorPrimary {
-    color: #FF5668;
+    color: #ff5668;
 }
 
 .bg-colorPrimary {
-    background-color: #FF5668;
+    background-color: #ff5668;
 }
 
 .border-colorPrimary {
-    border-color: #FF5668;
+    border-color: #ff5668;
 }
 
 .card {
@@ -43,20 +47,20 @@ html {
 
 .gradientFromWhiteToPrimary {
     --tw-gradient-from: #ff9497;
-    --tw-gradient-to: #FF5668;
+    --tw-gradient-to: #ff5668;
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
 .gradientFromWhiteToGreen {
     --tw-gradient-from: #84e8b4;
-    --tw-gradient-to: #25C472;
+    --tw-gradient-to: #25c472;
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
 .vertical-line {
     width: 1px;
     opacity: 0.3;
-    background-color: #25C472;
+    background-color: #25c472;
     /* height: 40%; */
 }
 
@@ -68,7 +72,7 @@ html {
     background-position-y: bottom;
 }
 
-@media (max-width: 1024px) { 
+@media (max-width: 1024px) {
     .bg-grid {
         background-image: unset;
         background-size: contain;

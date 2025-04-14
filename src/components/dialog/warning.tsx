@@ -1,29 +1,44 @@
-import React, { useState } from "react";
+import React from "react";
 import { Body, Footer, GenericModal } from "../general/modal";
 import { ExclamationTriangleIcon } from "@heroicons/react/20/solid";
 import { ButtonFlat, ButtonType } from "../general/buttons";
 
 export type WarningDialogShowFn = (
     description: string,
-    onConfirm: () => void,
-    onDismiss: (() => void) | null
+    onConfirm: (() => void) | null,
+    onDismiss: (() => void) | null,
+    confirmationButtonText?: string,
+    descriptionSecondPart?: string,
 ) => void;
 
 export const WarningDialog: React.FC<{
     showFnRef: React.MutableRefObject<WarningDialogShowFn | null>;
 }> = ({ showFnRef }) => {
-    const [dialogVisible, setDialogVisible] = useState(false);
+    const [dialogVisible, setDialogVisible] = React.useState(false);
     const [isLoadingState, setIsLoadingState] = React.useState(false);
+
+    const [confirmationButtonText, setConfirmationButtonText] = React.useState<
+        string | undefined
+    >();
+    const [descriptionSecondPart, setDescriptionSecondPart] = React.useState<
+        string | undefined
+    >();
 
     showFnRef.current = (
         description: string,
-        onConfirm: () => void,
-        onDismiss: (() => void) | null
+        onConfirm: (() => void) | null,
+        onDismiss: (() => void) | null,
+        confirmationButtonText?: string,
+        descriptionSecondPart?: string,
     ) => {
         descriptionRef.current = description;
         onConfirmFnRef.current = onConfirm;
 
         onDismissFnRef.current = onDismiss;
+
+        setConfirmationButtonText(confirmationButtonText);
+        setDescriptionSecondPart(descriptionSecondPart);
+
         setDialogVisible(true);
     };
 
@@ -66,14 +81,17 @@ export const WarningDialog: React.FC<{
                         className="h-10 w-10 text-orange-500"
                         aria-hidden="true"
                     />
-                    <p className="text-2xl font-bold text-gray-900">Warning</p>
+                    <p className="text-2xl font-bold text-slate-900">Warning</p>
 
                     <br />
 
-                    <p className="mt-2 text-center text-base text-gray-600">
+                    <p className="mt-2 text-center text-base text-slate-600">
                         {descriptionRef.current}
                         {descriptionRef && descriptionRef.current && <br />}
-                        Are you sure you want to continue?
+                    </p>
+                    <p className="mt-2 text-center text-base text-slate-600">
+                        {descriptionSecondPart ??
+                            "Are you sure you want to continue?"}
                     </p>
                 </div>
             </Body>
@@ -81,7 +99,7 @@ export const WarningDialog: React.FC<{
             <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
                 {onConfirmFnRef && onConfirmFnRef.current && (
                     <ButtonFlat
-                        text="Confirm"
+                        text={confirmationButtonText ?? "Confirm"}
                         className="sm:ml-2"
                         onClick={onConfirm}
                         disabled={isLoadingState}

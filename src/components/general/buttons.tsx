@@ -67,6 +67,7 @@ export type ButtonFlatProps = {
     inhibitAutoWidth?: boolean;
     disabled?: boolean;
     loading?: boolean;
+    ref_?: React.LegacyRef<HTMLButtonElement>;
 };
 export const ButtonFlat: React.FC<ButtonFlatProps> = ({
     text,
@@ -76,6 +77,7 @@ export const ButtonFlat: React.FC<ButtonFlatProps> = ({
     inhibitAutoWidth,
     disabled,
     loading,
+    ref_,
 }) => {
     const disabledClass = clsx({
         "bg-gray-600 text-gray-400 cursor-auto": disabled,
@@ -91,9 +93,10 @@ export const ButtonFlat: React.FC<ButtonFlatProps> = ({
 
     return (
         <button
+            ref={ref_}
             type="button"
             className={clsx({
-                "inline-flex justify-center rounded-md border text-base font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm":
+                "inline-flex justify-center rounded-sm border text-base font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm":
                     true,
                 "w-full sm:w-auto": !inhibitAutoWidth,
                 [paddingClasses]: true,

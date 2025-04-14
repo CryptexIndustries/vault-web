@@ -8,6 +8,7 @@ import { wordlist } from "@scure/bip39/wordlists/english";
 import Papa from "papaparse";
 import { ulid } from "ulidx";
 import * as VaultUtilTypes from "./proto/vault";
+import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
 
 const requiredFieldError = "This is a required field";
 
@@ -688,7 +689,7 @@ export namespace Backup {
     export enum Type {
         Manual,
         // Dropbox,
-        // GoogleDrive,
+        // GDrive,
     }
 
     export const trigger = async (
@@ -700,12 +701,12 @@ export namespace Backup {
         // NOTE: Need to clone the OnlineServicesAccount object too because it still has a reference to the vault instance
         const cleanVault = Object.assign(new Vault(), vaultInstance);
         const cleanOnlineServices = Object.assign(
-            new OnlineServicesAccount(),
-            vaultInstance.OnlineServices,
+            new LinkedDevices(),
+            vaultInstance.LinkedDevices,
         );
-        cleanVault.OnlineServices = cleanOnlineServices;
+        cleanVault.LinkedDevices = cleanOnlineServices;
 
-        cleanVault.OnlineServices.unbindAccount();
+        LinkedDevices.unbindAccount(cleanVault.LinkedDevices);
 
         // Serialize the vault instance
         const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();
@@ -1298,19 +1299,9 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             vaultRawParsed,
         );
 
-        vaultObject.OnlineServices = Object.assign(
-            new OnlineServicesAccount(),
-            vaultObject.OnlineServices,
+        vaultObject.LinkedDevices = LinkedDevices.fromGeneric(
+            vaultObject.LinkedDevices,
         );
-
-        // Go through each linked device and assign it to a new object
-        // This is done to ensure that the LinkedDevice class is used instead of the generic object
-        vaultObject.OnlineServices.LinkedDevices =
-            vaultObject.OnlineServices.LinkedDevices.map(
-                (device: LinkedDevice) => {
-                    return Object.assign(new LinkedDevice(), device);
-                },
-            );
 
         // Go through each credential and assign it to a new object
         vaultObject.Credentials = vaultObject.Credentials.map(
@@ -1402,7 +1393,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
     }
 
-    public static decodeMetadataBinary(
+    public static deserializeMetadataBinary(
         data: Uint8Array,
         dbIndex?: number,
     ): VaultMetadata {
@@ -1675,18 +1666,16 @@ export namespace Credential {
             ];
 
             // These are the fields we don't want to blindly concatenate, so we exclude them and handle them separately (if needed)
-            const excludedFields = ["TOTP", "Hash"];
+            const excludedFields: (keyof VaultCredential)[] = ["TOTP", "Hash"];
 
             let concatenatedValues = "";
 
-            includedFields.forEach((key: string) => {
+            includedFields.forEach((key) => {
                 // NOTE: Ran some performance test on this check; it's faster than actually checking
                 //  if the key is of the value we're looking for
                 if (!excludedFields.includes(key)) {
-                    const typedKey = key as keyof VaultCredential;
-
                     // Concatenate the value of the field to the string
-                    concatenatedValues += String(this[typedKey] ?? "");
+                    concatenatedValues += String(this[key] ?? "");
                 }
             });
 
@@ -1863,20 +1852,19 @@ export namespace Credential {
     };
 }
 
-export const LinkedDevicesSchema = z.object({
-    ID: z.string(),
-    Name: z.string(),
-    LastSync: z.string().optional(),
-    IsRoot: z.boolean(),
-    LinkedAtTimestamp: z.number(),
-    AutoConnect: z.boolean(),
-    SyncTimeout: z.boolean(),
-    SyncTimeoutPeriod: z.number(),
-});
-export type LinkedDeviceSchemaType = z.infer<typeof LinkedDevicesSchema>;
-export class LinkedDevice
-    implements VaultUtilTypes.LinkedDevice, LinkedDeviceSchemaType
-{
+// export const LinkedDevicesSchema = z.object({
+//     ID: z.string(),
+//     Name: z.string(),
+//     LastSync: z.string().optional(),
+//     IsRoot: z.boolean(),
+//     LinkedAtTimestamp: z.number(),
+//     AutoConnect: z.boolean(),
+//     SyncTimeout: z.boolean(),
+//     SyncTimeoutPeriod: z.number(),
+// });
+// export type LinkedDeviceSchemaType = z.infer<typeof LinkedDevicesSchema>;
+export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
+    //, LinkedDeviceSchemaType
     public ID: string;
     public Name: string;
     public LastSync: string | undefined;
@@ -1886,6 +1874,10 @@ export class LinkedDevice
     public SyncTimeout: boolean;
     public SyncTimeoutPeriod: number;
 
+    public STUNServerIDs: string[] = [];
+    public TURNServerIDs: string[] = [];
+    public SignalingServerID = ONLINE_SERVICES_SELECTION_ID;
+
     constructor(
         deviceID = "",
         deviceName = "",
@@ -1894,6 +1886,9 @@ export class LinkedDevice
         autoConnect = true,
         syncTimeout = false,
         syncTimeoutPeriod = 30,
+        stunServerIDs: string[] = [],
+        turnServerIDs: string[] = [],
+        signalingServerID = ONLINE_SERVICES_SELECTION_ID,
     ) {
         this.ID = deviceID;
         this.Name = deviceName;
@@ -1902,6 +1897,9 @@ export class LinkedDevice
         this.AutoConnect = autoConnect;
         this.SyncTimeout = syncTimeout;
         this.SyncTimeoutPeriod = syncTimeoutPeriod;
+        this.STUNServerIDs = stunServerIDs;
+        this.TURNServerIDs = turnServerIDs;
+        this.SignalingServerID = signalingServerID;
     }
 
     public updateLastSync(): void {
@@ -1910,94 +1908,181 @@ export class LinkedDevice
         console.debug(`Updated last sync for device ${this.Name} (${this.ID})`);
     }
 
-    public setName(name: string): void {
+    public set setName(name: string) {
         if (name.trim().length > 0) {
             this.Name = name;
         }
     }
 
-    public setAutoConnect(autoConnect: boolean): void {
+    public set setAutoConnect(autoConnect: boolean) {
         this.AutoConnect = autoConnect;
     }
 
-    public setSyncTimeout(syncTimeout: boolean): void {
+    public set setSyncTimeout(syncTimeout: boolean) {
         this.SyncTimeout = syncTimeout;
     }
 
-    public setSyncTimeoutPeriod(syncTimeoutPeriod: number): void {
+    public set setSyncTimeoutPeriod(syncTimeoutPeriod: number) {
         this.SyncTimeoutPeriod = Math.abs(syncTimeoutPeriod);
     }
-}
 
-export class OnlineServiceConfiguration
-    implements VaultUtilTypes.OnlineServiceConfiguration
-{
-    STUNServers: VaultUtilTypes.OnlineServicesSTUNConfiguration[];
-    TURNServers: VaultUtilTypes.OnlineServicesTURNConfiguration[];
-    PusherServers: VaultUtilTypes.OnlineServicesPusherConfiguration[];
+    public set setSTUNServers(ids: string[]) {
+        this.STUNServerIDs = ids;
+    }
 
-    constructor() {
-        this.STUNServers = [];
-        this.TURNServers = [];
-        this.PusherServers = [];
+    public set setTURNServers(ids: string[]) {
+        this.TURNServerIDs = ids;
+    }
+
+    public set setSignalingServer(id: string) {
+        this.SignalingServerID = id;
     }
 }
 
-export class OnlineServicesAccount implements VaultUtilTypes.OnlineServices {
-    // TODO: Remove the UserID, PublicKey and PrivateKey checks after the upgrade period is over
-    public UserID?: string;
-    public PublicKey?: string;
-    public PrivateKey?: string;
+export class STUNServerConfiguration
+    implements VaultUtilTypes.STUNServerConfiguration
+{
+    Version: number = 1;
 
+    ID: string;
+    Name: string;
+    Host: string;
+
+    constructor(name = "", host = "") {
+        this.ID = ulid();
+        this.Name = name;
+        this.Host = host;
+    }
+}
+
+export class TURNServerConfiguration
+    implements VaultUtilTypes.TURNServerConfiguration
+{
+    Version: number = 1;
+
+    ID: string;
+    Name: string;
+    Host: string;
+    Username: string;
+    Password: string;
+
+    constructor(name = "", host = "", username = "", password = "") {
+        this.ID = ulid();
+        this.Name = name;
+        this.Host = host;
+        this.Username = username;
+        this.Password = password;
+    }
+}
+
+export class SignalingServerConfiguration
+    implements VaultUtilTypes.SignalingServerConfiguration
+{
+    Version: number = 1;
+
+    ID: string;
+    Name: string;
+    AppID: string;
+    Key: string;
+    Secret: string;
+    Host: string;
+    ServicePort: string;
+    SecureServicePort: string;
+
+    constructor(
+        name = "",
+        appID = "",
+        key = "",
+        secret = "",
+        host = "",
+        servicePort = "",
+        secureServicePort = "",
+    ) {
+        this.ID = ulid();
+        this.Name = name;
+        this.AppID = appID;
+        this.Key = key;
+        this.Secret = secret;
+        this.Host = host;
+        this.ServicePort = servicePort;
+        this.SecureServicePort = secureServicePort;
+    }
+}
+
+export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
+    public ID: string = ulid();
     public APIKey?: string;
     public CreationTimestamp = Date.now();
 
-    public LinkedDevices: LinkedDevice[] = [];
+    public Devices: LinkedDevice[] = [];
 
-    Configuration: VaultUtilTypes.OnlineServiceConfiguration =
-        new OnlineServiceConfiguration();
+    public STUNServers: STUNServerConfiguration[] = [];
+    public TURNServers: TURNServerConfiguration[] = [];
+    public SignalingServers: SignalingServerConfiguration[] = [];
 
-    public bindAccount(apiKey: string): void {
-        this.APIKey = apiKey;
-        this.CreationTimestamp = Date.now();
-    }
-
-    public unbindAccount(): void {
-        // TODO: Remove the UserID, PublicKey and PrivateKey checks after the upgrade period is over
-        this.UserID = undefined;
-        this.PublicKey = undefined;
-        this.PrivateKey = undefined;
-
-        this.APIKey = undefined;
-        this.CreationTimestamp = Date.now();
-        this.LinkedDevices = [];
-    }
-
-    public isBound(): boolean {
-        return (
-            // TODO: Remove the UserID, PublicKey and PrivateKey checks after the upgrade period is over
-            (this.UserID != null &&
-                this.PublicKey != null &&
-                this.PrivateKey != null) ||
-            this.APIKey != null
+    public static fromGeneric(rawOnlineServices: VaultUtilTypes.LinkedDevices) {
+        const newInstance = Object.assign(
+            new LinkedDevices(),
+            rawOnlineServices,
         );
+
+        newInstance.Devices = rawOnlineServices.Devices.map((ld) =>
+            Object.assign(new LinkedDevice(), ld),
+        );
+        newInstance.STUNServers = rawOnlineServices.STUNServers.map((stun) =>
+            Object.assign(new STUNServerConfiguration(), stun),
+        );
+        newInstance.TURNServers = rawOnlineServices.TURNServers.map((turn) =>
+            Object.assign(new TURNServerConfiguration(), turn),
+        );
+        newInstance.SignalingServers = rawOnlineServices.SignalingServers.map(
+            (signaling) =>
+                Object.assign(new SignalingServerConfiguration(), signaling),
+        );
+
+        return newInstance;
     }
 
-    public deviceID(): string | null {
-        return this.APIKey?.slice(36) ?? null;
+    public static bindAccount(instance: LinkedDevices, apiKey: string): void {
+        instance.ID = apiKey.slice(36);
+        instance.APIKey = apiKey;
+        instance.CreationTimestamp = Date.now();
     }
 
-    //#region Linked Devices
-    public addLinkedDevice(
+    public static unbindAccount(instance: LinkedDevices): void {
+        // NOTE: Don't reset the ID, if there are any devices linked (not using Cryptex Vault Online Service) to this account
+        // - they will be unable to sync
+        // instance.ID = ulid();
+        instance.APIKey = undefined;
+        instance.CreationTimestamp = Date.now();
+
+        // Remove all devices that are using the Cryptex Vault Online Services
+        // instance.Devices = instance.Devices.filter(
+        //     (d) =>
+        //         d.STUNServerIDs.length > 0 &&
+        //         d.TURNServerIDs.length > 0 &&
+        //         d.SignalingServerID != ONLINE_SERVICES_SELECTION_ID,
+        // );
+    }
+
+    public static isBound(instance: LinkedDevices): boolean {
+        return instance.APIKey != null;
+    }
+
+    public static addLinkedDevice(
+        instance: LinkedDevices,
         deviceID: string,
         deviceName: string,
         isRoot = false,
+        stunServerIDs: string[] = [],
+        turnServerIDs: string[] = [],
+        signalingServerID: string = ONLINE_SERVICES_SELECTION_ID,
         linkedAtTimestamp = Date.now(),
         autoConnect?: boolean,
         syncTimeout?: boolean,
         syncTimeoutPeriod?: number,
     ): void {
-        this.LinkedDevices.push(
+        instance.Devices.push(
             new LinkedDevice(
                 deviceID,
                 deviceName,
@@ -2006,55 +2091,81 @@ export class OnlineServicesAccount implements VaultUtilTypes.OnlineServices {
                 autoConnect,
                 syncTimeout,
                 syncTimeoutPeriod,
+                stunServerIDs,
+                turnServerIDs,
+                signalingServerID ?? ONLINE_SERVICES_SELECTION_ID,
             ),
         );
     }
 
-    public removeLinkedDevice(deviceID: string): void {
-        this.LinkedDevices = this.LinkedDevices.filter(
-            (device) => device.ID !== deviceID,
-        );
+    public static generateNewDeviceID(): string {
+        return ulid();
     }
 
-    public getLinkedDevice(deviceID: string): LinkedDevice | null {
-        return (
-            this.LinkedDevices.find((device) => device.ID === deviceID) ?? null
-        );
+    public static removeLinkedDevice(
+        list: LinkedDevice[],
+        deviceID: string,
+    ): LinkedDevice[] {
+        return list.filter((device) => device.ID !== deviceID);
+    }
+}
+
+export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
+    Blob: Uint8Array;
+    Salt: string;
+    HeaderIV: string;
+
+    constructor(blob: Uint8Array, salt: string, headerIV: string) {
+        this.Blob = blob;
+        this.Salt = salt;
+        this.HeaderIV = headerIV;
     }
 
-    public getLinkedDevices(excludedIDs: string[] = []): LinkedDevice[] {
-        return this.LinkedDevices.filter(
-            (device) => !excludedIDs.includes(device.ID),
-        );
-    }
-    //#endregion Linked Devices
+    public static async createNewPackage(
+        blob: VaultUtilTypes.LinkingPackageBlob,
+    ): Promise<{
+        mnemonic: string;
+        linkingPackage: LinkingPackage;
+    }> {
+        const mnemonic = bip39.generateMnemonic(wordlist, 256);
+        const secret = await VaultEncryption.hashSecret(mnemonic);
 
-    /**
-     * Decrypts the data that was deserialized for authenticating with online services.
-     * This is used when linking devices (from outside the vault)
-     * TODO: Move this to the VaultEncryption class
-     * @param encryptedData - The data to decrypt (as a base64 string)
-     * @param secret - The secret to decrypt the data with
-     * @returns The decrypted data as an OnlineServicesAccountInterface object
-     * @throws An error if the decryption fails or the data is invalid
-     */
-    public static async decryptTransferableData(
-        encryptedData: string,
+        const newEncryptedBlob: VaultEncryption.EncryptedBlob =
+            VaultEncryption.EncryptedBlob.CreateDefault();
+
+        newEncryptedBlob.Blob = Buffer.from(
+            VaultUtilTypes.LinkingPackageBlob.encode(blob).finish(),
+        );
+
+        const _encryptedData = await VaultEncryption.EncryptDataBlob(
+            newEncryptedBlob.Blob,
+            secret,
+            VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+            VaultUtilTypes.KeyDerivationFunction.Argon2ID,
+            newEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
+            newEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
+        );
+
+        const linkingPackage = new LinkingPackage(
+            _encryptedData.Blob,
+            _encryptedData.Salt,
+            _encryptedData.HeaderIV,
+        );
+
+        return {
+            mnemonic,
+            linkingPackage,
+        };
+    }
+
+    public async decryptPackage(
         secret: string,
-    ): Promise<string> {
-        // Convert the encrypted data to a Buffer (from a base64 string)
-        const [blob, salt, header_iv] = encryptedData.split(":");
-
-        // Validate the data
-        if (blob == null || salt == null || header_iv == null) {
-            throw new Error("Invalid data. Parsing failed.");
-        }
-
+    ): Promise<VaultUtilTypes.LinkingPackageBlob> {
         // Create a default EncryptedBlob object and assign the encrypted data to it
         const encryptedBlob = VaultEncryption.EncryptedBlob.CreateDefault();
-        encryptedBlob.Blob = Buffer.from(blob, "base64");
-        encryptedBlob.Salt = salt;
-        encryptedBlob.HeaderIV = header_iv;
+        encryptedBlob.Blob = this.Blob;
+        encryptedBlob.Salt = this.Salt;
+        encryptedBlob.HeaderIV = this.HeaderIV;
 
         const decrypted = await VaultEncryption.DecryptDataBlob(
             encryptedBlob,
@@ -2067,63 +2178,49 @@ export class OnlineServicesAccount implements VaultUtilTypes.OnlineServices {
                 : (encryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2),
         );
 
-        const decryptedAPIKey = Buffer.from(decrypted).toString();
+        return VaultUtilTypes.LinkingPackageBlob.decode(decrypted);
+    }
 
-        // Some basic validation
-        if (!decryptedAPIKey?.length) {
+    public toBinary(): Uint8Array {
+        const serializedVault =
+            VaultUtilTypes.LinkingPackage.encode(this).finish();
+        return serializedVault;
+    }
+
+    public toBase64(): string {
+        const serializedVault = this.toBinary();
+
+        // Same logic as in VaultEncryption.encryptBlob for the string output
+        const b64Blob = Buffer.from(serializedVault).toString("base64");
+
+        return `${b64Blob}:${this.Salt}:${this.HeaderIV}`;
+    }
+
+    public static fromBinary(binary: Uint8Array): LinkingPackage {
+        const deserialized = VaultUtilTypes.LinkingPackage.decode(binary);
+
+        return new LinkingPackage(
+            deserialized.Blob,
+            deserialized.Salt,
+            deserialized.HeaderIV,
+        );
+    }
+
+    public static fromBase64(base64: string): LinkingPackage {
+        const [blob, salt, headerIV] = base64.split(":");
+
+        // Validate the data
+        if (blob == null || salt == null || headerIV == null) {
             throw new Error("Invalid data. Parsing failed.");
         }
 
-        return decryptedAPIKey;
-    }
-
-    /**
-     * Encrypts and serializes the data that will be used for signing in to online services on another device.
-     * @param apiKey - The API key to encrypt
-     * @returns An object containing the encrypted data and the secret used to encrypt it
-     */
-    public static async encryptTransferableData(apiKey: string): Promise<{
-        encryptedDataB64: string;
-        mnemonic: string;
-    }> {
-        // Even though isBound checks for null, we do the explicit check here to avoid TS errors
-        if (!apiKey.length) {
-            throw new Error(
-                "Cannot create transferable data. API Key is empty.",
-            );
-        }
-
-        // Generate a random passphrase with which to encrypt the data - 128 bits
-        const mnemonic = bip39.generateMnemonic(wordlist, 128);
-
-        const secret = await VaultEncryption.hashSecret(mnemonic);
-
-        const newEncryptedBlob: VaultEncryption.EncryptedBlob =
-            VaultEncryption.EncryptedBlob.CreateDefault();
-
-        newEncryptedBlob.Blob = Buffer.from(apiKey);
-
-        // Encrypt the data using the passphrase
-        const _encryptedData = await VaultEncryption.EncryptDataBlob(
-            newEncryptedBlob.Blob,
-            secret,
-            newEncryptedBlob.Algorithm,
-            newEncryptedBlob.KeyDerivationFunc,
-            newEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-            newEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
+        const newInstance = new LinkingPackage(
+            Buffer.from(blob, "base64"),
+            salt,
+            headerIV,
         );
 
-        // Convert the encrypted data to a base64 string
-        const encryptedBase64Blob = Buffer.from(_encryptedData.Blob).toString(
-            "base64",
-        );
-
-        const encryptedDataB64 = `${encryptedBase64Blob}:${_encryptedData.Salt}:${_encryptedData.HeaderIV}`;
-
-        return {
-            encryptedDataB64,
-            mnemonic,
-        };
+        return newInstance;
     }
 }
 
@@ -2189,7 +2286,7 @@ export class Vault implements VaultUtilTypes.Vault {
     public Version: number;
     public CurrentVersion = 0;
     public Configuration: Configuration = new Configuration();
-    public OnlineServices: OnlineServicesAccount;
+    public LinkedDevices: LinkedDevices;
     public Groups: Group[] = [];
     public Credentials: Credential.VaultCredential[];
     public Diffs: VaultUtilTypes.Diff[] = [];
@@ -2198,7 +2295,7 @@ export class Vault implements VaultUtilTypes.Vault {
         this.Version = this.LATEST_VERSION;
         this.Secret = secret;
 
-        this.OnlineServices = new OnlineServicesAccount();
+        this.LinkedDevices = new LinkedDevices();
         this.Credentials = seedData ? this.seedVault(seedCount) : [];
     }
 
@@ -2411,7 +2508,7 @@ export class Vault implements VaultUtilTypes.Vault {
         // If there are no linked devices, only the latest diff is saved to ensure that linked
         //  devices can sync even if they diverged right after linking
         if (
-            this.OnlineServices.LinkedDevices.length <= 0 &&
+            this.LinkedDevices.Devices.length <= 0 &&
             this.Configuration.SaveOnlyLatestDiffWhenNoLinked
         ) {
             // Make sure that only this diff is saved when there are no linked devices
@@ -2436,19 +2533,19 @@ export class Vault implements VaultUtilTypes.Vault {
 
         // Apply the diffs in order
         for (const diff of diffs) {
-            if (diff.Changes && diff.Changes.Props) {
-                if (diff.Changes.Type === VaultUtilTypes.DiffType.Add) {
-                    await this.createCredential(diff.Changes.Props);
-                } else if (
-                    diff.Changes.Type === VaultUtilTypes.DiffType.Update
-                ) {
-                    await this.updateCredential(undefined, diff.Changes);
-                } else if (
-                    diff.Changes.Type === VaultUtilTypes.DiffType.Delete
-                ) {
-                    // Use the built-in delete method to delete the credential
-                    await this.deleteCredential(diff.Changes.ID);
-                }
+            if (
+                diff.Changes?.Type === VaultUtilTypes.DiffType.Add &&
+                diff.Changes?.Props
+            ) {
+                await this.createCredential(diff.Changes.Props);
+            } else if (
+                diff.Changes?.Type === VaultUtilTypes.DiffType.Update &&
+                diff.Changes?.Props
+            ) {
+                await this.updateCredential(undefined, diff.Changes);
+            } else if (diff.Changes?.Type === VaultUtilTypes.DiffType.Delete) {
+                // Use the built-in delete method to delete the credential
+                await this.deleteCredential(diff.Changes.ID);
             }
         }
 
@@ -2639,47 +2736,63 @@ export class Vault implements VaultUtilTypes.Vault {
      * @param newOnlineServicesAccount Credentials for the new account to bind to the vault (that will be used on the other device)
      * @returns A new Vault object ready for serialization and transfer
      */
-    public packageForLinking(apiKey: string): Vault {
-        const thisDeviceID = this.OnlineServices.deviceID();
-        if (!this.OnlineServices.isBound() || !thisDeviceID) {
-            throw new Error(
-                "Cannot package the vault for linking. The vault is not bound to an account.",
-            );
-        }
-
-        if (!apiKey) {
-            throw new Error(
-                "Cannot package the vault for linking. The new account doesn't have a valid API key.",
-            );
-        }
-
+    public static packageForLinking(
+        instance: Vault,
+        deviceID: string,
+        apiKey: string | undefined,
+        stunServerIDs: string[],
+        turnServerIDs: string[],
+        signalingServerID: string,
+    ): Vault {
         // Create a copy of the vault so we don't modify the original
-        const vaultCopy = Object.assign(new Vault(this.Secret), this);
+        const vaultCopy = Object.assign(new Vault(instance.Secret), instance);
 
         // NOTE: Even if this vault never had any linked devices, it will always have at least on diff in the diff list
         // This is to ensure that both devices can synchronize with each other even if they diverge right after linking
 
         // Clear the online services account and re-bind it with the new account for the other device
-        vaultCopy.OnlineServices = new OnlineServicesAccount();
-        vaultCopy.OnlineServices.bindAccount(apiKey);
+        vaultCopy.LinkedDevices = new LinkedDevices();
+
+        // Make sure the device has the same Linking configuration as the original vault
+        vaultCopy.LinkedDevices.STUNServers =
+            instance.LinkedDevices.STUNServers;
+        vaultCopy.LinkedDevices.TURNServers =
+            instance.LinkedDevices.TURNServers;
+        vaultCopy.LinkedDevices.SignalingServers =
+            instance.LinkedDevices.SignalingServers;
+
+        // In case this linked device uses the Cryptex Vault Online Services (API key exists), we need to bind the account
+        if (apiKey) {
+            LinkedDevices.bindAccount(vaultCopy.LinkedDevices, apiKey);
+        } else {
+            vaultCopy.LinkedDevices.ID = deviceID;
+        }
 
         // Since this device is the one linking, we can call it the root device
         const deviceName = "Root Device";
 
         // Plant this device as a linked device in the new vault
-        vaultCopy.OnlineServices.addLinkedDevice(
-            thisDeviceID,
+        LinkedDevices.addLinkedDevice(
+            vaultCopy.LinkedDevices,
+            instance.LinkedDevices.ID,
             deviceName,
             true,
-            this.OnlineServices.CreationTimestamp,
+            stunServerIDs,
+            turnServerIDs,
+            signalingServerID,
+            instance.LinkedDevices.CreationTimestamp,
         );
 
         // Make sure we add all the other linked devices to this vault
-        this.OnlineServices.LinkedDevices.forEach((device) => {
-            vaultCopy.OnlineServices.addLinkedDevice(
+        instance.LinkedDevices.Devices.forEach((device) => {
+            LinkedDevices.addLinkedDevice(
+                vaultCopy.LinkedDevices,
                 device.ID,
                 device.Name,
                 device.IsRoot,
+                device.STUNServerIDs,
+                device.TURNServerIDs,
+                device.SignalingServerID,
                 device.LinkedAtTimestamp,
                 device.AutoConnect,
                 device.SyncTimeout,
@@ -2691,325 +2804,303 @@ export class Vault implements VaultUtilTypes.Vault {
     }
 }
 
+export const calculateMockedVaultHash = async (
+    vault: Vault,
+    diffs: VaultUtilTypes.Diff[],
+) => {
+    const newVault = new Vault();
+
+    for (const cred of vault.Credentials) {
+        await newVault.createCredential(cred);
+    }
+
+    await newVault.applyDiffs(diffs);
+    return await newVault.getLatestHash();
+};
+
+// TODO: Clean up
 export namespace Synchronization {
     // Reexport the VaultUtil.SynchronizationCommand enum as Command for convenience
-    export import Command = VaultUtilTypes.SynchronizationMessageCommand;
-
-    export class Message implements VaultUtilTypes.SynchronizationMessage {
-        Command: VaultUtilTypes.SynchronizationMessageCommand;
-        Hash?: string;
-
-        /**
-         * The hash from which the divergence occurred.
-         * This is sent from the ResponseSyncAllHashes command if it detects a divergence.
-         * This is only used in the SyncResponse command if it has been set by the ResponseSyncAllHashes command.
-         */
-        DivergenceHash?: string;
-
-        Diffs: VaultUtilTypes.Diff[];
-        LinkedDevices: VaultUtilTypes.LinkedDevice[];
-
-        constructor(
-            command: VaultUtilTypes.SynchronizationMessageCommand,
-            hash?: string,
-            divergenceHash?: string,
-            diffs?: VaultUtilTypes.Diff[],
-            linkedDevices?: VaultUtilTypes.LinkedDevice[],
-        ) {
-            this.Command = command;
-            this.Hash = hash;
-            this.DivergenceHash = divergenceHash;
-            this.Diffs = diffs ?? [];
-            this.LinkedDevices = linkedDevices ?? [];
-        }
-
-        public static prepare(
-            command: VaultUtilTypes.SynchronizationMessageCommand,
-            hash: string | undefined,
-            divergenceHash: string | undefined,
-            diffs: VaultUtilTypes.Diff[],
-            linkedDevices?: VaultUtilTypes.LinkedDevice[],
-        ): Message {
-            return new Message(
-                command,
-                hash,
-                divergenceHash,
-                diffs,
-                linkedDevices,
-            );
-        }
-
-        public static parse(data: Uint8Array): Message {
-            const decoded = VaultUtilTypes.SynchronizationMessage.decode(data);
-            return new Message(
-                decoded.Command,
-                decoded.Hash,
-                decoded.DivergenceHash,
-                decoded.Diffs,
-                decoded.LinkedDevices,
-            );
-        }
-
-        public setCommand(command: Command): void {
-            this.Command = command;
-        }
-
-        public setHash(hash: string | null): void {
-            this.Hash = hash ?? undefined;
-        }
-
-        public setDivergenceHash(hash: string | null): void {
-            this.DivergenceHash = hash ?? undefined;
-        }
-
-        public setDiffList(diffList: VaultUtilTypes.Diff[]): void {
-            this.Diffs = diffList;
-        }
-
-        public setLinkedDevicesList(
-            linkedDevicesList: LinkedDeviceSchemaType[],
-        ): void {
-            this.LinkedDevices = linkedDevicesList;
-        }
-
-        public serialize(): Uint8Array {
-            return VaultUtilTypes.SynchronizationMessage.encode(this).finish();
-        }
-    }
-
-    export enum LinkStatus {
-        Connected,
-        Connecting,
-        Disconnected,
-        WaitingForDevice,
-        Failure,
-    }
-
-    export type WebRTCConnection = {
-        ID: string;
-        Connection: RTCPeerConnection | null;
-        DataChannel: RTCDataChannel | null;
-        State: LinkStatus;
-        ManualDisconnect: boolean;
-    };
-
-    export class WebRTCConnections {
-        public connections: Map<string, WebRTCConnection> = new Map<
-            string,
-            WebRTCConnection
-        >();
-
-        private initForDevice(id: string): WebRTCConnection {
-            const newConn = {
-                ID: id,
-                Connection: null,
-                DataChannel: null,
-                State: LinkStatus.Disconnected,
-                ManualDisconnect: false,
-            };
-
-            this.connections.set(id, newConn);
-
-            return newConn;
-        }
-
-        public get(id: string): WebRTCConnection {
-            const connection = this.connections.get(id);
-            if (connection) {
-                return connection;
-            }
-            return this.initForDevice(id);
-        }
-
-        public upsert(
-            id: string,
-            connection: RTCPeerConnection,
-            dataChannel: RTCDataChannel,
-            state: LinkStatus,
-        ): void {
-            // Make sure the connection doesn't already exist
-            if (this.connections.has(id)) {
-                // Update the connection
-                const conn = this.connections.get(id);
-                if (conn) {
-                    conn.Connection = connection;
-                    conn.DataChannel = dataChannel;
-                    conn.State = state;
-                    // conn.ManualDisconnect = false;
-                }
-            } else {
-                // Add the connection
-                const newConn = {
-                    ID: id,
-                    Connection: connection,
-                    DataChannel: dataChannel,
-                    State: state,
-                    ManualDisconnect: false,
-                };
-
-                this.connections.set(id, newConn);
-            }
-        }
-
-        public remove(id: string): void {
-            // Close the connection
-            const connection = this.connections.get(id);
-            if (connection) {
-                connection.DataChannel?.close();
-                connection.Connection?.close();
-
-                // Clear the connection
-                connection.Connection = null;
-                connection.DataChannel = null;
-                connection.State = LinkStatus.Disconnected;
-            }
-        }
-
-        public setState(id: string, state: LinkStatus): void {
-            const connection = this.connections.get(id);
-            if (connection) {
-                connection.State = state;
-            } else {
-                console.debug(
-                    "Tried to set state for non-existent connection.",
-                    id,
-                    state,
-                );
-            }
-        }
-
-        public setManualDisconnect(id: string, state: boolean): void {
-            const connection = this.connections.get(id);
-            if (connection) {
-                connection.ManualDisconnect = state;
-            } else {
-                console.debug(
-                    "Tried to set manual disconnect for non-existent connection.",
-                    id,
-                    state,
-                );
-            }
-        }
-
-        public cleanup(): void {
-            // const numConnections = this.connections.map(
-            //     (c) => c.Connection && c.DataChannel
-            // ).length;
-            const numConnections = this.connections.size;
-
-            this.connections.forEach((c) => {
-                c.DataChannel?.close();
-                c.Connection?.close();
-            });
-            this.connections.clear();
-
-            console.debug(`Cleaned up ${numConnections} WebRTC connections.`);
-        }
-    }
-
+    // export import Command = VaultUtilTypes.SynchronizationMessageCommand;
+    // export class Message implements VaultUtilTypes.SynchronizationMessage {
+    //     Command: VaultUtilTypes.SynchronizationMessageCommand;
+    //     Hash?: string;
+    //     /**
+    //      * The hash from which the divergence occurred.
+    //      * This is sent from the ResponseSyncAllHashes command if it detects a divergence.
+    //      * This is only used in the SyncResponse command if it has been set by the ResponseSyncAllHashes command.
+    //      */
+    //     DivergenceHash?: string;
+    //     Diffs: VaultUtilTypes.Diff[];
+    //     LinkedDevices: VaultUtilTypes.LinkedDevice[];
+    //     constructor(
+    //         command: VaultUtilTypes.SynchronizationMessageCommand,
+    //         hash?: string,
+    //         divergenceHash?: string,
+    //         diffs?: VaultUtilTypes.Diff[],
+    //         linkedDevices?: VaultUtilTypes.LinkedDevice[],
+    //     ) {
+    //         this.Command = command;
+    //         this.Hash = hash;
+    //         this.DivergenceHash = divergenceHash;
+    //         this.Diffs = diffs ?? [];
+    //         this.LinkedDevices = linkedDevices ?? [];
+    //     }
+    //     public static prepare(
+    //         command: VaultUtilTypes.SynchronizationMessageCommand,
+    //         hash: string | undefined,
+    //         divergenceHash: string | undefined,
+    //         diffs: VaultUtilTypes.Diff[],
+    //         linkedDevices?: VaultUtilTypes.LinkedDevice[],
+    //     ): Message {
+    //         return new Message(
+    //             command,
+    //             hash,
+    //             divergenceHash,
+    //             diffs,
+    //             linkedDevices,
+    //         );
+    //     }
+    //     public static parse(data: Uint8Array): Message {
+    //         const decoded = VaultUtilTypes.SynchronizationMessage.decode(data);
+    //         return new Message(
+    //             decoded.Command,
+    //             decoded.Hash,
+    //             decoded.DivergenceHash,
+    //             decoded.Diffs,
+    //             decoded.LinkedDevices,
+    //         );
+    //     }
+    //     public setCommand(command: Command): void {
+    //         this.Command = command;
+    //     }
+    //     public setHash(hash: string | null): void {
+    //         this.Hash = hash ?? undefined;
+    //     }
+    //     public setDivergenceHash(hash: string | null): void {
+    //         this.DivergenceHash = hash ?? undefined;
+    //     }
+    //     public setDiffList(diffList: VaultUtilTypes.Diff[]): void {
+    //         this.Diffs = diffList;
+    //     }
+    //     public setLinkedDevicesList(linkedDevicesList: LinkedDevice[]): void {
+    //         this.LinkedDevices = linkedDevicesList;
+    //     }
+    //     public serialize(): Uint8Array {
+    //         return VaultUtilTypes.SynchronizationMessage.encode(this).finish();
+    //     }
+    // }
+    // export enum LinkStatus {
+    //     Connected,
+    //     Connecting,
+    //     Disconnected,
+    //     WaitingForDevice,
+    //     Failure,
+    // }
+    // export type WebRTCConnection = {
+    //     ID: string;
+    //     Connection: RTCPeerConnection | null;
+    //     DataChannel: RTCDataChannel | null;
+    //     State: LinkStatus;
+    //     ManualDisconnect: boolean;
+    // };
+    // export class WebRTCConnections {
+    //     public connections: Map<string, WebRTCConnection> = new Map<
+    //         string,
+    //         WebRTCConnection
+    //     >();
+    //     private initForDevice(id: string): WebRTCConnection {
+    //         const newConn = {
+    //             ID: id,
+    //             Connection: null,
+    //             DataChannel: null,
+    //             State: LinkStatus.Disconnected,
+    //             ManualDisconnect: false,
+    //         };
+    //         this.connections.set(id, newConn);
+    //         return newConn;
+    //     }
+    //     public get(id: string): WebRTCConnection {
+    //         const connection = this.connections.get(id);
+    //         if (connection) {
+    //             return connection;
+    //         }
+    //         return this.initForDevice(id);
+    //     }
+    //     public upsert(
+    //         id: string,
+    //         connection: RTCPeerConnection,
+    //         dataChannel: RTCDataChannel,
+    //         state: LinkStatus,
+    //     ): void {
+    //         // Make sure the connection doesn't already exist
+    //         if (this.connections.has(id)) {
+    //             // Update the connection
+    //             const conn = this.connections.get(id);
+    //             if (conn) {
+    //                 conn.Connection = connection;
+    //                 conn.DataChannel = dataChannel;
+    //                 conn.State = state;
+    //                 // conn.ManualDisconnect = false;
+    //             }
+    //         } else {
+    //             // Add the connection
+    //             const newConn = {
+    //                 ID: id,
+    //                 Connection: connection,
+    //                 DataChannel: dataChannel,
+    //                 State: state,
+    //                 ManualDisconnect: false,
+    //             };
+    //             this.connections.set(id, newConn);
+    //         }
+    //     }
+    //     public remove(id: string): void {
+    //         // Close the connection
+    //         const connection = this.connections.get(id);
+    //         if (connection) {
+    //             connection.DataChannel?.close();
+    //             connection.Connection?.close();
+    //             // Clear the connection
+    //             connection.Connection = null;
+    //             connection.DataChannel = null;
+    //             connection.State = LinkStatus.Disconnected;
+    //         }
+    //     }
+    //     public setState(id: string, state: LinkStatus): void {
+    //         const connection = this.connections.get(id);
+    //         if (connection) {
+    //             connection.State = state;
+    //         } else {
+    //             console.debug(
+    //                 "Tried to set state for non-existent connection.",
+    //                 id,
+    //                 state,
+    //             );
+    //         }
+    //     }
+    //     public setManualDisconnect(id: string, state: boolean): void {
+    //         const connection = this.connections.get(id);
+    //         if (connection) {
+    //             connection.ManualDisconnect = state;
+    //         } else {
+    //             console.debug(
+    //                 "Tried to set manual disconnect for non-existent connection.",
+    //                 id,
+    //                 state,
+    //             );
+    //         }
+    //     }
+    //     public cleanup(): void {
+    //         // const numConnections = this.connections.map(
+    //         //     (c) => c.Connection && c.DataChannel
+    //         // ).length;
+    //         const numConnections = this.connections.size;
+    //         this.connections.forEach((c) => {
+    //             c.DataChannel?.close();
+    //             c.Connection?.close();
+    //         });
+    //         this.connections.clear();
+    //         console.debug(`Cleaned up ${numConnections} WebRTC connections.`);
+    //     }
+    // }
     /**
      * A class that handles the synchronization process.
      */
-    export class Process {
-        /**
-         * Handles the divergence solving process, when the user confirms the solution.
-         * @param unlockedVault - A reference to the unlocked vault.
-         * @param diffsToApply - An array of diffs to apply to the vault.
-         */
-        public static async divergenceSolveConfirm(
-            unlockedVault: Vault,
-            diffsToApply: VaultUtilTypes.Diff[],
-        ) {
-            // Apply the diffsToApply to the vault
-            await unlockedVault.applyDiffs(diffsToApply);
-        }
-
-        /**
-         * Handles the device list synchronization. We receive a list of devices from the other device and compare it to our own list.
-         * NOTE: A security check needs to be performed to ensure that the other device is a Root device.
-         * @param unlockedVault - A reference to the unlocked vault.
-         * @param message - An incoming message from another device.
-         * @param deviceId - The ID of the current device.
-         * @returns True if changes were made to the vault, false otherwise.
-         */
-        public static linkedDevicesList(
-            unlockedVault: Vault,
-            message: Message,
-            deviceId: string,
-        ) {
-            if (!message.LinkedDevices.length) return false;
-
-            let changesOccured = false;
-
-            const devicesInReceivedList = message.LinkedDevices.map(
-                (d) => d.ID,
-            );
-            const devicesInCurrentList =
-                unlockedVault.OnlineServices.LinkedDevices.map((d) => d.ID);
-            const currentDeviceCount = devicesInCurrentList.length;
-            const intersection = devicesInReceivedList.filter((d) =>
-                devicesInCurrentList.includes(d),
-            );
-
-            // Update the IsRoot property of the devices that are in both lists
-            intersection.forEach((d) => {
-                if (message.LinkedDevices) {
-                    const existingLinkedDevice =
-                        unlockedVault.OnlineServices.LinkedDevices.find(
-                            (ld) => ld.ID === d,
-                        );
-                    const receivedLinkedDevice = message.LinkedDevices.find(
-                        (ld) => ld.ID === d,
-                    );
-
-                    if (
-                        existingLinkedDevice != null &&
-                        receivedLinkedDevice != null
-                    ) {
-                        changesOccured ||=
-                            existingLinkedDevice.IsRoot !==
-                            receivedLinkedDevice.IsRoot;
-
-                        existingLinkedDevice.IsRoot =
-                            receivedLinkedDevice.IsRoot;
-                    }
-                }
-            });
-
-            // Remove devices that are not in the received list
-            unlockedVault.OnlineServices.LinkedDevices =
-                unlockedVault.OnlineServices.LinkedDevices.filter(
-                    (d) =>
-                        devicesInReceivedList.includes(d.ID) ||
-                        d.ID === deviceId,
-                );
-            changesOccured ||=
-                currentDeviceCount !==
-                unlockedVault.OnlineServices.LinkedDevices.length;
-
-            // Add devices that are in the received list but not in the current list
-            message.LinkedDevices.forEach((d) => {
-                if (
-                    !unlockedVault.OnlineServices.LinkedDevices.find(
-                        (ld) => ld.ID === d.ID,
-                    )
-                ) {
-                    changesOccured = true;
-                    unlockedVault.OnlineServices.addLinkedDevice(
-                        d.ID,
-                        d.Name,
-                        d.IsRoot,
-                        d.LinkedAtTimestamp,
-                        d.AutoConnect,
-                        d.SyncTimeout,
-                        d.SyncTimeoutPeriod,
-                    );
-                }
-            });
-
-            return changesOccured;
-        }
-    }
+    // export class Process {
+    //     /**
+    //      * Handles the divergence solving process, when the user confirms the solution.
+    //      * @param unlockedVault - A reference to the unlocked vault.
+    //      * @param diffsToApply - An array of diffs to apply to the vault.
+    //      */
+    //     public static async divergenceSolveConfirm(
+    //         unlockedVault: Vault,
+    //         diffsToApply: VaultUtilTypes.Diff[],
+    //     ) {
+    //         // Apply the diffsToApply to the vault
+    //         await unlockedVault.applyDiffs(diffsToApply);
+    //     }
+    //     /**
+    //      * Handles the device list synchronization. We receive a list of devices from the other device and compare it to our own list.
+    //      * NOTE: A security check needs to be performed to ensure that the other device is a Root device.
+    //      * @param unlockedVault - A reference to the unlocked vault.
+    //      * @param message - An incoming message from another device.
+    //      * @param deviceId - The ID of the current device.
+    //      * @returns True if changes were made to the vault, false otherwise.
+    //      */
+    //     public static linkedDevicesList(
+    //         unlockedVault: Vault,
+    //         message: Message,
+    //         deviceId: string,
+    //     ) {
+    //         if (!message.LinkedDevices.length) return false;
+    //         let changesOccured = false;
+    //         const devicesInReceivedList = message.LinkedDevices.map(
+    //             (d) => d.ID,
+    //         );
+    //         const devicesInCurrentList =
+    //             unlockedVault.LinkedDevices.Devices.map((d) => d.ID);
+    //         const currentDeviceCount = devicesInCurrentList.length;
+    //         const intersection = devicesInReceivedList.filter((d) =>
+    //             devicesInCurrentList.includes(d),
+    //         );
+    //         // Update the IsRoot property of the devices that are in both lists
+    //         intersection.forEach((d) => {
+    //             if (message.LinkedDevices) {
+    //                 const existingLinkedDevice =
+    //                     unlockedVault.LinkedDevices.Devices.find(
+    //                         (ld) => ld.ID === d,
+    //                     );
+    //                 const receivedLinkedDevice = message.LinkedDevices.find(
+    //                     (ld) => ld.ID === d,
+    //                 );
+    //                 if (
+    //                     existingLinkedDevice != null &&
+    //                     receivedLinkedDevice != null
+    //                 ) {
+    //                     changesOccured ||=
+    //                         existingLinkedDevice.IsRoot !==
+    //                         receivedLinkedDevice.IsRoot;
+    //                     existingLinkedDevice.IsRoot =
+    //                         receivedLinkedDevice.IsRoot;
+    //                 }
+    //             }
+    //         });
+    //         // Remove devices that are not in the received list
+    //         unlockedVault.LinkedDevices.Devices =
+    //             unlockedVault.LinkedDevices.Devices.filter(
+    //                 (d) =>
+    //                     devicesInReceivedList.includes(d.ID) ||
+    //                     d.ID === deviceId,
+    //             );
+    //         changesOccured ||=
+    //             currentDeviceCount !==
+    //             unlockedVault.LinkedDevices.Devices.length;
+    //         // Add devices that are in the received list but not in the current list
+    //         message.LinkedDevices.forEach((d) => {
+    //             if (
+    //                 !unlockedVault.LinkedDevices.Devices.find(
+    //                     (ld) => ld.ID === d.ID,
+    //                 )
+    //             ) {
+    //                 changesOccured = true;
+    //                 unlockedVault.LinkedDevices.addLinkedDevice(
+    //                     d.ID,
+    //                     d.Name,
+    //                     d.IsRoot,
+    //                     d.STUNServerIDs,
+    //                     d.TURNServerIDs,
+    //                     d.SignalingServerID,
+    //                     d.LinkedAtTimestamp,
+    //                     d.AutoConnect,
+    //                     d.SyncTimeout,
+    //                     d.SyncTimeoutPeriod,
+    //                 );
+    //             }
+    //         });
+    //         return changesOccured;
+    //     }
+    // }
 }
 
 export namespace FormSchemas {
@@ -3114,4 +3205,47 @@ export namespace FormSchemas {
         Color: z.string(),
     });
     export type GroupSchemaType = z.infer<typeof GroupSchema>;
+
+    export const SynchronizationSignalingUpsertSchema = z.object({
+        ID: z.string(),
+        Name: z
+            .string()
+            .min(1, "Name is required")
+            .max(50, "Name can not be longer than 50 characters"),
+        AppID: z.string().min(1, "Application ID is required"),
+        Key: z.string().min(1, "Key is required"),
+        Secret: z.string().min(1, "The secret is required"),
+        Host: z.string().min(1, "Host is required"),
+        ServicePort: z.string().min(1, "Service Port is required"),
+        SecureServicePort: z.string().min(1, "Secure Service Port is required"),
+    });
+    export type SynchronizationSignalingUpsertSchemaType = z.infer<
+        typeof SynchronizationSignalingUpsertSchema
+    >;
+
+    export const SynchronizationSTUNUpsertSchema = z.object({
+        ID: z.string(),
+        Name: z
+            .string()
+            .min(1, "Name is required")
+            .max(50, "Name can not be longer than 50 characters"),
+        Host: z.string().min(1, "Host is required"),
+    });
+    export type SynchronizationSTUNUpsertSchemaType = z.infer<
+        typeof SynchronizationSTUNUpsertSchema
+    >;
+
+    export const SynchronizationTURNUpsertSchema = z.object({
+        ID: z.string(),
+        Name: z
+            .string()
+            .min(1, "Name is required")
+            .max(50, "Name can not be longer than 50 characters"),
+        Host: z.string().min(1, "Host is required"),
+        Username: z.string().min(1, "Username is required"),
+        Password: z.string().min(1, "Password is required"),
+    });
+    export type SynchronizationTURNUpsertSchemaType = z.infer<
+        typeof SynchronizationTURNUpsertSchema
+    >;
 }

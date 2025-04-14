@@ -1,12 +1,15 @@
-import { atom, createStore } from "jotai";
+import { atom, createStore, Atom, type PrimitiveAtom } from "jotai";
+import { focusAtom } from "jotai-optics";
 import { selectAtom } from "jotai/utils";
 import {
-    Synchronization,
+    LinkedDevices,
     Vault,
+    type LinkedDevice,
     type VaultMetadata,
-} from "../app_lib/vault_utils";
+} from "../app_lib/vault-utils";
+import * as VaultTypes from "../app_lib/proto/vault";
 
-export type OnlineServicesData = {
+type OnlineServicesData = {
     key: string;
     remoteData: {
         root: boolean;
@@ -53,6 +56,8 @@ export class OnlineServicesAuthenticationStatusHelpers {
     }
 }
 
+//#region Unlocked Vault
+export const vaultStore = createStore();
 export const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 export const unlockedVaultAtom = atom(new Vault());
 export const unlockedVaultWriteOnlyAtom = atom(
@@ -60,11 +65,11 @@ export const unlockedVaultWriteOnlyAtom = atom(
         return get(unlockedVaultAtom);
     },
     async (get, set, val: ((pre: Vault) => Promise<Vault> | Vault) | Vault) => {
-        const vault: Vault = await (typeof val === "function"
+        const vault = await (typeof val === "function"
             ? val(get(unlockedVaultAtom))
             : val);
 
-        set(unlockedVaultAtom, Object.assign(new Vault(), vault));
+        set(unlockedVaultAtom, vault);
     },
 );
 export const isVaultUnlockedAtom = selectAtom(
@@ -72,8 +77,21 @@ export const isVaultUnlockedAtom = selectAtom(
     (vault) => vault !== null,
 );
 
+export const linkedDevicesAtom = focusAtom(unlockedVaultAtom, (baseAtom) =>
+    baseAtom.prop("LinkedDevices").prop("Devices"),
+);
+
+export const vaultGet = () => {
+    return vaultStore.get(unlockedVaultAtom);
+};
+
+export const vaultGetLinkedDevices = () => {
+    return vaultStore.get(unlockedVaultAtom).LinkedDevices;
+};
+//#endregion Unlocked Vault
+
 export const onlineServicesBoundAtom = selectAtom(unlockedVaultAtom, (vault) =>
-    vault.OnlineServices.isBound(),
+    LinkedDevices.isBound(vault.LinkedDevices),
 );
 
 export const onlineServicesStore = createStore();
@@ -83,9 +101,6 @@ export const onlineServicesAuthConnectionStatusAtom =
         status: "DISCONNECTED",
         statusDescription: "Disconnected",
     });
-export const webRTCConnectionsAtom = atom(
-    new Synchronization.WebRTCConnections(),
-);
 
 export const setOnlineServicesAPIKey = (apiKey: string) => {
     if (!apiKey.length) {

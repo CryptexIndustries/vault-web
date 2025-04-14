@@ -1,6 +1,6 @@
 import { GetStaticProps, NextPage } from "next/types";
-import HTMLHeader from "../components/html_header";
-import HTMLMain from "../components/html_main";
+import HTMLHeader from "../components/html-header";
+import HTMLMain from "../components/html-main";
 import NavBar from "../components/navbar";
 
 const RefundPolicy: NextPage = () => {

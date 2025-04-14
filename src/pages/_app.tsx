@@ -1,12 +1,19 @@
 // src/pages/_app.tsx
 import { withTRPC } from "@trpc/next";
+import { Provider } from "jotai/react";
 import type { AppType } from "next/dist/shared/lib/utils";
+import superjson from "superjson";
 import type { VersionedRouter } from "../server/trpc";
 import "../styles/globals.css";
+import { vaultStore } from "../utils/atoms";
 import { reactQueryClientConfig } from "../utils/trpc";
 
 const MyApp: AppType = ({ Component, pageProps: { ...pageProps } }) => {
-    return <Component {...pageProps} />;
+    return (
+        <Provider store={vaultStore}>
+            <Component {...pageProps} />
+        </Provider>
+    );
 };
 
 const getBaseUrl = () => {
@@ -21,4 +28,5 @@ export default withTRPC<VersionedRouter>({
      * @link https://trpc.io/docs/ssr
      */
     ssr: false,
+    transformer: superjson,
 })(MyApp);

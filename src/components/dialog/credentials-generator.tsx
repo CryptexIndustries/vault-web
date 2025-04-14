@@ -11,7 +11,7 @@ import { ButtonFlat, ButtonType } from "../general/buttons";
 import {
     FormBaseNumberInputField,
     FormSelectboxField,
-} from "../general/inputFields";
+} from "../general/input-fields";
 import { AccordionItem } from "../general/accordion";
 
 const MAX_LENGTH = 65535;

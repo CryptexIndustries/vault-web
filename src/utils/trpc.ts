@@ -1,5 +1,5 @@
 // src/utils/trpc.ts
-import { createTRPCProxyClient, httpBatchLink, loggerLink } from "@trpc/client";
+import { createTRPCClient, httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
 import type { VersionedRouter } from "../server/trpc";
@@ -36,10 +36,10 @@ export const reactQueryClientConfig = (baseUrl: string) => {
             httpBatchLink({
                 url,
                 headers: createAuthHeader,
+                transformer: superjson,
             }),
         ],
         url,
-        transformer: superjson,
         /**
          * @link https://react-query.tanstack.com/reference/QueryClient
          */
@@ -49,7 +49,7 @@ export const reactQueryClientConfig = (baseUrl: string) => {
 
 export const trpcReact = createTRPCReact<VersionedRouter>({});
 
-export const trpc = createTRPCProxyClient<VersionedRouter>({
+export const trpc = createTRPCClient<VersionedRouter>({
     links: [
         loggerLink({
             enabled: (opts) =>
@@ -59,7 +59,7 @@ export const trpc = createTRPCProxyClient<VersionedRouter>({
         httpBatchLink({
             url: "/api/trpc",
             headers: createAuthHeader,
+            transformer: superjson,
         }),
     ],
-    transformer: superjson,
 });

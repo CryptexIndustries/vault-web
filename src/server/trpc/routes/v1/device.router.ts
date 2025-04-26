@@ -106,8 +106,9 @@ export const deviceRouterRemove = protectedProcedure
                     id: input.id,
                 },
             });
-        } catch (error) {
+        } catch (e) {
             // Failed to delete the device
+            console.debug("[device.router] Failed to delete API key.", e);
             return false;
         }
 

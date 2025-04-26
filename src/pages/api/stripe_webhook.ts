@@ -2,14 +2,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import { buffer } from "micro";
 import { PrismaClient } from "@prisma/client";
-import Cors from "cors";
 
 import { StripeConfiguration } from "../../server/utils/stripe";
 import {
     updateSubscription,
     upsertUserSubscriptionTier,
 } from "../../server/utils/subscription";
-import runMiddleware from "../../server/common/api-middleware";
 
 // Stripe requires the raw body to construct the event.
 export const config = {
@@ -17,12 +15,6 @@ export const config = {
         bodyParser: false,
     },
 };
-
-const cors = Cors({
-    methods: ["POST"],
-    origin: "*",
-    optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-});
 
 const stripe = new Stripe(
     process.env.STRIPE_SECRET_KEY ?? "",
@@ -77,8 +69,6 @@ export default async function handler(
     req: NextApiRequest,
     res: NextApiResponse,
 ) {
-    await runMiddleware(req, res, cors);
-
     if (req.method === "POST") {
         const buf = await buffer(req);
         const sig = req.headers["stripe-signature"];

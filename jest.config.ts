@@ -10,7 +10,6 @@ const jestConfig: JestConfigWithTsJest = {
             "ts-jest",
             {
                 // ts-jest configuration goes here
-                babelConfig: true,
             },
         ],
     },

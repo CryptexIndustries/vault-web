@@ -1,7 +1,10 @@
+import { err, ok } from "neverthrow";
 import PusherAuth from "pusher";
 import Pusher, { type Channel } from "pusher-js";
+import { ulid } from "ulidx";
+
 import { env } from "../env/client.mjs";
-import { vaultGetLinkedDevices, vaultGet } from "../utils/atoms";
+import { vaultGet, vaultGetLinkedDevices } from "../utils/atoms";
 import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
 import { createAuthHeader, trpc } from "../utils/trpc";
 import * as VaultUtilTypes from "./proto/vault";
@@ -9,6 +12,7 @@ import {
     SignalingServerMessageType,
     SignalingStatus,
     SyncConnectionControllerEventType,
+    VaultData,
     VaultItemSynchronizationMessage,
     WebRTCMessageEventType,
     WebRTCStatus,
@@ -17,8 +21,13 @@ import {
     type SCCWebRTCEventHandler,
     type SignalingServerMessage,
 } from "./synchronization-utils";
-import { ulid } from "ulidx";
-import { calculateMockedVaultHash } from "./vault-utils";
+import {
+    applyDiffs,
+    calculateMockedVaultHash,
+    credentialsAsDiffs,
+    getDiffsSinceHash,
+    hashCredentials,
+} from "./vault-utils/vault";
 
 const onlineServicesSTUN = [
     {
@@ -65,7 +74,7 @@ const constructSyncChannelName = (
 };
 
 /**
- * Should not be used directly. Use the initPusherInstance function instead (in the synchronization.ts file)
+ * Should not be used directly. Use the initPusherInstance function instead
  * @returns A new Pusher instance
  */
 const onlineServicesPusherInstance = (): Pusher => {
@@ -142,9 +151,14 @@ export const initWebRTC = (
     });
 };
 
-// TODO: Maybe pass a null value to the signalingServer instead of undefined
+/**
+ * Initializes a Pusher instance.
+ * @param signalingServer - The signaling server configuration to use. If null, the default (Cryptex Vault Online Services) will be used.
+ * @param deviceID - The ID of the device to connect to the signaling server for
+ * @returns A Pusher instance
+ */
 export const initPusherInstance = (
-    signalingServer: VaultUtilTypes.SignalingServerConfiguration | undefined,
+    signalingServer: VaultUtilTypes.SignalingServerConfiguration | null,
     deviceID: string,
 ): Pusher => {
     // In case the signaling server is not defined, we'll use the default (Cryptex Vault Online Services) one
@@ -257,7 +271,13 @@ export class SyncConnectionController {
             this._teardownSignalingConnection(id, server);
         });
 
-        // TODO: Revise the event handler cleanup?
+        this._syncSignalingConnectionEventHandlers.forEach(
+            (handlers, serverID) => {
+                handlers.forEach((_, uniqueID) => {
+                    this.removeSyncSignalingHandler(serverID, uniqueID);
+                });
+            },
+        );
         this._syncSignalingConnectionEventHandlers.clear();
 
         // Tear down the WebRTC connections
@@ -265,7 +285,9 @@ export class SyncConnectionController {
             this._teardownWebRTCConnection(id, connPackage);
         });
 
-        // TODO: Revise the event handler cleanup?
+        this._syncWebRTCEventHandlers.forEach((_, id) => {
+            this.removeSyncWebRTCHandler(id);
+        });
         this._syncWebRTCEventHandlers.clear();
     }
 
@@ -309,9 +331,15 @@ export class SyncConnectionController {
         return this._webRTCStatus.get(deviceID) ?? WebRTCStatus.Disconnected;
     }
 
+    /**
+     * Connects to the signaling server.
+     * @param deviceID - The ID of the device to connect to the signaling server for
+     * @param server - The signaling server configuration to use. If null, the default (Cryptex Vault Online Services) will be used.
+     * @returns A Pusher instance
+     */
     private _connectSignalingServer(
         deviceID: string,
-        server?: VaultUtilTypes.SignalingServerConfiguration,
+        server: VaultUtilTypes.SignalingServerConfiguration | null,
     ) {
         const id = server?.ID ?? ONLINE_SERVICES_SELECTION_ID;
 
@@ -331,10 +359,7 @@ export class SyncConnectionController {
 
         this.broadcastSignalingServerEvent(id, SignalingStatus.Disconnected);
 
-        const signalingServerConn = initPusherInstance(
-            id === ONLINE_SERVICES_SELECTION_ID ? undefined : server,
-            deviceID,
-        );
+        const signalingServerConn = initPusherInstance(server, deviceID);
 
         this._bindSignalingServerConnectionEvents(signalingServerConn, id);
 
@@ -403,16 +428,20 @@ export class SyncConnectionController {
         device: VaultUtilTypes.LinkedDevice,
         channelName: string,
     ) {
+        //console.debug(channelName, signalingServerConn.allChannels());
         // Check if we're already subscribed to this channel
-        if (
-            signalingServerConn
-                .allChannels()
-                .some((c) => c.name === channelName && c.subscribed)
-        ) {
+        const existing = signalingServerConn
+            .allChannels()
+            .find((c) => c.name === channelName);
+        if (existing) {
             console.debug(
                 "[SCC - Verbose Signaling] Already subscribed to channel",
                 channelName,
             );
+
+            // Remove the old channel subscription
+            existing.unsubscribe();
+            existing.unbind();
         }
 
         // Subscribe to correct topics and trigger WebRTC connection setup
@@ -490,18 +519,21 @@ export class SyncConnectionController {
         if (!webRTC) {
             console.error(
                 `[SCC - Signaling] Could not find an initialized WebRTC connection for device "${device.ID}", but received a signaling message. This should never happen.`,
-                device.ID,
             );
 
+            // Not sure if this needs to be broadcast, so leave it alone ATM
+            //this.broadcastWebRTCConnectionEvent(device.ID, WebRTCStatus.Failed, "Received an ICE candidate with no data. Failed to exchange ICE candidates.");
+            //this.broadcastSignalingServerEvent(device.SignalingServerID, SignalingStatus.Connected, `Could not find an initialized WebRTC connection for device "${device.ID}", but received a signaling message. This should never happen.`);
             return;
         }
 
         // Configure the WebRTC connection
         if (data.type === SignalingServerMessageType.ICECandidate) {
             if (!data.data) {
-                // TODO: Handle the case where we fail at exchanging ICE candidates
-                console.error(
-                    "[SCC - Signaling] Received an ICE candidate with no data. Failed to exchange ICE candidates.",
+                this.broadcastWebRTCConnectionEvent(
+                    device.ID,
+                    WebRTCStatus.Failed,
+                    "Received an ICE candidate with no data. Failed to exchange ICE candidates.",
                 );
                 return;
             }
@@ -589,15 +621,6 @@ export class SyncConnectionController {
 
             this._webRTCStatus.set(device.ID, newWebRTCStatus);
             this.broadcastWebRTCConnectionEvent(device.ID, newWebRTCStatus);
-
-            if (
-                newWebRTCStatus === WebRTCStatus.Disconnected ||
-                newWebRTCStatus === WebRTCStatus.Failed
-            ) {
-                // TODO: Do we need to clean up the WebRTC connection??
-                // this._webRTConnections.delete(device.ID);
-                // this._webRTCStatus.delete(device.ID);
-            }
         };
 
         let iceCandidatesWeGenerated = 0;
@@ -646,12 +669,6 @@ export class SyncConnectionController {
                     device.ID,
                     WebRTCStatus.Failed,
                 );
-
-                // TODO: Do we need to clean up the WebRTC connection??
-                // this._teardownWebRTCConnection(device.ID, {
-                //     connection: webRTC,
-                //     dataChannel: null,
-                // });
             }
         };
 
@@ -670,39 +687,34 @@ export class SyncConnectionController {
                 }
             };
 
-        const dataChannelOnClose =
-            (dataChannel: RTCDataChannel) => (event: Event) => {
-                console.debug(
-                    `[SCC - Verbose WebRTC] Received data channel close event. Device ID: ${device.ID} | Name: ${device.Name}`,
-                    event,
-                );
+        const dataChannelOnClose = () => (event: Event) => {
+            console.debug(
+                `[SCC - Verbose WebRTC] Received data channel close event. Device ID: ${device.ID} | Name: ${device.Name}`,
+                event,
+            );
 
-                // Broadcast the disconnection - we treat this as a general disconnect event
-                // NOTE: Even though we could probably recover from this state by  opening a new data channel?
-                // Should investigate possible connection recovery procedures
-                this._webRTCStatus.set(device.ID, WebRTCStatus.Disconnected);
-                this.broadcastWebRTCConnectionEvent(
-                    device.ID,
-                    WebRTCStatus.Disconnected,
-                );
-            };
+            // Broadcast the disconnection - we treat this as a general disconnect event
+            // NOTE: Even though we could probably recover from this state by  opening a new data channel?
+            // Should investigate possible connection recovery procedures
+            this._webRTCStatus.set(device.ID, WebRTCStatus.Disconnected);
+            this.broadcastWebRTCConnectionEvent(
+                device.ID,
+                WebRTCStatus.Disconnected,
+            );
+        };
 
-        const dataChannelOnError =
-            (dataChannel: RTCDataChannel) => (event: Event) => {
-                console.debug(
-                    `[SCC - Verbose WebRTC] Received data channel error event. Device ID: ${device.ID} | Name: ${device.Name}`,
-                    event,
-                );
+        const dataChannelOnError = () => (event: Event) => {
+            console.debug(
+                `[SCC - Verbose WebRTC] Received data channel error event. Device ID: ${device.ID} | Name: ${device.Name}`,
+                event,
+            );
 
-                // Broadcast the failure - we treat this as a general WebRTC failure
-                // NOTE: Even though we could probably recover from this state by  opening a new data channel?
-                // Should investigate possible connection recovery procedures
-                this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
-                this.broadcastWebRTCConnectionEvent(
-                    device.ID,
-                    WebRTCStatus.Failed,
-                );
-            };
+            // Broadcast the failure - we treat this as a general WebRTC failure
+            // NOTE: Even though we could probably recover from this state by  opening a new data channel?
+            // Should investigate possible connection recovery procedures
+            this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
+            this.broadcastWebRTCConnectionEvent(device.ID, WebRTCStatus.Failed);
+        };
 
         const dataChannelOnMessage =
             (dataChannel: RTCDataChannel) => (event: MessageEvent) => {
@@ -729,8 +741,8 @@ export class SyncConnectionController {
             );
 
             dataChannel.onopen = dataChannelOnOpen(dataChannel);
-            dataChannel.onclose = dataChannelOnClose(dataChannel);
-            dataChannel.onerror = dataChannelOnError(dataChannel);
+            dataChannel.onclose = dataChannelOnClose();
+            dataChannel.onerror = dataChannelOnError();
             dataChannel.onmessage = dataChannelOnMessage(dataChannel);
         };
 
@@ -748,6 +760,13 @@ export class SyncConnectionController {
         return webRTC;
     }
 
+    /**
+     * Connects to the given device.
+     * Initiates the signaling server connection if necessary (if the connection hasn't been established yet).
+     * Also sets up the WebRTC connection object that will be used when the signaling server connection is established.
+     * @param device - The device to connect to
+     * @returns A boolean indicating whether the connection was successful or not
+     */
     public connectDevice(device: VaultUtilTypes.LinkedDevice) {
         console.debug(
             `[SCC - Verbose] Initiating device connection... ID: ${device.ID} | Name: ${device.Name}`,
@@ -782,7 +801,7 @@ export class SyncConnectionController {
 
             signalingServerConn = this._connectSignalingServer(
                 linkedDevicesConfig.ID,
-                signalingServerConfig,
+                signalingServerConfig ?? null, // If this comes out to null - it's an Online Services server
             );
         }
 
@@ -932,9 +951,6 @@ export class SyncConnectionController {
         // If the handler list doesn't exist, return
         if (!handlerList) return;
 
-        // Remove the event handler if it exists
-        if (!handlerList.has(handlerID)) return;
-
         // NOTE: Just remove the reference to the event handler
         // leave it to the GC to clean it up
         handlerList.delete(handlerID);
@@ -995,6 +1011,7 @@ export class SyncConnectionController {
     private broadcastWebRTCConnectionEvent(
         deviceID: string,
         connectionState: WebRTCStatus,
+        additionalData?: string,
     ) {
         if (!this._webRTCStatus.has(deviceID)) return;
 
@@ -1012,6 +1029,7 @@ export class SyncConnectionController {
             type: SyncConnectionControllerEventType.ConnectionStatus,
             data: {
                 connectionState: connectionState,
+                additionalData,
             },
         });
     }
@@ -1019,7 +1037,8 @@ export class SyncConnectionController {
     public broadcastWebRTCMessageEvent(
         deviceID: string,
         eventType: WebRTCMessageEventType,
-        messageData?: VaultUtilTypes.VaultItemSynchronizationMessage,
+        messageData: VaultUtilTypes.VaultItemSynchronizationMessage,
+        additionalData?: string,
     ) {
         if (!this._webRTCStatus.has(deviceID)) return;
 
@@ -1037,9 +1056,52 @@ export class SyncConnectionController {
         deviceEventHandler({
             type: SyncConnectionControllerEventType.SynchronizationMessage,
             data: {
-                connectionState: WebRTCStatus.Connected,
                 event: eventType,
                 message: messageData,
+                additionalData,
+            },
+        });
+    }
+
+    public broadcastWebRTCSynchronizedEvent(deviceID: string) {
+        if (!this._webRTCStatus.has(deviceID)) return;
+
+        // Get the WebRTC status event handlers for the device ID
+        const deviceEventHandler = this._syncWebRTCEventHandlers.get(deviceID);
+
+        // In case there is no event handler for the device, we can just return
+        if (!deviceEventHandler) return;
+
+        console.debug(
+            `[SCC - Verbose WebRTC] Broadcasting WebRTC Synchronized event to ${deviceID}`,
+        );
+
+        deviceEventHandler({
+            type: SyncConnectionControllerEventType.SynchronizationMessage,
+            data: {
+                event: WebRTCMessageEventType.Synchronized,
+            },
+        });
+    }
+
+    public broadcastVaultDataUpdate(deviceID: string, vaultData: VaultData) {
+        if (!this._webRTCStatus.has(deviceID)) return;
+
+        // Get the WebRTC status event handlers for the device ID
+        const deviceEventHandler = this._syncWebRTCEventHandlers.get(deviceID);
+
+        // In case there is no event handler for the device, we can just return
+        if (!deviceEventHandler) return;
+
+        console.debug(
+            `[SCC - Verbose WebRTC] Broadcasting WebRTC VaultDataUpdate message event to "${deviceID}"`,
+            vaultData,
+        );
+
+        deviceEventHandler({
+            type: SyncConnectionControllerEventType.VaultDataUpdate,
+            data: {
+                vaultData,
             },
         });
     }
@@ -1073,7 +1135,7 @@ export class SyncConnectionController {
     }
 
     public async applyManualSynchronization(diffs: VaultUtilTypes.Diff[]) {
-        await VaultItemSynchronization.applyManualSynchronization(diffs);
+        return await VaultItemSynchronization.applyDiffsToVault(diffs);
     }
 
     public transmitManualSyncSolve(
@@ -1110,8 +1172,13 @@ export class SyncConnectionController {
 }
 
 class VaultItemSynchronization {
+    private static getVaultCredentials() {
+        return vaultGet().Credentials;
+    }
+
     private static async getLastestVaultHash() {
-        return await vaultGet().getLatestHash();
+        const creds = this.getVaultCredentials();
+        return await hashCredentials(creds);
     }
 
     private static updateLastSync(
@@ -1119,16 +1186,34 @@ class VaultItemSynchronization {
         deviceID: string,
     ) {
         // The actual device object field is modified by the Device UI component
-        context.broadcastWebRTCMessageEvent(
-            deviceID,
-            WebRTCMessageEventType.Synchronized,
-        );
+        context.broadcastWebRTCSynchronizedEvent(deviceID);
     }
 
-    public static async applyManualSynchronization(
+    private static updateCredentialsList(
+        context: SyncConnectionController,
+        deviceID: string,
+        credentials: VaultUtilTypes.Credential[],
         diffs: VaultUtilTypes.Diff[],
     ) {
-        await vaultGet().applyDiffs(diffs);
+        context.broadcastVaultDataUpdate(deviceID, {
+            credentials,
+            diffs,
+        });
+    }
+
+    public static async applyDiffsToVault(diffs: VaultUtilTypes.Diff[]) {
+        const currVault = vaultGet();
+        const res = await applyDiffs(currVault.Credentials, diffs);
+        if (res.isErr()) return err(res.error);
+
+        // FIXME: We should apply the changes to the appropriate atoms, that way we cause a proper rerender
+        currVault.Credentials = [...res.value.credentials];
+        currVault.Diffs = [...currVault.Diffs, ...res.value.diffs];
+
+        return ok({
+            credentials: res.value.credentials,
+            diffs: res.value.diffs,
+        });
     }
 
     public static async transmitSyncRequest(dataChannel: RTCDataChannel) {
@@ -1214,18 +1299,44 @@ class VaultItemSynchronization {
 
             // Sync case 3 - we're behind
             if (deserializedMessage.Diffs.length) {
-                const hashTest =
-                    (await calculateMockedVaultHash(
-                        vaultGet(),
-                        deserializedMessage.Diffs,
-                    )) === deserializedMessage.Hash;
+                const mockedVault = await calculateMockedVaultHash(
+                    this.getVaultCredentials(),
+                    deserializedMessage.Diffs,
+                );
 
-                if (hashTest) {
+                if (mockedVault.isErr()) {
+                    context.broadcastWebRTCMessageEvent(
+                        deviceID,
+                        WebRTCMessageEventType.Error,
+                        deserializedMessage,
+                        mockedVault.error,
+                    );
+                    return;
+                }
+
+                if (mockedVault.value === deserializedMessage.Hash) {
                     console.debug(
                         "[SCC - Verbose WebRTC] Received sync request - test apply passed",
                     );
 
-                    await vaultGet().applyDiffs(deserializedMessage.Diffs);
+                    const applyRes = await this.applyDiffsToVault(
+                        deserializedMessage.Diffs,
+                    );
+                    if (applyRes.isErr()) {
+                        context.broadcastWebRTCMessageEvent(
+                            deviceID,
+                            WebRTCMessageEventType.Error,
+                            deserializedMessage,
+                            `[3] Failed while applying diffs to vault. Additional information: ${applyRes.error}`,
+                        );
+                        return;
+                    }
+                    this.updateCredentialsList(
+                        context,
+                        deviceID,
+                        applyRes.value.credentials,
+                        applyRes.value.diffs,
+                    );
                     this.updateLastSync(context, deviceID);
 
                     // Send a SyncRequest message to the other device so that it updates the last sync date
@@ -1235,14 +1346,20 @@ class VaultItemSynchronization {
                         "[SCC - Verbose WebRTC] Received sync request - test apply failed",
                     );
 
-                    // TODO: Signal that the synchronization has failed
+                    context.broadcastWebRTCMessageEvent(
+                        deviceID,
+                        WebRTCMessageEventType.Error,
+                        deserializedMessage,
+                        "[3] Could not apply the synchronization request. Please try again.",
+                    );
                 }
                 return;
             }
 
             // Sync case 2 - we're ahead - try to find the differences
-            const differences = await vaultGet().getDiffsSinceHash(
+            const differences = getDiffsSinceHash(
                 deserializedMessage.Hash,
+                vaultGet().Diffs,
             );
             // Sync case 2 - If we find any differences, we're ahead
             if (differences.length > 0) {
@@ -1310,8 +1427,9 @@ class VaultItemSynchronization {
 
             // Sync case 3, 4 - we only got a hash and no diffs
             if (!deserializedMessage.Diffs.length) {
-                const differences = await vaultGet().getDiffsSinceHash(
+                const differences = getDiffsSinceHash(
                     deserializedMessage.Hash,
+                    vaultGet().Diffs,
                 );
 
                 if (differences.length) {
@@ -1336,18 +1454,44 @@ class VaultItemSynchronization {
             }
 
             // Sync case 2 - our hashes don't match, got diffs - we're out of sync
-            const hashTest =
-                (await calculateMockedVaultHash(
-                    vaultGet(),
-                    deserializedMessage.Diffs,
-                )) === deserializedMessage.Hash;
+            const mockedVault = await calculateMockedVaultHash(
+                this.getVaultCredentials(),
+                deserializedMessage.Diffs,
+            );
 
-            if (hashTest) {
+            if (mockedVault.isErr()) {
+                context.broadcastWebRTCMessageEvent(
+                    deviceID,
+                    WebRTCMessageEventType.Error,
+                    deserializedMessage,
+                    `[2] ${mockedVault.error}`,
+                );
+                return;
+            }
+
+            if (mockedVault.value === deserializedMessage.Hash) {
                 console.debug(
                     "[SCC - Verbose WebRTC] Received sync response - test apply passed",
                 );
 
-                await vaultGet().applyDiffs(deserializedMessage.Diffs);
+                const applyRes = await this.applyDiffsToVault(
+                    deserializedMessage.Diffs,
+                );
+                if (applyRes.isErr()) {
+                    context.broadcastWebRTCMessageEvent(
+                        deviceID,
+                        WebRTCMessageEventType.Error,
+                        deserializedMessage,
+                        `[2] Failed while applying diffs to vault. Additional information: ${applyRes.error}`,
+                    );
+                    return;
+                }
+                this.updateCredentialsList(
+                    context,
+                    deviceID,
+                    applyRes.value.credentials,
+                    applyRes.value.diffs,
+                );
                 this.updateLastSync(context, deviceID);
 
                 // Send a SyncRequest message to the other device so that it updates the last sync date
@@ -1357,7 +1501,12 @@ class VaultItemSynchronization {
                     "[SCC - Verbose WebRTC] Received sync response - test apply failed",
                 );
 
-                // TODO: Signal that the synchronization has failed
+                context.broadcastWebRTCMessageEvent(
+                    deviceID,
+                    WebRTCMessageEventType.Error,
+                    deserializedMessage,
+                    "[2] Could not apply the synchronization request. Please try again.",
+                );
             }
         }
 
@@ -1371,7 +1520,7 @@ class VaultItemSynchronization {
                 deserializedMessage.ID,
                 VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
                 undefined,
-                await vaultGet().getDiffsSinceHash(null),
+                await credentialsAsDiffs(this.getVaultCredentials()),
             );
             dataChannel.send(message.serialize());
         }
@@ -1382,18 +1531,44 @@ class VaultItemSynchronization {
                 .ManualSyncSolve
         ) {
             // Duplicated sync case 2. solution @ SyncResponse
-            const hashTest =
-                (await calculateMockedVaultHash(
-                    vaultGet(),
-                    deserializedMessage.Diffs,
-                )) === deserializedMessage.Hash;
+            const mockedVault = await calculateMockedVaultHash(
+                this.getVaultCredentials(),
+                deserializedMessage.Diffs,
+            );
 
-            if (hashTest) {
+            if (mockedVault.isErr()) {
+                context.broadcastWebRTCMessageEvent(
+                    deviceID,
+                    WebRTCMessageEventType.Error,
+                    deserializedMessage,
+                    `[2m] ${mockedVault.error}`,
+                );
+                return;
+            }
+
+            if (mockedVault.value === deserializedMessage.Hash) {
                 console.debug(
                     "[SCC - Verbose WebRTC] Received Manual synchronization Solve - test apply passed",
                 );
 
-                await vaultGet().applyDiffs(deserializedMessage.Diffs);
+                const applyRes = await this.applyDiffsToVault(
+                    deserializedMessage.Diffs,
+                );
+                if (applyRes.isErr()) {
+                    context.broadcastWebRTCMessageEvent(
+                        deviceID,
+                        WebRTCMessageEventType.Error,
+                        deserializedMessage,
+                        `[2m] Failed while applying diffs to vault. Additional information: ${applyRes.error}`,
+                    );
+                    return;
+                }
+                this.updateCredentialsList(
+                    context,
+                    deviceID,
+                    applyRes.value.credentials,
+                    applyRes.value.diffs,
+                );
                 this.updateLastSync(context, deviceID);
 
                 // Send a SyncRequest message to the other device so that it updates the last sync date
@@ -1403,7 +1578,12 @@ class VaultItemSynchronization {
                     "[SCC - Verbose WebRTC] Received sync response - test apply failed",
                 );
 
-                // TODO: Signal that the synchronization has failed
+                context.broadcastWebRTCMessageEvent(
+                    deviceID,
+                    WebRTCMessageEventType.Error,
+                    deserializedMessage,
+                    "[2m] Could not apply the synchronization request. Please try again.",
+                );
             }
         }
     }

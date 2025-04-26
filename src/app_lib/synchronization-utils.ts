@@ -58,6 +58,7 @@ export const isRTCSessionDescriptionInit = (
 export enum SyncConnectionControllerEventType {
     ConnectionStatus,
     SynchronizationMessage,
+    VaultDataUpdate,
 }
 
 /**
@@ -74,15 +75,23 @@ export interface SignalingEventData {
 export enum WebRTCMessageEventType {
     Synchronized,
     ManualSyncNecessary,
+    Error,
+}
+
+export interface VaultData {
+    credentials: VaultUtilTypes.Credential[];
+    diffs: VaultUtilTypes.Diff[];
 }
 
 /**
  * <code>SyncConnectionController</code> emitted event payload data type for WebRTC connection events.
  */
 export interface WebRTCEventData {
-    connectionState: WebRTCStatus;
-    event?: WebRTCMessageEventType;
-    message?: VaultUtilTypes.VaultItemSynchronizationMessage;
+    connectionState?: WebRTCStatus; // Present in SyncConnectionControllerEventType.ConnectionStatus
+    event?: WebRTCMessageEventType; // Present in SyncConnectionControllerEventType.SynchronizationMessage
+    message?: VaultUtilTypes.VaultItemSynchronizationMessage; // Present in SyncConnectionControllerEventType.SynchronizationMessage
+    additionalData?: string; // Can be present in all but SyncConnectionControllerEventType.VaultDataUpdate
+    vaultData?: VaultData; // Present in SyncConnectionControllerEventType.VaultDataUpdate
 }
 
 /**

@@ -79,20 +79,14 @@ import {
 import * as VaultUtilTypes from "../../app_lib/proto/vault";
 import * as SynchronizationUtils from "../../app_lib/synchronization-utils";
 import * as Synchronization from "../../app_lib/synchronization";
-import {
-    Backup,
-    Credential,
-    Export,
-    FormSchemas,
-    Import,
-    LinkedDevices,
-    LinkedDevice,
-    LinkingPackage,
-    Vault,
-    VaultEncryption,
-    VaultMetadata,
-    VaultStorage,
-} from "../../app_lib/vault-utils";
+import { LinkedDevices, LinkedDevice } from "../../app_lib/vault-utils/vault";
+import * as Storage from "../../app_lib/vault-utils/storage";
+import * as Vault from "../../app_lib/vault-utils/vault";
+import * as FormSchemas from "../../app_lib/vault-utils/form-schemas";
+import * as VaultEncryption from "../../app_lib/vault-utils/encryption";
+import { LinkingPackage } from "../../app_lib/vault-utils/linking";
+import * as Import from "../../app_lib/vault-utils/import-export";
+import * as Export from "../../app_lib/vault-utils/import-export";
 import { ButtonFlat, ButtonType } from "../../components/general/buttons";
 import {
     Body,
@@ -151,12 +145,15 @@ import {
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
     unlockedVaultWriteOnlyAtom,
+    vaultCredentialsAtom,
     vaultGet,
 } from "../../utils/atoms";
 import {
     DIALOG_BLUR_TIME,
     enumToRecord,
     ONLINE_SERVICES_SELECTION_ID,
+    TOTPConstants,
+    CredentialConstants,
 } from "../../utils/consts";
 
 const GlobalSyncConnectionController =
@@ -245,7 +242,7 @@ const useFetchOnlineServicesData = () => {
 const useUnbindOnlineServices = () => {
     const clearOnlineServicesData = useClearOnlineServicesDataAtom();
 
-    return async (vaultMetadata: VaultMetadata, vault: Vault) => {
+    return async (vaultMetadata: Storage.VaultMetadata, vault: Vault.Vault) => {
         clearOnlineServicesAPIKey();
 
         LinkedDevices.unbindAccount(vault.LinkedDevices);
@@ -326,8 +323,8 @@ type Options = {
 };
 
 type VaultListItemProps = {
-    vaultMetadata: VaultMetadata;
-    onClick: (vaultMetadata: VaultMetadata) => void;
+    vaultMetadata: Storage.VaultMetadata;
+    onClick: (vaultMetadata: Storage.VaultMetadata) => void;
     showWarningDialogCallback: WarningDialogShowFn;
 };
 const VaultListItem: React.FC<VaultListItemProps> = ({
@@ -419,7 +416,7 @@ const VaultListItem: React.FC<VaultListItemProps> = ({
     if (!vaultMetadata.Blob) return null;
 
     // Extract the blob from the vault item
-    const vaultBlob: VaultEncryption.EncryptedBlob = vaultMetadata.Blob;
+    const vaultBlob: VaultUtilTypes.EncryptedBlob = vaultMetadata.Blob;
 
     return (
         <div
@@ -954,12 +951,14 @@ const EncryptionFormGroup: React.FC<{
 };
 
 const UnlockVaultDialog: React.FC<{
-    showDialogFnRef: React.RefObject<(vaultMetadata: VaultMetadata) => void>;
+    showDialogFnRef: React.RefObject<
+        (vaultMetadata: Storage.VaultMetadata) => void
+    >;
 }> = ({ showDialogFnRef }) => {
     const [visible, setVisible] = useState(false);
-    const selected = useRef<VaultMetadata | undefined>(undefined);
+    const selected = useRef<Storage.VaultMetadata | undefined>(undefined);
 
-    showDialogFnRef.current = (vaultMetadata: VaultMetadata) => {
+    showDialogFnRef.current = (vaultMetadata: Storage.VaultMetadata) => {
         selected.current = vaultMetadata;
         setVisible(true);
     };
@@ -1039,7 +1038,7 @@ const UnlockVaultDialog: React.FC<{
             // A little delay to make sure the toast is shown
             await new Promise((resolve) => setTimeout(resolve, 100));
 
-            let vault: Vault;
+            let vault: Vault.Vault;
             try {
                 vault = await selected.current.decryptVault(
                     encryptionFormData.Secret,
@@ -1213,7 +1212,7 @@ enum CreateVaultDialogMode {
 const CreateVaultDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     mode: CreateVaultDialogMode;
-    vaultInstance: React.RefObject<Vault | undefined>;
+    vaultInstance: React.RefObject<Vault.Vault | undefined>;
     showCredentialsGeneratorDialogFn: React.RefObject<() => void>;
 }> = ({ visibleState, showCredentialsGeneratorDialogFn }) => {
     const [dev_seedVault, setdev_seedVault] = useState(false);
@@ -1257,12 +1256,13 @@ const CreateVaultDialog: React.FC<{
             try {
                 // console.time("create-vault");
                 // Create a new vault
-                const vaultMetadata = await VaultMetadata.createNewVault(
-                    data,
-                    encryptionFormData,
-                    dev_seedVault,
-                    dev_seedCount.current,
-                );
+                const vaultMetadata =
+                    await Storage.VaultMetadata.createNewVault(
+                        data,
+                        encryptionFormData,
+                        dev_seedVault,
+                        dev_seedCount.current,
+                    );
                 // console.timeEnd("create-vault");
 
                 // TODO: Remove this section because it's more of a test than a proper solution
@@ -1725,7 +1725,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
 
                     // Parse the vault metadata
                     const newVaultMetadata =
-                        VaultMetadata.deserializeMetadataBinary(
+                        Storage.VaultMetadata.deserializeMetadataBinary(
                             rawVaultMetadata,
                         );
 
@@ -1801,7 +1801,7 @@ const LinkDeviceOutsideVaultDialog: React.FC<{
         // Init the signaling server connection object
         // We use this to exchange the WebRTC offer and ICE candidates
         const signalingServer = Synchronization.initPusherInstance(
-            linkingPackage.SignalingServer,
+            linkingPackage.SignalingServer ?? null,
             linkingPackage.ID,
         );
         signalingServer.connection.bind("connecting", () => {
@@ -2089,20 +2089,23 @@ const WelcomeScreen: React.FC = ({}) => {
         showWarningDialogFnRef.current?.(description, onConfirm, onDismiss);
     };
 
-    const _encryptedVaults = useLiveQuery(() =>
-        VaultStorage.db.vaults.toArray(),
-    );
+    const _encryptedVaults = useLiveQuery(() => Storage.db.vaults.toArray());
     const encryptedVaults = _encryptedVaults?.map((metadata) =>
-        VaultMetadata.deserializeMetadataBinary(metadata.data, metadata.id),
+        Storage.VaultMetadata.deserializeMetadataBinary(
+            metadata.data,
+            metadata.id,
+        ),
     );
 
     const createVaultDialogVisible = useState(false);
     const [createVaultDialogMode, setCreateVaultDialogMode] =
         useState<CreateVaultDialogMode>(CreateVaultDialogMode.Blank);
-    const createVaultDialogVaultInstance = useRef<Vault | undefined>(undefined);
+    const createVaultDialogVaultInstance = useRef<Vault.Vault | undefined>(
+        undefined,
+    );
     const showCreateVaultDialog = (
         mode: CreateVaultDialogMode = CreateVaultDialogMode.Blank,
-        vaultInstance?: Vault,
+        vaultInstance?: Vault.Vault,
     ) => {
         setCreateVaultDialogMode(mode);
         createVaultDialogVaultInstance.current = vaultInstance;
@@ -2122,7 +2125,7 @@ const WelcomeScreen: React.FC = ({}) => {
         !showOnFirstRenderTriggered.current;
     const hasVaults = encryptedVaults && encryptedVaults.length > 0;
     const showUnlockVaultDialogFnRef = useRef<
-        (vaultMetadata: VaultMetadata) => void
+        (vaultMetadata: Storage.VaultMetadata) => void
     >(() => {
         // No-op
     });
@@ -2450,7 +2453,7 @@ const RestoreVaultDialog: React.FC<{
             toastId: "saving-vault-toast",
         });
 
-        const newVaultMetadataInst = new VaultMetadata();
+        const newVaultMetadataInst = new Storage.VaultMetadata();
         newVaultMetadataInst.Name = data.Name;
         newVaultMetadataInst.Description = `Vault restored from backup on ${new Date().toLocaleString()}.`;
         newVaultMetadataInst.Blob = validFile;
@@ -3116,7 +3119,9 @@ const AccountDialog: React.FC<{
                                 </p>
                                 <p>of </p>
                                 <p className="text-slate-700">
-                                    {onlineServicesData.remoteData.maxLinks}{" "}
+                                    {
+                                        onlineServicesData.remoteData.maxLinks
+                                    }{" "}
                                 </p>
                                 <p>linked devices</p>
                             </div>
@@ -3973,9 +3978,7 @@ const ImportDataDialog: React.FC<{
     const [isOperationInProgress, setIsOperationInProgress] = useState(false);
 
     const selectedFileRef = useRef<File | null>(null);
-    const credentialsToImportRef = useRef<
-        Credential.CredentialFormSchemaType[]
-    >([]);
+    const credentialsToImportRef = useRef<Vault.CredentialFormSchemaType[]>([]);
 
     // CSV import
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3995,10 +3998,21 @@ const ImportDataDialog: React.FC<{
         }
 
         groups.forEach((group) => {
-            vault.upsertGroup(group);
+            const existingGroup =
+                vault.Groups.find((g) => g.ID == group.ID) ?? null;
+            const gropInst = Vault.upsertGroup(existingGroup, group);
+            vault.Groups.push(gropInst);
         });
         for (const credential of credentials) {
-            await vault.createCredential(credential);
+            const data = await Vault.createCredential(credential);
+
+            vault.Credentials.push(data.credential);
+            const listHash = await Vault.hashCredentials(vault.Credentials);
+            const diff: VaultUtilTypes.Diff = {
+                Hash: listHash,
+                Changes: data.changes,
+            };
+            vault.Diffs.push(diff);
         }
         unlockedVaultMetadata?.save(vault);
 
@@ -4464,7 +4478,8 @@ const VaultSettingsDialog: React.FC<{
                 // Clear the sync list
                 setIsLoading(true);
                 setUnlockedVault((prev) => {
-                    prev.purgeDiffList();
+                    // Only leave the last diff in the list
+                    prev.Diffs = prev.Diffs.slice(prev.Diffs.length - 1);
                     return prev;
                 });
                 setIsLoading(false);
@@ -4537,8 +4552,8 @@ const VaultSettingsDialog: React.FC<{
                 throw new Error("Vault metadata or blob cannot be null.");
             }
 
-            await Backup.trigger(
-                Backup.Type.Manual,
+            await Storage.trigger(
+                Storage.Type.Manual,
                 unlockedVault,
                 vaultMetadata.Blob,
             );
@@ -4784,7 +4799,7 @@ const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
 
 const OnlineServicesSignUpRestoreDialog: React.FC<{
     showDialogFnRef: React.RefObject<(() => void) | null>;
-    vaultMetadata: VaultMetadata;
+    vaultMetadata: Storage.VaultMetadata;
     showRecoveryGenerationDialogFnRef: React.RefObject<(() => void) | null>;
 }> = ({
     showDialogFnRef,
@@ -5094,7 +5109,7 @@ const AccountDialogRecoverForm: React.FC<{
 const AccountDialogRegisterForm: React.FC<{
     submittingState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
     submitFnRef: React.RefObject<(() => Promise<void>) | null>;
-    vaultMetadata: VaultMetadata;
+    vaultMetadata: Storage.VaultMetadata;
     bindAccountFn: (apiKey: string) => Promise<void>;
     hideDialogFn: () => void;
 }> = ({ submittingState, submitFnRef, bindAccountFn, hideDialogFn }) => {
@@ -5520,9 +5535,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         isDeviceRoot: boolean,
         stunServers: VaultUtilTypes.STUNServerConfiguration[],
         turnServers: VaultUtilTypes.TURNServerConfiguration[],
-        signalingServer:
-            | VaultUtilTypes.SignalingServerConfiguration
-            | undefined,
+        signalingServer: VaultUtilTypes.SignalingServerConfiguration | null = null,
     ) => {
         // Start setting up the WebRTC connection
         const webRTConnection = Synchronization.initWebRTC(
@@ -6367,7 +6380,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
 const EditLinkedDeviceDialog: React.FC<{
     showDialogFnRef: React.RefObject<(selectedDevice: LinkedDevice) => void>;
     // selectedDevice: React.RefObject<LinkedDevice | null>;
-    vaultMetadata: VaultMetadata | null;
+    vaultMetadata: Storage.VaultMetadata | null;
 }> = ({ showDialogFnRef, vaultMetadata }) => {
     const [visible, setVisible] = useState(false);
     const [selectedDevice, setSelectedDevice] = useState<LinkedDevice | null>(
@@ -6680,6 +6693,9 @@ const SidebarSyncDeviceListItem: React.FC<{
     showManualSyncDialog: RefObject<ManualSyncShowDialogFnPropType>;
 }> = ({ item, showEditDialog, unlinkDevice, showManualSyncDialog }) => {
     const device = item;
+
+    const setVaultCredentials = useSetAtom(vaultCredentialsAtom);
+
     const [lastSync, setLastSync] = useState(
         device.LastSync ? dayjs(device.LastSync) : null,
     );
@@ -6835,11 +6851,42 @@ const SidebarSyncDeviceListItem: React.FC<{
         }
 
         if (
+            event.data.event ===
+            SynchronizationUtils.WebRTCMessageEventType.Error
+        ) {
+            console.error(
+                `[SidebarSyncDeviceListItem] An error occurred during synchronization with device "${device.Name}" (${device.ID}). Additional data:`,
+                event.data.additionalData,
+                "Occurred at:",
+                event.data.message,
+            );
+            toast.warn(
+                `Connection to "${device.Name}" (${device.ID}) has failed. Please see console for more information.`,
+            );
+        }
+
+        if (
             event.type ===
             SynchronizationUtils.SyncConnectionControllerEventType
                 .ConnectionStatus
         ) {
-            setWebRTCStatus(event.data.connectionState);
+            if (event.data.connectionState != null)
+                setWebRTCStatus(event.data.connectionState);
+
+            if (
+                event.data.connectionState ===
+                SynchronizationUtils.WebRTCStatus.Failed
+            ) {
+                console.error(
+                    `[SidebarSyncDeviceListItem] Connection to "${device.Name}" (${device.ID}) has failed. Additional information:`,
+                    event.data.additionalData,
+                );
+
+                if (event.data.additionalData)
+                    toast.warn(
+                        `Connection to "${device.Name}" (${device.ID}) has failed. Please see console for more information.`,
+                    );
+            }
 
             // Mind the SyncTimeout configuration
             if (
@@ -6869,6 +6916,24 @@ const SidebarSyncDeviceListItem: React.FC<{
                     GlobalSyncConnectionController.connectDevice(device);
                 }
             }
+        }
+
+        if (
+            event.type ===
+            SynchronizationUtils.SyncConnectionControllerEventType
+                .VaultDataUpdate
+        ) {
+            if (!event.data.vaultData?.credentials) return;
+
+            setVaultCredentials(() => {
+                if (event.data.vaultData?.credentials)
+                    return [...event.data.vaultData.credentials];
+                else return [];
+            });
+
+            vaultGet().Diffs = event.data.vaultData.diffs;
+
+            // TODO: Trigger a vault save
         }
     };
 
@@ -7034,12 +7099,12 @@ const SidebarSyncDeviceListItem: React.FC<{
                     </p>
                 </div>
             </div>
-            <Menu as="div" className="relative">
+            <Menu>
                 <MenuButton
                     ref={optionsButtonRef}
                     className="flex h-full items-center"
                 >
-                    <EllipsisVerticalIcon className="h-6 w-6 text-slate-400" />
+                    <EllipsisVerticalIcon className="h-7 w-6 text-slate-400" />
                 </MenuButton>
                 {/* <Transition
                     // as={React.Fragment}
@@ -7050,39 +7115,39 @@ const SidebarSyncDeviceListItem: React.FC<{
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
                 > */}
-                <MenuItems className="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md bg-gray-800 shadow-lg focus:outline-none">
-                    <div className="py-1">
-                        {contextMenuOptions.map((option, index) => (
-                            <MenuItem key={index}>
-                                {({ focus: active }) => {
-                                    const hoverClass = clsx({
-                                        "bg-gray-900 text-white select-none":
-                                            active && !option.disabled,
-                                        "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                            true,
-                                        "pointer-events-none opacity-50":
-                                            option.disabled,
-                                        hidden: !option.visible,
-                                    });
-                                    return (
-                                        <a
-                                            className={hoverClass}
-                                            onClick={
-                                                option.disabled
-                                                    ? () => {
-                                                          // NO-OP
-                                                      }
-                                                    : () =>
-                                                          option.onClick(device)
-                                            }
-                                        >
-                                            {option.name}
-                                        </a>
-                                    );
-                                }}
-                            </MenuItem>
-                        ))}
-                    </div>
+                <MenuItems
+                    className="mt-2 w-48 rounded-md bg-gray-800 shadow-lg focus:outline-none"
+                    anchor="bottom"
+                >
+                    {contextMenuOptions.map((option, index) => (
+                        <MenuItem key={index}>
+                            {({ focus: active }) => {
+                                const hoverClass = clsx({
+                                    "bg-gray-900 text-white select-none":
+                                        active && !option.disabled,
+                                    "flex px-4 py-2 text-sm font-semibold text-gray-200":
+                                        true,
+                                    "pointer-events-none opacity-50":
+                                        option.disabled,
+                                    hidden: !option.visible,
+                                });
+                                return (
+                                    <a
+                                        className={hoverClass}
+                                        onClick={
+                                            option.disabled
+                                                ? () => {
+                                                      // NO-OP
+                                                  }
+                                                : () => option.onClick(device)
+                                        }
+                                    >
+                                        {option.name}
+                                    </a>
+                                );
+                            }}
+                        </MenuItem>
+                    ))}
                 </MenuItems>
                 {/* </Transition> */}
             </Menu>
@@ -7302,7 +7367,7 @@ const VaultDashboard: React.FC = ({}) => {
     );
     const showLinkedDeviceEditDialogFnRef = useRef<
         (device: LinkedDevice) => void
-    >((d) => {
+    >(() => {
         // No-op
     });
     const showManualSyncDialogFnRef = useRef<ManualSyncShowDialogFnPropType>(
@@ -7327,7 +7392,7 @@ const VaultDashboard: React.FC = ({}) => {
         );
     };
 
-    const _lockVault = async (vaultMetadata: VaultMetadata) => {
+    const _lockVault = async (vaultMetadata: Storage.VaultMetadata) => {
         toast.info("Securing vault...", {
             autoClose: false,
             closeButton: false,
@@ -7338,36 +7403,31 @@ const VaultDashboard: React.FC = ({}) => {
         // A little delay to make sure the toast is shown
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // NOTE: Why can't this just be an async function????
-        setUnlockedVault(async (pre) => {
-            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-            // NOTE: This might not work, since we are not awaiting the save function
-            try {
-                await vaultMetadata.save(pre);
-                toast.success("Vault secured.", {
-                    autoClose: 3000,
+        // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+        try {
+            await vaultMetadata.save(vaultGet());
+            toast.success("Vault secured.", {
+                autoClose: 3000,
+                closeButton: true,
+                toastId: "lock-vault",
+                updateId: "lock-vault",
+            });
+
+            clearOnlineServicesData();
+            GlobalSyncConnectionController.teardown();
+            setUnlockedVaultMetadata(null);
+            setUnlockedVault(new Vault.Vault());
+        } catch (e) {
+            console.error(`Failed to save vault: ${e}`);
+            toast.error(
+                "Failed to save vault. There is a high possibility of data loss!",
+                {
                     closeButton: true,
                     toastId: "lock-vault",
                     updateId: "lock-vault",
-                });
-
-                clearOnlineServicesData();
-                setUnlockedVaultMetadata(null);
-            } catch (e) {
-                console.error(`Failed to save vault: ${e}`);
-                toast.error(
-                    "Failed to save vault. There is a high possibility of data loss!",
-                    {
-                        closeButton: true,
-                        toastId: "lock-vault",
-                        updateId: "lock-vault",
-                    },
-                );
-            }
-
-            // Clean up the unlocked vault - remove all data from the atom
-            return new Vault();
-        });
+                },
+            );
+        }
     };
 
     // console.debug("VaultDashboard RENDER - pre vaultmetadata check", !!vaultMetadata);
@@ -7621,15 +7681,14 @@ const VaultContentWindow: React.FC<{
 }) => {
     const router = useRouter();
 
-    const vaultCredentials = useAtomValue(unlockedVaultAtom).Credentials;
+    const vaultCredentials = useAtomValue(vaultCredentialsAtom);
     const [filter, setFilter] = useState("");
 
     const editCredentialModeFn = useRef<
-        (credential: Credential.VaultCredential) => void
+        (credential: Vault.VaultCredential) => void
     >(() => {});
 
-    // NOTE: Is this good enough?
-    let filteredCredentials: Credential.VaultCredential[] = [];
+    let filteredCredentials: Vault.VaultCredential[] = [];
     if (vaultCredentials) {
         filteredCredentials = vaultCredentials
             ?.sort((a, b) => a.Name.localeCompare(b.Name))
@@ -7831,11 +7890,12 @@ const SearchBar: React.FC<{
 };
 
 const ListItemCredential: React.FC<{
-    credential: Credential.VaultCredential;
+    credential: Vault.VaultCredential;
     onClick: () => void;
     showWarningDialog: WarningDialogShowFn;
 }> = ({ credential, onClick, showWarningDialog: showWarningDialogFn }) => {
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+    const setCredentialsList = useSetAtom(vaultCredentialsAtom);
+    //const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const siteFaviconURL = React.useMemo(() => {
         const faviconUrl = credential.URL.replace(/^https?:\/\//, "");
@@ -7901,7 +7961,7 @@ const ListItemCredential: React.FC<{
             onClick: () => {
                 if (!credential.TOTP) return;
 
-                const data = credential.TOTP.calculate();
+                const data = Vault.calculateTOTP(credential.TOTP);
                 if (data) {
                     navigator.clipboard.writeText(data.code);
                     toast.info(
@@ -7961,35 +8021,55 @@ const ListItemCredential: React.FC<{
                     // A little delay to make sure the toast is shown
                     await new Promise((resolve) => setTimeout(resolve, 100));
 
-                    setUnlockedVault(async (pre) => {
-                        const newVault = pre;
+                    const vault = vaultGet();
 
-                        // Remove the credential from the vault
-                        await newVault.deleteCredential(credential.ID);
-                        try {
-                            // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-                            await unlockedVaultMetadata.save(newVault);
-                            toast.success("Credential removed.", {
+                    // Remove the credential from the vault
+                    const data = Vault.deleteCredential(
+                        vault.Credentials,
+                        credential.ID,
+                    );
+
+                    if (data.isErr()) {
+                        console.error(
+                            `Failed to remove credential. Error: "${data.error}". ID: "${credential.ID}". Could not find the item index.`,
+                        );
+                        return vault;
+                    }
+
+                    vault.Credentials = [...data.value.credentials];
+
+                    const listHash = await Vault.hashCredentials(
+                        vault.Credentials,
+                    );
+                    const diff: VaultUtilTypes.Diff = {
+                        Hash: listHash,
+                        Changes: data.value.change,
+                    };
+                    vault.Diffs = [...vault.Diffs, diff];
+
+                    setCredentialsList(vault.Credentials);
+
+                    try {
+                        // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+                        await unlockedVaultMetadata.save(vault);
+                        toast.success("Credential removed.", {
+                            autoClose: 3000,
+                            closeButton: true,
+                            toastId: "remove-credential",
+                            updateId: "remove-credential",
+                        });
+                    } catch (e) {
+                        console.error(`Failed to save vault: ${e}`);
+                        toast.error(
+                            "Failed to save vault. There is a high possibility of data loss!",
+                            {
                                 autoClose: 3000,
                                 closeButton: true,
                                 toastId: "remove-credential",
                                 updateId: "remove-credential",
-                            });
-                        } catch (e) {
-                            console.error(`Failed to save vault: ${e}`);
-                            toast.error(
-                                "Failed to save vault. There is a high possibility of data loss!",
-                                {
-                                    autoClose: 3000,
-                                    closeButton: true,
-                                    toastId: "remove-credential",
-                                    updateId: "remove-credential",
-                                },
-                            );
-                        }
-
-                        return newVault;
-                    });
+                            },
+                        );
+                    }
                 },
                 null,
             );
@@ -8170,21 +8250,21 @@ const ListItemCredential: React.FC<{
 
 const TOTPDialog: React.FC<{
     visibleState: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-    submitCallback: (formData: Credential.TOTPFormSchemaType) => Promise<void>;
+    submitCallback: (formData: FormSchemas.TOTPFormSchemaType) => Promise<void>;
 }> = ({ visibleState, submitCallback }) => {
     const {
         handleSubmit,
         control,
         formState: { errors, isDirty },
         reset: resetForm,
-    } = useForm<Credential.TOTPFormSchemaType>({
-        resolver: zodResolver(Credential.totpFormSchema),
+    } = useForm<FormSchemas.TOTPFormSchemaType>({
+        resolver: zodResolver(FormSchemas.TOTPFormSchema),
         defaultValues: {
             Label: "",
             Secret: "",
-            Period: Credential.PERIOD_DEFAULT,
-            Digits: Credential.DIGITS_DEFAULT,
-            Algorithm: Credential.ALGORITHM_DEFAULT,
+            Period: TOTPConstants.PERIOD_DEFAULT,
+            Digits: TOTPConstants.DIGITS_DEFAULT,
+            Algorithm: TOTPConstants.ALGORITHM_DEFAULT,
         },
     });
 
@@ -8209,7 +8289,7 @@ const TOTPDialog: React.FC<{
         }
     };
 
-    const onSubmit = async (formData: Credential.TOTPFormSchemaType) => {
+    const onSubmit = async (formData: FormSchemas.TOTPFormSchemaType) => {
         await submitCallback(formData);
         hideDialog(true);
     };
@@ -8402,7 +8482,7 @@ const TOTPDialog: React.FC<{
 const CredentialSideview: React.FC<{
     newCredentialModeFnOut: React.RefObject<() => void>;
     editCredentialModeFnOut: React.RefObject<
-        (credential: Credential.VaultCredential) => void
+        (credential: Vault.VaultCredential) => void
     >;
     showCredentialsGeneratorDialogFn: React.RefObject<() => void>;
     showWarningDialogFn: WarningDialogShowFn;
@@ -8420,20 +8500,20 @@ const CredentialSideview: React.FC<{
 
     const router = useRouter();
 
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
+    const setVaultCredentials = useSetAtom(vaultCredentialsAtom);
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const [mode, _setMode] = useState(CredentialSideviewMode.Undefined);
     const [selectedCredential, _setSelectedCredential] = useState<
-        Credential.VaultCredential | undefined
+        Vault.VaultCredential | undefined
     >();
 
     const closeBtnRef = useRef<HTMLButtonElement>(null);
 
     const defaultValues = () => {
-        const obj: Credential.CredentialFormSchemaType = Object.assign(
+        const obj: Vault.CredentialFormSchemaType = Object.assign(
             {},
-            new Credential.VaultCredential(),
+            new Vault.VaultCredential(),
         );
         obj.ID = null; // This is set to null to indicate that this is a new credential
         return obj;
@@ -8448,13 +8528,13 @@ const CredentialSideview: React.FC<{
         setValue,
         getValues: getFormValues,
         setFocus,
-    } = useForm<Credential.CredentialFormSchemaType>({
-        resolver: zodResolver(Credential.credentialFormSchema),
+    } = useForm<Vault.CredentialFormSchemaType>({
+        resolver: zodResolver(Vault.CredentialFormSchema),
         defaultValues: defaultValues(),
     });
 
-    const resetFormValues = (credential: Credential.VaultCredential) => {
-        const formData: Credential.CredentialFormSchemaType = {
+    const resetFormValues = (credential: Vault.VaultCredential) => {
+        const formData: Vault.CredentialFormSchemaType = {
             ID: credential.ID, // This means that the form is in "edit" mode
             Type: credential.Type,
             GroupID: credential.GroupID,
@@ -8479,7 +8559,7 @@ const CredentialSideview: React.FC<{
 
     const setModeFn = (
         newMode: CredentialSideviewMode,
-        credential: Credential.VaultCredential | undefined = undefined,
+        credential: Vault.VaultCredential | undefined = undefined,
         ignoreDirtyCheck = false,
     ) => {
         const actuallyExecFn = () => {
@@ -8520,9 +8600,7 @@ const CredentialSideview: React.FC<{
     newCredentialModeFnOut.current = () => {
         setModeFn(CredentialSideviewMode.New);
     };
-    editCredentialModeFnOut.current = (
-        credential: Credential.VaultCredential,
-    ) => {
+    editCredentialModeFnOut.current = (credential: Vault.VaultCredential) => {
         setModeFn(CredentialSideviewMode.Edit, credential);
     };
     const closeSideview = (force: boolean = false) => {
@@ -8531,7 +8609,7 @@ const CredentialSideview: React.FC<{
 
     const TOTPDialogVisible = useState(false);
     const showTOTPDialog = () => TOTPDialogVisible[1](true);
-    const setTOTPFormValue = async (form: Credential.TOTPFormSchemaType) => {
+    const setTOTPFormValue = async (form: FormSchemas.TOTPFormSchemaType) => {
         setValue("TOTP", form, {
             shouldDirty: true,
         });
@@ -8541,7 +8619,7 @@ const CredentialSideview: React.FC<{
         value: string | undefined;
         onChange: (tags: string) => void;
     }> = ({ value, onChange }) => {
-        const tagSeparator = Credential.TAG_SEPARATOR;
+        const tagSeparator = CredentialConstants.TAG_SEPARATOR;
 
         const [inputValue, setInputValue] = useState("");
         const [inputFocused, setInputFocused] = useState(false);
@@ -8648,8 +8726,8 @@ const CredentialSideview: React.FC<{
      * A component that takes in the TOTP form data and calculates the TOTP code to display with a timer
      */
     const TOTPControl: React.FC<{
-        value: Credential.TOTPFormSchemaType;
-        onChange: (event: Credential.TOTPFormSchemaType | null) => void;
+        value: FormSchemas.TOTPFormSchemaType;
+        onChange: (event: FormSchemas.TOTPFormSchemaType | null) => void;
     }> = ({ value, onChange }) => {
         const codeRef = useRef<string>("");
         const [timeLeft, setTimeLeft] = useState(0);
@@ -8669,6 +8747,7 @@ const CredentialSideview: React.FC<{
 
                 codeRef.current = code;
             } catch (e) {
+                console.debug("[TOTP] Update code threw.", e);
                 clearTOTP();
 
                 // FIXME: This thing triggers multiple times
@@ -8768,54 +8847,99 @@ const CredentialSideview: React.FC<{
         );
     };
 
-    const onSubmit = async (formData: Credential.CredentialFormSchemaType) => {
+    const onSubmit = async (formData: Vault.CredentialFormSchemaType) => {
         if (!vaultMetadata) return;
 
-        await setUnlockedVault(async (prev) => {
-            // Create/Update the credential in the vault
-            if (formData.ID) {
-                await prev?.updateCredential(formData);
-            } else {
-                await prev.createCredential(formData);
+        // Create/Update the credential in the vault
+        const vault = vaultGet();
+        if (formData.ID) {
+            const existingIndex = vault.Credentials.findIndex(
+                (i) => i.ID === formData.ID,
+            );
+            const existing = vault.Credentials[existingIndex];
+
+            if (!existing) {
+                console.error(
+                    `Failed to find credential with ID "${formData.ID}". Skipping update...`,
+                );
+                toast.error(
+                    "Failed to update credential. Please check the console for more infomation.",
+                    {
+                        autoClose: 5000,
+                        closeButton: false,
+                        toastId: "update-vault-data",
+                        updateId: "update-vault-data",
+                    },
+                );
+                return vault;
             }
-            toast.info("Saving vault data...", {
-                autoClose: false,
+
+            const data = await Vault.updateCredentialFromForm(
+                existing,
+                formData,
+            );
+
+            // Update the credential
+            vault.Credentials[existingIndex] = data.credential;
+
+            const listHash = await Vault.hashCredentials(vault.Credentials);
+            const diff: VaultUtilTypes.Diff = {
+                Hash: listHash,
+                Changes: data.changes,
+            };
+            vault.Diffs.push(diff);
+        } else {
+            const data = await Vault.createCredential(formData);
+
+            vault.Credentials.push(data.credential);
+            const listHash = await Vault.hashCredentials(vault.Credentials);
+            const diff: VaultUtilTypes.Diff = {
+                Hash: listHash,
+                Changes: data.changes,
+            };
+            vault.Diffs.push(diff);
+        }
+
+        // Trigger a render by spreading the list in a new list
+        setVaultCredentials([...vault.Credentials]);
+
+        toast.info("Saving vault data...", {
+            autoClose: false,
+            closeButton: false,
+            toastId: "saving-vault-data",
+            updateId: "saving-vault-data",
+        });
+
+        // Delay a little bit to allow the toast to update
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        try {
+            // Trigger manual vault save
+            // TODO: Remove when the auto-save feature is implemented
+            await vaultMetadata.save(vault);
+
+            toast.success("Vault data saved", {
+                autoClose: 3000,
                 closeButton: false,
                 toastId: "saving-vault-data",
                 updateId: "saving-vault-data",
             });
 
-            // Delay a little bit to allow the toast to update
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            // Trigger manual vault save (TODO: This will be removed when the auto-save feature is implemented)
-            try {
-                await vaultMetadata.save(prev);
-
-                toast.success("Vault data saved", {
+            // Reset the view
+            // FIXME: This rerenders the holy Jesus
+            closeSideview(true);
+        } catch (e) {
+            console.error(`Failed to save vault data. ${e}`);
+            toast.error(
+                "Failed to save vault. There is a high possibility of data loss!",
+                {
                     autoClose: 3000,
                     closeButton: false,
                     toastId: "saving-vault-data",
                     updateId: "saving-vault-data",
-                });
-
-                // Reset the view
-                closeSideview(true);
-            } catch (e) {
-                console.error(`Failed to save vault data. ${e}`);
-                toast.error(
-                    "Failed to save vault. There is a high possibility of data loss!",
-                    {
-                        autoClose: 3000,
-                        closeButton: false,
-                        toastId: "saving-vault-data",
-                        updateId: "saving-vault-data",
-                    },
-                );
-            }
-
-            return prev;
-        });
+                },
+            );
+        }
     };
 
     useEffect(() => {
@@ -8917,7 +9041,9 @@ const CredentialSideview: React.FC<{
                                     selectedCredential.DatePasswordChanged && (
                                         <div className="flex justify-center gap-x-2">
                                             <span>
-                                                <b>Last password change:</b>{" "}
+                                                <b>
+                                                    Last password change:
+                                                </b>{" "}
                                             </span>
                                             <span>
                                                 {new Date(

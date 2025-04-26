@@ -1,13 +1,8 @@
-import { atom, createStore, Atom, type PrimitiveAtom } from "jotai";
+import { atom, createStore } from "jotai";
 import { focusAtom } from "jotai-optics";
 import { selectAtom } from "jotai/utils";
-import {
-    LinkedDevices,
-    Vault,
-    type LinkedDevice,
-    type VaultMetadata,
-} from "../app_lib/vault-utils";
-import * as VaultTypes from "../app_lib/proto/vault";
+import { LinkedDevices, Vault } from "../app_lib/vault-utils/vault";
+import { type VaultMetadata } from "../app_lib/vault-utils/storage";
 
 type OnlineServicesData = {
     key: string;
@@ -75,6 +70,10 @@ export const unlockedVaultWriteOnlyAtom = atom(
 export const isVaultUnlockedAtom = selectAtom(
     unlockedVaultMetadataAtom,
     (vault) => vault !== null,
+);
+
+export const vaultCredentialsAtom = focusAtom(unlockedVaultAtom, (baseAtom) =>
+    baseAtom.prop("Credentials"),
 );
 
 export const linkedDevicesAtom = focusAtom(unlockedVaultAtom, (baseAtom) =>

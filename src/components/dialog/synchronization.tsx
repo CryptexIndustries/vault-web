@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Body, Footer, GenericModal, Title } from "../general/modal";
 import { ButtonFlat, ButtonType } from "../general/buttons";
-import { Credential } from "../../app_lib/vault-utils";
+import {
+    getCredentialChanges,
+    hashCredential,
+    VaultCredential,
+} from "../../app_lib/vault-utils/vault";
 import {
     DiffChange,
     DiffType,
@@ -34,7 +38,7 @@ enum DiffItemChoice {
 }
 
 export type ManualSyncShowDialogFnPropType = (
-    ourCredentials: Credential.VaultCredential[],
+    ourCredentials: VaultCredential[],
     theirCredentials: PartialCredential[],
     onConfirm: OnSuccessCallback,
     onCancel: OnCancelCallback,
@@ -53,8 +57,8 @@ export const ManualSynchronizationDialog: React.FC<{
     const [dialogVisible, setDialogVisible] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    const ourCredentialsRef = useRef<Credential.VaultCredential[]>([]);
-    const theirCredentialsRef = useRef<Credential.VaultCredential[]>([]);
+    const ourCredentialsRef = useRef<VaultCredential[]>([]);
+    const theirCredentialsRef = useRef<VaultCredential[]>([]);
     const onSuccessRef = useRef<OnSuccessCallback>(undefined);
     const onCancelRef = useRef<OnCancelCallback>(undefined);
 
@@ -63,7 +67,7 @@ export const ManualSynchronizationDialog: React.FC<{
     const diffItemSelection = useRef<Map<string, DiffItemChoice>>(new Map());
 
     showDialogFnRef.current = (
-        ourCredentials: Credential.VaultCredential[],
+        ourCredentials: VaultCredential[],
         theirCredentials: PartialCredential[],
         onSuccess: OnSuccessCallback,
         onCancel: OnCancelCallback,
@@ -72,8 +76,7 @@ export const ManualSynchronizationDialog: React.FC<{
 
         // NOTE: We need to convert the PartialCredential to a VaultCredential
         // This should work as long as the data we received is valid
-        theirCredentialsRef.current =
-            theirCredentials as Credential.VaultCredential[];
+        theirCredentialsRef.current = theirCredentials as VaultCredential[];
 
         onSuccessRef.current = onSuccess;
         onCancelRef.current = onCancel;
@@ -123,21 +126,18 @@ export const ManualSynchronizationDialog: React.FC<{
 
             // const ourHash = await ourCredential.hash();
             const ourCredentialParsed = Object.assign(
-                new Credential.VaultCredential(),
+                new VaultCredential(),
                 ourCredential,
             );
             const theirCredentialParsed = theirCredential
-                ? Object.assign(
-                      new Credential.VaultCredential(),
-                      theirCredential,
-                  )
+                ? Object.assign(new VaultCredential(), theirCredential)
                 : null;
 
             // If we couldn't find the matching credential
             if (!theirCredentialParsed) {
                 // Removal
                 const item = {
-                    Hash: await ourCredentialParsed.hash(),
+                    Hash: await hashCredential(ourCredentialParsed),
                     Changes: {
                         Type: DiffType.Delete,
                         ID: ourCredentialParsed.ID,
@@ -156,8 +156,8 @@ export const ManualSynchronizationDialog: React.FC<{
                 continue;
             }
 
-            const ourHash = await ourCredentialParsed.hash();
-            const theirHash = await theirCredentialParsed.hash();
+            const ourHash = await hashCredential(ourCredentialParsed);
+            const theirHash = await hashCredential(theirCredentialParsed);
             if (ourHash !== theirHash) {
                 // Modification
                 const _diff: Diff = {
@@ -170,7 +170,7 @@ export const ManualSynchronizationDialog: React.FC<{
                 };
                 // TODO: Use this to show the changes in the UI
                 if (_diff.Changes && _diff.Changes.Props)
-                    _diff.Changes.Props.ChangeFlags = Credential.getChanges(
+                    _diff.Changes.Props.ChangeFlags = getCredentialChanges(
                         ourCredentialParsed,
                         theirCredentialParsed,
                     )?.Props?.ChangeFlags;
@@ -198,13 +198,13 @@ export const ManualSynchronizationDialog: React.FC<{
             if (ourCredential) continue;
 
             const theirCredentialParsed = Object.assign(
-                new Credential.VaultCredential(),
+                new VaultCredential(),
                 theirCredential,
             );
 
             // Addition
             const item = {
-                Hash: await theirCredentialParsed.hash(),
+                Hash: await hashCredential(theirCredentialParsed),
                 Changes: {
                     Type: DiffType.Add,
                     ID: theirCredentialParsed.ID,
@@ -329,26 +329,24 @@ export const ManualSynchronizationDialog: React.FC<{
                 diffsToApply.push(diff);
                 diffsToSend.push(diff);
 
-                const craftDiff = async (
-                    credential: Credential.VaultCredential,
-                ) => {
+                const craftDiff = async (credential: VaultCredential) => {
                     let freshCredential = Object.assign({}, credential);
 
                     // Remove the ID from the credential so we generate a fresh one
                     freshCredential.ID = "";
                     freshCredential.Name = `${freshCredential.Name} [${dayjs(freshCredential.DateModified).toString()}]`;
-                    freshCredential = new Credential.VaultCredential(
-                        freshCredential,
-                    );
+                    freshCredential = new VaultCredential(freshCredential);
 
                     // Generate a fresh diff skeleton
                     const newDiff = Object.assign({}, diff);
-                    newDiff.Hash = await freshCredential.hash();
+                    newDiff.Hash = await hashCredential(freshCredential);
 
                     // Generate an addition diff
-                    newDiff.Changes =
-                        Credential.getChanges(undefined, freshCredential) ??
-                        undefined;
+                    newDiff.Changes = {
+                        Type: DiffType.Add,
+                        ID: freshCredential.ID,
+                        Props: freshCredential,
+                    };
                     return newDiff;
                 };
 

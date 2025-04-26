@@ -45,11 +45,11 @@ export default function QrReader({
                     videoElementRef.current ?? undefined,
                     (result, error) => {
                         onResult(result, error);
-                    }
+                    },
                 )
                 .then(
                     (controls: IScannerControls) =>
-                        (controlRef.current = controls)
+                        (controlRef.current = controls),
                 )
                 .catch((error: Error) => {
                     console.warn(error);
@@ -60,7 +60,7 @@ export default function QrReader({
     const stopScanning = () => {
         console.debug("QRScanner: stop called");
 
-        videoElementRef.current?.setMediaKeys;
+        //videoElementRef.current?.setMediaKeys;
 
         controlRef.current?.stop();
         controlRef.current = null;

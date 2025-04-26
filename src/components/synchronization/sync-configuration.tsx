@@ -19,11 +19,18 @@ import {
     Vault,
 } from "../../app_lib/proto/vault";
 import {
-    FormSchemas,
     STUNServerConfiguration as cOnlineServicesSTUNConfiguration,
     TURNServerConfiguration as cOnlineServicesTURNConfiguration,
     SignalingServerConfiguration as cOnlineServicesWebSocketConfiguration,
-} from "../../app_lib/vault-utils";
+} from "../../app_lib/vault-utils/vault";
+import {
+    SynchronizationSignalingUpsertSchema,
+    SynchronizationSignalingUpsertSchemaType,
+    SynchronizationSTUNUpsertSchema,
+    SynchronizationSTUNUpsertSchemaType,
+    SynchronizationTURNUpsertSchema,
+    SynchronizationTURNUpsertSchemaType,
+} from "../../app_lib/vault-utils/form-schemas";
 import {
     unlockedVaultAtom,
     unlockedVaultWriteOnlyAtom,
@@ -385,9 +392,9 @@ const SynchronizationSignalingDialog: React.FC<{
 
     showDialogFnRef.current = (id?: string) => {
         const existingSignalingServer = id
-            ? unlockedVault.LinkedDevices?.SignalingServers.find(
+            ? (unlockedVault.LinkedDevices?.SignalingServers.find(
                   (i) => i.ID === id,
-              ) ?? null
+              ) ?? null)
             : null;
 
         setExistingEntryName(existingSignalingServer?.Name ?? null);
@@ -436,13 +443,13 @@ const SynchronizationSignalingDialog: React.FC<{
         handleSubmit,
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
-    } = useForm<FormSchemas.SynchronizationSignalingUpsertSchemaType>({
-        resolver: zodResolver(FormSchemas.SynchronizationSignalingUpsertSchema),
+    } = useForm<SynchronizationSignalingUpsertSchemaType>({
+        resolver: zodResolver(SynchronizationSignalingUpsertSchema),
         defaultValues: defaultValues,
     });
 
     const onSubmit = async (
-        formData: FormSchemas.SynchronizationSignalingUpsertSchemaType,
+        formData: SynchronizationSignalingUpsertSchemaType,
     ) => {
         await Promise.all([
             new Promise((resolve) => setTimeout(resolve, DIALOG_BLUR_TIME)),
@@ -842,9 +849,9 @@ const SynchronizationSTUNDialog: React.FC<{
 
     showDialogFnRef.current = (id?: string) => {
         const existingSTUNServer = id
-            ? unlockedVault.LinkedDevices?.STUNServers.find(
+            ? (unlockedVault.LinkedDevices?.STUNServers.find(
                   (i) => i.ID === id,
-              ) ?? null
+              ) ?? null)
             : null;
 
         setExistingEntryName(existingSTUNServer?.Name ?? null);
@@ -888,14 +895,12 @@ const SynchronizationSTUNDialog: React.FC<{
         handleSubmit,
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
-    } = useForm<FormSchemas.SynchronizationSTUNUpsertSchemaType>({
-        resolver: zodResolver(FormSchemas.SynchronizationSTUNUpsertSchema),
+    } = useForm<SynchronizationSTUNUpsertSchemaType>({
+        resolver: zodResolver(SynchronizationSTUNUpsertSchema),
         defaultValues: defaultValues,
     });
 
-    const onSubmit = async (
-        formData: FormSchemas.SynchronizationSTUNUpsertSchemaType,
-    ) => {
+    const onSubmit = async (formData: SynchronizationSTUNUpsertSchemaType) => {
         await Promise.all([
             new Promise((resolve) => setTimeout(resolve, DIALOG_BLUR_TIME)),
         ]);
@@ -1215,9 +1220,9 @@ const SynchronizationTURNDialog: React.FC<{
 
     showDialogFnRef.current = (id?: string) => {
         const existingTURNServer = id
-            ? unlockedVault.LinkedDevices?.TURNServers.find(
+            ? (unlockedVault.LinkedDevices?.TURNServers.find(
                   (i) => i.ID === id,
-              ) ?? null
+              ) ?? null)
             : null;
 
         setExistingEntryName(existingTURNServer?.Name ?? null);
@@ -1263,14 +1268,12 @@ const SynchronizationTURNDialog: React.FC<{
         handleSubmit,
         formState: { errors, isSubmitting, isDirty },
         reset: resetForm,
-    } = useForm<FormSchemas.SynchronizationTURNUpsertSchemaType>({
-        resolver: zodResolver(FormSchemas.SynchronizationTURNUpsertSchema),
+    } = useForm<SynchronizationTURNUpsertSchemaType>({
+        resolver: zodResolver(SynchronizationTURNUpsertSchema),
         defaultValues: defaultValues,
     });
 
-    const onSubmit = async (
-        formData: FormSchemas.SynchronizationTURNUpsertSchemaType,
-    ) => {
+    const onSubmit = async (formData: SynchronizationTURNUpsertSchemaType) => {
         await Promise.all([
             new Promise((resolve) => setTimeout(resolve, DIALOG_BLUR_TIME)),
         ]);

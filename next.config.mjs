@@ -75,6 +75,10 @@ const nextConfig = {
             transform: "@heroicons/react/20/solid/{{member}}",
         },
     },
+    i18n: {
+        locales: ["en"],
+        defaultLocale: "en",
+    },
 };
 
 // Comment out this part if using ANALYZE=true

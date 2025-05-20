@@ -10,7 +10,7 @@ export const trpcRatelimitError = new TRPCError({
     message: "Too many requests.",
 });
 
-// Emphermeral storage
+// Emphemeral storage
 const ephemeralCache = new Map();
 
 /**

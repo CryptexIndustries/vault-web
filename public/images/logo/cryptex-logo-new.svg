@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="500" height="120" viewBox="0 0 650 90">
+  <defs>
+    <style>
+      .base {
+        font-family: '', sans-serif;
+        font-size: 72px;
+        letter-spacing: 2px;
+      }
+      .glow {
+        filter: url(#glow);
+      }
+      .primary { fill: #FF5668; }
+      .secondary { fill: #25C472; }
+      .tertiary { fill: #FCF8EC }
+    </style>
+
+    <!-- Dual‐color glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <!-- Tertiary outer glow -->
+      <feFlood flood-color="#FCF8EC" result="f1"/>
+      <feComposite in="f1" in2="SourceAlpha" operator="in" result="m1"/>
+      <feGaussianBlur in="m1" stdDeviation="5" result="b1"/>
+      <!-- Secondary inner glow -->
+      <feComposite in="f2" in2="SourceAlpha" operator="in" result="m2"/>
+      <feGaussianBlur in="m2" stdDeviation="1" result="b2"/>
+      <!-- Merge glows with the original graphic -->
+      <feMerge>
+        <feMergeNode in="b1"/>
+        <feMergeNode in="b2"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Wordmark group -->
+  <g>
+    <!-- "Cryptex /" -->
+    <text class="base glow tertiary"
+          x="10" y="50">
+      CRYPTEX
+    </text>
+    <line x1="355" y1="99" x2="415" y2="1" class="glow secondary" stroke="black" stroke-width="4"></line>
+    <!-- "Vault" dropped lower, with extra left padding -->
+    <text class="base glow primary"
+          x="410" y="100">
+      VAULT
+    </text>
+  </g>
+</svg>
+

@@ -4,12 +4,9 @@ export type PageFooterProps = {
 
 const PageFooter: React.FC<PageFooterProps> = ({ children }) => {
     return (
-        <footer className="bg-gray-900 pb-5 px-2 flex flex-col items-center w-full">
+        <footer className="flex w-full flex-col items-center bg-gray-900 px-2 pb-5">
             {children}
-            <div className="text-center mt-4">
-                <h1 className="text-sm text-gray-400">
-                    Made with ❤️ by the team at Cryptex Vault.
-                </h1>
+            <div className="mt-4 text-center">
                 <h1 className="text-sm text-gray-400">
                     All rights reserved. © {new Date().getFullYear()} Cryptex
                     Vault

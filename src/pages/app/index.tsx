@@ -1,4 +1,3 @@
-import { GetStaticProps } from "next";
 import React, {
     Suspense,
     useEffect,
@@ -74,6 +73,7 @@ import {
     constructLinkPresenceChannelName,
     extractIDFromAPIKey,
     navigateToCheckout,
+    openCustomerPortal,
     signUpFormSchema,
 } from "../../app_lib/online-services";
 import * as VaultUtilTypes from "../../app_lib/proto/vault";
@@ -3038,7 +3038,7 @@ const AccountDialog: React.FC<{
         const [isCustomerPortalLoading, setIsCustomerPortalLoading] =
             useState(false);
 
-        const openCustomerPortal = async () => {
+        const _openCustomerPortal = async () => {
             if (!(subscriptionData && subscriptionData.nonFree)) return;
 
             setIsCustomerPortalLoading(true);
@@ -3082,7 +3082,7 @@ const AccountDialog: React.FC<{
         }
 
         return (
-            <div className="flex max-w-md flex-col rounded-md border-slate-500 p-5">
+            <div className="flex max-w-md flex-col rounded-md border-slate-500 p-5 text-slate-600">
                 <p className="text-2xl font-medium text-slate-800">
                     {subscriptionData.productName}
                 </p>
@@ -3170,7 +3170,7 @@ const AccountDialog: React.FC<{
                         <ButtonFlat
                             text="Manage Subscription"
                             loading={isCustomerPortalLoading}
-                            onClick={openCustomerPortal}
+                            onClick={_openCustomerPortal}
                         ></ButtonFlat>
                     ) : (
                         <ButtonFlat
@@ -3737,7 +3737,8 @@ const AccountHeaderWidget: React.FC<{
         isLoading: isSubscriptionDataLoading,
         isError: hasSubscriptionDataError,
     } = trpcReact.v1.payment.subscription.useQuery(undefined, {
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
+        staleTime: 60 * 1000,
         enabled:
             !!unlockedVault &&
             LinkedDevices.isBound(unlockedVault.LinkedDevices) &&
@@ -9277,11 +9278,3 @@ const AppIndex: React.FC = () => {
 };
 
 export default AppIndex;
-
-// This generates the static HTML for the page and sends it to the user
-// The application must take care of the user permissions and authentication
-export const getStaticProps: GetStaticProps = async () => {
-    return {
-        props: {},
-    };
-};

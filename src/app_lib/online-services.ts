@@ -37,7 +37,7 @@ export const navigateToCheckout = async (): Promise<void> => {
     }
 
     // Navigate to the checkout session URL
-    location.replace(checkoutSessionURL);
+    window.open(checkoutSessionURL, "_blank");
 };
 //#endregion Subscription
 

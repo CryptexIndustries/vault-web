@@ -164,7 +164,7 @@ const FrontPage: React.FC = () => {
                             className="animate-pulse overflow-hidden font-mono font-medium uppercase text-slate-300 hover:text-slate-400"
                         >
                             unlock
-                            <div className="animate-underline-activate border"></div>
+                            <div className="animate-underline-activate border bg-foreground"></div>
                         </Link>
                     </div>
                     <div className="flex flex-col items-center justify-end pb-10">
@@ -705,7 +705,7 @@ const CTASection = () => {
                             Secure Your Passwords
                             <ArrowRight className="ml-2 h-4 w-4" />
                         </div>
-                        <div className="w-full animate-underline-activate border"></div>
+                        <div className="w-full animate-underline-activate border bg-foreground"></div>
                     </Button>
                 </Link>
                 <p className="mt-4 text-sm text-slate-300">

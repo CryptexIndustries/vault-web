@@ -1,5 +1,6 @@
 import * as sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "../proto/vault";
+import { err, ok } from "neverthrow";
 
 export class KeyDerivationConfig_PBKDF2
     implements VaultUtilTypes.KeyDerivationConfigPBKDF2
@@ -219,10 +220,10 @@ export const DecryptDataBlob = async (
     algorithm: VaultUtilTypes.EncryptionAlgorithm,
     keyDerivationFunction: VaultUtilTypes.KeyDerivationFunction,
     configuration: KeyDerivationConfig_Argon2ID | KeyDerivationConfig_PBKDF2,
-): Promise<Uint8Array> => {
+) => {
     // Verify that the blob is an Uint8Array
     if (!(blob.Blob instanceof Uint8Array)) {
-        throw new Error("Blob is not an Uint8Array");
+        return err("VAULT_BLOB_INVALID_TYPE");
     }
 
     switch (algorithm) {
@@ -241,7 +242,7 @@ export const DecryptDataBlob = async (
                 configuration,
             );
         default:
-            throw new Error("Invalid encryption algorithm");
+            return err("ENCRYPTION_ALGORITHM_INVALID");
     }
 };
 
@@ -388,9 +389,9 @@ class AES {
         keyDerivationFuncConfig:
             | KeyDerivationConfig_Argon2ID
             | KeyDerivationConfig_PBKDF2,
-    ): Promise<Uint8Array> {
+    ) {
         if (keyDerivationFuncConfig == undefined) {
-            throw new Error("Key derivation function config is undefined");
+            return err("KEY_DERIVATION_FN_CONFIG_UNDEFINED");
         }
 
         const encryptedBlob = blob.Blob;
@@ -424,20 +425,25 @@ class AES {
                 ["encrypt", "decrypt"],
             );
         } else {
-            throw new Error("Invalid key derivation function");
+            return err("KEY_DERIVATION_FN_INVALID");
         }
 
-        const decrypted = await crypto.subtle.decrypt(
-            {
-                name: "AES-GCM",
-                iv,
-            },
-            derivedKey,
-            encryptedBlob,
-        );
+        try {
+            const decrypted = await crypto.subtle.decrypt(
+                {
+                    name: "AES-GCM",
+                    iv,
+                },
+                derivedKey,
+                encryptedBlob,
+            );
 
-        // return new TextDecoder().decode(decrypted);
-        return new Uint8Array(decrypted);
+            // return new TextDecoder().decode(decrypted);
+            return ok(new Uint8Array(decrypted));
+        } catch (e) {
+            console.debug("Failed to decrypt blob (AES256):", e);
+            return err("DECRYPTION_FAILED");
+        }
     }
 }
 
@@ -512,9 +518,9 @@ class XChaCha20Poly1305 {
         keyDerivationFuncConfig:
             | KeyDerivationConfig_Argon2ID
             | KeyDerivationConfig_PBKDF2,
-    ): Promise<Uint8Array> {
+    ) {
         if (keyDerivationFuncConfig == undefined) {
-            throw new Error("Key derivation function config is undefined");
+            return err("KEY_DERIVATION_FN_CONFIG_UNDEFINED");
         }
 
         await sodium.ready;
@@ -544,7 +550,7 @@ class XChaCha20Poly1305 {
                 keyDerivationFuncConfig as KeyDerivationConfig_Argon2ID,
             );
         } else {
-            throw new Error("Invalid key derivation function");
+            return err("KEY_DERIVATION_FN_INVALID");
         }
 
         const state_in = sodium.crypto_secretstream_xchacha20poly1305_init_pull(
@@ -557,7 +563,7 @@ class XChaCha20Poly1305 {
         );
 
         if (typeof r1 === "boolean" && r1 === false) {
-            throw new Error("Decryption failed");
+            return err("DECRYPTION_FAILED");
         }
 
         // Convert the byte array to a string
@@ -568,6 +574,6 @@ class XChaCha20Poly1305 {
         // );
 
         // Return the decrypted byte array
-        return r1.message;
+        return ok(r1.message);
     }
 }

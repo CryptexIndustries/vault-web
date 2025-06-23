@@ -13,6 +13,7 @@ import {
     VaultEncryptionConfigurationsFormElementType,
 } from "./form-schemas";
 import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
+import { err, ok } from "neverthrow";
 
 export interface VaultMetadataInterface {
     id?: number;
@@ -52,14 +53,6 @@ export async function saveVault(
     }
 
     console.debug("Successfully saved the vault metadata to the database");
-}
-
-/**
- * Deletes the vault metadata from the database using the provided index.
- * @param index The index of the vault to delete.
- */
-export async function terminateVault(index: number): Promise<void> {
-    await db.vaults.delete(index);
 }
 
 // export async function loadVault(
@@ -215,9 +208,9 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
         keyDerivationFuncConfig: VaultEncryptionConfigurationsFormElementType,
-    ): Promise<Vault> {
+    ) {
         if (this.Blob == null) {
-            throw new Error("Vault blob is null");
+            return err("VAULT_BLOB_NULL");
         }
 
         const blobUpgradeResult = this.Blob.upgrade();
@@ -233,7 +226,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             decryptionData = new Uint8Array(new TextEncoder().encode(secret));
         }
 
-        const decryptedVaultString = await DecryptDataBlob(
+        const decryptedVaultStringRes = await DecryptDataBlob(
             this.Blob,
             decryptionData,
             encryptionAlgorithm,
@@ -241,8 +234,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             keyDerivationFuncConfig,
         );
 
-        const vaultRawParsed =
-            VaultUtilTypes.Vault.decode(decryptedVaultString);
+        if (decryptedVaultStringRes.isErr())
+            return err(decryptedVaultStringRes.error);
+
+        const vaultRawParsed = VaultUtilTypes.Vault.decode(
+            decryptedVaultStringRes.value,
+        );
 
         // Set the decryptionSecret in the session storage
         // Which is then used to encrypt the vault when saving
@@ -291,18 +288,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         }
 
         // Assign the deserialized data to the Vault object
-        return vaultObject;
-    }
-
-    /**
-     * Deletes the vault from the database.
-     */
-    public async terminate(): Promise<void> {
-        if (this.DBIndex == null) {
-            throw new Error("Cannot terminate a vault without a valid index.");
-        }
-
-        await terminateVault(this.DBIndex);
+        return ok(vaultObject);
     }
 
     /**

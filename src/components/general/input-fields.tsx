@@ -8,6 +8,8 @@ import {
     EyeSlashIcon,
 } from "@heroicons/react/20/solid";
 import clsx from "clsx";
+import { Input } from "../ui/input";
+import { Eye, EyeOff } from "lucide-react";
 
 export const ClipboardButton = ({ value }: { value?: string }) => {
     const saveToClipboard = async (value?: string) => {
@@ -367,3 +369,42 @@ export const FormInputCheckbox: React.FC<{
         </div>
     );
 };
+
+export const FormInput = React.forwardRef<
+    HTMLInputElement,
+    React.ComponentPropsWithoutRef<"input">
+>(({ className, type, ...props }, ref) => {
+    const [showPassword, setShowPassword] = React.useState(false);
+
+    const classes = React.useMemo(() => {
+        return clsx({
+            className: true,
+            "font-mono": type === "password" && showPassword,
+            "pr-8": true,
+        });
+    }, [type, className, showPassword]);
+
+    return (
+        <div className="relative">
+            <Input
+                className={classes}
+                type={showPassword ? "text" : type}
+                ref={ref}
+                {...props}
+            />
+            {type === "password" && (
+                <button
+                    className="absolute right-2 top-2"
+                    onClick={() => setShowPassword(!showPassword)}
+                >
+                    {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                        <Eye className="h-5 w-5 text-muted-foreground" />
+                    )}
+                </button>
+            )}
+        </div>
+    );
+});
+FormInput.displayName = "FormInput";

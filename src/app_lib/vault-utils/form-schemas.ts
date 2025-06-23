@@ -81,6 +81,13 @@ export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
 
 export const vaultRestoreFormSchema = z.object({
     Name: z.string().min(1, REQUIRED_FIELD_ERROR),
+    Description: z.string(),
+    Secret: z.string().min(1, REQUIRED_FIELD_ERROR),
+    BackupFile: z
+        .instanceof(File, { message: "This field is required" })
+        .refine((file) => file.name.endsWith(".cryx"), {
+            message: "File must be an encrypted backup file",
+        }),
 });
 export type VaultRestoreFormSchema = z.infer<typeof vaultRestoreFormSchema>;
 

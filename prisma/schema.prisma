@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-    // Use "sqlite" for local development (offline), "mysql" for production or development (online)
+    // Use "sqlite" for local development (offline), "postgresql" for production or development (online)
     provider = "postgresql"
 
     // NOTE: When using postgresql, mysql or sqlserver, uncomment the @db.text annotations in model Account below
@@ -15,7 +15,6 @@ datasource db {
     // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
     // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
     url = env("DATABASE_URL")
-    // relationMode = "prisma"
 }
 
 model User {
@@ -33,7 +32,6 @@ model Subscription {
     id                   String                @id @default(cuid())
     user_id              String                @unique
     customer_id          String                @unique
-    // email                String                @unique
     created_at           DateTime
     expires_at           DateTime?
     status               String?

@@ -1,7 +1,7 @@
+import { cn } from "@/lib/utils";
 import Link from "next/link";
-import Image from "next/image";
 import React from "react";
-import clsx from "clsx";
+import { CryptexVaultLogo } from "./brand-image";
 
 export type NavBarProps = {
     /**
@@ -43,13 +43,13 @@ const NavBar: React.FC<NavBarProps> = ({
     // If the overrideLogoUrl is undefined or has a length, then it is clickable, otherwise it is static
     const withLink = overrideLogoUrl === undefined || overrideLogoUrl?.length;
 
-    const navClasses = clsx({
-        "flex w-full flex-wrap items-center p-6": true,
+    const navClasses = cn({
+        "flex w-full flex-wrap items-center px-2 py-6": true,
         [className ?? ""]: className !== undefined,
         "justify-evenly": !className?.includes("justify"),
     });
 
-    const logoContainerClasses = clsx({
+    const logoContainerClasses = cn({
         "flex flex-shrink-0 items-center text-white": true,
         [logoContainerClassName ?? ""]: logoContainerClassName !== undefined,
     });
@@ -60,27 +60,10 @@ const NavBar: React.FC<NavBarProps> = ({
                 <div className={logoContainerClasses}>
                     {withLink && (
                         <Link href={overrideLogoUrl ?? "/"}>
-                            {/* FIXME: This anchor tag adds ~7px to the bottom */}
-                            <Image
-                                src="/images/logo/cryptex_logo.svg"
-                                alt="Cryptex Logo"
-                                width={200}
-                                height={50}
-                                priority={true}
-                                className="cursor-pointer select-none"
-                            />
+                            <CryptexVaultLogo />
                         </Link>
                     )}
-                    {!withLink && (
-                        <Image
-                            src="/images/logo/cryptex_logo.svg"
-                            alt="Cryptex Logo"
-                            width={200}
-                            height={50}
-                            priority={true}
-                            className="select-none"
-                        />
-                    )}
+                    {!withLink && <CryptexVaultLogo />}
                 </div>
             )}
             {/* <div className="block lg:hidden">

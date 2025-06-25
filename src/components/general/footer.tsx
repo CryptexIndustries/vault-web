@@ -9,7 +9,7 @@ const PageFooter: React.FC<PageFooterProps> = ({ children }) => {
             <div className="mt-4 text-center">
                 <h1 className="text-sm text-gray-400">
                     All rights reserved. © {new Date().getFullYear()} Cryptex
-                    Vault
+                    Industries
                 </h1>
             </div>
         </footer>

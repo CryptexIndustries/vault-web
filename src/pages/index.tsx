@@ -6,6 +6,7 @@ import PageFooter from "@/components/general/footer";
 import HTMLHeader from "@/components/html-header";
 import HTMLMain from "@/components/html-main";
 
+import { CryptexVaultLogo } from "@/components/brand-image";
 import { Body, Footer, GenericModal } from "@/components/general/modal";
 import NotificationContainer from "@/components/general/notification-container";
 import Spinner from "@/components/general/spinner";
@@ -139,17 +140,9 @@ const FrontPage: React.FC = () => {
             <div className="z-50 overflow-hidden backdrop-blur-sm">
                 <section className="flex h-dvh flex-col items-center justify-evenly">
                     <div className="flex flex-grow flex-col justify-center text-center">
-                        {/* <Image */}
-                        {/*     src="/images/logo/cryptex-logo-new.svg" */}
-                        {/*     alt="Cryptex Logo" */}
-                        {/*     width={600} */}
-                        {/*     height={50} */}
-                        {/*     priority={true} */}
-                        {/*     className="select-none" */}
-                        {/* /> */}
                         <CryptexVaultLogo />
 
-                        <div className="mt-5">
+                        <div className="mt-12">
                             <p>Decentralized Password Management</p>
                             <div className="flex w-full flex-row items-center justify-center gap-3">
                                 <p>Your Data.</p>
@@ -184,98 +177,6 @@ const FrontPage: React.FC = () => {
 };
 
 export default Index;
-
-const CryptexVaultLogo = () => {
-    const svgRef = useRef<SVGSVGElement>(null);
-
-    return (
-        <div className="relative h-full max-h-[120px] w-full max-w-[600px]">
-            <svg
-                ref={svgRef}
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 650 90"
-                className="block"
-                style={{ width: "100%", height: "100%" }}
-            >
-                <defs>
-                    <style>{`
-          .base {
-            font-family: '', sans-serif;
-            font-size: 72px;
-            letter-spacing: 2px;
-          }
-          .glow {
-            filter: url(#glow);
-          }
-          .primary { fill: #FF5668; }
-          .secondary { fill: #25C472; }
-          .tertiary { fill: #FCF8EC; }
-        `}</style>
-
-                    {/* Dual‐color glow filter */}
-                    <filter
-                        id="glow"
-                        x="-50%"
-                        y="-50%"
-                        width="200%"
-                        height="200%"
-                    >
-                        {/* Tertiary outer glow */}
-                        <feFlood floodColor="#FCF8EC" result="f1" />
-                        <feComposite
-                            in="f1"
-                            in2="SourceAlpha"
-                            operator="in"
-                            result="m1"
-                        />
-                        <feGaussianBlur in="m1" stdDeviation="5" result="b1" />
-                        {/* Secondary inner glow */}
-                        <feGaussianBlur
-                            in="SourceAlpha"
-                            stdDeviation="1"
-                            result="b2"
-                        />
-                        <feMerge>
-                            <feMergeNode in="b1" />
-                            <feMergeNode in="b2" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                </defs>
-
-                <g>
-                    {/* "CRYTPEX" with flicker */}
-                    <text
-                        className="base glow tertiary animate-flicker-short"
-                        x="10"
-                        y="50"
-                    >
-                        CRYPTEX
-                    </text>
-
-                    <line
-                        x1="355"
-                        y1="99"
-                        x2="415"
-                        y2="1"
-                        className="glow secondary"
-                        stroke="black"
-                        strokeWidth="4"
-                    />
-
-                    {/* "VAULT" with flicker */}
-                    <text
-                        className="base glow primary animate-flicker"
-                        x="410"
-                        y="100"
-                    >
-                        VAULT
-                    </text>
-                </g>
-            </svg>
-        </div>
-    );
-};
 
 type Point = { x: number; y: number; vx: number; vy: number };
 type Link = { a: Point; b: Point; start: number; duration: number };

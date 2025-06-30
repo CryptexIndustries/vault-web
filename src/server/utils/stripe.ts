@@ -18,6 +18,7 @@ export const createCheckoutSession = async (
 ): Promise<string> => {
     const checkoutSession = await stripeBackend.checkout.sessions.create({
         mode: "subscription",
+        allow_promotion_codes: true,
         line_items: [
             {
                 price: priceId,

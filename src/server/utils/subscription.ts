@@ -31,7 +31,7 @@ export const REVERSE_TIER_MAP = {
 };
 
 export const GetPriceID = (key: PRICE_ID_KEY) =>
-    key === "standard" ? "" : PRICE_ID[key] ?? "";
+    key === "standard" ? "" : (PRICE_ID[key] ?? "");
 
 /**
  * Insert the default standard subscription tier into the database.
@@ -121,13 +121,22 @@ export const updateSubscription = async (
             ? await getLatestInvoice(subscription.latest_invoice as string)
             : null;
 
+    const subscriptionItem = subscription.items.data[0];
+
+    const createdAt = subscriptionItem
+        ? new Date(subscriptionItem.current_period_start * 1000)
+        : new Date();
+    const expiresAt = subscriptionItem
+        ? new Date(subscriptionItem.current_period_end * 1000)
+        : null;
+
     // Here we update the subscription in the database
     await prismaInstance.subscription.upsert({
         create: {
             user_id: userId,
             customer_id: customerId,
-            created_at: new Date(subscription.current_period_start * 1000),
-            expires_at: new Date(subscription.current_period_end * 1000),
+            created_at: createdAt,
+            expires_at: expiresAt,
             status: subscription.status.toString(),
             payment_status: paymentStatus ?? latestInvoice?.status ?? null,
             cancel_at_period_end: subscription.cancel_at_period_end,
@@ -135,8 +144,8 @@ export const updateSubscription = async (
         },
         update: {
             customer_id: customerId,
-            created_at: new Date(subscription.current_period_start * 1000),
-            expires_at: new Date(subscription.current_period_end * 1000),
+            created_at: createdAt,
+            expires_at: expiresAt,
             status: subscription.status.toString(),
             payment_status: paymentStatus ?? latestInvoice?.status ?? null,
             cancel_at_period_end: subscription.cancel_at_period_end,

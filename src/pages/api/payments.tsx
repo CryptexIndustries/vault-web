@@ -127,7 +127,7 @@ export default async function handler(
         }
 
         const customerId = invoice.customer as string;
-        const metadataUserID = invoice.subscription_details?.metadata
+        const metadataUserID = invoice?.parent?.subscription_details?.metadata
             ?.user_id as string;
 
         if (!metadataUserID?.length) {
@@ -142,8 +142,9 @@ export default async function handler(
 
         // Early exit if the invoice is invalid
         if (
-            !invoice?.subscription ||
-            typeof invoice?.subscription !== "string"
+            !invoice?.parent?.subscription_details?.subscription ||
+            typeof invoice?.parent?.subscription_details?.subscription !==
+                "string"
         ) {
             console.error(
                 `[Stripe] [${event.type}] || InvoiceID: ${invoice.id} CustomerID: ${customerId} UserID: ${metadataUserID} || Error: Invalid invoice`,
@@ -160,7 +161,7 @@ export default async function handler(
             event.type,
             customerId,
             metadataUserID,
-            invoice.subscription,
+            invoice.parent.subscription_details.subscription,
             invoice.status?.toString(),
         );
     } else if (

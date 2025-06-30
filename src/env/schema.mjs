@@ -38,20 +38,6 @@ export const serverSchema = z.object({
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.string().url(),
 
-    /* Authentication */
-    // GOOGLE_CLIENT_ID: z.string(),
-    // GOOGLE_CLIENT_SECRET: z.string(),
-    // GITHUB_CLIENT_ID: z.string(),
-    // GITHUB_CLIENT_SECRET: z.string(),
-    // GITLAB_CLIENT_ID: z.string(),
-    // GITLAB_CLIENT_SECRET: z.string(),
-    // APPLE_CLIENT_ID: z.string(),
-    // APPLE_CLIENT_SECRET: z.string(),
-    // ATLASSIAN_CLIENT_ID: z.string(),
-    // ATLASSIAN_CLIENT_SECRET: z.string(),
-    // DISCORD_CLIENT_ID: z.string(),
-    // DISCORD_CLIENT_SECRET: z.string(),
-
     /* Upstash Redis */
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string(),

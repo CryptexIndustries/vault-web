@@ -94,7 +94,7 @@ export const CredentialsGeneratorDialog: React.FC<{
         array = crypto.getRandomValues(array);
         array = array.map((x) => validChars.charCodeAt(x % validChars.length));
 
-        // TODO: Remove the any cast
+        // TODO: Remove the cast
         return String.fromCharCode.apply(null, array as unknown as number[]);
     };
 

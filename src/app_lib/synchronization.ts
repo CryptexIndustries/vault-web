@@ -30,9 +30,9 @@ import {
 } from "./vault-utils/vault";
 
 const onlineServicesSTUN = [
-    {
-        urls: "stun:localhost:5349",
-    },
+    // {
+    //     urls: "stun:localhost:5349",
+    // },
     {
         urls: "stun:rtc.cryptex-vault.com:5349",
     },

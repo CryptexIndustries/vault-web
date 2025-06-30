@@ -15,7 +15,7 @@ export const feedbackRouterNotifyMe = publicProcedure
         }),
     )
     .mutation(async ({ ctx, input }) => {
-        await checkRatelimitter(ctx.userIP, "FEEDBACK_NOTIFY_ME", 2, "2m");
+        await checkRatelimitter(ctx.userIP, "FEEDBACK_NOTIFY_ME", 2, "20m");
 
         // Send a request to the Captcha API to verify the user's response
         await validateCaptcha(input.captchaToken);
@@ -66,7 +66,7 @@ export const feedbackRouterContact = publicProcedure
         }),
     )
     .mutation(async ({ ctx, input }) => {
-        await checkRatelimitter(ctx.userIP, "FEEDBACK_CONTACT", 2, "2m");
+        await checkRatelimitter(ctx.userIP, "FEEDBACK_CONTACT", 2, "20m");
 
         // Send a request to the Captcha API to verify the user's response
         await validateCaptcha(input.captchaToken);
@@ -99,7 +99,7 @@ export const feedbackRouterGiveFeedback = protectedProcedure
             ctx.apiKeyHash,
             "FEEDBACK_GIVE_FEEDBACK",
             3,
-            "1m",
+            "20m",
         );
 
         // Send a request to the Captcha API to verify the user's response

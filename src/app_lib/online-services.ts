@@ -1,19 +1,6 @@
 import { z } from "zod";
 import { trpc } from "../utils/trpc";
 
-/**
- * A function to check if cryptex-vault.com/app is available.
- */
-// const isOriginAvailable = async (): Promise<boolean> => {
-//     try {
-//         const res = await fetch("/api/health");
-//         return res.status === 200;
-//     } catch (e) {
-//         console.debug("Application origin is unreachable or is offline.", e);
-//         return false;
-//     }
-// };
-
 //#region Sign up
 export const signUpFormSchema = z.object({
     captchaToken: z.string().min(1, "Captcha is required."),

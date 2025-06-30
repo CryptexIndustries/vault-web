@@ -17,7 +17,9 @@ import {
     ArrowRight,
     Code,
     Database,
+    GitFork,
     HelpCircle,
+    LinkIcon,
     Loader2,
     Lock,
     Server,
@@ -416,7 +418,7 @@ export const WhyWhatHowSection = () => {
                                     ),
                                     title: "Zero-Knowledge Architecture",
                                     description:
-                                        "Encryption and decryption occur only on your devices—no master keys ever transit our servers.",
+                                        "Encryption and decryption occur only on your devices-no master keys ever transit our servers.",
                                 },
                                 {
                                     icon: (
@@ -440,7 +442,7 @@ export const WhyWhatHowSection = () => {
                                     ),
                                     title: "Optional Signaling",
                                     description:
-                                        "An optional hosted signaling service removes the need to self-deploy STUN/TURN infrastructure, yet it never gains access to your encrypted vault.",
+                                        "An optional hosted signaling service removes the need to self-host Signaling/STUN/TURN infrastructure.",
                                 },
                             ].map((feature, index) => (
                                 <div
@@ -473,6 +475,16 @@ export const WhyWhatHowSection = () => {
                         <div className="rounded-xl border border-zinc-700/50 bg-zinc-800/20 p-8">
                             <div className="space-y-8">
                                 {[
+                                    {
+                                        step: "00",
+                                        title: "Source Code",
+                                        url: "https://github.com/CryptexIndustries/vault-web",
+                                        description:
+                                            "The code behind Cryptex Vault is available for anyone to read (source-available). Verify the security, run it locally, contribute to the project.",
+                                        icon: (
+                                            <GitFork className="color-brand-primary h-5 w-5" />
+                                        ),
+                                    },
                                     {
                                         step: "01",
                                         title: "Local Vault Creation",
@@ -534,6 +546,15 @@ export const WhyWhatHowSection = () => {
                                                 <h3 className="text-xl font-semibold">
                                                     {step.title}
                                                 </h3>
+                                                {step.url && (
+                                                    <a
+                                                        href={step.url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                    >
+                                                        <LinkIcon className="color-brand-primary ml-2 h-5 w-5" />
+                                                    </a>
+                                                )}
                                             </div>
                                             <p className="mt-2 text-zinc-400">
                                                 {step.description}

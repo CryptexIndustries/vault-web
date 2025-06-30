@@ -1,0 +1,25 @@
+services:
+  ws:
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - "6011:6011"
+    volumes:
+      - signaling-config:/app/bin/config
+    environment:
+      - OVERRIDE_FORCE_GENERATE_CONFIG=false
+      - OVERRIDE_DEV_MODE=true
+      - OVERRIDE_SERVER_PORT=6011
+      - OVERRIDE_APP_USER_AUTHENTICATION=true
+      #- OVERRIDE_APP_ID=dsfjgksdf-sdfsdf-sdfsdf-sdfsdf
+      #- OVERRIDE_APP_KEY=sdfsdfsdfsdfsdfsdfsdfsdf
+      #- OVERRIDE_APP_SECRET=sdfsdfsdfsdfsdfsdfsdfsdf
+      #- OVERRIDE_DOCKER_USER_AUTHENTICATION_TIMEOUT=5000
+    restart: on-failure
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+volumes:
+  signaling-config:

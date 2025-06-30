@@ -1,0 +1,15 @@
+services:
+  server:
+    image: coturn/coturn:4.6-alpine
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf
+      - ./ec_cert.pem:/etc/ssl/certs/cert.pem
+      - ./ec_key.pem:/etc/ssl/private/key.pem
+    restart: on-failure
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"
+

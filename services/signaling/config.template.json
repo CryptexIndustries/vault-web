@@ -1,0 +1,26 @@
+{
+    "debug": {{DEV_MODE_TO_GENERATE}},
+    "port": {{PORT_TO_GENERATE}},
+    "appManager.array.apps": [
+        {
+            "id": "{{APP_ID_TO_GENERATE}}",
+            "key": "{{APP_KEY_TO_GENERATE}}",
+            "secret": "{{APP_SECRET_TO_GENERATE}}",
+            "enabled": true,
+            "maxConnections": 1000000,
+            "enableClientMessages": true,
+            "webhooks": [],
+            "enableUserAuthentication": {{APP_USER_AUTHENTICATION_TO_GENERATE}},
+            "maxClientEventsPerSecond": 10,
+            "maxBackendEventsPerSecond": 10,
+            "maxReadRequestsPerSecond": 10,
+            "maxPresenceMembersPerChannel": 100,
+            "maxPresenceMemberSizeInKb": 10,
+            "maxChannelNameLength": 200,
+            "maxEventNameLength": 200,
+            "maxEventPayloadInKb": 300,
+            "maxEventChannelsAtOnce": 10,
+            "maxEventBatchSize": 10
+        }
+    ]
+}

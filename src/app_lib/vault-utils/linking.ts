@@ -90,7 +90,7 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
         // Same logic as in VaultEncryption.encryptBlob for the string output
         const b64Blob = Buffer.from(serializedVault).toString("base64");
 
-        return `${b64Blob}:${this.Salt}:${this.HeaderIV}`;
+        return b64Blob;
     }
 
     public static fromBinary(binary: Uint8Array): LinkingPackage {
@@ -104,18 +104,14 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
     }
 
     public static fromBase64(base64: string) {
-        const [blob, salt, headerIV] = base64.split(":");
-
         // Validate the data
-        if (blob == null || salt == null || headerIV == null) {
+        if (!base64?.length) {
             return err("DATA_INVALID");
         }
 
-        const newInstance = new LinkingPackage(
-            Buffer.from(blob, "base64"),
-            salt,
-            headerIV,
-        );
+        const bin = Buffer.from(base64, "base64");
+
+        const newInstance = this.fromBinary(bin);
 
         return ok(newInstance);
     }
@@ -140,21 +136,24 @@ export enum LinkingProcessStep {
 }
 
 export interface WebRTCErrorDetails {
-    type: 'webrtc';
+    type: "webrtc";
     error: Error;
 }
 
 export interface ConnectionStateDetails {
-    type: 'connection_state';
+    type: "connection_state";
     state: string;
 }
 
 export interface VaultErrorDetails {
-    type: 'vault';
+    type: "vault";
     error: Error;
 }
 
-export type LogDetails = WebRTCErrorDetails | ConnectionStateDetails | VaultErrorDetails;
+export type LogDetails =
+    | WebRTCErrorDetails
+    | ConnectionStateDetails
+    | VaultErrorDetails;
 
 export interface LinkingProcessStatus {
     Step: LinkingProcessStep;
@@ -163,7 +162,7 @@ export interface LinkingProcessStatus {
     LogMessage?: {
         message: string;
         timestamp: number;
-        type: 'debug' | 'info' | 'error';
+        type: "debug" | "info" | "error";
         details?: LogDetails;
     };
 }
@@ -224,8 +223,8 @@ export class LinkingProcessController {
                                     ? "Connecting to Cryptex Vault Online Services..."
                                     : "Connecting to the Signaling Server...",
                                 timestamp: Date.now(),
-                                type: 'info'
-                            }
+                                type: "info",
+                            },
                         });
                         break;
                     case "connected":
@@ -237,8 +236,8 @@ export class LinkingProcessController {
                                     ? "Connected to Cryptex Vault Online Services."
                                     : "Connected to the Signaling Server.",
                                 timestamp: Date.now(),
-                                type: 'info'
-                            }
+                                type: "info",
+                            },
                         });
                         break;
                     case "unavailable":
@@ -247,14 +246,15 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.Signaling,
                             State: LinkingProcessState.Error,
                             LogMessage: {
-                                message: "An error occurred while setting up a private connection.",
+                                message:
+                                    "An error occurred while setting up a private connection.",
                                 timestamp: Date.now(),
-                                type: 'error',
+                                type: "error",
                                 details: {
-                                    type: 'connection_state',
-                                    state: state.current
-                                }
-                            }
+                                    type: "connection_state",
+                                    state: state.current,
+                                },
+                            },
                         });
                         break;
                     case "disconnected":
@@ -264,8 +264,8 @@ export class LinkingProcessController {
                             LogMessage: {
                                 message: "Dropped Signaling Server connection.",
                                 timestamp: Date.now(),
-                                type: 'info'
-                            }
+                                type: "info",
+                            },
                         });
                         break;
                 }
@@ -285,8 +285,8 @@ export class LinkingProcessController {
                 LogMessage: {
                     message: "Waiting for other device to notice us...",
                     timestamp: Date.now(),
-                    type: 'info'
-                }
+                    type: "info",
+                },
             });
         });
 
@@ -303,18 +303,19 @@ export class LinkingProcessController {
                         LogMessage: {
                             message: "Received WebRTC offer from other device",
                             timestamp: Date.now(),
-                            type: 'debug'
-                        }
+                            type: "debug",
+                        },
                     });
 
                     this.onStatusChange({
                         Step: LinkingProcessStep.DirectConnection,
                         State: LinkingProcessState.Active,
                         LogMessage: {
-                            message: "Finishing establishing private connection...",
+                            message:
+                                "Finishing establishing private connection...",
                             timestamp: Date.now(),
-                            type: 'info'
-                        }
+                            type: "info",
+                        },
                     });
 
                     await this.webRTCConnection.setRemoteDescription(
@@ -348,15 +349,15 @@ export class LinkingProcessController {
             webRTConnection.close();
             this.signalingServer.disconnect();
             this.signalingServer.unbind();
-            
+
             this.onStatusChange({
                 Step: LinkingProcessStep.DirectConnectionCleanup,
                 State: LinkingProcessState.Completed,
                 LogMessage: {
                     message: "Cleanup completed",
                     timestamp: Date.now(),
-                    type: 'info'
-                }
+                    type: "info",
+                },
             });
         };
 
@@ -367,8 +368,8 @@ export class LinkingProcessController {
                 LogMessage: {
                     message: `WebRTC connection state changed: ${webRTConnection.connectionState}`,
                     timestamp: Date.now(),
-                    type: 'debug'
-                }
+                    type: "debug",
+                },
             });
 
             if (webRTConnection.connectionState === "connected") {
@@ -376,10 +377,11 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Completed,
                     LogMessage: {
-                        message: "Private connection established, dropping Signaling server connection...",
+                        message:
+                            "Private connection established, dropping Signaling server connection...",
                         timestamp: Date.now(),
-                        type: 'info'
-                    }
+                        type: "info",
+                    },
                 });
 
                 this.onStatusChange({
@@ -388,8 +390,8 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Starting vault data transfer...",
                         timestamp: Date.now(),
-                        type: 'info'
-                    }
+                        type: "info",
+                    },
                 });
 
                 this.signalingServer.disconnect();
@@ -401,12 +403,12 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Failed to establish private connection",
                         timestamp: Date.now(),
-                        type: 'error',
+                        type: "error",
                         details: {
-                            type: 'connection_state',
-                            state: webRTConnection.connectionState
-                        }
-                    }
+                            type: "connection_state",
+                            state: webRTConnection.connectionState,
+                        },
+                    },
                 });
             } else if (webRTConnection.connectionState === "disconnected") {
                 this.onStatusChange({
@@ -415,8 +417,8 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Private connection has been terminated.",
                         timestamp: Date.now(),
-                        type: 'info'
-                    }
+                        type: "info",
+                    },
                 });
             }
         };
@@ -428,8 +430,8 @@ export class LinkingProcessController {
                 LogMessage: {
                     message: "Received WebRTC data channel",
                     timestamp: Date.now(),
-                    type: 'debug'
-                }
+                    type: "debug",
+                },
             });
 
             const receiveChannel = event.channel;
@@ -440,8 +442,8 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Receiving Vault data...",
                         timestamp: Date.now(),
-                        type: 'info'
-                    }
+                        type: "info",
+                    },
                 });
 
                 const rawVaultMetadata: Uint8Array = new Uint8Array(event.data);
@@ -454,8 +456,8 @@ export class LinkingProcessController {
                         LogMessage: {
                             message: "Vault data received successfully",
                             timestamp: Date.now(),
-                            type: 'info'
-                        }
+                            type: "info",
+                        },
                     });
 
                     this.onStatusChange({
@@ -464,8 +466,8 @@ export class LinkingProcessController {
                         LogMessage: {
                             message: "Vault saved successfully",
                             timestamp: Date.now(),
-                            type: 'info'
-                        }
+                            type: "info",
+                        },
                     });
                 } catch (e) {
                     this.onStatusChange({
@@ -474,12 +476,15 @@ export class LinkingProcessController {
                         LogMessage: {
                             message: "Failed to save vault data",
                             timestamp: Date.now(),
-                            type: 'error',
+                            type: "error",
                             details: {
-                                type: 'vault',
-                                error: e instanceof Error ? e : new Error(String(e))
-                            }
-                        }
+                                type: "vault",
+                                error:
+                                    e instanceof Error
+                                        ? e
+                                        : new Error(String(e)),
+                            },
+                        },
                     });
                 }
 
@@ -489,8 +494,8 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Starting cleanup of private connection...",
                         timestamp: Date.now(),
-                        type: 'info'
-                    }
+                        type: "info",
+                    },
                 });
 
                 cleanup();
@@ -503,12 +508,12 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Secure channel error",
                         timestamp: Date.now(),
-                        type: 'error',
+                        type: "error",
                         details: {
-                            type: 'webrtc',
-                            error: new Error(err.toString())
-                        }
-                    }
+                            type: "webrtc",
+                            error: new Error(err.toString()),
+                        },
+                    },
                 });
             };
 
@@ -526,8 +531,8 @@ export class LinkingProcessController {
                     LogMessage: {
                         message: "Sending WebRTC ice candidate",
                         timestamp: Date.now(),
-                        type: 'debug'
-                    }
+                        type: "debug",
+                    },
                 });
 
                 this.signalingServerChannel.trigger("client-link", {
@@ -543,10 +548,11 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Error,
                     LogMessage: {
-                        message: "Failed to generate ICE candidates. WebRTC failure.",
+                        message:
+                            "Failed to generate ICE candidates. WebRTC failure.",
                         timestamp: Date.now(),
-                        type: 'error'
-                    }
+                        type: "error",
+                    },
                 });
 
                 cleanup();

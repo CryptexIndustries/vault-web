@@ -31,18 +31,15 @@ import dayjs from "dayjs";
 import RelativeTime from "dayjs/plugin/relativeTime";
 
 import {
-    ArrowPathIcon,
     ArrowTopRightOnSquareIcon,
     ArrowUpCircleIcon,
     Bars3Icon,
-    CalendarIcon,
     CameraIcon,
     ChatBubbleBottomCenterTextIcon,
     CheckCircleIcon,
     ChevronDownIcon,
     ChevronUpIcon,
     ClockIcon,
-    CloudArrowUpIcon,
     Cog8ToothIcon,
     DevicePhoneMobileIcon,
     DocumentTextIcon,
@@ -51,7 +48,6 @@ import {
     ExclamationTriangleIcon,
     FunnelIcon,
     GlobeAltIcon,
-    HandThumbUpIcon,
     InformationCircleIcon,
     KeyIcon,
     LinkIcon,
@@ -155,6 +151,7 @@ import {
 } from "../../utils/consts";
 import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
+import { Calendar, CircleCheck, CircleX, Link } from "lucide-react";
 
 const GlobalSyncConnectionController =
     new Synchronization.SyncConnectionController();
@@ -1062,9 +1059,9 @@ const AccountDialog: React.FC<{
                 <p className="text-2xl font-medium text-slate-800">
                     {subscriptionData.productName}
                 </p>
-                <div className="mt-2 p-2">
+                <div className="mt-2 space-y-2 p-2">
                     <div className="flex items-center space-x-2">
-                        <CalendarIcon className="mr-2 inline-block h-5 w-5" />
+                        <Calendar className="mr-2 inline-block h-5 w-5" />
                         <p>Started on</p>
                         <p className="text-slate-700">
                             {subscriptionData.createdAt?.toLocaleDateString()}
@@ -1083,10 +1080,29 @@ const AccountDialog: React.FC<{
                             </p>
                         </div>
                     )}
+                    <div className="flex items-center space-x-2">
+                        {onlineServicesData?.remoteData &&
+                            onlineServicesData.remoteData.canLink && (
+                                <div className="text-green-500">
+                                    <CircleCheck className="mr-2 inline-block h-5 w-5" />
+                                </div>
+                            )}
+
+                        {onlineServicesData?.remoteData &&
+                            !onlineServicesData.remoteData.canLink && (
+                                <div className="text-red-500">
+                                    <CircleX className="mr-2 inline-block h-5 w-5" />
+                                </div>
+                            )}
+                        <p>
+                            Access to Online Services - zero hassle
+                            synchronization
+                        </p>
+                    </div>
                     {onlineServicesData?.remoteData &&
                         onlineServicesData.remoteData.canLink && (
                             <div className="flex items-center space-x-2">
-                                <DevicePhoneMobileIcon className="mr-2 inline-block h-5 w-5" />
+                                <Link className="mr-2 inline-block h-5 w-5" />
                                 <p className="text-slate-700">
                                     {
                                         subscriptionData.resourceStatus
@@ -1103,19 +1119,21 @@ const AccountDialog: React.FC<{
                             </div>
                         )}
                     <div className="flex items-center space-x-2">
-                        <ArrowPathIcon className="mr-2 inline-block h-5 w-5" />
+                        <div className="text-green-500">
+                            <CircleCheck className="mr-2 inline-block h-5 w-5" />
+                        </div>
                         <p>Unlimited credentials per vault</p>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <KeyIcon className="mr-2 inline-block h-5 w-5" />
-                        {subscriptionData.nonFree ? (
-                            <p>Unlimited secure vaults</p>
-                        ) : (
-                            <p>A secure vault</p>
-                        )}
+                        <div className="text-green-500">
+                            <CircleCheck className="mr-2 inline-block h-5 w-5" />
+                        </div>
+                        <p>Unlimited secure vaults</p>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <CloudArrowUpIcon className="mr-2 inline-block h-5 w-5" />
+                        <div className="text-green-500">
+                            <CircleCheck className="mr-2 inline-block h-5 w-5" />
+                        </div>
                         <p>Create encrypted backups</p>
                     </div>
                     {/* {subscriptionData.nonFree &&
@@ -1125,13 +1143,20 @@ const AccountDialog: React.FC<{
                                 <p>Automated encrypted backups</p>
                             </div>
                         )} */}
-                    {subscriptionData.nonFree &&
-                        onlineServicesData?.remoteData?.canFeatureVote && (
-                            <div className="flex items-center space-x-2">
-                                <HandThumbUpIcon className="mr-2 inline-block h-5 w-5" />
-                                <p>Feature voting</p>
+                    <div className="flex items-center space-x-2">
+                        {onlineServicesData?.remoteData?.canFeatureVote && (
+                            <div className="text-green-500">
+                                <CircleCheck className="mr-2 inline-block h-5 w-5" />
                             </div>
                         )}
+
+                        {!onlineServicesData?.remoteData?.canFeatureVote && (
+                            <div className="text-red-500">
+                                <CircleX className="mr-2 inline-block h-5 w-5" />
+                            </div>
+                        )}
+                        <p>Feature voting</p>
+                    </div>
                     {/* {subscriptionData.nonFree &&
                         subscriptionData.configuration
                             ?.credentialsBorrowing && (
@@ -6110,11 +6135,16 @@ const ListItemCredential: React.FC<{
                                         e.preventDefault();
 
                                         // Replace the img with the fallback
-                                        e.currentTarget.style.display = 'none';
-                                        const fallbackElement = document.createElement('div');
-                                        fallbackElement.className = 'flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black';
-                                        fallbackElement.textContent = credential.Name[0] ?? "-";
-                                        e.currentTarget.parentElement?.appendChild(fallbackElement);
+                                        e.currentTarget.style.display = "none";
+                                        const fallbackElement =
+                                            document.createElement("div");
+                                        fallbackElement.className =
+                                            "flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black";
+                                        fallbackElement.textContent =
+                                            credential.Name[0] ?? "-";
+                                        e.currentTarget.parentElement?.appendChild(
+                                            fallbackElement,
+                                        );
                                     }}
                                 />
                             </div>

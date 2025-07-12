@@ -126,7 +126,7 @@ export const SynchronizationConfigurationDialog: React.FC<{
                         <button
                             key={menu.id}
                             className={clsx({
-                                "flex w-full flex-row items-center space-x-2 border-x border-b border-slate-200 px-4 py-2 text-left transition-colors hover:bg-slate-300 hover:text-white":
+                                "flex w-full flex-row items-center space-x-2 border-x border-b border-slate-200 px-4 py-2 text-left text-slate-700 transition-colors hover:bg-slate-300 hover:text-white":
                                     true,
                                 "bg-gray-100": currentMenu === menu.id,
                                 "border-x-transparent": currentMenu !== menu.id,
@@ -297,7 +297,7 @@ const SignalingContent: React.FC<{
                     ),
                 }}
                 fixedHeaderContent={() => (
-                    <tr className="border-b-2 bg-white">
+                    <tr className="border-b-2 text-slate-800">
                         <th className="min-w-[150px] max-w-[190px] py-4 pr-4">
                             Name
                         </th>
@@ -320,22 +320,24 @@ const SignalingContent: React.FC<{
                 itemContent={(_, item) => (
                     <>
                         <td
-                            className="min-w-[150px] max-w-[190px] overflow-hidden text-ellipsis border-b p-4 pl-0"
+                            className="min-w-[150px] max-w-[190px] overflow-hidden text-ellipsis border-b p-4 pl-0 text-slate-700"
                             title={item.Name}
                         >
                             {item.Name}
                         </td>
                         <td
-                            className="min-w-[50px] max-w-[250px] overflow-hidden text-ellipsis border-b p-4"
+                            className="min-w-[50px] max-w-[250px] overflow-hidden text-ellipsis border-b p-4 text-slate-700"
                             title={item.Host}
                         >
                             {item.Host}
                         </td>
-                        <td className="border-b p-4">{item.ServicePort}</td>
-                        <td className="border-b p-4">
+                        <td className="border-b p-4 text-slate-700">
+                            {item.ServicePort}
+                        </td>
+                        <td className="border-b p-4 text-slate-700">
                             {item.SecureServicePort}
                         </td>
-                        <td className="border-b p-4">
+                        <td className="border-b p-4 text-slate-700">
                             <button
                                 className="text-blue-500 hover:underline"
                                 onClick={() =>
@@ -345,7 +347,7 @@ const SignalingContent: React.FC<{
                                 <p className="text-base">Edit</p>
                             </button>
                         </td>
-                        <td className="border-b p-4 pr-0">
+                        <td className="border-b p-4 pr-0 text-slate-700">
                             <button
                                 className="text-blue-500 hover:underline"
                                 onClick={() =>
@@ -767,7 +769,7 @@ const STUNContent: React.FC<{
                     ),
                 }}
                 fixedHeaderContent={() => (
-                    <tr className="border-b-2 bg-white">
+                    <tr className="border-b-2 bg-white text-slate-800">
                         <th className="min-w-[150px] max-w-[190px] py-4 pr-4">
                             Name
                         </th>
@@ -786,13 +788,13 @@ const STUNContent: React.FC<{
                 itemContent={(_, item) => (
                     <>
                         <td
-                            className="min-w-[150px] max-w-[190px] overflow-hidden text-ellipsis border-b p-4 pl-0"
+                            className="min-w-[150px] max-w-[190px] overflow-hidden text-ellipsis border-b p-4 pl-0 text-slate-700"
                             title={item.Name}
                         >
                             {item.Name}
                         </td>
                         <td
-                            className="min-w-[50px] max-w-[250px] overflow-hidden text-ellipsis border-b p-4"
+                            className="min-w-[50px] max-w-[250px] overflow-hidden text-ellipsis border-b p-4 text-slate-700"
                             title={item.Host}
                         >
                             {item.Host}
@@ -1136,7 +1138,7 @@ const TURNContent: React.FC<{
                     ),
                 }}
                 fixedHeaderContent={() => (
-                    <tr className="border-b-2 bg-white">
+                    <tr className="border-b-2 bg-white text-slate-800">
                         <th className="min-w-[150px] max-w-[190px] py-4 pr-4">
                             Name
                         </th>
@@ -1155,13 +1157,13 @@ const TURNContent: React.FC<{
                 itemContent={(_, item) => (
                     <>
                         <td
-                            className="min-w-[150px] max-w-[190px] overflow-hidden text-ellipsis border-b p-4 pl-0"
+                            className="min-w-[150px] max-w-[190px] overflow-hidden text-ellipsis border-b p-4 pl-0 text-slate-700"
                             title={item.Name}
                         >
                             {item.Name}
                         </td>
                         <td
-                            className="min-w-[50px] max-w-[250px] overflow-hidden text-ellipsis border-b p-4"
+                            className="min-w-[50px] max-w-[250px] overflow-hidden text-ellipsis border-b p-4 text-slate-700"
                             title={item.Host}
                         >
                             {item.Host}
@@ -1323,7 +1325,7 @@ const SynchronizationTURNDialog: React.FC<{
             });
         } else {
             // If the ID is empty, we need to create a new TURN server
-            toast.info("Inserting a new TURN server...", {
+            toast.info("Adding the TURN server configuration...", {
                 autoClose: false,
                 closeButton: false,
                 isLoading: true,
@@ -1353,6 +1355,14 @@ const SynchronizationTURNDialog: React.FC<{
                     updateId: "insert-turn-server",
                 });
             }
+
+            toast.info("New TURN server has been configured", {
+                autoClose: 3000,
+                closeButton: true,
+                isLoading: false,
+                toastId: "insert-turn-server",
+                updateId: "insert-turn-server",
+            });
         }
 
         hideDialog(true);

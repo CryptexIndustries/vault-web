@@ -151,6 +151,18 @@ const VaultManager: React.FC<{
 
     const deleteVaultCallback = async (dbIndex: number) => {
         await Storage.db.vaults.delete(dbIndex);
+
+        const newVaultCount = await Storage.db.vaults.count();
+
+        // If we just deleted the last vault, change the view to the Create tab
+        if (newVaultCount === 0) {
+            setActiveTab("create");
+        }
+
+        setOperationStatus({
+            status: "success",
+            message: "Vault successfully deleted",
+        });
     };
 
     useEffect(() => {

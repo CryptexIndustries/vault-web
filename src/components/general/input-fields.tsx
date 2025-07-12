@@ -291,7 +291,7 @@ export const FormNumberInputField: React.FC<
                     onChange={onChange}
                     onBlur={onBlur}
                     value={value}
-                    className="w-full border p-2 transition-all hover:border-slate-500"
+                    className="w-full border p-2 text-slate-600 transition-all hover:border-slate-500"
                     min={min}
                     max={max}
                     {...register}
@@ -317,7 +317,7 @@ export const FormBaseNumberInputField: React.FC<{
             <div className="flex items-center gap-2">
                 <input
                     type="number"
-                    className="w-full border p-2 transition-all hover:border-slate-500"
+                    className="w-full border p-2 text-slate-600 transition-all hover:border-slate-500"
                     {...register}
                     min={min}
                     max={max}

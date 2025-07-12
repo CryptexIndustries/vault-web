@@ -79,10 +79,10 @@ export class Vault implements VaultUtilTypes.Vault {
      * @returns An array of mock credentials
      */
     private seedVault(num: number): VaultCredential[] {
-        // This will only be included in development builds
+        // Make sure to only include this in the development build
         if (process.env.NODE_ENV === "development") {
             const creds: VaultCredential[] = [];
-            //
+
             // Generate n mock credentials
             for (let i = 0; i < num; i++) {
                 const newCreds = new VaultCredential();

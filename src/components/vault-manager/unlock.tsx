@@ -198,8 +198,14 @@ const UnlockTab: React.FC<{
                 LOCAL_STORAGE_LAST_SELECTED_VAULT,
             );
 
+            // Make sure the last selected vault still exists in the vaults array
+            const exists =
+                vaults.findIndex(
+                    (v) => v.DBIndex && v.DBIndex === Number(lastSelectedVault),
+                ) !== -1;
+
             // Set the last selected vault or default to the first one
-            if (lastSelectedVault) {
+            if (lastSelectedVault && exists) {
                 setSelectedVault(lastSelectedVault);
             } else {
                 setSelectedVault(vaults[0]!.DBIndex?.toString() ?? "UNKNOWN");

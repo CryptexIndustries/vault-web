@@ -5166,7 +5166,7 @@ const SidebarSyncDeviceList: React.FC<{
     const { mutateAsync: removeFromOnlineServices } =
         trpcReact.v1.device.remove.useMutation();
 
-    console.error("!!LINKED DEVICES LIST HAS UPDATED!!");
+    console.debug("SidebarSyncDeviceList RENDER");
 
     const linkedDevicesCount = linkedVaultDevices.length;
 

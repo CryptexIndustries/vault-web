@@ -6101,7 +6101,7 @@ const ListItemCredential: React.FC<{
 
     const FallbackFavicon: React.FC = () => {
         return (
-            <div className="flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FF5668] text-black">
                 {credential.Name[0]}
             </div>
         );
@@ -6124,12 +6124,14 @@ const ListItemCredential: React.FC<{
                     <div>
                         {siteFaviconURL ? (
                             <div className="h-7 w-7 justify-center">
+                                {/* TODO: Call a backend service that will cache every request */}
                                 <img
                                     src={siteFaviconURL}
                                     className="rounded-full"
                                     width={28}
                                     height={28}
                                     alt={"-"}
+                                    loading="lazy"
                                     onError={(e) => {
                                         // Prevent the default error behavior
                                         e.preventDefault();
@@ -6139,7 +6141,7 @@ const ListItemCredential: React.FC<{
                                         const fallbackElement =
                                             document.createElement("div");
                                         fallbackElement.className =
-                                            "flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black";
+                                            "flex h-7 w-7 justify-center rounded-full bg-[#FF5668] text-black items-center";
                                         fallbackElement.textContent =
                                             credential.Name[0] ?? "-";
                                         e.currentTarget.parentElement?.appendChild(

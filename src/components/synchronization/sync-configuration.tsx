@@ -518,7 +518,9 @@ const SynchronizationSignalingDialog: React.FC<{
             try {
                 const newItem = new cOnlineServicesWebSocketConfiguration(
                     formData.Name,
+                    formData.AppID,
                     formData.Key,
+                    formData.Secret,
                     formData.Host,
                     formData.ServicePort,
                     formData.SecureServicePort,

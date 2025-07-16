@@ -7,10 +7,12 @@ Major changes are not necessarily going to be announced, and self-hosting will n
 
 ## Required steps
 
-- Install NodeJS 20 `nodejs-lts-iron`
-- Install NPM `npm`
+- Install NodeJS >= 20 `nodejs-lts-iron`
+- Install pnpm
+    - Arch Linux: `pacman -S pnpm`
+    - Using npm: `npm install -g pnpm`
 - Install project dependencies
-    - `npm install`
+    - `pnpm install`
 - Clone the file `.env.default` and rename it to `.env`
     - Change the required variables as you see fit
 - Create the database
@@ -31,14 +33,14 @@ The Signaling, STUN, TURN services are located inside the `/services` directory.
 # Running in a dev environment
 
 - Start the application
-    - `npm run dev`
+    - `pnpm run dev`
 
 ## Useful commands
 
 - Run the Typescript compiler in watch mode
-    - `npm run tsc-lint`
+    - `pnpm run tsc-lint`
 - Lint the current project with Next.js
-    - `npm run lint`
+    - `pnpm run lint`
 
 # Database
 
@@ -61,7 +63,7 @@ The Signaling, STUN, TURN services are located inside the `/services` directory.
 
 - Create the migration file
 - In order to make sure that the type files get generated on your machine, remove the `node_modules` directory
-- Then run `npm install`
+- Then run `pnpm install`
 
 # Bundle analysis
 
@@ -73,4 +75,4 @@ The Signaling, STUN, TURN services are located inside the `/services` directory.
 ## Command
 
 - This command will generate the bundle analysis files and automatically open the web browser
-    - `ANALYSIS=true npm run build`
+    - `ANALYSIS=true pnpm run build`

@@ -25,10 +25,11 @@ import {
 import { Err, err, Ok, ok } from "neverthrow";
 import { useRef, useState } from "react";
 import { FormInput } from "../general/input-fields";
-import BarcodeScanner, { BarcodeFormat } from "../general/qr-scanner";
+import BarcodeScanner from "../general/qr-scanner";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { BarcodeStringFormat } from "react-qr-barcode-scanner";
 
 type LinkingMethod = "file" | "qr" | "sound";
 
@@ -193,7 +194,7 @@ const RenderLinkingMethodContent: React.FC<{
                             linkFileData
                                 ? "border-green-500 bg-green-50 dark:bg-green-950/20"
                                 : "border-muted-foreground/25 hover:border-muted-foreground/50",
-                            "focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20",
+                            "focus-within:border-primary focus-within:ring-primary/20 focus-within:ring-2",
                         )}
                         onDragOver={(e) => {
                             e.preventDefault();
@@ -268,14 +269,14 @@ const RenderLinkingMethodContent: React.FC<{
                                 </>
                             ) : (
                                 <>
-                                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                                        <FileText className="h-6 w-6 text-muted-foreground" />
+                                    <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
+                                        <FileText className="text-muted-foreground h-6 w-6" />
                                     </div>
-                                    <p className="mb-1 text-sm font-medium text-foreground">
+                                    <p className="text-foreground mb-1 text-sm font-medium">
                                         Drop your .cryxlink file here, or click
                                         to browse
                                     </p>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-muted-foreground text-xs">
                                         Only .cryxlink vault link files are
                                         supported
                                     </p>
@@ -303,7 +304,7 @@ const RenderLinkingMethodContent: React.FC<{
                             rows={4}
                         />
                     </div>
-                    <div className="flex items-center justify-center rounded-lg border-2 border-dashed bg-muted/50 p-8">
+                    <div className="bg-muted/50 flex items-center justify-center rounded-lg border-2 border-dashed p-8">
                         <div className="space-y-2 text-center">
                             {/* While the user hasn't granted permission to use the camera, show a QR code icon */}
                             {!hasCameraPermission &&
@@ -333,19 +334,19 @@ const RenderLinkingMethodContent: React.FC<{
                                                 });
                                         }}
                                     >
-                                        <QrCode className="mx-auto h-12 w-12 text-muted-foreground" />
+                                        <QrCode className="text-muted-foreground mx-auto h-12 w-12" />
                                         <div>
-                                            <p className="text-sm text-muted-foreground">
+                                            <p className="text-muted-foreground text-sm">
                                                 QR Code Scanner
                                             </p>
 
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-muted-foreground text-xs">
                                                 Click to request the camera
                                                 permission
                                             </p>
 
                                             {userDeniedCameraPermission && (
-                                                <p className="text-xs text-destructive-foreground">
+                                                <p className="text-destructive-foreground text-xs">
                                                     Camera permission denied.
                                                     Please allow camera access
                                                     in your browser settings.
@@ -358,7 +359,7 @@ const RenderLinkingMethodContent: React.FC<{
                                 <BarcodeScanner
                                     // width={500}
                                     // height={500}
-                                    formats={[BarcodeFormat.QR_CODE]}
+                                    formats={[BarcodeStringFormat.QR_CODE]}
                                     onUpdate={(_, result) => {
                                         if (result) {
                                             setQrCodeData(result.getText());
@@ -403,13 +404,13 @@ const RenderLinkingMethodContent: React.FC<{
             )}
 
             {linkingMethod === "sound" && (
-                <div className="flex items-center justify-center rounded-lg border-2 border-dashed bg-muted/50 p-8">
+                <div className="bg-muted/50 flex items-center justify-center rounded-lg border-2 border-dashed p-8">
                     <div className="space-y-2 text-center">
-                        <Volume2 className="mx-auto h-12 w-12 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
+                        <Volume2 className="text-muted-foreground mx-auto h-12 w-12" />
+                        <p className="text-muted-foreground text-sm">
                             Sound Linking
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-muted-foreground text-xs">
                             This feature is currently disabled
                         </p>
                     </div>
@@ -464,17 +465,17 @@ const LinkingInProgress: React.FC<{
                             </div>
                         )}
                         {step.status === LinkingProcessState.Active && (
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-primary">
-                                <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                            <div className="border-primary flex h-6 w-6 items-center justify-center rounded-full border-2">
+                                <LoaderCircle className="text-primary h-4 w-4 animate-spin" />
                             </div>
                         )}
                         {step.status === LinkingProcessState.Pending && (
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-muted-foreground/30">
-                                <div className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground/30"></div>
+                            <div className="border-muted-foreground/30 flex h-6 w-6 items-center justify-center rounded-full border-2">
+                                <div className="bg-muted-foreground/30 h-2 w-2 animate-pulse rounded-full"></div>
                             </div>
                         )}
                         {step.status === LinkingProcessState.Error && (
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive">
+                            <div className="bg-destructive flex h-6 w-6 items-center justify-center rounded-full">
                                 <AlertCircle className="h-4 w-4 text-black" />
                             </div>
                         )}
@@ -507,7 +508,7 @@ const LinkingInProgress: React.FC<{
                             </p>
                         </div>
                         {step.description && (
-                            <p className="mt-1 text-xs text-muted-foreground">
+                            <p className="text-muted-foreground mt-1 text-xs">
                                 {step.description}
                             </p>
                         )}
@@ -651,7 +652,7 @@ const LinkTab: React.FC<{
                 <div className="space-y-4">
                     <div className="space-y-2">
                         <Label>Choose Linking Method</Label>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-muted-foreground text-sm">
                             Select how you want to link to an existing vault
                             from another device.
                         </p>
@@ -664,10 +665,10 @@ const LinkTab: React.FC<{
                             onClick={() => setLinkingMethod("file")}
                         >
                             <div className="flex items-center space-x-3">
-                                <FileText className="h-6 w-6 text-primary" />
+                                <FileText className="text-primary h-6 w-6" />
                                 <div className="text-left">
                                     <div className="font-medium">By File</div>
-                                    <div className="text-sm text-muted-foreground">
+                                    <div className="text-muted-foreground text-sm">
                                         Upload a .cryxlink file from another
                                         device
                                     </div>
@@ -681,12 +682,12 @@ const LinkTab: React.FC<{
                             onClick={() => setLinkingMethod("qr")}
                         >
                             <div className="flex items-center space-x-3">
-                                <QrCode className="h-6 w-6 text-primary" />
+                                <QrCode className="text-primary h-6 w-6" />
                                 <div className="text-left">
                                     <div className="font-medium">
                                         By QR Code
                                     </div>
-                                    <div className="text-sm text-muted-foreground">
+                                    <div className="text-muted-foreground text-sm">
                                         Scan a QR code displayed on another
                                         device
                                     </div>
@@ -700,12 +701,12 @@ const LinkTab: React.FC<{
                             disabled
                         >
                             <div className="flex items-center space-x-3">
-                                <Volume2 className="h-6 w-6 text-muted-foreground" />
+                                <Volume2 className="text-muted-foreground h-6 w-6" />
                                 <div className="text-left">
-                                    <div className="font-medium text-muted-foreground">
+                                    <div className="text-muted-foreground font-medium">
                                         By Sound
                                     </div>
-                                    <div className="text-sm text-muted-foreground">
+                                    <div className="text-muted-foreground text-sm">
                                         Currently disabled - Audio-based linking
                                     </div>
                                 </div>
@@ -726,7 +727,7 @@ const LinkTab: React.FC<{
                                       ? "by QR Code"
                                       : "by Sound"}
                             </h3>
-                            <p className="text-wrap text-sm text-muted-foreground">
+                            <p className="text-muted-foreground text-wrap text-sm">
                                 {linkingMethod === "file" &&
                                     "Use the link file from another device"}
                                 {linkingMethod === "qr" &&

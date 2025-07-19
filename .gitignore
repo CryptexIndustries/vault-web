@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.js
 
@@ -9,12 +9,12 @@
 /coverage
 
 # database
-/prisma/db.sqlite
-/prisma/db.sqlite-journal
+web/prisma/db.sqlite
+web/prisma/db.sqlite-journal
 
 # next.js
-/.next/
-/out/
+.next/
+web/out/
 
 # production
 /build

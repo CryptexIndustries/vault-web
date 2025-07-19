@@ -29,7 +29,7 @@ import BarcodeScanner from "../general/qr-scanner";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { BarcodeStringFormat } from "react-qr-barcode-scanner";
+import type { BarcodeStringFormat } from "react-qr-barcode-scanner";
 
 type LinkingMethod = "file" | "qr" | "sound";
 
@@ -359,7 +359,11 @@ const RenderLinkingMethodContent: React.FC<{
                                 <BarcodeScanner
                                     // width={500}
                                     // height={500}
-                                    formats={[BarcodeStringFormat.QR_CODE]}
+                                    // NOTE: We can't seem to resolve the module if we were to use the BarcodeStringFormat as a value.
+                                    // So we opt to trick the ts compiler into using it as a type
+                                    formats={[
+                                        "QR_CODE" as BarcodeStringFormat.QR_CODE,
+                                    ]}
                                     onUpdate={(_, result) => {
                                         if (result) {
                                             setQrCodeData(result.getText());

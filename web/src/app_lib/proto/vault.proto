@@ -1,0 +1,301 @@
+syntax = "proto3";
+
+package VaultUtilTypes;
+
+//#region Encryption
+message KeyDerivationConfig_Argon2ID {
+    int32 memLimit = 7;
+    int32 opsLimit = 8;
+}
+
+message KeyDerivationConfig_PBKDF2 {
+    int32 iterations = 4;
+}
+
+enum EncryptionAlgorithm {
+    AES256 = 0;
+    XChaCha20Poly1305 = 1;
+}
+enum KeyDerivationFunction {
+    PBKDF2 = 0;
+    Argon2ID = 1;
+}
+//#endregion Encryption
+
+//#region Vault Metadata
+message VaultMetadata {
+    // The version of the vault as the point of creation
+    int32 Version = 1;
+    optional int32 DBIndex = 2;
+    string Name = 3;
+    string Description = 4;
+    string CreatedAt = 5;
+    optional string LastUsed = 6;
+    string Icon = 7;
+    string Color = 8;
+    optional EncryptedBlob Blob = 9;
+}
+
+message EncryptedBlob {
+    // The version of the vault as the point of creation
+    int32 Version = 8;
+    // The current version of the vault, which chages when the vault is upgraded
+    int32 CurrentVersion = 9;
+    EncryptionAlgorithm Algorithm = 1;
+    KeyDerivationFunction KeyDerivationFunc = 2;
+
+    KeyDerivationConfig_Argon2ID KDFConfigArgon2ID = 3;
+    KeyDerivationConfig_PBKDF2 KDFConfigPBKDF2 = 4;
+
+    bytes Blob = 5;
+    string Salt = 6;
+    string HeaderIV = 7;
+}
+//#endregion Vault Metadata
+
+message Group {
+    string ID = 1;
+    string Name = 2;
+    string Icon = 3;
+    string Color = 4;
+}
+
+enum ItemType {
+    SSHKey = 0;
+    Credentials = 1;
+    Note = 2;
+    Identity = 3;
+}
+
+enum CustomFieldType {
+    Text = 0;
+    MaskedText = 1;
+    Boolean = 2;
+    Date = 3;
+}
+
+message CustomField {
+    string ID = 1;
+    string Name = 2;
+    CustomFieldType Type = 3;
+    string Value = 4;
+}
+
+message Vault {
+    // The version of the vault as the point of creation
+    int32 Version = 1;
+    // The current version of the vault, which chages when the vault is upgraded
+    int32 CurrentVersion = 8;
+    // This was where the Secret was stored in the previous version of the vault, but it is no longer used
+    reserved 2;
+    Configuration Configuration = 3;
+    LinkedDevices LinkedDevices = 4;
+    repeated Group Groups = 5;
+    repeated Credential Credentials = 6;
+    repeated Diff Diffs = 7;
+}
+
+message Configuration {
+    int32 MaxDiffCount = 1;
+}
+
+//#region LinkedDevices
+message STUNServerConfiguration {
+    int32 Version = 1;
+    string ID = 2;
+    string Name = 3;
+    string Host = 4;
+}
+
+message TURNServerConfiguration {
+    int32 Version = 1;
+    string ID = 2;
+    string Name = 3;
+    string Host = 4;
+    string Username = 5;
+    string Password = 6;
+}
+
+message SignalingServerConfiguration {
+    int32 Version = 1;
+    string ID = 2;
+    string Name = 3;
+    string AppID = 4;
+    string Key = 5;
+    string Secret = 6;
+    string Host = 7;
+    string ServicePort = 8;
+    string SecureServicePort = 9;
+}
+
+message LinkedDevices {
+    string ID = 1;
+    optional string APIKey = 2;
+    int64 CreationTimestamp = 3;
+
+    reserved 4;
+    repeated LinkedDevice Devices = 5;
+    repeated STUNServerConfiguration STUNServers = 6;
+    repeated TURNServerConfiguration TURNServers = 7;
+    repeated SignalingServerConfiguration SignalingServers = 8;
+}
+
+message LinkedDevice {
+    string ID = 1;
+    string Name = 2;
+    optional string LastSync = 3;
+    bool IsRoot = 4;
+    int64 LinkedAtTimestamp = 5;
+    bool AutoConnect = 6;
+    bool SyncTimeout = 7;
+    int32 SyncTimeoutPeriod = 8;
+
+    /**
+      * The ID of the STUN server to use for this device.
+      * @default Empty list - The Cryptex Vault Online Service STUN server will be used.
+      */
+    repeated string STUNServerIDs = 9;
+    /**
+      * The ID of the TURN server to use for this device.
+      * @default Empty list - The Cryptex Vault Online Service TURN server will be used.
+      */
+    repeated string TURNServerIDs = 10;
+    /**
+      * The ID of the Signaling server to use for this device.
+      * @default "OnlineServices" - The Cryptex Vault Online Service Signaling server will be used.
+      */
+    string SignalingServerID = 11;
+}
+//#endregion LinkedDevices
+
+//#region Credentials
+message Credential {
+    string ID = 1;
+    ItemType Type = 2;
+    string GroupID = 3;
+    string Name = 4;
+    string Username = 5;
+    string Password = 6;
+    optional TOTP TOTP = 7;
+    optional string Tags = 8;
+    string URL = 9;
+    string Notes = 10;
+    string DateCreated = 11;
+    optional string DateModified = 12;
+    optional string DatePasswordChanged = 13;
+    repeated CustomField CustomFields = 14;
+    // NOTE: This property is not synchronized across devices ATM (meaning, it isn't present in the PartialCredential object)
+    optional string Hash = 15;
+}
+
+// All optional version of the Credential object
+message PartialCredential {
+    optional string ID = 1;
+    optional ItemType Type = 2;
+    optional string GroupID = 3;
+    optional string Name = 4;
+    optional string Username = 5;
+    optional string Password = 6;
+    optional TOTP TOTP = 7;
+    optional string Tags = 8;
+    optional string URL = 9;
+    optional string Notes = 10;
+    optional string DateCreated = 11;
+    optional string DateModified = 12;
+    optional string DatePasswordChanged = 13;
+    repeated CustomField CustomFields = 14;
+    optional PartialCredentialChanges ChangeFlags = 15;
+}
+
+message PartialCredentialChanges {
+    bool TypeHasChanged = 1;
+    bool GroupIDHasChanged = 2;
+    bool NameHasChanged = 3;
+    bool UsernameHasChanged = 4;
+    bool PasswordHasChanged = 5;
+    bool TOTPHasChanged = 6;
+    bool TagsHasChanged = 7;
+    bool URLHasChanged = 8;
+    bool NotesHasChanged = 9;
+    bool DateCreatedHasChanged = 10;
+    bool DateModifiedHasChanged = 11;
+    bool DatePasswordChangedHasChanged = 12;
+    bool CustomFieldsHasChanged = 13;
+}
+
+message TOTP {
+    string Label = 1;
+    string Secret = 3;
+    int32 Period = 4;
+    int32 Digits = 5;
+    TOTPAlgorithm Algorithm = 6;
+}
+
+enum TOTPAlgorithm {
+    SHA1 = 0;
+    SHA256 = 1;
+    SHA512 = 2;
+}
+//#endregion Credentials
+
+//#region Diff
+message Diff {
+    // The hash of the vault after the change
+    string Hash = 1;
+    // The changes that were made
+    optional DiffChange Changes = 2;
+}
+
+message DiffChange {
+    // The type of change
+    DiffType Type = 1;
+    // The ID of the item that was changed
+    string ID = 2;
+    // The new value(s) of the item
+    optional PartialCredential Props = 3;
+}
+
+enum DiffType {
+    Add = 0;
+    Delete = 1;
+    Update = 2;
+}
+//#endregion Diff
+
+//#region Synchronization Message
+enum VaultItemSynchronizationMessageCommand {
+    SyncRequest = 0;
+    SyncResponse = 1;
+    ManualSyncDataRequest = 2;
+    ManualSyncSolve = 3;
+}
+
+message VaultItemSynchronizationMessage {
+    string ID = 1;
+    VaultItemSynchronizationMessageCommand Command = 2;
+    optional string Hash = 3;
+    repeated Diff Diffs = 4;
+    repeated LinkedDevice LinkedDevices = 5;
+}
+//#endregion Synchronization Message
+
+//#region Linking
+message LinkingPackageBlob {
+    string ID = 1;
+    optional string APIKey = 2; // In case the device is registered with the Cryptex Vault Online Services
+    repeated STUNServerConfiguration STUNServers = 3;
+    repeated TURNServerConfiguration TURNServers = 4;
+    SignalingServerConfiguration SignalingServer = 5;
+}
+
+message LinkingPackage {
+    // Byte array of the package blob
+    bytes Blob = 1;
+
+    // Encryption - Salt
+    string Salt = 2;
+
+    // Encryption - Header IV
+    string HeaderIV = 3;
+}
+//#endregion Linking

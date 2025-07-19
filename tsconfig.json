@@ -15,23 +15,10 @@
         "jsx": "preserve",
         "incremental": true,
         "noUncheckedIndexedAccess": true,
-        "plugins": [
-            {
-                "name": "next"
-            }
-        ],
         "paths": {
-            "@/*": ["./src/*"]
+            "@ui/*": ["./packages/shared-ui/src/*"]
         }
     },
-    "include": [
-        "next-env.d.ts",
-        "**/*.ts",
-        "**/*.tsx",
-        "**/*.cjs",
-        "**/*.mjs",
-        "next.config.cjs",
-        ".next/types/**/*.ts"
-    ],
+    "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", "**/*.js"],
     "exclude": ["node_modules"]
 }

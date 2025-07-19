@@ -1,0 +1,12 @@
+packages:
+  - web
+  - extension
+  - packages/*
+
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - argon2
+  - prisma
+  - sharp
+  - unrs-resolver

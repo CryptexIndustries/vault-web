@@ -4,7 +4,9 @@ import { env } from "../../env/client.mjs";
 
 export const StripeConfiguration: StripeNS.StripeConfig = {
     // https://github.com/stripe/stripe-node#configuration
-    apiVersion: "2025-05-28.basil",
+    // It is unnecessary to set this value
+    // We are using the latest version specified in the installed Stripe package
+    // apiVersion: "2025-06-30.basil"
 };
 
 // This is a backend function, so we can use the secret key

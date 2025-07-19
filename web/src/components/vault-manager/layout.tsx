@@ -179,7 +179,7 @@ const VaultManager: React.FC<{
         <Card className="rounded-none border-none shadow-none sm:rounded-md sm:border-solid sm:shadow-xl">
             <CardHeader>
                 <div className="flex items-center space-x-2">
-                    <Shield className="h-6 w-6 text-primary" />
+                    <Shield className="text-primary h-6 w-6" />
                     <CardTitle>Vault Manager</CardTitle>
                 </div>
                 <CardDescription>
@@ -222,14 +222,14 @@ const VaultManager: React.FC<{
                     <TabsContent value="loading">
                         <div className="flex flex-col items-center justify-center space-y-4 py-12">
                             <div className="relative h-16 w-16">
-                                <LoaderCircle className="h-16 w-16 animate-spin text-primary" />
-                                <Shield className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 transform text-background" />
+                                <LoaderCircle className="text-primary h-16 w-16 animate-spin" />
+                                <Shield className="text-background absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 transform" />
                             </div>
                             <div className="space-y-2 text-center">
                                 <h3 className="text-lg font-medium">
                                     Loading Vaults
                                 </h3>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-muted-foreground text-sm">
                                     Loading encrypted vaults from memory...
                                 </p>
                             </div>
@@ -307,7 +307,7 @@ const VaultManager: React.FC<{
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="hidden text-xs text-muted-foreground"
+                    className="text-muted-foreground hidden text-xs"
                 >
                     Options
                 </Button>

@@ -16,7 +16,7 @@ Major changes are not necessarily going to be announced, and self-hosting will n
 - Clone the file `.env.default` and rename it to `.env`
     - Change the required variables as you see fit
 - Create the database
-    - `npx prisma migrate dev`
+    - `pnpm prisma migrate dev`
 
 ## Synchronization Signaling/STUN/TURN services
 
@@ -33,31 +33,31 @@ The Signaling, STUN, TURN services are located inside the `/services` directory.
 # Running in a dev environment
 
 - Start the application
-    - `pnpm run dev`
+    - `pnpm run dev:web`
 
 ## Useful commands
 
 - Run the Typescript compiler in watch mode
-    - `pnpm run tsc-lint`
-- Lint the current project with Next.js
-    - `pnpm run lint`
+    - `pnpm run lint-tsc:web`
+- Lint the web application project with Next.js
+    - `pnpm run lint:web`
 
 # Database
 
-## Some useful commands
+## Some useful commands (run in the /web directory)
 
 - Database viewer
-    - `npx prisma studio`
+    - `pnpm prisma studio`
 - Make migrations
-    - `npx prisma migrate dev --name init`
+    - `pnpm prisma migrate dev --name init`
 - Push changes
-    - `npx prisma db push`
+    - `pnpm prisma db push`
 - Generate the type definitions
-    - `npx prisma generate`
+    - `pnpm prisma generate`
 - Reset your database and apply all migrations
-    - `npx prisma migrate reset`
+    - `pnpm prisma migrate reset`
 - Format the prisma schema file
-    - `npx prisma format`
+    - `pnpm prisma format`
 
 ## Modifying the schema
 
@@ -76,3 +76,9 @@ The Signaling, STUN, TURN services are located inside the `/services` directory.
 
 - This command will generate the bundle analysis files and automatically open the web browser
     - `ANALYSIS=true pnpm run build`
+
+# Troubleshooting
+
+## MODULE_NOT_FOUND Error with Argon2, ...
+
+- Allow PNPM to trigger the build scripts: `pnpm approve-builds`

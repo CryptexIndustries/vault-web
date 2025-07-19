@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider      = "prisma-client-js"
+    binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+    // Use "sqlite" for local development (offline), "postgresql" for production or development (online)
+    provider = "postgresql"
+
+    // NOTE: When using postgresql, mysql or sqlserver, uncomment the @db.text annotations in model Account below
+    // Further reading: 
+    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
+    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+    url = env("DATABASE_URL")
+}
+
+model User {
+    id                        String        @id @default(cuid())
+    created_at                DateTime      @default(now())
+    recovery_token            String?       @db.Text // Hashed token used for account recovery
+    recovery_token_created_at DateTime? // When the recovery token was created (has a value when recovery token is set)
+    subscription              Subscription?
+    api_keys                  APIKey[]
+
+    feature_votes FeatureVotingVotes[]
+}
+
+model Subscription {
+    id                   String                @id @default(cuid())
+    user_id              String                @unique
+    customer_id          String                @unique
+    created_at           DateTime
+    expires_at           DateTime?
+    status               String?
+    payment_status       String?
+    cancel_at_period_end Boolean?
+    product_id           String?
+    user                 User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    configuration        ProductConfiguration? @relation(fields: [product_id], references: [product_id], onDelete: NoAction)
+
+    @@index([product_id])
+}
+
+// AKA plan settings
+model ProductConfiguration {
+    id                    String         @id @default(cuid())
+    product_id            String         @unique
+    linking_allowed       Boolean        @default(false)
+    max_links             Int            @default(0) // TODO: This shouldn't count the current account, ATM it does
+    always_connected      Boolean        @default(false) // Always connected to the WS server - from vault decryption
+    feature_voting        Boolean        @default(false)
+    credentials_borrowing Boolean        @default(false)
+    promoting_to_root     Boolean        @default(false)
+    subscriptions         Subscription[]
+}
+
+model APIKey {
+    id         String    @id @default(cuid())
+    user_id    String
+    created_at DateTime  @default(now()) // When the key was created
+    last_used  DateTime? // When the key was last used (null if never used)
+    key        String    @unique // The Argon2id hash of the key
+    purpose    String // Possible values: "web", "mobile", "browser", "cli"
+    root       Boolean   @default(false) // If the key has root access
+    user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+    @@index([user_id])
+}
+
+model NotifyMeUsers {
+    id    String   @id @default(cuid())
+    email String   @unique @db.VarChar(255)
+    ref   String?  @db.VarChar(100)
+    date  DateTime @default(now())
+}
+
+model FeatureVotingRounds {
+    id          String               @id @default(cuid())
+    title       String               @unique @db.VarChar(255)
+    description String?              @db.Text
+    start       DateTime             @default(now())
+    end         DateTime
+    visible     Boolean              @default(false)
+    items       FeatureVotingItems[]
+    votes       FeatureVotingVotes[]
+}
+
+model FeatureVotingItems {
+    id          String               @id @default(cuid())
+    title       String               @unique @db.VarChar(255)
+    description String?              @db.Text
+    round_id    String
+    round       FeatureVotingRounds  @relation(fields: [round_id], references: [id], onDelete: Cascade)
+    votes       FeatureVotingVotes[]
+
+    @@index([round_id])
+}
+
+model FeatureVotingVotes {
+    id         String              @id @default(cuid())
+    user_id    String
+    user       User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    round_id   String
+    round      FeatureVotingRounds @relation(fields: [round_id], references: [id], onDelete: Cascade)
+    item_id    String
+    item       FeatureVotingItems  @relation(fields: [item_id], references: [id], onDelete: Cascade)
+    created_at DateTime            @default(now())
+
+    @@index([user_id])
+    @@index([item_id])
+    @@index([round_id])
+}

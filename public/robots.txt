@@ -1,4 +1,0 @@
-# Allow all crawlers
-User-agent: *
-Allow: /
-Disallow: /app

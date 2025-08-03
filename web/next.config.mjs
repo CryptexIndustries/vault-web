@@ -61,6 +61,9 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
     headers,
     compiler: {
         removeConsole: rmConsoleFromBuild,

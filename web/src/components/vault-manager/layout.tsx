@@ -25,6 +25,7 @@ import CreateVaultTab from "./create";
 import LinkTab from "./link";
 import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
+import { ChangelogDialog } from "../changelog";
 
 type OperationStatus = {
     status: "idle" | "loading" | "success" | "error";
@@ -299,18 +300,8 @@ const VaultManager: React.FC<{
                     </div>
                 )}
             </CardContent>
-            <CardFooter className="hidden justify-between border-t pt-4">
-                {/* <Button variant="outline" onClick={resetForm}> */}
-                {/*     Reset */}
-                {/* </Button> */}
-                <div></div>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hidden text-xs"
-                >
-                    Options
-                </Button>
+            <CardFooter className="flex justify-start border-t pt-4">
+                <ChangelogDialog />
             </CardFooter>
         </Card>
     );

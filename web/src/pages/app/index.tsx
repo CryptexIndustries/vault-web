@@ -152,6 +152,7 @@ import {
 import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
 import { Calendar, CircleCheck, CircleX, Link } from "lucide-react";
+import { ChangelogDialog } from "@/components/changelog";
 
 const GlobalSyncConnectionController =
     new Synchronization.SyncConnectionController();
@@ -549,8 +550,7 @@ const BlockWideButton: React.FC<{
 }> = ({ icon, iconCaption, description, onClick, disabled }) => (
     <div
         className={clsx({
-            "mb-2 flex flex-col items-center gap-1 rounded-md bg-gray-200 px-4 py-2 transition-colors":
-                true,
+            "mb-2 flex flex-col items-center gap-1 rounded-md bg-gray-200 px-4 py-2 transition-colors": true,
             "cursor-pointer hover:bg-gray-300": !disabled,
             "opacity-50": disabled,
         })}
@@ -730,8 +730,7 @@ const FeatureVotingDialog: React.FC<{
                                                     <div
                                                         key={item.id}
                                                         className={clsx({
-                                                            "flex flex-col p-4 sm:justify-between":
-                                                                true,
+                                                            "flex flex-col p-4 sm:justify-between": true,
                                                             "rounded-sm border border-gray-400 bg-gray-200":
                                                                 !round.active &&
                                                                 round.votedId ===
@@ -1412,8 +1411,7 @@ const AccountDialog: React.FC<{
                                 </div> */}
                                 <div
                                     className={clsx({
-                                        "mt-2 flex justify-start space-x-2":
-                                            true,
+                                        "mt-2 flex justify-start space-x-2": true,
                                         hidden: isCurrentDevice,
                                     })}
                                 >
@@ -1523,8 +1521,7 @@ const AccountDialog: React.FC<{
                             {/* Overlay that is active if the session is null */}
                             <div
                                 className={clsx({
-                                    "absolute inset-0 items-center justify-center backdrop-blur-sm":
-                                        true,
+                                    "absolute inset-0 items-center justify-center backdrop-blur-sm": true,
                                     flex: !onlineServicesBound,
                                     hidden: onlineServicesBound,
                                 })}
@@ -1768,8 +1765,7 @@ const AccountHeaderWidget: React.FC<{
                 {({ open }) => {
                     const popoverButtonClasses = clsx({
                         "text-opacity-90": open,
-                        "group flex items-center justify-center rounded-md text-base font-medium text-white hover:text-opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75":
-                            true,
+                        "group flex items-center justify-center rounded-md text-base font-medium text-white hover:text-opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75": true,
                     });
                     return (
                         <>
@@ -1800,8 +1796,7 @@ const AccountHeaderWidget: React.FC<{
                                     </div>
                                     <div
                                         className={clsx({
-                                            "flex items-center justify-center rounded-md border border-slate-500 px-3 py-3 text-sm":
-                                                true,
+                                            "flex items-center justify-center rounded-md border border-slate-500 px-3 py-3 text-sm": true,
                                             "text-slate-500 shadow-md shadow-slate-500":
                                                 !onlineServicesBound &&
                                                 onlineServicesAuthConnectionStatus.status ===
@@ -1843,8 +1838,7 @@ const AccountHeaderWidget: React.FC<{
                                     <div className="divide-y divide-slate-800/60 overflow-hidden rounded-lg shadow-lg ring-1 ring-black ring-opacity-5">
                                         <div
                                             className={clsx({
-                                                "flex-col gap-4 bg-slate-700 p-4":
-                                                    true,
+                                                "flex-col gap-4 bg-slate-700 p-4": true,
                                                 flex: onlineServicesBound,
                                                 hidden:
                                                     !onlineServicesBound ||
@@ -1855,8 +1849,7 @@ const AccountHeaderWidget: React.FC<{
                                             {/* Display the pill for the users tier */}
                                             <div
                                                 className={clsx({
-                                                    "flex items-center gap-4 rounded-sm":
-                                                        true,
+                                                    "flex items-center gap-4 rounded-sm": true,
                                                     "opacity-50":
                                                         isSubscriptionDataLoading,
                                                 })}
@@ -2785,8 +2778,7 @@ const AccountDialogTabBar: React.FC<AccountDialogTabBarProps> = ({
                             "rounded-r-md": index === 1,
                             "rounded-md":
                                 Object.keys(AccountDialogMode).length === 1,
-                            "w-auto border border-gray-300 px-4 py-3 text-sm font-medium":
-                                true,
+                            "w-auto border border-gray-300 px-4 py-3 text-sm font-medium": true,
                         })}
                         onClick={() => changeFormMode(mode)}
                         autoFocus={currentFormMode === mode}
@@ -4323,8 +4315,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                                         render={({ field: { value } }) => (
                                             <div
                                                 className={clsx({
-                                                    "flex flex-col items-center gap-2":
-                                                        true,
+                                                    "flex flex-col items-center gap-2": true,
                                                     hidden: !value.length,
                                                 })}
                                             >
@@ -5008,8 +4999,7 @@ const SidebarSyncDeviceListItem: React.FC<{
                         <p
                             title="Signaling status"
                             className={clsx({
-                                "flex h-full items-center rounded border px-1 text-xs capitalize":
-                                    true,
+                                "flex h-full items-center rounded border px-1 text-xs capitalize": true,
                                 "border-green-500/50 text-green-500":
                                     signalingStatus ===
                                     SynchronizationUtils.SignalingStatus
@@ -5055,8 +5045,7 @@ const SidebarSyncDeviceListItem: React.FC<{
                         <p
                             title="Device connection status"
                             className={clsx({
-                                "flex h-full items-center rounded border px-1 text-xs capitalize":
-                                    true,
+                                "flex h-full items-center rounded border px-1 text-xs capitalize": true,
                                 "border-green-500/50 text-green-500":
                                     webRTCStatus ===
                                     SynchronizationUtils.WebRTCStatus.Connected,
@@ -5127,8 +5116,7 @@ const SidebarSyncDeviceListItem: React.FC<{
                                 const hoverClass = clsx({
                                     "bg-gray-900 text-white select-none":
                                         active && !option.disabled,
-                                    "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                        true,
+                                    "flex px-4 py-2 text-sm font-semibold text-gray-200": true,
                                     "pointer-events-none opacity-50":
                                         option.disabled,
                                     hidden: !option.visible,
@@ -5474,8 +5462,7 @@ const VaultDashboard: React.FC = ({}) => {
             <div className="flex flex-grow flex-row overflow-hidden">
                 <div
                     className={clsx({
-                        "flex min-w-0 max-w-[250px] flex-col gap-3 overflow-hidden pt-1 transition-all duration-300 ease-in-out sm:min-w-[250px]":
-                            true,
+                        "flex min-w-0 max-w-[250px] flex-col gap-3 overflow-hidden pt-1 transition-all duration-300 ease-in-out sm:min-w-[250px]": true,
                         "w-0 px-0": !isSidebarOpen,
                         "min-w-[90vw] border-r-2 border-slate-800/60 px-1 sm:border-r-0":
                             isSidebarOpen,
@@ -5601,6 +5588,9 @@ const VaultDashboard: React.FC = ({}) => {
                                         onClick={() => lockVaultConfirm()}
                                     />
                                 </div>
+                                <div className="flex w-full justify-center">
+                                    <ChangelogDialog />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -5608,8 +5598,7 @@ const VaultDashboard: React.FC = ({}) => {
                 <div
                     className={clsx({
                         "w-full": true,
-                        "flex flex-grow border-t border-slate-700 sm:rounded-tl-md sm:border-l sm:blur-none":
-                            true,
+                        "flex flex-grow border-t border-slate-700 sm:rounded-tl-md sm:border-l sm:blur-none": true,
                         "pointer-events-none blur-sm sm:pointer-events-auto":
                             isSidebarOpen,
                     })}
@@ -6246,8 +6235,7 @@ const ListItemCredential: React.FC<{
                                 {({ active }) => {
                                     const hoverClass = clsx({
                                         "bg-gray-900 text-white": active,
-                                        "flex px-4 py-2 text-sm font-semibold text-gray-200":
-                                            true,
+                                        "flex px-4 py-2 text-sm font-semibold text-gray-200": true,
                                     });
                                     return (
                                         <a

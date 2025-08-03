@@ -2,7 +2,7 @@
     "name": "cryptex-vault-web",
     "version": "1.1.0",
     "private": true,
-    "packageManager": "pnpm",
+    "packageManager": "pnpm@10.13.1",
     "workspaces": [
         "web/*",
         "extension/*",

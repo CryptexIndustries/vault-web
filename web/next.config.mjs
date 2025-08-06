@@ -54,6 +54,7 @@ const rmConsoleFromBuild =
               exclude: ["error", "warn"],
           };
 const nextConfig = {
+    output: "standalone",
     reactStrictMode: true,
     images: {
         domains: [],

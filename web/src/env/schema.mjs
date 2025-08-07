@@ -48,7 +48,6 @@ export const serverSchema = z.object({
     /* Email */
     INFOBIP_BASE_URL: z.string().optional(),
     INFOBIP_API_KEY: z.string().optional(),
-    INFOBIP_EMAIL_VALIDATION: booleanString(z.boolean().default(false)),
     EMAIL_SENDER: z.string().optional(),
     EMAIL_CONTACT_US_SENDER: z.string(),
     EMAIL_CONTACT_US_RECEIVER: z.string(),

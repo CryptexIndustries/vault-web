@@ -46,4 +46,4 @@ services:
                 NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID}
         restart: always
         ports:
-            - 3000:3000
+            - 80:3000

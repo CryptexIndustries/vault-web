@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redesign the in-vault UI.
 - Complete test coverage.
 
-## [1.1.0] - 2025-07-05
+## [1.1.0] - 2025-08-03
 
 ### Added
 

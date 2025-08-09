@@ -24,7 +24,7 @@ interface ChangelogRelease {
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
         version: "v1.1.0",
-        date: "2025-07-05",
+        date: "2025-08-03",
         changes: [
             {
                 type: "added",
@@ -205,11 +205,11 @@ export const ChangelogDialog: React.FC = ({}) => {
                         <br />
                         Source URL:{" "}
                         <a
-                            href="https://github.com/cryptexindustries/vault-web"
+                            href="https://github.com/CryptexIndustries/vault-web"
                             target="blank"
                             className="text-primary underline"
                         >
-                            https://github.com/cryptex/cryptex-vault-web
+                            https://github.com/CryptexIndustries/vault-web
                         </a>
                     </DialogDescription>
                 </DialogHeader>

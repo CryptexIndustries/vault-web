@@ -30,6 +30,7 @@ import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import type { BarcodeStringFormat } from "react-qr-barcode-scanner";
+import { LINK_FILE_EXTENSION } from "@/utils/consts";
 
 type LinkingMethod = "file" | "qr" | "sound";
 
@@ -187,7 +188,9 @@ const RenderLinkingMethodContent: React.FC<{
 
             {linkingMethod === "file" && (
                 <div className="space-y-2">
-                    <Label htmlFor="link-file">Link File (.cryxlink)</Label>
+                    <Label htmlFor="link-file">
+                        Link File (.{LINK_FILE_EXTENSION})
+                    </Label>
                     <div
                         className={cn(
                             "relative rounded-lg border-2 border-dashed p-6 transition-colors",
@@ -218,7 +221,7 @@ const RenderLinkingMethodContent: React.FC<{
                             );
                             const files = Array.from(e.dataTransfer.files);
                             const linkFile = files.find((file) =>
-                                file.name.endsWith(".cryxlink"),
+                                file.name.endsWith(`.${LINK_FILE_EXTENSION}`),
                             );
                             if (linkFile) {
                                 setLinkFileData(linkFile);
@@ -228,12 +231,17 @@ const RenderLinkingMethodContent: React.FC<{
                         <input
                             id="link-file"
                             type="file"
-                            accept=".cryxlink"
+                            accept={`.${LINK_FILE_EXTENSION}`}
                             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                             disabled={isValidating}
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file && file.name.endsWith(".cryxlink")) {
+                                if (
+                                    file &&
+                                    file.name.endsWith(
+                                        `.${LINK_FILE_EXTENSION}`,
+                                    )
+                                ) {
                                     setLinkFileData(file);
                                 }
                             }}
@@ -273,12 +281,12 @@ const RenderLinkingMethodContent: React.FC<{
                                         <FileText className="text-muted-foreground h-6 w-6" />
                                     </div>
                                     <p className="text-foreground mb-1 text-sm font-medium">
-                                        Drop your .cryxlink file here, or click
-                                        to browse
+                                        Drop your .{LINK_FILE_EXTENSION} file
+                                        here, or click to browse
                                     </p>
                                     <p className="text-muted-foreground text-xs">
-                                        Only .cryxlink vault link files are
-                                        supported
+                                        Only .{LINK_FILE_EXTENSION} vault link
+                                        files are supported
                                     </p>
                                 </>
                             )}
@@ -673,8 +681,8 @@ const LinkTab: React.FC<{
                                 <div className="text-left">
                                     <div className="font-medium">By File</div>
                                     <div className="text-muted-foreground text-sm">
-                                        Upload a .cryxlink file from another
-                                        device
+                                        Upload a .{LINK_FILE_EXTENSION} file
+                                        from another device
                                     </div>
                                 </div>
                             </div>

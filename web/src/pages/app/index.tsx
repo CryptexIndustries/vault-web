@@ -148,6 +148,7 @@ import {
     ONLINE_SERVICES_SELECTION_ID,
     TOTPConstants,
     CredentialConstants,
+    LINK_FILE_EXTENSION,
 } from "../../utils/consts";
 import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
@@ -3886,7 +3887,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         _deviceName: string,
         encryptedLinkingPackage: Uint8Array,
     ) => {
-        // Save it to a file with a .cryxa extension
+        // Save it to a file with a .${LINK_FILE_EXTENSION} extension
         const blob = new Blob([encryptedLinkingPackage], {
             type: "application/octet-stream",
         });
@@ -3895,7 +3896,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
         const deviceName = _deviceName.replaceAll(" ", "-").toLowerCase();
 
         // Save the file
-        const fileName = `vault-linking-${deviceName}-${Date.now()}.cryxlink`;
+        const fileName = `vault-linking-${deviceName}-${Date.now()}.${LINK_FILE_EXTENSION}`;
         const link = document.createElement("a");
         link.href = window.URL.createObjectURL(blob);
         link.download = fileName;

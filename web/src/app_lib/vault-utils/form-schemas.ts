@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { REQUIRED_FIELD_ERROR } from "../../utils/consts";
+import {
+    BACKUP_FILE_EXTENSION,
+    REQUIRED_FIELD_ERROR,
+} from "../../utils/consts";
 import * as VaultUtilTypes from "../proto/vault";
 import {
     KeyDerivationConfig_Argon2ID,
@@ -82,10 +85,9 @@ export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
 export const vaultRestoreFormSchema = z.object({
     Name: z.string().min(1, REQUIRED_FIELD_ERROR),
     Description: z.string(),
-    Secret: z.string().min(1, REQUIRED_FIELD_ERROR),
     BackupFile: z
         .instanceof(File, { message: "This field is required" })
-        .refine((file) => file.name.endsWith(".cryx"), {
+        .refine((file) => file.name.endsWith(`.${BACKUP_FILE_EXTENSION}`), {
             message: "File must be an encrypted backup file",
         }),
 });

@@ -356,27 +356,22 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     }
 }
 
-export enum Type {
-    Manual,
-    // Dropbox,
-    // GDrive,
-}
-
-export const trigger = async (
-    type: Type,
+/**
+ * Serializes the vault instance and returns the raw binary data for creating a backup.
+ * TODO: Merge this with the save method on the vault object.
+ * @param vaultInstance The vault instance to serialize
+ * @param encryptionConfigFormSchema The current encryption configuration
+ * @returns The raw binary data of the serialized vault
+ */
+export const serializeVault = async (
     vaultInstance: Vault,
     existingEncryptedBlob: EncryptedBlob,
-): Promise<void> => {
-    // Clone the vault instance and remove the online services
-    // NOTE: Need to clone the OnlineServicesAccount object too because it still has a reference to the vault instance
+) => {
+    // Clone the vault instance
     const cleanVault = Object.assign(new Vault(), vaultInstance);
-    const cleanOnlineServices = Object.assign(
-        new LinkedDevices(),
-        vaultInstance.LinkedDevices,
-    );
-    cleanVault.LinkedDevices = cleanOnlineServices;
 
-    LinkedDevices.unbindAccount(cleanVault.LinkedDevices);
+    // Clear the LinkedDevices object
+    cleanVault.LinkedDevices = new LinkedDevices();
 
     // Serialize the vault instance
     const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();
@@ -391,22 +386,7 @@ export const trigger = async (
         existingEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
     );
 
-    if (type === Type.Manual) {
-        // Serialize the encrypted blob and trigger the manual backup
-        await manualBackup(encryptedBlob);
-    } else {
-        throw new Error("Not implemented");
-    }
-};
+    const rawData = VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish();
 
-const manualBackup = async (encryptedBlob: EncryptedBlob) => {
-    const data = VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish();
-    const blob = new Blob([data], { type: "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-
-    a.href = url;
-    a.download = `cryptexvault-bk-${Date.now()}.${BACKUP_FILE_EXTENSION}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    return rawData;
 };

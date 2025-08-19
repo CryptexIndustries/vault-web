@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import {
     Dialog,
@@ -182,15 +183,52 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
 ];
 
 export const ChangelogDialog: React.FC = ({}) => {
+    const currentVersion = CHANGELOG_DATA[0]?.version ?? "";
+    const storageKey = "changelog:lastSeenVersion";
+
+    const [open, setOpen] = useState(false);
+    const [hasUnseen, setHasUnseen] = useState(false);
+
+    useEffect(() => {
+        try {
+            const lastSeen = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+            setHasUnseen(!!currentVersion && lastSeen !== currentVersion);
+        } catch (_) {
+            // ignore storage errors
+        }
+    }, [currentVersion]);
+
+    const handleOpenChange = (nextOpen: boolean) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+            try {
+                if (typeof window !== "undefined") {
+                    localStorage.setItem(storageKey, currentVersion);
+                }
+            } catch (_) {
+                // ignore storage errors
+            }
+            setHasUnseen(false);
+        }
+    };
+
     return (
-        <Dialog>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 <Button
                     variant="ghost"
                     // size="xs"
                     className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                 >
-                    {CHANGELOG_DATA[0]?.version}
+                    <span className="relative inline-block">
+                        {currentVersion}
+                        {hasUnseen && (
+                            <span
+                                aria-label="New changelog"
+                                className="absolute -top-1 -right-1 inline-block h-2 w-2 rounded-full ring-2 ring-background bg-red-500 animate-pulse"
+                            />
+                        )}
+                    </span>
                 </Button>
             </DialogTrigger>
             <DialogContent className="flex max-h-[80vh] max-w-2xl flex-col overflow-hidden">

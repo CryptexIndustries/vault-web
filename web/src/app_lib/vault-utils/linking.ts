@@ -6,6 +6,7 @@ import * as VaultEncryption from "./encryption";
 import { initPusherInstance, initWebRTC } from "../synchronization";
 import { constructLinkPresenceChannelName } from "../online-services";
 import Pusher, { Channel } from "pusher-js";
+import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
 
 export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
     Blob: Uint8Array;
@@ -30,9 +31,8 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
         const newEncryptedBlob: VaultEncryption.EncryptedBlob =
             VaultEncryption.EncryptedBlob.CreateDefault();
 
-        newEncryptedBlob.Blob = Buffer.from(
-            VaultUtilTypes.LinkingPackageBlob.encode(blob).finish(),
-        );
+        newEncryptedBlob.Blob =
+            VaultUtilTypes.LinkingPackageBlob.encode(blob).finish();
 
         const _encryptedData = await VaultEncryption.EncryptDataBlob(
             newEncryptedBlob.Blob,
@@ -88,7 +88,7 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
         const serializedVault = this.toBinary();
 
         // Same logic as in VaultEncryption.encryptBlob for the string output
-        const b64Blob = Buffer.from(serializedVault).toString("base64");
+        const b64Blob = uint8ToBase64(serializedVault);
 
         return b64Blob;
     }
@@ -109,7 +109,7 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
             return err("DATA_INVALID");
         }
 
-        const bin = Buffer.from(base64, "base64");
+        const bin = base64ToUint8(base64);
 
         const newInstance = this.fromBinary(bin);
 

@@ -678,7 +678,9 @@ export const hashCredential = async (credential: VaultCredential) => {
         new TextEncoder().encode(data),
     );
 
-    const hashHex = Buffer.from(hash).toString("hex");
+    const hashHex = Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 
     return hashHex;
 };
@@ -829,11 +831,13 @@ export const hashCredentials = async (
     // Generate a hash of the credentials hashes
     const credentialsHash = await crypto.subtle.digest(
         "SHA-1",
-        Buffer.from(concatedHashes),
+        new TextEncoder().encode(concatedHashes),
     );
 
     // Return the hash as a hex string
-    return Buffer.from(credentialsHash).toString("hex");
+    return Array.from(new Uint8Array(credentialsHash))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 };
 
 /**

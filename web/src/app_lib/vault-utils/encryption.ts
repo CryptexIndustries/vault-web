@@ -1,6 +1,7 @@
 import * as sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "../proto/vault";
 import { err, ok } from "neverthrow";
+import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
 
 export class KeyDerivationConfig_PBKDF2
     implements VaultUtilTypes.KeyDerivationConfigPBKDF2
@@ -377,8 +378,8 @@ class AES {
                 ? (keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2)
                 : null,
             encryptedBlob,
-            Buffer.from(salt).toString("base64"),
-            Buffer.from(iv).toString("base64"),
+            uint8ToBase64(salt),
+            uint8ToBase64(iv),
         );
     }
 
@@ -395,8 +396,8 @@ class AES {
         }
 
         const encryptedBlob = blob.Blob;
-        const salt = Buffer.from(blob.Salt, "base64");
-        const iv = Buffer.from(blob.HeaderIV, "base64");
+        const salt = base64ToUint8(blob.Salt);
+        const iv = base64ToUint8(blob.HeaderIV);
 
         // These hold the derived key and the configuration for the key derivation function
         let derivedKey: CryptoKey;
@@ -506,8 +507,8 @@ class XChaCha20Poly1305 {
                 ? (keyDerivationFuncConfig as KeyDerivationConfig_PBKDF2)
                 : null,
             c1,
-            Buffer.from(salt).toString("base64"),
-            Buffer.from(header).toString("base64"),
+            uint8ToBase64(salt),
+            uint8ToBase64(header),
         );
     }
 
@@ -526,8 +527,8 @@ class XChaCha20Poly1305 {
         await sodium.ready;
 
         const c1 = encryptedBlob.Blob;
-        const salt = Buffer.from(encryptedBlob.Salt, "base64");
-        const header = Buffer.from(encryptedBlob.HeaderIV, "base64");
+        const salt = base64ToUint8(encryptedBlob.Salt);
+        const header = base64ToUint8(encryptedBlob.HeaderIV);
 
         let key: Uint8Array;
 

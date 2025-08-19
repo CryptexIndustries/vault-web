@@ -14,6 +14,7 @@ import {
 } from "./form-schemas";
 import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
 import { err, ok } from "neverthrow";
+import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
 
 export interface VaultMetadataInterface {
     id?: number;
@@ -405,7 +406,7 @@ const manualBackup = async (encryptedBlob: EncryptedBlob) => {
     const a = document.createElement("a");
 
     a.href = url;
-    a.download = `cryptexvault-bk-${Date.now()}.cryx`;
+    a.download = `cryptexvault-bk-${Date.now()}.${BACKUP_FILE_EXTENSION}`;
     a.click();
     URL.revokeObjectURL(url);
 };

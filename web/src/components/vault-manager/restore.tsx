@@ -11,6 +11,7 @@ import {
     VaultRestoreFormSchema,
 } from "@/app_lib/vault-utils/form-schemas";
 import { Textarea } from "../ui/textarea";
+import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
 
 const RestoreTab: React.FC<{
     executeCallback: (formData: VaultRestoreFormSchema) => Promise<boolean>;
@@ -28,7 +29,6 @@ const RestoreTab: React.FC<{
         defaultValues: {
             Name: `Restored Vault ${new Date().toLocaleString()}`,
             Description: "",
-            Secret: "",
             BackupFile: undefined,
         },
     });
@@ -70,14 +70,16 @@ const RestoreTab: React.FC<{
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="restore-backup-file">Backup File (.cryx)</Label>
+                <Label htmlFor="restore-backup-file">
+                    Backup File (*.{BACKUP_FILE_EXTENSION})
+                </Label>
                 <div
                     className={cn(
                         "relative rounded-lg border-2 border-dashed p-6 transition-colors",
                         watch("BackupFile")! instanceof File
                             ? "border-green-500 bg-green-50 dark:bg-green-950/20"
                             : "border-muted-foreground/25 hover:border-muted-foreground/50",
-                        "focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20",
+                        "focus-within:border-primary focus-within:ring-primary/20 focus-within:ring-2",
                     )}
                     onDragOver={(e) => {
                         e.preventDefault();
@@ -101,11 +103,11 @@ const RestoreTab: React.FC<{
                         );
 
                         const files = Array.from(e.dataTransfer.files);
-                        const cryxFile = files.find((file) =>
-                            file.name.endsWith(".cryx"),
+                        const backupFile = files.find((file) =>
+                            file.name.endsWith(`.${BACKUP_FILE_EXTENSION}`),
                         );
 
-                        if (cryxFile) setValue("BackupFile", cryxFile);
+                        if (backupFile) setValue("BackupFile", backupFile);
                     }}
                 >
                     <Controller
@@ -115,7 +117,7 @@ const RestoreTab: React.FC<{
                             <input
                                 id="restore-backup-file"
                                 type="file"
-                                accept=".cryx"
+                                accept={`.${BACKUP_FILE_EXTENSION}`}
                                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                                 onChange={(e) => {
                                     field.onChange(e.target.files?.[0] ?? null);
@@ -156,15 +158,16 @@ const RestoreTab: React.FC<{
                             </>
                         ) : (
                             <>
-                                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                                    <UploadCloud className="h-6 w-6 text-muted-foreground" />
+                                <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
+                                    <UploadCloud className="text-muted-foreground h-6 w-6" />
                                 </div>
-                                <p className="mb-1 text-sm font-medium text-foreground">
-                                    Drop your .cryx file here, or click to
-                                    browse
+                                <p className="text-foreground mb-1 text-sm font-medium">
+                                    Drop your .{BACKUP_FILE_EXTENSION} file
+                                    here, or click to browse
                                 </p>
-                                <p className="text-xs text-muted-foreground">
-                                    Only .cryx vault backup files are supported
+                                <p className="text-muted-foreground text-xs">
+                                    Only .{BACKUP_FILE_EXTENSION} vault backup
+                                    files are supported
                                 </p>
                             </>
                         )}
@@ -173,22 +176,6 @@ const RestoreTab: React.FC<{
                 {errors.BackupFile && (
                     <p className="text-destructive-foreground">
                         {errors.BackupFile.message}
-                    </p>
-                )}
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="restore-secret-key">Secret Key</Label>
-                <FormInput
-                    id="restore-secret-key"
-                    type="password"
-                    placeholder="Enter the vault's secret key"
-                    className="pr-10"
-                    {...register("Secret")}
-                />
-                {errors.Secret && (
-                    <p className="text-destructive-foreground">
-                        {errors.Secret.message}
                     </p>
                 )}
             </div>

@@ -3322,10 +3322,45 @@ const QRCode: React.FC<{
     clickCallback?: () => void;
 }> = ({ value, clickCallback }) => {
     const DynamicQRCode = dynamic(() => import("react-qr-code"));
+    const [copied, setCopied] = useState(false);
+
+    const handleClick = async () => {
+        try {
+            if (clickCallback) {
+                clickCallback();
+            } else {
+                await navigator.clipboard.writeText(value);
+                toast.info("QR data copied to clipboard");
+            }
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        } catch (e) {
+            toast.error("Failed to copy QR data to clipboard");
+        }
+    };
 
     return (
         <Suspense fallback={<Spinner />}>
-            <DynamicQRCode value={value} onClick={clickCallback} />
+            <div
+                className="group relative inline-flex flex-col items-center"
+                aria-label="QR code. Click to copy base64 data to clipboard"
+            >
+                <div className="cursor-pointer select-none rounded-lg border bg-white p-2 shadow-sm transition hover:shadow-md active:scale-[0.99] dark:bg-slate-900">
+                    <DynamicQRCode value={value} onClick={handleClick} />
+                </div>
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {copied ? "Copied!" : "Click the QR to copy base64 data"}
+                </div>
+                <div
+                    className={clsx(
+                        "pointer-events-none absolute inset-0 flex items-center justify-center",
+                        copied ? "opacity-100" : "opacity-0",
+                        "transition-opacity duration-200",
+                    )}
+                >
+                    <CheckCircleIcon className="h-12 w-12 text-green-500 drop-shadow" />
+                </div>
+            </div>
         </Suspense>
     );
 };

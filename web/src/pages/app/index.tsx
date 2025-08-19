@@ -149,6 +149,7 @@ import {
     TOTPConstants,
     CredentialConstants,
     LINK_FILE_EXTENSION,
+    BACKUP_FILE_EXTENSION,
 } from "../../utils/consts";
 import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
@@ -2548,11 +2549,23 @@ const VaultSettingsDialog: React.FC<{
                 throw new Error("Vault metadata or blob cannot be null.");
             }
 
-            await Storage.trigger(
-                Storage.Type.Manual,
+            const serializedData = await Storage.serializeVault(
                 unlockedVault,
                 vaultMetadata.Blob,
             );
+
+            // Dump the data into a blob
+            const blob = new Blob([serializedData], {
+                type: "application/octet-stream",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+
+            // Trigger the file download by simulating an anchor tag click
+            a.href = url;
+            a.download = `cryptexvault-bk-${Date.now()}.${BACKUP_FILE_EXTENSION}`;
+            a.click();
+            URL.revokeObjectURL(url);
 
             toast.success("Vault backup complete", {
                 autoClose: 3000,

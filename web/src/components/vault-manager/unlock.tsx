@@ -16,7 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LoaderCircle, Trash2, Unlock } from "lucide-react";
+import { Edit2, LoaderCircle, Trash2, Unlock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -31,6 +31,8 @@ import {
     KeyDerivationConfig_PBKDF2,
 } from "../../app_lib/vault-utils/encryption";
 import {
+    EditVaultFormSchemaType,
+    editVaultFormSchema,
     EncryptionFormGroupSchemaType,
     encryptionFormGroupSchema,
 } from "../../app_lib/vault-utils/form-schemas";
@@ -46,6 +48,15 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "../ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "../ui/dialog";
+import { Textarea } from "../ui/textarea";
 
 const LOCAL_STORAGE_LAST_SELECTED_VAULT = "last-selected-vault";
 
@@ -74,6 +85,9 @@ const UnlockTab: React.FC<{
         useState("");
     const [isVaultDeleting, setIsVaultDeleting] = useState(false);
     const [isVaultDeletingError, setIsVaultDeletingError] = useState(false);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isVaultUpdating, setIsVaultUpdating] = useState(false);
+    const [isVaultUpdatingError, setIsVaultUpdatingError] = useState(false);
 
     const {
         handleSubmit,
@@ -96,6 +110,70 @@ const UnlockTab: React.FC<{
             },
         },
     });
+
+    const {
+        handleSubmit: handleEditSubmit,
+        register: registerEdit,
+        formState: { errors: editErrors },
+        reset: resetEditForm,
+        setValue: setEditValue,
+    } = useForm<EditVaultFormSchemaType>({
+        resolver: zodResolver(editVaultFormSchema),
+        defaultValues: {
+            Name: "",
+            Description: "",
+        },
+    });
+
+    const openEditDialog = () => {
+        const selectedVaultData = vaults?.find(
+            (i) => i.DBIndex?.toString() === selectedVault,
+        );
+
+        if (!selectedVaultData) return;
+
+        // Set the form values to the current vault data
+        setEditValue("Name", selectedVaultData.Name);
+        setEditValue("Description", selectedVaultData.Description);
+
+        setIsEditDialogOpen(true);
+    };
+
+    const handleVaultUpdate = async (formData: EditVaultFormSchemaType) => {
+        if (isVaultUpdating) return;
+
+        const selectedVaultData = vaults?.find(
+            (i) => i.DBIndex?.toString() === selectedVault,
+        );
+
+        if (!selectedVaultData) return;
+
+        setIsVaultUpdating(true);
+        setIsVaultUpdatingError(false);
+
+        try {
+            // Update the vault metadata
+            selectedVaultData.Name = formData.Name;
+            selectedVaultData.Description = formData.Description;
+
+            // Save the updated metadata (passing null as vault instance to only update metadata)
+            await selectedVaultData.save(null);
+
+            // Update the display name
+            setSelectedVaultDisplayName(formData.Name);
+
+            // Close the dialog
+            setIsEditDialogOpen(false);
+
+            // Reset the form
+            resetEditForm();
+        } catch (e) {
+            console.error("Error updating vault:", e);
+            setIsVaultUpdatingError(true);
+        } finally {
+            setIsVaultUpdating(false);
+        }
+    };
 
     const setSelectedVault = (value: string) => {
         _setSelectedVault(value);
@@ -248,16 +326,16 @@ const UnlockTab: React.FC<{
                             ))}
                         </SelectContent>
                     </Select>
-                    {/* <Button
+                    <Button
                         size="sm"
                         variant="ghost"
-                        // onClick={() => handleEditVault(selectedVault)}
-                        // disabled={operationStatus.status === "loading"}
+                        onClick={openEditDialog}
+                        disabled={isVaultDeleting || isDecrypting || isVaultUpdating}
                         className="h-8 w-8 p-0"
                     >
                         <Edit2 className="h-4 w-4" />
                         <span className="sr-only">Edit vault "{selectedVaultDisplayName}"</span>
-                    </Button> */}
+                    </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button
@@ -315,6 +393,83 @@ const UnlockTab: React.FC<{
                         </AlertDialogContent>
                     </AlertDialog>
                 </div>
+
+                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Edit Vault</DialogTitle>
+                            <DialogDescription>
+                                Make changes to your vault information here. Click save when you're done.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleEditSubmit(handleVaultUpdate)}>
+                            <div className="flex flex-col gap-4 py-4">
+                                <div className="flex items-center gap-4">
+                                    <Label htmlFor="edit-name" className="w-24 text-right flex-shrink-0">
+                                        Name *
+                                    </Label>
+                                    <div className="w-full">
+                                    <FormInput
+                                        id="edit-name"
+                                        type="text"
+                                        placeholder="Vault name"
+                                        className="flex-1 w-full"
+                                        {...registerEdit("Name")}
+                                    />
+                                    </div>
+                                </div>
+                                {editErrors.Name && (
+                                    <p className="text-destructive-foreground ml-28">
+                                        {editErrors.Name.message}
+                                    </p>
+                                )}
+                                <div className="flex items-start gap-4">
+                                    <Label htmlFor="edit-description" className="w-24 text-right flex-shrink-0 mt-2">
+                                        Description
+                                    </Label>
+                                    <Textarea
+                                        id="edit-description"
+                                        placeholder="Vault description (optional)"
+                                        className="w-full pr-10"
+                                        {...registerEdit("Description")}
+                                    />
+                                </div>
+                                {editErrors.Description && (
+                                    <p className="text-destructive-foreground ml-28">
+                                        {editErrors.Description.message}
+                                    </p>
+                                )}
+                                {isVaultUpdatingError && (
+                                    <p className="text-destructive-foreground ml-28">
+                                        There was an error updating the vault. Please try again. There is more information in the console.
+                                    </p>
+                                )}
+                            </div>
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsEditDialogOpen(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isVaultUpdating}
+                                >
+                                    {isVaultUpdating ? (
+                                        <span className="flex items-center">
+                                            <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin text-white" />
+                                            Saving...
+                                        </span>
+                                    ) : (
+                                        "Save Changes"
+                                    )}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="space-y-2">

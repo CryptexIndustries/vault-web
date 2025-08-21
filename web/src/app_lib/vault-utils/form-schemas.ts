@@ -82,6 +82,12 @@ export const newVaultFormSchema = z.object({
 });
 export type NewVaultFormSchemaType = z.infer<typeof newVaultFormSchema>;
 
+export const editVaultFormSchema = z.object({
+    Name: z.string().min(1, REQUIRED_FIELD_ERROR).max(255, "Name is too long"),
+    Description: z.string().max(500, "Description is too long"),
+});
+export type EditVaultFormSchemaType = z.infer<typeof editVaultFormSchema>;
+
 export const vaultRestoreFormSchema = z.object({
     Name: z.string().min(1, REQUIRED_FIELD_ERROR),
     Description: z.string(),

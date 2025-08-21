@@ -97,6 +97,7 @@ const UnlockTab: React.FC<{
         reset: resetForm,
         watch,
         setFocus,
+        setValue,
     } = useForm<EncryptionFormGroupSchemaType>({
         resolver: zodResolver(encryptionFormGroupSchema),
         defaultValues: {
@@ -480,6 +481,7 @@ const UnlockTab: React.FC<{
                     placeholder="Enter your secret key"
                     className="pr-10"
                     {...register("Secret")}
+                    setValue={(value) => setValue("Secret", value)}
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             handleSubmit(tryUnlock)();

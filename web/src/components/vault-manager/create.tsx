@@ -44,6 +44,7 @@ const CreateVaultTab: React.FC<{
         handleSubmit,
         control,
         register,
+        setValue,
         formState: { errors, isSubmitting },
         watch,
     } = useForm<NewVaultFormSchemaType & EncryptionFormGroupSchemaType>({
@@ -113,6 +114,7 @@ const CreateVaultTab: React.FC<{
                     placeholder="Enter your secret key"
                     className="pr-10"
                     {...register("Secret")}
+                    setValue={(value) => setValue("Secret", value)}
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             handleSubmit(tryCreateVault)();

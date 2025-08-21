@@ -9,7 +9,8 @@ import {
 } from "@heroicons/react/20/solid";
 import clsx from "clsx";
 import { Input } from "../ui/input";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Shield } from "lucide-react";
+import { PasswordGeneratorDialog } from "../ui/password-generator";
 
 export const ClipboardButton = ({ value }: { value?: string }) => {
     const saveToClipboard = async (value?: string) => {
@@ -372,39 +373,81 @@ export const FormInputCheckbox: React.FC<{
 
 export const FormInput = React.forwardRef<
     HTMLInputElement,
-    React.ComponentPropsWithoutRef<"input">
->(({ className, type, ...props }, ref) => {
+    React.ComponentPropsWithoutRef<"input"> & {
+        setValue?: (value: string) => void;
+    }
+>(({ className, type, onChange, value, setValue, ...props }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false);
+    const [showGeneratorDialog, setShowGeneratorDialog] = React.useState(false);
 
     const classes = React.useMemo(() => {
         return clsx({
             className: true,
             "font-mono": type === "password" && showPassword,
-            "pr-8": true,
+            "pr-16": type === "password", // Extra padding for two buttons (eye + generator)
         });
     }, [type, className, showPassword]);
 
+    const handlePasswordSelect = (password: string) => {
+        if (setValue) {
+            // Use setValue if provided (React Hook Form)
+            setValue(password);
+        } else {
+            // Fallback to synthetic event
+            const event = {
+                target: {
+                    value: password,
+                },
+            } as React.ChangeEvent<HTMLInputElement>;
+            onChange?.(event);
+        }
+    };
+
     return (
-        <div className="relative">
-            <Input
-                className={classes}
-                type={showPassword ? "text" : type}
-                ref={ref}
-                {...props}
-            />
-            {type === "password" && (
-                <button
-                    className="absolute right-2 top-2"
-                    onClick={() => setShowPassword(!showPassword)}
-                >
-                    {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-muted-foreground" />
-                    ) : (
-                        <Eye className="h-5 w-5 text-muted-foreground" />
-                    )}
-                </button>
-            )}
-        </div>
+        <>
+            <div className="relative">
+                <Input
+                    className={classes}
+                    type={showPassword ? "text" : type}
+                    ref={ref}
+                    value={value}
+                    onChange={onChange}
+                    {...props}
+                />
+                {type === "password" && (
+                    <>
+                        <button
+                            className="absolute right-2 top-2"
+                            onClick={() => setShowPassword(!showPassword)}
+                            type="button"
+                        >
+                            {showPassword ? (
+                                <EyeOff className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                            ) : (
+                                <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                            )}
+                        </button>
+                        <button
+                            className="absolute right-10 top-2"
+                            onClick={() => setShowGeneratorDialog(true)}
+                            type="button"
+                            title="Generate password"
+                        >
+                            <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                        </button>
+                    </>
+                )}
+            </div>
+            {
+                type === "password" && (
+                    <PasswordGeneratorDialog
+                        open={showGeneratorDialog}
+                        onOpenChange={setShowGeneratorDialog}
+                        onPasswordSelect={setValue ? handlePasswordSelect : undefined}
+                    />
+                )
+            }
+        </>
     );
 });
 FormInput.displayName = "FormInput";

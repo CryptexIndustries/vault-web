@@ -1,10 +1,9 @@
-import { err, ok } from "neverthrow";
+import { err, ok, type Result } from "neverthrow";
 import PusherAuth from "pusher";
 import Pusher, { type Channel } from "pusher-js";
 import { ulid } from "ulidx";
 
 import { env } from "../env/client.mjs";
-import { vaultGet, vaultGetLinkedDevices } from "../utils/atoms";
 import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
 import { createAuthHeader, trpc } from "../utils/trpc";
 import * as VaultUtilTypes from "./proto/vault";
@@ -27,7 +26,20 @@ import {
     credentialsAsDiffs,
     getDiffsSinceHash,
     hashCredentials,
+    type Vault,
 } from "./vault-utils/vault";
+
+/**
+ * Interface for vault operations that the VaultItemSynchronization class needs
+ */
+export interface VaultOperations {
+    getVault(): Vault;
+    getCredentials(): VaultUtilTypes.Credential[];
+    updateCredentials(credentials: VaultUtilTypes.Credential[]): void;
+    updateDiffs(diffs: VaultUtilTypes.Diff[]): void;
+    saveVault(vault: Vault): Promise<void>;
+    getSynchronizationConfig(): VaultUtilTypes.LinkedDevices;
+}
 
 const onlineServicesSTUN = [
     // {
@@ -248,7 +260,16 @@ export class SyncConnectionController {
     // Map<deviceID, handler>
     private _syncWebRTCEventHandlers: Map<string, SCCWebRTCEventHandler>;
 
-    constructor() {
+    // Vault operations interface
+    private _vaultOperations: VaultOperations;
+
+    // Vault item synchronization handler
+    private _vaultItemSynchronization: VaultItemSynchronization;
+
+    constructor(vaultOperations: VaultOperations) {
+        this._vaultOperations = vaultOperations;
+        this._vaultItemSynchronization = new VaultItemSynchronization(vaultOperations, this);
+
         this._signalingServers = new Map();
         this._signalingServerConnectionStatus = new Map();
 
@@ -723,8 +744,7 @@ export class SyncConnectionController {
                     event,
                 );
 
-                VaultItemSynchronization.onDataChannelMessage(
-                    this,
+                this._vaultItemSynchronization.onDataChannelMessage(
                     device.ID,
                     dataChannel,
                     event,
@@ -783,7 +803,7 @@ export class SyncConnectionController {
             (signalingServerConn.connection.state !== "connecting" &&
                 signalingServerConn.connection.state !== "connected")
         ) {
-            const linkedDevicesConfig = vaultGetLinkedDevices();
+            const linkedDevicesConfig = this._vaultOperations.getSynchronizationConfig();
             const signalingServerConfig =
                 linkedDevicesConfig.SignalingServers.find(
                     (i) => i.ID === device.SignalingServerID,
@@ -830,7 +850,7 @@ export class SyncConnectionController {
             this._teardownWebRTCConnection(device.ID, existingWebRTC);
         }
 
-        const linkedDevicesConfig = vaultGetLinkedDevices();
+        const linkedDevicesConfig = this._vaultOperations.getSynchronizationConfig();
 
         const channelName = constructSyncChannelName(
             linkedDevicesConfig.CreationTimestamp,
@@ -872,7 +892,7 @@ export class SyncConnectionController {
 
         // Check if the signaling server is used for anything, if not - tear the connection down
         if (signalingServer) {
-            const linkedDevicesConfig = vaultGetLinkedDevices();
+            const linkedDevicesConfig = this._vaultOperations.getSynchronizationConfig();
 
             // Get all devices specifying the same Signaling server
             const linkedDevicesUsingSS = linkedDevicesConfig.Devices.filter(
@@ -1131,11 +1151,11 @@ export class SyncConnectionController {
             return;
         }
 
-        VaultItemSynchronization.transmitSyncRequest(dataChannel);
+        this._vaultItemSynchronization.transmitSyncRequest(dataChannel);
     }
 
     public async applyManualSynchronization(diffs: VaultUtilTypes.Diff[]) {
-        return await VaultItemSynchronization.applyDiffsToVault(diffs);
+        return await this._vaultItemSynchronization.applyDiffsToVault(diffs);
     }
 
     public transmitManualSyncSolve(
@@ -1164,51 +1184,58 @@ export class SyncConnectionController {
             return;
         }
 
-        VaultItemSynchronization.transmitManualSyncSolve(
+        this._vaultItemSynchronization.transmitManualSyncSolve(
             dataChannel,
             preparedDiffs,
         );
     }
 }
 
+/**
+ * Handles vault item synchronization operations using callbacks instead of global state
+ */
 class VaultItemSynchronization {
-    private static getVaultCredentials() {
-        return vaultGet().Credentials;
+    private readonly vaultOps: VaultOperations;
+    private readonly context: SyncConnectionController;
+
+    constructor(vaultOperations: VaultOperations, context: SyncConnectionController) {
+        this.vaultOps = vaultOperations;
+        this.context = context;
     }
 
-    private static async getLastestVaultHash() {
+    private getVaultCredentials(): VaultUtilTypes.Credential[] {
+        return this.vaultOps.getCredentials();
+    }
+
+    private async getLatestVaultHash(): Promise<string> {
         const creds = this.getVaultCredentials();
         return await hashCredentials(creds);
     }
 
-    private static updateLastSync(
-        context: SyncConnectionController,
-        deviceID: string,
-    ) {
+    private updateLastSync(deviceID: string): void {
         // The actual device object field is modified by the Device UI component
-        context.broadcastWebRTCSynchronizedEvent(deviceID);
+        this.context.broadcastWebRTCSynchronizedEvent(deviceID);
     }
 
-    private static updateCredentialsList(
-        context: SyncConnectionController,
+    private updateCredentialsList(
         deviceID: string,
         credentials: VaultUtilTypes.Credential[],
         diffs: VaultUtilTypes.Diff[],
-    ) {
-        context.broadcastVaultDataUpdate(deviceID, {
+    ): void {
+        this.context.broadcastVaultDataUpdate(deviceID, {
             credentials,
             diffs,
         });
     }
 
-    public static async applyDiffsToVault(diffs: VaultUtilTypes.Diff[]) {
-        const currVault = vaultGet();
+    public async applyDiffsToVault(diffs: VaultUtilTypes.Diff[]): Promise<Result<{credentials: VaultUtilTypes.Credential[], diffs: VaultUtilTypes.Diff[]}, string>> {
+        const currVault = this.vaultOps.getVault();
         const res = await applyDiffs(currVault.Credentials, diffs);
         if (res.isErr()) return err(res.error);
 
-        // FIXME: We should apply the changes to the appropriate atoms, that way we cause a proper rerender
-        currVault.Credentials = [...res.value.credentials];
-        currVault.Diffs = [...currVault.Diffs, ...res.value.diffs];
+        // Update the vault through callbacks
+        this.vaultOps.updateCredentials([...res.value.credentials]);
+        this.vaultOps.updateDiffs([...currVault.Diffs, ...res.value.diffs]);
 
         return ok({
             credentials: res.value.credentials,
@@ -1216,12 +1243,12 @@ class VaultItemSynchronization {
         });
     }
 
-    public static async transmitSyncRequest(dataChannel: RTCDataChannel) {
+    public async transmitSyncRequest(dataChannel: RTCDataChannel): Promise<void> {
         // Serialize the message and send it to the remote device
         const message = new VaultItemSynchronizationMessage(
             null,
             VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncRequest,
-            await this.getLastestVaultHash(),
+            await this.getLatestVaultHash(),
             [],
             [],
         );
@@ -1229,26 +1256,25 @@ class VaultItemSynchronization {
         dataChannel.send(message.serialize());
     }
 
-    public static async transmitManualSyncSolve(
+    public async transmitManualSyncSolve(
         dataChannel: RTCDataChannel,
         preparedDiffs: VaultUtilTypes.Diff[],
-    ) {
+    ): Promise<void> {
         const message = new VaultItemSynchronizationMessage(
             null,
             VaultUtilTypes.VaultItemSynchronizationMessageCommand.ManualSyncSolve,
-            await this.getLastestVaultHash(),
+            await this.getLatestVaultHash(),
             preparedDiffs,
         );
 
         dataChannel.send(message.serialize());
     }
 
-    public static async onDataChannelMessage(
-        context: SyncConnectionController,
+    public async onDataChannelMessage(
         deviceID: string,
         dataChannel: RTCDataChannel,
         event: MessageEvent,
-    ) {
+    ): Promise<void> {
         const deserializedMessage = VaultItemSynchronizationMessage.deserialize(
             event.data,
         );
@@ -1276,7 +1302,7 @@ class VaultItemSynchronization {
             return;
         }
 
-        const currentVaultHash = await this.getLastestVaultHash();
+        const currentVaultHash = await this.getLatestVaultHash();
 
         if (
             deserializedMessage.Command ===
@@ -1293,7 +1319,7 @@ class VaultItemSynchronization {
                 );
 
                 dataChannel.send(message.serialize());
-                this.updateLastSync(context, deviceID);
+                this.updateLastSync(deviceID);
                 return;
             }
 
@@ -1305,7 +1331,7 @@ class VaultItemSynchronization {
                 );
 
                 if (mockedVault.isErr()) {
-                    context.broadcastWebRTCMessageEvent(
+                    this.context.broadcastWebRTCMessageEvent(
                         deviceID,
                         WebRTCMessageEventType.Error,
                         deserializedMessage,
@@ -1323,7 +1349,7 @@ class VaultItemSynchronization {
                         deserializedMessage.Diffs,
                     );
                     if (applyRes.isErr()) {
-                        context.broadcastWebRTCMessageEvent(
+                        this.context.broadcastWebRTCMessageEvent(
                             deviceID,
                             WebRTCMessageEventType.Error,
                             deserializedMessage,
@@ -1332,12 +1358,11 @@ class VaultItemSynchronization {
                         return;
                     }
                     this.updateCredentialsList(
-                        context,
                         deviceID,
                         applyRes.value.credentials,
                         applyRes.value.diffs,
                     );
-                    this.updateLastSync(context, deviceID);
+                    this.updateLastSync(deviceID);
 
                     // Send a SyncRequest message to the other device so that it updates the last sync date
                     await this.transmitSyncRequest(dataChannel);
@@ -1346,7 +1371,7 @@ class VaultItemSynchronization {
                         "[SCC - Verbose WebRTC] Received sync request - test apply failed",
                     );
 
-                    context.broadcastWebRTCMessageEvent(
+                    this.context.broadcastWebRTCMessageEvent(
                         deviceID,
                         WebRTCMessageEventType.Error,
                         deserializedMessage,
@@ -1359,7 +1384,7 @@ class VaultItemSynchronization {
             // Sync case 2 - we're ahead - try to find the differences
             const differences = getDiffsSinceHash(
                 deserializedMessage.Hash,
-                vaultGet().Diffs,
+                this.vaultOps.getVault().Diffs,
             );
             // Sync case 2 - If we find any differences, we're ahead
             if (differences.length > 0) {
@@ -1394,7 +1419,7 @@ class VaultItemSynchronization {
                 "[SCC - Verbose WebRTC] Received ManualSyncDataRequest data",
             );
 
-            context.broadcastWebRTCMessageEvent(
+            this.context.broadcastWebRTCMessageEvent(
                 deviceID,
                 WebRTCMessageEventType.ManualSyncNecessary,
                 deserializedMessage,
@@ -1417,7 +1442,7 @@ class VaultItemSynchronization {
                 );
 
                 // Update the last sync date
-                this.updateLastSync(context, deviceID);
+                this.updateLastSync(deviceID);
                 return;
             }
 
@@ -1429,7 +1454,7 @@ class VaultItemSynchronization {
             if (!deserializedMessage.Diffs.length) {
                 const differences = getDiffsSinceHash(
                     deserializedMessage.Hash,
-                    vaultGet().Diffs,
+                    this.vaultOps.getVault().Diffs,
                 );
 
                 if (differences.length) {
@@ -1460,7 +1485,7 @@ class VaultItemSynchronization {
             );
 
             if (mockedVault.isErr()) {
-                context.broadcastWebRTCMessageEvent(
+                this.context.broadcastWebRTCMessageEvent(
                     deviceID,
                     WebRTCMessageEventType.Error,
                     deserializedMessage,
@@ -1478,7 +1503,7 @@ class VaultItemSynchronization {
                     deserializedMessage.Diffs,
                 );
                 if (applyRes.isErr()) {
-                    context.broadcastWebRTCMessageEvent(
+                    this.context.broadcastWebRTCMessageEvent(
                         deviceID,
                         WebRTCMessageEventType.Error,
                         deserializedMessage,
@@ -1487,12 +1512,11 @@ class VaultItemSynchronization {
                     return;
                 }
                 this.updateCredentialsList(
-                    context,
                     deviceID,
                     applyRes.value.credentials,
                     applyRes.value.diffs,
                 );
-                this.updateLastSync(context, deviceID);
+                this.updateLastSync(deviceID);
 
                 // Send a SyncRequest message to the other device so that it updates the last sync date
                 await this.transmitSyncRequest(dataChannel);
@@ -1501,7 +1525,7 @@ class VaultItemSynchronization {
                     "[SCC - Verbose WebRTC] Received sync response - test apply failed",
                 );
 
-                context.broadcastWebRTCMessageEvent(
+                this.context.broadcastWebRTCMessageEvent(
                     deviceID,
                     WebRTCMessageEventType.Error,
                     deserializedMessage,
@@ -1537,7 +1561,7 @@ class VaultItemSynchronization {
             );
 
             if (mockedVault.isErr()) {
-                context.broadcastWebRTCMessageEvent(
+                this.context.broadcastWebRTCMessageEvent(
                     deviceID,
                     WebRTCMessageEventType.Error,
                     deserializedMessage,
@@ -1555,7 +1579,7 @@ class VaultItemSynchronization {
                     deserializedMessage.Diffs,
                 );
                 if (applyRes.isErr()) {
-                    context.broadcastWebRTCMessageEvent(
+                    this.context.broadcastWebRTCMessageEvent(
                         deviceID,
                         WebRTCMessageEventType.Error,
                         deserializedMessage,
@@ -1564,12 +1588,11 @@ class VaultItemSynchronization {
                     return;
                 }
                 this.updateCredentialsList(
-                    context,
                     deviceID,
                     applyRes.value.credentials,
                     applyRes.value.diffs,
                 );
-                this.updateLastSync(context, deviceID);
+                this.updateLastSync(deviceID);
 
                 // Send a SyncRequest message to the other device so that it updates the last sync date
                 await this.transmitSyncRequest(dataChannel);
@@ -1578,7 +1601,7 @@ class VaultItemSynchronization {
                     "[SCC - Verbose WebRTC] Received sync response - test apply failed",
                 );
 
-                context.broadcastWebRTCMessageEvent(
+                this.context.broadcastWebRTCMessageEvent(
                     deviceID,
                     WebRTCMessageEventType.Error,
                     deserializedMessage,

@@ -156,10 +156,43 @@ import { err, ok } from "neverthrow";
 import { Calendar, CircleCheck, CircleX, Link } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog";
 
-const GlobalSyncConnectionController =
-    new Synchronization.SyncConnectionController();
-
 dayjs.extend(RelativeTime);
+
+// Global sync connection controller will be created in the component
+let GlobalSyncConnectionController: Synchronization.SyncConnectionController;
+
+// Vault operations implementation using atoms
+const createVaultOperations = (setUnlockedVault: (vault: Vault.Vault | ((prev: Vault.Vault) => Vault.Vault)) => void, vaultMetadata: Storage.VaultMetadata | null): Synchronization.VaultOperations => {
+    return {
+        getVault: () => vaultGet(),
+        getCredentials: () => vaultGet().Credentials,
+        updateCredentials: (credentials) => {
+            // Update credentials directly using the vault atom
+            const currentVault = vaultGet();
+            currentVault.Credentials = credentials;
+            setUnlockedVault(currentVault);
+        },
+        updateDiffs: (diffs) => {
+            // Update diffs directly using the vault atom
+            const currentVault = vaultGet();
+            currentVault.Diffs = diffs;
+            setUnlockedVault(currentVault);
+        },
+        saveVault: async (vault) => {
+            if (vaultMetadata) {
+                await vaultMetadata.save(vault);
+            }
+        },
+        getSynchronizationConfig: () => {
+            return vaultGet().LinkedDevices;
+        },
+    };
+};
+
+// Create sync connection controller with vault operations
+const createSyncConnectionController = (setUnlockedVault: (vault: Vault.Vault | ((prev: Vault.Vault) => Vault.Vault)) => void, vaultMetadata: Storage.VaultMetadata | null) => {
+    return new Synchronization.SyncConnectionController(createVaultOperations(setUnlockedVault, vaultMetadata));
+};
 
 const useClearOnlineServicesDataAtom = () => {
     const setOnlineServicesData = useSetAtom(onlineServicesDataAtom);
@@ -7299,6 +7332,13 @@ const AppIndex: React.FC = () => {
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
     const refreshOnlineServicesRemoteData = useFetchOnlineServicesData();
+
+    // Create sync connection controller with vault operations
+    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    if (!GlobalSyncConnectionController) {
+        GlobalSyncConnectionController = createSyncConnectionController(setUnlockedVault, vaultMetadata);
+        GlobalSyncConnectionController.init();
+    }
 
     console.debug("MAIN RERENDER", isVaultUnlocked);
 

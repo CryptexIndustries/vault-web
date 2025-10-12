@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["dom", "esnext"],
+        "jsx": "react-jsx",
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "types": ["react", "react-dom"],
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["../web/src/*"],
+            "@ui/*": ["../packages/shared-ui/src/*"],
+            "@cryptex-industries/shared-ui/*": ["../packages/shared-ui/*"],
+            "../env/client.mjs": ["./src/env.ts"],
+            "../../env/client.mjs": ["./src/env.ts"],
+            "@/env/client.mjs": ["./src/env.ts"],
+            "../utils/trpc": ["./src/trpc-ext.ts"],
+            "@/utils/trpc": ["./src/trpc-ext.ts"]
+        }
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "vite-env.d.ts"],
+    "exclude": ["node_modules"]
+}

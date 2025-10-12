@@ -83,10 +83,6 @@ export const linkedDevicesAtom = focusAtom(unlockedVaultAtom, (baseAtom) =>
 export const vaultGet = () => {
     return vaultStore.get(unlockedVaultAtom);
 };
-
-export const vaultGetLinkedDevices = () => {
-    return vaultStore.get(unlockedVaultAtom).LinkedDevices;
-};
 //#endregion Unlocked Vault
 
 export const onlineServicesBoundAtom = selectAtom(unlockedVaultAtom, (vault) =>

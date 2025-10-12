@@ -1,0 +1,19 @@
+@import url("../../web/src/styles/globals.css");
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  width: 360px;
+  min-height: 480px;
+}
+
+.dark {
+  height: 100vh;
+}
+
+/* First child of dark will be the full height of the window */
+.dark > :first-child {
+  height: 100%;
+}

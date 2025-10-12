@@ -1,0 +1,19 @@
+{
+    "manifest_version": 3,
+    "name": "Cryptex Vault Extension",
+    "version": "0.1.0",
+    "description": "Browser extension for Cryptex Vault: Decentralized password manager.",
+    "action": {
+        "default_popup": "/popup.html",
+        "default_title": "Cryptex Vault"
+    },
+    "background": {
+        "service_worker": "/background.js",
+        "type": "module"
+    },
+    "permissions": ["storage", "alarms"],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
+    "host_permissions": ["https://*/*", "http://*/*"]
+}

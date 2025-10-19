@@ -21,13 +21,23 @@ export interface VaultMetadataInterface {
     data: Uint8Array;
 }
 
+export interface KeyPairInterface {
+    keyId: string;
+    createdAt: string;
+    status: "active" | "decommission";
+    privateKey: CryptoKey;
+    publicKeyJwk: JsonWebKey;
+}
+
 export class VaultMetadataDatabase extends Dexie {
     public vaults!: Dexie.Table<VaultMetadataInterface, number>;
+    public keyPairs!: Dexie.Table<KeyPairInterface, string>;
 
     constructor() {
         super("vaultDB");
-        this.version(1).stores({
+        this.version(2).stores({
             vaults: "++id, data",
+            keyPairs: "keyId, createdAt, status",
         });
     }
 }

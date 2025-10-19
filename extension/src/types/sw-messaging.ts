@@ -10,6 +10,8 @@ export enum MessageType {
     CreateCredential = 5,
     UpdateCredential = 6,
     DeleteCredential = 7,
+    EnsureOffscreen = 8,
+    GetPublicKey = 9,
 }
 
 // The payload is defined by the message type
@@ -39,6 +41,8 @@ export type MessagePayload = {
     [MessageType.DeleteCredential]: {
         id: string;
     };
+    [MessageType.EnsureOffscreen]: undefined;
+    [MessageType.GetPublicKey]: undefined;
 }
 
 export type LiteCredential = {
@@ -61,6 +65,8 @@ type MessageResponsePayload = {
     [MessageType.CreateCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
     [MessageType.UpdateCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
     [MessageType.DeleteCredential]: { ok: boolean; error?: string };
+    [MessageType.EnsureOffscreen]: { ok: boolean };
+    [MessageType.GetPublicKey]: { ok: boolean; keyId: string; curve: string; publicKeyJwk: JsonWebKey; createdAt: string; error?: string };
 }
 
 // Discriminated unions for better type-narrowing on message handlers
@@ -73,6 +79,8 @@ export type AnyMessage =
     | { type: MessageType.CreateCredential; payload: MessagePayload[MessageType.CreateCredential] }
     | { type: MessageType.UpdateCredential; payload: MessagePayload[MessageType.UpdateCredential] }
     | { type: MessageType.DeleteCredential; payload: MessagePayload[MessageType.DeleteCredential] }
+    | { type: MessageType.EnsureOffscreen; payload: MessagePayload[MessageType.EnsureOffscreen] }
+    | { type: MessageType.GetPublicKey; payload: MessagePayload[MessageType.GetPublicKey] }
 
 export type AnyMessageResponse =
     | { type: -1; payload: MessageResponsePayload[-1] } // Error response
@@ -84,3 +92,30 @@ export type AnyMessageResponse =
     | { type: MessageType.CreateCredential; payload: MessageResponsePayload[MessageType.CreateCredential] }
     | { type: MessageType.UpdateCredential; payload: MessageResponsePayload[MessageType.UpdateCredential] }
     | { type: MessageType.DeleteCredential; payload: MessageResponsePayload[MessageType.DeleteCredential] }
+    | { type: MessageType.EnsureOffscreen; payload: MessageResponsePayload[MessageType.EnsureOffscreen] }
+    | { type: MessageType.GetPublicKey; payload: MessageResponsePayload[MessageType.GetPublicKey] }
+
+// Encrypted envelope structure for secure messaging
+export interface EncryptedEnvelope {
+    type: MessageType;
+    requestId: string;
+    origin: "popup" | "offscreen" | "worker";
+    keyId: string;
+    timestamp: string;
+    payload: {
+        wrappedKey: string; // base64url encoded ephemeral public key
+        ephemeralPub: JsonWebKey;
+        salt: string; // base64url encoded salt
+        ciphertext: string | null; // base64url encoded encrypted data
+        iv: string | null; // base64url encoded IV
+    };
+}
+
+// Plaintext envelope for non-sensitive messages (like GET_PUBLIC_KEY)
+export interface PlaintextEnvelope {
+    type: MessageType;
+    requestId: string;
+    origin: "popup" | "offscreen" | "worker";
+    timestamp: string;
+    payload?: any; // Optional payload for plaintext messages
+}

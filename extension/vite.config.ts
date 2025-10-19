@@ -32,10 +32,12 @@ export default defineConfig({
             input: {
                 popup: path.resolve(__dirname, "popup.html"),
                 background: path.resolve(__dirname, "src/background.ts"),
+                offscreen: path.resolve(__dirname, "offscreen.html"),
             },
             output: {
                 entryFileNames: (chunk) => {
                     if (chunk.name === "background") return "background.js";
+                    if (chunk.name === "offscreen") return "offscreen.js";
                     return "assets/[name]-[hash].js";
                 },
                 chunkFileNames: "assets/[name]-[hash].js",

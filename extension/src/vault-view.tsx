@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TOTP } from "otpauth";
-import { AnyMessageResponse, LiteCredential, MessageType } from "./types/sw-messaging";
+import { AnyMessageResponse, LiteCredential, MessageType, EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
+import { createEncryptedEnvelope, createPlaintextEnvelope, decryptResponseEnvelope, isEncryptedEnvelope } from "./utils/session-utils";
 import { VaultCredential, CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
 import { TOTPFormSchemaType } from "@/app_lib/vault-utils/form-schemas";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
@@ -20,6 +21,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 type VaultViewProps = {
     name: string;
     lockVaultFn: () => void;
+    serverPublicKey: {
+        keyId: string;
+        publicKeyJwk: JsonWebKey;
+    } | null;
+    onStaleKeyError: (retryFn: () => void) => Promise<void>;
 };
 
 type CredentialFormMode = "create" | "edit" | null;
@@ -28,6 +34,8 @@ type CredentialFormMode = "create" | "edit" | null;
 const VaultView: React.FC<VaultViewProps> = ({
     name,
     lockVaultFn,
+    serverPublicKey,
+    onStaleKeyError,
 }) => {
     const [credentials, setCredentials] = useState<LiteCredential[]>([])
     const [credentialFormMode, setCredentialFormMode] = useState<CredentialFormMode>(null)
@@ -331,12 +339,36 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     // Credential CRUD operations
     const createCredential = async (formData: CredentialFormSchemaType) => {
+        if (!serverPublicKey) {
+            console.error("No server public key available for encrypted messaging");
+            return;
+        }
+
         setIsCreating(true);
-        chrome.runtime.sendMessage(
-            { type: MessageType.CreateCredential, payload: { form: formData } },
-            (res: AnyMessageResponse) => {
-                setIsCreating(false);
-                if (res.type === MessageType.CreateCredential && res.payload.ok) {
+        const envelope = await createEncryptedEnvelope(
+            MessageType.CreateCredential,
+            { form: formData },
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup"
+        );
+
+        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
+            setIsCreating(false);
+            if (isEncryptedEnvelope(res)) {
+                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: LiteCredential }>(res);
+
+                if (!decryptedPayload?.ok) {
+                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
+                    return;
+                }
+
+                if (!decryptedPayload.payload) {
+                    console.error("Tried to create a credential, but the response was null");
+                    return;
+                }
+
+                if (decryptedPayload.payload.ok) {
                     // Refresh credentials list
                     refreshCredentials();
                     credentialModalVisible[1](false);
@@ -350,41 +382,85 @@ const VaultView: React.FC<VaultViewProps> = ({
                         Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
                     });
                     reset();
-                } else {
-                    console.error("Failed to create credential:", (res.payload as { ok: false; credential: null; error: string }).error);
-                    // You could add a toast notification here
+                } else if (decryptedPayload.payload.ok === false) {
+                    console.error("Failed to create credential");
+
+                    // FIXME: Log the error and tell the user
                 }
-            },
-        );
+            } else {
+                if (res.payload?.code === "STALE_KEY") {
+                    // Handle key rotation - retry after refreshing key
+                    await onStaleKeyError(() => createCredential(formData));
+                } else {
+                    console.error("Failed to create credential:", res.payload?.error);
+
+                    // FIXME: Log the error and tell the user
+                }
+            }
+        });
     };
 
     const updateCredential = async (id: string, formData: CredentialFormSchemaType) => {
+        if (!serverPublicKey) {
+            console.error("No server public key available for encrypted messaging");
+            return;
+        }
+
         setIsUpdating(true);
-        chrome.runtime.sendMessage(
-            { type: MessageType.UpdateCredential, payload: { id, form: formData } },
-            (res: AnyMessageResponse) => {
-                setIsUpdating(false);
-                if (res.type === MessageType.UpdateCredential && res.payload.ok) {
-                    // Refresh credentials list
-                    refreshCredentials();
-                    credentialModalVisible[1](false);
-                    setCredentialFormMode(null);
-                    setEditingCredential(null);
-                    // Reset TOTP form data to default values
-                    setTotpFormData({
-                        Label: "",
-                        Secret: "",
-                        Period: 30,
-                        Digits: 6,
-                        Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-                    });
-                    reset();
-                } else {
-                    console.error("Failed to update credential:", (res.payload as { ok: false; credential: null; error: string }).error);
-                    // You could add a toast notification here
-                }
-            },
+        const envelope = await createEncryptedEnvelope(
+            MessageType.UpdateCredential,
+            { id, form: formData },
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup"
         );
+
+        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
+            setIsUpdating(false);
+            if (isEncryptedEnvelope(res)) {
+                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: LiteCredential }>(res);
+                if (!decryptedPayload?.ok) {
+                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
+                    return;
+                }
+
+                if (!decryptedPayload.payload) {
+                    console.error("Tried to update a credential, but the response was null");
+                    return;
+                }
+
+                if (decryptedPayload.payload.ok) {
+                // Refresh credentials list
+                refreshCredentials();
+                credentialModalVisible[1](false);
+                setCredentialFormMode(null);
+                setEditingCredential(null);
+                // Reset TOTP form data to default values
+                setTotpFormData({
+                    Label: "",
+                    Secret: "",
+                    Period: 30,
+                    Digits: 6,
+                    Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+                });
+                reset();
+                } else if (decryptedPayload.payload.ok === false) {
+                    console.error("Failed to update credential");
+
+                    // FIXME: Log the error and tell the user
+                }
+                
+            } else {
+                if (res.payload?.code === "STALE_KEY") {
+                    // Handle key rotation - retry after refreshing key
+                    await onStaleKeyError(() => updateCredential(id, formData));
+                } else {
+                    console.error("Failed to update credential:", res.payload?.error);
+
+                    // FIXME: Log the error and tell the user
+                }
+            }
+        });
     };
 
     const deleteCredential = async (id: string) => {
@@ -392,34 +468,91 @@ const VaultView: React.FC<VaultViewProps> = ({
             return;
         }
 
+        if (!serverPublicKey) {
+            console.error("No server public key available for encrypted messaging");
+            return;
+        }
+
         setIsDeleting(true);
-        chrome.runtime.sendMessage(
-            { type: MessageType.DeleteCredential, payload: { id } },
-            (res: AnyMessageResponse) => {
-                setIsDeleting(false);
-                if (res.type === MessageType.DeleteCredential && res.payload.ok) {
+        const envelope = await createEncryptedEnvelope(
+            MessageType.DeleteCredential,
+            { id },
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup"
+        );
+
+        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
+            setIsDeleting(false);
+            if (isEncryptedEnvelope(res)) {
+                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean }>(res);
+                if (!decryptedPayload?.ok) {
+                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
+                    return;
+                }
+
+                if (!decryptedPayload.payload) {
+                    console.error("Tried to delete a credential, but the response was null");
+                    return;
+                }
+
+                if (decryptedPayload.payload.ok) {
                     // Refresh credentials list
                     refreshCredentials();
-                } else {
-                    console.error("Failed to delete credential:", (res.payload as { ok: false; error: string }).error);
-                    // You could add a toast notification here
+                } else if (decryptedPayload.payload.ok === false) {
+                    console.error("Failed to delete credential");
+
+                    // FIXME: Log the error and tell the user
                 }
-            },
-        );
+            } else {
+                if (res.payload?.code === "STALE_KEY") {
+                    // Handle key rotation - retry after refreshing key
+                    await onStaleKeyError(() => deleteCredential(id));
+                } else {
+                    console.error("Failed to delete credential:", res.payload?.error);
+                    // FIXME: Log the error and tell the user
+                }
+            }
+        });
     };
 
-    const refreshCredentials = () => {
+    const refreshCredentials = async () => {
+        if (!serverPublicKey) {
+            console.error("No server public key available for encrypted messaging");
+            return;
+        }
+
         setRefreshing(true);
-        chrome.runtime.sendMessage(
-            { type: MessageType.GetCredentials },
-            (res: AnyMessageResponse) => {
-                setRefreshing(false);
-                if (res.type === MessageType.GetCredentials && res.payload.ok) {
-                    setCredentials(res.payload.credentials);
+        const envelope = await createEncryptedEnvelope(MessageType.GetCredentials, null, serverPublicKey.publicKeyJwk, serverPublicKey.keyId, "popup");
+
+        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
+            if (isEncryptedEnvelope(res)) {
+                const decryptedPayload = await decryptResponseEnvelope<{ credentials: LiteCredential[] }>(res);
+
+                if (!decryptedPayload?.ok) {
+                    console.error("Failed to decrypt credentials:", decryptedPayload?.error);
+                    setRefreshing(false);
+                    return;
                 }
-            },
-        );
+
+                setRefreshing(false);
+                setCredentials(decryptedPayload.payload?.credentials ?? []);
+            } else {
+                if (res.payload?.code === "STALE_KEY") {
+                    // Handle key rotation - retry after refreshing key
+                    await onStaleKeyError(() => refreshCredentials());
+                } else {
+                    console.error("Failed to refresh credentials:", res.payload?.error);
+                }
+            }
+        });
     };
+
+    const testConnectEnsureOffscreen = () => {
+        chrome.runtime.sendMessage({ type: MessageType.EnsureOffscreen, payload: undefined }, (res: AnyMessageResponse) => {
+            console.log("ENSURE SENT", res);
+        });
+    }
 
     const openCreateForm = () => {
         setCredentialFormMode("create");
@@ -449,6 +582,62 @@ const VaultView: React.FC<VaultViewProps> = ({
             DatePasswordChanged: undefined,
             CustomFields: [],
         });
+    };
+
+    const requestCredential = async (id: string) => {
+                                                    if (!serverPublicKey) {
+                                                        console.error("No server public key available for encrypted messaging");
+                                                        return;
+                                                    }
+
+                                                    let envelope: EncryptedEnvelope | PlaintextEnvelope;
+                                                    // First get the full credential data
+                                                    try {
+                                                        envelope = await createEncryptedEnvelope(
+                                                            MessageType.GetCredential,
+                                                            { id: id },
+                                                            serverPublicKey.publicKeyJwk,
+                                                            serverPublicKey.keyId,
+                                                            "popup"
+                                                        );
+                                                    } catch (error) {
+                                                        console.error("Failed to create encrypted envelope:", error);
+                                                        return;
+                                                    }
+
+                                                    chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
+                                                        if (isEncryptedEnvelope(res)) {
+                                                            const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: VaultCredential }>(res);
+
+                                                            if (!decryptedPayload?.ok) {
+                                                                console.error("Failed to decrypt credential:", decryptedPayload?.error);
+                                                                return;
+                                                            }
+
+                                                            const credential = decryptedPayload.payload?.credential;
+                                                            if (credential) {
+                                                                openEditForm(credential);
+                                                            }
+                                                        } else {
+                                                            if (res.payload?.code === "STALE_KEY") {
+                                                                // Handle key rotation - retry after refreshing key
+                                                                await onStaleKeyError(async () => {
+                                                                    const retryEnvelope = await createEncryptedEnvelope(
+                                                                        MessageType.GetCredential,
+                                                                        { id: id },
+                                                                        serverPublicKey.publicKeyJwk,
+                                                                        serverPublicKey.keyId,
+                                                                        "popup"
+                                                                    );
+                                                                    chrome.runtime.sendMessage(retryEnvelope, (retryRes: EncryptedEnvelope | PlaintextEnvelope) => {
+                                                                        if (retryRes.payload?.ok && retryRes.payload.credential) {
+                                                                            openEditForm(retryRes.payload.credential);
+                                                                        }
+                                                                    });
+                                                                });
+                                                            }
+                                                        }
+                                                    });
     };
 
     const openEditForm = (credential: VaultCredential) => {
@@ -510,16 +699,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     useEffect(() => {
-        setRefreshing(true);
-        chrome.runtime.sendMessage(
-            { type: MessageType.GetCredentials },
-            (res: AnyMessageResponse) => {
-                setRefreshing(false);
-                if (res.type === MessageType.GetCredentials && res.payload.ok) {
-                    setCredentials(res.payload.credentials);
-                }
-            },
-        );
+        refreshCredentials();
     }, []);
 
     return (
@@ -592,17 +772,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-36">
                                             <DropdownMenuItem
-                                                onClick={(e: React.MouseEvent) => {
+                                                onClick={async (e: React.MouseEvent) => {
                                                     e.stopPropagation();
-                                                    // First get the full credential data
-                                                    chrome.runtime.sendMessage(
-                                                        { type: MessageType.GetCredential, payload: { id: credential.id } },
-                                                        (res: AnyMessageResponse) => {
-                                                            if (res.type === MessageType.GetCredential && res.payload.ok && res.payload.credential) {
-                                                                openEditForm(res.payload.credential);
-                                                            }
-                                                        },
-                                                    );
+                                                    await requestCredential(credential.id);
                                                 }}
                                                 className="text-xs"
                                             >
@@ -654,7 +826,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                             variant="outline"
                             className="flex-1 h-7 text-xs"
                             size="sm"
-                            // onClick={handleConnectDevice}
+                            onClick={testConnectEnsureOffscreen}
                         >
                             <Wifi className="h-3 w-3 mr-1.5" />
                             Connect

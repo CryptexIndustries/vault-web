@@ -585,59 +585,59 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const requestCredential = async (id: string) => {
-                                                    if (!serverPublicKey) {
-                                                        console.error("No server public key available for encrypted messaging");
-                                                        return;
-                                                    }
+        if (!serverPublicKey) {
+            console.error("No server public key available for encrypted messaging");
+            return;
+        }
 
-                                                    let envelope: EncryptedEnvelope | PlaintextEnvelope;
-                                                    // First get the full credential data
-                                                    try {
-                                                        envelope = await createEncryptedEnvelope(
-                                                            MessageType.GetCredential,
-                                                            { id: id },
-                                                            serverPublicKey.publicKeyJwk,
-                                                            serverPublicKey.keyId,
-                                                            "popup"
-                                                        );
-                                                    } catch (error) {
-                                                        console.error("Failed to create encrypted envelope:", error);
-                                                        return;
-                                                    }
+        let envelope: EncryptedEnvelope | PlaintextEnvelope;
+        // First get the full credential data
+        try {
+            envelope = await createEncryptedEnvelope(
+                MessageType.GetCredential,
+                { id: id },
+                serverPublicKey.publicKeyJwk,
+                serverPublicKey.keyId,
+                "popup"
+            );
+        } catch (error) {
+            console.error("Failed to create encrypted envelope:", error);
+            return;
+        }
 
-                                                    chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
-                                                        if (isEncryptedEnvelope(res)) {
-                                                            const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: VaultCredential }>(res);
+        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
+            if (isEncryptedEnvelope(res)) {
+                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: VaultCredential }>(res);
 
-                                                            if (!decryptedPayload?.ok) {
-                                                                console.error("Failed to decrypt credential:", decryptedPayload?.error);
-                                                                return;
-                                                            }
+                if (!decryptedPayload?.ok) {
+                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
+                    return;
+                }
 
-                                                            const credential = decryptedPayload.payload?.credential;
-                                                            if (credential) {
-                                                                openEditForm(credential);
-                                                            }
-                                                        } else {
-                                                            if (res.payload?.code === "STALE_KEY") {
-                                                                // Handle key rotation - retry after refreshing key
-                                                                await onStaleKeyError(async () => {
-                                                                    const retryEnvelope = await createEncryptedEnvelope(
-                                                                        MessageType.GetCredential,
-                                                                        { id: id },
-                                                                        serverPublicKey.publicKeyJwk,
-                                                                        serverPublicKey.keyId,
-                                                                        "popup"
-                                                                    );
-                                                                    chrome.runtime.sendMessage(retryEnvelope, (retryRes: EncryptedEnvelope | PlaintextEnvelope) => {
-                                                                        if (retryRes.payload?.ok && retryRes.payload.credential) {
-                                                                            openEditForm(retryRes.payload.credential);
-                                                                        }
-                                                                    });
-                                                                });
-                                                            }
-                                                        }
-                                                    });
+                const credential = decryptedPayload.payload?.credential;
+                if (credential) {
+                    openEditForm(credential);
+                }
+            } else {
+                if (res.payload?.code === "STALE_KEY") {
+                    // Handle key rotation - retry after refreshing key
+                    await onStaleKeyError(async () => {
+                        const retryEnvelope = await createEncryptedEnvelope(
+                            MessageType.GetCredential,
+                            { id: id },
+                            serverPublicKey.publicKeyJwk,
+                            serverPublicKey.keyId,
+                            "popup"
+                        );
+                        chrome.runtime.sendMessage(retryEnvelope, (retryRes: EncryptedEnvelope | PlaintextEnvelope) => {
+                            if (retryRes.payload?.ok && retryRes.payload.credential) {
+                                openEditForm(retryRes.payload.credential);
+                            }
+                        });
+                    });
+                }
+            }
+        });
     };
 
     const openEditForm = (credential: VaultCredential) => {

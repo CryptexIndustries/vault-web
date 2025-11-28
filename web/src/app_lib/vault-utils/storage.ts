@@ -157,6 +157,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * Saves the vault manifest to the database.
      * If the vault instance is not null, encrypt it, add it to the blob and save it to the database.
      * If the vault instance is null, just save the existing blob to the database.
+     * FIXME: Remove the reliance on the vault instance
      * @param vaultInstance The fresh vault instance to save to the database
      * @param encryptionConfigFormSchema The encryption configuration form schema (in case we're modifying the encryption configuration)
      */

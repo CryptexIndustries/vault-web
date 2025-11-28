@@ -3,8 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TOTP } from "otpauth";
-import { AnyMessageResponse, LiteCredential, MessageType, EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
-import { createEncryptedEnvelope, createPlaintextEnvelope, decryptResponseEnvelope, isEncryptedEnvelope } from "./utils/session-utils";
+import { LiteCredential, MessageType, EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
+import { createEncryptedEnvelope, decryptResponseEnvelope, isEncryptedEnvelope } from "./utils/session-utils";
 import { VaultCredential, CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
 import { TOTPFormSchemaType } from "@/app_lib/vault-utils/form-schemas";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { validateEnvelope } from "./utils/security-utils";
+import { err, ok, Result } from "neverthrow";
 
 type VaultViewProps = {
     name: string;
@@ -25,7 +27,7 @@ type VaultViewProps = {
         keyId: string;
         publicKeyJwk: JsonWebKey;
     } | null;
-    onStaleKeyError: (retryFn: () => void) => Promise<void>;
+    onStaleKeyError: () => Promise<Result<void, string>>;
 };
 
 type CredentialFormMode = "create" | "edit" | null;
@@ -340,11 +342,64 @@ const VaultView: React.FC<VaultViewProps> = ({
     // Credential CRUD operations
     const createCredential = async (formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) {
-            console.error("No server public key available for encrypted messaging");
-            return;
+            console.error("CREDENTIAL_CREATE_FAILED: No server public key available for encrypted messaging");
+            return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
+        const successFn = () => {
+            setIsCreating(false);
+
+            // Refresh credentials list
+            refreshCredentials();
+            credentialModalVisible[1](false);
+            setCredentialFormMode(null);
+
+            // Reset TOTP form data to default values
+            setTotpFormData({
+                Label: "",
+                Secret: "",
+                Period: 30,
+                Digits: 6,
+                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+            });
+            reset();
+        };
+
         setIsCreating(true);
+
+        const res = await _createCredential(formData);
+
+        if (res.isOk()) {
+            successFn();
+            return ok();
+        }
+
+        if (res.error === "STALE_KEY") {
+            const refreshKeyResult = await onStaleKeyError();
+            if (refreshKeyResult.isErr()) {
+                console.error("Failed to create credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                return err("FAILED_TO_CREATE_CREDENTIAL_STALE_KEY");
+            }
+
+            const resRetry = await _createCredential(formData);
+            if (resRetry.isErr()) {
+                console.error("Failed to create credential after retrying: " + resRetry.error);
+            } else {
+                successFn();
+                return ok();
+            }
+        } else {
+            console.error("Failed to create credential:", res.error);
+        }
+        
+        setIsCreating(false);
+
+        return err("FAILED_TO_CREATE_CREDENTIAL");
+    };
+
+    const _createCredential = async (formData: CredentialFormSchemaType) => {
+        if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
+
         const envelope = await createEncryptedEnvelope(
             MessageType.CreateCredential,
             { form: formData },
@@ -353,60 +408,95 @@ const VaultView: React.FC<VaultViewProps> = ({
             "popup"
         );
 
-        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
-            setIsCreating(false);
-            if (isEncryptedEnvelope(res)) {
-                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: LiteCredential }>(res);
-
+        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        if (isEncryptedEnvelope(res)) {
+            const decryptedPayload = await decryptResponseEnvelope<
+                { ok: true; credential: LiteCredential } |
+                { ok: false; error: string }
+            >(res);
+            if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
-                    return;
+                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
                 }
-
-                if (!decryptedPayload.payload) {
-                    console.error("Tried to create a credential, but the response was null");
-                    return;
-                }
-
-                if (decryptedPayload.payload.ok) {
-                    // Refresh credentials list
-                    refreshCredentials();
-                    credentialModalVisible[1](false);
-                    setCredentialFormMode(null);
-                    // Reset TOTP form data to default values
-                    setTotpFormData({
-                        Label: "",
-                        Secret: "",
-                        Period: 30,
-                        Digits: 6,
-                        Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-                    });
-                    reset();
-                } else if (decryptedPayload.payload.ok === false) {
-                    console.error("Failed to create credential");
-
-                    // FIXME: Log the error and tell the user
-                }
-            } else {
-                if (res.payload?.code === "STALE_KEY") {
-                    // Handle key rotation - retry after refreshing key
-                    await onStaleKeyError(() => createCredential(formData));
-                } else {
-                    console.error("Failed to create credential:", res.payload?.error);
-
-                    // FIXME: Log the error and tell the user
-                }
+                return err("ENVELOPE_PAYLOAD_NULL");
             }
-        });
+
+            if (!decryptedPayload.payload.ok) {
+                return err("CREDENTIAL_CREATE_FAILED: " + decryptedPayload.payload.error);
+            }
+
+            return ok();
+        }
+
+        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
+        }
+        
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     const updateCredential = async (id: string, formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) {
-            console.error("No server public key available for encrypted messaging");
-            return;
+            console.error("CREDENTIAL_UPDATE_FAILED: No server public key available for encrypted messaging");
+            return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
+        const successFn = () => {
+            setIsUpdating(false);
+
+            // Refresh credentials list
+            refreshCredentials();
+
+            credentialModalVisible[1](false);
+            setCredentialFormMode(null);
+            setEditingCredential(null);
+            // Reset TOTP form data to default values
+            setTotpFormData({
+                Label: "",
+                Secret: "",
+                Period: 30,
+                Digits: 6,
+                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+            });
+            reset();
+
+        };
+
         setIsUpdating(true);
+
+        const res = await _updateCredential(id, formData);
+
+        if (res.isOk()) {
+            successFn();
+            return ok();
+        }
+
+        if (res.error === "STALE_KEY") {
+            const refreshKeyResult = await onStaleKeyError();
+            if (refreshKeyResult.isErr()) {
+                console.error("Failed to update credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                return err("FAILED_TO_UPDATE_CREDENTIAL_STALE_KEY");
+            }
+
+            const resRetry = await _updateCredential(id, formData);
+            if (resRetry.isErr()) {
+                console.error("Failed to update credential after retrying: " + resRetry.error);
+            } else {
+                successFn();
+                return ok();
+            }
+        } else {
+            console.error("Failed to update credential: " + res.error);
+        }
+
+        setIsUpdating(false);
+
+        return err("FAILED_TO_UPDATE_CREDENTIAL");
+    };
+
+    const _updateCredential = async (id: string, formData: CredentialFormSchemaType) => {
+        if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
+
         const envelope = await createEncryptedEnvelope(
             MessageType.UpdateCredential,
             { id, form: formData },
@@ -415,52 +505,32 @@ const VaultView: React.FC<VaultViewProps> = ({
             "popup"
         );
 
-        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
-            setIsUpdating(false);
-            if (isEncryptedEnvelope(res)) {
-                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: LiteCredential }>(res);
+        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+
+        if (isEncryptedEnvelope(res)) {
+            const decryptedPayload = await decryptResponseEnvelope<
+                { ok: true; credential: LiteCredential } |
+                { ok: false; error: string }
+            >(res);
+            if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
-                    return;
+                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
                 }
-
-                if (!decryptedPayload.payload) {
-                    console.error("Tried to update a credential, but the response was null");
-                    return;
-                }
-
-                if (decryptedPayload.payload.ok) {
-                // Refresh credentials list
-                refreshCredentials();
-                credentialModalVisible[1](false);
-                setCredentialFormMode(null);
-                setEditingCredential(null);
-                // Reset TOTP form data to default values
-                setTotpFormData({
-                    Label: "",
-                    Secret: "",
-                    Period: 30,
-                    Digits: 6,
-                    Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-                });
-                reset();
-                } else if (decryptedPayload.payload.ok === false) {
-                    console.error("Failed to update credential");
-
-                    // FIXME: Log the error and tell the user
-                }
-                
-            } else {
-                if (res.payload?.code === "STALE_KEY") {
-                    // Handle key rotation - retry after refreshing key
-                    await onStaleKeyError(() => updateCredential(id, formData));
-                } else {
-                    console.error("Failed to update credential:", res.payload?.error);
-
-                    // FIXME: Log the error and tell the user
-                }
+                return err("ENVELOPE_PAYLOAD_NULL");
             }
-        });
+
+            if (!decryptedPayload.payload.ok) {
+                return err("CREDENTIAL_UPDATE_FAILED: " + decryptedPayload.payload.error);
+            }
+
+            return ok();
+        }
+
+        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
+        }
+        
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     const deleteCredential = async (id: string) => {
@@ -469,11 +539,46 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         if (!serverPublicKey) {
-            console.error("No server public key available for encrypted messaging");
-            return;
+            console.error("CREDENTIAL_DELETE_FAILED: No server public key available for encrypted messaging");
+            return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
         setIsDeleting(true);
+        
+        const res = await _deleteCredential(id);
+
+        if (res.isOk()) {
+            refreshCredentials();
+            setIsDeleting(false);
+            return ok();
+        }
+
+        if (res.error === "STALE_KEY") {
+            const refreshKeyResult = await onStaleKeyError();
+            if (refreshKeyResult.isErr()) {
+                console.error("Failed to delete credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                return err("FAILED_TO_DELETE_CREDENTIAL_STALE_KEY");
+            }
+
+            const resRetry = await _deleteCredential(id);
+            if (resRetry.isErr()) {
+                console.error("Failed to delete credential after retrying: " + resRetry.error);
+            } else {
+                setIsDeleting(false);
+                return ok();
+            }
+        } else {
+            console.error("Failed to delete credential: " + res.error);
+        }
+
+        setIsDeleting(false);
+
+        return err("FAILED_TO_DELETE_CREDENTIAL");
+    };
+
+    const _deleteCredential = async (id: string) => {
+        if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
+
         const envelope = await createEncryptedEnvelope(
             MessageType.DeleteCredential,
             { id },
@@ -482,77 +587,92 @@ const VaultView: React.FC<VaultViewProps> = ({
             "popup"
         );
 
-        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
-            setIsDeleting(false);
-            if (isEncryptedEnvelope(res)) {
-                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean }>(res);
+        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        if (isEncryptedEnvelope(res)) {
+            const decryptedPayload = await decryptResponseEnvelope<{ ok: true } | { ok: false; error: string }>(res);
+            if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
-                    return;
+                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
                 }
-
-                if (!decryptedPayload.payload) {
-                    console.error("Tried to delete a credential, but the response was null");
-                    return;
-                }
-
-                if (decryptedPayload.payload.ok) {
-                    // Refresh credentials list
-                    refreshCredentials();
-                } else if (decryptedPayload.payload.ok === false) {
-                    console.error("Failed to delete credential");
-
-                    // FIXME: Log the error and tell the user
-                }
-            } else {
-                if (res.payload?.code === "STALE_KEY") {
-                    // Handle key rotation - retry after refreshing key
-                    await onStaleKeyError(() => deleteCredential(id));
-                } else {
-                    console.error("Failed to delete credential:", res.payload?.error);
-                    // FIXME: Log the error and tell the user
-                }
+                return err("ENVELOPE_PAYLOAD_NULL");
             }
-        });
+
+            if (!decryptedPayload.payload.ok) {
+                return err("CREDENTIAL_DELETE_FAILED: " + decryptedPayload.payload.error);
+            }
+
+            return ok();
+        }
+
+        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
+        }
+        
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     const refreshCredentials = async () => {
         if (!serverPublicKey) {
-            console.error("No server public key available for encrypted messaging");
-            return;
+            console.error("REFRESH_CREDENTIALS_FAILED: No server public key available for encrypted messaging");
+            return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
         setRefreshing(true);
-        const envelope = await createEncryptedEnvelope(MessageType.GetCredentials, null, serverPublicKey.publicKeyJwk, serverPublicKey.keyId, "popup");
+        const res = await _refreshCredentials();
+        if (res.isOk()) {
+            setCredentials(res.value);
+            setRefreshing(false);
+            return ok();
+        }
 
-        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
-            if (isEncryptedEnvelope(res)) {
-                const decryptedPayload = await decryptResponseEnvelope<{ credentials: LiteCredential[] }>(res);
-
-                if (!decryptedPayload?.ok) {
-                    console.error("Failed to decrypt credentials:", decryptedPayload?.error);
-                    setRefreshing(false);
-                    return;
-                }
-
-                setRefreshing(false);
-                setCredentials(decryptedPayload.payload?.credentials ?? []);
-            } else {
-                if (res.payload?.code === "STALE_KEY") {
-                    // Handle key rotation - retry after refreshing key
-                    await onStaleKeyError(() => refreshCredentials());
-                } else {
-                    console.error("Failed to refresh credentials:", res.payload?.error);
-                }
+        if (res.error === "STALE_KEY") {
+            const refreshKeyResult = await onStaleKeyError();
+            if (refreshKeyResult.isErr()) {
+                console.error("Failed to refresh credentials, tried to refresh public key but failed: " + refreshKeyResult.error);
+                return err("FAILED_TO_REFRESH_CREDENTIALS_STALE_KEY");
             }
-        });
+
+            const resRetry = await _refreshCredentials();
+            if (resRetry.isErr()) {
+                console.error("Failed to refresh credentials after retrying: " + resRetry.error);
+            } else {
+                setCredentials(resRetry.value);
+                setRefreshing(false);
+                return ok();
+            }
+        } else {
+            console.error("Failed to refresh credentials: " + res.error);
+        }
+
+        setRefreshing(false);
+
+        return err("FAILED_TO_REFRESH_CREDENTIALS");
     };
 
-    const testConnectEnsureOffscreen = () => {
-        chrome.runtime.sendMessage({ type: MessageType.EnsureOffscreen, payload: undefined }, (res: AnyMessageResponse) => {
-            console.log("ENSURE SENT", res);
-        });
-    }
+    const _refreshCredentials = async () => {
+        if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
+
+        const envelope = await createEncryptedEnvelope(MessageType.GetCredentials, null, serverPublicKey.publicKeyJwk, serverPublicKey.keyId, "popup");
+
+        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+
+        if (isEncryptedEnvelope(res)) {
+            const decryptedPayload = await decryptResponseEnvelope<{ credentials: LiteCredential[] }>(res);
+
+            if (!decryptedPayload?.ok) {
+                console.error("Failed to decrypt credentials:", decryptedPayload?.error);
+                return err("FAILED_TO_DECRYPT_CREDENTIALS");
+            }
+
+            return ok(decryptedPayload.payload?.credentials ?? []);
+        }
+
+        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
+        }
+
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
+    };
 
     const openCreateForm = () => {
         setCredentialFormMode("create");
@@ -586,58 +706,72 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const requestCredential = async (id: string) => {
         if (!serverPublicKey) {
-            console.error("No server public key available for encrypted messaging");
-            return;
+            console.error("REQUEST_CREDENTIAL_FAILED: No server public key available for encrypted messaging");
+            return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
-        let envelope: EncryptedEnvelope | PlaintextEnvelope;
-        // First get the full credential data
-        try {
-            envelope = await createEncryptedEnvelope(
-                MessageType.GetCredential,
-                { id: id },
-                serverPublicKey.publicKeyJwk,
-                serverPublicKey.keyId,
-                "popup"
-            );
-        } catch (error) {
-            console.error("Failed to create encrypted envelope:", error);
-            return;
+        const res = await _requestCredential(id);
+        if (res.isOk()) {
+            openEditForm(res.value);
+            return ok();
         }
 
-        chrome.runtime.sendMessage(envelope, async (res: EncryptedEnvelope | PlaintextEnvelope) => {
-            if (isEncryptedEnvelope(res)) {
-                const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean; credential: VaultCredential }>(res);
-
-                if (!decryptedPayload?.ok) {
-                    console.error("Failed to decrypt credential:", decryptedPayload?.error);
-                    return;
-                }
-
-                const credential = decryptedPayload.payload?.credential;
-                if (credential) {
-                    openEditForm(credential);
-                }
-            } else {
-                if (res.payload?.code === "STALE_KEY") {
-                    // Handle key rotation - retry after refreshing key
-                    await onStaleKeyError(async () => {
-                        const retryEnvelope = await createEncryptedEnvelope(
-                            MessageType.GetCredential,
-                            { id: id },
-                            serverPublicKey.publicKeyJwk,
-                            serverPublicKey.keyId,
-                            "popup"
-                        );
-                        chrome.runtime.sendMessage(retryEnvelope, (retryRes: EncryptedEnvelope | PlaintextEnvelope) => {
-                            if (retryRes.payload?.ok && retryRes.payload.credential) {
-                                openEditForm(retryRes.payload.credential);
-                            }
-                        });
-                    });
-                }
+        if (res.error === "STALE_KEY") {
+            const refreshKeyResult = await onStaleKeyError();
+            if (refreshKeyResult.isErr()) {
+                console.error("Failed to request credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                return err("FAILED_TO_REQUEST_CREDENTIAL_STALE_KEY");
             }
-        });
+
+            const resRetry = await _requestCredential(id);
+            if (resRetry.isErr()) {
+                console.error("Failed to request credential after retrying: " + resRetry.error);
+            } else {
+                openEditForm(resRetry.value);
+                return ok();
+            }
+        } else {
+            console.error("Failed to request credential: " + res.error);
+        }
+
+        return err("FAILED_TO_REQUEST_CREDENTIAL");
+    };
+
+    const _requestCredential = async (id: string) => {
+        if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
+
+        const envelope: EncryptedEnvelope | PlaintextEnvelope = await createEncryptedEnvelope(
+            MessageType.GetCredential,
+            { id: id },
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup"
+        );
+
+        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+
+        if (isEncryptedEnvelope(res)) {
+            const decryptedPayload = await decryptResponseEnvelope<{ ok: true; credential: VaultCredential } | { ok: false; error: string }>(res);
+
+            if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
+                if (!decryptedPayload?.ok) {
+                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
+                }
+                return err("ENVELOPE_PAYLOAD_NULL");
+            }
+
+            if (!decryptedPayload.payload.ok) {
+                return err("CREDENTIAL_REQUEST_FAILED: " + decryptedPayload.payload.error);
+            }
+
+            return ok(decryptedPayload.payload.credential);
+        }
+
+        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
+        }
+
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     const openEditForm = (credential: VaultCredential) => {
@@ -826,7 +960,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                             variant="outline"
                             className="flex-1 h-7 text-xs"
                             size="sm"
-                            onClick={testConnectEnsureOffscreen}
+                            onClick={() => {}}
                         >
                             <Wifi className="h-3 w-3 mr-1.5" />
                             Connect

@@ -13,11 +13,11 @@ export const createAuthHeader = () => {
 
 export const trpc = createTRPCClient<any>({
     links: [
-        loggerLink({
-            enabled: (opts) =>
-                process.env.NODE_ENV === "development" ||
-                (opts.direction === "down" && opts.result instanceof Error),
-        }),
+        // loggerLink({
+        //     enabled: (opts) =>
+        //         process.env.NODE_ENV === "development" ||
+        //         (opts.direction === "down" && opts.result instanceof Error),
+        // }),
         httpBatchLink({
             url: `${env.NEXT_PUBLIC_APP_URL}/api/trpc`,
             headers: createAuthHeader,

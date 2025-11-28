@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
+const mode = process.env.NODE_ENV || "development";
+
 export default defineConfig({
     plugins: [react()],
     resolve: {
@@ -25,6 +27,7 @@ export default defineConfig({
     },
     publicDir: "public",
     build: {
+        sourcemap: mode === "development",
         emptyOutDir: true,
         outDir: "dist",
         target: "es2022",

@@ -32,7 +32,7 @@ type DecryptedEnvelope<T> = {
  */
 export async function createEncryptedEnvelope(
     messageType: MessageType,
-    payload: any,
+    payload: object | null,
     serverPublicKey: JsonWebKey,
     serverKeyId: string,
     origin: "popup" | "offscreen" | "worker"
@@ -107,6 +107,7 @@ export async function createEncryptedEnvelope(
 
 /**
  * Creates a plaintext envelope for non-sensitive messages.
+ * This is used only for GetPublicKey messages, and error responses.
  * @param messageType The type of message
  * @param payload Optional message payload
  * @param origin The origin of the message
@@ -114,7 +115,7 @@ export async function createEncryptedEnvelope(
  */
 export function createPlaintextEnvelope(
     messageType: MessageType,
-    payload: any,
+    payload: { ok: boolean } & any | null,
     origin: "popup" | "offscreen" | "worker"
 ): PlaintextEnvelope {
     return {
@@ -255,6 +256,18 @@ export function isEncryptedEnvelope(message: any): message is EncryptedEnvelope 
            typeof message.payload.salt === 'string' &&
            typeof message.payload.ciphertext === 'string' &&
            typeof message.payload.iv === 'string';
+}
+
+/**
+ * Type guard to check if a message is a plaintext envelope.
+ */
+export function isPlaintextEnvelope(message: any): message is PlaintextEnvelope {
+    return message &&
+           typeof message.type === 'number' &&
+           typeof message.requestId === 'string' &&
+           typeof message.origin === 'string' &&
+           typeof message.timestamp === 'string' &&
+           !message.payload?.ciphertext; // Plaintext doesn't have ciphertext
 }
 
 /**

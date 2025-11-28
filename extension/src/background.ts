@@ -1,54 +1,24 @@
-// Background service worker: holds unlocked vault state and handles sync
-import {
-    vaultStore,
-    unlockedVaultAtom,
-    unlockedVaultMetadataAtom,
-    onlineServicesStore,
-    onlineServicesDataAtom,
-} from "@/utils/atoms";
 import * as Storage from "@/app_lib/vault-utils/storage";
 import * as Vault from "@/app_lib/vault-utils/vault";
-import { LiteCredential, AnyMessage, AnyMessageResponse, MessageType } from "./types/sw-messaging";
+import { LiteCredential, MessageType } from "./types/sw-messaging";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import { generateECDHKeyPair, deriveSessionKey, base64UrlDecode } from "./utils/crypto-utils";
-import { createEncryptedResponseEnvelope, decryptEnvelope, createPlaintextEnvelope } from "./utils/session-utils";
+import { createEncryptedResponseEnvelope, decryptEnvelope, createPlaintextEnvelope, isEncryptedEnvelope, isPlaintextEnvelope } from "./utils/session-utils";
 import { validateEnvelope } from "./utils/security-utils";
 import { EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
 
-// Reuse the web app's atoms store in worker scope
-const store = vaultStore;
-
 const OFFSCREEN_URL = chrome.runtime.getURL("/offscreen.html");
 
-/**
- * Type guard to check if a message is an encrypted envelope.
- */
-function isEncryptedEnvelope(message: any): message is EncryptedEnvelope {
-    return message &&
-           typeof message.type === 'number' &&
-           typeof message.requestId === 'string' &&
-           typeof message.origin === 'string' &&
-           typeof message.keyId === 'string' &&
-           typeof message.timestamp === 'string' &&
-           message.payload &&
-           typeof message.payload.wrappedKey === 'string' &&
-           message.payload.ephemeralPub &&
-           typeof message.payload.salt === 'string' &&
-           typeof message.payload.ciphertext === 'string' &&
-           typeof message.payload.iv === 'string';
-}
+const UNLOCKED_VAULT_METADATA_KEY = "UVM";
+const UNLOCKED_VAULT_KEY = "UV";
+// const UNLOCKED_VAULT_ENCRYPTION_KEY = "UEK";
 
-/**
- * Type guard to check if a message is a plaintext envelope.
- */
-function isPlaintextEnvelope(message: any): message is PlaintextEnvelope {
-    return message &&
-           typeof message.type === 'number' &&
-           typeof message.requestId === 'string' &&
-           typeof message.origin === 'string' &&
-           typeof message.timestamp === 'string' &&
-           !message.payload?.ciphertext; // Plaintext doesn't have ciphertext
-}
+type LegacyMessage = {
+    type: -1;
+    payload: {
+        error: string;
+    };
+};
 
 /**
  * Processes an envelope-based message and returns the appropriate response envelope.
@@ -140,9 +110,32 @@ async function processEnvelope(
             );
         }
     } else {
-        // Plaintext envelope
-        decryptedPayload = envelope.payload;
+        // The only clear text messages allowed are GetPublicKey
+        if (envelope.type !== MessageType.GetPublicKey) {
+            return createPlaintextEnvelope(
+                envelope.type,
+                { ok: false, error: "Only GetPublicKey messages are allowed in plaintext envelopes", code: "INVALID_ENVELOPE_TYPE" },
+                "worker"
+            );
+        }
+
+        const publicKey = await retrieveActivePublicKey();
+        if (!publicKey.ok) {
+            return createPlaintextEnvelope(
+                envelope.type,
+                { ok: false, error: "Failed to retrieve an active public key", code: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY" },
+                "worker"
+            );
+        }
+
+        return createPlaintextEnvelope(
+            envelope.type,
+            publicKey,
+            "worker"
+        );
     }
+
+    // NOTE: Here on out, we know that the envelope is an encrypted envelope and that we have a valid session key
 
     console.debug("SW Decrypted/Plaintext type:", MessageType[envelope.type], "payload:", decryptedPayload);
 
@@ -151,20 +144,16 @@ async function processEnvelope(
 
     console.debug("SW Response before encryption:", MessageType[envelope.type], "result:", result);
 
-    // Return appropriate response envelope
-    if (sessionKey && isEncryptedEnvelope(envelope)) {
-        // Encrypt sensitive responses
-        return await createEncryptedResponseEnvelope(envelope, result, sessionKey);
-    } else {
-        // Plaintext response for non-sensitive operations
-        return createPlaintextEnvelope(envelope.type, result, "worker");
-    }
+    // Re-encrypt the response envelope
+    return await createEncryptedResponseEnvelope(envelope, result, sessionKey);
 }
 
 /**
  * Processes a decrypted message payload and returns the response.
  */
 async function processMessage(type: MessageType, payload: any): Promise<any> {
+    await ensureOffscreenDocument();
+
     try {
         switch (type) {
             case MessageType.Unlock: {
@@ -195,25 +184,26 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 const vault = res.value;
 
-                store.set(unlockedVaultMetadataAtom, metadata);
-                store.set(unlockedVaultAtom, vault);
-                onlineServicesStore.set(onlineServicesDataAtom, {
-                    key: vault.LinkedDevices.APIKey ?? "",
-                    remoteData: null,
-                });
+                // onlineServicesStore.set(onlineServicesDataAtom, {
+                //     key: vault.LinkedDevices.APIKey ?? "",
+                //     remoteData: null,
+                // });
+
+                await setVaultInSessionStorage(metadata, vault);
 
                 return { ok: true };
             }
 
             case MessageType.Lock: {
-                store.set(unlockedVaultMetadataAtom, null);
-                store.set(unlockedVaultAtom, new Vault.Vault());
+                // Zero out the session storage (unlocked vault metadata and vault)
+                await clearSessionStorage();
+
                 return { ok: true };
             }
 
             case MessageType.GetState: {
-                await ensureOffscreenDocument();
-                const meta = store.get(unlockedVaultMetadataAtom);
+                // TODO: await ensureOffscreenDocument();
+                const meta = await getVaultMetadataFromSessionStorage();
 
                 if (!meta) {
                     return { unlocked: false, metadata: null };
@@ -228,13 +218,13 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 };
             }
 
-            case MessageType.EnsureOffscreen: {
-                await ensureOffscreenDocument();
-                return { ok: true };
-            }
-
             case MessageType.GetCredentials: {
-                const vault = store.get(unlockedVaultAtom);
+                const vault = await getVaultFromSessionStorage();
+
+                if (!vault) {
+                    return { ok: false, credentials: [], error: "VAULT_NOT_UNLOCKED" };
+                }
+
                 const list: LiteCredential[] = (vault?.Credentials ?? []).map((c) => ({
                     id: c.ID,
                     name: c.Name,
@@ -245,7 +235,12 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             }
 
             case MessageType.GetCredential: {
-                const vault = store.get(unlockedVaultAtom);
+                const vault = await getVaultFromSessionStorage();
+
+                if (!vault) {
+                    return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
+                }
+
                 const cred = (vault?.Credentials ?? []).find(
                     (c) => c.ID === payload.id,
                 );
@@ -256,8 +251,8 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             }
 
             case MessageType.CreateCredential: {
-                const vault = store.get(unlockedVaultAtom);
-                const metadata = store.get(unlockedVaultMetadataAtom);
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
 
                 if (!vault || !metadata) {
                     return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
@@ -273,7 +268,12 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 };
                 vault.Diffs.push(diff);
 
-                await metadata.save(vault);
+                // TODO: Remove the unnecessary object assignment when we clean up the storage layer
+                const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
+                // FIXME: Remove the cast when we clean up the storage layer
+                await metadataInstance.save(vault as Vault.Vault);
+
+                await setVaultInSessionStorage(metadata, vault);
 
                 const lightCredential: LiteCredential = {
                     id: data.credential.ID,
@@ -286,8 +286,8 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             }
 
             case MessageType.UpdateCredential: {
-                const vault = store.get(unlockedVaultAtom);
-                const metadata = store.get(unlockedVaultMetadataAtom);
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
 
                 if (!vault || !metadata) {
                     return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
@@ -312,14 +312,19 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 };
                 vault.Diffs.push(diff);
 
-                await metadata.save(vault);
+                // TODO: Remove the unnecessary object assignment when we clean up the storage layer
+                const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
+                // FIXME: Remove the cast when we clean up the storage layer
+                await metadataInstance.save(vault as Vault.Vault);
+
+                await setVaultInSessionStorage(metadata, vault);
 
                 return { ok: true, credential: data.credential };
             }
 
             case MessageType.DeleteCredential: {
-                const vault = store.get(unlockedVaultAtom);
-                const metadata = store.get(unlockedVaultMetadataAtom);
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
 
                 if (!vault || !metadata) {
                     return { ok: false, error: "VAULT_NOT_UNLOCKED" };
@@ -349,32 +354,46 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 };
                 vault.Diffs.push(diff);
 
-                await metadata.save(vault);
+                // TODO: Remove the unnecessary object assignment when we clean up the storage layer
+                const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
+                // FIXME: Remove the cast when we clean up the storage layer
+                await metadataInstance.save(vault as Vault.Vault);
+
+                await setVaultInSessionStorage(metadata, vault);
 
                 return { ok: true };
             }
-
-            case MessageType.GetPublicKey: {
-                const activeKey = await Storage.db.keyPairs.where("status").equals("active").first();
-                if (!activeKey) {
-                    return { ok: false, error: "NO_ACTIVE_KEY" };
-                }
-
-                return {
-                    ok: true,
-                    keyId: activeKey.keyId,
-                    curve: "P-256",
-                    publicKeyJwk: activeKey.publicKeyJwk,
-                    createdAt: activeKey.createdAt,
-                };
-            }
-
             default:
-                return { ok: false, error: "UNKNOWN_MESSAGE_TYPE" };
+                return { ok: false, error: "UNKNOWN_ENCRYPTED_MESSAGE_TYPE" };
         }
     } catch (error) {
-        console.error(`Error processing message type ${type}:`, error);
+        console.error(`Error processing encrypted message type ${type}:`, error);
         return { ok: false, error: error instanceof Error ? error.message : "UNKNOWN_ERROR" };
+    }
+}
+
+/**
+ * Retrieves the active public key from the database.
+ * @returns The active public key if successful, otherwise an error.
+ */
+async function retrieveActivePublicKey(): Promise<{ ok: boolean; keyId: string; curve: string; publicKeyJwk: JsonWebKey; createdAt: string } | { ok: false; error: string }> {
+    try {
+        const activeKey = await Storage.db.keyPairs.where("status").equals("active").first();
+
+        if (!activeKey) {
+            return { ok: false, error: "NO_ACTIVE_KEY" };
+        }
+
+        return {
+            ok: true,
+            keyId: activeKey.keyId,
+            curve: "P-256",
+            publicKeyJwk: activeKey.publicKeyJwk,
+            createdAt: activeKey.createdAt,
+        };
+    } catch (error) {
+        console.error("Failed to retrieve active public key:", error);
+        return { ok: false, error: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY" };
     }
 }
 
@@ -473,13 +492,34 @@ async function ensureOffscreenDocument(): Promise<void> {
     await chrome.offscreen.createDocument({
         url: OFFSCREEN_URL,
         reasons: [chrome.offscreen.Reason.WEB_RTC],
-        justification: "Secure vault synchronization",
+        justification: "Secure vault data synchronization.",
     });
 }
 
+async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null> {
+    const _vault = await chrome.storage.session.get([UNLOCKED_VAULT_KEY]);
+    return _vault[UNLOCKED_VAULT_KEY] as VaultUtilTypes.Vault | null;
+}
+
+async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.VaultMetadata | null> {
+    const _metadata = await chrome.storage.session.get([UNLOCKED_VAULT_METADATA_KEY]);
+    return _metadata[UNLOCKED_VAULT_METADATA_KEY] as VaultUtilTypes.VaultMetadata | null;
+}
+
+async function setVaultInSessionStorage(metadata: VaultUtilTypes.VaultMetadata, vault: VaultUtilTypes.Vault): Promise<void> {
+    await chrome.storage.session.set({
+        [UNLOCKED_VAULT_METADATA_KEY]: metadata,
+        [UNLOCKED_VAULT_KEY]: vault,
+    });
+}
+
+async function clearSessionStorage(): Promise<void> {
+    await chrome.storage.session.clear();
+}
+
 chrome.runtime.onMessage.addListener(
-    (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response: any) => void) => {
-        (async () => {
+    (message: EncryptedEnvelope | PlaintextEnvelope, sender: chrome.runtime.MessageSender, sendResponse: (response: EncryptedEnvelope | PlaintextEnvelope | LegacyMessage) => void) => {
+        void (async () => {
             try {
                 // Check if this is an envelope-based message
                 if (isEncryptedEnvelope(message) || isPlaintextEnvelope(message)) {
@@ -495,11 +535,10 @@ chrome.runtime.onMessage.addListener(
             } catch (e) {
                 console.error("Message handling error:", e);
                 sendResponse({ type: -1, payload: { error: "An unknown error occurred." } });
-                return false;
             }
         })();
 
-        return true; // keep channel open for async sendResponse
+        return true;
     },
 );
 
@@ -509,6 +548,23 @@ chrome.runtime.onInstalled.addListener(async () => {
     await ensureActiveKeyPair();
     // Also check if rotation is needed on install/update
     await checkAndRotateKeysIfNeeded();
+
+    const alarmSecureWipe = "secure-wipe";
+
+    // Zero out the session storage every 30 minutes if no activity has occurred
+    // But do it every 30 seconds for testing
+    // chrome.alarms.create(alarmSecureWipe, {
+    //     periodInMinutes: 0.5, // 30 seconds for testing
+    //     when: Date.now() + 30 * 1000,
+    // });
+
+    // // Listen for alarms
+    // chrome.alarms.onAlarm.addListener((alarm) => {
+    //     if (alarm.name === alarmSecureWipe) {
+    //         clearSessionStorage();
+    //         console.log("Session storage wiped due to inactivity");
+    //     }
+    // });
 });
 
 // Also ensure key pair exists on startup

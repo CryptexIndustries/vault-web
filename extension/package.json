@@ -4,12 +4,13 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "vite --config vite.config.ts",
+        "dev": "vite build --mode development --watch --config vite.config.ts",
         "build": "vite build --config vite.config.ts",
         "preview": "vite preview",
         "lint": "tsc --noEmit --strict"
     },
     "dependencies": {
+        "@cryptex-industries/shared-ui": "workspace:*",
         "@tanstack/react-query": "^5.66.0",
         "@trpc/client": "^11.0.0-rc.730",
         "clsx": "^2.1.1",

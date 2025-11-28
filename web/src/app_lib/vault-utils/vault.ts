@@ -25,6 +25,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * NOTE: This property is **not** serialized and saved in the vault
      * The secret used to encrypt the vault while it's in memory.
      * It is also use to decrypt the vault data (if it's encrypted using symmetric encryption).
+     * FIXME: Get this out of here
      */
     public Secret = new Uint8Array();
 
@@ -79,24 +80,19 @@ export class Vault implements VaultUtilTypes.Vault {
      * @returns An array of mock credentials
      */
     private seedVault(num: number): VaultCredential[] {
-        // Make sure to only include this in the development build
-        if (process.env.NODE_ENV === "development") {
-            const creds: VaultCredential[] = [];
+        const creds: VaultCredential[] = [];
 
-            // Generate n mock credentials
-            for (let i = 0; i < num; i++) {
-                const newCreds = new VaultCredential();
-                newCreds.ID = `TestCreds-${i}`;
-                newCreds.Name = `Test Credential ${i}`;
-                newCreds.Username = `Test Username ${i}`;
-                newCreds.Password = `Test Password ${i}`;
-                creds.push(newCreds);
-            }
-
-            return creds;
+        // Generate n mock credentials
+        for (let i = 0; i < num; i++) {
+            const newCreds = new VaultCredential();
+            newCreds.ID = `TestCreds-${i}`;
+            newCreds.Name = `Test Credential ${i}`;
+            newCreds.Username = `Test Username ${i}`;
+            newCreds.Password = `Test Password ${i}`;
+            creds.push(newCreds);
         }
 
-        return [];
+        return creds;
     }
 }
 

@@ -1,5 +1,5 @@
-import { EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
-import { VaultCredential, CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
+import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
+import { type VaultCredential, type CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
 
 export enum MessageType {
     GetState = 0,
@@ -10,8 +10,7 @@ export enum MessageType {
     CreateCredential = 5,
     UpdateCredential = 6,
     DeleteCredential = 7,
-    EnsureOffscreen = 8,
-    GetPublicKey = 9,
+    GetPublicKey = 8,
 }
 
 // The payload is defined by the message type
@@ -41,7 +40,6 @@ export type MessagePayload = {
     [MessageType.DeleteCredential]: {
         id: string;
     };
-    [MessageType.EnsureOffscreen]: undefined;
     [MessageType.GetPublicKey]: undefined;
 }
 
@@ -65,35 +63,34 @@ type MessageResponsePayload = {
     [MessageType.CreateCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
     [MessageType.UpdateCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
     [MessageType.DeleteCredential]: { ok: boolean; error?: string };
-    [MessageType.EnsureOffscreen]: { ok: boolean };
     [MessageType.GetPublicKey]: { ok: boolean; keyId: string; curve: string; publicKeyJwk: JsonWebKey; createdAt: string; error?: string };
 }
 
 // Discriminated unions for better type-narrowing on message handlers
-export type AnyMessage =
-    | { type: MessageType.GetState; payload: MessagePayload[MessageType.GetState] }
-    | { type: MessageType.Unlock; payload: MessagePayload[MessageType.Unlock] }
-    | { type: MessageType.Lock; payload: MessagePayload[MessageType.Lock] }
-    | { type: MessageType.GetCredentials; payload: MessagePayload[MessageType.GetCredentials] }
-    | { type: MessageType.GetCredential; payload: MessagePayload[MessageType.GetCredential] }
-    | { type: MessageType.CreateCredential; payload: MessagePayload[MessageType.CreateCredential] }
-    | { type: MessageType.UpdateCredential; payload: MessagePayload[MessageType.UpdateCredential] }
-    | { type: MessageType.DeleteCredential; payload: MessagePayload[MessageType.DeleteCredential] }
-    | { type: MessageType.EnsureOffscreen; payload: MessagePayload[MessageType.EnsureOffscreen] }
-    | { type: MessageType.GetPublicKey; payload: MessagePayload[MessageType.GetPublicKey] }
+// export type AnyMessage =
+//     | { type: MessageType.GetState; payload: MessagePayload[MessageType.GetState] }
+//     | { type: MessageType.Unlock; payload: MessagePayload[MessageType.Unlock] }
+//     | { type: MessageType.Lock; payload: MessagePayload[MessageType.Lock] }
+//     | { type: MessageType.GetCredentials; payload: MessagePayload[MessageType.GetCredentials] }
+//     | { type: MessageType.GetCredential; payload: MessagePayload[MessageType.GetCredential] }
+//     | { type: MessageType.CreateCredential; payload: MessagePayload[MessageType.CreateCredential] }
+//     | { type: MessageType.UpdateCredential; payload: MessagePayload[MessageType.UpdateCredential] }
+//     | { type: MessageType.DeleteCredential; payload: MessagePayload[MessageType.DeleteCredential] }
+//     | { type: MessageType.EnsureOffscreen; payload: MessagePayload[MessageType.EnsureOffscreen] }
+//     | { type: MessageType.GetPublicKey; payload: MessagePayload[MessageType.GetPublicKey] }
 
-export type AnyMessageResponse =
-    | { type: -1; payload: MessageResponsePayload[-1] } // Error response
-    | { type: MessageType.GetState; payload: MessageResponsePayload[MessageType.GetState] }
-    | { type: MessageType.Unlock; payload: MessageResponsePayload[MessageType.Unlock] }
-    | { type: MessageType.Lock; payload: MessageResponsePayload[MessageType.Lock] }
-    | { type: MessageType.GetCredentials; payload: MessageResponsePayload[MessageType.GetCredentials] }
-    | { type: MessageType.GetCredential; payload: MessageResponsePayload[MessageType.GetCredential] }
-    | { type: MessageType.CreateCredential; payload: MessageResponsePayload[MessageType.CreateCredential] }
-    | { type: MessageType.UpdateCredential; payload: MessageResponsePayload[MessageType.UpdateCredential] }
-    | { type: MessageType.DeleteCredential; payload: MessageResponsePayload[MessageType.DeleteCredential] }
-    | { type: MessageType.EnsureOffscreen; payload: MessageResponsePayload[MessageType.EnsureOffscreen] }
-    | { type: MessageType.GetPublicKey; payload: MessageResponsePayload[MessageType.GetPublicKey] }
+// export type AnyMessageResponse =
+//     | { type: -1; payload: MessageResponsePayload[-1] } // Error response
+//     | { type: MessageType.GetState; payload: MessageResponsePayload[MessageType.GetState] }
+//     | { type: MessageType.Unlock; payload: MessageResponsePayload[MessageType.Unlock] }
+//     | { type: MessageType.Lock; payload: MessageResponsePayload[MessageType.Lock] }
+//     | { type: MessageType.GetCredentials; payload: MessageResponsePayload[MessageType.GetCredentials] }
+//     | { type: MessageType.GetCredential; payload: MessageResponsePayload[MessageType.GetCredential] }
+//     | { type: MessageType.CreateCredential; payload: MessageResponsePayload[MessageType.CreateCredential] }
+//     | { type: MessageType.UpdateCredential; payload: MessageResponsePayload[MessageType.UpdateCredential] }
+//     | { type: MessageType.DeleteCredential; payload: MessageResponsePayload[MessageType.DeleteCredential] }
+//     | { type: MessageType.EnsureOffscreen; payload: MessageResponsePayload[MessageType.EnsureOffscreen] }
+//     | { type: MessageType.GetPublicKey; payload: MessageResponsePayload[MessageType.GetPublicKey] }
 
 // Encrypted envelope structure for secure messaging
 export interface EncryptedEnvelope {
@@ -117,5 +114,5 @@ export interface PlaintextEnvelope {
     requestId: string;
     origin: "popup" | "offscreen" | "worker";
     timestamp: string;
-    payload?: any; // Optional payload for plaintext messages
+    payload: { ok: boolean } & any | { ok: false; error: string };
 }

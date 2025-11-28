@@ -1,4 +1,4 @@
-import { err, Err, ok, Result } from "neverthrow";
+import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
 
 /**

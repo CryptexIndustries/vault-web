@@ -20,6 +20,11 @@ export function validateEnvelope(
 ): { valid: true } | { valid: false; error: string; code: string } {
     // Validate timestamp
     const messageTime = new Date(envelope.timestamp).getTime();
+
+    if (isNaN(messageTime)) {
+        return { valid: false, error: "Invalid message timestamp", code: "INVALID_TIMESTAMP" };
+    }
+
     const now = Date.now();
     const timeDiff = Math.abs(now - messageTime);
 
@@ -66,13 +71,9 @@ function validateOrigin(
     // For popup messages
     if (claimedOrigin === "popup") {
         // Popup should come from extension pages
-        if (!sender.url?.startsWith(chrome.runtime.getURL(""))) {
+        if (!sender.url?.startsWith(chrome.runtime.getURL("/popup.html"))) {
             return { valid: false, error: "Invalid popup origin", code: "INVALID_ORIGIN" };
         }
-        // Additional validation: sender.tab should exist for popup
-        // if (!sender.tab) {
-        //     return { valid: false, error: "Popup message must come from a tab context", code: "INVALID_ORIGIN" };
-        // }
         return { valid: true };
     }
 
@@ -86,14 +87,25 @@ function validateOrigin(
         return { valid: true };
     }
 
-    // For worker messages (responses from SW)
+    // For worker messges
     if (claimedOrigin === "worker") {
-        // Worker messages should come from the service worker itself
-        // This is mainly for consistency, worker-originated messages are trusted
+        if (sender.id !== chrome.runtime.id) {
+            return { valid: false, error: "Worker message must come from the service worker itself", code: "INVALID_SENDER" };
+        }
         return { valid: true };
     }
 
     return { valid: false, error: "Unknown origin type", code: "INVALID_ORIGIN" };
+}
+
+/**
+ * Validates a response envelope from a worker message.
+ * The difference between this and validateEnvelope is that we need to validate without the sender information.
+ */
+export function TODOvalidateResponseEnvelope(
+    envelope: EnvelopeLike
+): { valid: true } | { valid: false; error: string; code: string } {
+    return validateEnvelope(envelope, { origin: "worker" });
 }
 
 /**

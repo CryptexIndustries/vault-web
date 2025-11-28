@@ -1,7 +1,7 @@
 packages:
   - web
   - extension
-  - packages/*
+  - packages/shared-ui
 
 onlyBuiltDependencies:
   - '@prisma/client'

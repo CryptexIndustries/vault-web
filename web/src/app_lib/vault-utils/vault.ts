@@ -21,13 +21,6 @@ export class Vault implements VaultUtilTypes.Vault {
      */
     private LATEST_VERSION = 2;
 
-    /**
-     * NOTE: This property is **not** serialized and saved in the vault
-     * The secret used to encrypt the vault while it's in memory.
-     * It is also use to decrypt the vault data (if it's encrypted using symmetric encryption).
-     */
-    public Secret = new Uint8Array();
-
     public Version: number;
     public CurrentVersion = 0;
     public Configuration: Configuration = new Configuration();
@@ -36,9 +29,8 @@ export class Vault implements VaultUtilTypes.Vault {
     public Credentials: VaultCredential[];
     public Diffs: VaultUtilTypes.Diff[] = [];
 
-    constructor(secret = new Uint8Array(), seedData = false, seedCount = 0) {
+    constructor(seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
-        this.Secret = secret;
 
         this.LinkedDevices = new LinkedDevices();
         this.Credentials = seedData ? this.seedVault(seedCount) : [];
@@ -1137,7 +1129,7 @@ export const packageForLinking = (
     signalingServerID: string,
 ): Vault => {
     // Create a copy of the vault so we don't modify the original
-    const vaultCopy = Object.assign(new Vault(instance.Secret), instance);
+    const vaultCopy = Object.assign(new Vault(), instance);
 
     // NOTE: Even if this vault never had any linked devices, it will always have at least on diff in the diff list
     // This is to ensure that both devices can synchronize with each other even if they diverge right after linking

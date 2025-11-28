@@ -641,7 +641,7 @@ const LinkTab: React.FC<{
                         VaultMetadata.deserializeMetadataBinary(
                             status.VaultBinaryData,
                         );
-                    await newVaultMetadata.save(null);
+                    await newVaultMetadata.save(null, new Uint8Array(0));
                 }
 
                 if (

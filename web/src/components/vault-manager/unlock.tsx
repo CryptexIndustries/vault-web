@@ -158,7 +158,7 @@ const UnlockTab: React.FC<{
             selectedVaultData.Description = formData.Description;
 
             // Save the updated metadata (passing null as vault instance to only update metadata)
-            await selectedVaultData.save(null);
+            await selectedVaultData.save(null, new Uint8Array(0));
 
             // Update the display name
             setSelectedVaultDisplayName(formData.Name);

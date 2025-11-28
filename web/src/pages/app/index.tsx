@@ -161,6 +161,40 @@ dayjs.extend(RelativeTime);
 // Global sync connection controller will be created in the component
 let GlobalSyncConnectionController: Synchronization.SyncConnectionController;
 
+const SESSION_STORAGE_VAULT_SECRET_KEY = "vaultSecret";
+/**
+ * Get the vault secret from the session storage
+ * @returns The vault secret as a Uint8Array
+ */
+const getVaultSecret = async () => {
+    const vaultSecret: string | null = sessionStorage.getItem(SESSION_STORAGE_VAULT_SECRET_KEY);
+
+    // Check if we found a vault secret
+    if (vaultSecret == null || vaultSecret.length === 0)
+        return err("VAULT_SECRET_NOT_FOUND");
+
+    // Convert the b64 string to a Uint8Array
+    // TODO: Replace with Uint8Array.fromBase64() in about 3 months
+    return ok(Uint8Array.from(atob(vaultSecret), (c) => c.charCodeAt(0)));
+};
+
+/**
+ * Set the vault secret in the session storage
+ * @param secret The secret to set in the session storage
+ */
+const setVaultSecret = (secret: Uint8Array) => {
+    // TODO: Replace with Uint8Array.toBase64() in about 3 months
+    sessionStorage.setItem(SESSION_STORAGE_VAULT_SECRET_KEY, btoa(String.fromCharCode(...secret)));
+};
+
+/**
+ * Clears the session storage for the vault secret
+ * On page unload, clear the vault session storage
+ */
+const clearVaultSecret = () => {
+    sessionStorage.clear();
+};
+
 // Vault operations implementation using atoms
 const createVaultOperations = (setUnlockedVault: (vault: Vault.Vault | ((prev: Vault.Vault) => Vault.Vault)) => void, vaultMetadata: Storage.VaultMetadata | null): Synchronization.VaultOperations => {
     return {
@@ -180,7 +214,14 @@ const createVaultOperations = (setUnlockedVault: (vault: Vault.Vault | ((prev: V
         },
         saveVault: async (vault) => {
             if (vaultMetadata) {
-                await vaultMetadata.save(vault);
+
+                const decryptionSecret = await getVaultSecret();
+                if (decryptionSecret.isErr()) {
+                    console.error("[createVaultOperations] Failed to get decryption secret.", decryptionSecret.error);
+                    return;
+                }
+
+                await vaultMetadata.save(vault, decryptionSecret.value);
             }
         },
         getSynchronizationConfig: () => {
@@ -280,7 +321,13 @@ const useUnbindOnlineServices = () => {
 
         LinkedDevices.unbindAccount(vault.LinkedDevices);
 
-        await vaultMetadata.save(vault);
+        const vaultSecret = await getVaultSecret();
+        if (vaultSecret.isErr()) {
+            console.error("[useUnbindOnlineServices] Failed to get vault secret.", vaultSecret.error);
+            return;
+        }
+
+        await vaultMetadata.save(vault, vaultSecret.value);
 
         clearOnlineServicesData();
     };
@@ -2044,7 +2091,15 @@ const ImportDataDialog: React.FC<{
             };
             vault.Diffs.push(diff);
         }
-        unlockedVaultMetadata?.save(vault);
+
+        const vaultSecret = await getVaultSecret();
+        if (vaultSecret.isErr()) {
+            console.error("[importCredentials] Failed to get vault secret.", vaultSecret.error);
+            toast.error("Failed to import credentials. Failed to retrieve the encryption secret. More details in the console.");
+            return;
+        }
+
+        unlockedVaultMetadata?.save(vault, vaultSecret.value);
 
         setUnlockedVault(async () => vault);
 
@@ -2371,7 +2426,17 @@ const ChangeVaultEncryptionConfigDialog: React.FC<{
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         try {
-            await vaultMetadata?.save(unlockedVault, data);
+            const vaultSecret = await getVaultSecret();
+            if (vaultSecret.isErr()) {
+                console.error("[onSubmit] Failed to get vault secret.", vaultSecret.error);
+                toast.error("Failed to change encryption configuration. Failed to retrieve the encryption secret. More details in the console.");
+                setIsLoading(false);
+                return;
+            }
+
+            await vaultMetadata?.save(unlockedVault, vaultSecret.value);
+
+            setVaultSecret(vaultSecret.value);
 
             toast.success("Encryption configuration changed.", {
                 autoClose: 3000,
@@ -2582,9 +2647,18 @@ const VaultSettingsDialog: React.FC<{
                 throw new Error("Vault metadata or blob cannot be null.");
             }
 
+            const vaultSecret = await getVaultSecret();
+            if (vaultSecret.isErr()) {
+                console.error("[manualVaultBackup] Failed to get vault secret.", vaultSecret.error);
+                toast.error("Failed to backup vault. Failed to retrieve the encryption secret. More details in the console.");
+                setIsLoading(false);
+                return;
+            }
+
             const serializedData = await Storage.serializeVault(
                 unlockedVault,
                 vaultMetadata.Blob,
+                vaultSecret.value,
             );
 
             // Dump the data into a blob
@@ -2900,7 +2974,14 @@ const OnlineServicesSignUpRestoreDialog: React.FC<{
             await fetchOnlineServicesData();
 
             try {
-                await vaultMetadata.save(pre);
+                const vaultSecret = await getVaultSecret();
+                if (vaultSecret.isErr()) {
+                    console.error("[bindAccount] Failed to get vault secret.", vaultSecret.error);
+                    toast.error("Failed to bind account. Failed to retrieve the encryption secret. More details in the console.");
+                    return pre;
+                }
+
+                await vaultMetadata.save(pre, vaultSecret.value);
                 toast.success("Account bound successfully.", {
                     autoClose: 3000,
                     closeButton: true,
@@ -3681,6 +3762,14 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 return;
             }
 
+            const vaultSecret = await getVaultSecret();
+            if (vaultSecret.isErr()) {
+                console.error("[startLinkingProcess] Failed to get vault secret.", vaultSecret.error);
+                addToProgressLog("Failed to package vault data. Failed to retrieve the encryption secret. More details in the console.", "error");
+                setIsOperationInProgress(false);
+                return;
+            }
+
             {
                 addToProgressLog(
                     "Packaging Vault data for transmission...",
@@ -3700,7 +3789,7 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                 addToProgressLog("Vault data packaged. Encrypting...", "info");
 
                 const encryptedBlobObj =
-                    await vaultMetadata.exportForLinking(exportedVault);
+                    await vaultMetadata.exportForLinking(exportedVault, vaultSecret.value);
 
                 // Send the encrypted data to the other device
                 webRTCDataChannel.send(encryptedBlobObj);
@@ -3753,8 +3842,9 @@ const LinkDeviceInsideVaultDialog: React.FC<{
                     "Number of linked devices",
                     unlockedVault.LinkedDevices.Devices.length,
                 );
+
                 // TODO: Check if this saves the old or the new data
-                vaultMetadata.save(unlockedVault);
+                vaultMetadata.save(unlockedVault, vaultSecret.value);
 
                 addToProgressLog("New linked device saved.");
             }
@@ -4566,7 +4656,14 @@ const EditLinkedDeviceDialog: React.FC<{
         }
         setLinkedDevices([...unlockedVault.LinkedDevices.Devices]);
 
-        await vaultMetadata.save(unlockedVault);
+        const vaultSecret = await getVaultSecret();
+        if (vaultSecret.isErr()) {
+            console.error("[EditLinkedDeviceDialog] Failed to get vault secret.", vaultSecret.error);
+            toast.error("Failed to save linked device. Failed to retrieve the encryption secret. More details in the console.");
+            return;
+        }
+        
+        await vaultMetadata.save(unlockedVault, vaultSecret.value);
 
         hideDialog(true);
     };
@@ -5475,9 +5572,19 @@ const VaultDashboard: React.FC = ({}) => {
         // A little delay to make sure the toast is shown
         await new Promise((resolve) => setTimeout(resolve, 100));
 
+        const vaultSecret = await getVaultSecret();
+        if (vaultSecret.isErr()) {
+            console.error("[lockVault] Failed to get vault secret.", vaultSecret.error);
+            toast.error("Failed to lock vault. Failed to retrieve the encryption secret. More details in the console.");
+            return;
+        }
+
         // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
         try {
-            await vaultMetadata.save(vaultGet());
+            await vaultMetadata.save(vaultGet(), vaultSecret.value);
+
+            clearVaultSecret();
+
             toast.success("Vault secured.", {
                 autoClose: 3000,
                 closeButton: true,
@@ -5609,7 +5716,7 @@ const VaultDashboard: React.FC = ({}) => {
                                             text="[DEBUG] Clear Diff list"
                                             onClick={async () => {
                                                 await setUnlockedVault(
-                                                    (vault) => {
+                                                    async (vault) => {
                                                         console.debug(
                                                             "[DEBUG] Clear Diff list - before -",
                                                             vault.Diffs,
@@ -5617,8 +5724,15 @@ const VaultDashboard: React.FC = ({}) => {
 
                                                         vault.Diffs = [];
 
+                                                        const vaultSecret = await getVaultSecret();
+                                                        if (vaultSecret.isErr()) {
+                                                            console.error("[DEBUG] Clear Diff list - Failed to retrieve encryption secret.", vaultSecret.error);
+                                                            return vault;
+                                                        }
+
                                                         vaultMetadata.save(
                                                             vault,
+                                                            vaultSecret.value,
                                                         );
 
                                                         console.debug(
@@ -6124,7 +6238,14 @@ const ListItemCredential: React.FC<{
 
                     try {
                         // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-                        await unlockedVaultMetadata.save(vault);
+                        const vaultSecret = await getVaultSecret();
+                        if (vaultSecret.isErr()) {
+                            console.error("[removeCredential] Failed to retrieve encryption secret.", vaultSecret.error);
+                            toast.error("Failed to remove credential. Failed to retrieve the encryption secret. More details in the console.");
+                            return vault;
+                        }
+
+                        await unlockedVaultMetadata.save(vault, vaultSecret.value);
                         toast.success("Credential removed.", {
                             autoClose: 3000,
                             closeButton: true,
@@ -7006,7 +7127,14 @@ const CredentialSideview: React.FC<{
         try {
             // Trigger manual vault save
             // TODO: Remove when the auto-save feature is implemented
-            await vaultMetadata.save(vault);
+            const vaultSecret = await getVaultSecret();
+            if (vaultSecret.isErr()) {
+                console.error("[onSubmit] Failed to retrieve encryption secret.", vaultSecret.error);
+                toast.error("Failed to save vault data. Failed to retrieve the encryption secret. More details in the console.");
+                return;
+            }
+
+            await vaultMetadata.save(vault, vaultSecret.value);
 
             toast.success("Vault data saved", {
                 autoClose: 3000,
@@ -7353,6 +7481,15 @@ const AppIndex: React.FC = () => {
     //     };
     // }, [isVaultUnlocked]);
     //
+
+    // Register the beforeunload event handler
+    useEffect(() => {
+        window.addEventListener("beforeunload", clearVaultSecret);
+        return () => {
+            window.removeEventListener("beforeunload", clearVaultSecret);
+        };
+    }, []);
+
     const tryVaultDecrypt = async (
         metadata: Storage.VaultMetadata,
         formData: FormSchemas.EncryptionFormGroupSchemaType,
@@ -7366,9 +7503,14 @@ const AppIndex: React.FC = () => {
 
         if (vaultRes.isErr()) return err(vaultRes.error);
 
-        const vault = vaultRes.value;
+        const { vault, encryptionData } = vaultRes.value;
 
         // Set the vault metadata and vault atoms
+        setVaultSecret(encryptionData);
+
+        // Rewrite the encryption data to random bytes
+        crypto.getRandomValues(encryptionData);
+
         setUnlockedVaultMetadata(metadata);
         setUnlockedVault(vault);
 
@@ -7406,7 +7548,9 @@ const AppIndex: React.FC = () => {
                 false,
                 0,
             );
-            await vaultMetadata.save(null);
+
+            // Passing a null vault instance and a new Uint8Array(0) as the secret is valid, as we are just saving the already-encrypted blob to the database
+            await vaultMetadata.save(null, new Uint8Array(0));
         } catch (e) {
             console.error("Failed to create a vault", e);
             return false;
@@ -7437,7 +7581,8 @@ const AppIndex: React.FC = () => {
         newVaultMetadataInst.Blob = validBackupFile;
 
         try {
-            await newVaultMetadataInst.save(null);
+            // Passing a null vault instance and a new Uint8Array(0) as the secret is valid, as we are just saving the already-encrypted blob to the database
+            await newVaultMetadataInst.save(null, new Uint8Array(0));
         } catch (e) {
             console.error("Failed to save the restored vault metadata", e);
             return false;

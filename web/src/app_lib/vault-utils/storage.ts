@@ -121,19 +121,15 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         vaultMetadata.LastUsed = undefined;
 
         // Instantiate a new vault to encrypt
-        const freshVault = new Vault(
-            await hashSecret(encryptionFormData.Secret),
-            seedVault,
-            seedCount,
-        );
+        const freshVault = new Vault(seedVault, seedCount);
 
         // Serialize the vault instance
         const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
 
-        // Encrypt the vault using default encryption
+        // Encrypt the vault - producing an encrypted blob
         vaultMetadata.Blob = await EncryptDataBlob(
             _vaultBytes,
-            freshVault.Secret,
+            await hashSecret(encryptionFormData.Secret),
             encryptionFormData.Encryption,
             encryptionFormData.EncryptionKeyDerivationFunction,
             encryptionFormData.EncryptionConfig, // TODO: Get this TF out of here
@@ -148,10 +144,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * If the vault instance is not null, encrypt it, add it to the blob and save it to the database.
      * If the vault instance is null, just save the existing blob to the database.
      * @param vaultInstance The fresh vault instance to save to the database
+     * @param secret The secret to encrypt the vault with
      * @param encryptionConfigFormSchema The encryption configuration form schema (in case we're modifying the encryption configuration)
      */
     public async save(
         vaultInstance: Vault | null,
+        secret: Uint8Array,
         encryptionConfigFormSchema?: EncryptionFormGroupSchemaType,
     ): Promise<void> {
         if (this.Blob == null) {
@@ -164,9 +162,11 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             // Update the last used date only if we're actually updating the vault
             this.LastUsed = new Date().toISOString();
 
-            // If the encryption configuration form schema is provided, update the vault Secret
+            let _secret = secret;
+
+            // If the encryption configuration form schema is provided, hash the secret and set it as the new secret
             if (encryptionConfigFormSchema) {
-                vaultInstance.Secret = await hashSecret(
+                _secret = await hashSecret(
                     encryptionConfigFormSchema.Secret,
                 );
             }
@@ -178,7 +178,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             // Encrypt the vault using the configured encryption
             this.Blob = await EncryptDataBlob(
                 _vaultBytes,
-                vaultInstance.Secret,
+                _secret,
                 encryptionConfigFormSchema?.Encryption ?? this.Blob.Algorithm,
                 encryptionConfigFormSchema?.EncryptionKeyDerivationFunction ??
                     this.Blob.KeyDerivationFunc,
@@ -189,6 +189,9 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                     this.Blob
                         .KDFConfigPBKDF2) as VaultUtilTypes.KeyDerivationConfigPBKDF2,
             );
+
+            // Rewrite the secret to random bytes
+            crypto.getRandomValues(_secret);
         }
 
         // Serialize the vault metadata and save it to the database
@@ -202,7 +205,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * Decrypts the vault blob and returns it.
      * @param secret - The secret to decrypt the vault with
      * @param encryptionAlgorithm - The encryption algorithm used to encrypt the vault (taken from the blob or overriden by the user)
-     * @returns The decrypted vault object
+     * @returns The decrypted vault object and the encryption data used to encrypt the vault
      */
     public async decryptVault(
         secret: string,
@@ -219,17 +222,9 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         // Hash the secret
         const hashedSecret = await hashSecret(secret);
 
-        const encryptionData = new Uint8Array(hashedSecret);
-        let decryptionData = new Uint8Array(hashedSecret);
-
-        // DELETEME_UPGRADE: Remove this after the upgrade period is over (6 months)
-        if (blobUpgradeResult.upgraded && blobUpgradeResult.version === 2) {
-            decryptionData = new Uint8Array(new TextEncoder().encode(secret));
-        }
-
         const decryptedVaultStringRes = await DecryptDataBlob(
             this.Blob,
-            decryptionData,
+            hashedSecret,
             encryptionAlgorithm,
             keyDerivationFunc,
             keyDerivationFuncConfig,
@@ -245,7 +240,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         // Set the decryptionSecret in the session storage
         // Which is then used to encrypt the vault when saving
         const vaultObject: Vault = Object.assign(
-            new Vault(encryptionData),
+            new Vault(),
             vaultRawParsed,
         );
 
@@ -285,20 +280,22 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
         // Take care of the encrypted blob upgrade
         if (blobUpgradeResult.requiresSave) {
-            this.save(vaultObject);
+            this.save(vaultObject, hashedSecret);
         }
 
         // Assign the deserialized data to the Vault object
-        return ok(vaultObject);
+        return ok({ vault: vaultObject, encryptionData: hashedSecret });
     }
 
     /**
      * Prepares the vault for linking by cleaning up the metadata and re-encrypting the blob.
      * @param cleanVaultInstance The cleaned up vault instance to encrypt and inject into the metadata
+     * @param secret The secret to encrypt the vault with
      * @returns A new VaultMetadata object ready to be saved for linking
      */
     public async exportForLinking(
         cleanVaultInstance: Vault,
+        secret: Uint8Array,
     ): Promise<Uint8Array> {
         if (this.Blob == null) {
             throw new Error(
@@ -318,7 +315,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         // Encrypt the vault using the configured encryption
         newMetadata.Blob = await EncryptDataBlob(
             _vaultBytes,
-            cleanVaultInstance.Secret,
+            secret,
             this.Blob.Algorithm,
             this.Blob.KeyDerivationFunc,
             this.Blob
@@ -361,11 +358,13 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
  * TODO: Merge this with the save method on the vault object.
  * @param vaultInstance The vault instance to serialize
  * @param encryptionConfigFormSchema The current encryption configuration
+ * @param secret The secret to encrypt the vault with
  * @returns The raw binary data of the serialized vault
  */
 export const serializeVault = async (
     vaultInstance: Vault,
     existingEncryptedBlob: EncryptedBlob,
+    secret: Uint8Array,
 ) => {
     // Clone the vault instance
     const cleanVault = Object.assign(new Vault(), vaultInstance);
@@ -379,7 +378,7 @@ export const serializeVault = async (
     // Encrypt the vault using the configured encryption
     const encryptedBlob = await EncryptDataBlob(
         _vaultBytes,
-        cleanVault.Secret,
+        secret,
         existingEncryptedBlob.Algorithm,
         existingEncryptedBlob.KeyDerivationFunc,
         existingEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,

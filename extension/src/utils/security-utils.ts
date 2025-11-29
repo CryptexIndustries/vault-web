@@ -16,20 +16,28 @@ const TIMESTAMP_SKEW_TOLERANCE = 2 * 60 * 1000; // ±2 minutes
  */
 export function validateEnvelope(
     envelope: EnvelopeLike,
-    sender: chrome.runtime.MessageSender
+    sender: chrome.runtime.MessageSender,
 ): { valid: true } | { valid: false; error: string; code: string } {
     // Validate timestamp
     const messageTime = new Date(envelope.timestamp).getTime();
 
     if (isNaN(messageTime)) {
-        return { valid: false, error: "Invalid message timestamp", code: "INVALID_TIMESTAMP" };
+        return {
+            valid: false,
+            error: "Invalid message timestamp",
+            code: "INVALID_TIMESTAMP",
+        };
     }
 
     const now = Date.now();
     const timeDiff = Math.abs(now - messageTime);
 
     if (timeDiff > TIMESTAMP_SKEW_TOLERANCE) {
-        return { valid: false, error: "Message timestamp is outside acceptable range", code: "TIMESTAMP_SKEW" };
+        return {
+            valid: false,
+            error: "Message timestamp is outside acceptable range",
+            code: "TIMESTAMP_SKEW",
+        };
     }
 
     // Check nonce cache for replay protection
@@ -38,7 +46,11 @@ export function validateEnvelope(
 
     if (cachedTimestamp) {
         // If we have a cached entry, it's a replay
-        return { valid: false, error: "Request ID already used (replay attack)", code: "REPLAY_DETECTED" };
+        return {
+            valid: false,
+            error: "Request ID already used (replay attack)",
+            code: "REPLAY_DETECTED",
+        };
     }
 
     // Validate origin based on sender information
@@ -51,7 +63,8 @@ export function validateEnvelope(
     nonceCache.set(cacheKey, messageTime);
 
     // Clean up expired nonces periodically (simple cleanup)
-    if (Math.random() < 0.01) { // 1% chance on each validation
+    if (Math.random() < 0.01) {
+        // 1% chance on each validation
         cleanupExpiredNonces();
     }
 
@@ -66,13 +79,17 @@ export function validateEnvelope(
  */
 function validateOrigin(
     claimedOrigin: string,
-    sender: chrome.runtime.MessageSender
+    sender: chrome.runtime.MessageSender,
 ): { valid: true } | { valid: false; error: string; code: string } {
     // For popup messages
     if (claimedOrigin === "popup") {
         // Popup should come from extension pages
         if (!sender.url?.startsWith(chrome.runtime.getURL("/popup.html"))) {
-            return { valid: false, error: "Invalid popup origin", code: "INVALID_ORIGIN" };
+            return {
+                valid: false,
+                error: "Invalid popup origin",
+                code: "INVALID_ORIGIN",
+            };
         }
         return { valid: true };
     }
@@ -82,7 +99,11 @@ function validateOrigin(
         // Offscreen should come from the offscreen document
         const offscreenUrl = chrome.runtime.getURL("/offscreen.html");
         if (sender.url !== offscreenUrl) {
-            return { valid: false, error: "Invalid offscreen origin", code: "INVALID_ORIGIN" };
+            return {
+                valid: false,
+                error: "Invalid offscreen origin",
+                code: "INVALID_ORIGIN",
+            };
         }
         return { valid: true };
     }
@@ -90,12 +111,20 @@ function validateOrigin(
     // For worker messges
     if (claimedOrigin === "worker") {
         if (sender.id !== chrome.runtime.id) {
-            return { valid: false, error: "Worker message must come from the service worker itself", code: "INVALID_SENDER" };
+            return {
+                valid: false,
+                error: "Worker message must come from the service worker itself",
+                code: "INVALID_SENDER",
+            };
         }
         return { valid: true };
     }
 
-    return { valid: false, error: "Unknown origin type", code: "INVALID_ORIGIN" };
+    return {
+        valid: false,
+        error: "Unknown origin type",
+        code: "INVALID_ORIGIN",
+    };
 }
 
 /**
@@ -103,7 +132,7 @@ function validateOrigin(
  * The difference between this and validateEnvelope is that we need to validate without the sender information.
  */
 export function TODOvalidateResponseEnvelope(
-    envelope: EnvelopeLike
+    envelope: EnvelopeLike,
 ): { valid: true } | { valid: false; error: string; code: string } {
     return validateEnvelope(envelope, { origin: "worker" });
 }
@@ -121,7 +150,7 @@ function cleanupExpiredNonces(): void {
         }
     }
 
-    toDelete.forEach(key => nonceCache.delete(key));
+    toDelete.forEach((key) => nonceCache.delete(key));
 }
 
 /**

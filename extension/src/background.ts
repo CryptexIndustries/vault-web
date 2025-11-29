@@ -2,8 +2,18 @@ import * as Storage from "@/app_lib/vault-utils/storage";
 import * as Vault from "@/app_lib/vault-utils/vault";
 import { LiteCredential, MessageType } from "./types/sw-messaging";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
-import { generateECDHKeyPair, deriveSessionKey, base64UrlDecode } from "./utils/crypto-utils";
-import { createEncryptedResponseEnvelope, decryptEnvelope, createPlaintextEnvelope, isEncryptedEnvelope, isPlaintextEnvelope } from "./utils/session-utils";
+import {
+    generateECDHKeyPair,
+    deriveSessionKey,
+    base64UrlDecode,
+} from "./utils/crypto-utils";
+import {
+    createEncryptedResponseEnvelope,
+    decryptEnvelope,
+    createPlaintextEnvelope,
+    isEncryptedEnvelope,
+    isPlaintextEnvelope,
+} from "./utils/session-utils";
 import { validateEnvelope } from "./utils/security-utils";
 import { EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
 
@@ -25,7 +35,7 @@ type LegacyMessage = {
  */
 async function processEnvelope(
     envelope: EncryptedEnvelope | PlaintextEnvelope,
-    sender: chrome.runtime.MessageSender
+    sender: chrome.runtime.MessageSender,
 ): Promise<EncryptedEnvelope | PlaintextEnvelope> {
     // Validate envelope security properties
     const validation = validateEnvelope(envelope, sender);
@@ -34,7 +44,7 @@ async function processEnvelope(
         return createPlaintextEnvelope(
             envelope.type,
             { ok: false, error: validation.error, code: validation.code },
-            "worker"
+            "worker",
         );
     }
 
@@ -45,42 +55,67 @@ async function processEnvelope(
     if (isEncryptedEnvelope(envelope)) {
         try {
             // Get the active key pair
-            const activeKey = await Storage.db.keyPairs.where("status").equals("active").first();
+            const activeKey = await Storage.db.keyPairs
+                .where("status")
+                .equals("active")
+                .first();
             if (!activeKey) {
                 return createPlaintextEnvelope(
                     envelope.type,
-                    { ok: false, error: "No active key available", code: "NO_ACTIVE_KEY" },
-                    "worker"
+                    {
+                        ok: false,
+                        error: "No active key available",
+                        code: "NO_ACTIVE_KEY",
+                    },
+                    "worker",
                 );
             }
 
             // Check if key ID matches
             if (envelope.keyId !== activeKey.keyId) {
                 // Try to find the key by ID (might be decommissioned)
-                const requestedKey = await Storage.db.keyPairs.get(envelope.keyId);
+                const requestedKey = await Storage.db.keyPairs.get(
+                    envelope.keyId,
+                );
                 if (requestedKey) {
                     return createPlaintextEnvelope(
                         envelope.type,
-                        { ok: false, error: "Key has been rotated", code: "STALE_KEY", latestKeyId: activeKey.keyId },
-                        "worker"
+                        {
+                            ok: false,
+                            error: "Key has been rotated",
+                            code: "STALE_KEY",
+                            latestKeyId: activeKey.keyId,
+                        },
+                        "worker",
                     );
                 } else {
                     return createPlaintextEnvelope(
                         envelope.type,
-                        { ok: false, error: "Unknown key ID", code: "INVALID_KEY" },
-                        "worker"
+                        {
+                            ok: false,
+                            error: "Unknown key ID",
+                            code: "INVALID_KEY",
+                        },
+                        "worker",
                     );
                 }
             }
 
             // Decrypt the envelope
-            decryptedPayload = await decryptEnvelope(envelope, activeKey.privateKey);
+            decryptedPayload = await decryptEnvelope(
+                envelope,
+                activeKey.privateKey,
+            );
 
             if (!decryptedPayload.ok) {
                 return createPlaintextEnvelope(
                     envelope.type,
-                    { ok: false, error: decryptedPayload.error, code: decryptedPayload.code },
-                    "worker"
+                    {
+                        ok: false,
+                        error: decryptedPayload.error,
+                        code: decryptedPayload.code,
+                    },
+                    "worker",
                 );
             }
 
@@ -92,21 +127,25 @@ async function processEnvelope(
                 envelope.payload.ephemeralPub,
                 { name: "ECDH", namedCurve: "P-256" },
                 false,
-                []
+                [],
             );
             const salt = base64UrlDecode(envelope.payload.salt);
             sessionKey = await deriveSessionKey(
                 activeKey.privateKey,
                 ephemeralPublicKey,
                 salt,
-                "cryptex-extension-session"
+                "cryptex-extension-session",
             );
         } catch (error) {
-            console.error("Failed to decrypt envelope:", error);
+            console.error("[SW] Failed to decrypt envelope:", error);
             return createPlaintextEnvelope(
                 envelope.type,
-                { ok: false, error: "Decryption failed", code: "DECRYPTION_FAILED" },
-                "worker"
+                {
+                    ok: false,
+                    error: "Decryption failed",
+                    code: "DECRYPTION_FAILED",
+                },
+                "worker",
             );
         }
     } else {
@@ -114,8 +153,12 @@ async function processEnvelope(
         if (envelope.type !== MessageType.GetPublicKey) {
             return createPlaintextEnvelope(
                 envelope.type,
-                { ok: false, error: "Only GetPublicKey messages are allowed in plaintext envelopes", code: "INVALID_ENVELOPE_TYPE" },
-                "worker"
+                {
+                    ok: false,
+                    error: "Only GetPublicKey messages are allowed in plaintext envelopes",
+                    code: "INVALID_ENVELOPE_TYPE",
+                },
+                "worker",
             );
         }
 
@@ -123,26 +166,36 @@ async function processEnvelope(
         if (!publicKey.ok) {
             return createPlaintextEnvelope(
                 envelope.type,
-                { ok: false, error: "Failed to retrieve an active public key", code: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY" },
-                "worker"
+                {
+                    ok: false,
+                    error: "Failed to retrieve an active public key",
+                    code: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY",
+                },
+                "worker",
             );
         }
 
-        return createPlaintextEnvelope(
-            envelope.type,
-            publicKey,
-            "worker"
-        );
+        return createPlaintextEnvelope(envelope.type, publicKey, "worker");
     }
 
     // NOTE: Here on out, we know that the envelope is an encrypted envelope and that we have a valid session key
 
-    console.debug("SW Decrypted/Plaintext type:", MessageType[envelope.type], "payload:", decryptedPayload);
+    console.debug(
+        "[SW] Previewing the decrypted/plaintext message before processing:",
+        MessageType[envelope.type],
+        "payload:",
+        decryptedPayload,
+    );
 
     // Process the message based on type
     const result = await processMessage(envelope.type, decryptedPayload);
 
-    console.debug("SW Response before encryption:", MessageType[envelope.type], "result:", result);
+    console.debug(
+        "[SW] Previewing the response after processing:",
+        MessageType[envelope.type],
+        "result:",
+        result,
+    );
 
     // Re-encrypt the response envelope
     return await createEncryptedResponseEnvelope(envelope, result, sessionKey);
@@ -166,10 +219,11 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: "METADATA_NOT_FOUND" };
                 }
 
-                const metadata = Storage.VaultMetadata.deserializeMetadataBinary(
-                    rec.data,
-                    payload.index,
-                );
+                const metadata =
+                    Storage.VaultMetadata.deserializeMetadataBinary(
+                        rec.data,
+                        payload.index,
+                    );
 
                 const res = await metadata.decryptVault(
                     payload.form.Secret,
@@ -222,15 +276,21 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 const vault = await getVaultFromSessionStorage();
 
                 if (!vault) {
-                    return { ok: false, credentials: [], error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        credentials: [],
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
-                const list: LiteCredential[] = (vault?.Credentials ?? []).map((c) => ({
-                    id: c.ID,
-                    name: c.Name,
-                    username: c.Username,
-                    url: c.URL,
-                }));
+                const list: LiteCredential[] = (vault?.Credentials ?? []).map(
+                    (c) => ({
+                        id: c.ID,
+                        name: c.Name,
+                        username: c.Username,
+                        url: c.URL,
+                    }),
+                );
                 return { ok: true, credentials: list };
             }
 
@@ -238,7 +298,11 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 const vault = await getVaultFromSessionStorage();
 
                 if (!vault) {
-                    return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        credential: null,
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
                 const cred = (vault?.Credentials ?? []).find(
@@ -256,7 +320,11 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 const vaultSecret = await getVaultSecretFromSessionStorage();
 
                 if (!vault || !metadata || !vaultSecret) {
-                    return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        credential: null,
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
                 const data = await Vault.createCredential(payload.form);
@@ -270,7 +338,10 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 vault.Diffs.push(diff);
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
-                const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
                 await metadataInstance.save(vault, vaultSecret);
 
                 await setVaultInSessionStorage(metadata, vault, vaultSecret);
@@ -291,7 +362,11 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 const vaultSecret = await getVaultSecretFromSessionStorage();
 
                 if (!vault || !metadata || !vaultSecret) {
-                    return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        credential: null,
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
                 const existingIndex = vault.Credentials.findIndex(
@@ -303,7 +378,10 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 }
 
                 const existing = vault.Credentials[existingIndex];
-                const data = await Vault.updateCredentialFromForm(existing, payload.form);
+                const data = await Vault.updateCredentialFromForm(
+                    existing,
+                    payload.form,
+                );
                 vault.Credentials[existingIndex] = data.credential;
 
                 const listHash = await Vault.hashCredentials(vault.Credentials);
@@ -314,7 +392,10 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 vault.Diffs.push(diff);
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
-                const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
                 await metadataInstance.save(vault, vaultSecret);
 
                 await setVaultInSessionStorage(metadata, vault, vaultSecret);
@@ -356,7 +437,10 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 vault.Diffs.push(diff);
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
-                const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
                 await metadataInstance.save(vault, vaultSecret);
 
                 await setVaultInSessionStorage(metadata, vault, vaultSecret);
@@ -367,8 +451,14 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 return { ok: false, error: "UNKNOWN_ENCRYPTED_MESSAGE_TYPE" };
         }
     } catch (error) {
-        console.error(`Error processing encrypted message type ${type}:`, error);
-        return { ok: false, error: error instanceof Error ? error.message : "UNKNOWN_ERROR" };
+        console.error(
+            `[SW] Error processing encrypted message type "${MessageType[type]}":`,
+            error,
+        );
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : "UNKNOWN_ERROR",
+        };
     }
 }
 
@@ -376,9 +466,21 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
  * Retrieves the active public key from the database.
  * @returns The active public key if successful, otherwise an error.
  */
-async function retrieveActivePublicKey(): Promise<{ ok: boolean; keyId: string; curve: string; publicKeyJwk: JsonWebKey; createdAt: string } | { ok: false; error: string }> {
+async function retrieveActivePublicKey(): Promise<
+    | {
+          ok: boolean;
+          keyId: string;
+          curve: string;
+          publicKeyJwk: JsonWebKey;
+          createdAt: string;
+      }
+    | { ok: false; error: string }
+> {
     try {
-        const activeKey = await Storage.db.keyPairs.where("status").equals("active").first();
+        const activeKey = await Storage.db.keyPairs
+            .where("status")
+            .equals("active")
+            .first();
 
         if (!activeKey) {
             return { ok: false, error: "NO_ACTIVE_KEY" };
@@ -392,7 +494,7 @@ async function retrieveActivePublicKey(): Promise<{ ok: boolean; keyId: string; 
             createdAt: activeKey.createdAt,
         };
     } catch (error) {
-        console.error("Failed to retrieve active public key:", error);
+        console.error("[SW] Failed to retrieve active public key:", error);
         return { ok: false, error: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY" };
     }
 }
@@ -402,10 +504,15 @@ async function retrieveActivePublicKey(): Promise<{ ok: boolean; keyId: string; 
  */
 async function rotateKeyPair(): Promise<void> {
     try {
-        const currentActiveKey = await Storage.db.keyPairs.where("status").equals("active").first();
+        const currentActiveKey = await Storage.db.keyPairs
+            .where("status")
+            .equals("active")
+            .first();
         if (currentActiveKey) {
             // Mark current active key as decommissioned
-            await Storage.db.keyPairs.update(currentActiveKey.keyId, { status: "decommission" });
+            await Storage.db.keyPairs.update(currentActiveKey.keyId, {
+                status: "decommission",
+            });
         }
 
         // Generate new active key pair
@@ -418,12 +525,12 @@ async function rotateKeyPair(): Promise<void> {
             publicKeyJwk: newKeyPair.publicKeyJwk,
         });
 
-        console.log(`Rotated ECDH key pair. New key ID: ${newKeyPair.keyId}`);
+        console.debug(`[SW] Rotated ECDH key pair. New key ID: ${newKeyPair.keyId}`);
 
         // TODO: Broadcast KEY_ROTATED to all connected clients (popup, offscreen)
         // For now, clients will discover rotation on next request via STALE_KEY error
     } catch (error) {
-        console.error("Failed to rotate key pair:", error);
+        console.error("[SW] Failed to rotate key pair:", error);
         throw error;
     }
 }
@@ -433,18 +540,21 @@ async function rotateKeyPair(): Promise<void> {
  */
 async function checkAndRotateKeysIfNeeded(): Promise<void> {
     try {
-        const activeKey = await Storage.db.keyPairs.where("status").equals("active").first();
+        const activeKey = await Storage.db.keyPairs
+            .where("status")
+            .equals("active")
+            .first();
         if (!activeKey) return;
 
         const keyAge = Date.now() - new Date(activeKey.createdAt).getTime();
         const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
 
         if (keyAge > thirtyDaysInMs) {
-            console.log("Active key is older than 30 days, rotating...");
+            console.debug("[SW] Active key is older than 30 days, rotating...");
             await rotateKeyPair();
         }
     } catch (error) {
-        console.error("Failed to check key rotation:", error);
+        console.error("[SW] Failed to check key rotation:", error);
     }
 }
 
@@ -454,12 +564,17 @@ async function checkAndRotateKeysIfNeeded(): Promise<void> {
  */
 async function ensureActiveKeyPair(): Promise<void> {
     try {
-        const existingActiveKey = await Storage.db.keyPairs.where("status").equals("active").first();
+        const existingActiveKey = await Storage.db.keyPairs
+            .where("status")
+            .equals("active")
+            .first();
         if (existingActiveKey) {
             return; // Active key already exists
         }
 
-        console.log("No active ECDH key pair found, generating new key pair...");
+        console.debug(
+            "[SW] No active ECDH key pair found, generating new key pair...",
+        );
         const keyPair = await generateECDHKeyPair();
 
         await Storage.db.keyPairs.add({
@@ -470,9 +585,9 @@ async function ensureActiveKeyPair(): Promise<void> {
             publicKeyJwk: keyPair.publicKeyJwk,
         });
 
-        console.log(`Generated new ECDH key pair with ID: ${keyPair.keyId}`);
+        console.debug(`[SW] Generated new ECDH key pair with ID: ${keyPair.keyId}`);
     } catch (error) {
-        console.error("Failed to ensure active key pair:", error);
+        console.error("[SW] Failed to ensure active key pair:", error);
         throw error;
     }
 }
@@ -502,19 +617,33 @@ async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null
 }
 
 async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.VaultMetadata | null> {
-    const _metadata = await chrome.storage.session.get([UNLOCKED_VAULT_METADATA_KEY]);
-    return _metadata[UNLOCKED_VAULT_METADATA_KEY] as VaultUtilTypes.VaultMetadata | null;
+    const _metadata = await chrome.storage.session.get([
+        UNLOCKED_VAULT_METADATA_KEY,
+    ]);
+    return _metadata[
+        UNLOCKED_VAULT_METADATA_KEY
+    ] as VaultUtilTypes.VaultMetadata | null;
 }
 
 async function getVaultSecretFromSessionStorage(): Promise<Uint8Array | null> {
-    const _vaultSecretB64 = await chrome.storage.session.get([UNLOCKED_VAULT_SECRET_KEY]);
-    const _vaultSecret = _vaultSecretB64[UNLOCKED_VAULT_SECRET_KEY] as string | null;
+    const _vaultSecretB64 = await chrome.storage.session.get([
+        UNLOCKED_VAULT_SECRET_KEY,
+    ]);
+    const _vaultSecret = _vaultSecretB64[UNLOCKED_VAULT_SECRET_KEY] as
+        | string
+        | null;
 
     // TODO: Replace with Uint8Array.fromBase64() in about 3 months
-    return _vaultSecret ? Uint8Array.from(atob(_vaultSecret), (c) => c.charCodeAt(0)) : null;
+    return _vaultSecret
+        ? Uint8Array.from(atob(_vaultSecret), (c) => c.charCodeAt(0))
+        : null;
 }
 
-async function setVaultInSessionStorage(metadata: VaultUtilTypes.VaultMetadata, vault: VaultUtilTypes.Vault, vaultSecret: Uint8Array): Promise<void> {
+async function setVaultInSessionStorage(
+    metadata: VaultUtilTypes.VaultMetadata,
+    vault: VaultUtilTypes.Vault,
+    vaultSecret: Uint8Array,
+): Promise<void> {
     // Convert the encryption data to a base64 string
     const _vaultSecret = btoa(String.fromCharCode(...vaultSecret));
 
@@ -530,23 +659,44 @@ async function clearSessionStorage(): Promise<void> {
 }
 
 chrome.runtime.onMessage.addListener(
-    (message: EncryptedEnvelope | PlaintextEnvelope, sender: chrome.runtime.MessageSender, sendResponse: (response: EncryptedEnvelope | PlaintextEnvelope | LegacyMessage) => void) => {
+    (
+        message: EncryptedEnvelope | PlaintextEnvelope,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: (
+            response: EncryptedEnvelope | PlaintextEnvelope | LegacyMessage,
+        ) => void,
+    ) => {
         void (async () => {
             try {
                 // Check if this is an envelope-based message
-                if (isEncryptedEnvelope(message) || isPlaintextEnvelope(message)) {
-                    const responseEnvelope = await processEnvelope(message, sender);
+                if (
+                    isEncryptedEnvelope(message) ||
+                    isPlaintextEnvelope(message)
+                ) {
+                    const responseEnvelope = await processEnvelope(
+                        message,
+                        sender,
+                    );
                     sendResponse(responseEnvelope);
                     return;
                 }
 
                 // Legacy message handling (for backward compatibility during transition)
                 // This can be removed once all clients use envelope-based messaging
-                console.warn("Received legacy message format, should migrate to envelope-based messaging", message);
-                sendResponse({ type: -1, payload: { error: "LEGACY_MESSAGE_FORMAT_NOT_SUPPORTED" } });
+                console.warn(
+                    "[SW] Received legacy message format, should migrate to envelope-based messaging",
+                    message,
+                );
+                sendResponse({
+                    type: -1,
+                    payload: { error: "LEGACY_MESSAGE_FORMAT_NOT_SUPPORTED" },
+                });
             } catch (e) {
-                console.error("Message handling error:", e);
-                sendResponse({ type: -1, payload: { error: "An unknown error occurred." } });
+                console.error("[SW] Message handling error:", e);
+                sendResponse({
+                    type: -1,
+                    payload: { error: "An unknown error occurred." },
+                });
             }
         })();
 
@@ -556,7 +706,9 @@ chrome.runtime.onMessage.addListener(
 
 // Ensure active key pair exists on service worker activation
 chrome.runtime.onInstalled.addListener(async () => {
-    console.log("Service worker installed/updated, ensuring active key pair...");
+    console.debug(
+        "[SW] Service worker installed/updated, ensuring active key pair...",
+    );
     await ensureActiveKeyPair();
     // Also check if rotation is needed on install/update
     await checkAndRotateKeysIfNeeded();
@@ -564,7 +716,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 // Also ensure key pair exists on startup
 chrome.runtime.onStartup.addListener(async () => {
-    console.log("Service worker started, ensuring active key pair...");
+    console.debug("[SW] Service worker started, ensuring active key pair...");
     await ensureActiveKeyPair();
     // Check for key rotation on startup
     await checkAndRotateKeysIfNeeded();
@@ -573,10 +725,10 @@ chrome.runtime.onStartup.addListener(async () => {
 // Set up idle detection to lock the vault after 30 minutes of inactivity
 chrome.idle.setDetectionInterval(30 * 60 * 1000);
 chrome.idle.onStateChanged.addListener(async (newState) => {
-  if (newState === 'idle') {
-    console.log('[SW] Vault locked due to inactivity');
-    
-    // Lock the vault
-    await clearSessionStorage();
-  }
+    if (newState === "idle") {
+        console.debug("[SW] Vault locked due to inactivity");
+
+        // Lock the vault
+        await clearSessionStorage();
+    }
 });

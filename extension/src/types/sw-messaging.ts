@@ -1,5 +1,8 @@
 import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
-import { type VaultCredential, type CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
+import {
+    type VaultCredential,
+    type CredentialFormSchemaType,
+} from "@/app_lib/vault-utils/vault";
 
 export enum MessageType {
     GetState = 0,
@@ -17,7 +20,7 @@ export enum MessageType {
 export type Message<T extends MessageType> = {
     type: T;
     payload: MessagePayload[T];
-}
+};
 
 export type MessagePayload = {
     [MessageType.GetState]: undefined;
@@ -41,14 +44,14 @@ export type MessagePayload = {
         id: string;
     };
     [MessageType.GetPublicKey]: undefined;
-}
+};
 
 export type LiteCredential = {
     id: string;
     name: string;
     username: string;
     url: string;
-}
+};
 
 type MessageResponsePayload = {
     [-1]: { error: string }; // Error response
@@ -58,13 +61,35 @@ type MessageResponsePayload = {
     };
     [MessageType.Unlock]: { ok: boolean; error?: string };
     [MessageType.Lock]: { ok: boolean };
-    [MessageType.GetCredentials]: { ok: boolean; credentials: LiteCredential[] };
-    [MessageType.GetCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
-    [MessageType.CreateCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
-    [MessageType.UpdateCredential]: { ok: boolean; credential: VaultCredential | null; error?: string };
+    [MessageType.GetCredentials]: {
+        ok: boolean;
+        credentials: LiteCredential[];
+    };
+    [MessageType.GetCredential]: {
+        ok: boolean;
+        credential: VaultCredential | null;
+        error?: string;
+    };
+    [MessageType.CreateCredential]: {
+        ok: boolean;
+        credential: VaultCredential | null;
+        error?: string;
+    };
+    [MessageType.UpdateCredential]: {
+        ok: boolean;
+        credential: VaultCredential | null;
+        error?: string;
+    };
     [MessageType.DeleteCredential]: { ok: boolean; error?: string };
-    [MessageType.GetPublicKey]: { ok: boolean; keyId: string; curve: string; publicKeyJwk: JsonWebKey; createdAt: string; error?: string };
-}
+    [MessageType.GetPublicKey]: {
+        ok: boolean;
+        keyId: string;
+        curve: string;
+        publicKeyJwk: JsonWebKey;
+        createdAt: string;
+        error?: string;
+    };
+};
 
 // Discriminated unions for better type-narrowing on message handlers
 // export type AnyMessage =
@@ -114,5 +139,5 @@ export interface PlaintextEnvelope {
     requestId: string;
     origin: "popup" | "offscreen" | "worker";
     timestamp: string;
-    payload: { ok: boolean } & any | { ok: false; error: string };
+    payload: ({ ok: boolean } & any) | { ok: false; error: string };
 }

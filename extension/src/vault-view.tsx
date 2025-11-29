@@ -1,11 +1,42 @@
-import { Globe, X, PlusCircle, ArrowRightSquare, Clipboard, EyeOff, Copy, Edit, Trash2, MoreVertical, Plus, Shield, Wifi, WifiOff, Clock, Search, Loader2, Eye } from "lucide-react";
+import {
+    Globe,
+    X,
+    PlusCircle,
+    ArrowRightSquare,
+    Clipboard,
+    EyeOff,
+    Copy,
+    Edit,
+    Trash2,
+    MoreVertical,
+    Plus,
+    Shield,
+    Wifi,
+    WifiOff,
+    Clock,
+    Search,
+    Loader2,
+    Eye,
+} from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TOTP } from "otpauth";
-import { LiteCredential, MessageType, EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
-import { createEncryptedEnvelope, decryptResponseEnvelope, isEncryptedEnvelope } from "./utils/session-utils";
-import { VaultCredential, CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
+import {
+    LiteCredential,
+    MessageType,
+    EncryptedEnvelope,
+    PlaintextEnvelope,
+} from "./types/sw-messaging";
+import {
+    createEncryptedEnvelope,
+    decryptResponseEnvelope,
+    isEncryptedEnvelope,
+} from "./utils/session-utils";
+import {
+    VaultCredential,
+    CredentialFormSchemaType,
+} from "@/app_lib/vault-utils/vault";
 import { TOTPFormSchemaType } from "@/app_lib/vault-utils/form-schemas";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import * as Vault from "@/app_lib/vault-utils/vault";
@@ -14,9 +45,19 @@ import * as Vault from "@/app_lib/vault-utils/vault";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { validateEnvelope } from "./utils/security-utils";
 import { err, ok, Result } from "neverthrow";
 
@@ -32,31 +73,34 @@ type VaultViewProps = {
 
 type CredentialFormMode = "create" | "edit" | null;
 
-
 const VaultView: React.FC<VaultViewProps> = ({
     name,
     lockVaultFn,
     serverPublicKey,
     onStaleKeyError,
 }) => {
-    const [credentials, setCredentials] = useState<LiteCredential[]>([])
-    const [credentialFormMode, setCredentialFormMode] = useState<CredentialFormMode>(null)
-    const [editingCredential, setEditingCredential] = useState<VaultCredential | null>(null)
+    const [credentials, setCredentials] = useState<LiteCredential[]>([]);
+    const [credentialFormMode, setCredentialFormMode] =
+        useState<CredentialFormMode>(null);
+    const [editingCredential, setEditingCredential] =
+        useState<VaultCredential | null>(null);
 
     // Modal states
-    const credentialModalVisible = useState(false)
-    const totpModalVisible = useState(false)
+    const credentialModalVisible = useState(false);
+    const totpModalVisible = useState(false);
 
     // Loading states for CRUD operations
-    const [isCreating, setIsCreating] = useState(false)
-    const [isUpdating, setIsUpdating] = useState(false)
-    const [isDeleting, setIsDeleting] = useState(false)
-    const [refreshing, setRefreshing] = useState(false)
+    const [isCreating, setIsCreating] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const [searchQuery, setSearchQuery] = useState("")
-    const [showFormPassword, setShowFormPassword] = useState(false)
-    const [syncStatus, setSyncStatus] = useState<"connected" | "syncing" | "disconnected">("disconnected")
-    const [lastSync, setLastSync] = useState<Date | null>(null)
+    const [searchQuery, setSearchQuery] = useState("");
+    const [showFormPassword, setShowFormPassword] = useState(false);
+    const [syncStatus, setSyncStatus] = useState<
+        "connected" | "syncing" | "disconnected"
+    >("disconnected");
+    const [lastSync, setLastSync] = useState<Date | null>(null);
 
     // Form management
     const {
@@ -101,7 +145,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         (cred) =>
             cred.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             cred.username.toLowerCase().includes(searchQuery.toLowerCase()),
-    )
+    );
 
     const copyToClipboard = async (text?: string) => {
         if (!text) {
@@ -109,21 +153,24 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         try {
-            await navigator.clipboard.writeText(text)
+            await navigator.clipboard.writeText(text);
         } catch (err) {
-            console.error("Failed to copy to clipboard:", err)
+            console.error("Failed to copy to clipboard:", err);
         }
-    }
+    };
 
     const formatTimeAgo = (date: Date) => {
-        const now = new Date()
-        const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+        const now = new Date();
+        const diffInMinutes = Math.floor(
+            (now.getTime() - date.getTime()) / (1000 * 60),
+        );
 
-        if (diffInMinutes < 1) return "Just now"
-        if (diffInMinutes < 60) return `${diffInMinutes}m ago`
-        if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`
-        return `${Math.floor(diffInMinutes / 1440)}d ago`
-    }
+        if (diffInMinutes < 1) return "Just now";
+        if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+        if (diffInMinutes < 1440)
+            return `${Math.floor(diffInMinutes / 60)}h ago`;
+        return `${Math.floor(diffInMinutes / 1440)}d ago`;
+    };
 
     // TagBox Component
     const TagBox: React.FC<{
@@ -137,7 +184,9 @@ const VaultView: React.FC<VaultViewProps> = ({
 
         const tagInputRef = useRef<HTMLInputElement>(null);
 
-        const tagArrayValue = value ? value.split(tagSeparator).filter(tag => tag.trim()) : [];
+        const tagArrayValue = value
+            ? value.split(tagSeparator).filter((tag) => tag.trim())
+            : [];
 
         const addTag = (tag: string) => {
             if (!tag?.length) return;
@@ -194,7 +243,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                         key={tag}
                         className="m-1 flex flex-row items-center rounded-full bg-muted px-2 py-1"
                     >
-                        <span className="text-xs text-muted-foreground">{tag}</span>
+                        <span className="text-xs text-muted-foreground">
+                            {tag}
+                        </span>
                         <X
                             className="ml-1 h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
                             aria-hidden="true"
@@ -205,7 +256,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 <div className="m-1 flex flex-row items-center rounded-full bg-muted/50 px-2 py-1">
                     <input
                         ref={tagInputRef}
-                        className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
+                        className="bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
                         type="text"
                         value={inputValue}
                         onKeyDown={handleKeyDown}
@@ -293,9 +344,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0 hover:bg-muted/50"
-                                                                onClick={() => navigator.clipboard.writeText(codeRef.current)}
-                                >
-                                    <Clipboard className="h-3 w-3 text-muted-foreground" />
+                            onClick={() =>
+                                navigator.clipboard.writeText(codeRef.current)
+                            }
+                        >
+                            <Clipboard className="h-3 w-3 text-muted-foreground" />
                         </Button>
                         <Button
                             variant="ghost"
@@ -313,36 +366,40 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const getSyncStatusIcon = () => {
         if (refreshing) {
-            return <Loader2 className="h-3 w-3 text-primary animate-spin" />
+            return <Loader2 className="h-3 w-3 animate-spin text-primary" />;
         }
         switch (syncStatus) {
             case "connected":
-                return <Wifi className="h-3 w-3 text-green-500" />
+                return <Wifi className="h-3 w-3 text-green-500" />;
             case "syncing":
-                return <Clock className="h-3 w-3 text-yellow-500 animate-spin" />
+                return (
+                    <Clock className="h-3 w-3 animate-spin text-yellow-500" />
+                );
             case "disconnected":
-                return <WifiOff className="h-3 w-3 text-red-500" />
+                return <WifiOff className="h-3 w-3 text-red-500" />;
         }
-    }
+    };
 
     const getSyncStatusText = () => {
         if (refreshing) {
-            return "Refreshing..."
+            return "Refreshing...";
         }
         switch (syncStatus) {
             case "connected":
-                return "Synced"
+                return "Synced";
             case "syncing":
-                return "Syncing..."
+                return "Syncing...";
             case "disconnected":
-                return "Offline"
+                return "Offline";
         }
-    }
+    };
 
     // Credential CRUD operations
     const createCredential = async (formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) {
-            console.error("CREDENTIAL_CREATE_FAILED: No server public key available for encrypted messaging");
+            console.error(
+                "CREDENTIAL_CREATE_FAILED: No server public key available for encrypted messaging",
+            );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
@@ -377,13 +434,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error("Failed to create credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                console.error(
+                    "Failed to create credential, tried to refresh public key but failed: " +
+                        refreshKeyResult.error,
+                );
                 return err("FAILED_TO_CREATE_CREDENTIAL_STALE_KEY");
             }
 
             const resRetry = await _createCredential(formData);
             if (resRetry.isErr()) {
-                console.error("Failed to create credential after retrying: " + resRetry.error);
+                console.error(
+                    "Failed to create credential after retrying: " +
+                        resRetry.error,
+                );
             } else {
                 successFn();
                 return ok();
@@ -391,7 +454,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         } else {
             console.error("Failed to create credential:", res.error);
         }
-        
+
         setIsCreating(false);
 
         return err("FAILED_TO_CREATE_CREDENTIAL");
@@ -405,24 +468,31 @@ const VaultView: React.FC<VaultViewProps> = ({
             { form: formData },
             serverPublicKey.publicKeyJwk,
             serverPublicKey.keyId,
-            "popup"
+            "popup",
         );
 
-        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        const res: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
-                { ok: true; credential: LiteCredential } |
-                { ok: false; error: string }
+                | { ok: true; credential: LiteCredential }
+                | { ok: false; error: string }
             >(res);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
+                    return err(
+                        "ENVELOPE_FAILED_DECRYPTION: " +
+                            decryptedPayload?.error,
+                    );
                 }
                 return err("ENVELOPE_PAYLOAD_NULL");
             }
 
             if (!decryptedPayload.payload.ok) {
-                return err("CREDENTIAL_CREATE_FAILED: " + decryptedPayload.payload.error);
+                return err(
+                    "CREDENTIAL_CREATE_FAILED: " +
+                        decryptedPayload.payload.error,
+                );
             }
 
             return ok();
@@ -431,13 +501,18 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
             return err("STALE_KEY");
         }
-        
+
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
-    const updateCredential = async (id: string, formData: CredentialFormSchemaType) => {
+    const updateCredential = async (
+        id: string,
+        formData: CredentialFormSchemaType,
+    ) => {
         if (!serverPublicKey) {
-            console.error("CREDENTIAL_UPDATE_FAILED: No server public key available for encrypted messaging");
+            console.error(
+                "CREDENTIAL_UPDATE_FAILED: No server public key available for encrypted messaging",
+            );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
@@ -459,7 +534,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                 Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
             });
             reset();
-
         };
 
         setIsUpdating(true);
@@ -474,13 +548,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error("Failed to update credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                console.error(
+                    "Failed to update credential, tried to refresh public key but failed: " +
+                        refreshKeyResult.error,
+                );
                 return err("FAILED_TO_UPDATE_CREDENTIAL_STALE_KEY");
             }
 
             const resRetry = await _updateCredential(id, formData);
             if (resRetry.isErr()) {
-                console.error("Failed to update credential after retrying: " + resRetry.error);
+                console.error(
+                    "Failed to update credential after retrying: " +
+                        resRetry.error,
+                );
             } else {
                 successFn();
                 return ok();
@@ -494,7 +574,10 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("FAILED_TO_UPDATE_CREDENTIAL");
     };
 
-    const _updateCredential = async (id: string, formData: CredentialFormSchemaType) => {
+    const _updateCredential = async (
+        id: string,
+        formData: CredentialFormSchemaType,
+    ) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
         const envelope = await createEncryptedEnvelope(
@@ -502,25 +585,32 @@ const VaultView: React.FC<VaultViewProps> = ({
             { id, form: formData },
             serverPublicKey.publicKeyJwk,
             serverPublicKey.keyId,
-            "popup"
+            "popup",
         );
 
-        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        const res: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
 
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
-                { ok: true; credential: LiteCredential } |
-                { ok: false; error: string }
+                | { ok: true; credential: LiteCredential }
+                | { ok: false; error: string }
             >(res);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
+                    return err(
+                        "ENVELOPE_FAILED_DECRYPTION: " +
+                            decryptedPayload?.error,
+                    );
                 }
                 return err("ENVELOPE_PAYLOAD_NULL");
             }
 
             if (!decryptedPayload.payload.ok) {
-                return err("CREDENTIAL_UPDATE_FAILED: " + decryptedPayload.payload.error);
+                return err(
+                    "CREDENTIAL_UPDATE_FAILED: " +
+                        decryptedPayload.payload.error,
+                );
             }
 
             return ok();
@@ -529,7 +619,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
             return err("STALE_KEY");
         }
-        
+
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
@@ -539,12 +629,14 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         if (!serverPublicKey) {
-            console.error("CREDENTIAL_DELETE_FAILED: No server public key available for encrypted messaging");
+            console.error(
+                "CREDENTIAL_DELETE_FAILED: No server public key available for encrypted messaging",
+            );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
         setIsDeleting(true);
-        
+
         const res = await _deleteCredential(id);
 
         if (res.isOk()) {
@@ -556,13 +648,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error("Failed to delete credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                console.error(
+                    "Failed to delete credential, tried to refresh public key but failed: " +
+                        refreshKeyResult.error,
+                );
                 return err("FAILED_TO_DELETE_CREDENTIAL_STALE_KEY");
             }
 
             const resRetry = await _deleteCredential(id);
             if (resRetry.isErr()) {
-                console.error("Failed to delete credential after retrying: " + resRetry.error);
+                console.error(
+                    "Failed to delete credential after retrying: " +
+                        resRetry.error,
+                );
             } else {
                 setIsDeleting(false);
                 return ok();
@@ -584,21 +682,30 @@ const VaultView: React.FC<VaultViewProps> = ({
             { id },
             serverPublicKey.publicKeyJwk,
             serverPublicKey.keyId,
-            "popup"
+            "popup",
         );
 
-        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        const res: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{ ok: true } | { ok: false; error: string }>(res);
+            const decryptedPayload = await decryptResponseEnvelope<
+                { ok: true } | { ok: false; error: string }
+            >(res);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
+                    return err(
+                        "ENVELOPE_FAILED_DECRYPTION: " +
+                            decryptedPayload?.error,
+                    );
                 }
                 return err("ENVELOPE_PAYLOAD_NULL");
             }
 
             if (!decryptedPayload.payload.ok) {
-                return err("CREDENTIAL_DELETE_FAILED: " + decryptedPayload.payload.error);
+                return err(
+                    "CREDENTIAL_DELETE_FAILED: " +
+                        decryptedPayload.payload.error,
+                );
             }
 
             return ok();
@@ -607,13 +714,15 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
             return err("STALE_KEY");
         }
-        
+
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     const refreshCredentials = async () => {
         if (!serverPublicKey) {
-            console.error("REFRESH_CREDENTIALS_FAILED: No server public key available for encrypted messaging");
+            console.error(
+                "REFRESH_CREDENTIALS_FAILED: No server public key available for encrypted messaging",
+            );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
@@ -628,13 +737,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error("Failed to refresh credentials, tried to refresh public key but failed: " + refreshKeyResult.error);
+                console.error(
+                    "Failed to refresh credentials, tried to refresh public key but failed: " +
+                        refreshKeyResult.error,
+                );
                 return err("FAILED_TO_REFRESH_CREDENTIALS_STALE_KEY");
             }
 
             const resRetry = await _refreshCredentials();
             if (resRetry.isErr()) {
-                console.error("Failed to refresh credentials after retrying: " + resRetry.error);
+                console.error(
+                    "Failed to refresh credentials after retrying: " +
+                        resRetry.error,
+                );
             } else {
                 setCredentials(resRetry.value);
                 setRefreshing(false);
@@ -652,15 +767,27 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _refreshCredentials = async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(MessageType.GetCredentials, null, serverPublicKey.publicKeyJwk, serverPublicKey.keyId, "popup");
+        const envelope = await createEncryptedEnvelope(
+            MessageType.GetCredentials,
+            null,
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup",
+        );
 
-        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        const res: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
 
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{ credentials: LiteCredential[] }>(res);
+            const decryptedPayload = await decryptResponseEnvelope<{
+                credentials: LiteCredential[];
+            }>(res);
 
             if (!decryptedPayload?.ok) {
-                console.error("Failed to decrypt credentials:", decryptedPayload?.error);
+                console.error(
+                    "Failed to decrypt credentials:",
+                    decryptedPayload?.error,
+                );
                 return err("FAILED_TO_DECRYPT_CREDENTIALS");
             }
 
@@ -706,7 +833,9 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const requestCredential = async (id: string) => {
         if (!serverPublicKey) {
-            console.error("REQUEST_CREDENTIAL_FAILED: No server public key available for encrypted messaging");
+            console.error(
+                "REQUEST_CREDENTIAL_FAILED: No server public key available for encrypted messaging",
+            );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
@@ -719,13 +848,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error("Failed to request credential, tried to refresh public key but failed: " + refreshKeyResult.error);
+                console.error(
+                    "Failed to request credential, tried to refresh public key but failed: " +
+                        refreshKeyResult.error,
+                );
                 return err("FAILED_TO_REQUEST_CREDENTIAL_STALE_KEY");
             }
 
             const resRetry = await _requestCredential(id);
             if (resRetry.isErr()) {
-                console.error("Failed to request credential after retrying: " + resRetry.error);
+                console.error(
+                    "Failed to request credential after retrying: " +
+                        resRetry.error,
+                );
             } else {
                 openEditForm(resRetry.value);
                 return ok();
@@ -740,28 +875,39 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _requestCredential = async (id: string) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope: EncryptedEnvelope | PlaintextEnvelope = await createEncryptedEnvelope(
-            MessageType.GetCredential,
-            { id: id },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup"
-        );
+        const envelope: EncryptedEnvelope | PlaintextEnvelope =
+            await createEncryptedEnvelope(
+                MessageType.GetCredential,
+                { id: id },
+                serverPublicKey.publicKeyJwk,
+                serverPublicKey.keyId,
+                "popup",
+            );
 
-        const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+        const res: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
 
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{ ok: true; credential: VaultCredential } | { ok: false; error: string }>(res);
+            const decryptedPayload = await decryptResponseEnvelope<
+                | { ok: true; credential: VaultCredential }
+                | { ok: false; error: string }
+            >(res);
 
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
-                    return err("ENVELOPE_FAILED_DECRYPTION: " + decryptedPayload?.error);
+                    return err(
+                        "ENVELOPE_FAILED_DECRYPTION: " +
+                            decryptedPayload?.error,
+                    );
                 }
                 return err("ENVELOPE_PAYLOAD_NULL");
             }
 
             if (!decryptedPayload.payload.ok) {
-                return err("CREDENTIAL_REQUEST_FAILED: " + decryptedPayload.payload.error);
+                return err(
+                    "CREDENTIAL_REQUEST_FAILED: " +
+                        decryptedPayload.payload.error,
+                );
             }
 
             return ok(decryptedPayload.payload.credential);
@@ -787,13 +933,15 @@ const VaultView: React.FC<VaultViewProps> = ({
             Name: credential.Name,
             Username: credential.Username,
             Password: credential.Password,
-            TOTP: credential.TOTP ? {
-                Label: credential.TOTP.Label,
-                Secret: credential.TOTP.Secret,
-                Period: credential.TOTP.Period,
-                Digits: credential.TOTP.Digits,
-                Algorithm: credential.TOTP.Algorithm,
-            } : null,
+            TOTP: credential.TOTP
+                ? {
+                      Label: credential.TOTP.Label,
+                      Secret: credential.TOTP.Secret,
+                      Period: credential.TOTP.Period,
+                      Digits: credential.TOTP.Digits,
+                      Algorithm: credential.TOTP.Algorithm,
+                  }
+                : null,
             Tags: credential.Tags || "",
             URL: credential.URL,
             Notes: credential.Notes,
@@ -839,28 +987,33 @@ const VaultView: React.FC<VaultViewProps> = ({
     return (
         <div className="flex flex-col">
             {/* Header with sync status */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-background/80">
+            <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-2">
                 <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
-                    <span className="font-semibold text-xs text-foreground text-nowrap overflow-hidden text-ellipsis whitespace-nowrap">{name}</span>
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap text-nowrap text-xs font-semibold text-foreground">
+                        {name}
+                    </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs">
                     {getSyncStatusIcon()}
-                    <span className="text-muted-foreground text-xs">
-                        {getSyncStatusText()}{lastSync ? ` • ${formatTimeAgo(lastSync)}` : ""}
+                    <span className="text-xs text-muted-foreground">
+                        {getSyncStatusText()}
+                        {lastSync ? ` • ${formatTimeAgo(lastSync)}` : ""}
                     </span>
                 </div>
             </div>
 
             {/* Search bar */}
-            <div className="px-3 py-2 border-b border-border bg-background/50">
+            <div className="border-b border-border bg-background/50 px-3 py-2">
                 <div className="relative">
                     <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                         placeholder="Search credentials..."
                         value={searchQuery}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                        className="pl-7 h-6 text-xs bg-input text-foreground border-border placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setSearchQuery(e.target.value)
+                        }
+                        className="h-6 border-border bg-input pl-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20"
                     />
                 </div>
             </div>
@@ -868,19 +1021,19 @@ const VaultView: React.FC<VaultViewProps> = ({
             {/* Credentials list */}
             <div className="flex-1 overflow-y-auto">
                 {filteredCredentials.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                        <Shield className="h-6 w-6 mb-2 opacity-50" />
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+                        <Shield className="mb-2 h-6 w-6 opacity-50" />
                         <p className="text-xs">No credentials found</p>
                     </div>
                 ) : (
-                    <div className="p-1 space-y-0">
+                    <div className="space-y-0 p-1">
                         {filteredCredentials.map((credential) => (
                             <div
                                 key={credential.id}
-                                className="hover:bg-muted/50 transition-all duration-200 hover:shadow-sm border-b border-border last:border-b-0 group"
+                                className="group border-b border-border transition-all duration-200 last:border-b-0 hover:bg-muted/50 hover:shadow-sm"
                             >
-                                <div className="p-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <div className="flex items-center justify-between p-2">
+                                    <div className="flex min-w-0 flex-1 items-center gap-2">
                                         <Avatar className="h-8 w-8">
                                             <AvatarImage src={credential.url} />
                                             <AvatarFallback>
@@ -888,50 +1041,74 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="min-w-0 flex-1">
-                                            <div className="font-medium text-xs truncate text-foreground leading-tight">{credential.name}</div>
-                                            <div className="text-xs text-muted-foreground truncate leading-tight -mt-0.5">
+                                            <div className="truncate text-xs font-medium leading-tight text-foreground">
+                                                {credential.name}
+                                            </div>
+                                            <div className="-mt-0.5 truncate text-xs leading-tight text-muted-foreground">
                                                 {credential.username}
                                             </div>
                                         </div>
                                     </div>
                                     <DropdownMenu>
-                                                                                    <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                                        <DropdownMenuTrigger
+                                            asChild
+                                            onClick={(e: React.MouseEvent) =>
+                                                e.stopPropagation()
+                                            }
+                                        >
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-5 w-5 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="h-5 w-5 p-0 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
                                             >
                                                 <MoreVertical className="h-3 w-3 text-muted-foreground" />
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-36">
+                                        <DropdownMenuContent
+                                            align="end"
+                                            className="w-36"
+                                        >
                                             <DropdownMenuItem
-                                                onClick={async (e: React.MouseEvent) => {
+                                                onClick={async (
+                                                    e: React.MouseEvent,
+                                                ) => {
                                                     e.stopPropagation();
-                                                    await requestCredential(credential.id);
+                                                    await requestCredential(
+                                                        credential.id,
+                                                    );
                                                 }}
                                                 className="text-xs"
                                             >
-                                                <Edit className="h-3 w-3 mr-2" />
+                                                <Edit className="mr-2 h-3 w-3" />
                                                 Edit
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() => deleteCredential(credential.id)}
+                                                onClick={() =>
+                                                    deleteCredential(
+                                                        credential.id,
+                                                    )
+                                                }
                                                 className="text-xs text-destructive"
                                                 disabled={isDeleting}
                                             >
                                                 {isDeleting ? (
-                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                                                 ) : (
-                                                    <Trash2 className="h-3 w-3 mr-2" />
+                                                    <Trash2 className="mr-2 h-3 w-3" />
                                                 )}
-                                                {isDeleting ? "Deleting..." : "Delete"}
+                                                {isDeleting
+                                                    ? "Deleting..."
+                                                    : "Delete"}
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() => copyToClipboard(credential.username)}
+                                                onClick={() =>
+                                                    copyToClipboard(
+                                                        credential.username,
+                                                    )
+                                                }
                                                 className="text-xs"
                                             >
-                                                <Copy className="h-3 w-3 mr-2" />
+                                                <Copy className="mr-2 h-3 w-3" />
                                                 Copy Username
                                             </DropdownMenuItem>
                                             {/* <DropdownMenuItem
@@ -941,7 +1118,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 <Copy className="h-3 w-3 mr-2" />
                                                 Copy Password
                                             </DropdownMenuItem> */}
-
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
@@ -952,39 +1128,39 @@ const VaultView: React.FC<VaultViewProps> = ({
             </div>
 
             {/* Sync controls and add new credential button */}
-            <div className="p-2 border-t border-border bg-background/50 space-y-2">
+            <div className="space-y-2 border-t border-border bg-background/50 p-2">
                 {/* Sync controls */}
                 <div className="flex gap-1">
                     {syncStatus === "disconnected" && (
                         <Button
                             variant="outline"
-                            className="flex-1 h-7 text-xs"
+                            className="h-7 flex-1 text-xs"
                             size="sm"
                             onClick={() => {}}
                         >
-                            <Wifi className="h-3 w-3 mr-1.5" />
+                            <Wifi className="mr-1.5 h-3 w-3" />
                             Connect
                         </Button>
                     )}
                     {syncStatus === "connected" && (
                         <Button
                             variant="outline"
-                            className="flex-1 h-7 text-xs"
+                            className="h-7 flex-1 text-xs"
                             size="sm"
                             // onClick={handleDisconnectDevice}
                         >
-                            <WifiOff className="h-3 w-3 mr-1.5" />
+                            <WifiOff className="mr-1.5 h-3 w-3" />
                             Disconnect
                         </Button>
                     )}
                     {syncStatus === "connected" && (
                         <Button
                             variant="outline"
-                            className="flex-1 h-7 text-xs"
+                            className="h-7 flex-1 text-xs"
                             size="sm"
                             // onClick={handleManualSync}
                         >
-                            <Clock className="h-3 w-3 mr-1.5" />
+                            <Clock className="mr-1.5 h-3 w-3" />
                             Sync Now
                         </Button>
                     )}
@@ -993,49 +1169,66 @@ const VaultView: React.FC<VaultViewProps> = ({
                 {/* Add new credential button */}
                 <Button
                     variant="outline"
-                    className="w-full h-7 text-xs"
+                    className="h-7 w-full text-xs"
                     size="sm"
                     onClick={openCreateForm}
                     disabled={isCreating}
                 >
-                    {isCreating && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
-                    <Plus className="h-3 w-3 mr-1.5" />
+                    {isCreating && (
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    )}
+                    <Plus className="mr-1.5 h-3 w-3" />
                     {isCreating ? "Creating..." : "Add Credential"}
                 </Button>
             </div>
 
-
-
             {/* Credential Form Dialog */}
-            <Dialog open={credentialModalVisible[0]} onOpenChange={() => closeCredentialForm()}>
-                <DialogContent className="w-96 max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <Dialog
+                open={credentialModalVisible[0]}
+                onOpenChange={() => closeCredentialForm()}
+            >
+                <DialogContent
+                    className="max-h-[90vh] w-96 max-w-md overflow-y-auto shadow-2xl"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-sm">
                             <Shield className="h-4 w-4" />
-                            {credentialFormMode === "create" ? "New Credential" : "Edit Credential"}
+                            {credentialFormMode === "create"
+                                ? "New Credential"
+                                : "Edit Credential"}
                         </DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+                    <form
+                        onSubmit={handleSubmit(handleFormSubmit)}
+                        className="space-y-4"
+                    >
                         {/* Name Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">Name *</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Name *
+                            </Label>
                             <Input
                                 {...register("Name")}
                                 className="mt-1 w-full"
                                 placeholder="Enter credential name"
                             />
                             {errors.Name && (
-                                <p className="text-destructive text-xs mt-1">{errors.Name.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.Name.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Username Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">Username</Label>
-                            <div className="flex gap-1 mt-1">
+                            <Label className="text-xs text-muted-foreground">
+                                Username
+                            </Label>
+                            <div className="mt-1 flex gap-1">
                                 <Input
                                     {...register("Username")}
-                                    className="flex-1 mt-1"
+                                    className="mt-1 flex-1"
                                     placeholder="Enter username"
                                 />
                                 <Button
@@ -1043,24 +1236,32 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0"
-                                    onClick={() => copyToClipboard(getValues("Username"))}
+                                    onClick={() =>
+                                        copyToClipboard(getValues("Username"))
+                                    }
                                 >
                                     <Copy className="h-3 w-3" />
                                 </Button>
                             </div>
                             {errors.Username && (
-                                <p className="text-destructive text-xs mt-1">{errors.Username.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.Username.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Password Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">Password</Label>
-                            <div className="flex gap-1 mt-1">
+                            <Label className="text-xs text-muted-foreground">
+                                Password
+                            </Label>
+                            <div className="mt-1 flex gap-1">
                                 <Input
                                     {...register("Password")}
-                                    type={showFormPassword ? "text" : "password"}
-                                    className="flex-1 mt-1"
+                                    type={
+                                        showFormPassword ? "text" : "password"
+                                    }
+                                    className="mt-1 flex-1"
                                     placeholder="Enter password"
                                 />
                                 <Button
@@ -1068,7 +1269,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() => setShowFormPassword(!showFormPassword)}
+                                    onClick={() =>
+                                        setShowFormPassword(!showFormPassword)
+                                    }
                                 >
                                     {showFormPassword ? (
                                         <EyeOff className="h-3 w-3 text-muted-foreground" />
@@ -1081,26 +1284,32 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() => copyToClipboard(getValues("Password"))}
+                                    onClick={() =>
+                                        copyToClipboard(getValues("Password"))
+                                    }
                                 >
                                     <Copy className="h-3 w-3 text-muted-foreground" />
                                 </Button>
                             </div>
                             {errors.Password && (
-                                <p className="text-destructive text-xs mt-1">{errors.Password.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.Password.message}
+                                </p>
                             )}
                         </div>
 
                         {/* TOTP Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">TOTP</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                TOTP
+                            </Label>
                             <Controller
                                 control={control}
                                 name="TOTP"
                                 render={({ field: { onChange, value } }) => (
                                     <>
                                         {value != null ? (
-                                            <div className="mt-1 p-3 bg-muted/50 border border-border rounded-md">
+                                            <div className="mt-1 rounded-md border border-border bg-muted/50 p-3">
                                                 <TOTPControl
                                                     onChange={onChange}
                                                     value={value}
@@ -1110,8 +1319,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                className="w-full mt-1 h-8 text-xs border-border hover:bg-muted/50"
-                                                onClick={() => totpModalVisible[1](true)}
+                                                className="mt-1 h-8 w-full border-border text-xs hover:bg-muted/50"
+                                                onClick={() =>
+                                                    totpModalVisible[1](true)
+                                                }
                                             >
                                                 Configure TOTP
                                             </Button>
@@ -1120,18 +1331,22 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 )}
                             />
                             {errors.TOTP && (
-                                <p className="text-destructive text-xs mt-1">{errors.TOTP.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.TOTP.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Tags Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">Tags</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Tags
+                            </Label>
                             <Controller
                                 control={control}
                                 name="Tags"
                                 render={({ field: { onChange, value } }) => (
-                                    <div className="mt-1 p-2 bg-muted/50 border border-border rounded-md">
+                                    <div className="mt-1 rounded-md border border-border bg-muted/50 p-2">
                                         <TagBox
                                             onChange={onChange}
                                             value={value}
@@ -1140,18 +1355,22 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 )}
                             />
                             {errors.Tags && (
-                                <p className="text-destructive text-xs mt-1">{errors.Tags.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.Tags.message}
+                                </p>
                             )}
                         </div>
 
                         {/* URL Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">Website (URL)</Label>
-                            <div className="flex gap-1 mt-1">
+                            <Label className="text-xs text-muted-foreground">
+                                Website (URL)
+                            </Label>
+                            <div className="mt-1 flex gap-1">
                                 <Input
                                     {...register("URL")}
                                     type="url"
-                                    className="flex-1 mt-1"
+                                    className="mt-1 flex-1"
                                     placeholder="https://example.com"
                                 />
                                 <Button
@@ -1162,7 +1381,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     onClick={() => {
                                         const url = getValues("URL");
                                         if (url) {
-                                            const fullUrl = url.startsWith("http") ? url : `https://${url}`;
+                                            const fullUrl = url.startsWith(
+                                                "http",
+                                            )
+                                                ? url
+                                                : `https://${url}`;
                                             window.open(fullUrl, "_blank");
                                         }
                                     }}
@@ -1174,50 +1397,70 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() => copyToClipboard(getValues("URL"))}
+                                    onClick={() =>
+                                        copyToClipboard(getValues("URL"))
+                                    }
                                 >
                                     <Copy className="h-3 w-3 text-muted-foreground" />
                                 </Button>
                             </div>
                             {errors.URL && (
-                                <p className="text-destructive text-xs mt-1">{errors.URL.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.URL.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Notes Field */}
                         <div>
-                            <Label className="text-xs text-muted-foreground">Notes</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Notes
+                            </Label>
                             <textarea
                                 {...register("Notes")}
-                                className="w-full mt-1 p-2 bg-input border border-input rounded-md text-foreground text-xs resize-none focus:border-ring focus:ring-ring/20"
+                                className="mt-1 w-full resize-none rounded-md border border-input bg-input p-2 text-xs text-foreground focus:border-ring focus:ring-ring/20"
                                 placeholder="Add notes"
                                 rows={3}
                             />
                             {errors.Notes && (
-                                <p className="text-destructive text-xs mt-1">{errors.Notes.message}</p>
+                                <p className="mt-1 text-xs text-destructive">
+                                    {errors.Notes.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-2 pt-4 border-t border-border">
+                        <div className="flex gap-2 border-t border-border pt-4">
                             <Button
                                 type="button"
                                 variant="ghost"
-                                className="flex-1 h-8 text-xs"
+                                className="h-8 flex-1 text-xs"
                                 onClick={closeCredentialForm}
-                                disabled={isCreating || isUpdating || isSubmitting}
+                                disabled={
+                                    isCreating || isUpdating || isSubmitting
+                                }
                             >
                                 Cancel
                             </Button>
                             <Button
                                 type="submit"
-                                className="flex-1 h-8 text-xs"
-                                disabled={isSubmitting || isCreating || isUpdating}
+                                className="h-8 flex-1 text-xs"
+                                disabled={
+                                    isSubmitting || isCreating || isUpdating
+                                }
                             >
                                 {(isSubmitting || isCreating || isUpdating) && (
-                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                                 )}
-                                {isCreating ? "Creating..." : isUpdating ? "Updating..." : isSubmitting ? "Saving..." : (credentialFormMode === "create" ? "Create" : "Update")}
+                                {isCreating
+                                    ? "Creating..."
+                                    : isUpdating
+                                      ? "Updating..."
+                                      : isSubmitting
+                                        ? "Saving..."
+                                        : credentialFormMode === "create"
+                                          ? "Create"
+                                          : "Update"}
                             </Button>
                         </div>
                     </form>
@@ -1225,8 +1468,14 @@ const VaultView: React.FC<VaultViewProps> = ({
             </Dialog>
 
             {/* TOTP Configuration Dialog */}
-            <Dialog open={totpModalVisible[0]} onOpenChange={() => totpModalVisible[1](false)}>
-                <DialogContent className="w-80 shadow-2xl" aria-describedby={undefined}>
+            <Dialog
+                open={totpModalVisible[0]}
+                onOpenChange={() => totpModalVisible[1](false)}
+            >
+                <DialogContent
+                    className="w-80 shadow-2xl"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle className="text-sm text-foreground">
                             Configure TOTP
@@ -1234,40 +1483,78 @@ const VaultView: React.FC<VaultViewProps> = ({
                     </DialogHeader>
                     <div className="space-y-4">
                         <div>
-                            <Label className="text-xs text-muted-foreground">Label</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Label
+                            </Label>
                             <Input
                                 value={totpFormData.Label}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTotpFormData({ ...totpFormData, Label: e.target.value })}
+                                onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>,
+                                ) =>
+                                    setTotpFormData({
+                                        ...totpFormData,
+                                        Label: e.target.value,
+                                    })
+                                }
                                 className="mt-1 text-xs"
                                 placeholder="Account name"
                             />
                         </div>
                         <div>
-                            <Label className="text-xs text-muted-foreground">Secret</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Secret
+                            </Label>
                             <Input
                                 value={totpFormData.Secret}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTotpFormData({ ...totpFormData, Secret: e.target.value })}
-                                className="mt-1 text-xs font-mono"
+                                onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>,
+                                ) =>
+                                    setTotpFormData({
+                                        ...totpFormData,
+                                        Secret: e.target.value,
+                                    })
+                                }
+                                className="mt-1 font-mono text-xs"
                                 placeholder="Enter TOTP secret"
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label className="text-xs text-muted-foreground">Period</Label>
+                                <Label className="text-xs text-muted-foreground">
+                                    Period
+                                </Label>
                                 <Input
                                     type="number"
                                     value={totpFormData.Period}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTotpFormData({ ...totpFormData, Period: parseInt(e.target.value) || 30 })}
+                                    onChange={(
+                                        e: React.ChangeEvent<HTMLInputElement>,
+                                    ) =>
+                                        setTotpFormData({
+                                            ...totpFormData,
+                                            Period:
+                                                parseInt(e.target.value) || 30,
+                                        })
+                                    }
                                     className="mt-1 text-xs"
                                     min="1"
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs text-muted-foreground">Digits</Label>
+                                <Label className="text-xs text-muted-foreground">
+                                    Digits
+                                </Label>
                                 <Input
                                     type="number"
                                     value={totpFormData.Digits}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTotpFormData({ ...totpFormData, Digits: parseInt(e.target.value) || 6 })}
+                                    onChange={(
+                                        e: React.ChangeEvent<HTMLInputElement>,
+                                    ) =>
+                                        setTotpFormData({
+                                            ...totpFormData,
+                                            Digits:
+                                                parseInt(e.target.value) || 6,
+                                        })
+                                    }
                                     className="mt-1 text-xs"
                                     min="1"
                                     max="10"
@@ -1275,22 +1562,42 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </div>
                         </div>
                         <div>
-                            <Label className="text-xs text-muted-foreground">Algorithm</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Algorithm
+                            </Label>
                             <select
                                 value={totpFormData.Algorithm}
-                                onChange={(e) => setTotpFormData({ ...totpFormData, Algorithm: e.target.value as unknown as VaultUtilTypes.TOTPAlgorithm })}
-                                className="w-full mt-1 p-2 bg-input border border-input rounded-md text-foreground text-xs focus:border-ring focus:ring-ring/20"
+                                onChange={(e) =>
+                                    setTotpFormData({
+                                        ...totpFormData,
+                                        Algorithm: e.target
+                                            .value as unknown as VaultUtilTypes.TOTPAlgorithm,
+                                    })
+                                }
+                                className="mt-1 w-full rounded-md border border-input bg-input p-2 text-xs text-foreground focus:border-ring focus:ring-ring/20"
                             >
-                                <option value={VaultUtilTypes.TOTPAlgorithm.SHA1}>SHA1</option>
-                                <option value={VaultUtilTypes.TOTPAlgorithm.SHA256}>SHA256</option>
-                                <option value={VaultUtilTypes.TOTPAlgorithm.SHA512}>SHA512</option>
+                                <option
+                                    value={VaultUtilTypes.TOTPAlgorithm.SHA1}
+                                >
+                                    SHA1
+                                </option>
+                                <option
+                                    value={VaultUtilTypes.TOTPAlgorithm.SHA256}
+                                >
+                                    SHA256
+                                </option>
+                                <option
+                                    value={VaultUtilTypes.TOTPAlgorithm.SHA512}
+                                >
+                                    SHA512
+                                </option>
                             </select>
                         </div>
-                        <div className="flex gap-2 pt-4 border-t border-border">
+                        <div className="flex gap-2 border-t border-border pt-4">
                             <Button
                                 type="button"
                                 variant="ghost"
-                                className="flex-1 h-8 text-xs"
+                                className="h-8 flex-1 text-xs"
                                 onClick={() => totpModalVisible[1](false)}
                                 disabled={isSubmitting}
                             >
@@ -1298,11 +1605,13 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </Button>
                             <Button
                                 type="button"
-                                className="flex-1 h-8 text-xs"
+                                className="h-8 flex-1 text-xs"
                                 onClick={handleTOTPSubmit}
                                 disabled={isSubmitting}
                             >
-                                {isSubmitting && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+                                {isSubmitting && (
+                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                )}
                                 {isSubmitting ? "Adding..." : "Add TOTP"}
                             </Button>
                         </div>
@@ -1310,7 +1619,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 </DialogContent>
             </Dialog>
         </div>
-    )
-}
+    );
+};
 
 export default VaultView;

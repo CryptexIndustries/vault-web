@@ -18,10 +18,13 @@ export async function generateECDHKeyPair(): Promise<{
             namedCurve: "P-256",
         },
         false, // extractable: false for private key
-        ["deriveKey", "deriveBits"]
+        ["deriveKey", "deriveBits"],
     );
 
-    const publicKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+    const publicKeyJwk = await crypto.subtle.exportKey(
+        "jwk",
+        keyPair.publicKey,
+    );
 
     return {
         keyId: ulid(),
@@ -44,7 +47,7 @@ export async function deriveSessionKey(
     privateKey: CryptoKey,
     publicKey: CryptoKey,
     salt: Uint8Array,
-    info: string
+    info: string,
 ): Promise<CryptoKey> {
     // Derive shared secret using ECDH
     const sharedSecret = await crypto.subtle.deriveBits(
@@ -53,7 +56,7 @@ export async function deriveSessionKey(
             public: publicKey,
         },
         privateKey,
-        256
+        256,
     );
 
     // Derive AES-GCM key using HKDF
@@ -62,7 +65,7 @@ export async function deriveSessionKey(
         sharedSecret,
         "HKDF",
         false,
-        ["deriveKey"]
+        ["deriveKey"],
     );
 
     const sessionKey = await crypto.subtle.deriveKey(
@@ -78,7 +81,7 @@ export async function deriveSessionKey(
             length: 256,
         },
         false,
-        ["encrypt", "decrypt"]
+        ["encrypt", "decrypt"],
     );
 
     return sessionKey;
@@ -92,7 +95,7 @@ export async function deriveSessionKey(
  */
 export async function encryptWithAESGCM(
     key: CryptoKey,
-    data: Uint8Array
+    data: Uint8Array,
 ): Promise<{ iv: Uint8Array; ciphertext: Uint8Array }> {
     const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV for GCM
 
@@ -102,7 +105,7 @@ export async function encryptWithAESGCM(
             iv: iv,
         },
         key,
-        data
+        data,
     );
 
     return {
@@ -121,8 +124,13 @@ export async function encryptWithAESGCM(
 export async function decryptWithAESGCM(
     key: CryptoKey,
     iv: Uint8Array,
-    ciphertext: Uint8Array
-): Promise<Result<Uint8Array, "DECRYPTION_FAILED" | "INVALID_ACCESS_ERROR" | "UNKNOWN_ERROR">> {
+    ciphertext: Uint8Array,
+): Promise<
+    Result<
+        Uint8Array,
+        "DECRYPTION_FAILED" | "INVALID_ACCESS_ERROR" | "UNKNOWN_ERROR"
+    >
+> {
     try {
         const decrypted = await crypto.subtle.decrypt(
             {
@@ -130,12 +138,15 @@ export async function decryptWithAESGCM(
                 iv: iv,
             },
             key,
-            ciphertext
+            ciphertext,
         );
 
         return ok(new Uint8Array(decrypted));
     } catch (error) {
-        if (error instanceof DOMException && error.name === "InvalidAccessError") {
+        if (
+            error instanceof DOMException &&
+            error.name === "InvalidAccessError"
+        ) {
             return err("INVALID_ACCESS_ERROR");
         }
 

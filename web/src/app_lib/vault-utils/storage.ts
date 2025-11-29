@@ -177,9 +177,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
             // If the encryption configuration form schema is provided, hash the secret and set it as the new secret
             if (encryptionConfigFormSchema) {
-                _secret = await hashSecret(
-                    encryptionConfigFormSchema.Secret,
-                );
+                _secret = await hashSecret(encryptionConfigFormSchema.Secret);
             }
 
             // Serialize the vault instance
@@ -250,10 +248,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
         // Set the decryptionSecret in the session storage
         // Which is then used to encrypt the vault when saving
-        const vaultObject: Vault = Object.assign(
-            new Vault(),
-            vaultRawParsed,
-        );
+        const vaultObject: Vault = Object.assign(new Vault(), vaultRawParsed);
 
         vaultObject.LinkedDevices = LinkedDevices.fromGeneric(
             vaultObject.LinkedDevices,

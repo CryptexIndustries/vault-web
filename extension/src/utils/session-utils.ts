@@ -1,5 +1,9 @@
 import { ulid } from "ulidx";
-import { EncryptedEnvelope, PlaintextEnvelope, MessageType } from "../types/sw-messaging";
+import {
+    EncryptedEnvelope,
+    PlaintextEnvelope,
+    MessageType,
+} from "../types/sw-messaging";
 import {
     generateECDHKeyPair,
     deriveSessionKey,
@@ -13,13 +17,22 @@ import { err, Err } from "neverthrow";
 
 const sessionKeyCache = new Map<string, CryptoKey>();
 
-type DecryptedEnvelope<T> = {
-    ok: true;
-    payload: T;
-} | {
-    ok: false;
-    error: Err<never, "SESSION_KEY_NOT_FOUND" | "DECRYPTION_FAILED" | "IV_NOT_FOUND" | "CIPHERTEXT_NOT_FOUND" | string>;
-};
+type DecryptedEnvelope<T> =
+    | {
+          ok: true;
+          payload: T;
+      }
+    | {
+          ok: false;
+          error: Err<
+              never,
+              | "SESSION_KEY_NOT_FOUND"
+              | "DECRYPTION_FAILED"
+              | "IV_NOT_FOUND"
+              | "CIPHERTEXT_NOT_FOUND"
+              | string
+          >;
+      };
 
 /**
  * Creates an encrypted envelope for a message.
@@ -35,7 +48,7 @@ export async function createEncryptedEnvelope(
     payload: object | null,
     serverPublicKey: JsonWebKey,
     serverKeyId: string,
-    origin: "popup" | "offscreen" | "worker"
+    origin: "popup" | "offscreen" | "worker",
 ): Promise<EncryptedEnvelope> {
     // Generate ephemeral key pair for this session
     const ephemeralKeyPair = await generateECDHKeyPair();
@@ -49,7 +62,7 @@ export async function createEncryptedEnvelope(
             namedCurve: "P-256",
         },
         false,
-        []
+        [],
     );
 
     // Generate salt for HKDF
@@ -60,7 +73,7 @@ export async function createEncryptedEnvelope(
         ephemeralKeyPair.privateKey,
         serverPublicKeyCrypto,
         salt,
-        "cryptex-extension-session"
+        "cryptex-extension-session",
     );
 
     // Serialize payload
@@ -92,10 +105,18 @@ export async function createEncryptedEnvelope(
         keyId: serverKeyId,
         timestamp: new Date().toISOString(),
         payload: {
-            wrappedKey: base64UrlEncode(new Uint8Array(await crypto.subtle.exportKey("raw", ephemeralKeyPair.publicKey))),
+            wrappedKey: base64UrlEncode(
+                new Uint8Array(
+                    await crypto.subtle.exportKey(
+                        "raw",
+                        ephemeralKeyPair.publicKey,
+                    ),
+                ),
+            ),
             ephemeralPub: ephemeralKeyPair.publicKeyJwk,
             salt: base64UrlEncode(salt),
-            ciphertext: ciphertext.length > 0 ? base64UrlEncode(ciphertext) : null,
+            ciphertext:
+                ciphertext.length > 0 ? base64UrlEncode(ciphertext) : null,
             iv: iv.length > 0 ? base64UrlEncode(iv) : null,
         },
     };
@@ -115,8 +136,8 @@ export async function createEncryptedEnvelope(
  */
 export function createPlaintextEnvelope(
     messageType: MessageType,
-    payload: { ok: boolean } & any | null,
-    origin: "popup" | "offscreen" | "worker"
+    payload: ({ ok: boolean } & any) | null,
+    origin: "popup" | "offscreen" | "worker",
 ): PlaintextEnvelope {
     return {
         type: messageType,
@@ -135,7 +156,7 @@ export function createPlaintextEnvelope(
  */
 export async function decryptEnvelope<T>(
     envelope: EncryptedEnvelope,
-    serverPrivateKey: CryptoKey
+    serverPrivateKey: CryptoKey,
 ): Promise<DecryptedEnvelope<T | null>> {
     if (!envelope.payload.iv) {
         return {
@@ -160,7 +181,7 @@ export async function decryptEnvelope<T>(
             namedCurve: "P-256",
         },
         false,
-        []
+        [],
     );
 
     // Decode salt and derive session key
@@ -169,7 +190,7 @@ export async function decryptEnvelope<T>(
         serverPrivateKey,
         ephemeralPublicKey,
         salt,
-        "cryptex-extension-session"
+        "cryptex-extension-session",
     );
 
     // Decode IV and ciphertext
@@ -215,14 +236,17 @@ export async function decryptEnvelope<T>(
 export async function createEncryptedResponseEnvelope(
     requestEnvelope: EncryptedEnvelope,
     responsePayload: any,
-    sessionKey: CryptoKey
+    sessionKey: CryptoKey,
 ): Promise<EncryptedEnvelope> {
     // Serialize response payload
     const plaintext = JSON.stringify(responsePayload);
     const plaintextBytes = new TextEncoder().encode(plaintext);
 
     // Encrypt response payload
-    const { iv, ciphertext } = await encryptWithAESGCM(sessionKey, plaintextBytes);
+    const { iv, ciphertext } = await encryptWithAESGCM(
+        sessionKey,
+        plaintextBytes,
+    );
 
     return {
         type: requestEnvelope.type,
@@ -243,31 +267,39 @@ export async function createEncryptedResponseEnvelope(
 /**
  * Type guard to check if a message is an encrypted envelope.
  */
-export function isEncryptedEnvelope(message: any): message is EncryptedEnvelope {
-    return message &&
-           typeof message.type === 'number' &&
-           typeof message.requestId === 'string' &&
-           typeof message.origin === 'string' &&
-           typeof message.keyId === 'string' &&
-           typeof message.timestamp === 'string' &&
-           message.payload &&
-           typeof message.payload.wrappedKey === 'string' &&
-           message.payload.ephemeralPub &&
-           typeof message.payload.salt === 'string' &&
-           typeof message.payload.ciphertext === 'string' &&
-           typeof message.payload.iv === 'string';
+export function isEncryptedEnvelope(
+    message: any,
+): message is EncryptedEnvelope {
+    return (
+        message &&
+        typeof message.type === "number" &&
+        typeof message.requestId === "string" &&
+        typeof message.origin === "string" &&
+        typeof message.keyId === "string" &&
+        typeof message.timestamp === "string" &&
+        message.payload &&
+        typeof message.payload.wrappedKey === "string" &&
+        message.payload.ephemeralPub &&
+        typeof message.payload.salt === "string" &&
+        typeof message.payload.ciphertext === "string" &&
+        typeof message.payload.iv === "string"
+    );
 }
 
 /**
  * Type guard to check if a message is a plaintext envelope.
  */
-export function isPlaintextEnvelope(message: any): message is PlaintextEnvelope {
-    return message &&
-           typeof message.type === 'number' &&
-           typeof message.requestId === 'string' &&
-           typeof message.origin === 'string' &&
-           typeof message.timestamp === 'string' &&
-           !message.payload?.ciphertext; // Plaintext doesn't have ciphertext
+export function isPlaintextEnvelope(
+    message: any,
+): message is PlaintextEnvelope {
+    return (
+        message &&
+        typeof message.type === "number" &&
+        typeof message.requestId === "string" &&
+        typeof message.origin === "string" &&
+        typeof message.timestamp === "string" &&
+        !message.payload?.ciphertext
+    ); // Plaintext doesn't have ciphertext
 }
 
 /**
@@ -282,7 +314,9 @@ export function discardSessionKey(requestId: string): void {
  * @param envelope The encrypted envelope returned by the service worker
  * @returns The decrypted payload
  */
-export async function decryptResponseEnvelope<T>(envelope: EncryptedEnvelope): Promise<DecryptedEnvelope<T | null>> {
+export async function decryptResponseEnvelope<T>(
+    envelope: EncryptedEnvelope,
+): Promise<DecryptedEnvelope<T | null>> {
     const sessionKey = sessionKeyCache.get(envelope.requestId);
 
     if (!sessionKey) {
@@ -310,7 +344,11 @@ export async function decryptResponseEnvelope<T>(envelope: EncryptedEnvelope): P
     const ciphertext = base64UrlDecode(envelope.payload.ciphertext);
 
     try {
-        const decryptedBytes = await decryptWithAESGCM(sessionKey, iv, ciphertext);
+        const decryptedBytes = await decryptWithAESGCM(
+            sessionKey,
+            iv,
+            ciphertext,
+        );
 
         if (decryptedBytes.isErr()) {
             return {

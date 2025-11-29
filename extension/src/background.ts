@@ -11,7 +11,7 @@ const OFFSCREEN_URL = chrome.runtime.getURL("/offscreen.html");
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
-// const UNLOCKED_VAULT_ENCRYPTION_KEY = "UEK";
+const UNLOCKED_VAULT_SECRET_KEY = "UVS";
 
 type LegacyMessage = {
     type: -1;
@@ -182,14 +182,14 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: res.error };
                 }
 
-                const vault = res.value;
+                const { vault, encryptionData } = res.value;
 
                 // onlineServicesStore.set(onlineServicesDataAtom, {
                 //     key: vault.LinkedDevices.APIKey ?? "",
                 //     remoteData: null,
                 // });
 
-                await setVaultInSessionStorage(metadata, vault);
+                await setVaultInSessionStorage(metadata, vault, encryptionData);
 
                 return { ok: true };
             }
@@ -253,8 +253,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.CreateCredential: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
+                const vaultSecret = await getVaultSecretFromSessionStorage();
 
-                if (!vault || !metadata) {
+                if (!vault || !metadata || !vaultSecret) {
                     return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
                 }
 
@@ -270,10 +271,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
-                // FIXME: Remove the cast when we clean up the storage layer
-                await metadataInstance.save(vault as Vault.Vault);
+                await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadata, vault);
+                await setVaultInSessionStorage(metadata, vault, vaultSecret);
 
                 const lightCredential: LiteCredential = {
                     id: data.credential.ID,
@@ -288,8 +288,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.UpdateCredential: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
+                const vaultSecret = await getVaultSecretFromSessionStorage();
 
-                if (!vault || !metadata) {
+                if (!vault || !metadata || !vaultSecret) {
                     return { ok: false, credential: null, error: "VAULT_NOT_UNLOCKED" };
                 }
 
@@ -314,10 +315,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
-                // FIXME: Remove the cast when we clean up the storage layer
-                await metadataInstance.save(vault as Vault.Vault);
+                await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadata, vault);
+                await setVaultInSessionStorage(metadata, vault, vaultSecret);
 
                 return { ok: true, credential: data.credential };
             }
@@ -325,8 +325,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.DeleteCredential: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
+                const vaultSecret = await getVaultSecretFromSessionStorage();
 
-                if (!vault || !metadata) {
+                if (!vault || !metadata || !vaultSecret) {
                     return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 }
 
@@ -356,10 +357,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(new Storage.VaultMetadata(), metadata);
-                // FIXME: Remove the cast when we clean up the storage layer
-                await metadataInstance.save(vault as Vault.Vault);
+                await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadata, vault);
+                await setVaultInSessionStorage(metadata, vault, vaultSecret);
 
                 return { ok: true };
             }
@@ -506,10 +506,22 @@ async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.Vaul
     return _metadata[UNLOCKED_VAULT_METADATA_KEY] as VaultUtilTypes.VaultMetadata | null;
 }
 
-async function setVaultInSessionStorage(metadata: VaultUtilTypes.VaultMetadata, vault: VaultUtilTypes.Vault): Promise<void> {
+async function getVaultSecretFromSessionStorage(): Promise<Uint8Array | null> {
+    const _vaultSecretB64 = await chrome.storage.session.get([UNLOCKED_VAULT_SECRET_KEY]);
+    const _vaultSecret = _vaultSecretB64[UNLOCKED_VAULT_SECRET_KEY] as string | null;
+
+    // TODO: Replace with Uint8Array.fromBase64() in about 3 months
+    return _vaultSecret ? Uint8Array.from(atob(_vaultSecret), (c) => c.charCodeAt(0)) : null;
+}
+
+async function setVaultInSessionStorage(metadata: VaultUtilTypes.VaultMetadata, vault: VaultUtilTypes.Vault, vaultSecret: Uint8Array): Promise<void> {
+    // Convert the encryption data to a base64 string
+    const _vaultSecret = btoa(String.fromCharCode(...vaultSecret));
+
     await chrome.storage.session.set({
         [UNLOCKED_VAULT_METADATA_KEY]: metadata,
         [UNLOCKED_VAULT_KEY]: vault,
+        [UNLOCKED_VAULT_SECRET_KEY]: _vaultSecret,
     });
 }
 
@@ -548,23 +560,6 @@ chrome.runtime.onInstalled.addListener(async () => {
     await ensureActiveKeyPair();
     // Also check if rotation is needed on install/update
     await checkAndRotateKeysIfNeeded();
-
-    const alarmSecureWipe = "secure-wipe";
-
-    // Zero out the session storage every 30 minutes if no activity has occurred
-    // But do it every 30 seconds for testing
-    // chrome.alarms.create(alarmSecureWipe, {
-    //     periodInMinutes: 0.5, // 30 seconds for testing
-    //     when: Date.now() + 30 * 1000,
-    // });
-
-    // // Listen for alarms
-    // chrome.alarms.onAlarm.addListener((alarm) => {
-    //     if (alarm.name === alarmSecureWipe) {
-    //         clearSessionStorage();
-    //         console.log("Session storage wiped due to inactivity");
-    //     }
-    // });
 });
 
 // Also ensure key pair exists on startup
@@ -573,4 +568,15 @@ chrome.runtime.onStartup.addListener(async () => {
     await ensureActiveKeyPair();
     // Check for key rotation on startup
     await checkAndRotateKeysIfNeeded();
+});
+
+// Set up idle detection to lock the vault after 30 minutes of inactivity
+chrome.idle.setDetectionInterval(30 * 60 * 1000);
+chrome.idle.onStateChanged.addListener(async (newState) => {
+  if (newState === 'idle') {
+    console.log('[SW] Vault locked due to inactivity');
+    
+    // Lock the vault
+    await clearSessionStorage();
+  }
 });

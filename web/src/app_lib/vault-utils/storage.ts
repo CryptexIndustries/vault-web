@@ -159,7 +159,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * @param encryptionConfigFormSchema The encryption configuration form schema (in case we're modifying the encryption configuration)
      */
     public async save(
-        vaultInstance: Vault | null,
+        vaultInstance: VaultUtilTypes.Vault | null,
         secret: Uint8Array,
         encryptionConfigFormSchema?: EncryptionFormGroupSchemaType,
     ): Promise<void> {

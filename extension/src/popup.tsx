@@ -177,7 +177,7 @@ const App = () => {
                     name: metadata.Name,
                 },
             });
-        }
+        };
 
         if (res.isErr()) {
             if (res.error === "STALE_KEY") {
@@ -189,7 +189,10 @@ const App = () => {
                     );
 
                     // Return a generic error - we cannot continue
-                    return err(("DECRYPTION_FAILED: " + pubKeyRetry.error) as "DECRYPTION_FAILED");
+                    return err(
+                        ("DECRYPTION_FAILED: " +
+                            pubKeyRetry.error) as "DECRYPTION_FAILED",
+                    );
                 }
 
                 const resRetry = await _tryDecryptVault(metadata, formData);
@@ -200,14 +203,19 @@ const App = () => {
                     );
 
                     // Return a generic error - we cannot continue
-                    return err(("DECRYPTION_FAILED: " + resRetry.error) as "DECRYPTION_FAILED");
+                    return err(
+                        ("DECRYPTION_FAILED: " +
+                            resRetry.error) as "DECRYPTION_FAILED",
+                    );
                 }
 
                 _successFn();
                 return ok();
             }
 
-            return err(("DECRYPTION_FAILED: " + res.error) as "DECRYPTION_FAILED");
+            return err(
+                ("DECRYPTION_FAILED: " + res.error) as "DECRYPTION_FAILED",
+            );
         }
 
         _successFn();
@@ -237,23 +245,22 @@ const App = () => {
             await chrome.runtime.sendMessage(envelope);
 
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{
-                ok: false;
-                error: string;
-            } | {ok: true}>(res);
+            const decryptedPayload = await decryptResponseEnvelope<
+                { ok: false; error: string } | { ok: true }
+            >(res);
 
-            if (decryptedPayload?.ok) {
-                if (!decryptedPayload.payload?.ok) {
-                    return err("VAULT_UNLOCK_FAILED: " + decryptedPayload.payload?.error);
-                }
-                
-                return ok();
+            if (!decryptedPayload?.ok) {
+                return err("ENVELOPE_FAILED_DECRYPTION");
             }
 
-            return err("ENVELOPE_FAILED_DECRYPTION");
+            if (!decryptedPayload.payload.ok) {
+                return err("VAULT_UNLOCK_FAILED: " + decryptedPayload.payload.error);
+            }
+
+            return ok();
         }
 
-        if (res.payload?.ok && res.payload?.code === "STALE_KEY") {
+        if (res.payload?.code === "STALE_KEY") {
             return err("STALE_KEY");
         }
 
@@ -261,11 +268,46 @@ const App = () => {
     };
 
     const handleLock = async () => {
-        if (!serverPublicKey) {
+        const res = await _handleLock();
+
+        const _successFn = () => {
+            setBg({ unlocked: false, metadata: null });
+        };
+
+        if (res.isOk()) {
+            _successFn();
+            return ok();
+        }
+
+        if (res.error !== "STALE_KEY") {
+            return err("LOCK_VAULT_FAILED: " + res.error);
+        }
+
+        const pubKeyRetry = await handleStaleKeyError();
+        if (pubKeyRetry.isErr()) {
             console.error(
-                "Failed to lock vault: No server public key available",
+                "Tried to lock vault, but failed to refresh public key: " +
+                    pubKeyRetry.error,
             );
-            return;
+            return err("LOCK_VAULT_FAILED_STALE_KEY: " + pubKeyRetry.error);
+        }
+
+        const resRetry = await _handleLock();
+        if (resRetry.isErr()) {
+            console.error(
+                "Tried to lock vault, but failed after retrying: " +
+                    resRetry.error,
+            );
+            return err("LOCK_VAULT_FAILED_AFTER_RETRY: " + resRetry.error);
+        }
+
+        _successFn();
+        return ok();
+    };
+
+    const _handleLock = async () => {
+        if (!serverPublicKey) {
+            return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
         const envelope = await createEncryptedEnvelope(
@@ -275,57 +317,31 @@ const App = () => {
             serverPublicKey.keyId,
             "popup",
         );
+
         const res: EncryptedEnvelope | PlaintextEnvelope =
             await chrome.runtime.sendMessage(envelope);
+
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{
-                ok: boolean;
-            }>(res);
+            const decryptedPayload = await decryptResponseEnvelope<
+                   { ok: false; error: string } | { ok: true }
+            >(res);
+
             if (!decryptedPayload?.ok) {
-                console.error(
-                    "Failed while decrypting lock vault response envelope: " +
-                        decryptedPayload.error,
-                );
+                return err("ENVELOPE_FAILED_DECRYPTION");
             }
+
+            if (!decryptedPayload.payload.ok) {
+                return err("VAULT_LOCK_FAILED: " + decryptedPayload.payload.error);
+            }
+
+            return ok();
         }
 
-        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
-            const pubKeyRetry = await handleStaleKeyError();
-            if (pubKeyRetry.isErr()) {
-                console.error(
-                    "Tried to lock vault, but failed to refresh public key: " +
-                        pubKeyRetry.error,
-                );
-
-                // If we failed at refreshing the public key, don't retry sending the message
-                return;
-            }
-
-            const envelopeRetry = await createEncryptedEnvelope(
-                MessageType.Lock,
-                null,
-                serverPublicKey.publicKeyJwk,
-                serverPublicKey.keyId,
-                "popup",
-            );
-            const resRetry: EncryptedEnvelope | PlaintextEnvelope =
-                await chrome.runtime.sendMessage(envelopeRetry);
-            if (isEncryptedEnvelope(resRetry)) {
-                const decryptedPayloadRetry = await decryptResponseEnvelope<{
-                    ok: boolean;
-                }>(resRetry);
-                if (!decryptedPayloadRetry?.ok) {
-                    console.error(
-                        "Failed while decrypting lock vault response envelope after retrying: " +
-                            decryptedPayloadRetry.error,
-                    );
-                }
-            }
-        } else {
-            console.error("Received non-encrypted envelope:", res);
+        if (res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
         }
 
-        setBg({ unlocked: false, metadata: null });
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     return (

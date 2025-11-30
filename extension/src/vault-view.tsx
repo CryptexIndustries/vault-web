@@ -17,6 +17,8 @@ import {
     Search,
     Loader2,
     Eye,
+    LockKeyhole,
+    RefreshCw,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
@@ -93,7 +95,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     const [isCreating, setIsCreating] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState("");
     const [showFormPassword, setShowFormPassword] = useState(false);
@@ -365,7 +367,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const getSyncStatusIcon = () => {
-        if (refreshing) {
+        if (isRefreshing) {
             return <Loader2 className="h-3 w-3 animate-spin text-primary" />;
         }
         switch (syncStatus) {
@@ -381,7 +383,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const getSyncStatusText = () => {
-        if (refreshing) {
+        if (isRefreshing) {
             return "Refreshing...";
         }
         switch (syncStatus) {
@@ -516,11 +518,11 @@ const VaultView: React.FC<VaultViewProps> = ({
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
-        const successFn = () => {
+        const successFn = async () => {
             setIsUpdating(false);
 
             // Refresh credentials list
-            refreshCredentials();
+            await refreshCredentials();
 
             credentialModalVisible[1](false);
             setCredentialFormMode(null);
@@ -541,7 +543,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         const res = await _updateCredential(id, formData);
 
         if (res.isOk()) {
-            successFn();
+            await successFn();
             return ok();
         }
 
@@ -562,7 +564,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                         resRetry.error,
                 );
             } else {
-                successFn();
+                await successFn();
                 return ok();
             }
         } else {
@@ -640,7 +642,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         const res = await _deleteCredential(id);
 
         if (res.isOk()) {
-            refreshCredentials();
+            await refreshCredentials();
             setIsDeleting(false);
             return ok();
         }
@@ -662,6 +664,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                         resRetry.error,
                 );
             } else {
+                await refreshCredentials();
                 setIsDeleting(false);
                 return ok();
             }
@@ -726,11 +729,11 @@ const VaultView: React.FC<VaultViewProps> = ({
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
-        setRefreshing(true);
+        setIsRefreshing(true);
         const res = await _refreshCredentials();
         if (res.isOk()) {
             setCredentials(res.value);
-            setRefreshing(false);
+            setIsRefreshing(false);
             return ok();
         }
 
@@ -752,14 +755,14 @@ const VaultView: React.FC<VaultViewProps> = ({
                 );
             } else {
                 setCredentials(resRetry.value);
-                setRefreshing(false);
+                setIsRefreshing(false);
                 return ok();
             }
         } else {
             console.error("Failed to refresh credentials: " + res.error);
         }
 
-        setRefreshing(false);
+        setIsRefreshing(false);
 
         return err("FAILED_TO_REFRESH_CREDENTIALS");
     };
@@ -838,9 +841,11 @@ const VaultView: React.FC<VaultViewProps> = ({
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
+        setIsRefreshing(true);
 
         const res = await _requestCredential(id);
         if (res.isOk()) {
+            setIsRefreshing(false);
             openEditForm(res.value);
             return ok();
         }
@@ -852,6 +857,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                     "Failed to request credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
+                setIsRefreshing(false);
                 return err("FAILED_TO_REQUEST_CREDENTIAL_STALE_KEY");
             }
 
@@ -863,11 +869,14 @@ const VaultView: React.FC<VaultViewProps> = ({
                 );
             } else {
                 openEditForm(resRetry.value);
+                setIsRefreshing(false);
                 return ok();
             }
         } else {
             console.error("Failed to request credential: " + res.error);
         }
+
+        setIsRefreshing(false);
 
         return err("FAILED_TO_REQUEST_CREDENTIAL");
     };
@@ -983,7 +992,6 @@ const VaultView: React.FC<VaultViewProps> = ({
     useEffect(() => {
         refreshCredentials();
     }, []);
-
     return (
         <div className="flex flex-col">
             {/* Header with sync status */}
@@ -1027,10 +1035,21 @@ const VaultView: React.FC<VaultViewProps> = ({
                     </div>
                 ) : (
                     <div className="space-y-0 p-1">
+                        {/* Implement a virtual list to improve performance */}
                         {filteredCredentials.map((credential) => (
                             <div
                                 key={credential.id}
-                                className="group border-b border-border transition-all duration-200 last:border-b-0 hover:bg-muted/50 hover:shadow-sm"
+                                className="group cursor-pointer border-b border-border transition-all duration-200 last:border-b-0 hover:bg-muted/50 hover:shadow-sm"
+                                onClick={async () =>
+                                    isRefreshing
+                                        ? null
+                                        : await requestCredential(credential.id)
+                                }
+                                onContextMenu={(e: React.MouseEvent) => {
+                                    e.preventDefault();
+
+                                    // TODO: Open the dropdown menu
+                                }}
                             >
                                 <div className="flex items-center justify-between p-2">
                                     <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1083,8 +1102,8 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 Edit
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() =>
-                                                    deleteCredential(
+                                                onClick={async () =>
+                                                    await deleteCredential(
                                                         credential.id,
                                                     )
                                                 }
@@ -1129,57 +1148,52 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             {/* Sync controls and add new credential button */}
             <div className="space-y-2 border-t border-border bg-background/50 p-2">
-                {/* Sync controls */}
-                <div className="flex gap-1">
-                    {syncStatus === "disconnected" && (
-                        <Button
-                            variant="outline"
-                            className="h-7 flex-1 text-xs"
-                            size="sm"
-                            onClick={() => {}}
-                        >
-                            <Wifi className="mr-1.5 h-3 w-3" />
-                            Connect
-                        </Button>
-                    )}
-                    {syncStatus === "connected" && (
-                        <Button
-                            variant="outline"
-                            className="h-7 flex-1 text-xs"
-                            size="sm"
-                            // onClick={handleDisconnectDevice}
-                        >
-                            <WifiOff className="mr-1.5 h-3 w-3" />
-                            Disconnect
-                        </Button>
-                    )}
-                    {syncStatus === "connected" && (
-                        <Button
-                            variant="outline"
-                            className="h-7 flex-1 text-xs"
-                            size="sm"
-                            // onClick={handleManualSync}
-                        >
-                            <Clock className="mr-1.5 h-3 w-3" />
-                            Sync Now
-                        </Button>
-                    )}
-                </div>
-
-                {/* Add new credential button */}
                 <Button
                     variant="outline"
                     className="h-7 w-full text-xs"
                     size="sm"
                     onClick={openCreateForm}
-                    disabled={isCreating}
+                    disabled={
+                        isCreating || isUpdating || isDeleting || isRefreshing
+                    }
                 >
-                    {isCreating && (
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                    )}
                     <Plus className="mr-1.5 h-3 w-3" />
-                    {isCreating ? "Creating..." : "Add Credential"}
+                    Add Credential
                 </Button>
+
+                <div className="flex gap-1">
+                    <Button
+                        variant="outline"
+                        className="h-7 flex-1 text-xs"
+                        size="sm"
+                        // onClick={handleManualSync}
+                        disabled={
+                            isCreating ||
+                            isUpdating ||
+                            isDeleting ||
+                            isRefreshing
+                        }
+                    >
+                        <RefreshCw className="mr-1.5 h-3 w-3" />
+                        Sync Now
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        className="h-7 flex-1 text-xs"
+                        size="sm"
+                        onClick={lockVaultFn}
+                        disabled={
+                            isCreating ||
+                            isUpdating ||
+                            isDeleting ||
+                            isRefreshing
+                        }
+                    >
+                        <LockKeyhole className="mr-1.5 h-3 w-3" />
+                        Lock Vault
+                    </Button>
+                </div>
             </div>
 
             {/* Credential Form Dialog */}

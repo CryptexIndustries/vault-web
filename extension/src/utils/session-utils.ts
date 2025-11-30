@@ -316,7 +316,7 @@ export function discardSessionKey(requestId: string): void {
  */
 export async function decryptResponseEnvelope<T>(
     envelope: EncryptedEnvelope,
-): Promise<DecryptedEnvelope<T | null>> {
+): Promise<DecryptedEnvelope<T>> {
     const sessionKey = sessionKeyCache.get(envelope.requestId);
 
     if (!sessionKey) {
@@ -353,18 +353,18 @@ export async function decryptResponseEnvelope<T>(
         if (decryptedBytes.isErr()) {
             return {
                 ok: false,
-                error: err("DECRYPTION_FAILED: " + decryptedBytes.error),
+                error: err("ENVELOPE_DECRYPTION_FAILED: " + decryptedBytes.error),
             };
         }
 
         const decryptedText = new TextDecoder().decode(decryptedBytes.value);
 
-        if (decryptedText?.length === 0) {
-            return {
-                ok: true,
-                payload: null,
-            };
-        }
+        // if (decryptedText?.length === 0) {
+        //     return {
+        //         ok: true,
+        //         payload: null,
+        //     };
+        // }
 
         return {
             ok: true,
@@ -373,7 +373,7 @@ export async function decryptResponseEnvelope<T>(
     } catch (error) {
         return {
             ok: false,
-            error: err("DECRYPTION_FAILED"),
+            error: err("ENVELOPE_DECRYPTION_FAILED_UNKNOWN: " + error),
         };
     } finally {
         sessionKeyCache.delete(envelope.requestId);

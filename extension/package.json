@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "vite build --mode development --watch --config vite.config.ts",
+        "dev": "NODE_ENV=development vite build --mode development --watch --config vite.config.ts",
         "build": "vite build --config vite.config.ts",
         "preview": "vite preview",
         "lint": "tsc --noEmit --strict"

@@ -169,6 +169,16 @@ const App = () => {
     ) => {
         const res = await _tryDecryptVault(metadata, formData);
 
+        const _successFn = () => {
+            setBg({
+                unlocked: true,
+                metadata: {
+                    id: metadata.DBIndex,
+                    name: metadata.Name,
+                },
+            });
+        }
+
         if (res.isErr()) {
             if (res.error === "STALE_KEY") {
                 const pubKeyRetry = await handleStaleKeyError();
@@ -179,7 +189,7 @@ const App = () => {
                     );
 
                     // Return a generic error - we cannot continue
-                    return err("DECRYPTION_FAILED");
+                    return err(("DECRYPTION_FAILED: " + pubKeyRetry.error) as "DECRYPTION_FAILED");
                 }
 
                 const resRetry = await _tryDecryptVault(metadata, formData);
@@ -190,13 +200,17 @@ const App = () => {
                     );
 
                     // Return a generic error - we cannot continue
-                    return err("DECRYPTION_FAILED");
+                    return err(("DECRYPTION_FAILED: " + resRetry.error) as "DECRYPTION_FAILED");
                 }
 
+                _successFn();
                 return ok();
             }
+
+            return err(("DECRYPTION_FAILED: " + res.error) as "DECRYPTION_FAILED");
         }
 
+        _successFn();
         return ok();
     };
 
@@ -224,18 +238,15 @@ const App = () => {
 
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<{
-                ok: boolean;
-            }>(res);
+                ok: false;
+                error: string;
+            } | {ok: true}>(res);
 
             if (decryptedPayload?.ok) {
-                setBg({
-                    unlocked: true,
-                    metadata: {
-                        id: metadata.DBIndex,
-                        name: metadata.Name,
-                    },
-                });
-
+                if (!decryptedPayload.payload?.ok) {
+                    return err("VAULT_UNLOCK_FAILED: " + decryptedPayload.payload?.error);
+                }
+                
                 return ok();
             }
 

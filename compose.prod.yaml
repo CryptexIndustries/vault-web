@@ -17,6 +17,7 @@ services:
             PUSHER_APP_SECRET: ${PUSHER_APP_SECRET}
             STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
             STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+            HOST: ${HOST}
             _BREAK: 1
             NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
             NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
@@ -33,6 +34,7 @@ services:
             context: ./
             dockerfile: ./web/prod.Dockerfile
             args:
+                HOST: ${HOST}
                 NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
                 NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                 NEXT_PUBLIC_PUSHER_APP_ID: ${NEXT_PUBLIC_PUSHER_APP_ID}

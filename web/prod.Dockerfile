@@ -17,6 +17,7 @@ RUN corepack enable pnpm && pnpm i --frozen-lockfile
 
 # Environment variables must be present at build time
 # https://github.com/vercel/next.js/discussions/14030
+ARG HOST
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ARG NEXT_PUBLIC_PUSHER_APP_ID

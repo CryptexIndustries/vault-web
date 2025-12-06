@@ -24,6 +24,40 @@ interface ChangelogRelease {
 
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.2.0",
+        date: "2025-12-06",
+        changes: [
+            {
+                type: "added",
+                description: "QR code data can be copied in the in-vault linking dialog.",
+            },
+            {
+                type: "added",
+                description: "Changelog dialog now highlights unseen releases.",
+            },
+            {
+                type: "added",
+                description: "Implemented a new vault metadata editor in the Vault Manager.",
+            },
+            {
+                type: "added",
+                description: "Implemented a credential generator dialog on every password input field.",
+            },
+            {
+                type: "changed",
+                description: "Strip the linking configuration and devices from the generated backup.",
+            },
+            {
+                type: "changed",
+                description: "The `web` package version has been bumped to `v1.2.0`.",
+            },
+            {
+                type: "fix",
+                description: "Removed reliance on the nodejs Buffer class.",
+            },
+        ],
+    },
+    {
         version: "v1.1.0",
         date: "2025-08-03",
         changes: [

@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redesign the in-vault UI.
 - Complete test coverage.
 
+## [1.2.0] - 2025-12-06
+
+### Added
+
+- QR code data can be copied in the in-vault linking dialog.
+- Changelog dialog now highlights unseen releases.
+- Implemented a new vault metadata editor in the Vault Manager.
+- Implemented a credential generator dialog on every password input field.
+
+### Changed
+
+- Strip the linking configuration and devices from the generated backup.
+- The `web` package version has been bumped to `v1.2.0`
+
+### Fixed
+
+- Removed reliance on the nodejs Buffer class.
+
 ## [1.1.0] - 2025-08-03
 
 ### Added

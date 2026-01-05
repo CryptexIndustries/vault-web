@@ -218,6 +218,10 @@ const UnlockTab: React.FC<{
         if (!selectedVaultData) return;
 
         setIsDecrypting(true);
+
+        // Give the UI some breathing room to show the loading state since the unlock process is weighty on the main thread
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const decryptRes = await executeCallback(selectedVaultData, formData);
         setIsDecrypting(false);
 

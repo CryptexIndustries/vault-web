@@ -5403,6 +5403,7 @@ const VaultDashboard: React.FC = ({}) => {
         onDismiss: (() => void) | null,
         confirmationButtonText?: string,
         descriptionSecondPart?: string,
+        autoConfirmCountdown?: number,
     ) => {
         showWarningDialogFnRef.current?.(
             description,
@@ -5410,6 +5411,7 @@ const VaultDashboard: React.FC = ({}) => {
             onDismiss,
             confirmationButtonText,
             descriptionSecondPart,
+            autoConfirmCountdown,
         );
     };
 
@@ -5461,6 +5463,7 @@ const VaultDashboard: React.FC = ({}) => {
             },
             "Lock Vault",
             "This will lock the vault and prevent anyone from accessing it.",
+            5, // Auto-lock countdown in seconds
         );
     };
 

@@ -335,7 +335,7 @@ const UnlockTab: React.FC<{
                         className="h-8 w-8 p-0"
                     >
                         <Edit2 className="h-4 w-4" />
-                        <span className="sr-only">Edit vault "{selectedVaultDisplayName}"</span>
+                        <span className="sr-only">Edit vault &quot;{selectedVaultDisplayName}&quot;</span>
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -400,7 +400,7 @@ const UnlockTab: React.FC<{
                         <DialogHeader>
                             <DialogTitle>Edit Vault</DialogTitle>
                             <DialogDescription>
-                                Make changes to your vault information here. Click save when you're done.
+                                Make changes to your vault information here. Click save when you&apos;re done.
                             </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleEditSubmit(handleVaultUpdate)}>

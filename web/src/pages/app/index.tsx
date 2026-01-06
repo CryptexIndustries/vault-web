@@ -7222,6 +7222,16 @@ const CredentialSideview: React.FC<{
                                     }
                                     register={register("Password")}
                                 />
+                                {/* <FormInput
+                                    type="password"
+                                    placeholder="Enter your password"
+                                    autoCapitalize="none"
+                                    // className="pr-10"
+                                    showPasswordGenerator={true}
+                                    showClipboardButton={true}
+                                    {...register("Password")}
+                                    setValue={(value) => setValue("Password", value)}
+                                /> */}
                                 {errors.Password && (
                                     <p className="text-red-500">
                                         {errors.Password.message}

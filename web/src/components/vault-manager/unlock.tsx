@@ -483,6 +483,7 @@ const UnlockTab: React.FC<{
                     id="secret-key"
                     type="password"
                     placeholder="Enter your secret key"
+                    autoFocus={true}
                     className="pr-10"
                     {...register("Secret")}
                     setValue={(value) => setValue("Secret", value)}

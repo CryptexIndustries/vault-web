@@ -24,6 +24,61 @@ interface ChangelogRelease {
 
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.3.0",
+        date: "2026-01-06",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "Introduced a Log Inspector dialog for enhanced debugging and log management.",
+            },
+            {
+                type: "added",
+                description:
+                    "Added an auto-confirm countdown to the Vault Lock dialog.",
+            },
+            {
+                type: "added",
+                description:
+                    "Added a `showPasswordGenerator` prop to `FormInput` for optional password generator buttons, and removed the default generator from the vault unlock secret input.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Started unifying vault UI components for a more consistent experience.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Added autofocus to the secret key input in the Unlock tab for faster entry.",
+            },
+            {
+                type: "changed",
+                description: "The `web` package version has been bumped to `v1.3.0`.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Updated `.gitignore` to exclude extension build artifacts.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Correctly reference the credentials list in `applyDiffs` so vault synchronization works properly.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Added a short UI delay in the Unlock Vault dialog to improve responsiveness during unlock.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Unified HTML5 quote escape sequences in `unlock.tsx` to avoid parsing inconsistencies.",
+            },
+        ],
+    },
+    {
         version: "v1.2.0",
         date: "2025-12-06",
         changes: [

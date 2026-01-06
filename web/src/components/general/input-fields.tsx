@@ -374,9 +374,10 @@ export const FormInputCheckbox: React.FC<{
 export const FormInput = React.forwardRef<
     HTMLInputElement,
     React.ComponentPropsWithoutRef<"input"> & {
-        setValue?: (value: string) => void;
+        setValue?: (value: string) => void; 
+        showPasswordGenerator?: boolean; 
     }
->(({ className, type, onChange, value, setValue, ...props }, ref) => {
+>(({ className, type, onChange, value, setValue, showPasswordGenerator = false, ...props }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false);
     const [showGeneratorDialog, setShowGeneratorDialog] = React.useState(false);
 
@@ -427,14 +428,16 @@ export const FormInput = React.forwardRef<
                                 <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
                             )}
                         </button>
-                        <button
-                            className="absolute right-10 top-2"
-                            onClick={() => setShowGeneratorDialog(true)}
-                            type="button"
-                            title="Generate password"
-                        >
-                            <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
-                        </button>
+                        {showPasswordGenerator && (
+                            <button
+                                className="absolute right-10 top-2"
+                                onClick={() => setShowGeneratorDialog(true)}
+                                type="button"
+                                title="Generate password"
+                            >
+                                <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                            </button>
+                        )}
                     </>
                 )}
             </div>

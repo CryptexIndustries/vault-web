@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redesign the in-vault UI.
 - Complete test coverage.
 
+## [1.3.1] - 2026-01-06
+
+# Changed
+
+- The `web` package version has been bumped to `v1.3.0`.
+- The `next` package version has been bumped to `v15.3.8`.
+
 ## [1.3.0] - 2026-01-06
 
 ### Added

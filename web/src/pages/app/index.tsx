@@ -104,6 +104,7 @@ import {
     ManualSynchronizationDialog,
     type ManualSyncShowDialogFnPropType,
 } from "../../components/dialog/synchronization";
+import { LogInspectorDialog } from "../../components/dialog/log-inspector";
 import {
     WarningDialog,
     WarningDialogShowFn,
@@ -142,6 +143,7 @@ import {
     vaultCredentialsAtom,
     vaultGet,
 } from "../../utils/atoms";
+import { vaultLogger } from "../../utils/logging";
 import {
     DIALOG_BLUR_TIME,
     enumToRecord,
@@ -2519,10 +2521,12 @@ const VaultSettingsDialog: React.FC<{
     showDialogFnRef: React.RefObject<() => void>;
     showWarningDialog: WarningDialogShowFn;
     showCredentialsGeneratorDialogFnRef: React.RefObject<() => void>;
+    showLogInspectorDialog: () => void;
 }> = ({
     showDialogFnRef,
     showWarningDialog,
     showCredentialsGeneratorDialogFnRef,
+    showLogInspectorDialog,
 }) => {
     const [visibleState, setVisibleState] = useState(false);
     const hideDialog = (force?: boolean) => {
@@ -2815,6 +2819,24 @@ const VaultSettingsDialog: React.FC<{
                                         text="Clear Synchronization List"
                                         type={ButtonType.Secondary}
                                         onClick={clearSyncList}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                            </div>
+                            <div className="rounded-lg bg-gray-100 p-4 border border-slate-200">
+                                <p className="text-lg font-bold text-slate-800">
+                                    Developer Tools
+                                </p>
+                                <p className="mt-2 text-base text-gray-600">
+                                    Access diagnostic tools for debugging
+                                    synchronization and other vault operations.
+                                    Logs are cleared when you lock the vault.
+                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <ButtonFlat
+                                        text="Open Log Inspector"
+                                        type={ButtonType.Secondary}
+                                        onClick={showLogInspectorDialog}
                                         disabled={isLoading}
                                     />
                                 </div>
@@ -4863,7 +4885,8 @@ const SidebarSyncDeviceListItem: React.FC<{
     showEditDialog: RefObject<(device: LinkedDevice) => void>;
     unlinkDevice: (id: string) => Promise<void>;
     showManualSyncDialog: RefObject<ManualSyncShowDialogFnPropType>;
-}> = ({ item, showEditDialog, unlinkDevice, showManualSyncDialog }) => {
+    showLogInspectorDialog: () => void;
+}> = ({ item, showEditDialog, unlinkDevice, showManualSyncDialog, showLogInspectorDialog }) => {
     const device = item;
 
     const setVaultCredentials = useSetAtom(vaultCredentialsAtom);
@@ -5026,14 +5049,8 @@ const SidebarSyncDeviceListItem: React.FC<{
             event.data.event ===
             SynchronizationUtils.WebRTCMessageEventType.Error
         ) {
-            console.error(
-                `[SidebarSyncDeviceListItem] An error occurred during synchronization with device "${device.Name}" (${device.ID}). Additional data:`,
-                event.data.additionalData,
-                "Occurred at:",
-                event.data.message,
-            );
             toast.warn(
-                `Connection to "${device.Name}" (${device.ID}) has failed. Please see console for more information.`,
+                <p onClick={showLogInspectorDialog}>Connection to "{device.Name}" ({device.ID}) has failed. Please inspect the vault logs for more information.</p>
             );
         }
 
@@ -5328,7 +5345,8 @@ const SidebarSyncDeviceList: React.FC<{
     showWarningFn: WarningDialogShowFn;
     showLinkedDeviceEditDialog: RefObject<(device: LinkedDevice) => void>;
     showManualSyncDialog: RefObject<ManualSyncShowDialogFnPropType>;
-}> = ({ showWarningFn, showLinkedDeviceEditDialog, showManualSyncDialog }) => {
+    showLogInspectorDialog: () => void;
+}> = ({ showWarningFn, showLinkedDeviceEditDialog, showManualSyncDialog, showLogInspectorDialog }) => {
     const [linkedVaultDevices, setLinkedDevices] = useAtom(linkedDevicesAtom);
     const { mutateAsync: removeFromOnlineServices } =
         trpcReact.v1.device.remove.useMutation();
@@ -5378,6 +5396,7 @@ const SidebarSyncDeviceList: React.FC<{
                                 showEditDialog={showLinkedDeviceEditDialog}
                                 unlinkDevice={unlinkDevice}
                                 showManualSyncDialog={showManualSyncDialog}
+                                showLogInspectorDialog={showLogInspectorDialog}
                             />
                         );
                     })}
@@ -5500,6 +5519,7 @@ const VaultDashboard: React.FC = ({}) => {
         onDismiss: (() => void) | null,
         confirmationButtonText?: string,
         descriptionSecondPart?: string,
+        autoConfirmCountdown?: number,
     ) => {
         showWarningDialogFnRef.current?.(
             description,
@@ -5507,6 +5527,7 @@ const VaultDashboard: React.FC = ({}) => {
             onDismiss,
             confirmationButtonText,
             descriptionSecondPart,
+            autoConfirmCountdown,
         );
     };
 
@@ -5545,6 +5566,10 @@ const VaultDashboard: React.FC = ({}) => {
         },
     );
 
+    const showLogInspectorDialogFnRef = useRef<() => void>(() => {
+        // No-op
+    });
+
     const lockVaultConfirm = () => {
         if (!vaultMetadata) return;
 
@@ -5558,6 +5583,7 @@ const VaultDashboard: React.FC = ({}) => {
             },
             "Lock Vault",
             "This will lock the vault and prevent anyone from accessing it.",
+            5, // Auto-lock countdown in seconds
         );
     };
 
@@ -5596,6 +5622,9 @@ const VaultDashboard: React.FC = ({}) => {
             GlobalSyncConnectionController.teardown();
             setUnlockedVaultMetadata(null);
             setUnlockedVault(new Vault.Vault());
+
+            // Clear all logs when locking the vault to ensure no sensitive data persists
+            vaultLogger.clearAll();
         } catch (e) {
             console.error(`Failed to save vault: ${e}`);
             toast.error(
@@ -5706,6 +5735,7 @@ const VaultDashboard: React.FC = ({}) => {
                                     showManualSyncDialog={
                                         showManualSyncDialogFnRef
                                     }
+                                    showLogInspectorDialog={() => showLogInspectorDialogFnRef.current?.()}
                                 />
                             </div>
                             <div className="flex flex-col gap-2">
@@ -5817,6 +5847,7 @@ const VaultDashboard: React.FC = ({}) => {
                 showCredentialsGeneratorDialogFnRef={
                     showCredentialsGeneratorDialogFnRef
                 }
+                showLogInspectorDialog={() => showLogInspectorDialogFnRef.current?.()}
             />
             <FeatureVotingDialog showDialogFnRef={showFeatureVotingDialogRef} />
             <OnlineServicesSignUpRestoreDialog
@@ -5850,6 +5881,7 @@ const VaultDashboard: React.FC = ({}) => {
                 showDialogFnRef={showManualSyncDialogFnRef}
                 showWarningDialog={showWarningDialog}
             />
+            <LogInspectorDialog showDialogFnRef={showLogInspectorDialogFnRef} />
         </>
     );
 };
@@ -7318,6 +7350,16 @@ const CredentialSideview: React.FC<{
                                     }
                                     register={register("Password")}
                                 />
+                                {/* <FormInput
+                                    type="password"
+                                    placeholder="Enter your password"
+                                    autoCapitalize="none"
+                                    // className="pr-10"
+                                    showPasswordGenerator={true}
+                                    showClipboardButton={true}
+                                    {...register("Password")}
+                                    setValue={(value) => setValue("Password", value)}
+                                /> */}
                                 {errors.Password && (
                                     <p className="text-red-500">
                                         {errors.Password.message}

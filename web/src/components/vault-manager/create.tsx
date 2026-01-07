@@ -113,6 +113,7 @@ const CreateVaultTab: React.FC<{
                     type="password"
                     placeholder="Enter your secret key"
                     className="pr-10"
+                    showPasswordGenerator={true}
                     {...register("Secret")}
                     setValue={(value) => setValue("Secret", value)}
                     onKeyDown={(e) => {

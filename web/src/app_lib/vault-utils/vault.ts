@@ -917,10 +917,10 @@ export const applyDiffs = async (
             diff.Changes?.Type === VaultUtilTypes.DiffType.Update &&
             diff.Changes?.Props
         ) {
-            const credentialIndex = existingCredentials.findIndex(
+            const credentialIndex = credStorage.findIndex(
                 (cred) => cred.ID === diff.Changes?.ID,
             );
-            const credential = existingCredentials[credentialIndex];
+            const credential = credStorage[credentialIndex];
 
             // If we tried to update a credential that doesn't exist, we're probably dealing with a corrupted diff list
             if (!credential)
@@ -1186,7 +1186,7 @@ export const packageForLinking = (
 };
 
 /**
- * Calculates the hash of the given credentials and returns it.
+ * Calculates the hash of the given credential set and returns it.
  * @returns A hash in the form of a hex string
  */
 export const calculateMockedVaultHash = async (

@@ -19,6 +19,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redesign the in-vault UI.
 - Complete test coverage.
 
+## [1.3.1] - 2026-01-06
+
+# Changed
+
+- The `web` package version has been bumped to `v1.3.0`.
+- The `next` package version has been bumped to `v15.3.8`.
+
+## [1.3.0] - 2026-01-06
+
+### Added
+
+- Introduced a Log Inspector dialog for enhanced debugging and log management.
+- Added an auto-confirm countdown to the Vault Lock dialog.
+- Added a `showPasswordGenerator` prop to `FormInput` for optional password generator buttons, and removed the default generator from the vault unlock secret input.
+- Added autofocus to the secret key input in the Unlock tab for faster entry.
+
+### Changed
+
+- Started unifying vault UI components for a more consistent experience.
+- The `web` package version has been bumped to `v1.3.0`.
+- Updated `.gitignore` to exclude extension build artifacts.
+
+### Fixed
+
+- Correctly reference the credentials list in `applyDiffs` so vault synchronization works properly.
+- Added a short UI delay in the Unlock Vault dialog to improve responsiveness during unlock.
+- Unified HTML5 quote escape sequences in `unlock.tsx` to avoid parsing inconsistencies.
+
+## [1.2.0] - 2025-12-06
+
+### Added
+
+- QR code data can be copied in the in-vault linking dialog.
+- Changelog dialog now highlights unseen releases.
+- Implemented a new vault metadata editor in the Vault Manager.
+- Implemented a credential generator dialog on every password input field.
+
+### Changed
+
+- Strip the linking configuration and devices from the generated backup.
+- The `web` package version has been bumped to `v1.2.0`
+
+### Fixed
+
+- Removed reliance on the nodejs Buffer class.
+
 ## [1.1.0] - 2025-08-03
 
 ### Added

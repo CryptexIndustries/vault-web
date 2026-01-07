@@ -374,9 +374,11 @@ export const FormInputCheckbox: React.FC<{
 export const FormInput = React.forwardRef<
     HTMLInputElement,
     React.ComponentPropsWithoutRef<"input"> & {
-        setValue?: (value: string) => void;
+        setValue?: (value: string) => void; 
+        showPasswordGenerator?: boolean; 
+        showClipboardButton?: boolean;
     }
->(({ className, type, onChange, value, setValue, ...props }, ref) => {
+>(({ className, type, onChange, value, setValue, showPasswordGenerator = false, showClipboardButton = false, ...props }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false);
     const [showGeneratorDialog, setShowGeneratorDialog] = React.useState(false);
 
@@ -403,6 +405,13 @@ export const FormInput = React.forwardRef<
         }
     };
 
+    // TODO: Implement the save to clipboard button
+    // const saveToClipboard = async () => {
+    //     if (!value) return;
+    //     await navigator.clipboard.writeText(value);
+    //     toast.info("Copied to clipboard");
+    // };
+
     return (
         <>
             <div className="relative">
@@ -427,14 +436,28 @@ export const FormInput = React.forwardRef<
                                 <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
                             )}
                         </button>
-                        <button
-                            className="absolute right-10 top-2"
-                            onClick={() => setShowGeneratorDialog(true)}
-                            type="button"
-                            title="Generate password"
-                        >
-                            <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
-                        </button>
+                        {showPasswordGenerator && (
+                            <button
+                                className="absolute right-8 top-2"
+                                onClick={() => setShowGeneratorDialog(true)}
+                                type="button"
+                                title="Generate password"
+                            >
+                                <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                            </button>
+                        )}
+                        {/* {showClipboardButton && (
+                            <button
+                                    className="absolute right-14 top-2"
+                                    aria-hidden="true"
+                                    title="Copy to clipboard"
+                                    onClick={() => saveToClipboard()}
+                            >
+                                <ClipboardCopy
+                                    className="h-5 w-5 text-slate-400 hover:text-slate-500 disabled:text-slate-300 disabled:hover:text-slate-300"
+                                />
+                            </button>
+                        )} */}
                     </>
                 )}
             </div>

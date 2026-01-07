@@ -9,13 +9,15 @@ export type WarningDialogShowFn = (
     onDismiss: (() => void) | null,
     confirmationButtonText?: string,
     descriptionSecondPart?: string,
+    autoConfirmCountdown?: number,
 ) => void;
 
 export const WarningDialog: React.FC<{
-    showFnRef: React.MutableRefObject<WarningDialogShowFn | null>;
+    showFnRef: React.RefObject<WarningDialogShowFn | null>;
 }> = ({ showFnRef }) => {
     const [dialogVisible, setDialogVisible] = React.useState(false);
     const [isLoadingState, setIsLoadingState] = React.useState(false);
+    const [countdown, setCountdown] = React.useState<number | null>(null);
 
     const [confirmationButtonText, setConfirmationButtonText] = React.useState<
         string | undefined
@@ -24,12 +26,22 @@ export const WarningDialog: React.FC<{
         string | undefined
     >();
 
+    const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    const clearCountdownInterval = () => {
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+        }
+    };
+
     showFnRef.current = (
         description: string,
         onConfirm: (() => void) | null,
         onDismiss: (() => void) | null,
         confirmationButtonText?: string,
         descriptionSecondPart?: string,
+        autoConfirmCountdown?: number,
     ) => {
         descriptionRef.current = description;
         onConfirmFnRef.current = onConfirm;
@@ -38,6 +50,8 @@ export const WarningDialog: React.FC<{
 
         setConfirmationButtonText(confirmationButtonText);
         setDescriptionSecondPart(descriptionSecondPart);
+        initialCountdownRef.current = autoConfirmCountdown ?? null;
+        setCountdown(autoConfirmCountdown ?? null);
 
         setDialogVisible(true);
     };
@@ -50,7 +64,43 @@ export const WarningDialog: React.FC<{
         (() => Promise<void>) | (() => void) | null
     >(null);
 
+    const initialCountdownRef = React.useRef<number | null>(null);
+
+    // Handle countdown timer - only set up once when dialog opens
+    React.useEffect(() => {
+        if (!dialogVisible) {
+            clearCountdownInterval();
+            return;
+        }
+
+        if (initialCountdownRef.current === null) {
+            return;
+        }
+
+        countdownIntervalRef.current = setInterval(() => {
+            setCountdown((prev) => {
+                if (prev === null || prev <= 1) {
+                    clearCountdownInterval();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearCountdownInterval();
+    }, [dialogVisible]);
+
+    // Handle auto-confirm when countdown reaches zero
+    React.useEffect(() => {
+        if (countdown === 0 && dialogVisible) {
+            onConfirm();
+        }
+    }, [countdown]);
+
     const hideModal = () => {
+        clearCountdownInterval();
+        initialCountdownRef.current = null;
+        setCountdown(null);
         setDialogVisible(false);
         if (onDismissFnRef && onDismissFnRef.current) {
             onDismissFnRef.current();
@@ -58,6 +108,9 @@ export const WarningDialog: React.FC<{
     };
 
     const onConfirm = async () => {
+        clearCountdownInterval();
+        initialCountdownRef.current = null;
+        setCountdown(null);
         setIsLoadingState(true);
 
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -99,7 +152,11 @@ export const WarningDialog: React.FC<{
             <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
                 {onConfirmFnRef && onConfirmFnRef.current && (
                     <ButtonFlat
-                        text={confirmationButtonText ?? "Confirm"}
+                        text={
+                            countdown !== null
+                                ? `${confirmationButtonText ?? "Confirm"} (${countdown}s)`
+                                : (confirmationButtonText ?? "Confirm")
+                        }
                         className="sm:ml-2"
                         onClick={onConfirm}
                         disabled={isLoadingState}

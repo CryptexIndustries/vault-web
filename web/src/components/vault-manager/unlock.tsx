@@ -218,6 +218,10 @@ const UnlockTab: React.FC<{
         if (!selectedVaultData) return;
 
         setIsDecrypting(true);
+
+        // Give the UI some breathing room to show the loading state since the unlock process is weighty on the main thread
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const decryptRes = await executeCallback(selectedVaultData, formData);
         setIsDecrypting(false);
 
@@ -335,7 +339,7 @@ const UnlockTab: React.FC<{
                         className="h-8 w-8 p-0"
                     >
                         <Edit2 className="h-4 w-4" />
-                        <span className="sr-only">Edit vault "{selectedVaultDisplayName}"</span>
+                        <span className="sr-only">Edit vault &quot;{selectedVaultDisplayName}&quot;</span>
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -400,7 +404,7 @@ const UnlockTab: React.FC<{
                         <DialogHeader>
                             <DialogTitle>Edit Vault</DialogTitle>
                             <DialogDescription>
-                                Make changes to your vault information here. Click save when you're done.
+                                Make changes to your vault information here. Click save when you&apos;re done.
                             </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleEditSubmit(handleVaultUpdate)}>
@@ -479,6 +483,7 @@ const UnlockTab: React.FC<{
                     id="secret-key"
                     type="password"
                     placeholder="Enter your secret key"
+                    autoFocus={true}
                     className="pr-10"
                     {...register("Secret")}
                     setValue={(value) => setValue("Secret", value)}

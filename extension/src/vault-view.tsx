@@ -1,33 +1,38 @@
+import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import * as SynchronizationUtils from "@/app_lib/synchronization-utils";
+import { TOTPFormSchemaType } from "@/app_lib/vault-utils/form-schemas";
+import * as Vault from "@/app_lib/vault-utils/vault";
 import {
-    Globe,
-    X,
-    PlusCircle,
+    CredentialFormSchemaType,
+    VaultCredential,
+} from "@/app_lib/vault-utils/vault";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
     ArrowRightSquare,
     Clipboard,
-    EyeOff,
     Copy,
     Edit,
-    Trash2,
+    Eye,
+    EyeOff,
+    Globe,
+    Loader2,
+    LockKeyhole,
     MoreVertical,
     Plus,
-    Shield,
-    Wifi,
-    WifiOff,
-    Clock,
-    Search,
-    Loader2,
-    Eye,
-    LockKeyhole,
+    PlusCircle,
     RefreshCw,
+    Search,
+    Shield,
+    Trash2,
+    X,
 } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { TOTP } from "otpauth";
+import React, { useEffect, useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
+    EncryptedEnvelope,
     LiteCredential,
     MessageType,
-    EncryptedEnvelope,
     PlaintextEnvelope,
 } from "./types/sw-messaging";
 import {
@@ -35,33 +40,31 @@ import {
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
-import {
-    VaultCredential,
-    CredentialFormSchemaType,
-} from "@/app_lib/vault-utils/vault";
-import { TOTPFormSchemaType } from "@/app_lib/vault-utils/form-schemas";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
-import * as Vault from "@/app_lib/vault-utils/vault";
+
+import { ManualSynchronizationDialog, ManualSyncShowDialogFnPropType } from "@/components/dialog/synchronization";
 
 // Shadcn UI Components
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { SyncConnectionController, VaultOperations } from "@/app_lib/synchronization";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { validateEnvelope } from "./utils/security-utils";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { err, ok, Result } from "neverthrow";
+import { validateEnvelope } from "./utils/security-utils";
+import { setOnlineServicesAPIKey } from "@/utils/atoms";
+import { WarningDialog, WarningDialogShowFn } from "@/components/dialog/warning";
 
 type VaultViewProps = {
     name: string;
@@ -74,6 +77,147 @@ type VaultViewProps = {
 };
 
 type CredentialFormMode = "create" | "edit" | null;
+
+let GlobalSyncConnectionController: SyncConnectionController | null = null;
+
+type ServerPublicKey = NonNullable<VaultViewProps['serverPublicKey']>;
+
+const createVaultOperations = (
+    serverPublicKey: ServerPublicKey,
+    onCredentialsUpdated?: () => void | Promise<void>,
+): VaultOperations => {
+    return {
+        getCredentials: async () => {
+            return await getCredentials(serverPublicKey);
+        },
+        getDiffs: async () => {
+            return await getDiffs(serverPublicKey);
+        },
+        updateCredentialsAndDiffs: async (credentials, diffs) => {
+            await updateCredentialsAndDiffs(serverPublicKey, credentials, diffs);
+            await onCredentialsUpdated?.();
+        },
+        getSynchronizationConfig: async () => {
+            return await getSynchronizationConfig(serverPublicKey);
+        },
+    };
+};
+
+const getCredentials = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.Credential[]> => {
+    const envelope = await createEncryptedEnvelope(
+        MessageType.SyncGetCredentials,
+        null,
+        serverPublicKey.publicKeyJwk,
+        serverPublicKey.keyId,
+        "popup",
+    );
+
+    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    if (isEncryptedEnvelope(res)) {
+        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; credentials: VaultUtilTypes.Credential[] }>(res);
+        if (!decryptedPayload.ok) {
+            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetCredentials):", decryptedPayload.error);
+            return [];
+        }
+
+        if (!decryptedPayload.payload.ok) {
+            console.error("[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetCredentials):", decryptedPayload.payload.error);
+            return [];
+        }
+
+        return decryptedPayload.payload.credentials;
+    }
+
+    // If we're here, it's an erroneous response from the background script (plaintext envelope)
+    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetCredentials):", res.payload);
+    return [];
+};
+
+const getDiffs = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.Diff[]> => {
+    const envelope = await createEncryptedEnvelope(
+        MessageType.SyncGetDiffs,
+        null,
+        serverPublicKey.publicKeyJwk,
+        serverPublicKey.keyId,
+        "popup",
+    );
+
+    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    if (isEncryptedEnvelope(res)) {
+        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; diffs: VaultUtilTypes.Diff[] }>(res);
+        if (!decryptedPayload.ok) {
+            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetDiffs):", decryptedPayload.error);
+            return [];
+        }
+
+
+        if (!decryptedPayload.payload.ok) {
+            console.error("[SYNCHRONIZATION-POPUP] Failed to get diffs (SyncGetDiffs):", decryptedPayload.payload.error);
+            return [];
+        }
+
+        return decryptedPayload.payload.diffs;
+    }
+
+    // If we're here, it's an erroneous response from the background script (plaintext envelope)
+    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetDiffs):", res.payload);
+    return [];
+};
+
+const getSynchronizationConfig = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.LinkedDevices> => {
+    const envelope = await createEncryptedEnvelope(
+        MessageType.SyncGetConfiguration,
+        null,
+        serverPublicKey.publicKeyJwk,
+        serverPublicKey.keyId,
+        "popup",
+    );
+
+    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    if (isEncryptedEnvelope(res)) {
+        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; config: VaultUtilTypes.LinkedDevices }>(res);
+        if (!decryptedPayload.ok) {
+            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetConfiguration):", decryptedPayload.error);
+            return null as unknown as VaultUtilTypes.LinkedDevices;
+        }
+
+        if (!decryptedPayload.payload.ok) {
+            console.error("[SYNCHRONIZATION-POPUP] Failed to get synchronization configuration (SyncGetConfiguration):", decryptedPayload.payload.error);
+            return null as unknown as VaultUtilTypes.LinkedDevices;
+        }
+
+        return decryptedPayload.payload.config;
+    }
+
+    // If we're here, it's an erroneous response from the background script (plaintext envelope)
+    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetConfiguration):", res.payload);
+    return null as unknown as VaultUtilTypes.LinkedDevices;
+};
+
+const updateCredentialsAndDiffs = async (serverPublicKey: ServerPublicKey, credentials: VaultUtilTypes.Credential[], diffs: VaultUtilTypes.Diff[]) => {
+    const envelope = await createEncryptedEnvelope(
+        MessageType.SyncUpdateCredentialsAndDiffs,
+        { credentials, diffs },
+        serverPublicKey.publicKeyJwk,
+        serverPublicKey.keyId,
+        "popup",
+    );
+
+    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+
+    // The expected successful response is an encrypted envelope
+    if (isEncryptedEnvelope(res)) {
+        const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean }>(res);
+        if (!decryptedPayload?.ok) {
+            // return err("FAILED_TO_UPDATE_CREDENTIALS_AND_DIFFS");
+            console.error("[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:", decryptedPayload?.error);
+            return;
+        }
+    } else {
+        // If we're here, it's an erroneous response from the background script (plaintext envelope)
+        console.error("[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:", res.payload);
+    }
+};
 
 const VaultView: React.FC<VaultViewProps> = ({
     name,
@@ -99,10 +243,24 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const [searchQuery, setSearchQuery] = useState("");
     const [showFormPassword, setShowFormPassword] = useState(false);
-    const [syncStatus, setSyncStatus] = useState<
-        "connected" | "syncing" | "disconnected"
-    >("disconnected");
+    const [signalingStatus, setSignalingStatus] =
+        useState<SynchronizationUtils.SignalingStatus>(
+            SynchronizationUtils.SignalingStatus.Disconnected,
+        );
+    const [webRTCStatus, setWebRTCStatus] =
+        useState<SynchronizationUtils.WebRTCStatus>(
+            SynchronizationUtils.WebRTCStatus.Disconnected,
+        );
     const [lastSync, setLastSync] = useState<Date | null>(null);
+    const linkedDevicesRef = useRef<VaultUtilTypes.LinkedDevice[]>([]);
+
+    const showWarningDialogFnRef = useRef<WarningDialogShowFn>(() => {
+        // No-op
+    });
+    const showManualSyncDialog = useRef<ManualSyncShowDialogFnPropType>(() => {
+        // No-op
+    });
+    const refreshCredentialsRef = useRef<(() => Promise<Result<void, string>>) | null>(null);
 
     // Form management
     const {
@@ -366,34 +524,191 @@ const VaultView: React.FC<VaultViewProps> = ({
         );
     };
 
-    const getSyncStatusIcon = () => {
-        if (isRefreshing) {
-            return <Loader2 className="h-3 w-3 animate-spin text-primary" />;
+    type SignalingDisplayStatus =
+        | "connected"
+        | "connecting"
+        | "completed"
+        | "disconnected"
+        | "failed"
+        | "error";
+    type WebRTCDisplayStatus =
+        | "connected"
+        | "connecting"
+        | "failed"
+        | "idle";
+    type ConnectionTone = "green" | "yellow" | "red";
+
+    const getSignalingDisplayStatus = (
+        rawStatus: SynchronizationUtils.SignalingStatus,
+        webrtc: WebRTCDisplayStatus,
+    ): SignalingDisplayStatus => {
+        let status: SignalingDisplayStatus = "disconnected";
+
+        if (rawStatus === SynchronizationUtils.SignalingStatus.Connected) {
+            status = "connected";
+        } else if (
+            rawStatus === SynchronizationUtils.SignalingStatus.Connecting
+        ) {
+            status = "connecting";
+        } else if (
+            rawStatus === SynchronizationUtils.SignalingStatus.Unavailable
+        ) {
+            status = "error";
+        } else if (rawStatus === SynchronizationUtils.SignalingStatus.Failed) {
+            status = "failed";
+        } else if (
+            rawStatus === SynchronizationUtils.SignalingStatus.Disconnected
+        ) {
+            status = "disconnected";
         }
-        switch (syncStatus) {
-            case "connected":
-                return <Wifi className="h-3 w-3 text-green-500" />;
-            case "syncing":
-                return (
-                    <Clock className="h-3 w-3 animate-spin text-yellow-500" />
-                );
-            case "disconnected":
-                return <WifiOff className="h-3 w-3 text-red-500" />;
+
+        if (
+            status === "disconnected" &&
+            (webrtc === "connected" || webrtc === "connecting")
+        ) {
+            return "completed";
         }
+
+        return status;
     };
 
-    const getSyncStatusText = () => {
-        if (isRefreshing) {
-            return "Refreshing...";
+    const getWebRTCDisplayStatus = (
+        rawStatus: SynchronizationUtils.WebRTCStatus,
+    ): WebRTCDisplayStatus => {
+        if (rawStatus === SynchronizationUtils.WebRTCStatus.Connected) {
+            return "connected";
         }
-        switch (syncStatus) {
-            case "connected":
-                return "Synced";
-            case "syncing":
-                return "Syncing...";
-            case "disconnected":
-                return "Offline";
+        if (rawStatus === SynchronizationUtils.WebRTCStatus.Connecting) {
+            return "connecting";
         }
+        if (rawStatus === SynchronizationUtils.WebRTCStatus.Failed) {
+            return "failed";
+        }
+        return "idle";
+    };
+
+    const getStatusTone = (status: string): ConnectionTone => {
+        if (status === "connected" || status === "completed") {
+            return "green";
+        }
+        if (status === "connecting") {
+            return "yellow";
+        }
+        return "red";
+    };
+
+    const getOverallConnectionState = (
+        signaling: SignalingDisplayStatus,
+        webrtc: WebRTCDisplayStatus,
+    ): { label: string; tone: ConnectionTone } => {
+        if (signaling === "error") {
+            return { label: "Error", tone: "red" };
+        }
+        if (signaling === "connecting" || webrtc === "connecting") {
+            return { label: "Connecting", tone: "yellow" };
+        }
+        if (webrtc === "failed" || signaling === "failed") {
+            return { label: "Connection issue", tone: "red" };
+        }
+        if (webrtc === "connected") {
+            return { label: "Connected", tone: "green" };
+        }
+        if (
+            (signaling === "connected" || signaling === "completed") &&
+            webrtc === "idle"
+        ) {
+            return { label: "Connecting", tone: "yellow" };
+        }
+        if (signaling === "disconnected" && webrtc === "idle") {
+            return { label: "Disconnected", tone: "red" };
+        }
+        return { label: "Disconnected", tone: "red" };
+    };
+
+    const formatStatusLabel = (status: string) =>
+        status.charAt(0).toUpperCase() + status.slice(1);
+
+    const ConnectionStatusIndicator: React.FC<{
+        signaling: SynchronizationUtils.SignalingStatus;
+        webrtc: SynchronizationUtils.WebRTCStatus;
+    }> = ({ signaling, webrtc }) => {
+        const [detailsOpen, setDetailsOpen] = useState(false);
+        const webrtcDisplay = getWebRTCDisplayStatus(webrtc);
+        const signalingDisplay = getSignalingDisplayStatus(
+            signaling,
+            webrtcDisplay,
+        );
+        const overall = getOverallConnectionState(
+            signalingDisplay,
+            webrtcDisplay,
+        );
+        const toneClasses: Record<ConnectionTone, string> = {
+            green: "border-green-500/40 bg-green-500/10 text-green-600",
+            yellow: "border-yellow-500/40 bg-yellow-500/10 text-yellow-600",
+            red: "border-red-500/40 bg-red-500/10 text-red-600",
+        };
+        const textToneClasses: Record<ConnectionTone, string> = {
+            green: "text-green-600",
+            yellow: "text-yellow-600",
+            red: "text-red-600",
+        };
+        const dotClasses: Record<ConnectionTone, string> = {
+            green: "bg-green-500",
+            yellow: "bg-yellow-500",
+            red: "bg-red-500",
+        };
+
+        return (
+            <DropdownMenu open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 py-0 hover:bg-muted/50"
+                        onMouseEnter={() => setDetailsOpen(true)}
+                    >
+                        <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${toneClasses[overall.tone]}`}
+                        >
+                            <span
+                                className={`h-1.5 w-1.5 rounded-full ${dotClasses[overall.tone]}`}
+                            />
+                            {overall.label}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align="end"
+                    className="w-52 p-3"
+                    onMouseEnter={() => setDetailsOpen(true)}
+                    onMouseLeave={() => setDetailsOpen(false)}
+                >
+                    <div className="space-y-2">
+                        <div className="text-xs font-semibold text-foreground">
+                            Connection details
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">
+                                Signaling
+                            </span>
+                            <span
+                                className={`font-medium ${textToneClasses[getStatusTone(signalingDisplay)]}`}
+                            >
+                                {formatStatusLabel(signalingDisplay)}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">WebRTC</span>
+                            <span
+                                className={`font-medium ${textToneClasses[getStatusTone(webrtcDisplay)]}`}
+                            >
+                                {formatStatusLabel(webrtcDisplay)}
+                            </span>
+                        </div>
+                    </div>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
     };
 
     // Credential CRUD operations
@@ -595,7 +910,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
-                | { ok: true; credential: LiteCredential }
+                | { ok: true }
                 | { ok: false; error: string }
             >(res);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
@@ -767,6 +1082,10 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("FAILED_TO_REFRESH_CREDENTIALS");
     };
 
+    useEffect(() => {
+        refreshCredentialsRef.current = refreshCredentials;
+    }, [refreshCredentials]);
+
     const _refreshCredentials = async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
@@ -783,55 +1102,80 @@ const VaultView: React.FC<VaultViewProps> = ({
 
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<{
+                ok: true;
                 credentials: LiteCredential[];
+            } | {
+                ok: false;
+                error: string;
             }>(res);
 
             if (!decryptedPayload?.ok) {
                 console.error(
-                    "Failed to decrypt credentials:",
-                    decryptedPayload?.error,
+                    "Failed to decrypt encrypted response (GetCredentials):",
+                    decryptedPayload.error,
                 );
-                return err("FAILED_TO_DECRYPT_CREDENTIALS");
+                return err("ENVELOPE_FAILED_DECRYPTION");
             }
 
-            return ok(decryptedPayload.payload?.credentials ?? []);
+            if (!decryptedPayload.payload.ok) {
+                console.error("Failed to get credentials (GetCredentials):", decryptedPayload.payload.error);
+                return err("FAILED_TO_GET_CREDENTIALS");
+            }
+
+            return ok(decryptedPayload.payload.credentials);
         }
 
-        if (!res.payload?.ok && res.payload?.code === "STALE_KEY") {
+        if (res.payload?.code === "STALE_KEY") {
             return err("STALE_KEY");
         }
 
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
-    const openCreateForm = () => {
-        setCredentialFormMode("create");
-        setEditingCredential(null);
-        credentialModalVisible[1](true);
-        // Reset TOTP form data to default values
-        setTotpFormData({
-            Label: "",
-            Secret: "",
-            Period: 30,
-            Digits: 6,
-            Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-        });
-        reset({
-            ID: null,
-            Type: VaultUtilTypes.ItemType.Credentials,
-            GroupID: "",
-            Name: "",
-            Username: "",
-            Password: "",
-            TOTP: null,
-            Tags: "",
-            URL: "",
-            Notes: "",
-            DateCreated: new Date().toISOString(),
-            DateModified: undefined,
-            DatePasswordChanged: undefined,
-            CustomFields: [],
-        });
+    const _getSyncConfig = async () => {
+        if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
+
+        const envelope = await createEncryptedEnvelope(
+            MessageType.SyncGetConfiguration,
+            null,
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup",
+        );
+
+        const res: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
+
+        if (isEncryptedEnvelope(res)) {
+            const decryptedPayload = await decryptResponseEnvelope<{
+                ok: true;
+                config: VaultUtilTypes.LinkedDevices;
+            } | {
+                ok: false;
+                error: string;
+            }>(res);
+
+            if (!decryptedPayload?.ok) {
+                console.error("Failed to decrypt encrypted response (SyncGetConfiguration):", decryptedPayload.error);
+                return err("ENVELOPE_FAILED_DECRYPTION");
+            }
+
+            if (!decryptedPayload.payload.ok) {
+                console.error("Failed to get synchronization configuration (SyncGetConfiguration):", decryptedPayload.payload.error);
+                return err("FAILED_TO_GET_SYNCHRONIZATION_CONFIGURATION");
+            }
+
+            return ok({ 
+                devices: decryptedPayload.payload.config.Devices, 
+                apiKey: decryptedPayload.payload.config.APIKey,
+            });
+        }
+
+        if (res.payload?.code === "STALE_KEY") {
+            return err("STALE_KEY");
+        }
+
+        return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
     const requestCredential = async (id: string) => {
@@ -929,6 +1273,36 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
+    const openCreateForm = () => {
+        setCredentialFormMode("create");
+        setEditingCredential(null);
+        credentialModalVisible[1](true);
+        // Reset TOTP form data to default values
+        setTotpFormData({
+            Label: "",
+            Secret: "",
+            Period: 30,
+            Digits: 6,
+            Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+        });
+        reset({
+            ID: null,
+            Type: VaultUtilTypes.ItemType.Credentials,
+            GroupID: "",
+            Name: "",
+            Username: "",
+            Password: "",
+            TOTP: null,
+            Tags: "",
+            URL: "",
+            Notes: "",
+            DateCreated: new Date().toISOString(),
+            DateModified: undefined,
+            DatePasswordChanged: undefined,
+            CustomFields: [],
+        });
+    };
+
     const openEditForm = (credential: VaultCredential) => {
         setCredentialFormMode("edit");
         setEditingCredential(credential);
@@ -989,9 +1363,169 @@ const VaultView: React.FC<VaultViewProps> = ({
         totpModalVisible[1](false);
     };
 
+    const handleSyncNow = () => {
+        if (GlobalSyncConnectionController && linkedDevicesRef.current.length > 0) {
+            GlobalSyncConnectionController.transmitSyncRequest(linkedDevicesRef.current[0].ID);
+        }
+    };
+
     useEffect(() => {
         refreshCredentials();
+
+        // Clean up and close up the sync connection controller
+        return () => {
+            if (GlobalSyncConnectionController)
+                GlobalSyncConnectionController.teardown();
+        };
     }, []);
+
+    useEffect(() => {
+        // Clean up and close up the sync connection controller before we refresh it's instance w/ the new server public key
+        if (GlobalSyncConnectionController) {
+            GlobalSyncConnectionController.teardown();
+            GlobalSyncConnectionController = null;
+        }
+
+        if (serverPublicKey) {
+            GlobalSyncConnectionController = new SyncConnectionController(
+                createVaultOperations(serverPublicKey, async () => {
+                    await refreshCredentialsRef.current?.();
+                }),
+            );
+            GlobalSyncConnectionController.init();
+
+            // Initiate the connection to the linked devices
+            (async () => {
+                const syncConfig = await _getSyncConfig();
+                if (syncConfig.isErr()) {
+                    console.error("Failed to get synchronization configuration:", syncConfig.error);
+                    return;
+                }
+
+                const { devices, apiKey } = syncConfig.value;
+
+                setOnlineServicesAPIKey(apiKey ?? "");
+
+                linkedDevicesRef.current = devices;
+                if (devices.length > 0) {
+                    const primaryDevice = devices[0];
+                    setSignalingStatus(
+                        GlobalSyncConnectionController.getSignalingStatus(
+                            primaryDevice.SignalingServerID,
+                        ),
+                    );
+                    setWebRTCStatus(
+                        GlobalSyncConnectionController.getWebRTCStatus(
+                            primaryDevice.ID,
+                        ),
+                    );
+                }
+
+                for (const device of devices) {
+                    GlobalSyncConnectionController.registerSyncSignalingHandler(
+                        device.SignalingServerID,
+                        (event) => {
+                            if (
+                                event.data.connectionState ===
+                                SynchronizationUtils.SignalingStatus.Connected
+                            ) {
+                                setSignalingStatus(
+                                    SynchronizationUtils.SignalingStatus.Connected,
+                                );
+                            } else if (
+                                event.data.connectionState ===
+                                SynchronizationUtils.SignalingStatus.Disconnected
+                            ) {
+                                setSignalingStatus(
+                                    SynchronizationUtils.SignalingStatus.Disconnected,
+                                );
+                            } else if (
+                                event.data.connectionState ===
+                                SynchronizationUtils.SignalingStatus.Connecting
+                            ) {
+                                setSignalingStatus(
+                                    SynchronizationUtils.SignalingStatus.Connecting,
+                                );
+                            } else if (
+                                event.data.connectionState ===
+                                SynchronizationUtils.SignalingStatus.Unavailable
+                            ) {
+                                setSignalingStatus(
+                                    SynchronizationUtils.SignalingStatus.Unavailable,
+                                );
+                            } else if (
+                                event.data.connectionState ===
+                                SynchronizationUtils.SignalingStatus.Failed
+                            ) {
+                                setSignalingStatus(
+                                    SynchronizationUtils.SignalingStatus.Failed,
+                                );
+                            }
+                        },
+                    );
+
+                    GlobalSyncConnectionController.registerSyncWebRTCHandler(
+                        device.ID,
+                        async (event) => {
+                            if (event.type === SynchronizationUtils.SyncConnectionControllerEventType.ConnectionStatus) {
+                                setWebRTCStatus(event.connectionState);
+
+                                if (
+                                    event.connectionState === SynchronizationUtils.WebRTCStatus.Disconnected ||
+                                    event.connectionState === SynchronizationUtils.WebRTCStatus.Failed
+                                ) {
+                                    // Trigger a reconnection attempt
+                                    await GlobalSyncConnectionController?.connectDevice(
+                                        device.ID,
+                                    );
+                                }
+                            }
+
+                            if (event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage) {
+                                if (event.event === SynchronizationUtils.WebRTCMessageEventType.Synchronized) {
+                                    setLastSync(new Date());
+                                } else if (event.event === SynchronizationUtils.WebRTCMessageEventType.ManualSyncNecessary) {
+                                        // Trigger the manual synchronization dialog
+                                        showManualSyncDialog.current(
+                                            event.data,
+                                            async (
+                                                data: SynchronizationUtils.ManualConflictResolutionData,
+                                            ) => {
+                                                await GlobalSyncConnectionController?.confirmManualConflictResolution(
+                                                    device.ID,
+                                                    data,
+                                                );
+                                            },
+                                            () => {
+                                                // Warn the user that the vaults are still diverged
+                                                // toast.warn(
+                                                //     "Failed to solve the vault divergence. The vaults are still diverged.",
+                                                // );
+                                            },
+                                        );
+
+                                } else if (event.event === SynchronizationUtils.WebRTCMessageEventType.Error) {
+                                    setWebRTCStatus(
+                                        SynchronizationUtils.WebRTCStatus.Failed,
+                                    );
+
+                                    console.warn(
+                                        "NOT IMPLEMENTED: Error",
+                                        event,
+                                    );
+                                }
+                            }
+                        },
+                    );
+
+                    // TODO: figure out what to do with the VaultDataUpdate event... That crap was supposed to be used exclusively for triggering a UI update and not for updating global vault state
+
+                    await GlobalSyncConnectionController.connectDevice(device.ID);
+                }
+            })();
+        }
+    }, [serverPublicKey]);
+
     return (
         <div className="flex flex-col">
             {/* Header with sync status */}
@@ -1002,12 +1536,16 @@ const VaultView: React.FC<VaultViewProps> = ({
                         {name}
                     </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs">
-                    {getSyncStatusIcon()}
-                    <span className="text-xs text-muted-foreground">
-                        {getSyncStatusText()}
-                        {lastSync ? ` • ${formatTimeAgo(lastSync)}` : ""}
-                    </span>
+                <div className="flex items-center gap-2 text-xs">
+                    <ConnectionStatusIndicator
+                        signaling={signalingStatus}
+                        webrtc={webRTCStatus}
+                    />
+                    {lastSync ? (
+                        <span className="text-xs text-muted-foreground">
+                            Last sync {formatTimeAgo(lastSync)}
+                        </span>
+                    ) : null}
                 </div>
             </div>
 
@@ -1102,11 +1640,12 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 Edit
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={async () =>
+                                                onClick={async (e: React.MouseEvent) => {
+                                                    e.stopPropagation();
                                                     await deleteCredential(
                                                         credential.id,
-                                                    )
-                                                }
+                                                    );
+                                                }}
                                                 className="text-xs text-destructive"
                                                 disabled={isDeleting}
                                             >
@@ -1120,11 +1659,12 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                     : "Delete"}
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() =>
+                                                onClick={async (e: React.MouseEvent) => {
+                                                    e.stopPropagation();
                                                     copyToClipboard(
                                                         credential.username,
-                                                    )
-                                                }
+                                                    );
+                                                }}
                                                 className="text-xs"
                                             >
                                                 <Copy className="mr-2 h-3 w-3" />
@@ -1166,7 +1706,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                         variant="outline"
                         className="h-7 flex-1 text-xs"
                         size="sm"
-                        // onClick={handleManualSync}
+                        onClick={handleSyncNow}
                         disabled={
                             isCreating ||
                             isUpdating ||
@@ -1632,6 +2172,14 @@ const VaultView: React.FC<VaultViewProps> = ({
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <ManualSynchronizationDialog
+                showDialogFnRef={showManualSyncDialog}
+                showWarningDialog={showWarningDialogFnRef.current}
+            />
+            <WarningDialog
+                showFnRef={showWarningDialogFnRef}
+            />
         </div>
     );
 };

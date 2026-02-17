@@ -1,34 +1,67 @@
-import { OffscreenInboundMessage, OffscreenOutboundMessage } from "./types/offscreen-messaging";
-import { EncryptedEnvelope, MessageType, PlaintextEnvelope } from "./types/sw-messaging";
-import { validateEnvelope } from "./utils/security-utils";
-import { createEncryptedEnvelope, createEncryptedResponseEnvelope, createPlaintextEnvelope, decryptEnvelope, isEncryptedEnvelope, isPlaintextEnvelope } from "./utils/session-utils";
+// import {
+//     OffscreenInboundMessage,
+//     OffscreenOutboundMessage,
+// } from "./types/offscreen-messaging";
+// import {
+//     EncryptedEnvelope,
+//     MessageType,
+//     PlaintextEnvelope,
+// } from "./types/sw-messaging";
+// import { validateEnvelope } from "./utils/security-utils";
+// import {
+//     createEncryptedEnvelope,
+//     createEncryptedResponseEnvelope,
+//     createPlaintextEnvelope,
+//     decryptEnvelope,
+//     isEncryptedEnvelope,
+//     isPlaintextEnvelope,
+// } from "./utils/session-utils";
 
-const requestServerPublicKey = async (): Promise<
-    { ok: true; keyId: string; curve: string; publicKeyJwk: JsonWebKey; createdAt: string }
-    | { ok: false; error: string }
-> => {
-    const envelope = createPlaintextEnvelope(MessageType.GetPublicKey, null, "offscreen");
-    const resp: PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+// const requestServerPublicKey = async (): Promise<
+//     | {
+//           ok: true;
+//           keyId: string;
+//           curve: string;
+//           publicKeyJwk: JsonWebKey;
+//           createdAt: string;
+//       }
+//     | { ok: false; error: string }
+// > => {
+//     const envelope = createPlaintextEnvelope(
+//         MessageType.GetPublicKey,
+//         null,
+//         "offscreen",
+//     );
+//     const resp: PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
 
-    if (!resp.payload.ok) {
-        return { ok: false, error: resp.payload.error };
-    }
+//     if (!resp.payload.ok) {
+//         return { ok: false, error: resp.payload.error };
+//     }
 
-    return { ok: true, keyId: resp.payload.keyId, curve: resp.payload.curve, publicKeyJwk: resp.payload.publicKeyJwk, createdAt: resp.payload.createdAt };
-}
+//     return {
+//         ok: true,
+//         keyId: resp.payload.keyId,
+//         curve: resp.payload.curve,
+//         publicKeyJwk: resp.payload.publicKeyJwk,
+//         createdAt: resp.payload.createdAt,
+//     };
+// };
 
-const swPublicKey = await requestServerPublicKey();
-if (!swPublicKey.ok) {
-    console.error("[offscreen] Failed to request server public key:", swPublicKey.error);
-    
-    // Intentionally halt execution of the offscreen document by throwing an error
-    throw new Error(swPublicKey.error);
-}
+// const swPublicKey = await requestServerPublicKey();
+// if (!swPublicKey.ok) {
+//     console.error(
+//         "[offscreen] Failed to request server public key:",
+//         swPublicKey.error,
+//     );
+
+//     // Intentionally halt execution of the offscreen document by throwing an error
+//     throw new Error(swPublicKey.error);
+// }
 
 // chrome.runtime.onMessage.addListener(
 //     async (
-//         message: EncryptedEnvelope | PlaintextEnvelope, 
-//         _sender, 
+//         message: EncryptedEnvelope | PlaintextEnvelope,
+//         _sender,
 //         sendResponse: (response: EncryptedEnvelope) => void
 //     ) => {
 //         // if (isPlaintextEnvelope(message)) {
@@ -79,7 +112,6 @@ if (!swPublicKey.ok) {
 //     let decryptedPayload: any = null;
 //     let sessionKey: CryptoKey | null = null;
 
-
 //     const result = await executeCommand(envelope);
 
 //     return createEncryptedResponseEnvelope(envelope, result, sessionKey);
@@ -100,4 +132,3 @@ if (!swPublicKey.ok) {
 //     // return createPlaintextEnvelope(envelope.type, { ok: true }, "offscreen");
 //     return createEncryptedEnvelope(envelope.type, { ok: true }, "offscreen");
 // }
-

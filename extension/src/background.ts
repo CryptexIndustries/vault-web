@@ -238,11 +238,6 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 const { vault, encryptionData } = res.value;
 
-                // onlineServicesStore.set(onlineServicesDataAtom, {
-                //     key: vault.LinkedDevices.APIKey ?? "",
-                //     remoteData: null,
-                // });
-
                 await setVaultInSessionStorage(metadata, vault, encryptionData);
 
                 return { ok: true };
@@ -344,7 +339,7 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 );
                 await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadata, vault, vaultSecret);
+                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
 
                 const lightCredential: LiteCredential = {
                     id: data.credential.ID,
@@ -398,9 +393,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 );
                 await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadata, vault, vaultSecret);
+                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
 
-                return { ok: true, credential: data.credential };
+                return { ok: true };
             }
 
             case MessageType.DeleteCredential: {
@@ -420,21 +415,18 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: "NOT_FOUND" };
                 }
 
-                const deletedCredential = vault.Credentials[index];
-                vault.Credentials.splice(index, 1);
-
-                const change: VaultUtilTypes.DiffChange = {
-                    Type: VaultUtilTypes.DiffType.Delete,
-                    ID: deletedCredential.ID,
-                    Props: deletedCredential,
-                };
+                const data = Vault.deleteCredential(vault.Credentials, payload.id);
+                if (data.isErr()) {
+                    return { ok: false, error: data.error };
+                }
+                vault.Credentials = [...data.value.credentials];
 
                 const listHash = await Vault.hashCredentials(vault.Credentials);
                 const diff: VaultUtilTypes.Diff = {
                     Hash: listHash,
-                    Changes: change,
+                    Changes: data.value.change,
                 };
-                vault.Diffs.push(diff);
+                vault.Diffs = [...vault.Diffs, diff];
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(
@@ -443,10 +435,70 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 );
                 await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadata, vault, vaultSecret);
+                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
 
                 return { ok: true };
             }
+
+            case MessageType.GetLinkedDevices: {
+                const vault = await getVaultFromSessionStorage();
+
+                if (!vault) {
+                    return { ok: false, devices: [], error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                if (!vault.LinkedDevices) {
+                    return { ok: false, devices: [], error: "NO_SYNCHRONIZATION_CONFIGURATION" };
+                }
+
+                return { ok: true, devices: vault.LinkedDevices.Devices };
+            }
+
+            case MessageType.SyncGetCredentials: {
+                const vault = await getVaultFromSessionStorage();
+                if (!vault) {
+                    return { ok: false, credentials: [], error: "VAULT_NOT_UNLOCKED" };
+                }
+                return { ok: true, credentials: vault.Credentials };
+            }
+            case MessageType.SyncGetDiffs: {
+                const vault = await getVaultFromSessionStorage();
+                if (!vault) {
+                    return { ok: false, diffs: [], error: "VAULT_NOT_UNLOCKED" };
+                }
+                return { ok: true, diffs: vault.Diffs };
+            }
+            case MessageType.SyncGetConfiguration: {
+                const vault = await getVaultFromSessionStorage();
+                if (!vault) {
+                    return { ok: false, configuration: null, error: "VAULT_NOT_UNLOCKED" };
+                }
+                return { ok: true, config: vault.LinkedDevices };
+            }
+            case MessageType.SyncUpdateCredentialsAndDiffs: {
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const vaultSecret = await getVaultSecretFromSessionStorage();
+
+                if (!vault || !metadata || !vaultSecret) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                vault.Credentials = payload.credentials;
+                vault.Diffs = payload.diffs;
+
+                // TODO: Remove the unnecessary object assignment when we clean up the storage layer
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, vaultSecret);
+
+                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
+
+                return { ok: true };
+            }
+
             default:
                 return { ok: false, error: "UNKNOWN_ENCRYPTED_MESSAGE_TYPE" };
         }

@@ -17,6 +17,7 @@ import {
     isEncryptedEnvelope,
 } from "./utils/session-utils";
 import VaultView from "./vault-view";
+import { setOnlineServicesAPIKey } from "@/utils/atoms";
 
 type BgState = {
     unlocked: boolean;
@@ -79,7 +80,7 @@ const App = () => {
     };
 
     useEffect(() => {
-        const init = async () => {
+        (async () => {
             // Request server's public key
             if (!serverPublicKey) {
                 const res = await requestServerPublicKey();
@@ -135,15 +136,16 @@ const App = () => {
                                     resRetry.error,
                             );
                             // TODO: Tell the user that the extension is not working correctly
-                        }
 
-                        if (_retriedGetState) {
-                            // In theory, this should never happen, but we'll handle it just in case to avoid infinite recursion
-                            console.error(
-                                "Tried to get state, but failed to refresh public key after multiple attempts",
-                            );
-                            // TODO: Tell the user that the extension is not working correctly
-                            return;
+
+                            if (_retriedGetState) {
+                                // In theory, this should never happen, but we'll handle it just in case to avoid infinite recursion
+                                console.error(
+                                    "Tried to get state, but failed to refresh public key after multiple attempts",
+                                );
+                                // TODO: Tell the user that the extension is not working correctly
+                                return;
+                            }
                         }
 
                         _retriedGetState = true;
@@ -158,9 +160,7 @@ const App = () => {
                 };
                 await _getState();
             }
-        };
-
-        void init();
+        })();
     }, [serverPublicKey]);
 
     const tryDecryptVault = async (

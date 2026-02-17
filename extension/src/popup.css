@@ -4,6 +4,10 @@
     color-scheme: dark;
 }
 
+html {
+    scrollbar-width: thin;
+}
+
 html,
 body,
 #root {

@@ -58,7 +58,7 @@ export const isRTCSessionDescriptionInit = (
 export enum SyncConnectionControllerEventType {
     ConnectionStatus,
     SynchronizationMessage,
-    VaultDataUpdate,
+    VaultDataUpdate, // FIXME: Remove this, along with the event handler type and everything related to it
 }
 
 /**
@@ -86,18 +86,17 @@ export interface VaultData {
 /**
  * <code>SyncConnectionController</code> emitted event payload data type for WebRTC connection events.
  */
-export interface WebRTCEventData {
-    connectionState?: WebRTCStatus; // Present in SyncConnectionControllerEventType.ConnectionStatus
-    event?: WebRTCMessageEventType; // Present in SyncConnectionControllerEventType.SynchronizationMessage
-    message?: VaultUtilTypes.VaultItemSynchronizationMessage; // Present in SyncConnectionControllerEventType.SynchronizationMessage
-    additionalData?: string; // Can be present in all but SyncConnectionControllerEventType.VaultDataUpdate
-    vaultData?: VaultData; // Present in SyncConnectionControllerEventType.VaultDataUpdate
-}
+export type WebRTCEventDataPayload = 
+    | { type: SyncConnectionControllerEventType.ConnectionStatus, connectionState: WebRTCStatus }
+    | { type: SyncConnectionControllerEventType.SynchronizationMessage, event: WebRTCMessageEventType.Error }
+    | { type: SyncConnectionControllerEventType.SynchronizationMessage, event: WebRTCMessageEventType.Synchronized }
+    | { type: SyncConnectionControllerEventType.SynchronizationMessage, event: WebRTCMessageEventType.ManualSyncNecessary, data: ManualConflictResolutionDialogData }
+    | { type: SyncConnectionControllerEventType.VaultDataUpdate, data: VaultData } // FIXME: Remove this, along with the event handler type and everything related to it
 
 /**
  * <code>SyncConnectionController</code> emits events using this interface.
  */
-export interface SCCEvent<T extends SignalingEventData | WebRTCEventData> {
+export interface SCCEvent<T extends SignalingEventData> {
     type: SyncConnectionControllerEventType;
     data: T;
 }
@@ -112,7 +111,9 @@ export type SCCSignalingEventHandler = (
 /**
  * Type of the function that handles <code>SyncConnectionController</code> WebRTC connection events.
  */
-export type SCCWebRTCEventHandler = (event: SCCEvent<WebRTCEventData>) => void;
+export type SCCWebRTCEventHandler = (
+    event: WebRTCEventDataPayload
+) => void;
 //#endregion SyncConnectionController Event
 
 /**
@@ -163,4 +164,37 @@ export class VaultItemSynchronizationMessage
             this,
         ).finish();
     }
+}
+
+/**
+ * Options for manual synchronization item selection.
+ * Used to determine the action to take when resolving a manual synchronization conflict.
+ */
+export enum ManualSyncItemOption {
+    KeepOurs,
+    KeepTheirs,
+    KeepBoth,
+    Remove,
+    Keep,
+}
+
+/**
+ * Data that is used by the manual conflict resolution dialog for initial display.
+ */
+export interface ManualConflictResolutionDialogData {
+    ourCredentials: VaultUtilTypes.Credential[];
+    theirCredentials: VaultUtilTypes.Credential[];
+    diffs: VaultUtilTypes.Diff[];
+    dialogList: Map<string, ManualSyncItemOption>;
+}
+
+/**
+ * Data that is used by the manual conflict resolution function to apply 
+ * the differences to the vault, and send the differences to the remote device.
+ */
+export interface ManualConflictResolutionData {
+    ourCredentials: VaultUtilTypes.Credential[];
+    theirCredentials: VaultUtilTypes.Credential[];
+    differences: VaultUtilTypes.Diff[];
+    userChoices: Map<string, ManualSyncItemOption>;
 }

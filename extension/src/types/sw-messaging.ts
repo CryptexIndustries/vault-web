@@ -1,50 +1,56 @@
-import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
-import {
-    type VaultCredential,
-    type CredentialFormSchemaType,
-} from "@/app_lib/vault-utils/vault";
+// import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
+// import {
+//     type VaultCredential,
+//     type CredentialFormSchemaType,
+// } from "@/app_lib/vault-utils/vault";
 
 export enum MessageType {
     GetState = 0,
-    Unlock = 1,
-    Lock = 2,
-    GetCredentials = 3,
-    GetCredential = 4,
-    CreateCredential = 5,
-    UpdateCredential = 6,
-    DeleteCredential = 7,
-    GetPublicKey = 8,
+    Unlock = 2,
+    Lock = 3,
+    GetCredentials = 4,
+    GetCredential = 5,
+    CreateCredential = 6,
+    UpdateCredential = 7,
+    DeleteCredential = 8,
+    GetLinkedDevices = 9,
+    GetPublicKey = 10,
+
+    SyncGetCredentials = 11,
+    SyncGetDiffs = 12,
+    SyncGetConfiguration = 13,
+    SyncUpdateCredentialsAndDiffs = 14,
 }
 
 // The payload is defined by the message type
-export type Message<T extends MessageType> = {
-    type: T;
-    payload: MessagePayload[T];
-};
+// export type Message<T extends MessageType> = {
+//     type: T;
+//     payload: MessagePayload[T];
+// };
 
-export type MessagePayload = {
-    [MessageType.GetState]: undefined;
-    [MessageType.Unlock]: {
-        index?: number;
-        form: EncryptionFormGroupSchemaType;
-    };
-    [MessageType.Lock]: undefined;
-    [MessageType.GetCredentials]: undefined;
-    [MessageType.GetCredential]: {
-        id: string;
-    };
-    [MessageType.CreateCredential]: {
-        form: CredentialFormSchemaType;
-    };
-    [MessageType.UpdateCredential]: {
-        id: string;
-        form: CredentialFormSchemaType;
-    };
-    [MessageType.DeleteCredential]: {
-        id: string;
-    };
-    [MessageType.GetPublicKey]: undefined;
-};
+// export type MessagePayload = {
+//     [MessageType.GetState]: undefined;
+//     [MessageType.Unlock]: {
+//         index?: number;
+//         form: EncryptionFormGroupSchemaType;
+//     };
+//     [MessageType.Lock]: undefined;
+//     [MessageType.GetCredentials]: undefined;
+//     [MessageType.GetCredential]: {
+//         id: string;
+//     };
+//     [MessageType.CreateCredential]: {
+//         form: CredentialFormSchemaType;
+//     };
+//     [MessageType.UpdateCredential]: {
+//         id: string;
+//         form: CredentialFormSchemaType;
+//     };
+//     [MessageType.DeleteCredential]: {
+//         id: string;
+//     };
+//     [MessageType.GetPublicKey]: undefined;
+// };
 
 export type LiteCredential = {
     id: string;
@@ -53,43 +59,43 @@ export type LiteCredential = {
     url: string;
 };
 
-type MessageResponsePayload = {
-    [-1]: { error: string }; // Error response
-    [MessageType.GetState]: {
-        unlocked: boolean;
-        metadata: { id?: number; name: string } | null;
-    };
-    [MessageType.Unlock]: { ok: boolean; error?: string };
-    [MessageType.Lock]: { ok: boolean };
-    [MessageType.GetCredentials]: {
-        ok: boolean;
-        credentials: LiteCredential[];
-    };
-    [MessageType.GetCredential]: {
-        ok: boolean;
-        credential: VaultCredential | null;
-        error?: string;
-    };
-    [MessageType.CreateCredential]: {
-        ok: boolean;
-        credential: VaultCredential | null;
-        error?: string;
-    };
-    [MessageType.UpdateCredential]: {
-        ok: boolean;
-        credential: VaultCredential | null;
-        error?: string;
-    };
-    [MessageType.DeleteCredential]: { ok: boolean; error?: string };
-    [MessageType.GetPublicKey]: {
-        ok: boolean;
-        keyId: string;
-        curve: string;
-        publicKeyJwk: JsonWebKey;
-        createdAt: string;
-        error?: string;
-    };
-};
+// type MessageResponsePayload = {
+//     [-1]: { error: string }; // Error response
+//     [MessageType.GetState]: {
+//         unlocked: boolean;
+//         metadata: { id?: number; name: string } | null;
+//     };
+//     [MessageType.Unlock]: { ok: boolean; error?: string };
+//     [MessageType.Lock]: { ok: boolean };
+//     [MessageType.GetCredentials]: {
+//         ok: boolean;
+//         credentials: LiteCredential[];
+//     };
+//     [MessageType.GetCredential]: {
+//         ok: boolean;
+//         credential: VaultCredential | null;
+//         error?: string;
+//     };
+//     [MessageType.CreateCredential]: {
+//         ok: boolean;
+//         credential: VaultCredential | null;
+//         error?: string;
+//     };
+//     [MessageType.UpdateCredential]: {
+//         ok: boolean;
+//         credential: VaultCredential | null;
+//         error?: string;
+//     };
+//     [MessageType.DeleteCredential]: { ok: boolean; error?: string };
+//     [MessageType.GetPublicKey]: {
+//         ok: boolean;
+//         keyId: string;
+//         curve: string;
+//         publicKeyJwk: JsonWebKey;
+//         createdAt: string;
+//         error?: string;
+//     };
+// };
 
 // Discriminated unions for better type-narrowing on message handlers
 // export type AnyMessage =

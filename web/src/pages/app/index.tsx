@@ -200,35 +200,28 @@ const clearVaultSecret = () => {
 // Vault operations implementation using atoms
 const createVaultOperations = (setUnlockedVault: (vault: Vault.Vault | ((prev: Vault.Vault) => Vault.Vault)) => void, vaultMetadata: Storage.VaultMetadata | null): Synchronization.VaultOperations => {
     return {
-        getVault: () => vaultGet(),
-        getCredentials: () => vaultGet().Credentials,
-        updateCredentials: (credentials) => {
-            // Update credentials directly using the vault atom
+        getCredentials: async () => vaultGet().Credentials,
+        getDiffs: async () => vaultGet().Diffs,
+        updateCredentialsAndDiffs: async (credentials, diffs) => {
+            // Update credentials and diffs directly using the vault atom
             const currentVault = vaultGet();
             currentVault.Credentials = credentials;
-            setUnlockedVault(currentVault);
-        },
-        updateDiffs: (diffs) => {
-            // Update diffs directly using the vault atom
-            const currentVault = vaultGet();
             currentVault.Diffs = diffs;
             setUnlockedVault(currentVault);
         },
-        saveVault: async (vault) => {
-            if (vaultMetadata) {
+        // saveVault: async (vault) => {
+        //     if (vaultMetadata) {
 
-                const decryptionSecret = await getVaultSecret();
-                if (decryptionSecret.isErr()) {
-                    console.error("[createVaultOperations] Failed to get decryption secret.", decryptionSecret.error);
-                    return;
-                }
+        //         const decryptionSecret = await getVaultSecret();
+        //         if (decryptionSecret.isErr()) {
+        //             console.error("[createVaultOperations] Failed to get decryption secret.", decryptionSecret.error);
+        //             return;
+        //         }
 
-                await vaultMetadata.save(vault, decryptionSecret.value);
-            }
-        },
-        getSynchronizationConfig: () => {
-            return vaultGet().LinkedDevices;
-        },
+        //         await vaultMetadata.save(vault, decryptionSecret.value);
+        //     }
+        // },
+        getSynchronizationConfig: async () => vaultGet().LinkedDevices,
     };
 };
 
@@ -4922,7 +4915,7 @@ const SidebarSyncDeviceListItem: React.FC<{
             visible: !webRTCConnectedOrConnecting,
             name: "Connect",
             onClick: async () => {
-                GlobalSyncConnectionController.connectDevice(device);
+                await GlobalSyncConnectionController.connectDevice(device.ID);
             },
         },
         {
@@ -4930,7 +4923,7 @@ const SidebarSyncDeviceListItem: React.FC<{
             visible: webRTCConnectedOrConnecting,
             name: "Disconnect",
             onClick: async () => {
-                GlobalSyncConnectionController.disconnectDevice(device);
+                await GlobalSyncConnectionController.disconnectDevice(device);
             },
         },
         {
@@ -4975,12 +4968,12 @@ const SidebarSyncDeviceListItem: React.FC<{
                 SynchronizationUtils.SignalingStatus.Connected &&
             webRTCConnectedOrConnecting
         ) {
-            GlobalSyncConnectionController.connectDevice(device);
+            GlobalSyncConnectionController.connectDevice(device.ID);
         }
     };
 
     const syncWebRTCEventHandler = (
-        event: SynchronizationUtils.SCCEvent<SynchronizationUtils.WebRTCEventData>,
+        event: SynchronizationUtils.WebRTCEventDataPayload,
     ) => {
         console.debug(
             `[INDEX - SCC Verbose] Received sync WebRTC event from device ${device.ID}:`,
@@ -4988,8 +4981,8 @@ const SidebarSyncDeviceListItem: React.FC<{
         );
 
         if (
-            event.data.event ===
-            SynchronizationUtils.WebRTCMessageEventType.Synchronized
+            event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage &&
+            event.event === SynchronizationUtils.WebRTCMessageEventType.Synchronized
         ) {
             device.updateLastSync();
 
@@ -5000,87 +4993,56 @@ const SidebarSyncDeviceListItem: React.FC<{
         }
 
         if (
-            event.data.event ===
-                SynchronizationUtils.WebRTCMessageEventType
-                    .ManualSyncNecessary &&
-            event.data.message != null
+            event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage &&
+            event.event === SynchronizationUtils.WebRTCMessageEventType.ManualSyncNecessary
         ) {
             // Trigger the manual synchronization dialog
-            const credentials = vaultGet().Credentials;
-            const theirCredentials: VaultUtilTypes.PartialCredential[] =
-                event.data.message.Diffs.map(
-                    (i) => i.Changes?.Props ?? null,
-                ).filter((i) => i != null);
-
             showManualSyncDialog.current(
-                credentials,
-                theirCredentials,
+                event.data,
                 async (
-                    diffsToApply: VaultUtilTypes.Diff[],
-                    diffsToSend: VaultUtilTypes.Diff[],
+                    data: SynchronizationUtils.ManualConflictResolutionData,
                 ) => {
-                    console.debug(
-                        "[SidebarSyncDeviceListItem] Device solve confirmed. diffsToApply:",
-                        diffsToApply,
-                        "diffsToSend:",
-                        diffsToSend,
-                    );
-
-                    await GlobalSyncConnectionController.applyManualSynchronization(
-                        diffsToApply,
-                    );
-
-                    // Send the manual synchronization solution
-                    GlobalSyncConnectionController.transmitManualSyncSolve(
+                    await GlobalSyncConnectionController.confirmManualConflictResolution(
                         device.ID,
-                        diffsToSend,
+                        data,
                     );
                 },
                 () => {
                     // Warn the user that the vaults are still diverged
                     toast.warn(
-                        "Failed to solve the vault divergence. The vaults are still diverged.",
+                        "The vaults are still diverged. You can still continue using the vault, but you may encounter conflicts when syncing.",
                     );
                 },
             );
         }
 
         if (
-            event.data.event ===
-            SynchronizationUtils.WebRTCMessageEventType.Error
+            event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage &&
+            event.event === SynchronizationUtils.WebRTCMessageEventType.Error
         ) {
             toast.warn(
-                <p onClick={showLogInspectorDialog}>Connection to "{device.Name}" ({device.ID}) has failed. Please inspect the vault logs for more information.</p>
+                <p onClick={showLogInspectorDialog}>Connection to "{device.Name}" ({device.ID}) has failed. Press here to inspect the vault logs for more information.</p>
             );
         }
 
         if (
-            event.type ===
-            SynchronizationUtils.SyncConnectionControllerEventType
-                .ConnectionStatus
+            event.type === SynchronizationUtils.SyncConnectionControllerEventType.ConnectionStatus
         ) {
-            if (event.data.connectionState != null)
-                setWebRTCStatus(event.data.connectionState);
+            setWebRTCStatus(event.connectionState);
 
             if (
-                event.data.connectionState ===
+                event.connectionState ===
                 SynchronizationUtils.WebRTCStatus.Failed
             ) {
-                console.error(
-                    `[SidebarSyncDeviceListItem] Connection to "${device.Name}" (${device.ID}) has failed. Additional information:`,
-                    event.data.additionalData,
+                toast.warn(
+                    <p onClick={showLogInspectorDialog}>Connection to "{device.Name}" ({device.ID}) has failed. Press here to inspect the vault logs for more information.</p>
                 );
-
-                if (event.data.additionalData)
-                    toast.warn(
-                        `Connection to "${device.Name}" (${device.ID}) has failed. Please see console for more information.`,
-                    );
             }
 
             // Mind the SyncTimeout configuration
             if (
                 device.SyncTimeout &&
-                event.data.connectionState ===
+                event.connectionState ===
                     SynchronizationUtils.WebRTCStatus.Connected
             ) {
                 const period = Math.abs(device.SyncTimeoutPeriod) * 1000;
@@ -5094,61 +5056,62 @@ const SidebarSyncDeviceListItem: React.FC<{
                     );
                 }, period);
             } else if (
-                event.data.connectionState ===
+                event.connectionState ===
                     SynchronizationUtils.WebRTCStatus.Disconnected ||
-                event.data.connectionState ===
+                event.connectionState ===
                     SynchronizationUtils.WebRTCStatus.Failed
             ) {
                 // Clean up connection and try to reconnect if we're configured to do so
                 if (device.AutoConnect) {
                     GlobalSyncConnectionController.disconnectDevice(device);
-                    GlobalSyncConnectionController.connectDevice(device);
+                    GlobalSyncConnectionController.connectDevice(device.ID);
                 }
             }
         }
 
         if (
-            event.type ===
-            SynchronizationUtils.SyncConnectionControllerEventType
-                .VaultDataUpdate
+            event.type === SynchronizationUtils.SyncConnectionControllerEventType.VaultDataUpdate
         ) {
-            if (!event.data.vaultData?.credentials) return;
+            if (!event.data?.credentials) return;
 
             setVaultCredentials(() => {
-                if (event.data.vaultData?.credentials)
-                    return [...event.data.vaultData.credentials];
+                if (event.data?.credentials)
+                    return [...event.data.credentials];
                 else return [];
             });
 
-            vaultGet().Diffs = event.data.vaultData.diffs;
+            vaultGet().Diffs = event.data.diffs;
 
             // TODO: Trigger a vault save
         }
     };
 
     useEffect(() => {
-        // Bind a message receiver for this device
-        const handlerID =
-            GlobalSyncConnectionController.registerSyncSignalingHandler(
-                device.SignalingServerID,
-                syncSignalingEventHandler,
+        let handlerID: string | null = null;
+        (async () => {
+            // Bind a message receiver for this device
+            handlerID =
+                GlobalSyncConnectionController.registerSyncSignalingHandler(
+                    device.SignalingServerID,
+                    syncSignalingEventHandler,
+                );
+
+            if (!handlerID) {
+                console.error(
+                    `[INDEX - SCC Verbose] Failed to register sync signaling handler for device ${device.ID}`,
+                );
+                return;
+            }
+
+            GlobalSyncConnectionController.registerSyncWebRTCHandler(
+                device.ID,
+                syncWebRTCEventHandler,
             );
 
-        if (!handlerID) {
-            console.error(
-                `[INDEX - SCC Verbose] Failed to register sync signaling handler for device ${device.ID}`,
-            );
-            return;
-        }
-
-        GlobalSyncConnectionController.registerSyncWebRTCHandler(
-            device.ID,
-            syncWebRTCEventHandler,
-        );
-
-        if (device.AutoConnect) {
-            GlobalSyncConnectionController.connectDevice(device);
-        }
+            if (device.AutoConnect) {
+                await GlobalSyncConnectionController.connectDevice(device.ID);
+            }
+        })();
 
         // Set up a timer to refresh the last sync date every minute
         const timerID = setInterval(() => {

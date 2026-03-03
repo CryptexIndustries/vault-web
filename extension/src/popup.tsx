@@ -146,11 +146,11 @@ const App = () => {
                                 // TODO: Tell the user that the extension is not working correctly
                                 return;
                             }
+
+                            _retriedGetState = true;
+
+                            await _getState();
                         }
-
-                        _retriedGetState = true;
-
-                        await _getState();
                     } else {
                         console.warn(
                             "Received an unknown non-encrypted envelope:",

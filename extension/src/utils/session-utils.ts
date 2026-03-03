@@ -270,6 +270,8 @@ export async function createEncryptedResponseEnvelope(
 export function isEncryptedEnvelope(
     message: any,
 ): message is EncryptedEnvelope {
+    const payload = message?.payload;
+
     return (
         message &&
         typeof message.type === "number" &&
@@ -277,12 +279,13 @@ export function isEncryptedEnvelope(
         typeof message.origin === "string" &&
         typeof message.keyId === "string" &&
         typeof message.timestamp === "string" &&
-        message.payload &&
-        typeof message.payload.wrappedKey === "string" &&
-        message.payload.ephemeralPub &&
-        typeof message.payload.salt === "string" &&
-        typeof message.payload.ciphertext === "string" &&
-        typeof message.payload.iv === "string"
+        payload &&
+        typeof payload.wrappedKey === "string" &&
+        payload.ephemeralPub &&
+        typeof payload.salt === "string" &&
+        (payload.ciphertext === null ||
+            typeof payload.ciphertext === "string") &&
+        (payload.iv === null || typeof payload.iv === "string")
     );
 }
 
@@ -292,13 +295,16 @@ export function isEncryptedEnvelope(
 export function isPlaintextEnvelope(
     message: any,
 ): message is PlaintextEnvelope {
+    if (!message || typeof message !== "object") {
+        return false;
+    }
+
     return (
-        message &&
         typeof message.type === "number" &&
         typeof message.requestId === "string" &&
         typeof message.origin === "string" &&
         typeof message.timestamp === "string" &&
-        !message.payload?.ciphertext
+        !("keyId" in message)
     ); // Plaintext doesn't have ciphertext
 }
 

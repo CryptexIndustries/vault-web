@@ -108,12 +108,17 @@ async function processEnvelope(
             );
 
             if (!decryptedPayload.ok) {
+                const decryptErrorRaw = decryptedPayload.error.error;
+                const decryptErrorMessage =
+                    typeof decryptErrorRaw === "string"
+                        ? decryptErrorRaw
+                          : "UNKNOWN_DECRYPTION_ERROR";
+
                 return createPlaintextEnvelope(
                     envelope.type,
                     {
                         ok: false,
-                        error: decryptedPayload.error,
-                        code: decryptedPayload.code,
+                        error: decryptErrorMessage,
                     },
                     "worker",
                 );
@@ -773,7 +778,7 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 // Set up idle detection to lock the vault after 30 minutes of inactivity
-chrome.idle.setDetectionInterval(30 * 60 * 1000);
+chrome.idle.setDetectionInterval(30 * 60);
 chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === "idle") {
         console.debug("[SW] Vault locked due to inactivity");

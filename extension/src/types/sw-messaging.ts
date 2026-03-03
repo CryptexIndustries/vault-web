@@ -16,10 +16,10 @@ export enum MessageType {
     GetLinkedDevices = 9,
     GetPublicKey = 10,
 
-    SyncGetCredentials = 11,
-    SyncGetDiffs = 12,
+    SyncGetItemCredentials = 11,
+    SyncGetItemVersionVectors = 12,
     SyncGetConfiguration = 13,
-    SyncUpdateCredentialsAndDiffs = 14,
+    SyncUpdateCredentials = 14,
 }
 
 // The payload is defined by the message type

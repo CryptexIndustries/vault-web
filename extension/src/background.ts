@@ -323,14 +323,7 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 }
 
                 const data = await Vault.createCredential(payload.form);
-                vault.Credentials.push(data.credential);
-
-                const listHash = await Vault.hashCredentials(vault.Credentials);
-                const diff: VaultUtilTypes.Diff = {
-                    Hash: listHash,
-                    Changes: data.changes,
-                };
-                vault.Diffs.push(diff);
+                vault.Credentials.push(data);
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(
@@ -342,10 +335,10 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
 
                 const lightCredential: LiteCredential = {
-                    id: data.credential.ID,
-                    name: data.credential.Name,
-                    username: data.credential.Username,
-                    url: data.credential.URL,
+                    id: data.ID,
+                    name: data.Name,
+                    username: data.Username,
+                    url: data.URL,
                 };
 
                 return { ok: true, credential: lightCredential };
@@ -377,14 +370,7 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     existing,
                     payload.form,
                 );
-                vault.Credentials[existingIndex] = data.credential;
-
-                const listHash = await Vault.hashCredentials(vault.Credentials);
-                const diff: VaultUtilTypes.Diff = {
-                    Hash: listHash,
-                    Changes: data.changes,
-                };
-                vault.Diffs.push(diff);
+                vault.Credentials[existingIndex] = data;
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(
@@ -415,18 +401,12 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: "NOT_FOUND" };
                 }
 
-                const data = Vault.deleteCredential(vault.Credentials, payload.id);
-                if (data.isErr()) {
-                    return { ok: false, error: data.error };
+                const credListResult = await Vault.deleteCredential(vault.Credentials, payload.id);
+                if (credListResult.isErr()) {
+                    return { ok: false, error: credListResult.error };
                 }
-                vault.Credentials = [...data.value.credentials];
+                vault.Credentials = [...credListResult.value];
 
-                const listHash = await Vault.hashCredentials(vault.Credentials);
-                const diff: VaultUtilTypes.Diff = {
-                    Hash: listHash,
-                    Changes: data.value.change,
-                };
-                vault.Diffs = [...vault.Diffs, diff];
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(
@@ -454,19 +434,30 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 return { ok: true, devices: vault.LinkedDevices.Devices };
             }
 
-            case MessageType.SyncGetCredentials: {
+            case MessageType.SyncGetItemCredentials: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
                     return { ok: false, credentials: [], error: "VAULT_NOT_UNLOCKED" };
                 }
-                return { ok: true, credentials: vault.Credentials };
+
+                const credentials = vault.Credentials.filter(c => payload.itemIDs.includes(c.ID));
+                return { ok: true, credentials };
             }
-            case MessageType.SyncGetDiffs: {
+            case MessageType.SyncGetItemVersionVectors: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
-                    return { ok: false, diffs: [], error: "VAULT_NOT_UNLOCKED" };
+                    return { ok: false, versionVectors: [], error: "VAULT_NOT_UNLOCKED" };
                 }
-                return { ok: true, diffs: vault.Diffs };
+
+                const versionVectors = vault.Credentials.map(c => ({
+                    ID: c.ID,
+                    Hash: c.Hash ?? "",
+                    Version: c.Version,
+                    DateModifiedTimestamp: c.DateModifiedTimestamp,
+                    Deleted: c.Deleted,
+                }));
+
+                return { ok: true, versionVectors };
             }
             case MessageType.SyncGetConfiguration: {
                 const vault = await getVaultFromSessionStorage();
@@ -475,7 +466,7 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 }
                 return { ok: true, config: vault.LinkedDevices };
             }
-            case MessageType.SyncUpdateCredentialsAndDiffs: {
+            case MessageType.SyncUpdateCredentials: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
                 const vaultSecret = await getVaultSecretFromSessionStorage();
@@ -484,8 +475,15 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 }
 
-                vault.Credentials = payload.credentials;
-                vault.Diffs = payload.diffs;
+                // Iterate through the credentials and update the existing ones, append the new ones
+                for (const credential of payload.credentials) {
+                    const existingIndex = vault.Credentials.findIndex(c => c.ID === credential.ID);
+                    if (existingIndex !== -1) {
+                        vault.Credentials[existingIndex] = credential;
+                    } else {
+                        vault.Credentials.push(credential);
+                    }
+                }
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(

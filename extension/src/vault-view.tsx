@@ -87,14 +87,14 @@ const createVaultOperations = (
     onCredentialsUpdated?: () => void | Promise<void>,
 ): VaultOperations => {
     return {
-        getCredentials: async () => {
-            return await getCredentials(serverPublicKey);
+        getItemVersionVectors: async () => {
+            return await getItemVersionVectors(serverPublicKey);
         },
-        getDiffs: async () => {
-            return await getDiffs(serverPublicKey);
+        getItemCredentials: async (itemIDs: string[]) => {
+            return await getCredentials(serverPublicKey, itemIDs);
         },
-        updateCredentialsAndDiffs: async (credentials, diffs) => {
-            await updateCredentialsAndDiffs(serverPublicKey, credentials, diffs);
+        updateCredentials: async (credentials: VaultUtilTypes.Credential[]) => {
+            await updateCredentials(serverPublicKey, credentials);
             await onCredentialsUpdated?.();
         },
         getSynchronizationConfig: async () => {
@@ -103,10 +103,10 @@ const createVaultOperations = (
     };
 };
 
-const getCredentials = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.Credential[]> => {
+const getCredentials = async (serverPublicKey: ServerPublicKey, itemIDs: string[]): Promise<VaultUtilTypes.Credential[]> => {
     const envelope = await createEncryptedEnvelope(
-        MessageType.SyncGetCredentials,
-        null,
+        MessageType.SyncGetItemCredentials,
+        { itemIDs },
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
         "popup",
@@ -116,12 +116,12 @@ const getCredentials = async (serverPublicKey: ServerPublicKey): Promise<VaultUt
     if (isEncryptedEnvelope(res)) {
         const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; credentials: VaultUtilTypes.Credential[] }>(res);
         if (!decryptedPayload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetCredentials):", decryptedPayload.error);
+            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):", decryptedPayload.error);
             return [];
         }
 
         if (!decryptedPayload.payload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetCredentials):", decryptedPayload.payload.error);
+            console.error("[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):", decryptedPayload.payload.error);
             return [];
         }
 
@@ -129,13 +129,13 @@ const getCredentials = async (serverPublicKey: ServerPublicKey): Promise<VaultUt
     }
 
     // If we're here, it's an erroneous response from the background script (plaintext envelope)
-    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetCredentials):", res.payload);
+    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):", res.payload);
     return [];
 };
 
-const getDiffs = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.Diff[]> => {
+const getItemVersionVectors = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.VersionVector[]> => {
     const envelope = await createEncryptedEnvelope(
-        MessageType.SyncGetDiffs,
+        MessageType.SyncGetItemVersionVectors,
         null,
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
@@ -144,23 +144,23 @@ const getDiffs = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilType
 
     const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
     if (isEncryptedEnvelope(res)) {
-        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; diffs: VaultUtilTypes.Diff[] }>(res);
+        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; versionVectors: VaultUtilTypes.VersionVector[] }>(res);
         if (!decryptedPayload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetDiffs):", decryptedPayload.error);
+            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemVersionVectors):", decryptedPayload.error);
             return [];
         }
 
 
         if (!decryptedPayload.payload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to get diffs (SyncGetDiffs):", decryptedPayload.payload.error);
+            console.error("[SYNCHRONIZATION-POPUP] Failed to get item version vectors (SyncGetItemVersionVectors):", decryptedPayload.payload.error);
             return [];
         }
 
-        return decryptedPayload.payload.diffs;
+        return decryptedPayload.payload.versionVectors;
     }
 
     // If we're here, it's an erroneous response from the background script (plaintext envelope)
-    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetDiffs):", res.payload);
+    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors):", res.payload);
     return [];
 };
 
@@ -194,10 +194,10 @@ const getSynchronizationConfig = async (serverPublicKey: ServerPublicKey): Promi
     return null as unknown as VaultUtilTypes.LinkedDevices;
 };
 
-const updateCredentialsAndDiffs = async (serverPublicKey: ServerPublicKey, credentials: VaultUtilTypes.Credential[], diffs: VaultUtilTypes.Diff[]) => {
+const updateCredentials = async (serverPublicKey: ServerPublicKey, credentials: VaultUtilTypes.Credential[]) => {
     const envelope = await createEncryptedEnvelope(
-        MessageType.SyncUpdateCredentialsAndDiffs,
-        { credentials, diffs },
+        MessageType.SyncUpdateCredentials,
+        { credentials },
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
         "popup",
@@ -284,9 +284,6 @@ const VaultView: React.FC<VaultViewProps> = ({
             Tags: "",
             URL: "",
             Notes: "",
-            DateCreated: new Date().toISOString(),
-            DateModified: undefined,
-            DatePasswordChanged: undefined,
             CustomFields: [],
         },
     });
@@ -1296,9 +1293,6 @@ const VaultView: React.FC<VaultViewProps> = ({
             Tags: "",
             URL: "",
             Notes: "",
-            DateCreated: new Date().toISOString(),
-            DateModified: undefined,
-            DatePasswordChanged: undefined,
             CustomFields: [],
         });
     };
@@ -1328,9 +1322,6 @@ const VaultView: React.FC<VaultViewProps> = ({
             Tags: credential.Tags || "",
             URL: credential.URL,
             Notes: credential.Notes,
-            DateCreated: credential.DateCreated,
-            DateModified: credential.DateModified,
-            DatePasswordChanged: credential.DatePasswordChanged,
             CustomFields: credential.CustomFields || [],
         });
     };
@@ -1365,7 +1356,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const handleSyncNow = () => {
         if (GlobalSyncConnectionController && linkedDevicesRef.current.length > 0) {
-            GlobalSyncConnectionController.transmitSyncRequest(linkedDevicesRef.current[0].ID);
+            GlobalSyncConnectionController.transmitSyncHello(linkedDevicesRef.current[0].ID);
         }
     };
 

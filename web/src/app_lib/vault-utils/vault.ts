@@ -472,7 +472,7 @@ export class VaultCredential
     public DatePasswordChanged?: string | undefined;
 
     public CustomFields: CustomField[];
-    public Hash?: string | undefined;
+    public Hash: string;
     public Version: number;
     public DateCreatedTimestamp: number;
     public DateModifiedTimestamp: number;
@@ -506,6 +506,7 @@ export class VaultCredential
         this.DatePasswordChangedTimestamp = Date.now();
 
         this.CustomFields = form?.CustomFields ?? [];
+        this.Hash = "";
 
         this.Deleted = false;
     }

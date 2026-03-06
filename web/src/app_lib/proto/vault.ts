@@ -207,8 +207,7 @@ export interface Credential {
   /** @deprecated */
   DatePasswordChanged?: string | undefined;
   CustomFields: CustomField[];
-  /** TODO: Make this field non-optional */
-  Hash?: string | undefined;
+  Hash: string;
   Version: number;
   DateCreatedTimestamp: number;
   DateModifiedTimestamp: number;
@@ -1670,6 +1669,7 @@ function createBaseCredential(): Credential {
     Notes: "",
     DateCreated: "",
     CustomFields: [],
+    Hash: "",
     Version: 0,
     DateCreatedTimestamp: 0,
     DateModifiedTimestamp: 0,
@@ -1722,7 +1722,7 @@ export const Credential: MessageFns<Credential> = {
     for (const v of message.CustomFields) {
       CustomField.encode(v!, writer.uint32(114).fork()).join();
     }
-    if (message.Hash !== undefined) {
+    if (message.Hash !== "") {
       writer.uint32(122).string(message.Hash);
     }
     if (message.Version !== 0) {
@@ -1938,7 +1938,7 @@ export const Credential: MessageFns<Credential> = {
     message.DateModified = object.DateModified ?? undefined;
     message.DatePasswordChanged = object.DatePasswordChanged ?? undefined;
     message.CustomFields = object.CustomFields?.map((e) => CustomField.fromPartial(e)) || [];
-    message.Hash = object.Hash ?? undefined;
+    message.Hash = object.Hash ?? "";
     message.Version = object.Version ?? 0;
     message.DateCreatedTimestamp = object.DateCreatedTimestamp ?? 0;
     message.DateModifiedTimestamp = object.DateModifiedTimestamp ?? 0;

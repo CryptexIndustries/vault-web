@@ -203,7 +203,7 @@ const createVaultOperations = (setUnlockedVault: (vault: Vault.Vault | ((prev: V
         getItemVersionVectors: async () => {
             return vaultGet().Credentials.map(c => ({
                 ID: c.ID,
-                Hash: c.Hash ?? "", // TODO: Hash should never be nullish, make that field non-nullable
+                Hash: c.Hash,
                 Version: c.Version,
                 DateModifiedTimestamp: c.DateModifiedTimestamp,
                 Deleted: c.Deleted,

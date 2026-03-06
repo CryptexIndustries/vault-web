@@ -197,8 +197,7 @@ message Credential {
     optional string DatePasswordChanged = 13 [deprecated = true];
 
     repeated CustomField CustomFields = 14;
-    // TODO: Make this field non-optional
-    optional string Hash = 15;
+    string Hash = 15;
     int32 Version = 16;
 
     int64 DateCreatedTimestamp = 17;

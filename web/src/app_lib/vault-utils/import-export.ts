@@ -229,6 +229,7 @@ export const CSV = async (
                         DateModifiedTimestamp: 0,
                         DatePasswordChangedTimestamp: 0,
                         Deleted: extractValue(row, "Deleted", "false") === "true",
+                        Hash: "",
                     };
 
                     const totp = extractValue(row, "TOTP");
@@ -350,6 +351,7 @@ export const BitwardenJSON = (
                         DatePasswordChangedTimestamp: passwordChangedTimestamp,
                         Deleted: false,
                         CustomFields: [],
+                        Hash: "",
                     };
 
                     if (item.login?.totp) {

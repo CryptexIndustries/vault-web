@@ -50,7 +50,8 @@ const levelColors: Record<LogLevel, { bg: string; text: string; badge: string }>
 // Color mappings for log groups
 const groupColors: Record<LogGroup, string> = {
     [LogGroup.Synchronization]: "bg-violet-200 text-violet-800",
-    // [LogGroup.UI]: "bg-pink-200 text-pink-800",
+    [LogGroup.UI]: "bg-pink-200 text-pink-800",
+    [LogGroup.Import]: "bg-green-200 text-green-800",
     // [LogGroup.Encryption]: "bg-emerald-200 text-emerald-800",
     // [LogGroup.Storage]: "bg-orange-200 text-orange-800",
     [LogGroup.WebRTC]: "bg-cyan-200 text-cyan-800",
@@ -61,7 +62,8 @@ const groupColors: Record<LogGroup, string> = {
 // Icons for log groups
 const groupIcons: Record<LogGroup, string> = {
     [LogGroup.Synchronization]: "🔄",
-    // [LogGroup.UI]: "🖥️",
+    [LogGroup.UI]: "🖥️",
+    [LogGroup.Import]: "📂",
     // [LogGroup.Encryption]: "🔐",
     // [LogGroup.Storage]: "💾",
     [LogGroup.WebRTC]: "📡",

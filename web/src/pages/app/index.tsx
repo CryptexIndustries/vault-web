@@ -143,7 +143,7 @@ import {
     vaultCredentialsAtom,
     vaultGet,
 } from "../../utils/atoms";
-import { vaultLogger } from "../../utils/logging";
+import { importLog, uiLog, vaultLogger } from "../../utils/logging";
 import {
     DIALOG_BLUR_TIME,
     enumToRecord,
@@ -200,27 +200,77 @@ const clearVaultSecret = () => {
 // Vault operations implementation using atoms
 const createVaultOperations = (setUnlockedVault: (vault: Vault.Vault | ((prev: Vault.Vault) => Vault.Vault)) => void, vaultMetadata: Storage.VaultMetadata | null): Synchronization.VaultOperations => {
     return {
-        getCredentials: async () => vaultGet().Credentials,
-        getDiffs: async () => vaultGet().Diffs,
-        updateCredentialsAndDiffs: async (credentials, diffs) => {
-            // Update credentials and diffs directly using the vault atom
-            const currentVault = vaultGet();
-            currentVault.Credentials = credentials;
-            currentVault.Diffs = diffs;
-            setUnlockedVault(currentVault);
+        getItemVersionVectors: async () => {
+            return vaultGet().Credentials.map(c => ({
+                ID: c.ID,
+                Hash: c.Hash ?? "", // TODO: Hash should never be nullish, make that field non-nullable
+                Version: c.Version,
+                DateModifiedTimestamp: c.DateModifiedTimestamp,
+                Deleted: c.Deleted,
+            }));
         },
-        // saveVault: async (vault) => {
-        //     if (vaultMetadata) {
+        getItemCredentials: async (itemIDs: string[]) => vaultGet().Credentials.filter(c => itemIDs.includes(c.ID)),
+        updateCredentials: async (credentials: VaultUtilTypes.Credential[]) => {
+            const currentVault = vaultGet();
+            const credentialsMap = new Map(
+                currentVault.Credentials.map((credential) => [credential.ID, credential]),
+            );
 
-        //         const decryptionSecret = await getVaultSecret();
-        //         if (decryptionSecret.isErr()) {
-        //             console.error("[createVaultOperations] Failed to get decryption secret.", decryptionSecret.error);
-        //             return;
-        //         }
+            // Update existing credentials and append missing ones without mutating state in place.
+            for (const credential of credentials) {
+                credentialsMap.set(credential.ID, credential);
+            }
 
-        //         await vaultMetadata.save(vault, decryptionSecret.value);
-        //     }
-        // },
+            const updatedVault = Object.assign(
+                Object.create(Object.getPrototypeOf(currentVault)),
+                currentVault,
+                {
+                    Credentials: Array.from(credentialsMap.values()),
+                },
+            );
+
+            setUnlockedVault(updatedVault);
+            
+            try {
+                // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
+                const vaultSecret = await getVaultSecret();
+                if (vaultSecret.isErr()) {
+                    uiLog.error("Failed to save vault data after synchronization. Failed to retrieve the encryption secret.", {
+                        error: vaultSecret.error,
+                    });
+                    toast.error("Failed to save vault data after synchronization. Please check the logs for more information.", {
+                        autoClose: 3000,
+                        closeButton: true,
+                        toastId: "save-vault-data",
+                        updateId: "save-vault-data",
+                    });
+                    return;
+                }
+
+                if (vaultMetadata) {
+                    await vaultMetadata.save(updatedVault, vaultSecret.value);
+                }
+
+                toast.success("Vault data saved.", {
+                    autoClose: 3000,
+                    closeButton: true,
+                    toastId: "save-vault-data",
+                    updateId: "save-vault-data",
+                });
+            } catch (e) {
+                uiLog.error("An error occurred while saving vault data after synchronization.", {
+                    error: e,
+                });
+                toast.error(
+                    "An error occurred while saving the vault data after synchronization. Please check the logs for more information.",
+                    {
+                        autoClose: 3000,
+                        closeButton: true,
+                        toastId: "save-vault-data",
+                        updateId: "save-vault-data",
+                    });
+            }
+        },
         getSynchronizationConfig: async () => vaultGet().LinkedDevices,
     };
 };
@@ -2039,9 +2089,9 @@ const ImportDataDialog: React.FC<{
             Tags: "",
             URL: "",
             Notes: "",
-            DateCreated: "",
-            DateModified: "",
-            DatePasswordChanged: "",
+            DateCreatedTimestamp: 0,
+            DateModifiedTimestamp: 0,
+            DatePasswordChangedTimestamp: 0,
             TagDelimiter: ",",
         },
     });
@@ -2058,14 +2108,14 @@ const ImportDataDialog: React.FC<{
     const parsedColumns = useRef<string[]>([]);
 
     const importCredentials = async (
-        credentials: VaultUtilTypes.PartialCredential[],
+        credentials: VaultUtilTypes.Credential[],
         groups: FormSchemas.GroupSchemaType[] = [],
     ) => {
         // Add the credentials to the vault
         const vault = unlockedVault;
 
         if (!vault) {
-            console.error("No vault to import into.");
+            importLog.error("No vault to import into. Do we have an unlocked vault?");
             return;
         }
 
@@ -2076,20 +2126,15 @@ const ImportDataDialog: React.FC<{
             vault.Groups.push(gropInst);
         });
         for (const credential of credentials) {
-            const data = await Vault.createCredential(credential);
-
-            vault.Credentials.push(data.credential);
-            const listHash = await Vault.hashCredentials(vault.Credentials);
-            const diff: VaultUtilTypes.Diff = {
-                Hash: listHash,
-                Changes: data.changes,
-            };
-            vault.Diffs.push(diff);
+            const newCredential = await Vault.assimilateImportedCredential(credential);
+            vault.Credentials.push(newCredential);
         }
 
         const vaultSecret = await getVaultSecret();
         if (vaultSecret.isErr()) {
-            console.error("[importCredentials] Failed to get vault secret.", vaultSecret.error);
+            importLog.error("Failed to retrieve the encryption secret.", {
+                error: vaultSecret.error,
+            });
             toast.error("Failed to import credentials. Failed to retrieve the encryption secret. More details in the console.");
             return;
         }
@@ -2101,6 +2146,10 @@ const ImportDataDialog: React.FC<{
         toast.success(
             `Successfully imported ${credentials.length} credentials.`,
         );
+
+        importLog.info("Successfully imported credentials.", {
+            credentials: credentials.length,
+        });
 
         hideDialog();
     };
@@ -2158,37 +2207,40 @@ const ImportDataDialog: React.FC<{
         if (isOperationInProgress || !selectedFileRef.current) return;
         setIsOperationInProgress(true);
 
-        console.debug("CSV import form data:", formData);
+        importLog.debug("CSV import form data:", formData);
         try {
             await Import.CSV(
                 selectedFileRef.current,
                 formData,
                 async (credentials) => {
-                    console.debug("Import result", credentials);
+                    importLog.debug("Import result", credentials);
 
                     if (credentials.length) {
                         await importCredentials(credentials);
                     } else {
+                        importLog.warn("CSV file doesn't contain any data.");
                         toast.warn("CSV file doesn't contain any data.");
                     }
 
                     setIsOperationInProgress(false);
                 },
                 (error) => {
-                    console.error("Error importing CSV file", error);
+                    importLog.error("An error occured while importing CSV file", {
+                        error: error,
+                    });
                     toast.error(
-                        "Failed to import CSV file. More details in the console.",
+                        "Failed to import CSV file. Please check the logs for more information.",
                     );
                     setIsOperationInProgress(false);
                 },
             );
         } catch (error) {
-            console.error(
-                "Fatal error while parsing the provided CSV file",
-                error,
-            );
+            importLog.error(
+                "A fatal error occured while parsing the provided CSV file", {
+                    error: error,
+                });
             toast.error(
-                "Failed to parse CSV file. More details in the console.",
+                "Failed to parse CSV file. Please check the logs for more information.",
             );
         }
     };
@@ -2210,12 +2262,15 @@ const ImportDataDialog: React.FC<{
             if (credentials.length) {
                 await importCredentials(credentials, groups);
             } else {
+                importLog.warn("Bitwarden export file doesn't contain any data.");
                 toast.warn("Bitwarden export file doesn't contain any data.");
             }
         } catch (error) {
-            console.error("Error importing Bitwarden JSON file", error);
+            importLog.error("An error occured while importing Bitwarden JSON file", {
+                error: error,
+            });
             toast.error(
-                "Failed to import Bitwarden JSON file. More details in the console.",
+                "Failed to import Bitwarden JSON file. Please check the logs for more information.",
             );
         }
         setIsOperationInProgress(false);
@@ -2562,26 +2617,6 @@ const VaultSettingsDialog: React.FC<{
         // No-op
     });
 
-    const clearSyncList = () => {
-        // Show a confirmation dialog
-        showWarningDialog(
-            `You are about to clear the sync list. This has to be done manually on all linked devices while disconnected from one another.`,
-            () => {
-                // Clear the sync list
-                setIsLoading(true);
-                setUnlockedVault((prev) => {
-                    // Only leave the last diff in the list
-                    prev.Diffs = prev.Diffs.slice(prev.Diffs.length - 1);
-                    return prev;
-                });
-                setIsLoading(false);
-
-                toast.success("Synchronization list cleared.");
-            },
-            null,
-        );
-    };
-
     const showImportDataDialog = () => importDataDialogShowFnRef.current();
 
     const triggerDataExport = async () => {
@@ -2797,7 +2832,7 @@ const VaultSettingsDialog: React.FC<{
                                     />
                                 </div>
                             </div>
-                            <div className="rounded-lg bg-gray-100 p-4">
+                            {/* <div className="rounded-lg bg-gray-100 p-4">
                                 <p className="text-lg font-bold text-slate-800">
                                     Synchronization
                                 </p>
@@ -2815,7 +2850,7 @@ const VaultSettingsDialog: React.FC<{
                                         disabled={isLoading}
                                     />
                                 </div>
-                            </div>
+                            </div> */}
                             <div className="rounded-lg bg-gray-100 p-4 border border-slate-200">
                                 <p className="text-lg font-bold text-slate-800">
                                     Developer Tools
@@ -4932,7 +4967,7 @@ const SidebarSyncDeviceListItem: React.FC<{
                 webRTCStatus === SynchronizationUtils.WebRTCStatus.Connected,
             name: "Synchronize now",
             onClick: async () => {
-                GlobalSyncConnectionController.transmitSyncRequest(device.ID);
+                GlobalSyncConnectionController.transmitSyncHello(device.ID);
             },
         },
         {
@@ -4994,30 +5029,6 @@ const SidebarSyncDeviceListItem: React.FC<{
 
         if (
             event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage &&
-            event.event === SynchronizationUtils.WebRTCMessageEventType.ManualSyncNecessary
-        ) {
-            // Trigger the manual synchronization dialog
-            showManualSyncDialog.current(
-                event.data,
-                async (
-                    data: SynchronizationUtils.ManualConflictResolutionData,
-                ) => {
-                    await GlobalSyncConnectionController.confirmManualConflictResolution(
-                        device.ID,
-                        data,
-                    );
-                },
-                () => {
-                    // Warn the user that the vaults are still diverged
-                    toast.warn(
-                        "The vaults are still diverged. You can still continue using the vault, but you may encounter conflicts when syncing.",
-                    );
-                },
-            );
-        }
-
-        if (
-            event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage &&
             event.event === SynchronizationUtils.WebRTCMessageEventType.Error
         ) {
             toast.warn(
@@ -5069,21 +5080,21 @@ const SidebarSyncDeviceListItem: React.FC<{
             }
         }
 
-        if (
-            event.type === SynchronizationUtils.SyncConnectionControllerEventType.VaultDataUpdate
-        ) {
-            if (!event.data?.credentials) return;
+        // if (
+        //     event.type === SynchronizationUtils.SyncConnectionControllerEventType.VaultDataUpdate
+        // ) {
+        //     if (!event.data?.credentials) return;
 
-            setVaultCredentials(() => {
-                if (event.data?.credentials)
-                    return [...event.data.credentials];
-                else return [];
-            });
+        //     setVaultCredentials(() => {
+        //         if (event.data?.credentials)
+        //             return [...event.data.credentials];
+        //         else return [];
+        //     });
 
-            vaultGet().Diffs = event.data.diffs;
+        //     vaultGet().Diffs = event.data.diffs;
 
-            // TODO: Trigger a vault save
-        }
+        //     // TODO: Trigger a vault save
+        // }
     };
 
     useEffect(() => {
@@ -5703,42 +5714,6 @@ const VaultDashboard: React.FC = ({}) => {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <div>
-                                    {process.env.NODE_ENV === "development" && (
-                                        <SidebarMenuItem
-                                            Icon={XMarkIcon}
-                                            text="[DEBUG] Clear Diff list"
-                                            onClick={async () => {
-                                                await setUnlockedVault(
-                                                    async (vault) => {
-                                                        console.debug(
-                                                            "[DEBUG] Clear Diff list - before -",
-                                                            vault.Diffs,
-                                                        );
-
-                                                        vault.Diffs = [];
-
-                                                        const vaultSecret = await getVaultSecret();
-                                                        if (vaultSecret.isErr()) {
-                                                            console.error("[DEBUG] Clear Diff list - Failed to retrieve encryption secret.", vaultSecret.error);
-                                                            return vault;
-                                                        }
-
-                                                        vaultMetadata.save(
-                                                            vault,
-                                                            vaultSecret.value,
-                                                        );
-
-                                                        console.debug(
-                                                            "[DEBUG] Clear Diff list - after -",
-                                                            vault.Diffs,
-                                                        );
-
-                                                        return vault;
-                                                    },
-                                                );
-                                            }}
-                                        />
-                                    )}
                                     <DashboardSidebarMenuFeatureVoting
                                         onClick={() =>
                                             showFeatureVotingDialogRef.current?.()
@@ -5863,7 +5838,7 @@ const VaultContentWindow: React.FC<{
 }) => {
     const router = useRouter();
 
-    const vaultCredentials = useAtomValue(vaultCredentialsAtom);
+    const vaultCredentials = useAtomValue(vaultCredentialsAtom).filter(c => !c.Deleted);
     const [filter, setFilter] = useState("");
 
     const editCredentialModeFn = useRef<
@@ -6116,20 +6091,23 @@ const ListItemCredential: React.FC<{
         });
     }
 
-    if (credential.URL) {
+    if (credential.URL && URL.canParse(credential.URL)) {
         options.push({
             Name: "Open URL",
             onClick: () => {
-                let value = credential.URL;
-                // Add the HTTPS protocol if it's missing
-                if (!value?.startsWith("https://")) {
-                    value = `https://${credential.URL}`;
+                const url = new URL(credential.URL);
+
+                // If the URL schema is not HTTPS, add the HTTPS protocol
+                if (url.protocol !== "https:") {
+                    url.protocol = "https:";
                 }
 
+                const urlString = url.toString();
+
                 showWarningDialogFn(
-                    `You are about to visit "${value}"?`,
+                    `You are about to visit "${urlString}"?`,
                     () => {
-                        window.open(value, "_blank");
+                        window.open(urlString, "_blank");
                     },
                     null,
                 );
@@ -6206,28 +6184,29 @@ const ListItemCredential: React.FC<{
                     const vault = vaultGet();
 
                     // Remove the credential from the vault
-                    const data = Vault.deleteCredential(
+                    const data = await Vault.deleteCredential(
                         vault.Credentials,
                         credential.ID,
                     );
 
                     if (data.isErr()) {
-                        console.error(
-                            `Failed to remove credential. Error: "${data.error}". ID: "${credential.ID}". Could not find the item index.`,
+                        uiLog.error(
+                            `Failed to remove credential. Could not find the credential to delete.`,
+                            {
+                                error: data.error,
+                                credentialID: credential.ID,
+                            }
                         );
-                        return vault;
+                        toast.error("Failed to remove credential. Could not find the credential to delete.", {
+                            autoClose: 3000,
+                            closeButton: true,
+                            toastId: "remove-credential",
+                            updateId: "remove-credential",
+                        });
+                        return;
                     }
 
-                    vault.Credentials = [...data.value.credentials];
-
-                    const listHash = await Vault.hashCredentials(
-                        vault.Credentials,
-                    );
-                    const diff: VaultUtilTypes.Diff = {
-                        Hash: listHash,
-                        Changes: data.value.change,
-                    };
-                    vault.Diffs = [...vault.Diffs, diff];
+                    vault.Credentials = [...data.value];
 
                     setCredentialsList(vault.Credentials);
 
@@ -6235,8 +6214,15 @@ const ListItemCredential: React.FC<{
                         // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
                         const vaultSecret = await getVaultSecret();
                         if (vaultSecret.isErr()) {
-                            console.error("[removeCredential] Failed to retrieve encryption secret.", vaultSecret.error);
-                            toast.error("Failed to remove credential. Failed to retrieve the encryption secret. More details in the console.");
+                            uiLog.error("Failed to remove credential. Failed to retrieve the encryption secret.", {
+                                error: vaultSecret.error,
+                            });
+                            toast.error("Failed to remove credential. Failed to retrieve the encryption secret.", {
+                                autoClose: 3000,
+                                closeButton: true,
+                                toastId: "remove-credential",
+                                updateId: "remove-credential",
+                            });
                             return vault;
                         }
 
@@ -6248,16 +6234,17 @@ const ListItemCredential: React.FC<{
                             updateId: "remove-credential",
                         });
                     } catch (e) {
-                        console.error(`Failed to save vault: ${e}`);
+                        uiLog.error("Failed to remove credential. Failed to save the vault.", {
+                            error: e,
+                        });
                         toast.error(
-                            "Failed to save vault. There is a high possibility of data loss!",
+                            "Failed to remove credential. Failed to save the vault.",
                             {
                                 autoClose: 3000,
                                 closeButton: true,
                                 toastId: "remove-credential",
                                 updateId: "remove-credential",
-                            },
-                        );
+                        });
                     }
                 },
                 null,
@@ -6722,6 +6709,7 @@ const CredentialSideview: React.FC<{
             new Vault.VaultCredential(),
         );
         obj.ID = null; // This is set to null to indicate that this is a new credential
+        obj.TOTP = null; // This is set to null to indicate that there is no TOTP configuration
         return obj;
     };
 
@@ -6747,14 +6735,11 @@ const CredentialSideview: React.FC<{
             Name: credential.Name,
             Username: credential.Username,
             Password: credential.Password,
-            TOTP: credential.TOTP,
+            TOTP: credential.TOTP ?? null, // The null value updates the UI properly
             Tags: credential.Tags,
             URL: credential.URL,
             Notes: credential.Notes,
             CustomFields: credential.CustomFields,
-            DateCreated: credential.DateCreated,
-            DateModified: credential.DateModified,
-            DatePasswordChanged: credential.DatePasswordChanged,
         };
 
         resetForm(formData, {
@@ -7030,21 +7015,29 @@ const CredentialSideview: React.FC<{
             <ArrowTopRightOnSquareIcon
                 className="mx-2 h-5 w-5 flex-grow-0 cursor-pointer text-slate-400 hover:text-slate-500"
                 style={{
-                    display: initialValue ? "block" : "none",
+                    display: initialValue && URL.canParse(initialValue) ? "block" : "none",
                 }}
                 aria-hidden="true"
                 onClick={() => {
-                    let value = initialValue ?? valueFn?.();
+                    const value = initialValue ?? valueFn?.();
 
-                    // If the value is not a URL, add the HTTPS protocol
-                    if (!value?.toLowerCase().startsWith("https://")) {
-                        value = `https://${value}`;
+                    // If the value is not a valid URL, return
+                    if (!value || !URL.canParse(value)) return;
+
+                    // Parse the URL
+                    const url = new URL(value);
+
+                    // If the URL schema is not HTTPS, add the HTTPS protocol
+                    if (url.protocol !== "https:") {
+                        url.protocol = "https:";
                     }
 
+                    const urlString = url.toString();
+
                     showWarningDialogFn(
-                        `You are about to visit "${value}".`,
+                        `You are about to visit "${urlString}".`,
                         () => {
-                            window.open(value, "_blank");
+                            window.open(urlString, "_blank");
                         },
                         null,
                     );
@@ -7065,11 +7058,12 @@ const CredentialSideview: React.FC<{
             const existing = vault.Credentials[existingIndex];
 
             if (!existing) {
-                console.error(
-                    `Failed to find credential with ID "${formData.ID}". Skipping update...`,
-                );
+                uiLog.error(`Failed to find credential with ID "${formData.ID}" to update.`, {
+                    formData,
+                });
+
                 toast.error(
-                    "Failed to update credential. Please check the console for more infomation.",
+                    "Failed to update credential. Please check the logs for more infomation.",
                     {
                         autoClose: 5000,
                         closeButton: false,
@@ -7080,30 +7074,16 @@ const CredentialSideview: React.FC<{
                 return vault;
             }
 
-            const data = await Vault.updateCredentialFromForm(
+            const updatedCredential = await Vault.updateCredentialFromForm(
                 existing,
                 formData,
             );
 
             // Update the credential
-            vault.Credentials[existingIndex] = data.credential;
-
-            const listHash = await Vault.hashCredentials(vault.Credentials);
-            const diff: VaultUtilTypes.Diff = {
-                Hash: listHash,
-                Changes: data.changes,
-            };
-            vault.Diffs.push(diff);
+            vault.Credentials[existingIndex] = updatedCredential;
         } else {
-            const data = await Vault.createCredential(formData);
-
-            vault.Credentials.push(data.credential);
-            const listHash = await Vault.hashCredentials(vault.Credentials);
-            const diff: VaultUtilTypes.Diff = {
-                Hash: listHash,
-                Changes: data.changes,
-            };
-            vault.Diffs.push(diff);
+            const newCredential = await Vault.createCredential(formData);
+            vault.Credentials.push(newCredential);
         }
 
         // Trigger a render by spreading the list in a new list
@@ -7124,8 +7104,10 @@ const CredentialSideview: React.FC<{
             // TODO: Remove when the auto-save feature is implemented
             const vaultSecret = await getVaultSecret();
             if (vaultSecret.isErr()) {
-                console.error("[onSubmit] Failed to retrieve encryption secret.", vaultSecret.error);
-                toast.error("Failed to save vault data. Failed to retrieve the encryption secret. More details in the console.");
+                uiLog.error("Tried to save vault data after credential creation/update, but failed to retrieve the encryption secret.", {
+                    error: vaultSecret.error,
+                });
+                toast.error("Failed to save vault data. Failed to retrieve the encryption secret. More details in the logs.");
                 return;
             }
 
@@ -7142,9 +7124,11 @@ const CredentialSideview: React.FC<{
             // FIXME: This rerenders the holy Jesus
             closeSideview(true);
         } catch (e) {
-            console.error(`Failed to save vault data. ${e}`);
+            uiLog.error("Failed to save vault data.", {
+                error: e,
+            });
             toast.error(
-                "Failed to save vault. There is a high possibility of data loss!",
+                "Failed to save vault data. There is a high possibility of data loss! Please check the logs for more infomation.",
                 {
                     autoClose: 3000,
                     closeButton: false,
@@ -7153,6 +7137,21 @@ const CredentialSideview: React.FC<{
                 },
             );
         }
+    };
+
+    const dateCreatedTimestamp = () => {
+        if (!selectedCredential) return null;
+        return dayjs(selectedCredential.DateCreatedTimestamp).locale(navigator.language).format("DD/MM/YYYY HH:mm:ss");
+    };
+
+    const dateModifiedTimestamp = () => {
+        if (!selectedCredential) return null;
+        return dayjs(selectedCredential.DateModifiedTimestamp).locale(navigator.language).format("DD/MM/YYYY HH:mm:ss");
+    };
+
+    const datePasswordChangedTimestamp = () => {
+        if (!selectedCredential) return null;
+        return dayjs(selectedCredential.DatePasswordChangedTimestamp).locale(navigator.language).format("DD/MM/YYYY HH:mm:ss");
     };
 
     useEffect(() => {
@@ -7229,29 +7228,25 @@ const CredentialSideview: React.FC<{
                                         <b>Created at:</b>{" "}
                                     </span>
                                     <span>
-                                        {new Date(
-                                            selectedCredential.DateCreated,
-                                        ).toLocaleDateString()}
+                                        {dateCreatedTimestamp()}
                                     </span>
                                 </div>
                                 {
                                     // If the credential has been modified, show the date it was modified
-                                    selectedCredential.DateModified && (
+                                    selectedCredential.DateModifiedTimestamp !== selectedCredential.DateCreatedTimestamp && (
                                         <div className="flex justify-center gap-x-2">
                                             <span>
                                                 <b>Updated at:</b>{" "}
                                             </span>
                                             <span>
-                                                {new Date(
-                                                    selectedCredential.DateModified,
-                                                ).toLocaleDateString()}
+                                                {dateModifiedTimestamp()}
                                             </span>
                                         </div>
                                     )
                                 }
                                 {
                                     // If the credential has a password, show the date it was last changed
-                                    selectedCredential.DatePasswordChanged && (
+                                    selectedCredential.DatePasswordChangedTimestamp !== selectedCredential.DateCreatedTimestamp && (
                                         <div className="flex justify-center gap-x-2">
                                             <span>
                                                 <b>
@@ -7259,9 +7254,7 @@ const CredentialSideview: React.FC<{
                                                 </b>{" "}
                                             </span>
                                             <span>
-                                                {new Date(
-                                                    selectedCredential.DatePasswordChanged,
-                                                ).toLocaleDateString()}
+                                                {datePasswordChangedTimestamp()}
                                             </span>
                                         </div>
                                     )

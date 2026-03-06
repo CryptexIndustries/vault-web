@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     VaultCredential,
 } from "../../app_lib/vault-utils/vault";
-import {
-    DiffChange,
-    DiffType,
-    Diff,
-} from "../../app_lib/proto/vault";
+// import {
+//     DiffChange,
+//     DiffType,
+//     Diff,
+// } from "../../app_lib/proto/vault";
 import { WarningDialogShowFn } from "./warning";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -71,7 +71,7 @@ export const ManualSynchronizationDialog: React.FC<{
     const onConfirmRef = useRef<OnConfirmCallback>(undefined);
     const onCancelRef = useRef<OnCancelCallback>(undefined);
 
-    const [differences, setDifferences] = useState<Diff[]>([]);
+    // const [differences, setDifferences] = useState<Diff[]>([]);
     // const [solveStrategy, setSolveStrategy] = useState(SolveStrategy.Manual);
     const diffItemSelection = useRef<Map<string, ManualSyncItemOption>>(new Map());
 
@@ -87,7 +87,7 @@ export const ManualSynchronizationDialog: React.FC<{
         onConfirmRef.current = onSuccess;
         onCancelRef.current = onCancel;
 
-        setDifferences(data.diffs);
+        // setDifferences(data.diffs);
         setDialogVisible(true);
     };
 
@@ -111,7 +111,7 @@ export const ManualSynchronizationDialog: React.FC<{
             onConfirmRef.current = undefined;
             onCancelRef.current = undefined;
             diffItemSelection.current = new Map();
-            setDifferences([]);
+            // setDifferences([]);
         }, 200);
     };
 
@@ -128,12 +128,12 @@ export const ManualSynchronizationDialog: React.FC<{
         showWarningDialog(
             "Are you sure you want to apply these changes?",
             async () => {
-                await onConfirmRef.current?.({
-                    ourCredentials: ourCredentialsRef.current,
-                    theirCredentials: theirCredentialsRef.current,
-                    differences: differences,
-                    userChoices: diffItemSelection.current,
-                });
+                // await onConfirmRef.current?.({
+                //     ourCredentials: ourCredentialsRef.current,
+                //     theirCredentials: theirCredentialsRef.current,
+                //     differences: differences,
+                //     userChoices: diffItemSelection.current,
+                // });
                 hideDialog(true);
             },
             () => {
@@ -146,55 +146,55 @@ export const ManualSynchronizationDialog: React.FC<{
         hideDialog();
     };
 
-    const diffItems = useMemo(
-        () =>
-            differences.filter(
-                (diff): diff is Diff & { Changes: DiffChange } =>
-                    Boolean(diff.Changes),
-            ),
-        [differences],
-    );
+    // const diffItems = useMemo(
+    //     () =>
+    //         differences.filter(
+    //             (diff): diff is Diff & { Changes: DiffChange } =>
+    //                 Boolean(diff.Changes),
+    //         ),
+    //     [differences],
+    // );
 
-    const ourCredentialsById = useMemo(() => {
-        return new Map(
-            ourCredentialsRef.current.map((credential) => [
-                credential.ID,
-                credential,
-            ]),
-        );
-    }, [differences, dialogVisible]);
+    // const ourCredentialsById = useMemo(() => {
+    //     return new Map(
+    //         ourCredentialsRef.current.map((credential) => [
+    //             credential.ID,
+    //             credential,
+    //         ]),
+    //     );
+    // }, [differences, dialogVisible]);
 
-    const theirCredentialsById = useMemo(() => {
-        return new Map(
-            theirCredentialsRef.current.map((credential) => [
-                credential.ID,
-                credential,
-            ]),
-        );
-    }, [differences, dialogVisible]);
+    // const theirCredentialsById = useMemo(() => {
+    //     return new Map(
+    //         theirCredentialsRef.current.map((credential) => [
+    //             credential.ID,
+    //             credential,
+    //         ]),
+    //     );
+    // }, [differences, dialogVisible]);
 
-    const changeSummary = useMemo(() => {
-        const summary = { add: 0, update: 0, remove: 0, total: 0 };
-        diffItems.forEach((diff) => {
-            summary.total += 1;
-            switch (diff.Changes.Type) {
-                case DiffType.Add:
-                    summary.add += 1;
-                    break;
-                case DiffType.Update:
-                    summary.update += 1;
-                    break;
-                case DiffType.Delete:
-                    summary.remove += 1;
-                    break;
-                default:
-                    break;
-            }
-        });
-        return summary;
-    }, [diffItems]);
-
-    return (
+    // const changeSummary = useMemo(() => {
+    //     const summary = { add: 0, update: 0, remove: 0, total: 0 };
+    //     diffItems.forEach((diff) => {
+    //         summary.total += 1;
+    //         switch (diff.Changes.Type) {
+    //             case DiffType.Add:
+    //                 summary.add += 1;
+    //                 break;
+    //             case DiffType.Update:
+    //                 summary.update += 1;
+    //                 break;
+    //             case DiffType.Delete:
+    //                 summary.remove += 1;
+    //                 break;
+    //             default:
+    //                 break;
+    //         }
+    //     });
+    //     return summary;
+    // }, [diffItems]);
+    return null;
+    /* return (
         <Dialog open={dialogVisible} onOpenChange={(open) => !open && cancel()}>
             <DialogContent className="max-h-[90vh] w-[96vw] max-w-[960px] overflow-y-auto sm:overflow-hidden">
                 <DialogHeader className="space-y-2 text-left">
@@ -296,12 +296,12 @@ export const ManualSynchronizationDialog: React.FC<{
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
+    ); */
 };
 
-type CredentialLike = VaultCredential | NonNullable<DiffChange["Props"]>;
+// type CredentialLike = VaultCredential | NonNullable<DiffChange["Props"]>;
 
-const DiffItem: React.FC<{
+/* const DiffItem: React.FC<{
     hash: string;
     difference: DiffChange;
     ourCredential?: VaultCredential;
@@ -627,3 +627,4 @@ const formatCredentialValue = (
             return "-";
     }
 };
+ */

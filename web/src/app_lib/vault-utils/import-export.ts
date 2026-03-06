@@ -2,7 +2,7 @@ import Papa from "papaparse";
 import { z } from "zod";
 
 import { CredentialConstants } from "../../utils/consts";
-import * as VaultUtilTypes from "../proto/vault";
+import { Credential, ItemType } from "../proto/vault";
 import { CustomField, Group, TOTP, Vault } from "./vault";
 
 export const vaultToJSON = (vaultInstance: Vault) => {
@@ -44,9 +44,10 @@ export type Fields =
     | "Tags"
     | "URL"
     | "Notes"
-    | "DateCreated"
-    | "DateModified"
-    | "DatePasswordChanged";
+    | "DateCreatedTimestamp"
+    | "DateModifiedTimestamp"
+    | "DatePasswordChangedTimestamp"
+    | "Deleted";
 export const PossibleFields: Array<{ fieldText: string; field: Fields }> = [
     { fieldText: "Name", field: "Name" },
     { fieldText: "Username", field: "Username" },
@@ -55,9 +56,10 @@ export const PossibleFields: Array<{ fieldText: string; field: Fields }> = [
     { fieldText: "Tags", field: "Tags" },
     { fieldText: "URL", field: "URL" },
     { fieldText: "Notes", field: "Notes" },
-    { fieldText: "DateCreated", field: "DateCreated" },
-    { fieldText: "DateModified", field: "DateModified" },
-    { fieldText: "DatePasswordChanged", field: "DatePasswordChanged" },
+    { fieldText: "DateCreatedTimestamp", field: "DateCreatedTimestamp" },
+    { fieldText: "DateModifiedTimestamp", field: "DateModifiedTimestamp" },
+    { fieldText: "DatePasswordChangedTimestamp", field: "DatePasswordChangedTimestamp" },
+    { fieldText: "Deleted", field: "Deleted" },
 ];
 
 export const FieldsSchema = z.object({
@@ -68,10 +70,11 @@ export const FieldsSchema = z.object({
     Tags: z.string().nullable(),
     URL: z.string().nullable(),
     Notes: z.string().nullable(),
-    DateCreated: z.string().nullable(),
-    DateModified: z.string().nullable(),
-    DatePasswordChanged: z.string().nullable(),
+    DateCreatedTimestamp: z.number().nullable(),
+    DateModifiedTimestamp: z.number().nullable(),
+    DatePasswordChangedTimestamp: z.number().nullable(),
     TagDelimiter: z.string().nullable(),
+    Deleted: z.string().nullable(),
 });
 export type FieldsSchemaType = z.infer<typeof FieldsSchema>;
 
@@ -82,11 +85,12 @@ interface BitwardenFolder {
 }
 interface BitwardenItem {
     id: string;
-    folderId: string;
+    folderId?: string;
     name: string;
-    notes: string;
+    notes?: string;
+    creationDate?: string;
     type: number;
-    login: {
+    login?: {
         username: string;
         password: string;
         totp: string;
@@ -95,13 +99,13 @@ interface BitwardenItem {
             uri: string;
         }[];
     };
-    revisionDate: string;
-    passwordRevisionDate: string;
-    passwordHistory: {
+    revisionDate?: string;
+    passwordRevisionDate?: string;
+    passwordHistory?: {
         password: string;
         lastUsedDate: string;
     }[];
-    card: {
+    card?: {
         cardholderName: string;
         brand: string;
         number: string;
@@ -109,7 +113,7 @@ interface BitwardenItem {
         expYear: number;
         code: string;
     };
-    fields: {
+    fields?: {
         name: string;
         value: string;
         type: number;
@@ -154,7 +158,7 @@ export const CSV = async (
     file: File,
     fields: FieldsSchemaType,
     onSuccess: (
-        credentials: VaultUtilTypes.PartialCredential[],
+        credentials: Credential[],
     ) => Promise<void>,
     onFailure: (error: Error) => void,
 ): Promise<void> => {
@@ -170,10 +174,10 @@ export const CSV = async (
                 row: object,
                 field: Fields,
                 defaultValue?: string,
-            ): string | undefined => {
+            ): string | null => {
                 const key = (fields[field] ?? field) as keyof typeof row;
                 const value = row[key] ?? defaultValue;
-                if (value == undefined || value === "") return undefined;
+                if (value == undefined || value === "") return null;
                 return value;
             };
 
@@ -187,65 +191,71 @@ export const CSV = async (
             };
 
             const tryParseNumber = (
-                value: string | undefined,
-            ): string | number | undefined => {
-                if (value == undefined || value === "") return undefined;
+                value: string | null,
+            ): number | null => {
+                if (value == null || value === "") return null;
                 // Try to parse the value as a number
                 const parsed = Number(value);
-                // If we failed to parse the number, return the original value
-                if (isNaN(parsed)) return value;
+                // If we failed to parse the number, return null
+                if (isNaN(parsed)) return null;
                 // Otherwise, return the parsed number
                 return parsed;
             };
 
-            const parseDate = (
-                date: string | number | undefined,
-            ): string | undefined => {
-                if (date == undefined || date === "") return undefined;
-                try {
-                    return new Date(date).toISOString();
-                } catch (error) {
-                    console.error("Failed to parse value as a date.", error);
-                    throw error;
-                }
-            };
-
-            const createTOTP = (
-                secret: string | undefined,
-            ): TOTP | undefined => {
-                if (secret == undefined || secret === "") return undefined;
-                const totp = new TOTP();
-                totp.Secret = String(secret);
-                return totp;
-            };
-
-            const credentials: VaultUtilTypes.PartialCredential[] = [];
+            const credentials: Credential[] = [];
 
             try {
                 for (const row of results.data as object[]) {
-                    const credential: VaultUtilTypes.PartialCredential = {
-                        ID: undefined,
-                        Name: extractValue(row, "Name", "Import"),
-                        Username: extractValue(row, "Username"),
-                        Password: extractValue(row, "Password"),
-                        Tags: parseTags(extractValue(row, "Tags")),
-                        URL: extractValue(row, "URL"),
-                        Notes: extractValue(row, "Notes"),
-                        DateCreated: parseDate(
-                            tryParseNumber(extractValue(row, "DateCreated")),
-                        ),
-                        DateModified: parseDate(
-                            tryParseNumber(extractValue(row, "DateModified")),
-                        ),
-                        DatePasswordChanged: parseDate(
-                            tryParseNumber(
-                                extractValue(row, "DatePasswordChanged"),
-                            ),
-                        ),
-                        TOTP: createTOTP(extractValue(row, "TOTP")),
+                    const parsedCredential: Credential = {
+                        ID: "",
+                        Version: 0,
+
+                        Type: ItemType.Credentials,
+                        GroupID: "",
+                        Name: extractValue(row, "Name", "Import") ?? "Unnamed item",
+                        Username: extractValue(row, "Username") ?? "",
+                        Password: extractValue(row, "Password") ?? "",
+                        Tags: parseTags(extractValue(row, "Tags") ?? ""),
+                        URL: extractValue(row, "URL") ?? "",
+                        Notes: extractValue(row, "Notes") ?? "",
                         CustomFields: [],
+
+                        // TODO: Remove these fields after August 2026
+                        DateCreated: "",
+                        DateModified: undefined,
+                        DatePasswordChanged: undefined,
+
+                        DateCreatedTimestamp: 0,
+                        DateModifiedTimestamp: 0,
+                        DatePasswordChangedTimestamp: 0,
+                        Deleted: extractValue(row, "Deleted", "false") === "true",
                     };
-                    credentials.push(credential);
+
+                    const totp = extractValue(row, "TOTP");
+                    if (totp != null && totp !== "") {
+                        parsedCredential.TOTP = new TOTP();
+                        parsedCredential.TOTP.Secret = totp;
+                    }
+
+                    const now = Date.now();
+
+                    // Parse the csv dates to timestamps and hash the credential
+                    const dateCreated = tryParseNumber(extractValue(row, "DateCreatedTimestamp")) ?? now;
+                    if (dateCreated != null) {
+                        parsedCredential.DateCreatedTimestamp = dateCreated;
+                    }
+
+                    const dateModified = tryParseNumber(extractValue(row, "DateModifiedTimestamp")) ?? now;
+                    if (dateModified != null) {
+                        parsedCredential.DateModifiedTimestamp = dateModified;
+                    }
+
+                    const datePasswordChanged = tryParseNumber(extractValue(row, "DatePasswordChangedTimestamp")) ?? now;
+                    if (datePasswordChanged != null) {
+                        parsedCredential.DatePasswordChangedTimestamp = datePasswordChanged;
+                    }
+
+                    credentials.push(parsedCredential);
                 }
 
                 // Call the onSuccess callback
@@ -264,14 +274,38 @@ export const CSV = async (
 export const BitwardenJSON = (
     file: File,
 ): Promise<{
-    credentials: VaultUtilTypes.PartialCredential[];
+    credentials: Credential[];
     groups: Group[];
 }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
+        const parseTimestamp = (
+            value: string | undefined,
+            fallback: number,
+        ): number => {
+            if (!value) return fallback;
+            const parsed = new Date(value).getTime();
+            return Number.isFinite(parsed) ? parsed : fallback;
+        };
+
+        const mapBitwardenItemType = (type: number): ItemType => {
+            // Bitwarden: 1=login, 2=secure note, 3=card, 4=identity
+            // Cryptex: SSHKey=0, Credentials=1, Note=2, Identity=3
+            switch (type) {
+                case 2:
+                    return ItemType.Note;
+                case 4:
+                    return ItemType.Identity;
+                case 1:
+                case 3:
+                default:
+                    return ItemType.Credentials;
+            }
+        };
+
         reader.onload = () => {
-            const credentials: VaultUtilTypes.PartialCredential[] = [];
+            const credentials: Credential[] = [];
             const groups: Group[] = [];
 
             // NOTE: The whole thing is wrapped in a try-catch block because we need to reject the promise if something goes wrong
@@ -280,44 +314,43 @@ export const BitwardenJSON = (
                 const parsed = JSON.parse(json) as BitwardenJSON;
 
                 for (const item of parsed.items) {
-                    const credential: VaultUtilTypes.PartialCredential = {
-                        ID: undefined,
-                        Type: item.type,
-                        GroupID: item.folderId,
+                    const now = Date.now();
+                    const createdTimestamp = parseTimestamp(
+                        item.creationDate ?? item.revisionDate,
+                        now,
+                    );
+                    const modifiedTimestamp = parseTimestamp(
+                        item.revisionDate ?? item.passwordRevisionDate,
+                        createdTimestamp,
+                    );
+                    const passwordChangedTimestamp = parseTimestamp(
+                        item.passwordRevisionDate ??
+                            item.passwordHistory?.[0]?.lastUsedDate,
+                        createdTimestamp,
+                    );
+
+                    const credential: Credential = {
+                        ID: "",
+                        Version: 0,
+                        Type: mapBitwardenItemType(item.type),
+                        GroupID: item.folderId ?? "",
+                        Name: item.name ?? "Import",
+                        Username: item.login?.username ?? "",
+                        Password: item.login?.password ?? "",
+                        URL: item.login?.uris?.[0]?.uri ?? "",
+                        Notes: item.notes ?? "",
+
+                        // TODO: Remove these fields after August 2026
+                        DateCreated: "",
+                        DateModified: undefined,
+                        DatePasswordChanged: undefined,
+
+                        DateCreatedTimestamp: createdTimestamp,
+                        DateModifiedTimestamp: modifiedTimestamp,
+                        DatePasswordChangedTimestamp: passwordChangedTimestamp,
+                        Deleted: false,
                         CustomFields: [],
                     };
-
-                    // TODO: Set fields based on type (mainly type 4 - identity)
-
-                    credential.Name = item.name ?? "Import";
-
-                    if (item.login) {
-                        credential.Username = item.login.username ?? undefined;
-                        credential.Password = item.login.password ?? undefined;
-                        if (item.login.uris)
-                            credential.URL =
-                                item.login.uris[0]?.uri ?? undefined;
-                    }
-
-                    // No data to fill - credential.Tags
-
-                    credential.Notes = item.notes ?? undefined;
-
-                    // Use the DateCreated field if it exists (fall back to today) but set it to undefined if it doesn't
-                    credential.DateCreated = item.revisionDate
-                        ? new Date(item.revisionDate).toISOString()
-                        : undefined;
-
-                    credential.DateModified = item.passwordRevisionDate
-                        ? new Date(item.passwordRevisionDate).toISOString()
-                        : undefined;
-
-                    credential.DatePasswordChanged =
-                        item.passwordHistory && item.passwordHistory[0]
-                            ? new Date(
-                                  item.passwordHistory[0].lastUsedDate,
-                              ).toISOString()
-                            : undefined;
 
                     if (item.login?.totp) {
                         credential.TOTP = new TOTP();
@@ -326,9 +359,6 @@ export const BitwardenJSON = (
 
                     // Set custom fields
                     item.fields?.forEach((field) => {
-                        if (!credential.CustomFields)
-                            credential.CustomFields = [];
-
                         // Only import text, masked text and boolean fields
                         // The 3 type is for something called "linked fields" for which we don't have an equivalent
                         if (field.type < 3) {

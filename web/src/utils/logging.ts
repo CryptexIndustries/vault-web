@@ -7,7 +7,8 @@ export enum LogGroup {
     WebRTC = "WebRTC",
     Signaling = "Signaling",
     Synchronization = "Synchronization",
-    // UI = "UI",
+    UI = "UI",
+    Import = "Import",
     // Encryption = "Encryption",
     // Storage = "Storage",
     General = "General",
@@ -257,4 +258,20 @@ export const signalingLog = {
     info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.Signaling, message, data),
     warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.Signaling, message, data),
     error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.Signaling, message, data),
+};
+
+// Convenience functions for UI logging
+export const uiLog = {
+    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.UI, message, data),
+    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.UI, message, data),
+    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.UI, message, data),
+    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.UI, message, data),
+};
+
+// Convenience functions for Import logging
+export const importLog = {
+    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.Import, message, data),
+    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.Import, message, data),
+    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.Import, message, data),
+    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.Import, message, data),
 };

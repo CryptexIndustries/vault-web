@@ -1,5 +1,6 @@
 import { ulid } from "ulidx";
 import * as VaultUtilTypes from "./proto/vault";
+import { err, ok } from "neverthrow";
 
 /**
  * WebSocket signaling server connection status.
@@ -58,7 +59,6 @@ export const isRTCSessionDescriptionInit = (
 export enum SyncConnectionControllerEventType {
     ConnectionStatus,
     SynchronizationMessage,
-    VaultDataUpdate, // FIXME: Remove this, along with the event handler type and everything related to it
 }
 
 /**
@@ -74,13 +74,7 @@ export interface SignalingEventData {
  */
 export enum WebRTCMessageEventType {
     Synchronized,
-    ManualSyncNecessary,
     Error,
-}
-
-export interface VaultData {
-    credentials: VaultUtilTypes.Credential[];
-    diffs: VaultUtilTypes.Diff[];
 }
 
 /**
@@ -90,8 +84,6 @@ export type WebRTCEventDataPayload =
     | { type: SyncConnectionControllerEventType.ConnectionStatus, connectionState: WebRTCStatus }
     | { type: SyncConnectionControllerEventType.SynchronizationMessage, event: WebRTCMessageEventType.Error }
     | { type: SyncConnectionControllerEventType.SynchronizationMessage, event: WebRTCMessageEventType.Synchronized }
-    | { type: SyncConnectionControllerEventType.SynchronizationMessage, event: WebRTCMessageEventType.ManualSyncNecessary, data: ManualConflictResolutionDialogData }
-    | { type: SyncConnectionControllerEventType.VaultDataUpdate, data: VaultData } // FIXME: Remove this, along with the event handler type and everything related to it
 
 /**
  * <code>SyncConnectionController</code> emits events using this interface.
@@ -120,49 +112,156 @@ export type SCCWebRTCEventHandler = (
  * A class that represents a synchronization message.
  * A serialized version of this class is sent over a data channel to the remote device.
  */
-export class VaultItemSynchronizationMessage
-    implements VaultUtilTypes.VaultItemSynchronizationMessage
+export class SynchronizationEnvelope
+    implements VaultUtilTypes.SynchronizationEnvelope
 {
     ID: string;
     Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand;
-    Hash?: string;
-    Diffs: VaultUtilTypes.Diff[];
-    LinkedDevices: VaultUtilTypes.LinkedDevice[];
+    Payload: Uint8Array;
 
-    constructor(
-        id: null | string,
+    private constructor(
+        id: string,
         command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
-        hash?: string,
-        diffs?: VaultUtilTypes.Diff[],
-        linkedDevices?: VaultUtilTypes.LinkedDevice[],
+        payload: Uint8Array,
     ) {
         this.ID = id ?? ulid();
         this.Command = command;
-        this.Hash = hash;
-        this.Diffs = diffs ?? [];
-        this.LinkedDevices = linkedDevices ?? [];
+        this.Payload = payload;
     }
 
     public static deserialize(
         data: ArrayBuffer,
-    ): VaultItemSynchronizationMessage {
-        const decoded = VaultUtilTypes.VaultItemSynchronizationMessage.decode(
-            new Uint8Array(data),
-        );
+    ) {
+        let decoded: VaultUtilTypes.SynchronizationEnvelope;
+        try {
+            decoded = VaultUtilTypes.SynchronizationEnvelope.decode(
+                new Uint8Array(data),
+            );
+        } catch {
+            return err("SYNC_ENVELOPE_DESERIALIZATION_FAILED");
+        }
 
-        return new VaultItemSynchronizationMessage(
-            decoded.ID,
-            decoded.Command,
-            decoded.Hash,
-            decoded.Diffs,
-            decoded.LinkedDevices,
-        );
+        const message: SynchronizationEnvelope = {
+            ID: decoded.ID,
+            Command: decoded.Command,
+            Payload: decoded.Payload,
+        };
+
+        // Based on the command, deserialize the payload
+        switch (message.Command) {
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello:
+                try {
+                    const syncHelloMessage = VaultUtilTypes.SyncHelloMessage.decode(message.Payload);
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncHelloMessage,
+                    });
+                } catch {
+                    return err("SYNC_HELLO_DESERIALIZATION_FAILED");
+                }
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho:
+                try {
+                    const syncHelloEchoMessage = VaultUtilTypes.SyncHelloEchoMessage.decode(message.Payload);
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncHelloEchoMessage,
+                    });
+                } catch {
+                    return err("SYNC_HELLO_ECHO_DESERIALIZATION_FAILED");
+                }
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest:
+                try {
+                    const syncDataRequestMessage = VaultUtilTypes.SyncDataRequestMessage.decode(message.Payload);
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncDataRequestMessage,
+                    });
+                } catch {
+                    return err("SYNC_DATA_REQUEST_DESERIALIZATION_FAILED");
+                }
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse:
+                try {
+                    const syncDataResponseMessage = VaultUtilTypes.SyncDataResponseMessage.decode(message.Payload);
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncDataResponseMessage,
+                    });
+                } catch {
+                    return err("SYNC_DATA_RESPONSE_DESERIALIZATION_FAILED");
+                }
+            default:
+                return err("SYNC_INVALID_COMMAND");
+        }
     }
 
-    public serialize(): Uint8Array {
-        return VaultUtilTypes.VaultItemSynchronizationMessage.encode(
-            this,
+    public static serialize(instance: SynchronizationEnvelope): Uint8Array {
+        return VaultUtilTypes.SynchronizationEnvelope.encode(
+            instance,
         ).finish();
+    }
+
+    public static createSyncHelloMessage(versionVectors: VaultUtilTypes.VersionVector[]) {
+        const envelopeID = ulid();
+        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: envelopeID,
+            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
+            Payload: VaultUtilTypes.SyncHelloMessage.encode({
+                VersionVectors: versionVectors,
+            }).finish(),
+        }).finish();
+
+        return {
+            envelopeID,
+            data,
+        };
+    }
+
+    public static createSyncHelloEchoMessage(versionVectors: VaultUtilTypes.VersionVector[]) {
+        const envelopeID = ulid();
+        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: envelopeID,
+            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
+            Payload: VaultUtilTypes.SyncHelloEchoMessage.encode({
+                VersionVectors: versionVectors,
+            }).finish(),
+        }).finish();
+
+        return {
+            envelopeID,
+            data,
+        };
+    }
+
+    public static createSyncDataRequestMessage(itemIDs: string[]) {
+        const envelopeID = ulid();
+        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: envelopeID,
+            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
+            Payload: VaultUtilTypes.SyncDataRequestMessage.encode({
+                ItemIDs: itemIDs,
+            }).finish(),
+        }).finish();
+
+        return {
+            envelopeID,
+            data,
+        };
+    }
+
+    public static createSyncDataResponseMessage(envelopeID: string, credentials: VaultUtilTypes.Credential[]) {
+        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: envelopeID,
+            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
+            Payload: VaultUtilTypes.SyncDataResponseMessage.encode({
+                Credentials: credentials,
+            }).finish(),
+        }).finish();
+
+        return data;
     }
 }
 
@@ -184,7 +283,6 @@ export enum ManualSyncItemOption {
 export interface ManualConflictResolutionDialogData {
     ourCredentials: VaultUtilTypes.Credential[];
     theirCredentials: VaultUtilTypes.Credential[];
-    diffs: VaultUtilTypes.Diff[];
     dialogList: Map<string, ManualSyncItemOption>;
 }
 
@@ -195,6 +293,5 @@ export interface ManualConflictResolutionDialogData {
 export interface ManualConflictResolutionData {
     ourCredentials: VaultUtilTypes.Credential[];
     theirCredentials: VaultUtilTypes.Credential[];
-    differences: VaultUtilTypes.Diff[];
     userChoices: Map<string, ManualSyncItemOption>;
 }

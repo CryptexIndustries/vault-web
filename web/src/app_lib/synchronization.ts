@@ -1,4 +1,3 @@
-import { err, ok, type Result } from "neverthrow";
 import PusherAuth from "pusher";
 import Pusher, { type Channel } from "pusher-js";
 import { ulid } from "ulidx";
@@ -9,14 +8,11 @@ import { syncLog, signalingLog, webrtcLog } from "../utils/logging";
 import { createAuthHeader, trpc } from "../utils/trpc";
 import * as VaultUtilTypes from "./proto/vault";
 import {
-    ManualConflictResolutionData,
     ManualConflictResolutionDialogData,
-    ManualSyncItemOption,
     SignalingServerMessageType,
     SignalingStatus,
     SyncConnectionControllerEventType,
-    VaultData,
-    VaultItemSynchronizationMessage,
+    SynchronizationEnvelope,
     WebRTCMessageEventType,
     WebRTCStatus,
     isRTCSessionDescriptionInit,
@@ -24,25 +20,15 @@ import {
     type SCCWebRTCEventHandler,
     type SignalingServerMessage,
 } from "./synchronization-utils";
-import {
-    applyDiffs,
-    calculateMockedVaultHash,
-    credentialsAsDiffs,
-    getDiffsSinceHash,
-    hashCredential,
-    hashCredentials,
-    VaultCredential,
-    getCredentialChanges,
-} from "./vault-utils/vault";
-import dayjs from "dayjs";
+
 
 /**
  * Interface for vault operations that the VaultItemSynchronization class needs
  */
 export interface VaultOperations {
-    getCredentials(): Promise<VaultUtilTypes.Credential[]>;
-    getDiffs(): Promise<VaultUtilTypes.Diff[]>;
-    updateCredentialsAndDiffs(credentials: VaultUtilTypes.Credential[], diffs: VaultUtilTypes.Diff[]): Promise<void>;
+    getItemVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getItemCredentials(itemIDs: string[]): Promise<VaultUtilTypes.Credential[]>;
+    updateCredentials(credentials: VaultUtilTypes.Credential[]): Promise<void>;
     getSynchronizationConfig(): Promise<VaultUtilTypes.LinkedDevices>;
 }
 
@@ -1126,25 +1112,6 @@ export class SyncConnectionController {
         });
     }
 
-    public broadcastWebRTCManualSyncNecessaryEvent(
-        deviceID: string,
-        data: ManualConflictResolutionDialogData,
-    ) {
-        if (!this._webRTCStatus.has(deviceID)) return;
-
-        // Get the WebRTC status event handlers for the device ID
-        const deviceEventHandler = this._syncWebRTCEventHandlers.get(deviceID);
-
-        // In case there is no event handler for the device, we can just return
-        if (!deviceEventHandler) return;
-
-        deviceEventHandler({
-            type: SyncConnectionControllerEventType.SynchronizationMessage,
-            event: WebRTCMessageEventType.ManualSyncNecessary,
-            data,
-        });
-    }
-
     public broadcastWebRTCSynchronizedEvent(deviceID: string) {
         if (!this._webRTCStatus.has(deviceID)) return;
 
@@ -1165,35 +1132,14 @@ export class SyncConnectionController {
         });
     }
 
-    // FIXME: Remove this, along with the event handler type and everything related to it
-    public broadcastVaultDataUpdate(deviceID: string, vaultData: VaultData) {
-        if (!this._webRTCStatus.has(deviceID)) return;
-
-        // Get the WebRTC status event handlers for the device ID
-        const deviceEventHandler = this._syncWebRTCEventHandlers.get(deviceID);
-
-        // In case there is no event handler for the device, we can just return
-        if (!deviceEventHandler) return;
-
-        syncLog.info(
-            `Broadcasting vault data update`,
-            { deviceId: deviceID, credentialsCount: vaultData.credentials.length, diffsCount: vaultData.diffs.length }
-        );
-
-        deviceEventHandler({
-            type: SyncConnectionControllerEventType.VaultDataUpdate,
-            data: vaultData,
-        });
-    }
-
-    public transmitSyncRequest(deviceID: string) {
+    public transmitSyncHello(deviceID: string) {
         // Get the WebRTC connection for the device
         const webRTC = this._webRTConnections.get(deviceID);
 
         // If there is no WebRTC connection, we can't do anything
         if (!webRTC) {
             webrtcLog.warn(
-                `No WebRTC connection for sync request`,
+                `No WebRTC connection for sync hello`,
                 { deviceId: deviceID }
             );
 
@@ -1204,82 +1150,14 @@ export class SyncConnectionController {
         const dataChannel = webRTC.dataChannel;
         if (!dataChannel) {
             webrtcLog.warn(
-                `No data channel available for sync request`,
+                `No data channel available for sync hello`,
                 { deviceId: deviceID }
             );
 
             return;
         }
 
-        this._vaultItemSynchronization.transmitSyncRequest(deviceID, dataChannel);
-    }
-
-    /**
-     * Confirms the manual conflict resolution and applies the differences to the vault.
-     * @param deviceID The ID of the device to confirm the manual conflict resolution for
-     * @param data The data containing the credentials, differences, and user choices
-     */
-    public async confirmManualConflictResolution(
-        deviceID: string,
-        data: ManualConflictResolutionData,
-    ) {
-        syncLog.info(
-            `Confirmed manual conflict resolution`,
-            { deviceId: deviceID }
-        );
-
-        syncLog.debug(
-            `Manual conflict resolution data`,
-            { deviceId: deviceID, data: data }
-        );
-
-        const webRTC = this._webRTConnections.get(deviceID);
-
-        // If there is no WebRTC connection, we can't do anything
-        if (!webRTC) {
-            webrtcLog.error(
-                `ManualConflictResolution: No WebRTC connection for manual sync solve`,
-                { deviceId: deviceID }
-            );
-
-            this.broadcastWebRTCSyncErrorEvent(deviceID);
-            return;
-        }
-
-        const dataChannel = webRTC.dataChannel;
-        if (!dataChannel) {
-            webrtcLog.error(
-                `ManualConflictResolution: No data channel available for manual sync solve`,
-                { deviceId: deviceID }
-            );
-
-            this.broadcastWebRTCSyncErrorEvent(deviceID);
-            return;
-        }
-
-        const diffs = await this._vaultItemSynchronization.applyManualConflictResolution(
-            deviceID,
-            data.ourCredentials,
-            data.theirCredentials,
-            data.differences,
-            data.userChoices,
-        );
-
-        const resOurVault = await this._vaultItemSynchronization.applyDiffsToVault(diffs.diffsToApply);
-        if (resOurVault.isErr()) {
-            syncLog.error(
-                `ManualConflictResolution: Failed to apply diffs to our vault`,
-                { deviceId: deviceID, error: resOurVault.error }
-            );
-
-            this.broadcastWebRTCSyncErrorEvent(deviceID);
-            return;
-        }
-
-        await this._vaultItemSynchronization.sendManualConflictResolutionToRemoteDevice(
-            dataChannel,
-            diffs.diffsToSend,
-        );
+        this._vaultItemSynchronization.transmitSyncHello(deviceID, dataChannel);
     }
 }
 
@@ -1295,798 +1173,285 @@ class VaultItemSynchronization {
         this.context = context;
     }
 
-    private async getLatestVaultHash(): Promise<string> {
-        const creds = await this.vaultOps.getCredentials();
-        return await hashCredentials(creds);
-    }
-
     private updateLastSync(deviceID: string): void {
         // The actual device object field is modified by the Device UI component
         this.context.broadcastWebRTCSynchronizedEvent(deviceID);
     }
 
-    // FIXME: Remove this redundant function that helped refresh the UI, but ended up forking the vault save path
-    private updateCredentialsList(
-        deviceID: string,
-        credentials: VaultUtilTypes.Credential[],
-        diffs: VaultUtilTypes.Diff[],
-    ): void {
-        this.context.broadcastVaultDataUpdate(deviceID, {
-            credentials,
-            diffs,
-        });
-    }
+    public async transmitSyncHello(deviceID: string, dataChannel: RTCDataChannel): Promise<void> {
+        // TODO: For additional security, save the generated envelopeID so that we can validate responses from the remote device
+        const { envelopeID, data } = SynchronizationEnvelope.createSyncHelloMessage(
+            await this.vaultOps.getItemVersionVectors(),
+        );
 
-    public async transmitSyncRequest(deviceID: string, dataChannel: RTCDataChannel): Promise<void> {
         // Serialize the message and send it to the remote device
-        const message = new VaultItemSynchronizationMessage(
-            null,
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncRequest,
-            await this.getLatestVaultHash(),
-            [],
-            [],
-        );
-
-        dataChannel.send(message.serialize());
+        dataChannel.send(data);
 
         syncLog.debug(
-            `Sent a sync request message`,
-            { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
+            `Sent a sync hello message to the remote device`,
+            { messageId: envelopeID, deviceId: deviceID }
         );
-    }
-
-    /**
-     * Sends the diffs that the remote device needs to apply to its vault in order to resolve the manual conflict.
-     * @param deviceID 
-     * @param dataChannel The data channel to send the message through
-     * @param preparedDiffs The differences to send to the remote device
-     * @returns The prepared differences.
-     */
-    public async sendManualConflictResolutionToRemoteDevice(
-        dataChannel: RTCDataChannel,
-        preparedDiffs: VaultUtilTypes.Diff[],
-    ): Promise<void> {
-        const message = new VaultItemSynchronizationMessage(
-            null,
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand.ManualSyncSolve,
-            await this.getLatestVaultHash(),
-            preparedDiffs,
-        );
-
-        dataChannel.send(message.serialize());
-    }
-
-    /**
-     * Applies the differences to the vault and returns the credentials and diffs that were applied
-     * @param diffs The differences to apply to the vault
-     * @returns The credentials and diffs that were applied to the vault
-     */
-    public async applyDiffsToVault(diffs: VaultUtilTypes.Diff[]): Promise<Result<{credentials: VaultUtilTypes.Credential[], diffs: VaultUtilTypes.Diff[]}, string>> {
-        const currVaultCredentials = await this.vaultOps.getCredentials();
-        const currVaultDiffs = await this.vaultOps.getDiffs();
-
-        const res = await applyDiffs(currVaultCredentials, diffs);
-        if (res.isErr()) return err(res.error);
-
-        // Update the vault through callbacks
-        await this.vaultOps.updateCredentialsAndDiffs([...res.value.credentials], [...currVaultDiffs, ...res.value.diffs]);
-
-        return ok({
-            credentials: res.value.credentials,
-            diffs: res.value.diffs,
-        });
-    }
-
-    /**
-     * Prepares the differences for manual conflict resolution.
-     * Determines the differences between the two sets of credentials.
-     * If the credentials' IDs and hashes match, then the credentials are the same
-     * If the credentials' IDs match but the hashes don't, then we save that as a modification
-     * If their credential are not in our credentials list, then we save that as an addition
-     * If our credential are not in their credentials list, then we save that as removal
-     * @param diffs - The differences to prepare.
-     * @returns The prepared differences.
-     */
-    private async prepDiffsForManualConflictResolution(diffs: VaultUtilTypes.Diff[]): Promise<ManualConflictResolutionDialogData> {
-        const ourCredentials = await this.vaultOps.getCredentials();
-        const theirCredentials = diffs.map(i => i.Changes?.Props).filter(i => i != null) as VaultUtilTypes.Credential[];
-        const _differences: VaultUtilTypes.Diff[] = [];
-
-        const dialogList: Map<string, ManualSyncItemOption> = new Map();
-
-        const onDiffItemChoiceChange = (hash: string, diffType: VaultUtilTypes.DiffType) => {
-            let defaultChoice = ManualSyncItemOption.KeepBoth;
-            if (diffType === VaultUtilTypes.DiffType.Add || diffType === VaultUtilTypes.DiffType.Delete)
-                defaultChoice = ManualSyncItemOption.Keep;
-
-            dialogList.set(hash, defaultChoice);
-        }
-
-        for (const ourCredential of ourCredentials) {
-            const theirCredential = theirCredentials.find(
-                (theirCredential) => theirCredential.ID === ourCredential.ID,
-            );
-
-            // const ourHash = await ourCredential.hash();
-            const ourCredentialParsed = Object.assign(
-                new VaultCredential(),
-                ourCredential,
-            );
-            const theirCredentialParsed = theirCredential
-                ? Object.assign(new VaultCredential(), theirCredential)
-                : null;
-
-            // If we couldn't find the matching credential
-            if (!theirCredentialParsed) {
-                // Removal
-                const item = {
-                    Hash: await hashCredential(ourCredentialParsed),
-                    Changes: {
-                        Type: VaultUtilTypes.DiffType.Delete,
-                        ID: ourCredentialParsed.ID,
-                        Props: ourCredentialParsed,
-                    },
-                };
-
-                _differences.push(item);
-
-                onDiffItemChoiceChange(
-                    item.Hash,
-                    item.Changes.Type,
-                );
-
-                // Stop processing the credential
-                continue;
-            }
-
-            const ourHash = await hashCredential(ourCredentialParsed);
-            const theirHash = await hashCredential(theirCredentialParsed);
-            if (ourHash !== theirHash) {
-                // Modification
-                const _diff: VaultUtilTypes.Diff = {
-                    Hash: theirHash,
-                    Changes: {
-                        Type: VaultUtilTypes.DiffType.Update,
-                        ID: theirCredentialParsed.ID,
-                        Props: theirCredentialParsed,
-                    },
-                };
-                // TODO: Use this to show the changes in the UI
-                if (_diff.Changes && _diff.Changes.Props)
-                    _diff.Changes.Props.ChangeFlags = getCredentialChanges(
-                        ourCredentialParsed,
-                        theirCredentialParsed,
-                    )?.Props?.ChangeFlags;
-
-                if (_diff.Changes) {
-                    _differences.push(_diff);
-
-                    onDiffItemChoiceChange(
-                        _diff.Hash,
-                        _diff.Changes.Type,
-                    );
-                }
-            } else {
-                // Same
-            }
-        }
-
-        for (const theirCredential of theirCredentials) {
-            const ourCredential = ourCredentials.find(
-                (ourCredential) => ourCredential.ID === theirCredential.ID,
-            );
-
-            // If our version exists, stop processing this credential
-            // We're only processing the additions here
-            if (ourCredential) continue;
-
-            const theirCredentialParsed = Object.assign(
-                new VaultCredential(),
-                theirCredential,
-            );
-
-            // Addition
-            const item = {
-                Hash: await hashCredential(theirCredentialParsed),
-                Changes: {
-                    Type: VaultUtilTypes.DiffType.Add,
-                    ID: theirCredentialParsed.ID,
-                    Props: theirCredentialParsed,
-                },
-            };
-            _differences.push(item);
-
-            onDiffItemChoiceChange(
-                item.Hash,
-                item.Changes.Type,
-            );
-        }
-
-        return {
-            ourCredentials: ourCredentials,
-            theirCredentials: theirCredentials,
-            diffs: _differences,
-            dialogList: dialogList,
-        }
-    }
-
-    public async applyManualConflictResolution(
-        deviceID: string,
-        ourCredentials: VaultUtilTypes.Credential[],
-        theirCredentials: VaultUtilTypes.Credential[],
-        differences: VaultUtilTypes.Diff[],
-        userChoices: Map<string, ManualSyncItemOption>,
-    ) {
-        const diffsToApply: VaultUtilTypes.Diff[] = [];
-        const diffsToSend: VaultUtilTypes.Diff[] = [];
-
-        for (const [changeHash, changeType] of userChoices) {
-            const diff = differences.find((i) => i.Hash === changeHash);
-
-            if (!diff?.Changes) {
-                syncLog.warn(
-                    "ManualConflictResolution: Came across a diff without changes. This should never happen.",
-                    { deviceID: deviceID, changeType: changeType, diff: diff, userChoices: userChoices }
-                );
-                continue;
-            }
-
-            const theirCredential = theirCredentials.find(
-                (i) => i.ID === diff.Changes?.ID,
-            );
-            const ourCredential = ourCredentials.find(
-                (i) => i.ID === diff.Changes?.ID,
-            );
-
-            if (!theirCredential && !ourCredential) {
-                // Hold yer horses!
-                syncLog.warn(
-                    "[ManualSynchronizationDialog] Found a diff that is not present in either of the vaults. This should never happen.",
-                    { deviceID: deviceID, changeType: changeType, diff: diff, userChoices: userChoices }
-                );
-                continue;
-            }
-
-            if (changeType === ManualSyncItemOption.Keep) {
-                diff.Changes.Type = VaultUtilTypes.DiffType.Add;
-                diff.Changes.Props = ourCredential ?? theirCredential;
-
-                if (theirCredential) {
-                    // Need to generate an "Add" diff for this vault
-                    diffsToApply.push(diff);
-                } else if (ourCredential) {
-                    // Need to generate an "Add" diff for the other vault
-                    diffsToSend.push(diff);
-                }
-            } else if (changeType === ManualSyncItemOption.Remove) {
-                diff.Changes.Type = VaultUtilTypes.DiffType.Delete;
-                diff.Changes.Props = undefined;
-
-                if (theirCredential) {
-                    // Need to send a "Remove" diff for the other vault
-                    diffsToSend.push(diff);
-                }
-
-                if (ourCredential) {
-                    // Need to send a "Remove" diff for this vault
-                    diffsToApply.push(diff);
-                }
-            } else if (changeType === ManualSyncItemOption.KeepOurs) {
-                if (!diff.Changes?.Props) {
-                    syncLog.warn(
-                        "ManualConflictResolution: Modify diff had no Props.",
-                        { deviceID: deviceID, changeType: changeType, diff: diff, userChoices: userChoices }
-                    );
-                    continue;
-                }
-
-                const c = Object.assign(diff.Changes.Props, ourCredential);
-                diff.Changes.Props = c;
-
-                diffsToSend.push(diff);
-            } else if (changeType === ManualSyncItemOption.KeepTheirs) {
-                if (!diff.Changes?.Props) {
-                    syncLog.warn(
-                        "ManualConflictResolution: Modify diff had no Props.",
-                        { changeType: changeType, diff: diff, userChoices: userChoices }
-                    );
-                    continue;
-                }
-
-                const c = Object.assign(diff.Changes.Props, theirCredential);
-                diff.Changes.Props = c;
-
-                diffsToApply.push(diff);
-            } else if (changeType === ManualSyncItemOption.KeepBoth) {
-                // Remove the item from both vaults
-                diff.Changes.Type = VaultUtilTypes.DiffType.Delete;
-                diff.Changes.Props = undefined;
-                diffsToApply.push(diff);
-                diffsToSend.push(diff);
-
-                const craftDiff = async (credential: VaultCredential) => {
-                    let freshCredential = Object.assign({}, credential);
-
-                    // Remove the ID from the credential so we generate a fresh one
-                    freshCredential.ID = "";
-                    freshCredential.Name = `${freshCredential.Name} [${dayjs(freshCredential.DateModified ?? new Date()).toString()}]`;
-                    freshCredential = new VaultCredential(freshCredential);
-
-                    // Generate a fresh diff skeleton
-                    const newDiff = Object.assign({}, diff);
-                    newDiff.Hash = await hashCredential(freshCredential);
-
-                    // Generate an addition diff
-                    newDiff.Changes = {
-                        Type: VaultUtilTypes.DiffType.Add,
-                        ID: freshCredential.ID,
-                        Props: freshCredential,
-                    };
-                    return newDiff;
-                };
-
-                // Add our item to both vaults
-                if (ourCredential) {
-                    const newDiff = await craftDiff(ourCredential);
-                    diffsToApply.push(newDiff);
-                    diffsToSend.push(newDiff);
-                }
-
-                // Add their item to both vaults
-                if (theirCredential) {
-                    const newDiff = await craftDiff(theirCredential);
-                    diffsToApply.push(newDiff);
-                    diffsToSend.push(newDiff);
-                }
-            } else {
-                syncLog.error(
-                    "ManualConflictResolution: Came across an invalid diff item choice. Skipping item.",
-                    { changeType: changeType, diff: diff, userChoices: userChoices }
-                );
-
-                // Even though this is a recoverable error, we still signal to the UI that something went wrong
-                this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-            }
-        }
-
-        syncLog.debug(
-            "ManualConflictResolution: Diffs to apply and send",
-            { 
-                diffsToApply: diffsToApply.map((i) => VaultUtilTypes.DiffType[i.Changes?.Type ?? 0]),
-                diffsToSend: diffsToSend.map((i) => VaultUtilTypes.DiffType[i.Changes?.Type ?? 0])
-            },
-        );
-
-        return {
-            diffsToApply: diffsToApply,
-            diffsToSend: diffsToSend,
-        };
     }
 
     public async onDataChannelMessage(
-        deviceID: string,
+        remoteDeviceID: string,
         dataChannel: RTCDataChannel,
         event: MessageEvent,
     ): Promise<void> {
-        // TODO: Proper err handling here for the deserialization step
-        const deserializedMessage = VaultItemSynchronizationMessage.deserialize(
+        const deserializedMessageResult = SynchronizationEnvelope.deserialize(
             event.data,
         );
 
-        // If the command is not a valid enum value, log an error and return
-        if (
-            !VaultUtilTypes.VaultItemSynchronizationMessageCommand[
-                deserializedMessage.Command
-            ]
-        ) {
+        if (deserializedMessageResult.isErr()) {
+            const error = deserializedMessageResult.error;
             syncLog.error(
-                "Received an invalid sync message command",
-                { messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, message: deserializedMessage }
+                "Failed to deserialize sync message",
+                { 
+                    error: error, 
+                    data: event.data,
+                    deviceId: remoteDeviceID,
+                }
             );
+
+            this.context.broadcastWebRTCSyncErrorEvent(remoteDeviceID);
             return;
         }
 
-        const command = deserializedMessage.Command;
+        const deserializedMessage = deserializedMessageResult.value;
+
+        const command = deserializedMessage.command;
         const commandString = VaultUtilTypes.VaultItemSynchronizationMessageCommand[command];
 
         syncLog.debug(
             `Received a valid sync message: '${commandString}'`,
-            { messageId: deserializedMessage.ID, command: command, deviceId: deviceID }
+            { messageId: deserializedMessage.id, command: commandString, deviceId: remoteDeviceID }
         );
 
-        const currentVaultHash = await this.getLatestVaultHash();
-
-        if (
-            command ===
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                    .SyncRequest &&
-            deserializedMessage.Hash != null // NOTE: Maybe pull this check out
-        ) {
-            // Sync case 1
-            if (deserializedMessage.Hash === currentVaultHash) {
-                const message = new VaultItemSynchronizationMessage(
-                    deserializedMessage.ID,
-                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                    currentVaultHash,
+        switch (command) {
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello:
+                // Send the SyncHello back
+                const envelope = SynchronizationEnvelope.createSyncHelloEchoMessage(
+                    await this.vaultOps.getItemVersionVectors(),
                 );
-
-                dataChannel.send(message.serialize());
-                this.updateLastSync(deviceID);
-
+                dataChannel.send(envelope.data);
                 syncLog.debug(
-                    "[Case 1] Sent a sync response message",
-                    { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
+                    `Sent a sync hello echo message to the remote device`,
+                    { messageId: envelope.envelopeID, deviceId: remoteDeviceID }
                 );
 
-                return;
-            }
+                await this.handleSyncHelloMessage(remoteDeviceID, dataChannel, deserializedMessage.id, deserializedMessage.data);
+                break;
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest:
+                await this.handleSyncDataRequestMessage(remoteDeviceID, dataChannel, deserializedMessage.id, deserializedMessage.data);
+                break;
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse:
+                await this.handleSyncDataResponseMessage(remoteDeviceID, dataChannel, deserializedMessage.id, deserializedMessage.data);
+                break;
+            
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho:
+                // NOTE: This is a response to our SyncHello message, treat it as a regular SyncHello message, but without sending a response back
+                await this.handleSyncHelloMessage(remoteDeviceID, dataChannel, deserializedMessage.id, deserializedMessage.data);
+                break;
 
-            // Sync case 3 - we're behind
-            if (deserializedMessage.Diffs.length) {
-                const mockedVault = await calculateMockedVaultHash(
-                    await this.vaultOps.getCredentials(),
-                    deserializedMessage.Diffs,
+            // NOTE: Envelope deserialization will handle the invalid command case, but have this here for completeness
+            default:
+                syncLog.error(
+                    "Received an invalid sync message command after envelope deserialization. A sync message handler is not implemented for this command.",
+                    { command: commandString, deviceId: remoteDeviceID, message: deserializedMessage }
                 );
-
-                if (mockedVault.isErr()) {
-                    syncLog.error(
-                        "[Case 3] Sync request - test apply failed, mocked vault hash calculation failed",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            message: deserializedMessage, error: mockedVault.error
-                        }
-                    );
-                    this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                    return;
-                }
-
-                if (mockedVault.value === deserializedMessage.Hash) {
-                    syncLog.info(
-                        "[Case 3] Sync request - test apply passed, applying diffs",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            diffsCount: deserializedMessage.Diffs.length
-                        }
-                    );
-
-                    const applyRes = await this.applyDiffsToVault(
-                        deserializedMessage.Diffs,
-                    );
-                    if (applyRes.isErr()) {
-                        syncLog.error(
-                            "[Case 3] Failed to apply diffs to vault",
-                            { 
-                                messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                                message: deserializedMessage, error: applyRes.error
-                            }
-                        );
-                        this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                        return;
-                    }
-                    syncLog.info(
-                        "[Case 3] Successfully applied diffs, updating credentials",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID,
-                            credentialsCount: applyRes.value.credentials.length
-                        }
-                    );
-
-                    // FIXME: REMOVE THIS BS PLS
-                    this.updateCredentialsList(
-                        deviceID,
-                        applyRes.value.credentials,
-                        applyRes.value.diffs,
-                    );
-                    this.updateLastSync(deviceID);
-
-                    // Send a SyncRequest message to the other device so that it updates the last sync date
-                    await this.transmitSyncRequest(deviceID, dataChannel);
-                } else {
-                    syncLog.warn(
-                        "[Case 3] Sync request - test apply failed, hash mismatch",
-                        { 
-                           messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID,
-                           expectedHash: deserializedMessage.Hash, calculatedHash: mockedVault.value, message: deserializedMessage
-                        }
-                    );
-                    this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                }
                 return;
-            }
+        }
+    }
 
-            // Sync case 2 - we're ahead - try to find the differences
-            const differences = getDiffsSinceHash(
-                deserializedMessage.Hash,
-                (await this.vaultOps.getDiffs()),
+    private async handleSyncHelloMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        message: VaultUtilTypes.SyncHelloMessage,
+    ) {
+        const versionVectors = message.VersionVectors;
+
+        syncLog.info(
+            `Received a sync hello message from the remote device`,
+            { envelopeId: envelopeID, versionVectors: versionVectors, deviceId: remoteDeviceID }
+        );
+
+        // Compare the version vectors with the local version vectors so that we can determine if we need to send a sync data request message
+        const localVersionVectors = await this.vaultOps.getItemVersionVectors();
+
+        const versionVectorsMatchingIDs = versionVectors.filter(vector => localVersionVectors.some(localVector => localVector.ID === vector.ID));
+        const versionVectorsNotMatchingLocalVersionVectors = versionVectors.filter(vector => !localVersionVectors.some(localVector => localVector.ID === vector.ID));
+        // const ourVersionVectorsNotMatchingRemoteVersionVectors = localVersionVectors.filter(vector => !versionVectors.some(remoteVector => remoteVector.ID === vector.ID));
+
+        syncLog.debug(
+            "Version vectors matching IDs",
+            { envelopeId: envelopeID, versionVectorsMatchingIDsCount: versionVectorsMatchingIDs.length, versionVectorsMatchingIDs, deviceId: remoteDeviceID }
+        );
+        syncLog.debug(
+            "Version vectors not matching local version vectors",
+            { envelopeId: envelopeID, versionVectorsNotMatchingLocalVersionVectorsCount: versionVectorsNotMatchingLocalVersionVectors.length, versionVectorsNotMatchingLocalVersionVectors, deviceId: remoteDeviceID }
+        );
+        // syncLog.debug(
+        //     `Version vectors not matching remote version vectors: ${ourVersionVectorsNotMatchingRemoteVersionVectors.length}`,
+        //     { envelopeId: envelopeID, ourVersionVectorsNotMatchingRemoteVersionVectorsCount: ourVersionVectorsNotMatchingRemoteVersionVectors.length, deviceId: deviceID }
+        // );
+
+        const idsToRequest: string[] = [];
+
+        // Add the version vectors that are not matching IDs to the IDs to request
+        // NOTE: This is a list of IDs that we don't have locally, but the remote device does
+        if (versionVectorsNotMatchingLocalVersionVectors.length > 0) {
+            idsToRequest.push(...versionVectorsNotMatchingLocalVersionVectors.map(vector => vector.ID));
+            syncLog.debug(
+                "IDs to request",
+                { envelopeId: envelopeID, idsToRequestCount: idsToRequest.length, idsToRequest, deviceId: remoteDeviceID }
             );
-            // Sync case 2 - If we find any differences, we're ahead
-            if (differences.length > 0) {
-                const message = new VaultItemSynchronizationMessage(
-                    deserializedMessage.ID,
-                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                    currentVaultHash,
-                    differences,
-                );
-
-                dataChannel.send(message.serialize());
-
-                syncLog.debug("[Case 2] Sent a sync response message with differences", 
-                    { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                );
-            } else {
-                // Sync case 3, 4 - we don't know about this hash - we're out of sync
-                const message = new VaultItemSynchronizationMessage(
-                    deserializedMessage.ID,
-                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                    currentVaultHash,
-                );
-                dataChannel.send(message.serialize());
-
-                syncLog.debug("[Case 3/4] Sent a sync response message without differences", 
-                    { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                );
-            }
         }
 
-        // Sync case 4 - got here from ManualSyncDataRequest
-        if (
-            command ===
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                    .SyncResponse &&
-            deserializedMessage.Hash == null &&
-            deserializedMessage.Diffs?.length
-        ) {
-            syncLog.info(
-                "[Case 4] Received ManualSyncDataRequest response - manual sync required",
+        // NOTE: We're not sending any credentials to the remote device in this message.
+
+        // Compare the versions of the version vectors that are matching IDs
+        const versionsLargerThanLocal = versionVectorsMatchingIDs.filter(vector => {
+            // NOTE: Asserting that the local version vector exists because we filtered out the version vectors that don't match IDs
+            const localVersion = localVersionVectors.find(localVector => localVector.ID === vector.ID)!.Version;
+            return localVersion < vector.Version;
+        });
+        if (versionsLargerThanLocal.length > 0) {
+            idsToRequest.push(...versionsLargerThanLocal.map(vector => vector.ID));
+            syncLog.debug(
+                "Version vectors matching IDs but with local version lower than remote version",
+                { envelopeId: envelopeID, versionsLargerThanLocalCount: versionsLargerThanLocal.length, versionsLargerThanLocal, deviceId: remoteDeviceID }
+            );
+        }
+
+        // Compare the hashes of the version vectors that are matching IDs and have the same version
+        const hashesNotMatching = versionVectorsMatchingIDs.filter(
+            vector => 
+                localVersionVectors.find(
+                    localVector => localVector.ID === vector.ID
+                )?.Version === vector.Version &&
+                localVersionVectors.find(
+                    localVector => localVector.ID === vector.ID
+                )?.Hash !== vector.Hash
+        );
+        if (hashesNotMatching.length > 0) {
+            // Pseudo code:
+            // if remote.datemodifiedtimestamp > local.datemodifiedtimestamp, then we need to request the item
+            // else if remote.datemodifiedtimestamp < local.datemodifiedtimestamp, then we need to ignore it and the remote will request it from us
+            // else, sort the deviceIDs lexicographically and request the item from the lowest deviceID
+
+            const ourDeviceID = (await this.vaultOps.getSynchronizationConfig()).ID;
+
+            const itemsToRequest = hashesNotMatching.filter(vector => {
+                const remoteVector = versionVectors.find(v => v.ID === vector.ID);
+                const localVector = localVersionVectors.find(v => v.ID === vector.ID);
+                if (
+                    remoteVector?.DateModifiedTimestamp == null ||
+                    localVector?.DateModifiedTimestamp == null
+                ) {
+                    return false;
+                }
+
+                if (remoteVector.DateModifiedTimestamp > localVector.DateModifiedTimestamp)
+                    return true;
+                else if (remoteVector.DateModifiedTimestamp < localVector.DateModifiedTimestamp)
+                    return false;
+                else
+                    // Sort the deviceIDs lexicographically and request the item from the lowest deviceID
+                    return remoteDeviceID < ourDeviceID;
+            });
+
+            syncLog.debug(
+                "Version vectors matching IDs, have the same version, but with different hashes. Items to request",
                 { 
-                    messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                    diffsCount: deserializedMessage.Diffs.length, message: deserializedMessage 
+                    envelopeId: envelopeID, 
+                    itemsToRequestCount: itemsToRequest.length, 
+                    itemsToRequest, 
+                    deviceId: remoteDeviceID, 
+                    remoteDeviceIdLowerThanOurDeviceId: remoteDeviceID < ourDeviceID
                 }
             );
 
-            const prep = await this.prepDiffsForManualConflictResolution(deserializedMessage.Diffs);
-
-            this.context.broadcastWebRTCManualSyncNecessaryEvent(
-                deviceID,
-                prep,
-            );
-
-            return;
+            idsToRequest.push(...itemsToRequest.map(vector => vector.ID));
         }
 
-        if (
-            command ===
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                    .SyncResponse &&
-            deserializedMessage.Hash != null // NOTE: Maybe pull this check out
-        ) {
-            // Sync case 1
-            if (deserializedMessage.Hash === currentVaultHash) {
-                // We're in sync
-                syncLog.info(
-                    "[Case 1] Received sync response - vaults are in sync",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        hash: currentVaultHash
-                    }
-                );
+        if (idsToRequest.length > 0) {
+            const { envelopeID: syncDataRequestEnvelopeID, data } = SynchronizationEnvelope.createSyncDataRequestMessage(
+                idsToRequest,
+            );
 
-                // Update the last sync date
-                this.updateLastSync(deviceID);
-                return;
-            }
+            // TODO: Same envelopeID must appear on the SyncDataResponse message. Implement at a later stage.
+
+            dataChannel.send(data);
 
             syncLog.info(
-                "[Case 2/3/4] Received sync response - vaults are out of sync",
-                { 
-                    messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                    localHash: currentVaultHash, remoteHash: deserializedMessage.Hash, hasDiffs: deserializedMessage.Diffs.length > 0 
-                }
+                "Sent a sync data request message to the remote device",
+                { envelopeId: envelopeID, syncDataRequestEnvelopeID, idsToRequest: idsToRequest, deviceId: remoteDeviceID }
             );
-
-            // Sync case 3, 4 - we only got a hash and no diffs
-            if (!deserializedMessage.Diffs.length) {
-                const differences = getDiffsSinceHash(
-                    deserializedMessage.Hash,
-                    (await this.vaultOps.getDiffs()),
-                );
-
-                if (differences.length) {
-                    // Sync case 3 - We have differences - send them
-                    const message = new VaultItemSynchronizationMessage(
-                        deserializedMessage.ID,
-                        VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncRequest,
-                        currentVaultHash,
-                        differences,
-                    );
-                    dataChannel.send(message.serialize());
-
-                    syncLog.debug("[Case 3] Sent a sync request message with differences", 
-                        { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                    );
-                } else {
-                    // Sync case 4 - we've diverged and need to trigger manual synchronization
-                    const message = new VaultItemSynchronizationMessage(
-                        deserializedMessage.ID,
-                        VaultUtilTypes.VaultItemSynchronizationMessageCommand.ManualSyncDataRequest,
-                    );
-                    dataChannel.send(message.serialize());
-
-                    syncLog.debug("[Case 4] Sent a manual sync data request message since we could not find a common hash", 
-                        { messageId: message.ID, command: message.Command, deviceId: deviceID }
-                    );
-                }
-
-                return;
-            }
-
-            // Sync case 2 - our hashes don't match, got diffs - we're out of sync
-            const mockedVault = await calculateMockedVaultHash(
-                await this.vaultOps.getCredentials(),
-                deserializedMessage.Diffs,
+        } else {
+            syncLog.info(
+                "No IDs to request, skipping sync data request message",
+                { envelopeId: envelopeID, deviceId: remoteDeviceID }
             );
-
-            if (mockedVault.isErr()) {
-                syncLog.error(
-                    "[Case 2] Sync response - mocked vault hash calculation failed",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        message: deserializedMessage, error: mockedVault.error 
-                    }
-                );
-                this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                return;
-            }
-
-            if (mockedVault.value === deserializedMessage.Hash) {
-                syncLog.debug(
-                    "[Case 2] Sync response - mocked vault hash calculation passed, applying diffs",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        diffsCount: deserializedMessage.Diffs.length
-                    }
-                );
-
-                const applyRes = await this.applyDiffsToVault(
-                    deserializedMessage.Diffs,
-                );
-                if (applyRes.isErr()) {
-                    syncLog.error(
-                        "[Case 2] Failed to apply diffs to vault",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            message: deserializedMessage, error: applyRes.error 
-                        }
-                    );
-                    this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                    return;
-                }
-                syncLog.info(
-                    "[Case 2] Successfully applied diffs, updating credentials",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        credentialsCount: applyRes.value.credentials.length 
-                    }
-                );
-
-                // FIXME: REMOVE THIS BS PLS
-                this.updateCredentialsList(
-                    deviceID,
-                    applyRes.value.credentials,
-                    applyRes.value.diffs,
-                );
-
-                this.updateLastSync(deviceID);
-
-                // Send a SyncRequest message to the other device so that it updates the last sync date
-                await this.transmitSyncRequest(deviceID, dataChannel);
-            } else {
-                syncLog.error(
-                    "[Case 2] Sync response - test apply failed, hash mismatch",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        expectedHash: deserializedMessage.Hash, calculatedHash: mockedVault.value, message: deserializedMessage 
-                    }
-                );
-                this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-            }
+            this.updateLastSync(remoteDeviceID);
         }
 
-        if (
-            command ===
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                .ManualSyncDataRequest
-        ) {
-            // Sync case 4 - Send the vault content (diff format), no hash - SyncResponse
-            const message = new VaultItemSynchronizationMessage(
-                deserializedMessage.ID,
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                undefined,
-                await credentialsAsDiffs(await this.vaultOps.getCredentials()),
-            );
-            dataChannel.send(message.serialize());
+        return {
+            versionVectorsMatchingIDs,
+            versionVectorsNotMatchingLocalVersionVectors,
+            versionsLargerThanLocal,
+            hashesNotMatching,
+            idsToRequest,
+        };
+    }
 
-            syncLog.debug("[Case 4] Sent a manual sync data request message", 
-                { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-            );
-        }
+    private async handleSyncDataRequestMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        message: VaultUtilTypes.SyncDataRequestMessage,
+    ) {
+        const itemIDs = message.ItemIDs;
 
-        if (
-            command ===
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                .ManualSyncSolve
-        ) {
-            // Duplicated sync case 2. solution @ SyncResponse
-            const mockedVault = await calculateMockedVaultHash(
-                await this.vaultOps.getCredentials(),
-                deserializedMessage.Diffs,
-            );
+        syncLog.info(
+            "Received a sync data request message from the remote device",
+            { envelopeId: envelopeID, itemIDsCount: itemIDs.length, itemIDs, deviceId: remoteDeviceID }
+        );
 
-            if (mockedVault.isErr()) {
-                syncLog.error(
-                    "[Manual Sync] Manual sync solve - mocked vault hash calculation failed",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        message: deserializedMessage, error: mockedVault.error
-                    }
-                );
-                this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                return;
-            }
+        const credentials = await this.vaultOps.getItemCredentials(itemIDs);
+        
+        const envelope = SynchronizationEnvelope.createSyncDataResponseMessage(
+            envelopeID,
+            credentials,
+        );
 
-            if (mockedVault.value === deserializedMessage.Hash) {
-                syncLog.debug(
-                    "[Manual Sync] Manual sync solve - test apply passed, applying diffs",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        diffsCount: deserializedMessage.Diffs.length 
-                    }
-                );
+        dataChannel.send(envelope);
 
-                const applyRes = await this.applyDiffsToVault(
-                    deserializedMessage.Diffs,
-                );
-                if (applyRes.isErr()) {
-                    syncLog.error(
-                        "[Manual Sync] Failed to apply diffs to vault",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            message: deserializedMessage, error: applyRes.error 
-                        }
-                    );
-                    this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-                    return;
-                }
-                syncLog.info(
-                    "[Manual Sync] Successfully applied diffs, updating credentials",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        credentialsCount: applyRes.value.credentials.length 
-                    }
-                );
+        syncLog.info(
+            "Sent a sync data response message to the remote device",
+            { envelopeId: envelopeID, itemIDsCount: itemIDs.length, itemIDs, deviceId: remoteDeviceID }
+        );
+    }
 
-                // FIXME: REMOVE THIS BS PLS
-                this.updateCredentialsList(
-                    deviceID,
-                    applyRes.value.credentials,
-                    applyRes.value.diffs,
-                );
+    private async handleSyncDataResponseMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        message: VaultUtilTypes.SyncDataResponseMessage,
+    ) {
+        const credentials = message.Credentials;
 
-                this.updateLastSync(deviceID);
+        syncLog.info(
+            "Received a sync data response message from the remote device",
+            { envelopeId: envelopeID, credentialsCount: credentials.length, credentials, deviceId: remoteDeviceID }
+        );
 
-                // Send a SyncRequest message to the other device so that it updates the last sync date
-                await this.transmitSyncRequest(deviceID, dataChannel);
-            } else {
-                syncLog.error(
-                    "[Manual Sync] Manual sync solve - test apply failed, hash mismatch",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        expectedHash: deserializedMessage.Hash, calculatedHash: mockedVault.value, message: deserializedMessage 
-                    }
-                );
+        await this.vaultOps.updateCredentials(credentials);
 
-                this.context.broadcastWebRTCSyncErrorEvent(deviceID);
-            }
-        }
+        syncLog.info(
+            "Updated credentials in the vault",
+            { envelopeId: envelopeID, credentialsCount: credentials.length, credentials, deviceId: remoteDeviceID }
+        );
+        this.updateLastSync(remoteDeviceID);
     }
 }

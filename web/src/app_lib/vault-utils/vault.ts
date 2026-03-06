@@ -19,15 +19,13 @@ export class Vault implements VaultUtilTypes.Vault {
     /*
      * NOTE: This property is **not** serialized and saved in the vault
      */
-    private LATEST_VERSION = 2;
+    private LATEST_VERSION = 3;
 
     public Version: number;
     public CurrentVersion = 0;
-    public Configuration: Configuration = new Configuration();
     public LinkedDevices: LinkedDevices;
     public Groups: Group[] = [];
     public Credentials: VaultCredential[];
-    public Diffs: VaultUtilTypes.Diff[] = [];
 
     constructor(seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
@@ -56,12 +54,38 @@ export class Vault implements VaultUtilTypes.Vault {
                 `Upgrading Vault object to version 2 (from version ${this.CurrentVersion})...`,
             );
             // Clear the list of diffs
-            this.Diffs = [];
+            // this.Diffs = [];
 
             // Set the current version to 2
             this.CurrentVersion = 2;
 
             console.warn("Upgraded Vault object to version 2.");
+        }
+
+        /**
+         * Version 3
+         *  - Upgrade reasons:
+         *      - Introduced new schema for VersionVector objects, revamped the way version vectors are stored
+         *      - Deprecated the DateCreated, DateModified and DatePasswordChanged properties
+         *      - Added new properties for the dates to store the Unix timestamps instead of ISO strings
+         */
+        if (this.CurrentVersion < 3 && this.Version < 3) {
+            console.warn(
+                `Upgrading Vault object to version 3 (from version ${this.CurrentVersion})...`,
+            );
+
+            // Make sure that the DateCreated, DateModified and DatePasswordChanged properties are converted to Unix timestamps 
+            // and saved to the DateCreatedTimestamp, DateModifiedTimestamp and DatePasswordChangedTimestamp properties
+            this.Credentials.forEach((cred) => {
+                cred.DateCreatedTimestamp = new Date(cred.DateCreated).getTime();
+                cred.DateModifiedTimestamp = cred.DateModified ? new Date(cred.DateModified).getTime() : cred.DateCreatedTimestamp;
+                cred.DatePasswordChangedTimestamp = cred.DatePasswordChanged ? new Date(cred.DatePasswordChanged).getTime() : cred.DateCreatedTimestamp;
+            });
+
+            // Set the current version to 3
+            this.CurrentVersion = 3;
+        
+            console.warn("Upgraded Vault object to version 3.");
         }
     }
 
@@ -334,41 +358,6 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
     }
 }
 
-/**
- * Configuration options for the vault.
- */
-export class Configuration implements VaultUtilTypes.Configuration {
-    /**
-     * The maximum number of diffs to store in the vault.
-     * This is used to minimize the amount of user interaction required when syncing.
-     * It is set to a fixed number in order to prevent the vault from growing too large.
-     * NOTE: This is serialized and saved in the vault, so changing the value here will not affect existing vaults.
-     * @default 500
-     */
-    public MaxDiffCount = 500;
-
-    /**
-     * Whether or not to save only the latest diff when no linked devices are available.
-     * This is used to minimize the amount of storage space used by the vault when there are no linked devices.
-     * @default true
-     */
-    public SaveOnlyLatestDiffWhenNoLinked = true;
-
-    /**
-     * Whether or not to inhibit diff generation.
-     * This is mainly used when testing to ease the load on the CPU.
-     * @default false
-     */
-    public InhibitDiffGeneration = false;
-
-    public static setMaxDiffCount(
-        instance: Configuration,
-        count: number,
-    ): void {
-        instance.MaxDiffCount = Math.abs(count);
-    }
-}
-
 export class Group implements VaultUtilTypes.Group, GroupSchemaType {
     public ID: string;
     public Name: string;
@@ -445,9 +434,9 @@ export const CredentialFormSchema = z.object({
     Tags: z.string().optional(),
     URL: z.string(),
     Notes: z.string(),
-    DateCreated: z.string().optional(), // Used only in diffing
-    DateModified: z.string().optional(), // Used only in diffing
-    DatePasswordChanged: z.string().optional(), // Used only in diffing
+    // DateCreated: z.string().optional(), // Used only in diffing
+    // DateModified: z.string().optional(), // Used only in diffing
+    // DatePasswordChanged: z.string().optional(), // Used only in diffing
     CustomFields: z.array(
         z.object({
             ID: z.string(),
@@ -471,14 +460,27 @@ export class VaultCredential
     public Tags?: string | undefined;
     public URL: string;
     public Notes: string;
-    public DateCreated: string;
+
+    /**
+     * NOTE: These fields are deprecated and can be removed after August 2026
+     * @deprecated
+     */
+    public DateCreated: string = new Date().toISOString();
+    /** @deprecated */
     public DateModified?: string | undefined;
+    /** @deprecated */
     public DatePasswordChanged?: string | undefined;
+
     public CustomFields: CustomField[];
     public Hash?: string | undefined;
+    public Version: number;
+    public DateCreatedTimestamp: number;
+    public DateModifiedTimestamp: number;
+    public DatePasswordChangedTimestamp: number;
+    public Deleted = false;
 
     constructor(
-        form?: CredentialFormSchemaType | VaultUtilTypes.PartialCredential,
+        form?: CredentialFormSchemaType
     ) {
         this.ID = form?.ID ? String(form.ID).trim() : ulid();
 
@@ -487,7 +489,7 @@ export class VaultCredential
 
         this.Name = form?.Name ? String(form.Name).trim() : "Unnamed item";
         this.Username = form?.Username ? String(form.Username).trim() : "";
-        this.Password = form?.Password ? String(form.Password).trim() : "";
+        this.Password = form?.Password ? String(form.Password) : "";
         // TODO: Remove this object assignment
         this.TOTP = form?.TOTP
             ? Object.assign(new TOTP(), form.TOTP)
@@ -496,117 +498,43 @@ export class VaultCredential
         this.URL = form?.URL ? String(form.URL).trim() : "";
         this.Notes = form?.Notes ? String(form.Notes).trim() : "";
 
-        this.DateCreated = form?.DateCreated ?? new Date().toISOString();
-        this.DateModified = form?.DateModified ?? undefined;
-        this.DatePasswordChanged = form?.DatePasswordChanged ?? undefined;
+        // The version is 0 for new credentials. This is to be incremented when the credential is modified.
+        this.Version = 0;
+
+        this.DateCreatedTimestamp = Date.now();
+        this.DateModifiedTimestamp = Date.now();
+        this.DatePasswordChangedTimestamp = Date.now();
 
         this.CustomFields = form?.CustomFields ?? [];
+
+        this.Deleted = false;
     }
 }
 
-export const updateCredential = (
-    existingCredential: VaultCredential,
-    form: CredentialFormSchemaType | null = null,
-    diff: VaultUtilTypes.DiffChange | null = null,
-) => {
-    if (diff && diff.Props && diff.Props.ChangeFlags) {
-        if (diff.Props.ChangeFlags.TypeHasChanged)
-            existingCredential.Type =
-                diff.Props.Type ?? existingCredential.Type;
+/**
+ * Assimilates an imported credential into the vault.
+ * This is done by creating a new credential object with the same data as the imported one, but with a new ID.
+ * The new ID is generated using the same logic as the rest of the vault.
+ * The hash of the credential is recalculated to ensure that the credential is valid.
+ * @param credential The imported credential to assimilate
+ * @returns The assimilated credential
+ */
+export const assimilateImportedCredential = async (credential: VaultUtilTypes.Credential) => {
+    let newCredential = new VaultCredential();
+    
+    // Save the new credential's ID before we overwrite it with the imported one
+    const generatedID = newCredential.ID;
 
-        if (diff.Props.ChangeFlags.GroupIDHasChanged)
-            existingCredential.GroupID =
-                diff.Props.GroupID ?? existingCredential.GroupID;
+    newCredential = Object.assign(new VaultCredential(), credential);
+    
+    // Restore the new credential's ID
+    newCredential.ID = generatedID;
 
-        if (diff.Props.ChangeFlags.NameHasChanged)
-            existingCredential.Name =
-                diff.Props.Name ?? existingCredential.Name;
+    // Recalculate the hash of the credential
+    newCredential.Hash = await hashCredential(newCredential);
 
-        if (diff.Props.ChangeFlags.UsernameHasChanged)
-            existingCredential.Username =
-                diff.Props.Username ?? existingCredential.Username;
-
-        if (diff.Props.ChangeFlags.PasswordHasChanged)
-            existingCredential.Password =
-                diff.Props.Password ?? existingCredential.Password;
-
-        if (diff.Props.ChangeFlags.TOTPHasChanged)
-            existingCredential.TOTP = diff.Props.TOTP
-                ? Object.assign(new TOTP(), diff.Props.TOTP)
-                : undefined;
-
-        if (diff.Props.ChangeFlags.TagsHasChanged)
-            existingCredential.Tags =
-                diff.Props.Tags ?? existingCredential.Tags;
-
-        if (diff.Props.ChangeFlags.URLHasChanged)
-            existingCredential.URL = diff.Props.URL ?? existingCredential.URL;
-
-        if (diff.Props.ChangeFlags.NotesHasChanged)
-            existingCredential.Notes =
-                diff.Props.Notes ?? existingCredential.Notes;
-
-        if (diff.Props.ChangeFlags.DateCreatedHasChanged)
-            existingCredential.DateCreated =
-                diff.Props.DateCreated ?? existingCredential.DateCreated;
-
-        if (diff.Props.ChangeFlags.DateModifiedHasChanged)
-            existingCredential.DateModified =
-                diff.Props.DateModified ?? existingCredential.DateModified;
-
-        if (diff.Props.ChangeFlags.DatePasswordChangedHasChanged)
-            existingCredential.DatePasswordChanged =
-                diff.Props.DatePasswordChanged ??
-                existingCredential.DatePasswordChanged;
-
-        if (diff.Props.ChangeFlags.CustomFieldsHasChanged)
-            existingCredential.CustomFields =
-                diff.Props.CustomFields ?? existingCredential.CustomFields;
-    } else if (form) {
-        const today = new Date().toISOString();
-
-        // The ID cannot be changed, so we don't check for it
-        // this.ID = form.ID ?? this.ID;
-
-        existingCredential.Type = form.Type ?? existingCredential.Type;
-        existingCredential.GroupID = form.GroupID ?? existingCredential.GroupID;
-
-        existingCredential.Name = form.Name ?? existingCredential.Name;
-        existingCredential.Username =
-            form.Username ?? existingCredential.Username;
-
-        // Only update the DatePasswordChanged if the password has changed
-        // existingCredential only takes a non nullish value of the password into account
-        if (
-            existingCredential.Password !==
-            (form.Password ?? existingCredential.Password)
-        ) {
-            existingCredential.Password =
-                form.Password ?? existingCredential.Password;
-            existingCredential.DatePasswordChanged = today;
-        }
-
-        existingCredential.TOTP = form.TOTP
-            ? Object.assign(new TOTP(), form.TOTP)
-            : undefined;
-        existingCredential.Tags = form.Tags ?? existingCredential.Tags;
-        existingCredential.URL = form.URL ?? existingCredential.URL;
-        existingCredential.Notes = form.Notes ?? existingCredential.Notes;
-
-        // The date created cannot be changed, so we don't check for it
-        // existingCredential.DateCreated = form.DateCreated ?? existingCredential.DateCreated;
-
-        existingCredential.DateModified = today;
-
-        existingCredential.CustomFields =
-            form.CustomFields ?? existingCredential.CustomFields;
-    }
-
-    // Reset the hash - it will be recalculated when needed
-    existingCredential.Hash = undefined;
-
-    return existingCredential;
-};
+    return newCredential;
+}
 
 const prepareCredentialForHashing = (credential: VaultCredential) => {
     // NOTE: When adding new fields, make sure to add them to the includedFields array
@@ -626,6 +554,7 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
         "DateModified",
         "DatePasswordChanged",
         "CustomFields",
+        "Deleted",
         // "Hash",
     ];
 
@@ -673,117 +602,6 @@ export const hashCredential = async (credential: VaultCredential) => {
 };
 
 /**
- * Determines the changes done to a credential and returns them in the form of a DiffChange object.
- * @param prevCredential - The previous credential object
- * @param nextCredential - The new credential object
- * @returns The nextCredential object if it's a new credential (prevCredential is undefined)
- * @returns The changes done to the credential in the form of a DiffChange object
- */
-export const getCredentialChanges = (
-    prevCredential: VaultCredential,
-    nextCredential: VaultCredential,
-): VaultUtilTypes.DiffChange => {
-    // Normalize the previous and next credentials objects
-    prevCredential = Object.assign({}, prevCredential);
-    nextCredential = Object.assign({}, nextCredential);
-
-    const changeFlags: VaultUtilTypes.PartialCredentialChanges = {
-        TypeHasChanged: false,
-        GroupIDHasChanged: false,
-        NameHasChanged: false,
-        UsernameHasChanged: false,
-        PasswordHasChanged: false,
-        TOTPHasChanged: false,
-        TagsHasChanged: false,
-        URLHasChanged: false,
-        NotesHasChanged: false,
-        DateCreatedHasChanged: false,
-        DateModifiedHasChanged: false,
-        DatePasswordChangedHasChanged: false,
-        CustomFieldsHasChanged: false,
-    };
-
-    const craftedCredentials: VaultUtilTypes.PartialCredential = {
-        CustomFields: [],
-    };
-
-    // Note: Don't diff the credential type, we won't support that for now
-
-    if (prevCredential.GroupID !== nextCredential.GroupID) {
-        craftedCredentials.GroupID = nextCredential.GroupID;
-        changeFlags.GroupIDHasChanged = true;
-    }
-
-    if (prevCredential.Name !== nextCredential.Name) {
-        craftedCredentials.Name = nextCredential.Name;
-        changeFlags.NameHasChanged = true;
-    }
-
-    if (prevCredential.Username !== nextCredential.Username) {
-        craftedCredentials.Username = nextCredential.Username;
-        changeFlags.UsernameHasChanged = true;
-    }
-
-    if (prevCredential.Password !== nextCredential.Password) {
-        craftedCredentials.Password = nextCredential.Password;
-        changeFlags.PasswordHasChanged = true;
-    }
-
-    if (
-        JSON.stringify(prevCredential.TOTP) !==
-        JSON.stringify(nextCredential.TOTP)
-    ) {
-        craftedCredentials.TOTP = nextCredential.TOTP
-            ? Object.assign({}, nextCredential.TOTP)
-            : undefined;
-        changeFlags.TOTPHasChanged = true;
-    }
-
-    if (prevCredential.Tags !== nextCredential.Tags) {
-        craftedCredentials.Tags = nextCredential.Tags;
-        changeFlags.TagsHasChanged = true;
-    }
-
-    if (prevCredential.URL !== nextCredential.URL) {
-        craftedCredentials.URL = nextCredential.URL;
-        changeFlags.URLHasChanged = true;
-    }
-
-    if (prevCredential.Notes !== nextCredential.Notes) {
-        craftedCredentials.Notes = nextCredential.Notes;
-        changeFlags.NotesHasChanged = true;
-    }
-
-    if (prevCredential.DateCreated !== nextCredential.DateCreated) {
-        craftedCredentials.DateCreated = nextCredential.DateCreated;
-        changeFlags.DateCreatedHasChanged = true;
-    }
-
-    if (prevCredential.DateModified !== nextCredential.DateModified) {
-        craftedCredentials.DateModified = nextCredential.DateModified;
-        changeFlags.DateModifiedHasChanged = true;
-    }
-
-    if (
-        prevCredential.DatePasswordChanged !==
-        nextCredential.DatePasswordChanged
-    ) {
-        craftedCredentials.DatePasswordChanged =
-            nextCredential.DatePasswordChanged;
-        changeFlags.DatePasswordChangedHasChanged = true;
-    }
-
-    return {
-        Type: VaultUtilTypes.DiffType.Update,
-        ID: nextCredential.ID,
-        Props: {
-            ...craftedCredentials,
-            ChangeFlags: changeFlags,
-        },
-    };
-};
-
-/**
  * Returns the sorted list of credentials in the vault.
  * The credentials are sorted by ID (ULID) in lexicographic order.
  * @param credentials - The list of credentials to sort
@@ -795,7 +613,6 @@ const getSortedCredentials = (
     return credentials.sort((a, b) => a.ID.localeCompare(b.ID));
 };
 
-//#region Diffing
 /**
  * Hashes the vault's credentials and returns the hash as a hex string.
  * It also sorts the credentials to ensure that the hash is consistent - by using ULIDs.
@@ -827,142 +644,6 @@ export const hashCredentials = async (
         .join("");
 };
 
-/**
- * Convert the vault's credentials to diffs (additions).
- * This is useful when moving the whole vault over the Sync network.
- * @param credentials - The credentials to convert to diffs
- * @returns An array of diffs (type add)
- * @returns An error if there was an error during credential creation
- */
-export const credentialsAsDiffs = async (credentials: VaultCredential[]) => {
-    const credStorage: VaultCredential[] = [];
-    const diffStorage: VaultUtilTypes.Diff[] = [];
-
-    // TODO: If this is no longer needed, remove it
-    //clonedVault.Configuration.SaveOnlyLatestDiffWhenNoLinked = false;
-
-    for (const cred of getSortedCredentials(credentials)) {
-        const data = await createCredential(cred);
-
-        // Push the new credential to the list
-        credStorage.push(data.credential);
-
-        // Hash the credential list
-        const listHash = await hashCredentials(credStorage);
-
-        // Using the new credential change and the list hash, create a diff
-        const diff: VaultUtilTypes.Diff = {
-            Hash: listHash,
-            Changes: data.changes,
-        };
-
-        diffStorage.push(diff);
-    }
-
-    return diffStorage;
-};
-
-/**
- * Gets the diffs for the vault from the specified hash to the latest diff.
- * @param hash - The hash to start from
- * @param diffList - The list of diffs to search through
- * @returns An array of diffs from the specified hash to the latest diff (in that order)
- * @returns An empty array if the hash is not found or that is the latest diff
- */
-export const getDiffsSinceHash = (
-    hash: string,
-    diffList: VaultUtilTypes.Diff[],
-): VaultUtilTypes.Diff[] => {
-    const startIndex = diffList.findIndex((diff) => diff.Hash === hash);
-
-    // If the hash is not found, return an empty array
-    if (startIndex === -1) {
-        return [];
-    }
-
-    // If the hash is found, return the diffs from that index to the end of the array
-    return diffList.slice(startIndex + 1);
-};
-
-/**
- * Applies the given diffs to the existing credentials list.
- * @returns An array of diffs that were successfully applied and the complete credentials list
- */
-export const applyDiffs = async (
-    existingCredentials: VaultCredential[],
-    diffs: VaultUtilTypes.Diff[],
-) => {
-    // TODO: Check if this still modifies the existingCredential's items
-    let credStorage: VaultCredential[] = [...existingCredentials];
-    const diffStorage: VaultUtilTypes.Diff[] = [];
-
-    // Apply the diffs in order
-    for (const diff of diffs) {
-        let changes: VaultUtilTypes.DiffChange | null = null;
-
-        if (
-            diff.Changes?.Type === VaultUtilTypes.DiffType.Add &&
-            diff.Changes?.Props
-        ) {
-            const data = await createCredential(diff.Changes.Props);
-
-            credStorage.push(data.credential);
-            changes = data.changes;
-        } else if (
-            diff.Changes?.Type === VaultUtilTypes.DiffType.Update &&
-            diff.Changes?.Props
-        ) {
-            const credentialIndex = credStorage.findIndex(
-                (cred) => cred.ID === diff.Changes?.ID,
-            );
-            const credential = credStorage[credentialIndex];
-
-            // If we tried to update a credential that doesn't exist, we're probably dealing with a corrupted diff list
-            if (!credential)
-                return err(
-                    `Tried to update a credential that doesn't exist. ID: ${diff.Changes.ID}`,
-                );
-
-            const data = await updateCredentialFromDiff(
-                credential,
-                diff.Changes,
-            );
-
-            credStorage[credentialIndex] = data.credential;
-            changes = data.changes;
-        } else if (diff.Changes?.Type === VaultUtilTypes.DiffType.Delete) {
-            // Remove the credential from the list
-            const result = deleteCredential(credStorage, diff.Changes.ID);
-
-            // If the delete failed, we're probably dealing with a corrupted diff list
-            if (result.isErr()) return err(result.error);
-
-            // Reassign the whole list, because deleteCredential mutates the list and returns it
-            credStorage = result.value.credentials;
-            changes = result.value.change;
-        }
-
-        if (!changes)
-            return err(
-                "Was processing a diff, but no changes were produced...",
-            );
-
-        const listHash = await hashCredentials(credStorage);
-        const newDiff: VaultUtilTypes.Diff = {
-            Hash: listHash,
-            Changes: changes,
-        };
-        diffStorage.push(newDiff);
-    }
-
-    return ok({
-        credentials: credStorage,
-        diffs: diffStorage,
-    });
-};
-
-//#endregion Diffing
-
 //#region Credential Methods
 /**
  * Creates a credential from the given data.
@@ -972,107 +653,104 @@ export const applyDiffs = async (
  * @returns The new credential and the changes that were made to it
  */
 export const createCredential = async (
-    data: CredentialFormSchemaType | VaultUtilTypes.PartialCredential,
+    data: CredentialFormSchemaType,
 ) => {
     const newCreds = new VaultCredential(data);
 
-    //if (!this.Configuration.InhibitDiffGeneration) {
-    // Recalculate the hash, since the credential has been updated
     newCreds.Hash = await hashCredential(newCreds);
-    //}
 
-    // This creates an 'Add' type diff - because the credential didn't exist before
-    //const change = Credential.getChanges(undefined, newCreds);
-    //const partialCredential = Object.assign({}, newCreds);
-    // Remove the Hash property from the partial credential (since it doesn't exist in the PartialCredential type, and we're not syncing it)
-    // TODO: This is probably unnecessary, remove it when verified
-    //delete partialCredential.Hash;
-    const changes: VaultUtilTypes.DiffChange = {
-        Type: VaultUtilTypes.DiffType.Add,
-        ID: newCreds.ID,
-        Props: newCreds,
-    };
-
-    return {
-        credential: newCreds,
-        changes,
-    };
-};
-
-export const updateCredentialFromDiff = async (
-    existingCredential: VaultCredential,
-    diff: VaultUtilTypes.DiffChange,
-) => {
-    const originalCredentials = Object.assign({}, existingCredential);
-    const moddedCredentials = updateCredential(existingCredential, null, diff);
-
-    // Recalculate the hash, since the credential has been updated
-    moddedCredentials.Hash = await hashCredential(moddedCredentials);
-
-    const changes = getCredentialChanges(
-        originalCredentials,
-        moddedCredentials,
-    );
-
-    return {
-        credential: moddedCredentials,
-        changes,
-    };
+    return newCreds;
 };
 
 export const updateCredentialFromForm = async (
     existingCredential: VaultCredential,
     form: CredentialFormSchemaType,
 ) => {
-    const originalCredentials = Object.assign({}, existingCredential);
-    const moddedCredentials = updateCredential(existingCredential, form, null);
+    // const modedCredential = updateCredential(existingCredential, form);
+    const moddedCredential = Object.assign(new VaultCredential(), existingCredential);
 
-    //if (!this.Configuration.InhibitDiffGeneration) {
+    const today = Date.now();
+
+    // The ID cannot be changed, so we don't check for it
+    // this.ID = form.ID ?? this.ID;
+
+    moddedCredential.Type = form.Type ?? existingCredential.Type;
+    moddedCredential.GroupID = form.GroupID ?? existingCredential.GroupID;
+
+    moddedCredential.Name = form.Name ?? existingCredential.Name;
+    moddedCredential.Username =
+        form.Username ?? existingCredential.Username;
+
+    // Only update the DatePasswordChanged if the password has changed
+    // existingCredential only takes a non nullish value of the password into account
+    if (
+        moddedCredential.Password !==
+        (form.Password ?? existingCredential.Password)
+    ) {
+        moddedCredential.Password =
+            form.Password ?? existingCredential.Password;
+        moddedCredential.DatePasswordChangedTimestamp = today;
+    }
+
+    moddedCredential.TOTP = form.TOTP
+        ? Object.assign(new TOTP(), form.TOTP)
+        : undefined;
+    moddedCredential.Tags = form.Tags ?? moddedCredential.Tags;
+    moddedCredential.URL = form.URL ?? moddedCredential.URL;
+    moddedCredential.Notes = form.Notes ?? moddedCredential.Notes;
+
+    // The date created cannot be changed, so we don't check for it
+    // existingCredential.DateCreated = form.DateCreated ?? existingCredential.DateCreated;
+
+    moddedCredential.DateModifiedTimestamp = today;
+
+    moddedCredential.CustomFields =
+        form.CustomFields ?? moddedCredential.CustomFields;
+
+    // Bump the version of the credential since we're handling a modification
+    moddedCredential.Version = moddedCredential.Version + 1;
+
     // Recalculate the hash, since the credential has been updated
-    moddedCredentials.Hash = await hashCredential(moddedCredentials);
-    //}
+    moddedCredential.Hash = await hashCredential(moddedCredential);
 
-    const changes = getCredentialChanges(
-        originalCredentials,
-        moddedCredentials,
-    );
-
-    return {
-        credential: moddedCredentials,
-        changes,
-    };
+    return moddedCredential;
 };
 
 /**
- * Mutates the given list of credentials by deleting the credential with the given ID.
- * Then creates a change object necessary for diffing the changes.
- * @param credentialsList The list of credentials to delete from
- * @param id The ID of the credential to delete
- * @returns An object containing the following:
- * - credentials: The list of credentials after the credential was deleted
- *      - This is the same list as the one passed in as an argument to this function
- * - change: The DiffChange object for deleting the credential
+ * Mutates the given list of credentials by replacing the credential with the given ID with a new one that has the tombstone flag set to true.
+ * The new credential object is created with the same ID, but with the tombstone flag set to true and the date modified timestamp set to the current time.
+ * All other fields are cleaned up to remove any sensitive data.
+ * @param credentialsList The list of credentials to mark the credential as deleted and replace with a de-sensitized one
+ * @param id The ID of the credential to mark as deleted
+ * @returns The list of credentials after the credential was marked as deleted and replaced with a de-sensitized one
  */
-export const deleteCredential = (
+export const deleteCredential = async (
     credentialsList: VaultCredential[],
     id: string,
 ) => {
     const index = credentialsList.findIndex((c) => c.ID === id);
+    const credential = credentialsList[index];
 
     // If we didn't find the credential, return an error
-    if (index === -1) return err("Credential not found");
+    if (!credential) return err("Credential not found");
+    
+    // Set the tombstone flag to true and clean up the credential to remove any sensitive data
+    const cleanCredential = new VaultCredential();
+    cleanCredential.ID = credential.ID;
+    cleanCredential.Deleted = true;
 
-    credentialsList.splice(index, 1);
+    cleanCredential.DateCreatedTimestamp = credential.DateCreatedTimestamp;
+    cleanCredential.DateModifiedTimestamp = Date.now();
+    
+    // Bump the version of the credential since we're handling a modification (tombstone flag is considered a modification)
+    cleanCredential.Version = credential.Version + 1;
 
-    const change: VaultUtilTypes.DiffChange = {
-        Type: VaultUtilTypes.DiffType.Delete,
-        ID: id,
-    };
+    cleanCredential.Hash = await hashCredential(cleanCredential);
 
-    return ok({
-        credentials: credentialsList,
-        change: change,
-    });
+    // Replace the credential with the clean one
+    credentialsList.splice(index, 1, cleanCredential);
+
+    return ok(credentialsList);
 };
 //#endregion Credential Methods
 
@@ -1180,26 +858,3 @@ export const packageForLinking = (
     return vaultCopy;
 };
 
-/**
- * Calculates the hash of the given credential set and returns it.
- * @returns A hash in the form of a hex string
- */
-export const calculateMockedVaultHash = async (
-    credentials: VaultCredential[],
-    diffs: VaultUtilTypes.Diff[],
-) => {
-    const credentialsStorage: VaultCredential[] = [];
-
-    // Copy the credentials from the original list into ours so we avoid mutation
-    for (const cred of credentials) {
-        const data = await createCredential(cred);
-
-        // Add the credential to internal list
-        credentialsStorage.push(data.credential);
-    }
-
-    const applyDiffResult = await applyDiffs(credentialsStorage, diffs);
-    if (applyDiffResult.isErr()) return err(applyDiffResult.error);
-
-    return ok(await hashCredentials(applyDiffResult.value.credentials));
-};

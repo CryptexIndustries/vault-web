@@ -65,6 +65,7 @@ import { err, ok, Result } from "neverthrow";
 import { validateEnvelope } from "./utils/security-utils";
 import { setOnlineServicesAPIKey } from "@/utils/atoms";
 import { WarningDialog, WarningDialogShowFn } from "@/components/dialog/warning";
+import { CredentialConstants } from "@/utils/consts";
 
 type VaultViewProps = {
     name: string;
@@ -334,7 +335,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         value: string | undefined;
         onChange: (tags: string) => void;
     }> = ({ value, onChange }) => {
-        const tagSeparator = ",";
+        const tagSeparator = CredentialConstants.TAG_SEPARATOR;
 
         const [inputValue, setInputValue] = useState("");
         const [inputFocused, setInputFocused] = useState(false);
@@ -1475,26 +1476,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                             if (event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage) {
                                 if (event.event === SynchronizationUtils.WebRTCMessageEventType.Synchronized) {
                                     setLastSync(new Date());
-                                } else if (event.event === SynchronizationUtils.WebRTCMessageEventType.ManualSyncNecessary) {
-                                        // Trigger the manual synchronization dialog
-                                        showManualSyncDialog.current(
-                                            event.data,
-                                            async (
-                                                data: SynchronizationUtils.ManualConflictResolutionData,
-                                            ) => {
-                                                await GlobalSyncConnectionController?.confirmManualConflictResolution(
-                                                    device.ID,
-                                                    data,
-                                                );
-                                            },
-                                            () => {
-                                                // Warn the user that the vaults are still diverged
-                                                // toast.warn(
-                                                //     "Failed to solve the vault divergence. The vaults are still diverged.",
-                                                // );
-                                            },
-                                        );
-
                                 } else if (event.event === SynchronizationUtils.WebRTCMessageEventType.Error) {
                                     setWebRTCStatus(
                                         SynchronizationUtils.WebRTCStatus.Failed,

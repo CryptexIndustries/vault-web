@@ -283,7 +283,7 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     };
                 }
 
-                const list: LiteCredential[] = (vault?.Credentials ?? []).map(
+                const list: LiteCredential[] = (vault?.Credentials ?? []).filter(c => !c.Deleted).map(
                     (c) => ({
                         id: c.ID,
                         name: c.Name,

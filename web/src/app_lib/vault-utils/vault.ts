@@ -554,13 +554,13 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
         "DateCreated",
         "DateModified",
         "DatePasswordChanged",
-        "CustomFields",
+        // "CustomFields",
         "Deleted",
         // "Hash",
     ];
 
     // These are the fields we don't want to blindly concatenate, so we exclude them and handle them separately (if needed)
-    const excludedFields: (keyof VaultCredential)[] = ["TOTP", "Hash"];
+    const excludedFields: (keyof VaultCredential)[] = ["TOTP", "CustomFields", "Hash"];
 
     let concatenatedValues = "";
 
@@ -572,6 +572,10 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
             concatenatedValues += String(credential[key] ?? "");
         }
     });
+
+    concatenatedValues += credential.CustomFields.map((field) => {
+        return String(field.Name) + String(field.Value) + String(field.Type);
+    }).join("|");
 
     // Handle the TOTP field separately
     concatenatedValues += String(credential.TOTP?.Label ?? "");

@@ -157,6 +157,7 @@ import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
 import { Calendar, CircleCheck, CircleX, Link } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog";
+import { VaultDashboard as VaultDashboardNeo } from "@/components/vault-dashboard/vault-dashboard";
 
 dayjs.extend(RelativeTime);
 
@@ -7597,7 +7598,7 @@ const AppIndex: React.FC = () => {
             />
 
             <HTMLMain additionalClasses="content flex min-h-screen grow flex-col overflow-clip">
-                <VaultDashboard />
+                {/* <VaultDashboard /> */}
 
                 {
                     // If the vault is not unlocked, show the welcome screen
@@ -7611,6 +7612,12 @@ const AppIndex: React.FC = () => {
                                 />
                             </div>
                         </>
+                    )
+                }
+
+                {
+                    isVaultUnlocked && (
+                        <VaultDashboardNeo />
                     )
                 }
             </HTMLMain>

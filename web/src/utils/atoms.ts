@@ -4,7 +4,7 @@ import { selectAtom } from "jotai/utils";
 import { LinkedDevices, Vault } from "../app_lib/vault-utils/vault";
 import { type VaultMetadata } from "../app_lib/vault-utils/storage";
 
-type OnlineServicesData = {
+export type OnlineServicesData = {
     key: string;
     remoteData: {
         root: boolean;
@@ -16,38 +16,68 @@ type OnlineServicesData = {
     } | null;
 };
 
-type OnlineServicesAuthenticationStatus = {
-    status: "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "FAILED";
+export const ONLINE_SERVICES_AUTH_STATES = [
+    "CONNECTED",
+    "CONNECTING",
+    "DISCONNECTED",
+    "FAILED",
+] as const;
+
+export type OnlineServicesAuthenticationState =
+    (typeof ONLINE_SERVICES_AUTH_STATES)[number];
+
+export type OnlineServicesAuthenticationStatus = {
+    status: OnlineServicesAuthenticationState;
     statusDescription: string;
+};
+
+const ONLINE_SERVICES_AUTH_STATUS_LABELS: Record<
+    OnlineServicesAuthenticationState,
+    string
+> = {
+    CONNECTED: "Signed in",
+    CONNECTING: "Signing in...",
+    DISCONNECTED: "Disconnected",
+    FAILED: "Unknown failure occurred",
+};
+
+export const createOnlineServicesAuthenticationStatus = (
+    status: OnlineServicesAuthenticationState,
+    statusDescription = ONLINE_SERVICES_AUTH_STATUS_LABELS[status],
+): OnlineServicesAuthenticationStatus => ({
+    status,
+    statusDescription,
+});
+
+export const onlineServicesAuthenticationStatus = {
+    connected: (): OnlineServicesAuthenticationStatus =>
+        createOnlineServicesAuthenticationStatus("CONNECTED"),
+    connecting: (): OnlineServicesAuthenticationStatus =>
+        createOnlineServicesAuthenticationStatus("CONNECTING"),
+    disconnected: (): OnlineServicesAuthenticationStatus =>
+        createOnlineServicesAuthenticationStatus("DISCONNECTED"),
+    failed: (error?: string): OnlineServicesAuthenticationStatus =>
+        createOnlineServicesAuthenticationStatus(
+            "FAILED",
+            error ?? ONLINE_SERVICES_AUTH_STATUS_LABELS.FAILED,
+        ),
 };
 
 export class OnlineServicesAuthenticationStatusHelpers {
     static setConnected(): OnlineServicesAuthenticationStatus {
-        return {
-            status: "CONNECTED",
-            statusDescription: "Signed in",
-        };
+        return onlineServicesAuthenticationStatus.connected();
     }
 
     static setConnecting(): OnlineServicesAuthenticationStatus {
-        return {
-            status: "CONNECTING",
-            statusDescription: "Signing in...",
-        };
+        return onlineServicesAuthenticationStatus.connecting();
     }
 
     static setDisconnected(): OnlineServicesAuthenticationStatus {
-        return {
-            status: "DISCONNECTED",
-            statusDescription: "Disconnected",
-        };
+        return onlineServicesAuthenticationStatus.disconnected();
     }
 
     static setFailed(error?: string): OnlineServicesAuthenticationStatus {
-        return {
-            status: "FAILED",
-            statusDescription: error ?? "Unknown failure occurred",
-        };
+        return onlineServicesAuthenticationStatus.failed(error);
     }
 }
 
@@ -55,11 +85,13 @@ export class OnlineServicesAuthenticationStatusHelpers {
 export const vaultStore = createStore();
 export const unlockedVaultMetadataAtom = atom<VaultMetadata | null>(null);
 export const unlockedVaultAtom = atom(new Vault());
+type VaultWriteValue = ((pre: Vault) => Promise<Vault> | Vault) | Vault;
+
 export const unlockedVaultWriteOnlyAtom = atom(
     (get): Vault => {
         return get(unlockedVaultAtom);
     },
-    async (get, set, val: ((pre: Vault) => Promise<Vault> | Vault) | Vault) => {
+    async (get, set, val: VaultWriteValue) => {
         const vault = await (typeof val === "function"
             ? val(get(unlockedVaultAtom))
             : val);
@@ -80,9 +112,10 @@ export const linkedDevicesAtom = focusAtom(unlockedVaultAtom, (baseAtom) =>
     baseAtom.prop("LinkedDevices").prop("Devices"),
 );
 
-export const vaultGet = () => {
+export const getUnlockedVault = () => {
     return vaultStore.get(unlockedVaultAtom);
 };
+export const vaultGet = getUnlockedVault;
 //#endregion Unlocked Vault
 
 export const onlineServicesBoundAtom = selectAtom(unlockedVaultAtom, (vault) =>
@@ -91,22 +124,28 @@ export const onlineServicesBoundAtom = selectAtom(unlockedVaultAtom, (vault) =>
 
 export const onlineServicesStore = createStore();
 export const onlineServicesDataAtom = atom<OnlineServicesData | null>(null);
+export const DEFAULT_ONLINE_SERVICES_AUTH_CONNECTION_STATUS =
+    onlineServicesAuthenticationStatus.disconnected();
 export const onlineServicesAuthConnectionStatusAtom =
-    atom<OnlineServicesAuthenticationStatus>({
-        status: "DISCONNECTED",
-        statusDescription: "Disconnected",
-    });
+    atom<OnlineServicesAuthenticationStatus>(
+        DEFAULT_ONLINE_SERVICES_AUTH_CONNECTION_STATUS,
+    );
+
+export const setOnlineServicesData = (data: OnlineServicesData | null) => {
+    onlineServicesStore.set(onlineServicesDataAtom, data);
+};
 
 export const setOnlineServicesAPIKey = (apiKey: string) => {
-    if (!apiKey.length) {
+    const normalizedApiKey = apiKey.trim();
+    if (!normalizedApiKey.length) {
         throw new Error("API key is empty");
     }
 
-    onlineServicesStore.set(onlineServicesDataAtom, {
-        key: apiKey,
+    setOnlineServicesData({
+        key: normalizedApiKey,
         remoteData: null,
     });
 };
 export const clearOnlineServicesAPIKey = () => {
-    onlineServicesStore.set(onlineServicesDataAtom, null);
+    setOnlineServicesData(null);
 };

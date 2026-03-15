@@ -5,6 +5,7 @@ import type { AppType } from "next/dist/shared/lib/utils";
 import superjson from "superjson";
 import type { VersionedRouter } from "../server/trpc";
 import "../styles/globals.css";
+import { Toaster } from "@/components/ui/sonner";
 import { vaultStore } from "../utils/atoms";
 import { reactQueryClientConfig } from "../utils/trpc";
 
@@ -12,6 +13,7 @@ const MyApp: AppType = ({ Component, pageProps: { ...pageProps } }) => {
     return (
         <Provider store={vaultStore}>
             <Component {...pageProps} />
+            <Toaster />
         </Provider>
     );
 };

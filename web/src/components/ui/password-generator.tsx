@@ -37,6 +37,7 @@ import {
     SelectValue,
 } from "./select";
 import { Textarea } from "./textarea";
+import { Checkbox } from "./checkbox";
 
 // Schema for form validation
 const passwordGeneratorSchema = z.object({
@@ -320,6 +321,7 @@ export const PasswordGeneratorDialog: React.FC<{
                                                 {...register("includeUppercase")}
                                                 className="h-4 w-4 rounded border-gray-300"
                                             />
+                                            {/* <Checkbox id="includeUppercase" {...register("includeUppercase")} /> */}
                                             <Label htmlFor="includeUppercase" className="text-sm">
                                                 Include uppercase letters (A-Z)
                                             </Label>
@@ -331,6 +333,7 @@ export const PasswordGeneratorDialog: React.FC<{
                                                 {...register("includeLowercase")}
                                                 className="h-4 w-4 rounded border-gray-300"
                                             />
+                                            {/* <Checkbox id="includeLowercase" {...register("includeLowercase")} /> */}
                                             <Label htmlFor="includeLowercase" className="text-sm">
                                                 Include lowercase letters (a-z)
                                             </Label>
@@ -342,6 +345,7 @@ export const PasswordGeneratorDialog: React.FC<{
                                                 {...register("includeNumbers")}
                                                 className="h-4 w-4 rounded border-gray-300"
                                             />
+                                            {/* <Checkbox id="includeNumbers" {...register("includeNumbers")} /> */}
                                             <Label htmlFor="includeNumbers" className="text-sm">
                                                 Include numbers (0-9)
                                             </Label>
@@ -353,6 +357,7 @@ export const PasswordGeneratorDialog: React.FC<{
                                                 {...register("includeSymbols")}
                                                 className="h-4 w-4 rounded border-gray-300"
                                             />
+                                            {/* <Checkbox id="includeSymbols" {...register("includeSymbols")} /> */}
                                             <Label htmlFor="includeSymbols" className="text-sm">
                                                 Include symbols (!@#$%^&*)
                                             </Label>

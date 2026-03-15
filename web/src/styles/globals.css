@@ -39,56 +39,11 @@ html {
     font-style: normal;
 
     scrollbar-width: thin;
-    scrollbar-color: #ff5668 #181d2b;
-}
-
-body {
-    color: #fcf8ec;
-}
-
-table {
-    @apply w-full;
-}
-
-.bg-primary,
-.main {
-    background-color: #181d2b;
+    scrollbar-color: var(--primary) var(--background);
 }
 
 .content {
     height: 100%;
-}
-
-.color-brand-primary,
-.colorPrimary {
-    color: #ff5668;
-}
-
-.bg-color-brand-primary,
-.bg-colorPrimary {
-    background-color: #ff5668;
-}
-
-.border-color-brand-primary,
-.border-colorPrimary {
-    border-color: #ff5668;
-}
-
-.card {
-    background-color: #262e43;
-    border-color: #181d2b;
-}
-
-.gradientFromWhiteToPrimary {
-    --tw-gradient-from: #ff9497;
-    --tw-gradient-to: #ff5668;
-    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
-}
-
-.gradientFromWhiteToGreen {
-    --tw-gradient-from: #84e8b4;
-    --tw-gradient-to: #25c472;
-    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
 @layer base {
@@ -154,5 +109,14 @@ table {
     }
     body {
         @apply bg-background text-foreground;
+    }
+    table {
+        @apply w-full;
+    }
+    button {
+        @apply text-foreground/50;
+    }
+    input {
+        @apply text-foreground;
     }
 }

@@ -295,12 +295,12 @@ export function CredentialsList({
                         computeItemKey={(_index, credential) => credential.ID}
                         itemContent={(_index, credential) => {
                             const tags = parseTags(credential.Tags);
-                            const visibleTags = (tags.length > 0 ? tags : ["Other"]).slice(
+                            const visibleTags = tags.slice(
                                 0,
                                 MAX_VISIBLE_TAGS,
                             );
                             const hiddenTagCount = Math.max(
-                                (tags.length > 0 ? tags : ["Other"]).length -
+                                tags.length -
                                     MAX_VISIBLE_TAGS,
                                 0,
                             );
@@ -492,10 +492,10 @@ export function CredentialsList({
                         {filteredCredentials.map((credential) => {
                             const tags = parseTags(credential.Tags);
                             const visibleTags = (
-                                tags.length > 0 ? tags : ["Other"]
+                                tags
                             ).slice(0, MAX_VISIBLE_TAGS);
                             const hiddenTagCount = Math.max(
-                                (tags.length > 0 ? tags : ["Other"]).length -
+                                tags.length -
                                     MAX_VISIBLE_TAGS,
                                 0,
                             );

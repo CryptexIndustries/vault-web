@@ -304,10 +304,9 @@ export function CredentialDetail({
 }: CredentialDetailProps) {
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const allTags = parseTags(credential?.Tags);
-    const tagList = allTags.length > 0 ? allTags : ["Other"];
-    const visibleTags = tagList.slice(0, MAX_VISIBLE_TAGS);
-    const hiddenTags = tagList.slice(MAX_VISIBLE_TAGS);
-    const hiddenTagCount = Math.max(tagList.length - MAX_VISIBLE_TAGS, 0);
+    const visibleTags = allTags.slice(0, MAX_VISIBLE_TAGS);
+    const hiddenTags = allTags.slice(MAX_VISIBLE_TAGS);
+    const hiddenTagCount = Math.max(allTags.length - MAX_VISIBLE_TAGS, 0);
 
     const handleCopy = (field: string, value: string) => {
         navigator.clipboard.writeText(value);

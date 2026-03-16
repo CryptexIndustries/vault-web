@@ -114,7 +114,7 @@ html {
         @apply w-full;
     }
     button {
-        @apply text-foreground/50;
+        @apply text-foreground/80;
     }
     input {
         @apply text-foreground;

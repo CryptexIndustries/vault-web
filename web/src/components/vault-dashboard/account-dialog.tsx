@@ -325,6 +325,12 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     }, [open]);
 
     useEffect(() => {
+        if (activeAccountTab !== "danger") {
+            setRecoveryPhraseToCopy(null);
+        }
+    }, [activeAccountTab]);
+
+    useEffect(() => {
         setAccountTab(activeAccountTab);
     }, [activeAccountTab]);
 
@@ -371,10 +377,15 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         },
     });
 
-    const copyRecoveryPhrase = useCallback(async (phrase: string) => {
+    const copyToClipboard = useCallback(async (text: string, copiedLabel: string) => {
+        const trimmed = text.trim();
+        if (!trimmed) {
+            toast.error("Nothing to copy.");
+            return;
+        }
         try {
-            await navigator.clipboard.writeText(phrase);
-            toast.success("Recovery phrase copied.");
+            await navigator.clipboard.writeText(trimmed);
+            toast.success(`${copiedLabel} copied.`);
         } catch {
             toast.error("Could not copy to clipboard.");
         }
@@ -980,7 +991,8 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                     <p className="text-xs text-muted-foreground">
                                         Generates a recovery phrase stored server-side (hashed)
                                         to recover your Online Services account (subscription).
-                                        You can only generate one until it is cleared.
+                                        You can only generate one until it is cleared. Recovery
+                                        always requires your User ID together with the phrase.
                                     </p>
                                     {recoveryPhraseAlreadyOnServer &&
                                     !recoveryPhraseToCopy ? (
@@ -1007,7 +1019,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                                         res.token,
                                                     );
                                                     toast.success(
-                                                        "Recovery phrase created. Copy it below and store it safely.",
+                                                        "Recovery phrase created. Copy User ID and phrase below and store them safely.",
                                                     );
                                                     await refetchConfig();
                                                 } catch (e) {
@@ -1053,36 +1065,81 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                     {recoveryPhraseToCopy ? (
                                         <Alert className="mt-3 border-amber-500/50 bg-amber-500/10 text-amber-950 dark:text-amber-100">
                                             <AlertTitle className="text-amber-950 dark:text-amber-50">
-                                                Save this phrase now
+                                                Save phrase and User ID now
                                             </AlertTitle>
                                             <AlertDescription className="space-y-3 text-amber-950/90 dark:text-amber-50/90">
                                                 <p>
-                                                    This is the only time it is
-                                                    shown in plain text. Anyone
-                                                    with this phrase can recover
-                                                    your Online Services account (subscription).
+                                                    Shown once in plain text.
+                                                    Account recovery needs{" "}
+                                                    <strong>
+                                                        both your User ID and this
+                                                        phrase
+                                                    </strong>
+                                                    — neither replaces the other.
+                                                    Anyone with both can recover
+                                                    your Online Services account
+                                                    (subscription).
                                                 </p>
-                                                <Textarea
-                                                    readOnly
-                                                    value={recoveryPhraseToCopy}
-                                                    className="font-mono text-xs"
-                                                    rows={4}
-                                                    aria-label="Recovery phrase"
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    className="gap-2"
-                                                    onClick={() =>
-                                                        void copyRecoveryPhrase(
-                                                            recoveryPhraseToCopy,
-                                                        )
-                                                    }
-                                                >
-                                                    <Copy className="h-4 w-4" />
-                                                    Copy phrase
-                                                </Button>
+                                                <div className="space-y-2">
+                                                    <Label className="text-amber-950 dark:text-amber-50">
+                                                        User ID (required with phrase)
+                                                    </Label>
+                                                    <p className="break-all rounded-md border border-amber-500/40 bg-background/60 px-3 py-2 font-mono text-xs">
+                                                        {vault.OnlineServices
+                                                            ?.UserID ?? "—"}
+                                                    </p>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        className="gap-2"
+                                                        disabled={
+                                                            !vault.OnlineServices
+                                                                ?.UserID
+                                                        }
+                                                        onClick={() =>
+                                                            void copyToClipboard(
+                                                                vault
+                                                                    .OnlineServices
+                                                                    ?.UserID ??
+                                                                    "",
+                                                                "User ID",
+                                                            )
+                                                        }
+                                                    >
+                                                        <Copy className="h-4 w-4" />
+                                                        Copy User ID
+                                                    </Button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-amber-950 dark:text-amber-50">
+                                                        Recovery phrase
+                                                    </Label>
+                                                    <Textarea
+                                                        readOnly
+                                                        value={
+                                                            recoveryPhraseToCopy
+                                                        }
+                                                        className="font-mono text-xs"
+                                                        rows={4}
+                                                        aria-label="Recovery phrase"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        className="gap-2"
+                                                        onClick={() =>
+                                                            void copyToClipboard(
+                                                                recoveryPhraseToCopy,
+                                                                "Recovery phrase",
+                                                            )
+                                                        }
+                                                    >
+                                                        <Copy className="h-4 w-4" />
+                                                        Copy phrase
+                                                    </Button>
+                                                </div>
                                             </AlertDescription>
                                         </Alert>
                                     ) : null}

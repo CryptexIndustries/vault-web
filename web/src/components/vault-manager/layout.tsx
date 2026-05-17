@@ -22,7 +22,7 @@ import {
 import { Err, Ok } from "neverthrow";
 import * as Storage from "../../app_lib/vault-utils/storage";
 import CreateVaultTab from "./create";
-import LinkTab from "./link";
+// import LinkTab from "./link";
 import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
@@ -193,7 +193,7 @@ const VaultManager: React.FC<{
                     onValueChange={handleTabChange}
                     className="w-full max-w-sm sm:w-96"
                 >
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-3">
                         {isLoading ? (
                             <TabsTrigger
                                 value="loading"
@@ -214,7 +214,7 @@ const VaultManager: React.FC<{
                                 <TabsTrigger value="restore">
                                     Restore
                                 </TabsTrigger>
-                                <TabsTrigger value="link">Link</TabsTrigger>
+                                {/* <TabsTrigger value="link">Link</TabsTrigger> */}
                             </>
                         )}
                     </TabsList>
@@ -257,7 +257,7 @@ const VaultManager: React.FC<{
                     </TabsContent>
 
                     {/* Link Vault Tab */}
-                    <TabsContent value="link">
+                    {/* <TabsContent value="link">
                         <LinkTab
                             onLinkingSuccess={() => {
                                 setOperationStatus({
@@ -267,7 +267,7 @@ const VaultManager: React.FC<{
                                 setActiveTab("unlock");
                             }}
                         />
-                    </TabsContent>
+                    </TabsContent> */}
                 </Tabs>
 
                 {/* Operation Status */}

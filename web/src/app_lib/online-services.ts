@@ -29,12 +29,7 @@ export const navigateToCheckout = async (): Promise<void> => {
 //#endregion Subscription
 
 //#region Online Services - Synchronization
-export const extractIDFromAPIKey = (apiKey: string): string => apiKey.slice(36);
 export const constructLinkPresenceChannelName = (id: string) => {
-    if (id?.includes("-")) {
-        return `presence-link-${id.slice(36)}`;
-    }
-
     return `presence-link-${id}`;
 };
 //#endregion Online Services

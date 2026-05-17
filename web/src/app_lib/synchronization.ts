@@ -5,10 +5,11 @@ import { ulid } from "ulidx";
 import { env } from "../env/client.mjs";
 import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
 import { syncLog, signalingLog, webrtcLog } from "../utils/logging";
-import { createAuthHeader, trpc } from "../utils/trpc";
+import { trpc } from "../utils/trpc";
+import { createBareAuthHeader, ensureFreshOnlineServicesSession } from "./auth-session";
 import * as VaultUtilTypes from "./proto/vault";
 import {
-    ManualConflictResolutionDialogData,
+    // ManualConflictResolutionDialogData,
     SignalingServerMessageType,
     SignalingStatus,
     SyncConnectionControllerEventType,
@@ -20,6 +21,7 @@ import {
     type SCCWebRTCEventHandler,
     type SignalingServerMessage,
 } from "./synchronization-utils";
+import { throwWithStaticGenerationBailoutError } from "next/dist/server/request/utils";
 
 
 /**
@@ -59,71 +61,9 @@ const onlineServicesTURN = [
 ];
 
 const constructSyncChannelName = (
-    ourCreationTimestamp: number,
-    ourID: string,
-    otherDeviceID: string,
-    linkedAtTimestamp: number,
+    syncID: string,
 ): string => {
-    // The senior device is the one that was created first
-    const thisSenior = ourCreationTimestamp < linkedAtTimestamp;
-
-    // If we're the senior device, we fill the senior device slot
-    const seniorDevice = thisSenior ? ourID : otherDeviceID;
-
-    // If we're the senior device, the other device is the junior device
-    const juniorDevice = thisSenior ? otherDeviceID : ourID;
-
-    return `presence-sync-${seniorDevice}_${juniorDevice}`;
-};
-
-/**
- * Should not be used directly. Use the initPusherInstance function instead
- * @returns A new Pusher instance
- */
-const onlineServicesPusherInstance = (): Pusher => {
-    return new Pusher(env.NEXT_PUBLIC_PUSHER_APP_KEY, {
-        wsHost: env.NEXT_PUBLIC_PUSHER_APP_HOST,
-        wsPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
-        wssPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
-        forceTLS: env.NEXT_PUBLIC_PUSHER_APP_TLS,
-        // encrypted: true,
-        enableStats: false,
-        enabledTransports: ["ws", "wss"],
-        cluster: "",
-        userAuthentication: {
-            transport: "ajax",
-            endpoint: "",
-            headersProvider: createAuthHeader,
-            customHandler: (req, next) => {
-                signalingLog.debug("Pusher auth request", { request: req });
-                // return next(req);
-            },
-        },
-        channelAuthorization: {
-            transport: "ajax",
-            endpoint: "",
-            headersProvider: createAuthHeader,
-            customHandler: async (req, next) => {
-                // console.debug("Pusher auth channel request", req, next);
-
-                try {
-                    const data =
-                        await trpc.v1.device.signalingAuthChannel.query({
-                            channel_name: req.channelName,
-                            socket_id: req.socketId,
-                        });
-
-                    return next(null, data);
-                } catch (e) {
-                    signalingLog.warn(
-                        "Failed to authorize Pusher channel with Online Services",
-                        { error: e }
-                    );
-                    return next(e as Error, null);
-                }
-            },
-        },
-    });
+    return `presence-sync-${syncID}`;
 };
 
 export const initWebRTC = (
@@ -155,19 +95,72 @@ export const initWebRTC = (
 };
 
 /**
+ * Should not be used directly. Use the initPusherInstance function instead
+ * @param syncID - The sync ID to use when connecting to the Online Services signaling server
+ * @returns A new Pusher instance
+ */
+const onlineServicesPusherInstance = (syncID: string): Pusher => {
+    return new Pusher(env.NEXT_PUBLIC_PUSHER_APP_KEY, {
+        wsHost: env.NEXT_PUBLIC_PUSHER_APP_HOST,
+        wsPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
+        wssPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
+        forceTLS: env.NEXT_PUBLIC_PUSHER_APP_TLS,
+        // encrypted: true,
+        enableStats: false,
+        enabledTransports: ["ws", "wss"],
+        cluster: "",
+        userAuthentication: {
+            transport: "ajax",
+            endpoint: "",
+            headersProvider: createBareAuthHeader,
+            customHandler: (req, next) => {
+                signalingLog.debug("Pusher auth request", { request: req });
+                // return next(req);
+            },
+        },
+        channelAuthorization: {
+            transport: "ajax",
+            endpoint: "",
+            headersProvider: createBareAuthHeader,
+            customHandler: async (req, next) => {
+                try {
+                    const data =
+                        await trpc.v1.device.signalingAuthChannel.query({
+                            channel_name: req.channelName,
+                            socket_id: req.socketId,
+                        });
+
+                    return next(null, data);
+                } catch (e) {
+                    signalingLog.warn(
+                        "Failed to authorize Pusher channel with Online Services",
+                        { error: e }
+                    );
+                    return next(e as Error, null);
+                }
+            },
+        },
+    });
+};
+
+/**
  * Initializes a Pusher instance.
  * @param signalingServer - The signaling server configuration to use. If null, the default (Cryptex Vault Online Services) will be used.
- * @param deviceID - The ID of the device to connect to the signaling server for
+ * @param syncID - The sync ID to use when connecting to the signaling server
  * @returns A Pusher instance
  */
 export const initPusherInstance = (
     signalingServer: VaultUtilTypes.SignalingServerConfiguration | null,
-    deviceID: string,
+    syncID: string,
 ): Pusher => {
     // In case the signaling server is not defined, we'll use the default (Cryptex Vault Online Services) one
     if (!signalingServer) {
-        return onlineServicesPusherInstance();
+        return onlineServicesPusherInstance(syncID);
     }
+
+    // TODO: Remove this workaround. Each device should have a unique user_id
+    // The user should be able to choose their own user_id
+    const user_id = ulid();
 
     const usingTLS = parseInt(signalingServer.SecureServicePort) != 0;
 
@@ -201,9 +194,9 @@ export const initPusherInstance = (
                 });
 
                 const userData = {
-                    user_id: deviceID,
+                    user_id: user_id,
                     user_info: {
-                        id: deviceID,
+                        id: user_id,
                     },
                 };
 
@@ -357,25 +350,25 @@ export class SyncConnectionController {
 
     /**
      * Connects to the signaling server.
-     * @param deviceID - The ID of the device to connect to the signaling server for
+     * @param syncID - The device synchronization relationship identifier
      * @param server - The signaling server configuration to use. If null, the default (Cryptex Vault Online Services) will be used.
      * @returns A Pusher instance
      */
     private _connectSignalingServer(
-        deviceID: string,
+        syncID: string,
         server: VaultUtilTypes.SignalingServerConfiguration | null,
     ) {
         const id = server?.ID ?? ONLINE_SERVICES_SELECTION_ID;
 
         if (server)
             signalingLog.info(
-                `Connecting to signaling server - ID: ${server.ID} | Name: ${server.Name} due to device ${deviceID}`,
-                { serverId: server.ID, serverName: server.Name, deviceId: deviceID }
+                `Connecting to signaling server - ID: ${server.ID} | Name: ${server.Name} | Sync ID: ${syncID}`,
+                { serverId: server.ID, serverName: server.Name, syncId: syncID }
             );
         else
             signalingLog.info(
-                `Connecting to Online Services signaling server due to device ${deviceID}`,
-                { deviceId: deviceID }
+                `Connecting to Online Services signaling server with sync ID: ${syncID}`,
+                { syncId: syncID }
             );
 
         this._signalingServerConnectionStatus.set(
@@ -385,7 +378,7 @@ export class SyncConnectionController {
 
         this.broadcastSignalingServerEvent(id, SignalingStatus.Disconnected);
 
-        const signalingServerConn = initPusherInstance(server, deviceID);
+        const signalingServerConn = initPusherInstance(server, syncID);
 
         this._bindSignalingServerConnectionEvents(signalingServerConn, id);
 
@@ -498,11 +491,11 @@ export class SyncConnectionController {
         channel.bind("pusher:member_added", async (data: { id: string }) => {
             signalingLog.info(
                 `Member joined channel`,
-                { memberId: data.id }
+                { memberId: data.id, channelName }
             );
 
             // Create a WebRTC offer and send it to the new device to initiate the connection
-            const offer = await this._craftWebRTCOffer(data.id);
+            const offer = await this._craftWebRTCOffer(device.ID);
             channel.trigger(this._signalingEventName, {
                 type: SignalingServerMessageType.Offer,
                 data: offer,
@@ -855,7 +848,7 @@ export class SyncConnectionController {
             }
 
             signalingServerConn = this._connectSignalingServer(
-                linkedDevicesConfig.ID,
+                device.SyncID,
                 signalingServerConfig ?? null, // If this comes out to null - it's an Online Services server
             );
         }
@@ -887,12 +880,7 @@ export class SyncConnectionController {
             this._teardownWebRTCConnection(device.ID, existingWebRTC);
         }
 
-        const channelName = constructSyncChannelName(
-            linkedDevicesConfig.CreationTimestamp,
-            linkedDevicesConfig.ID,
-            device.ID,
-            device.LinkedAtTimestamp,
-        );
+        const channelName = constructSyncChannelName(device.SyncID);
 
         const channel = this._setupSignalingSubscriptions(
             signalingServerConn,
@@ -1338,9 +1326,9 @@ class VaultItemSynchronization {
             // Pseudo code:
             // if remote.datemodifiedtimestamp > local.datemodifiedtimestamp, then we need to request the item
             // else if remote.datemodifiedtimestamp < local.datemodifiedtimestamp, then we need to ignore it and the remote will request it from us
-            // else, sort the deviceIDs lexicographically and request the item from the lowest deviceID
+            // else, sort the hashes lexicographically and request the item from the lowest hash
 
-            const ourDeviceID = (await this.vaultOps.getSynchronizationConfig()).ID;
+            const tiebreakItems: string[] = [];
 
             const itemsToRequest = hashesNotMatching.filter(vector => {
                 const remoteVector = versionVectors.find(v => v.ID === vector.ID);
@@ -1356,9 +1344,11 @@ class VaultItemSynchronization {
                     return true;
                 else if (remoteVector.DateModifiedTimestamp < localVector.DateModifiedTimestamp)
                     return false;
-                else
-                    // Sort the deviceIDs lexicographically and request the item from the lowest deviceID
-                    return remoteDeviceID < ourDeviceID;
+                else {
+                    if (remoteVector.Hash < localVector.Hash)
+                        tiebreakItems.push(vector.ID);
+                    return remoteVector.Hash < localVector.Hash;
+                }
             });
 
             syncLog.debug(
@@ -1368,7 +1358,8 @@ class VaultItemSynchronization {
                     itemsToRequestCount: itemsToRequest.length, 
                     itemsToRequest, 
                     deviceId: remoteDeviceID, 
-                    remoteDeviceIdLowerThanOurDeviceId: remoteDeviceID < ourDeviceID
+                    tiebreakItemsCount: tiebreakItems.length,
+                    tiebreakItems,
                 }
             );
 

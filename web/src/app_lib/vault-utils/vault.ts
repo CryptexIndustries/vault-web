@@ -24,6 +24,8 @@ export class Vault implements VaultUtilTypes.Vault {
     public Version: number;
     public CurrentVersion = 0;
     public LinkedDevices: LinkedDevices;
+    /** Server auth material (passkey JWKs, user id) - separate from device sync */
+    public OnlineServices?: OnlineServices;
     public Groups: Group[] = [];
     public Credentials: VaultCredential[];
 
@@ -74,17 +76,23 @@ export class Vault implements VaultUtilTypes.Vault {
                 `Upgrading Vault object to version 3 (from version ${this.CurrentVersion})...`,
             );
 
-            // Make sure that the DateCreated, DateModified and DatePasswordChanged properties are converted to Unix timestamps 
+            // Make sure that the DateCreated, DateModified and DatePasswordChanged properties are converted to Unix timestamps
             // and saved to the DateCreatedTimestamp, DateModifiedTimestamp and DatePasswordChangedTimestamp properties
             this.Credentials.forEach((cred) => {
-                cred.DateCreatedTimestamp = new Date(cred.DateCreated).getTime();
-                cred.DateModifiedTimestamp = cred.DateModified ? new Date(cred.DateModified).getTime() : cred.DateCreatedTimestamp;
-                cred.DatePasswordChangedTimestamp = cred.DatePasswordChanged ? new Date(cred.DatePasswordChanged).getTime() : cred.DateCreatedTimestamp;
+                cred.DateCreatedTimestamp = new Date(
+                    cred.DateCreated,
+                ).getTime();
+                cred.DateModifiedTimestamp = cred.DateModified
+                    ? new Date(cred.DateModified).getTime()
+                    : cred.DateCreatedTimestamp;
+                cred.DatePasswordChangedTimestamp = cred.DatePasswordChanged
+                    ? new Date(cred.DatePasswordChanged).getTime()
+                    : cred.DateCreatedTimestamp;
             });
 
             // Set the current version to 3
             this.CurrentVersion = 3;
-        
+
             console.warn("Upgraded Vault object to version 3.");
         }
     }
@@ -109,26 +117,41 @@ export class Vault implements VaultUtilTypes.Vault {
 
         return creds;
     }
+
+    public static bindOnlineServices(
+        vault: Vault,
+        onlineServices: OnlineServices,
+    ): void {
+        vault.OnlineServices = onlineServices;
+    }
+
+    public static unbindOnlineServices(vault: Vault): void {
+        vault.OnlineServices = undefined;
+    }
+
+    public static isOnlineServicesBound(
+        vault: Vault,
+    ): vault is Vault & { OnlineServices: OnlineServices } {
+        return vault.OnlineServices !== undefined;
+    }
 }
 
 export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
     public ID: string;
     public Name: string;
+    public SyncID: string;
     public LastSync: string | undefined;
-    public IsRoot = false;
     public LinkedAtTimestamp = Date.now();
     public AutoConnect: boolean;
     public SyncTimeout: boolean;
     public SyncTimeoutPeriod: number;
-
     public STUNServerIDs: string[] = [];
     public TURNServerIDs: string[] = [];
     public SignalingServerID = ONLINE_SERVICES_SELECTION_ID;
 
     constructor(
-        deviceID = "",
         deviceName = "",
-        isRoot = false,
+        syncID = "",
         linkedAtTimestamp = Date.now(),
         autoConnect = true,
         syncTimeout = false,
@@ -137,9 +160,9 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
         turnServerIDs: string[] = [],
         signalingServerID = ONLINE_SERVICES_SELECTION_ID,
     ) {
-        this.ID = deviceID;
+        this.ID = ulid();
         this.Name = deviceName;
-        this.IsRoot = isRoot;
+        this.SyncID = syncID;
         this.LinkedAtTimestamp = linkedAtTimestamp;
         this.AutoConnect = autoConnect;
         this.SyncTimeout = syncTimeout;
@@ -255,10 +278,6 @@ export class SignalingServerConfiguration
 }
 
 export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
-    public ID: string = ulid();
-    public APIKey?: string;
-    public CreationTimestamp = Date.now();
-
     public Devices: LinkedDevice[] = [];
 
     public STUNServers: STUNServerConfiguration[] = [];
@@ -291,37 +310,10 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
         return newInstance;
     }
 
-    public static bindAccount(instance: LinkedDevices, apiKey: string): void {
-        instance.ID = apiKey.slice(36);
-        instance.APIKey = apiKey;
-        instance.CreationTimestamp = Date.now();
-    }
-
-    public static unbindAccount(instance: LinkedDevices): void {
-        // NOTE: Don't reset the ID, if there are any devices linked (not using Cryptex Vault Online Service) to this account
-        // - they will be unable to sync
-        // instance.ID = ulid();
-        instance.APIKey = undefined;
-        instance.CreationTimestamp = Date.now();
-
-        // Remove all devices that are using the Cryptex Vault Online Services
-        // instance.Devices = instance.Devices.filter(
-        //     (d) =>
-        //         d.STUNServerIDs.length > 0 &&
-        //         d.TURNServerIDs.length > 0 &&
-        //         d.SignalingServerID != ONLINE_SERVICES_SELECTION_ID,
-        // );
-    }
-
-    public static isBound(instance: LinkedDevices): boolean {
-        return instance.APIKey != null;
-    }
-
     public static addLinkedDevice(
         instance: LinkedDevices,
-        deviceID: string,
         deviceName: string,
-        isRoot = false,
+        syncID: string,
         stunServerIDs: string[] = [],
         turnServerIDs: string[] = [],
         signalingServerID: string = ONLINE_SERVICES_SELECTION_ID,
@@ -332,9 +324,8 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
     ): void {
         instance.Devices.push(
             new LinkedDevice(
-                deviceID,
                 deviceName,
-                isRoot,
+                syncID,
                 linkedAtTimestamp,
                 autoConnect,
                 syncTimeout,
@@ -346,15 +337,45 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
         );
     }
 
-    public static generateNewDeviceID(): string {
-        return ulid();
-    }
-
     public static removeLinkedDevice(
         list: LinkedDevice[],
         deviceID: string,
     ): LinkedDevice[] {
         return list.filter((device) => device.ID !== deviceID);
+    }
+
+    public static isUsingOnlineServices(device: LinkedDevice): boolean {
+        return (
+            device.STUNServerIDs.length === 0
+            || device.TURNServerIDs.length === 0
+            || device.SignalingServerID === ONLINE_SERVICES_SELECTION_ID
+        );
+    }
+}
+
+/**
+ * Cryptex Vault Online Services - authentication material stored in the encrypted vault.
+ */
+export class OnlineServices implements VaultUtilTypes.OnlineServices {
+    public DeviceId: string;
+    public UserID: string;
+    public PrivateKeyJWK: string;
+    public PublicKeyJWK: string;
+    /** Cached server root status for this device; see `syncOnlineServicesRemoteConfiguration`. */
+    public IsRootDevice: boolean = false;
+
+    constructor(
+        deviceId: string,
+        userId: string,
+        publicKeyJWK: string,
+        privateKeyJWK: string,
+        isRootDevice: boolean = false,
+    ) {
+        this.DeviceId = deviceId;
+        this.UserID = userId;
+        this.PublicKeyJWK = publicKeyJWK;
+        this.PrivateKeyJWK = privateKeyJWK;
+        this.IsRootDevice = isRootDevice;
     }
 }
 
@@ -479,9 +500,7 @@ export class VaultCredential
     public DatePasswordChangedTimestamp: number;
     public Deleted = false;
 
-    constructor(
-        form?: CredentialFormSchemaType
-    ) {
+    constructor(form?: CredentialFormSchemaType) {
         this.ID = form?.ID ? String(form.ID).trim() : ulid();
 
         this.Type = form?.Type ?? VaultUtilTypes.ItemType.Credentials;
@@ -520,14 +539,16 @@ export class VaultCredential
  * @param credential The imported credential to assimilate
  * @returns The assimilated credential
  */
-export const assimilateImportedCredential = async (credential: VaultUtilTypes.Credential) => {
+export const assimilateImportedCredential = async (
+    credential: VaultUtilTypes.Credential,
+) => {
     let newCredential = new VaultCredential();
-    
+
     // Save the new credential's ID before we overwrite it with the imported one
     const generatedID = newCredential.ID;
 
     newCredential = Object.assign(new VaultCredential(), credential);
-    
+
     // Restore the new credential's ID
     newCredential.ID = generatedID;
 
@@ -535,7 +556,7 @@ export const assimilateImportedCredential = async (credential: VaultUtilTypes.Cr
     newCredential.Hash = await hashCredential(newCredential);
 
     return newCredential;
-}
+};
 
 const prepareCredentialForHashing = (credential: VaultCredential) => {
     // NOTE: When adding new fields, make sure to add them to the includedFields array
@@ -560,7 +581,11 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
     ];
 
     // These are the fields we don't want to blindly concatenate, so we exclude them and handle them separately (if needed)
-    const excludedFields: (keyof VaultCredential)[] = ["TOTP", "CustomFields", "Hash"];
+    const excludedFields: (keyof VaultCredential)[] = [
+        "TOTP",
+        "CustomFields",
+        "Hash",
+    ];
 
     let concatenatedValues = "";
 
@@ -657,9 +682,7 @@ export const hashCredentials = async (
  * - The data can come from the frontend (CredentialFormSchemaType) or from a diff (PartialCredential) we're applying.
  * @returns The new credential and the changes that were made to it
  */
-export const createCredential = async (
-    data: CredentialFormSchemaType,
-) => {
+export const createCredential = async (data: CredentialFormSchemaType) => {
     const newCreds = new VaultCredential(data);
 
     newCreds.Hash = await hashCredential(newCreds);
@@ -672,7 +695,10 @@ export const updateCredentialFromForm = async (
     form: CredentialFormSchemaType,
 ) => {
     // const modedCredential = updateCredential(existingCredential, form);
-    const moddedCredential = Object.assign(new VaultCredential(), existingCredential);
+    const moddedCredential = Object.assign(
+        new VaultCredential(),
+        existingCredential,
+    );
 
     const today = Date.now();
 
@@ -683,8 +709,7 @@ export const updateCredentialFromForm = async (
     moddedCredential.GroupID = form.GroupID ?? existingCredential.GroupID;
 
     moddedCredential.Name = form.Name ?? existingCredential.Name;
-    moddedCredential.Username =
-        form.Username ?? existingCredential.Username;
+    moddedCredential.Username = form.Username ?? existingCredential.Username;
 
     // Only update the DatePasswordChanged if the password has changed
     // existingCredential only takes a non nullish value of the password into account
@@ -738,7 +763,7 @@ export const deleteCredential = async (
 
     // If we didn't find the credential, return an error
     if (!credential) return err("Credential not found");
-    
+
     // Set the tombstone flag to true and clean up the credential to remove any sensitive data
     const cleanCredential = new VaultCredential();
     cleanCredential.ID = credential.ID;
@@ -746,7 +771,7 @@ export const deleteCredential = async (
 
     cleanCredential.DateCreatedTimestamp = credential.DateCreatedTimestamp;
     cleanCredential.DateModifiedTimestamp = Date.now();
-    
+
     // Bump the version of the credential since we're handling a modification (tombstone flag is considered a modification)
     cleanCredential.Version = credential.Version + 1;
 
@@ -794,14 +819,11 @@ export const upsertGroup = (
 
 /**
  * Packages the vault for linking to another device.
- * This is done by creating a copy of the vault, clearing the online services account and re-binding it with the new account.
- * @param newOnlineServicesAccount Credentials for the new account to bind to the vault (that will be used on the other device)
- * @returns A new Vault object ready for serialization and transfer
+ * Creates a copy, resets linked-device sync state, and sets OnlineServices for the peer.
  */
 export const packageForLinking = (
     instance: Vault,
-    deviceID: string,
-    apiKey: string | undefined,
+    syncID: string,
     stunServerIDs: string[],
     turnServerIDs: string[],
     signalingServerID: string,
@@ -809,24 +831,25 @@ export const packageForLinking = (
     // Create a copy of the vault so we don't modify the original
     const vaultCopy = Object.assign(new Vault(), instance);
 
-    // NOTE: Even if this vault never had any linked devices, it will always have at least on diff in the diff list
-    // This is to ensure that both devices can synchronize with each other even if they diverge right after linking
-
-    // Clear the online services account and re-bind it with the new account for the other device
+    // Clear linked-device sync state and re-bind for the other device
     vaultCopy.LinkedDevices = new LinkedDevices();
 
-    // Make sure the device has the same Linking configuration as the original vault
-    vaultCopy.LinkedDevices.STUNServers = instance.LinkedDevices.STUNServers;
-    vaultCopy.LinkedDevices.TURNServers = instance.LinkedDevices.TURNServers;
-    vaultCopy.LinkedDevices.SignalingServers =
-        instance.LinkedDevices.SignalingServers;
+    // Clear the Online Services configuration because this data is delivered in the original linking package
+    vaultCopy.OnlineServices = undefined;
 
-    // In case this linked device uses the Cryptex Vault Online Services (API key exists), we need to bind the account
-    if (apiKey) {
-        LinkedDevices.bindAccount(vaultCopy.LinkedDevices, apiKey);
-    } else {
-        vaultCopy.LinkedDevices.ID = deviceID;
-    }
+    // Copy over only the used STUN and TURN servers, and the signaling server
+    vaultCopy.LinkedDevices.STUNServers =
+        instance.LinkedDevices.STUNServers.filter((server) =>
+            stunServerIDs.includes(server.ID),
+        );
+    vaultCopy.LinkedDevices.TURNServers =
+        instance.LinkedDevices.TURNServers.filter((server) =>
+            turnServerIDs.includes(server.ID),
+        );
+    vaultCopy.LinkedDevices.SignalingServers =
+        instance.LinkedDevices.SignalingServers.filter(
+            (server) => server.ID === signalingServerID,
+        );
 
     // Since this device is the one linking, we can call it the root device
     const deviceName = "Root Device";
@@ -834,32 +857,12 @@ export const packageForLinking = (
     // Plant this device as a linked device in the new vault
     LinkedDevices.addLinkedDevice(
         vaultCopy.LinkedDevices,
-        instance.LinkedDevices.ID,
         deviceName,
-        true,
+        syncID,
         stunServerIDs,
         turnServerIDs,
         signalingServerID,
-        instance.LinkedDevices.CreationTimestamp,
     );
-
-    // Make sure we add all the other linked devices to this vault
-    instance.LinkedDevices.Devices.forEach((device) => {
-        LinkedDevices.addLinkedDevice(
-            vaultCopy.LinkedDevices,
-            device.ID,
-            device.Name,
-            device.IsRoot,
-            device.STUNServerIDs,
-            device.TURNServerIDs,
-            device.SignalingServerID,
-            device.LinkedAtTimestamp,
-            device.AutoConnect,
-            device.SyncTimeout,
-            device.SyncTimeoutPeriod,
-        );
-    });
 
     return vaultCopy;
 };
-

@@ -206,13 +206,13 @@ export class SynchronizationEnvelope
 
     public static createSyncHelloMessage(versionVectors: VaultUtilTypes.VersionVector[]) {
         const envelopeID = ulid();
-        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: envelopeID,
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
             Payload: VaultUtilTypes.SyncHelloMessage.encode({
                 VersionVectors: versionVectors,
             }).finish(),
-        }).finish();
+        }).finish());
 
         return {
             envelopeID,
@@ -222,13 +222,13 @@ export class SynchronizationEnvelope
 
     public static createSyncHelloEchoMessage(versionVectors: VaultUtilTypes.VersionVector[]) {
         const envelopeID = ulid();
-        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: envelopeID,
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
             Payload: VaultUtilTypes.SyncHelloEchoMessage.encode({
                 VersionVectors: versionVectors,
             }).finish(),
-        }).finish();
+        }).finish());
 
         return {
             envelopeID,
@@ -238,13 +238,13 @@ export class SynchronizationEnvelope
 
     public static createSyncDataRequestMessage(itemIDs: string[]) {
         const envelopeID = ulid();
-        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: envelopeID,
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
             Payload: VaultUtilTypes.SyncDataRequestMessage.encode({
                 ItemIDs: itemIDs,
             }).finish(),
-        }).finish();
+        }).finish());
 
         return {
             envelopeID,
@@ -253,13 +253,13 @@ export class SynchronizationEnvelope
     }
 
     public static createSyncDataResponseMessage(envelopeID: string, credentials: VaultUtilTypes.Credential[]) {
-        const data = VaultUtilTypes.SynchronizationEnvelope.encode({
+        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: envelopeID,
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
             Payload: VaultUtilTypes.SyncDataResponseMessage.encode({
                 Credentials: credentials,
             }).finish(),
-        }).finish();
+        }).finish());
 
         return data;
     }

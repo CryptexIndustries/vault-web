@@ -266,7 +266,7 @@ class KeyDerivation {
     ): Promise<CryptoKey> {
         const key = await crypto.subtle.importKey(
             "raw",
-            secret,
+            new Uint8Array(secret),
             { name: "PBKDF2" },
             false,
             ["deriveKey"],
@@ -275,7 +275,7 @@ class KeyDerivation {
         const derivedKey = await crypto.subtle.deriveKey(
             {
                 name: "PBKDF2",
-                salt,
+                salt: new Uint8Array(salt),
                 iterations: configuration.iterations,
                 hash: "SHA-512",
             },
@@ -301,7 +301,7 @@ class KeyDerivation {
 
         return sodium.crypto_pwhash(
             keyLength,
-            secret,
+            new Uint8Array(secret),
             salt,
             configuration.opsLimit,
             memLimitActual,
@@ -347,7 +347,7 @@ class AES {
 
             derivedKey = await crypto.subtle.importKey(
                 "raw",
-                key,
+                new Uint8Array(key),
                 { name: "AES-GCM", length: 256 },
                 false,
                 ["encrypt", "decrypt"],
@@ -363,7 +363,7 @@ class AES {
                 iv,
             },
             derivedKey,
-            blob,
+            new Uint8Array(blob),
         );
 
         const encryptedBlob = new Uint8Array(encrypted);
@@ -420,7 +420,7 @@ class AES {
 
             derivedKey = await crypto.subtle.importKey(
                 "raw",
-                key,
+                new Uint8Array(key),
                 { name: "AES-GCM", length: 256 },
                 false,
                 ["encrypt", "decrypt"],
@@ -433,10 +433,10 @@ class AES {
             const decrypted = await crypto.subtle.decrypt(
                 {
                     name: "AES-GCM",
-                    iv,
+                    iv: new Uint8Array(iv),
                 },
                 derivedKey,
-                encryptedBlob,
+                new Uint8Array(encryptedBlob),
             );
 
             // return new TextDecoder().decode(decrypted);

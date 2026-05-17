@@ -7,7 +7,9 @@ export const createAuthHeader = () => {
     const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
 
     const headers: Record<string, string> = { Authorization: "" };
-    if (onlineServicesData) headers.Authorization = onlineServicesData.key;
+    if (onlineServicesData?.sessionToken) {
+        headers.Authorization = `Bearer ${onlineServicesData.sessionToken}`;
+    }
     return headers;
 };
 

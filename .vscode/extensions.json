@@ -2,8 +2,9 @@
     "recommendations": [
         "prisma.prisma",
         "bradlc.vscode-tailwindcss",
-        "esbenp.prettier-vscode",
         "usernamehw.errorlens",
-        "yoavbls.pretty-ts-errors"
+        "yoavbls.pretty-ts-errors",
+        "oxc.oxc-vscode",
+        "typescriptteam.native-preview"
     ]
 }

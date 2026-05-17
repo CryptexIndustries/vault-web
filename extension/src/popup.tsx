@@ -17,8 +17,6 @@ import {
     isEncryptedEnvelope,
 } from "./utils/session-utils";
 import VaultView from "./vault-view";
-import { setOnlineServicesAPIKey } from "@/utils/atoms";
-
 type BgState = {
     unlocked: boolean;
     metadata: { id?: number; name: string } | null;

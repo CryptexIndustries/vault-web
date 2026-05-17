@@ -12,7 +12,13 @@ import {
     NewVaultFormSchemaType,
     VaultEncryptionConfigurationsFormElementType,
 } from "./form-schemas";
-import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
+import {
+    LinkedDevices,
+    OnlineServices,
+    TOTP,
+    Vault,
+    VaultCredential,
+} from "./vault";
 import { err, ok } from "neverthrow";
 import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
 
@@ -391,7 +397,7 @@ export const serializeVault = async (
         existingEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
     );
 
-    const rawData = VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish();
+    const rawData = new Uint8Array(VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish());
 
     return rawData;
 };

@@ -1,23 +1,26 @@
 // src/utils/trpc.ts
-import { createTRPCClient, httpBatchLink, loggerLink } from "@trpc/client";
+import {
+    createTRPCClient,
+    httpBatchLink,
+    loggerLink,
+    type Operation,
+} from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
 import type { VersionedRouter } from "../server/trpc";
-import { onlineServicesDataAtom, onlineServicesStore } from "./atoms";
+import { createBareAuthHeader, ensureFreshOnlineServicesSession } from "../app_lib/auth-session";
 
-export const createAuthHeader = () => {
-    const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
+function shouldEnsureFreshSession(opList: Operation[]) {
+    return opList.some((op) => !op.path.startsWith("v1.auth."));
+}
 
-    const headers = {
-        Authorization: "",
-    };
-
-    if (onlineServicesData) {
-        headers.Authorization = onlineServicesData.key;
+async function createHeadersWithFreshSession(opList: Operation[]) {
+    if (shouldEnsureFreshSession(opList)) {
+        await ensureFreshOnlineServicesSession();
     }
 
-    return headers;
-};
+    return createBareAuthHeader();
+}
 
 export const reactQueryClientConfig = (baseUrl: string) => {
     /**
@@ -35,7 +38,8 @@ export const reactQueryClientConfig = (baseUrl: string) => {
             }),
             httpBatchLink({
                 url,
-                headers: createAuthHeader,
+                headers: async ({ opList }) =>
+                    createHeadersWithFreshSession(opList),
                 transformer: superjson,
             }),
         ],
@@ -58,7 +62,7 @@ export const trpc = createTRPCClient<VersionedRouter>({
         }),
         httpBatchLink({
             url: "/api/trpc",
-            headers: createAuthHeader,
+            headers: async ({ opList }) => createHeadersWithFreshSession(opList),
             transformer: superjson,
         }),
     ],

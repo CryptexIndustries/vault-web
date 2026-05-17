@@ -25,7 +25,7 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
         mnemonic: string;
         linkingPackage: LinkingPackage;
     }> {
-        const mnemonic = bip39.generateMnemonic(wordlist, 256);
+        const mnemonic = bip39.generateMnemonic(wordlist, 128);
         const secret = await VaultEncryption.hashSecret(mnemonic);
 
         const newEncryptedBlob: VaultEncryption.EncryptedBlob =
@@ -175,6 +175,8 @@ export class LinkingProcessController {
     signalingServer: Pusher;
     signalingServerChannel: Channel;
     webRTCConnection: RTCPeerConnection;
+    private hasDirectConnection = false;
+    private hasTerminalError = false;
 
     public constructor(
         linkingBlob: VaultUtilTypes.LinkingPackageBlob,
@@ -197,7 +199,7 @@ export class LinkingProcessController {
         // Init the signaling server connection object
         const signalingServer = initPusherInstance(
             this.linkingPackage.SignalingServer ?? null,
-            this.linkingPackage.ID,
+            this.linkingPackage.SyncID,
         );
 
         type PusherInternalConnectionState =
@@ -242,6 +244,7 @@ export class LinkingProcessController {
                         break;
                     case "unavailable":
                     case "failed":
+                        this.hasTerminalError = true;
                         this.onStatusChange({
                             Step: LinkingProcessStep.Signaling,
                             State: LinkingProcessState.Error,
@@ -258,6 +261,10 @@ export class LinkingProcessController {
                         });
                         break;
                     case "disconnected":
+                        if (!this.hasDirectConnection || this.hasTerminalError) {
+                            break;
+                        }
+
                         this.onStatusChange({
                             Step: LinkingProcessStep.SignalingCleanup,
                             State: LinkingProcessState.Completed,
@@ -272,12 +279,23 @@ export class LinkingProcessController {
             },
         );
 
-        const channelName = constructLinkPresenceChannelName(
-            this.usesOnlineServices && this.linkingPackage.APIKey
-                ? this.linkingPackage.APIKey
-                : this.linkingPackage.ID,
-        );
+        const channelName = constructLinkPresenceChannelName(this.linkingPackage.SyncID);
         const signalingServerChannel = signalingServer.subscribe(channelName);
+        signalingServerChannel.bind("pusher:subscription_error", () => {
+            this.hasTerminalError = true;
+            this.onStatusChange({
+                Step: LinkingProcessStep.Signaling,
+                State: LinkingProcessState.Error,
+                LogMessage: {
+                    message: "Failed to authorize the signaling channel.",
+                    timestamp: Date.now(),
+                    type: "error",
+                },
+            });
+            signalingServer.unsubscribe(channelName);
+            signalingServer.disconnect();
+        });
+
         signalingServerChannel.bind("pusher:subscription_succeeded", () => {
             this.onStatusChange({
                 Step: LinkingProcessStep.SignalingWaitingOtherDevice,
@@ -373,6 +391,7 @@ export class LinkingProcessController {
             });
 
             if (webRTConnection.connectionState === "connected") {
+                this.hasDirectConnection = true;
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Completed,
@@ -397,6 +416,7 @@ export class LinkingProcessController {
                 this.signalingServer.disconnect();
                 this.signalingServer.unbind();
             } else if (webRTConnection.connectionState === "failed") {
+                this.hasTerminalError = true;
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Error,
@@ -511,7 +531,11 @@ export class LinkingProcessController {
                         type: "error",
                         details: {
                             type: "webrtc",
-                            error: new Error(err.toString()),
+                            error: new Error(
+                                err instanceof ErrorEvent
+                                    ? err.message
+                                    : "Secure channel error",
+                            ),
                         },
                     },
                 });
@@ -560,5 +584,25 @@ export class LinkingProcessController {
         };
 
         return webRTConnection;
+    }
+
+    public abortWaitingForDevice() {
+        this.signalingServerChannel.unbind();
+        this.signalingServer.unsubscribe(
+            constructLinkPresenceChannelName(this.linkingPackage.SyncID),
+        );
+        this.signalingServer.unbind();
+        this.signalingServer.disconnect();
+        this.webRTCConnection.close();
+
+        this.onStatusChange({
+            Step: LinkingProcessStep.SignalingWaitingOtherDevice,
+            State: LinkingProcessState.Warning,
+            LogMessage: {
+                message: "Linking aborted while waiting for the other device.",
+                timestamp: Date.now(),
+                type: "info",
+            },
+        });
     }
 }

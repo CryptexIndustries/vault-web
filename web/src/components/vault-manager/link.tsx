@@ -9,8 +9,8 @@ import {
 import { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { cn } from "@/lib/utils";
 import {
-    clearOnlineServicesAPIKey,
-    setOnlineServicesAPIKey,
+    clearOnlineServicesSession,
+    setOnlineServicesData,
 } from "@/utils/atoms";
 import {
     AlertCircle,
@@ -620,10 +620,18 @@ const LinkTab: React.FC<{
             !linkingPackage.STUNServers.length ||
             !linkingPackage.TURNServers.length;
 
-        if (linkingPackage.APIKey) {
-            setOnlineServicesAPIKey(linkingPackage.APIKey);
+        // If we received a private key, we're using Online Services
+        // Set the session data Device ID so we can establish an authenticated session
+        if (linkingPackage.OnlineServices) {
+            setOnlineServicesData({
+                deviceId: linkingPackage.OnlineServices.DeviceId,
+                sessionToken: null,
+                sessionExpiresAt: null,
+                remoteData: null,
+            });
         } else {
-            clearOnlineServicesAPIKey();
+            // Clear the session object just in case
+            clearOnlineServicesSession();
         }
 
         new LinkingProcessController(

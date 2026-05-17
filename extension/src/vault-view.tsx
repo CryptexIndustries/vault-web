@@ -63,7 +63,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { err, ok, Result } from "neverthrow";
 import { validateEnvelope } from "./utils/security-utils";
-import { setOnlineServicesAPIKey } from "@/utils/atoms";
 import { WarningDialog, WarningDialogShowFn } from "@/components/dialog/warning";
 import { CredentialConstants } from "@/utils/consts";
 
@@ -1163,9 +1162,8 @@ const VaultView: React.FC<VaultViewProps> = ({
                 return err("FAILED_TO_GET_SYNCHRONIZATION_CONFIGURATION");
             }
 
-            return ok({ 
-                devices: decryptedPayload.payload.config.Devices, 
-                apiKey: decryptedPayload.payload.config.APIKey,
+            return ok({
+                devices: decryptedPayload.payload.config.Devices,
             });
         }
 
@@ -1394,9 +1392,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                     return;
                 }
 
-                const { devices, apiKey } = syncConfig.value;
-
-                setOnlineServicesAPIKey(apiKey ?? "");
+                const { devices } = syncConfig.value;
 
                 linkedDevicesRef.current = devices;
                 if (devices.length > 0) {

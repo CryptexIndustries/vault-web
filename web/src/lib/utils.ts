@@ -5,16 +5,22 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
-// Base64 helpers for the browser
+/**
+ * A wrapper around Uint8Array.toBase64() - for backwards compatibility
+ * TODO: Remove this
+ * @param bytes The Uint8Array to convert to a base64 string
+ * @returns The base64 string
+ */
 export const uint8ToBase64 = (bytes: Uint8Array): string => {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++)
-        binary += String.fromCharCode(bytes[i]!);
-    return btoa(binary);
+    return bytes.toBase64();
 };
+
+/**
+ * A wrapper around Uint8Array.fromBase64() - for backwards compatibility
+ * TODO: Remove this
+ * @param b64 The base64 string to convert to a Uint8Array
+ * @returns The Uint8Array
+ */
 export const base64ToUint8 = (b64: string): Uint8Array => {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
+    return Uint8Array.fromBase64(b64);
 };

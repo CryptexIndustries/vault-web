@@ -12,7 +12,6 @@ import {
     ExternalLink,
     Edit2,
     Trash2,
-    MoreVertical,
     FileText,
     Plus,
 } from "lucide-react";
@@ -26,13 +25,6 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
     VaultCredential,
     calculateTOTP,
@@ -83,23 +75,23 @@ function CopyableField({
     const [showPassword, setShowPassword] = useState(false);
 
     return (
-        <div className="group">
+        <div className="group min-w-0">
             <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
                     {label}
                 </span>
             </div>
-            <div className="bg-muted/50 border-border group-hover:border-primary/30 flex items-center gap-2 rounded-lg border p-3 transition-colors">
+            <div className="bg-muted/50 border-border group-hover:border-primary/30 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border p-3 transition-colors">
                 <Icon className="text-muted-foreground h-4 w-4 flex-shrink-0" />
                 <span
                     className={cn(
-                        "flex-1 truncate font-mono text-sm text-foreground",
+                        "block min-w-0 flex-1 font-mono text-sm text-foreground",
                         isPassword && !showPassword && "tracking-[0.25em]",
                     )}
                 >
                     {isPassword && !showPassword ? "••••••••••••" : value}
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                     {isPassword && (
                         <TooltipProvider>
                             <Tooltip>
@@ -437,8 +429,8 @@ export function CredentialDetail({
             </div>
 
             {/* Content */}
-            <ScrollArea className="flex-1">
-                <div className="space-y-4 p-4">
+            <ScrollArea className="min-h-0 flex-1">
+                <div className="w-0 min-w-full space-y-4 p-4">
                     {/* Core fields */}
                     <CopyableField
                         label="Username"

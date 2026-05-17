@@ -1,12 +1,16 @@
 import { atom, createStore } from "jotai";
 import { focusAtom } from "jotai-optics";
 import { selectAtom } from "jotai/utils";
-import { LinkedDevices, Vault } from "../app_lib/vault-utils/vault";
+import { OnlineServices, Vault } from "../app_lib/vault-utils/vault";
 import { type VaultMetadata } from "../app_lib/vault-utils/storage";
 
 export type OnlineServicesData = {
-    key: string;
+    /** Passkey session JWT (`Authorization: Bearer`). */
+    sessionToken?: string | null;
+    sessionExpiresAt?: number | null;
+    deviceId?: string;
     remoteData: {
+        deviceId?: string;
         root: boolean;
         canLink: boolean;
         maxLinks: number;
@@ -119,7 +123,7 @@ export const vaultGet = getUnlockedVault;
 //#endregion Unlocked Vault
 
 export const onlineServicesBoundAtom = selectAtom(unlockedVaultAtom, (vault) =>
-    LinkedDevices.isBound(vault.LinkedDevices),
+    Vault.isOnlineServicesBound(vault),
 );
 
 export const onlineServicesStore = createStore();
@@ -135,17 +139,6 @@ export const setOnlineServicesData = (data: OnlineServicesData | null) => {
     onlineServicesStore.set(onlineServicesDataAtom, data);
 };
 
-export const setOnlineServicesAPIKey = (apiKey: string) => {
-    const normalizedApiKey = apiKey.trim();
-    if (!normalizedApiKey.length) {
-        throw new Error("API key is empty");
-    }
-
-    setOnlineServicesData({
-        key: normalizedApiKey,
-        remoteData: null,
-    });
-};
-export const clearOnlineServicesAPIKey = () => {
+export const clearOnlineServicesSession = () => {
     setOnlineServicesData(null);
 };

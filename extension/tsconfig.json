@@ -9,7 +9,6 @@
         "noEmit": true,
         "skipLibCheck": true,
         "types": ["react", "react-dom"],
-        "baseUrl": ".",
         "paths": {
             "@/*": ["../web/src/*"],
             "@ui/*": ["../packages/shared-ui/src/*"],

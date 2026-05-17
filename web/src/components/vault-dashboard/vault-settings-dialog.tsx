@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Download, FileJson, ShieldAlert, Upload } from "lucide-react";
 import { useAtomValue, useSetAtom } from "jotai/react";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
 import {
@@ -48,15 +48,19 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { unlockedVaultAtom, unlockedVaultMetadataAtom, unlockedVaultWriteOnlyAtom } from "@/utils/atoms";
-import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
-import { LogGroup, vaultLogger } from "@/utils/logging";
+import {
+    unlockedVaultAtom,
+    unlockedVaultMetadataAtom,
+    unlockedVaultWriteOnlyAtom,
+} from "@/utils/atoms";
+import { importLog, vaultLog, vaultLogger } from "@/utils/logging";
 import {
     MISSING_VAULT_SECRET_ERROR,
     getVaultSecretFromSession,
     saveVaultWithSessionSecret,
     setVaultSecretInSession,
 } from "@/utils/vault-session";
+import { BACKUP_FILE_EXTENSION } from "src/utils/consts";
 
 type VaultSettingsDialogProps = {
     open: boolean;
@@ -106,9 +110,9 @@ export function VaultSettingsDialog({
     const bitwardenInputRef = useRef<HTMLInputElement>(null);
     const csvInputRef = useRef<HTMLInputElement>(null);
 
-    const logCount = useMemo(
-        () => Object.values(vaultLogger.getLogCounts()).reduce((count, value) => count + value, 0),
-        [open],
+    const logCount = Object.values(vaultLogger.getLogCounts()).reduce(
+        (count, value) => count + value,
+        0,
     );
 
     const encryptionForm = useForm<EncryptionFormGroupSchemaType>({
@@ -204,8 +208,9 @@ export function VaultSettingsDialog({
             URL.revokeObjectURL(url);
             toast.success("Vault backup complete.");
         } catch (error) {
-            console.error("Failed to backup vault", error);
+            vaultLog.error("Failed to backup vault", { error });
             toast.error("Failed to create encrypted backup.");
+            return;
         } finally {
             setIsLoading(false);
         }
@@ -216,7 +221,7 @@ export function VaultSettingsDialog({
             ImportExport.vaultToJSON(unlockedVault);
             toast.success("Vault exported as JSON.");
         } catch (error) {
-            console.error("Failed to export vault JSON", error);
+            vaultLog.error("Failed to export vault JSON", { error });
             toast.error("Failed to export vault data.");
         }
     };
@@ -236,7 +241,11 @@ export function VaultSettingsDialog({
             await importCredentials(credentials, groups);
             toast.success(`Imported ${credentials.length} credentials.`);
         } catch (error) {
-            console.error("Bitwarden import failed", error);
+            importLog.error("Bitwarden import failed", {
+                fileName: file.name,
+                fileSize: file.size,
+                error,
+            });
             toast.error("Failed to import Bitwarden export.");
         } finally {
             setIsLoading(false);
@@ -279,7 +288,11 @@ export function VaultSettingsDialog({
                 );
             });
         } catch (error) {
-            console.error("CSV import failed", error);
+            importLog.error("CSV import failed", {
+                fileName: file.name,
+                fileSize: file.size,
+                error,
+            });
             toast.error("Failed to import CSV file.");
         } finally {
             setIsLoading(false);
@@ -320,18 +333,12 @@ export function VaultSettingsDialog({
                 Secret: "",
             });
         } catch (error) {
-            console.error("Failed to update encryption settings", error);
+            vaultLog.error("Failed to update encryption settings", { error });
             toast.error("Failed to update encryption settings.");
         } finally {
             setIsLoading(false);
         }
     });
-
-    const clearLogs = () => {
-        vaultLogger.clearAll();
-        vaultLogger.info(LogGroup.General, "Logs cleared");
-        toast.success("Logs cleared.");
-    };
 
     const sectionCardClassName = "vault-settings-card min-w-0 shadow-sm";
     const actionButtonClassName =

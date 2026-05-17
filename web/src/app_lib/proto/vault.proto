@@ -87,19 +87,28 @@ message Vault {
     // The current version of the vault, which chages when the vault is upgraded
     int32 CurrentVersion = 8;
 
-    reserved 2;
-    reserved "Secret";
+    reserved 2; reserved "Secret";
 
-    reserved 3;
-    reserved "Configuration";
+    reserved 3; reserved "Configuration";
 
     LinkedDevices LinkedDevices = 4;
     repeated Group Groups = 5;
     repeated Credential Credentials = 6;
 
-    reserved 7;
-    reserved "Diffs";
+    reserved 7; reserved "Diffs";
+
+    // Cryptex Vault Online Services - server auth (passkey material); separate from device sync
+    optional OnlineServices OnlineServices = 9;
 }
+
+//#region OnlineServices
+message OnlineServices {
+    string DeviceId = 1;
+    string UserID = 2;
+    string PrivateKeyJWK = 3;
+    string PublicKeyJWK = 4;
+}
+//#endregion OnlineServices
 
 //#region LinkedDevices
 message STUNServerConfiguration {
@@ -131,9 +140,9 @@ message SignalingServerConfiguration {
 }
 
 message LinkedDevices {
-    string ID = 1;
-    optional string APIKey = 2;
-    int64 CreationTimestamp = 3;
+    reserved 1; reserved "ID";
+    reserved 2; reserved "APIKey";
+    reserved 3; reserved "CreationTimestamp";
 
     reserved 4;
     repeated LinkedDevice Devices = 5;
@@ -146,11 +155,18 @@ message LinkedDevice {
     string ID = 1;
     string Name = 2;
     optional string LastSync = 3;
-    bool IsRoot = 4;
+    reserved 4; reserved "IsRoot";
     int64 LinkedAtTimestamp = 5;
     bool AutoConnect = 6;
     bool SyncTimeout = 7;
     int32 SyncTimeoutPeriod = 8;
+
+    /**
+     * Both devices use this ID when exchanging messages during the sync process.
+     * It is server-minted when the devices use Online Services.
+     * It is client-minted when the devices use third-party signaling servers.
+     */
+    string SyncID = 12;
 
     /**
       * The ID of the STUN server to use for this device.
@@ -256,8 +272,8 @@ message SyncDataResponseMessage {
 
 //#region Linking
 message LinkingPackageBlob {
-    string ID = 1;
-    optional string APIKey = 2; // In case the device is registered with the Cryptex Vault Online Services
+    string SyncID = 1;
+    OnlineServices OnlineServices = 2;
     repeated STUNServerConfiguration STUNServers = 3;
     repeated TURNServerConfiguration TURNServers = 4;
     SignalingServerConfiguration SignalingServer = 5;

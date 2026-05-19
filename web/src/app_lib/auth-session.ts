@@ -16,8 +16,7 @@ import {
     parseJwkFromString,
     signChallenge,
 } from "@/app_lib/vault-utils/passkey";
-import { OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
-import { saveVaultWithSessionSecret } from "@/utils/vault-session";
+import { Vault } from "@/app_lib/vault-utils/vault";
 import type { VersionedRouter } from "@/server/trpc";
 
 const SESSION_REFRESH_LEAD_MS = 60_000;

@@ -293,16 +293,14 @@ describe("vault-utils/storage", () => {
         expect(restored.Blob).toBeInstanceOf(EncryptedBlob);
     });
 
-    it("exportForLinking resets db index and re-encrypts clean vault", async () => {
+    it("exportForLinking returns serialized vault bytes", () => {
         const metadata = new VaultMetadata();
-        metadata.DBIndex = 9;
-        metadata.Blob = EncryptedBlob.CreateDefault();
+        const vault = new Vault();
 
-        const binary = await metadata.exportForLinking(new Vault(), new Uint8Array([1]));
-        const decoded = VaultUtilTypes.VaultMetadata.decode(binary);
+        const binary = metadata.exportForLinking(vault);
 
-        expect(mockEncryptDataBlob).toHaveBeenCalled();
-        expect(decoded.DBIndex).toBeUndefined();
+        expect(mockEncryptDataBlob).not.toHaveBeenCalled();
+        expect(VaultUtilTypes.Vault.decode(binary)).toBeDefined();
     });
 
     it("decryptVault triggers async re-save when blob upgrade requires it", async () => {
@@ -331,17 +329,6 @@ describe("vault-utils/storage", () => {
         await new Promise((r) => setTimeout(r, 0));
         expect(mockEncryptDataBlob).toHaveBeenCalled();
         expect(updateMock).toHaveBeenCalled();
-    });
-
-    it("exportForLinking throws when blob is null", async () => {
-        const metadata = new VaultMetadata();
-        metadata.Blob = undefined;
-
-        await expect(
-            metadata.exportForLinking(new Vault(), new Uint8Array([1])),
-        ).rejects.toThrow(
-            "Cannot export metadata for linking without an encrypted blob.",
-        );
     });
 
     it("save with null vault instance persists existing blob only without re-encrypting", async () => {

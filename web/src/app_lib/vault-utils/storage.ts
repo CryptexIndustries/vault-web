@@ -300,43 +300,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     }
 
     /**
-     * Prepares the vault for linking by cleaning up the metadata and re-encrypting the blob.
-     * @param cleanVaultInstance The cleaned up vault instance to encrypt and inject into the metadata
-     * @param secret The secret to encrypt the vault with
-     * @returns A new VaultMetadata object ready to be saved for linking
+     * Serializes a cleaned vault instance for device linking.
+     * @param cleanVaultInstance The cleaned up vault instance to send to the other device
+     * @returns Serialized vault bytes (not encrypted)
      */
-    public async exportForLinking(
-        cleanVaultInstance: Vault,
-        secret: Uint8Array,
-    ): Promise<Uint8Array> {
-        if (this.Blob == null) {
-            throw new Error(
-                "Cannot export metadata for linking without an encrypted blob.",
-            );
-        }
-
-        const newMetadata = Object.assign(new VaultMetadata(), this);
-
-        // Reset the DBIndex to undefined because we cannot know what it will be on the other device
-        newMetadata.DBIndex = undefined;
-
-        // Serialize the vault instance
-        const _vaultBytes =
-            VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
-
-        // Encrypt the vault using the configured encryption
-        newMetadata.Blob = await EncryptDataBlob(
-            _vaultBytes,
-            secret,
-            this.Blob.Algorithm,
-            this.Blob.KeyDerivationFunc,
-            this.Blob
-                .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-            this.Blob
-                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
-        );
-
-        return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
+    public exportForLinking(cleanVaultInstance: Vault): Uint8Array {
+        return VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
     }
 
     public static deserializeMetadataBinary(

@@ -49,8 +49,6 @@ import {
     LinkingProcessStatus,
     LinkingProcessStep,
 } from "@/app_lib/vault-utils/linking";
-import { DecryptDataBlob } from "@/app_lib/vault-utils/encryption";
-import { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import {
     generateKeyPair,
     privateKeyJwkToString,
@@ -685,12 +683,8 @@ export function SendLinkRequestDialog({
                 signalingServer?.ID ?? ONLINE_SERVICES_SELECTION_ID,
             );
 
-            addToProgressLog("Encrypting vault data...", "info");
-            const encryptedBlobObj = await vaultMetadata.exportForLinking(
-                exportedVault,
-                vaultSecret.value,
-            );
-            webRTCDataChannel.send(new Uint8Array(encryptedBlobObj));
+            const serializedVault = vaultMetadata.exportForLinking(exportedVault);
+            webRTCDataChannel.send(new Uint8Array(serializedVault));
             addToProgressLog("Vault data sent.");
 
             addToProgressLog("Saving linked device...", "info");
@@ -1251,7 +1245,7 @@ const receiveLinkStepCopy: Record<
     },
     [LinkingProcessStep.VaultTransfer]: {
         title: "Receive data",
-        description: "Downloading encrypted vault data.",
+        description: "Downloading vault data.",
     },
     [LinkingProcessStep.VaultSave]: {
         title: "Merge vault",
@@ -1300,33 +1294,8 @@ const cloneOnlineServices = (onlineServices: VaultUtilTypes.OnlineServices) =>
         onlineServices.PrivateKeyJWK,
     );
 
-async function decryptLinkedVaultMetadata(
-    data: Uint8Array,
-    vaultSecret: Uint8Array,
-) {
-    const receivedMetadata = VaultMetadata.deserializeMetadataBinary(data);
-    if (!receivedMetadata.Blob) {
-        throw new Error("Received vault metadata is missing encrypted data.");
-    }
-
-    const decryptedVaultRes = await DecryptDataBlob(
-        receivedMetadata.Blob,
-        vaultSecret,
-        receivedMetadata.Blob.Algorithm,
-        receivedMetadata.Blob.KeyDerivationFunc,
-        receivedMetadata.Blob.KeyDerivationFunc ===
-            VaultUtilTypes.KeyDerivationFunction.Argon2ID
-            ? (receivedMetadata.Blob
-                  .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID)
-            : (receivedMetadata.Blob
-                  .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2),
-    );
-
-    if (decryptedVaultRes.isErr()) {
-        throw new Error("Failed to decrypt received vault data.");
-    }
-
-    const rawVault = VaultUtilTypes.Vault.decode(decryptedVaultRes.value);
+function parseReceivedVault(data: Uint8Array) {
+    const rawVault = VaultUtilTypes.Vault.decode(data);
     const receivedVault = Object.assign(new Vault(), rawVault);
     receivedVault.LinkedDevices = LinkedDevices.fromGeneric(
         receivedVault.LinkedDevices,
@@ -1513,10 +1482,7 @@ export function ReceiveLinkRequestDialog({
             throw new Error(MISSING_VAULT_SECRET_ERROR);
         }
 
-        const receivedVault = await decryptLinkedVaultMetadata(
-            receivedVaultData,
-            vaultSecret.value,
-        );
+        const receivedVault = parseReceivedVault(receivedVaultData);
         const mergedVault = Object.assign(new Vault(), unlockedVault);
         mergedVault.Credentials = unlockedVault.Credentials.map(cloneCredential);
         mergedVault.Groups = unlockedVault.Groups.map((group) =>

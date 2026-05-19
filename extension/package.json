@@ -7,7 +7,10 @@
         "dev": "NODE_ENV=development vite build --mode development --watch --config vite.config.ts",
         "build": "vite build --config vite.config.ts",
         "preview": "vite preview",
-        "lint": "tsc --noEmit --strict"
+        "lint": "oxlint",
+        "lint-tsc": "tsgo --watch --noEmit --strict",
+        "fmt": "oxfmt",
+        "fmt-check": "oxfmt --check"
     },
     "dependencies": {
         "@cryptex-industries/shared-ui": "workspace:*",
@@ -25,6 +28,8 @@
         "pusher-js": "^8.3.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
+        "react-qr-barcode-scanner": "^2.1.6",
+        "sonner": "^2.0.7",
         "superjson": "^2.2.0",
         "ulidx": "^2.2.1",
         "zod": "^3.22.4"

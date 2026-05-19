@@ -1,0 +1,15 @@
+@import url("../../web/src/styles/globals.css");
+
+:root {
+    color-scheme: dark;
+}
+
+html,
+body,
+#root {
+    min-height: 100vh;
+}
+
+body {
+    margin: 0;
+}

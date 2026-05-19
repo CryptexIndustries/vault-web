@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "./popup.css";
-import VaultManager from "@/components/vault-manager/layout";
-import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
-import { type VaultMetadata } from "@/app_lib/vault-utils/storage";
+import { useLiveQuery } from "dexie-react-hooks";
 import { err, ok } from "neverthrow";
+import { LoaderCircle, Link2, ScrollText, Shield } from "lucide-react";
+
+import "./popup.css";
+import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
+import * as Storage from "@/app_lib/vault-utils/storage";
+
+import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
+
 import {
     EncryptedEnvelope,
     MessageType,
@@ -16,10 +22,33 @@ import {
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
+import {
+    generalLog,
+    openLogsTab,
+    uiLog,
+    vaultLog,
+} from "./utils/ext-logging";
+import PopupUnlock from "./components/popup-unlock";
 import VaultView from "./vault-view";
+
+const openLinkTab = () => {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.tabs) {
+        uiLog.warn("Cannot open link tab outside the extension context");
+        return;
+    }
+    void chrome.tabs.create({
+        url: chrome.runtime.getURL("/link.html"),
+    });
+};
+
 type BgState = {
     unlocked: boolean;
     metadata: { id?: number; name: string } | null;
+};
+
+type ServerPublicKey = {
+    keyId: string;
+    publicKeyJwk: JsonWebKey;
 };
 
 const App = () => {
@@ -27,10 +56,13 @@ const App = () => {
         unlocked: false,
         metadata: null,
     });
-    const [serverPublicKey, setServerPublicKey] = useState<{
-        keyId: string;
-        publicKeyJwk: JsonWebKey;
-    } | null>(null);
+    const [bgStateLoaded, setBgStateLoaded] = useState(false);
+    const [serverPublicKey, setServerPublicKey] =
+        useState<ServerPublicKey | null>(null);
+
+    const rawVaults = useLiveQuery(() => Storage.db.vaults.toArray());
+    const hasVaults = (rawVaults?.length ?? 0) > 0;
+    const vaultsLoaded = rawVaults != null;
 
     /**
      * Requests the server's public key for encrypted messaging.
@@ -48,8 +80,8 @@ const App = () => {
 
         if (!resp.payload.ok) {
             return err(
-                "Failed to get public key: " + resp.payload?.error ||
-                    "Unknown error",
+                "Failed to get public key: " +
+                    (resp.payload?.error ?? "Unknown error"),
             );
         }
 
@@ -66,7 +98,9 @@ const App = () => {
      * @returns An error if the public key refresh fails, otherwise ok.
      */
     const handleStaleKeyError = async () => {
-        console.debug("Stale key handler called, refreshing public key...");
+        generalLog.debug(
+            "Stale key handler called, refreshing public key",
+        );
 
         const res = await requestServerPublicKey();
 
@@ -79,95 +113,94 @@ const App = () => {
 
     useEffect(() => {
         (async () => {
-            // Request server's public key
             if (!serverPublicKey) {
                 const res = await requestServerPublicKey();
                 if (res.isErr()) {
-                    console.error(
-                        "When initializing the popup, failed to get server public key: " +
-                            res.error,
+                    generalLog.error(
+                        "Failed to get server public key on popup init",
+                        { error: res.error },
                     );
-                    return err("Failed to get server public key: " + res.error);
+                    return err(
+                        "Failed to get server public key: " + res.error,
+                    );
                 }
 
-                // In case the request failed, the serverPublicKey is still null
-                // This is just to be safe, and it makes the type checker happy
                 if (!serverPublicKey) {
                     return err("Failed to get server public key");
                 }
             }
 
-            // Get current state
-            {
-                let _retriedGetState = false;
-                const _getState = async () => {
-                    const envelope = await createEncryptedEnvelope(
-                        MessageType.GetState,
-                        null,
-                        serverPublicKey.publicKeyJwk,
-                        serverPublicKey.keyId,
-                        "popup",
-                    );
-                    const res: EncryptedEnvelope | PlaintextEnvelope =
-                        await chrome.runtime.sendMessage(envelope);
+            let retried = false;
+            const fetchState = async (): Promise<void> => {
+                const envelope = await createEncryptedEnvelope(
+                    MessageType.GetState,
+                    null,
+                    serverPublicKey.publicKeyJwk,
+                    serverPublicKey.keyId,
+                    "popup",
+                );
+                const res: EncryptedEnvelope | PlaintextEnvelope =
+                    await chrome.runtime.sendMessage(envelope);
 
-                    if (isEncryptedEnvelope(res)) {
-                        const decryptedPayload = await decryptResponseEnvelope<{
-                            unlocked: boolean;
-                            metadata: { id?: number; name: string } | null;
-                        }>(res);
-                        if (decryptedPayload?.ok && decryptedPayload.payload) {
-                            setBg({
-                                unlocked: decryptedPayload.payload.unlocked,
-                                metadata: decryptedPayload.payload.metadata,
-                            });
-                        }
+                if (isEncryptedEnvelope(res)) {
+                    const decryptedPayload = await decryptResponseEnvelope<{
+                        unlocked: boolean;
+                        metadata: { id?: number; name: string } | null;
+                    }>(res);
+                    if (decryptedPayload?.ok && decryptedPayload.payload) {
+                        setBg({
+                            unlocked: decryptedPayload.payload.unlocked,
+                            metadata: decryptedPayload.payload.metadata,
+                        });
+                    }
+                    setBgStateLoaded(true);
+                    return;
+                }
+
+                if (
+                    !res.payload.ok &&
+                    res.payload.error === "STALE_KEY"
+                ) {
+                    const retryRes = await handleStaleKeyError();
+                    if (retryRes.isErr()) {
+                        generalLog.error(
+                            "Failed to refresh public key while fetching state",
+                            { error: retryRes.error },
+                        );
+                        setBgStateLoaded(true);
                         return;
                     }
 
-                    if (!res.payload.ok && res.payload.error === "STALE_KEY") {
-                        const resRetry = await handleStaleKeyError();
-
-                        if (resRetry.isErr()) {
-                            console.error(
-                                "Tried to get state, but failed to refresh public key: " +
-                                    resRetry.error,
-                            );
-                            // TODO: Tell the user that the extension is not working correctly
-
-
-                            if (_retriedGetState) {
-                                // In theory, this should never happen, but we'll handle it just in case to avoid infinite recursion
-                                console.error(
-                                    "Tried to get state, but failed to refresh public key after multiple attempts",
-                                );
-                                // TODO: Tell the user that the extension is not working correctly
-                                return;
-                            }
-
-                            _retriedGetState = true;
-
-                            await _getState();
-                        }
-                    } else {
-                        console.warn(
-                            "Received an unknown non-encrypted envelope:",
-                            res.payload,
+                    if (retried) {
+                        generalLog.error(
+                            "Repeated public key refresh failure while fetching state",
                         );
+                        setBgStateLoaded(true);
+                        return;
                     }
-                };
-                await _getState();
-            }
+
+                    retried = true;
+                    await fetchState();
+                    return;
+                }
+
+                generalLog.warn("Unexpected plaintext envelope while fetching state", {
+                    payload: res.payload,
+                });
+                setBgStateLoaded(true);
+            };
+
+            await fetchState();
         })();
     }, [serverPublicKey]);
 
     const tryDecryptVault = async (
-        metadata: VaultMetadata,
+        metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
     ) => {
         const res = await _tryDecryptVault(metadata, formData);
 
-        const _successFn = () => {
+        const recordSuccess = () => {
             setBg({
                 unlocked: true,
                 metadata: {
@@ -175,39 +208,35 @@ const App = () => {
                     name: metadata.Name,
                 },
             });
+            vaultLog.info("Vault unlocked", { vaultId: metadata.DBIndex });
         };
 
         if (res.isErr()) {
             if (res.error === "STALE_KEY") {
                 const pubKeyRetry = await handleStaleKeyError();
                 if (pubKeyRetry.isErr()) {
-                    console.error(
-                        "Tried to decrypt vault, but failed to refresh public key: " +
-                            pubKeyRetry.error,
+                    vaultLog.error(
+                        "Failed to refresh public key while unlocking",
+                        { error: pubKeyRetry.error },
                     );
-
-                    // Return a generic error - we cannot continue
                     return err(
                         ("DECRYPTION_FAILED: " +
                             pubKeyRetry.error) as "DECRYPTION_FAILED",
                     );
                 }
 
-                const resRetry = await _tryDecryptVault(metadata, formData);
-                if (resRetry.isErr()) {
-                    console.error(
-                        "Tried to decrypt vault, but failed after retrying: " +
-                            resRetry.error,
-                    );
-
-                    // Return a generic error - we cannot continue
+                const retryRes = await _tryDecryptVault(metadata, formData);
+                if (retryRes.isErr()) {
+                    vaultLog.error("Unlock retry failed", {
+                        error: retryRes.error,
+                    });
                     return err(
                         ("DECRYPTION_FAILED: " +
-                            resRetry.error) as "DECRYPTION_FAILED",
+                            retryRes.error) as "DECRYPTION_FAILED",
                     );
                 }
 
-                _successFn();
+                recordSuccess();
                 return ok();
             }
 
@@ -216,12 +245,12 @@ const App = () => {
             );
         }
 
-        _successFn();
+        recordSuccess();
         return ok();
     };
 
     const _tryDecryptVault = async (
-        metadata: VaultMetadata,
+        metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
     ) => {
         if (!serverPublicKey) {
@@ -252,7 +281,9 @@ const App = () => {
             }
 
             if (!decryptedPayload.payload.ok) {
-                return err("VAULT_UNLOCK_FAILED: " + decryptedPayload.payload.error);
+                return err(
+                    "VAULT_UNLOCK_FAILED: " + decryptedPayload.payload.error,
+                );
             }
 
             return ok();
@@ -268,12 +299,13 @@ const App = () => {
     const handleLock = async () => {
         const res = await _handleLock();
 
-        const _successFn = () => {
+        const recordSuccess = () => {
             setBg({ unlocked: false, metadata: null });
+            vaultLog.info("Vault locked");
         };
 
         if (res.isOk()) {
-            _successFn();
+            recordSuccess();
             return ok();
         }
 
@@ -283,23 +315,24 @@ const App = () => {
 
         const pubKeyRetry = await handleStaleKeyError();
         if (pubKeyRetry.isErr()) {
-            console.error(
-                "Tried to lock vault, but failed to refresh public key: " +
-                    pubKeyRetry.error,
+            vaultLog.error(
+                "Failed to refresh public key while locking",
+                { error: pubKeyRetry.error },
             );
-            return err("LOCK_VAULT_FAILED_STALE_KEY: " + pubKeyRetry.error);
+            return err(
+                "LOCK_VAULT_FAILED_STALE_KEY: " + pubKeyRetry.error,
+            );
         }
 
-        const resRetry = await _handleLock();
-        if (resRetry.isErr()) {
-            console.error(
-                "Tried to lock vault, but failed after retrying: " +
-                    resRetry.error,
+        const retryRes = await _handleLock();
+        if (retryRes.isErr()) {
+            vaultLog.error("Lock retry failed", { error: retryRes.error });
+            return err(
+                "LOCK_VAULT_FAILED_AFTER_RETRY: " + retryRes.error,
             );
-            return err("LOCK_VAULT_FAILED_AFTER_RETRY: " + resRetry.error);
         }
 
-        _successFn();
+        recordSuccess();
         return ok();
     };
 
@@ -321,7 +354,7 @@ const App = () => {
 
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
-                   { ok: false; error: string } | { ok: true }
+                { ok: false; error: string } | { ok: true }
             >(res);
 
             if (!decryptedPayload?.ok) {
@@ -329,7 +362,9 @@ const App = () => {
             }
 
             if (!decryptedPayload.payload.ok) {
-                return err("VAULT_LOCK_FAILED: " + decryptedPayload.payload.error);
+                return err(
+                    "VAULT_LOCK_FAILED: " + decryptedPayload.payload.error,
+                );
             }
 
             return ok();
@@ -342,22 +377,92 @@ const App = () => {
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
-    return (
-        <div className="dark bg-background">
-            {bg.unlocked && bg.metadata ? (
+    const renderBody = () => {
+        if (!vaultsLoaded || !bgStateLoaded) {
+            return (
+                <div className="flex h-full items-center justify-center p-4">
+                    <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+            );
+        }
+
+        if (bg.unlocked && bg.metadata) {
+            return (
                 <VaultView
                     name={bg.metadata.name}
                     lockVaultFn={handleLock}
                     serverPublicKey={serverPublicKey}
                     onStaleKeyError={handleStaleKeyError}
                 />
-            ) : (
-                <VaultManager
-                    tryDecryptVaultCallback={tryDecryptVault}
-                    tryCreateVaultCallback={async () => false}
-                    tryRestoreVaultCallback={async () => false}
-                />
-            )}
+            );
+        }
+
+        if (!hasVaults) {
+            return (
+                <div className="flex h-full items-center justify-center p-4">
+                    <div className="flex w-full max-w-sm flex-col items-stretch gap-4 text-center">
+                        <span className="mx-auto rounded-md bg-primary/15 p-2 text-primary">
+                            <Shield className="h-5 w-5" />
+                        </span>
+                        <div className="space-y-1">
+                            <h1 className="text-sm font-semibold">
+                                No vault on this device
+                            </h1>
+                            <p className="text-[11px] leading-snug text-muted-foreground">
+                                Link this browser to an existing vault from
+                                another device. Linking opens in a new tab so the
+                                QR scanner and progress view have enough room.
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                                uiLog.info("Opening link tab from popup CTA");
+                                openLinkTab();
+                            }}
+                        >
+                            <Link2 className="mr-1 h-3.5 w-3.5" />
+                            Link this device
+                        </Button>
+                        <p className="text-[10px] text-muted-foreground">
+                            Once the linked vault is saved, this popup will switch
+                            to the unlock screen automatically.
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="flex h-full items-center justify-center p-4">
+                <div className="w-full max-w-sm">
+                    <PopupUnlock onUnlock={tryDecryptVault} />
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="dark flex h-full flex-col bg-background text-foreground">
+            <div className="flex-1 overflow-y-auto">{renderBody()}</div>
+            <footer className="flex items-center justify-between border-t bg-background/80 px-2 py-1 text-[10px] text-muted-foreground">
+                <span>Cryptex Vault</span>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 gap-1 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                        uiLog.debug("Opening logs tab");
+                        openLogsTab();
+                    }}
+                >
+                    <ScrollText className="h-3 w-3" />
+                    Logs
+                </Button>
+            </footer>
+            <Toaster />
         </div>
     );
 };

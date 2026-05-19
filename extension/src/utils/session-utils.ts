@@ -1,6 +1,7 @@
 import { ulid } from "ulidx";
 import {
     EncryptedEnvelope,
+    EnvelopeOrigin,
     PlaintextEnvelope,
     MessageType,
 } from "../types/sw-messaging";
@@ -48,7 +49,7 @@ export async function createEncryptedEnvelope(
     payload: object | null,
     serverPublicKey: JsonWebKey,
     serverKeyId: string,
-    origin: "popup" | "offscreen" | "worker",
+    origin: EnvelopeOrigin,
 ): Promise<EncryptedEnvelope> {
     // Generate ephemeral key pair for this session
     const ephemeralKeyPair = await generateECDHKeyPair();
@@ -137,7 +138,7 @@ export async function createEncryptedEnvelope(
 export function createPlaintextEnvelope(
     messageType: MessageType,
     payload: ({ ok: boolean } & any) | null,
-    origin: "popup" | "offscreen" | "worker",
+    origin: EnvelopeOrigin,
 ): PlaintextEnvelope {
     return {
         type: messageType,

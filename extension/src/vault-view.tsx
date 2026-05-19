@@ -1,20 +1,24 @@
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import * as SynchronizationUtils from "@/app_lib/synchronization-utils";
-import { TOTPFormSchemaType } from "@/app_lib/vault-utils/form-schemas";
 import * as Vault from "@/app_lib/vault-utils/vault";
 import {
+    calculateTOTP,
     CredentialFormSchemaType,
     VaultCredential,
 } from "@/app_lib/vault-utils/vault";
+import { CredentialDetail } from "@/components/vault-dashboard/credential-detail";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     ArrowRightSquare,
-    Clipboard,
     Copy,
     Edit,
     Eye,
     EyeOff,
+    FileText,
     Globe,
+    GripVertical,
+    Key,
+    Link as LinkIcon,
     Loader2,
     LockKeyhole,
     MoreVertical,
@@ -24,11 +28,11 @@ import {
     Search,
     Shield,
     Trash2,
+    User,
     X,
 } from "lucide-react";
-import { TOTP } from "otpauth";
 import React, { useEffect, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import {
     EncryptedEnvelope,
     LiteCredential,
@@ -50,6 +54,8 @@ import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -61,10 +67,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordGeneratorDialog } from "@/components/ui/password-generator";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { err, ok, Result } from "neverthrow";
 import { validateEnvelope } from "./utils/security-utils";
 import { WarningDialog, WarningDialogShowFn } from "@/components/dialog/warning";
-import { CredentialConstants } from "@/utils/consts";
+import { CredentialConstants, TOTPConstants } from "@/utils/consts";
 
 type VaultViewProps = {
     name: string;
@@ -230,10 +254,12 @@ const VaultView: React.FC<VaultViewProps> = ({
         useState<CredentialFormMode>(null);
     const [editingCredential, setEditingCredential] =
         useState<VaultCredential | null>(null);
+    const [selectedCredential, setSelectedCredential] =
+        useState<VaultCredential | null>(null);
 
     // Modal states
     const credentialModalVisible = useState(false);
-    const totpModalVisible = useState(false);
+    const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
 
     // Loading states for CRUD operations
     const [isCreating, setIsCreating] = useState(false);
@@ -267,10 +293,11 @@ const VaultView: React.FC<VaultViewProps> = ({
         handleSubmit,
         register,
         control,
-        formState: { errors, isSubmitting },
+        formState: { errors, isSubmitting, isDirty },
         reset,
         setValue,
         getValues,
+        watch,
     } = useForm<CredentialFormSchemaType>({
         resolver: zodResolver(Vault.CredentialFormSchema),
         defaultValues: {
@@ -288,15 +315,16 @@ const VaultView: React.FC<VaultViewProps> = ({
         },
     });
 
-    // TOTP Dialog state
-    const [showTOTPDialog, setShowTOTPDialog] = useState(false);
-    const [totpFormData, setTotpFormData] = useState<TOTPFormSchemaType>({
-        Label: "",
-        Secret: "",
-        Period: 30,
-        Digits: 6,
-        Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+    const {
+        fields: customFields,
+        append: appendCustomField,
+        remove: removeCustomField,
+    } = useFieldArray({
+        control,
+        name: "CustomFields",
     });
+
+    const watchedTotp = watch("TOTP");
 
     const filteredCredentials = credentials.filter(
         (cred) =>
@@ -427,95 +455,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                         aria-hidden="true"
                         onClick={() => addTag(inputValue)}
                     />
-                </div>
-            </div>
-        );
-    };
-
-    // TOTP Control Component
-    const TOTPControl: React.FC<{
-        value: TOTPFormSchemaType;
-        onChange: (event: TOTPFormSchemaType | null) => void;
-    }> = ({ value, onChange }) => {
-        const codeRef = useRef<string>("");
-        const [timeLeft, setTimeLeft] = useState(0);
-
-        const updateCode = () => {
-            try {
-                const totp = new TOTP({
-                    secret: value.Secret.replaceAll(" ", ""),
-                    period: value.Period,
-                    digits: value.Digits,
-                    algorithm: VaultUtilTypes.TOTPAlgorithm[value.Algorithm],
-                });
-                const code = totp.generate();
-                codeRef.current = code;
-            } catch (e) {
-                console.debug("[TOTP] Update code threw.", e);
-                clearTOTP();
-            }
-        };
-
-        const getTOTPTimeLeft = (period: number): number => {
-            const now = new Date();
-            const seconds = now.getSeconds();
-            const timeLeft = period - (seconds % period);
-            return timeLeft;
-        };
-
-        const updateTimeLeft = () => {
-            const timeLeft = getTOTPTimeLeft(value.Period);
-            setTimeLeft(timeLeft);
-        };
-
-        const clearTOTP = () => {
-            onChange(null);
-        };
-
-        useEffect(() => {
-            updateCode();
-            updateTimeLeft();
-        }, [value]);
-
-        useEffect(() => {
-            const interval = setInterval(() => {
-                updateCode();
-                updateTimeLeft();
-            }, 1000);
-            return () => clearInterval(interval);
-        }, []);
-
-        return (
-            <div className="flex flex-row items-center">
-                <div className="flex w-full flex-row items-center justify-between">
-                    <div className="flex flex-col items-center">
-                        <span className="text-2xl font-bold">
-                            {codeRef.current}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                            {timeLeft} seconds left
-                        </span>
-                    </div>
-                    <div className="flex flex-row items-center gap-2">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-muted/50"
-                            onClick={() =>
-                                navigator.clipboard.writeText(codeRef.current)
-                            }
-                        >
-                            <Clipboard className="h-3 w-3 text-muted-foreground" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-muted/50"
-                            onClick={clearTOTP}
-                        >
-                            <X className="h-3 w-3 text-muted-foreground" />
-                        </Button>
-                    </div>
                 </div>
             </div>
         );
@@ -724,15 +663,6 @@ const VaultView: React.FC<VaultViewProps> = ({
             refreshCredentials();
             credentialModalVisible[1](false);
             setCredentialFormMode(null);
-
-            // Reset TOTP form data to default values
-            setTotpFormData({
-                Label: "",
-                Secret: "",
-                Period: 30,
-                Digits: 6,
-                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-            });
             reset();
         };
 
@@ -836,17 +766,17 @@ const VaultView: React.FC<VaultViewProps> = ({
             // Refresh credentials list
             await refreshCredentials();
 
+            // Reload selected credential to reflect new data in detail pane
+            if (selectedCredential?.ID === id) {
+                const reloaded = await loadFullCredential(id);
+                if (reloaded.isOk()) {
+                    setSelectedCredential(reloaded.value);
+                }
+            }
+
             credentialModalVisible[1](false);
             setCredentialFormMode(null);
             setEditingCredential(null);
-            // Reset TOTP form data to default values
-            setTotpFormData({
-                Label: "",
-                Secret: "",
-                Period: 30,
-                Digits: 6,
-                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-            });
             reset();
         };
 
@@ -955,6 +885,9 @@ const VaultView: React.FC<VaultViewProps> = ({
 
         if (res.isOk()) {
             await refreshCredentials();
+            if (selectedCredential?.ID === id) {
+                setSelectedCredential(null);
+            }
             setIsDeleting(false);
             return ok();
         }
@@ -977,6 +910,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                 );
             } else {
                 await refreshCredentials();
+                if (selectedCredential?.ID === id) {
+                    setSelectedCredential(null);
+                }
                 setIsDeleting(false);
                 return ok();
             }
@@ -1174,20 +1110,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
-    const requestCredential = async (id: string) => {
+    const loadFullCredential = async (
+        id: string,
+    ): Promise<Result<VaultCredential, string>> => {
         if (!serverPublicKey) {
             console.error(
-                "REQUEST_CREDENTIAL_FAILED: No server public key available for encrypted messaging",
+                "LOAD_CREDENTIAL_FAILED: No server public key available for encrypted messaging",
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
-        setIsRefreshing(true);
 
         const res = await _requestCredential(id);
         if (res.isOk()) {
-            setIsRefreshing(false);
-            openEditForm(res.value);
-            return ok();
+            return ok(res.value);
         }
 
         if (res.error === "STALE_KEY") {
@@ -1197,7 +1132,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                     "Failed to request credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
-                setIsRefreshing(false);
                 return err("FAILED_TO_REQUEST_CREDENTIAL_STALE_KEY");
             }
 
@@ -1207,18 +1141,35 @@ const VaultView: React.FC<VaultViewProps> = ({
                     "Failed to request credential after retrying: " +
                         resRetry.error,
                 );
-            } else {
-                openEditForm(resRetry.value);
-                setIsRefreshing(false);
-                return ok();
+                return err("FAILED_TO_REQUEST_CREDENTIAL");
             }
-        } else {
-            console.error("Failed to request credential: " + res.error);
+            return ok(resRetry.value);
         }
 
-        setIsRefreshing(false);
-
+        console.error("Failed to request credential: " + res.error);
         return err("FAILED_TO_REQUEST_CREDENTIAL");
+    };
+
+    const selectCredential = async (id: string) => {
+        setIsRefreshing(true);
+        const res = await loadFullCredential(id);
+        setIsRefreshing(false);
+        if (res.isOk()) {
+            setSelectedCredential(res.value);
+            return ok();
+        }
+        return err(res.error);
+    };
+
+    const requestEditCredential = async (id: string) => {
+        setIsRefreshing(true);
+        const res = await loadFullCredential(id);
+        setIsRefreshing(false);
+        if (res.isOk()) {
+            openEditForm(res.value);
+            return ok();
+        }
+        return err(res.error);
     };
 
     const _requestCredential = async (id: string) => {
@@ -1272,15 +1223,8 @@ const VaultView: React.FC<VaultViewProps> = ({
     const openCreateForm = () => {
         setCredentialFormMode("create");
         setEditingCredential(null);
+        setShowFormPassword(false);
         credentialModalVisible[1](true);
-        // Reset TOTP form data to default values
-        setTotpFormData({
-            Label: "",
-            Secret: "",
-            Period: 30,
-            Digits: 6,
-            Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-        });
         reset({
             ID: null,
             Type: VaultUtilTypes.ItemType.Credentials,
@@ -1299,6 +1243,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     const openEditForm = (credential: VaultCredential) => {
         setCredentialFormMode("edit");
         setEditingCredential(credential);
+        setShowFormPassword(false);
         credentialModalVisible[1](true);
 
         // Populate form with existing data
@@ -1328,29 +1273,83 @@ const VaultView: React.FC<VaultViewProps> = ({
     const closeCredentialForm = () => {
         setCredentialFormMode(null);
         setEditingCredential(null);
+        setShowFormPassword(false);
         credentialModalVisible[1](false);
-        // Reset TOTP form data to default values
-        setTotpFormData({
-            Label: "",
-            Secret: "",
-            Period: 30,
-            Digits: 6,
-            Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
-        });
         reset();
     };
 
+    const requestCloseCredentialForm = () => {
+        if (isSubmitting || isCreating || isUpdating) return;
+
+        if (isDirty) {
+            showWarningDialogFnRef.current?.(
+                "You have unsaved changes.",
+                () => closeCredentialForm(),
+                null,
+                "Discard changes",
+            );
+            return;
+        }
+
+        closeCredentialForm();
+    };
+
     const handleFormSubmit = async (formData: CredentialFormSchemaType) => {
+        const normalized: CredentialFormSchemaType = {
+            ...formData,
+            Tags: formData.Tags ?? "",
+            CustomFields: (formData.CustomFields ?? []).filter(
+                (field) => field.Name.trim() && field.Value.trim(),
+            ),
+        };
+
         if (credentialFormMode === "create") {
-            await createCredential(formData);
+            await createCredential(normalized);
         } else if (credentialFormMode === "edit" && editingCredential) {
-            await updateCredential(editingCredential.ID, formData);
+            await updateCredential(editingCredential.ID, normalized);
         }
     };
 
-    const handleTOTPSubmit = () => {
-        setValue("TOTP", totpFormData);
-        totpModalVisible[1](false);
+    const handleTotpToggle = (enabled: boolean) => {
+        if (!enabled) {
+            setValue("TOTP", null, {
+                shouldDirty: true,
+                shouldValidate: true,
+            });
+            return;
+        }
+
+        setValue(
+            "TOTP",
+            watchedTotp ?? {
+                Label: "",
+                Secret: "",
+                Period: TOTPConstants.PERIOD_DEFAULT,
+                Digits: TOTPConstants.DIGITS_DEFAULT,
+                Algorithm: TOTPConstants.ALGORITHM_DEFAULT,
+            },
+            {
+                shouldDirty: true,
+                shouldValidate: true,
+            },
+        );
+    };
+
+    const handleAddCustomField = () => {
+        appendCustomField({
+            ID: `custom-${Date.now()}`,
+            Name: "",
+            Type: VaultUtilTypes.CustomFieldType.Text,
+            Value: "",
+        });
+    };
+
+    const handleGeneratedPasswordSelect = (newPassword: string) => {
+        setValue("Password", newPassword, {
+            shouldDirty: true,
+            shouldValidate: true,
+        });
+        setShowFormPassword(true);
     };
 
     const handleSyncNow = () => {
@@ -1494,8 +1493,38 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
     }, [serverPublicKey]);
 
+    const handleCopyUsername = (cred: VaultCredential) => {
+        copyToClipboard(cred.Username);
+    };
+
+    const handleCopyPassword = (cred: VaultCredential) => {
+        copyToClipboard(cred.Password);
+    };
+
+    const handleCopyTOTP = (cred: VaultCredential) => {
+        if (!cred.TOTP) return;
+        try {
+            const { code } = calculateTOTP(cred.TOTP);
+            copyToClipboard(code);
+        } catch (e) {
+            console.error("Failed to compute TOTP code:", e);
+        }
+    };
+
+    const handleOpenUrl = (cred: VaultCredential) => {
+        if (!cred.URL) return;
+        const fullUrl = cred.URL.startsWith("http")
+            ? cred.URL
+            : `https://${cred.URL}`;
+        window.open(fullUrl, "_blank");
+    };
+
+    const handleDeleteSelected = async (cred: VaultCredential) => {
+        await deleteCredential(cred.ID);
+    };
+
     return (
-        <div className="flex flex-col">
+        <div className="flex h-full flex-col">
             {/* Header with sync status */}
             <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-2">
                 <div className="flex items-center gap-2">
@@ -1517,159 +1546,218 @@ const VaultView: React.FC<VaultViewProps> = ({
                 </div>
             </div>
 
-            {/* Search bar */}
-            <div className="border-b border-border bg-background/50 px-3 py-2">
-                <div className="relative">
-                    <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                        placeholder="Search credentials..."
-                        value={searchQuery}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                            setSearchQuery(e.target.value)
-                        }
-                        className="h-6 border-border bg-input pl-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20"
-                    />
-                </div>
-            </div>
-
-            {/* Credentials list */}
-            <div className="flex-1 overflow-y-auto">
-                {filteredCredentials.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-                        <Shield className="mb-2 h-6 w-6 opacity-50" />
-                        <p className="text-xs">No credentials found</p>
-                    </div>
-                ) : (
-                    <div className="space-y-0 p-1">
-                        {/* Implement a virtual list to improve performance */}
-                        {filteredCredentials.map((credential) => (
-                            <div
-                                key={credential.id}
-                                className="group cursor-pointer border-b border-border transition-all duration-200 last:border-b-0 hover:bg-muted/50 hover:shadow-sm"
-                                onClick={async () =>
-                                    isRefreshing
-                                        ? null
-                                        : await requestCredential(credential.id)
+            {/* Body: split pane */}
+            <div className="flex min-h-0 flex-1">
+                {/* Left pane: search + list + add */}
+                <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
+                    <div className="border-b border-border bg-background/50 px-3 py-2">
+                        <div className="relative">
+                            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                placeholder="Search credentials..."
+                                value={searchQuery}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    setSearchQuery(e.target.value)
                                 }
-                                onContextMenu={(e: React.MouseEvent) => {
-                                    e.preventDefault();
+                                className="h-7 border-border bg-input pl-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20"
+                            />
+                        </div>
+                    </div>
 
-                                    // TODO: Open the dropdown menu
-                                }}
-                            >
-                                <div className="flex items-center justify-between p-2">
-                                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                                        <Avatar className="h-8 w-8">
-                                            <AvatarImage src={credential.url} />
-                                            <AvatarFallback>
-                                                <Globe className="h-4 w-4" />
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="truncate text-xs font-medium leading-tight text-foreground">
-                                                {credential.name}
-                                            </div>
-                                            <div className="-mt-0.5 truncate text-xs leading-tight text-muted-foreground">
-                                                {credential.username}
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        {filteredCredentials.length === 0 ? (
+                            <div className="flex h-full flex-col items-center justify-center px-3 text-center text-muted-foreground">
+                                <Shield className="mb-2 h-6 w-6 opacity-50" />
+                                <p className="text-xs">No credentials found</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-0 p-1">
+                                {filteredCredentials.map((credential) => {
+                                    const isSelected =
+                                        selectedCredential?.ID === credential.id;
+                                    return (
+                                        <div
+                                            key={credential.id}
+                                            role="button"
+                                            tabIndex={0}
+                                            className={`group cursor-pointer rounded-md border transition-all duration-150 ${
+                                                isSelected
+                                                    ? "border-primary bg-primary/10"
+                                                    : "border-transparent hover:border-border hover:bg-muted/50"
+                                            }`}
+                                            onClick={async () => {
+                                                if (isRefreshing) return;
+                                                await selectCredential(
+                                                    credential.id,
+                                                );
+                                            }}
+                                            onKeyDown={async (
+                                                e: React.KeyboardEvent,
+                                            ) => {
+                                                if (
+                                                    e.key === "Enter" ||
+                                                    e.key === " "
+                                                ) {
+                                                    e.preventDefault();
+                                                    if (isRefreshing) return;
+                                                    await selectCredential(
+                                                        credential.id,
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between p-2">
+                                                <div className="flex min-w-0 flex-1 items-center gap-2">
+                                                    <Avatar className="h-8 w-8">
+                                                        <AvatarImage
+                                                            src={credential.url}
+                                                        />
+                                                        <AvatarFallback>
+                                                            <Globe className="h-4 w-4" />
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="truncate text-xs font-medium leading-tight text-foreground">
+                                                            {credential.name}
+                                                        </div>
+                                                        <div className="-mt-0.5 truncate text-xs leading-tight text-muted-foreground">
+                                                            {credential.username}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger
+                                                        asChild
+                                                        onClick={(
+                                                            e: React.MouseEvent,
+                                                        ) => e.stopPropagation()}
+                                                    >
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-5 w-5 p-0 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                                                        >
+                                                            <MoreVertical className="h-3 w-3 text-muted-foreground" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent
+                                                        align="end"
+                                                        className="w-36"
+                                                    >
+                                                        <DropdownMenuItem
+                                                            onClick={async (
+                                                                e: React.MouseEvent,
+                                                            ) => {
+                                                                e.stopPropagation();
+                                                                await requestEditCredential(
+                                                                    credential.id,
+                                                                );
+                                                            }}
+                                                            className="text-xs"
+                                                        >
+                                                            <Edit className="mr-2 h-3 w-3" />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={async (
+                                                                e: React.MouseEvent,
+                                                            ) => {
+                                                                e.stopPropagation();
+                                                                await deleteCredential(
+                                                                    credential.id,
+                                                                );
+                                                            }}
+                                                            className="text-xs text-destructive"
+                                                            disabled={isDeleting}
+                                                        >
+                                                            {isDeleting ? (
+                                                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="mr-2 h-3 w-3" />
+                                                            )}
+                                                            {isDeleting
+                                                                ? "Deleting..."
+                                                                : "Delete"}
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={async (
+                                                                e: React.MouseEvent,
+                                                            ) => {
+                                                                e.stopPropagation();
+                                                                copyToClipboard(
+                                                                    credential.username,
+                                                                );
+                                                            }}
+                                                            className="text-xs"
+                                                        >
+                                                            <Copy className="mr-2 h-3 w-3" />
+                                                            Copy Username
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                         </div>
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger
-                                            asChild
-                                            onClick={(e: React.MouseEvent) =>
-                                                e.stopPropagation()
-                                            }
-                                        >
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-5 w-5 p-0 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                                            >
-                                                <MoreVertical className="h-3 w-3 text-muted-foreground" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                            align="end"
-                                            className="w-36"
-                                        >
-                                            <DropdownMenuItem
-                                                onClick={async (
-                                                    e: React.MouseEvent,
-                                                ) => {
-                                                    e.stopPropagation();
-                                                    await requestCredential(
-                                                        credential.id,
-                                                    );
-                                                }}
-                                                className="text-xs"
-                                            >
-                                                <Edit className="mr-2 h-3 w-3" />
-                                                Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={async (e: React.MouseEvent) => {
-                                                    e.stopPropagation();
-                                                    await deleteCredential(
-                                                        credential.id,
-                                                    );
-                                                }}
-                                                className="text-xs text-destructive"
-                                                disabled={isDeleting}
-                                            >
-                                                {isDeleting ? (
-                                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                                ) : (
-                                                    <Trash2 className="mr-2 h-3 w-3" />
-                                                )}
-                                                {isDeleting
-                                                    ? "Deleting..."
-                                                    : "Delete"}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={async (e: React.MouseEvent) => {
-                                                    e.stopPropagation();
-                                                    copyToClipboard(
-                                                        credential.username,
-                                                    );
-                                                }}
-                                                className="text-xs"
-                                            >
-                                                <Copy className="mr-2 h-3 w-3" />
-                                                Copy Username
-                                            </DropdownMenuItem>
-                                            {/* <DropdownMenuItem
-                                                onClick={() => copyToClipboard(credential.password)}
-                                                className="text-xs"
-                                            >
-                                                <Copy className="h-3 w-3 mr-2" />
-                                                Copy Password
-                                            </DropdownMenuItem> */}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
+                                    );
+                                })}
                             </div>
-                        ))}
+                        )}
                     </div>
-                )}
+
+                    <div className="border-t border-border bg-background/50 p-2">
+                        <Button
+                            className="h-8 w-full gap-2 text-xs"
+                            size="sm"
+                            onClick={openCreateForm}
+                            disabled={
+                                isCreating ||
+                                isUpdating ||
+                                isDeleting ||
+                                isRefreshing
+                            }
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add Credential
+                        </Button>
+                    </div>
+                </aside>
+
+                {/* Right pane: detail */}
+                <main className="flex min-w-0 flex-1 flex-col bg-card">
+                    {selectedCredential ? (
+                        <CredentialDetail
+                            credential={selectedCredential}
+                            isMobile
+                            onEdit={(c) => openEditForm(c)}
+                            onClose={() => setSelectedCredential(null)}
+                            onCopyUsername={handleCopyUsername}
+                            onCopyPassword={handleCopyPassword}
+                            onCopyTOTP={handleCopyTOTP}
+                            onOpenUrl={handleOpenUrl}
+                            onDeleteCredential={handleDeleteSelected}
+                        />
+                    ) : (
+                        <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                                <Key className="h-7 w-7 text-muted-foreground" />
+                            </div>
+                            <p className="text-sm font-medium text-foreground">
+                                {credentials.length === 0
+                                    ? "No credentials yet"
+                                    : "Select a credential"}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {credentials.length === 0
+                                    ? "Add your first credential to get started"
+                                    : "Choose an item from the list to view its details"}
+                            </p>
+                        </div>
+                    )}
+                </main>
             </div>
 
-            {/* Sync controls and add new credential button */}
-            <div className="space-y-2 border-t border-border bg-background/50 p-2">
-                <Button
-                    variant="outline"
-                    className="h-7 w-full text-xs"
-                    size="sm"
-                    onClick={openCreateForm}
-                    disabled={
-                        isCreating || isUpdating || isDeleting || isRefreshing
-                    }
-                >
-                    <Plus className="mr-1.5 h-3 w-3" />
-                    Add Credential
-                </Button>
-
-                <div className="flex gap-1">
+            {/* Footer: sync + lock */}
+            <div className="border-t border-border bg-background/50 p-2">
+                <div className="flex gap-2">
                     <Button
                         variant="outline"
                         className="h-7 flex-1 text-xs"
@@ -1707,439 +1795,760 @@ const VaultView: React.FC<VaultViewProps> = ({
             {/* Credential Form Dialog */}
             <Dialog
                 open={credentialModalVisible[0]}
-                onOpenChange={() => closeCredentialForm()}
+                onOpenChange={(open) => {
+                    if (!open) requestCloseCredentialForm();
+                }}
             >
                 <DialogContent
-                    className="max-h-[90vh] w-96 max-w-md overflow-y-auto shadow-2xl"
-                    aria-describedby={undefined}
+                    className="flex max-h-[90vh] w-[520px] max-w-xl flex-col gap-0 p-0 shadow-2xl"
+                    aria-describedby="credential-form-description"
                 >
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-sm">
-                            <Shield className="h-4 w-4" />
+                    <DialogHeader className="border-b border-border px-5 py-4">
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            <Shield className="h-4 w-4 text-primary" />
                             {credentialFormMode === "create"
-                                ? "New Credential"
+                                ? "Add New Credential"
                                 : "Edit Credential"}
                         </DialogTitle>
+                        <DialogDescription
+                            id="credential-form-description"
+                            className="text-xs"
+                        >
+                            {credentialFormMode === "create"
+                                ? "Add a new credential to your secure vault"
+                                : "Update the details of this credential"}
+                        </DialogDescription>
                     </DialogHeader>
+
                     <form
                         onSubmit={handleSubmit(handleFormSubmit)}
-                        className="space-y-4"
+                        className="flex min-h-0 flex-1 flex-col"
                     >
-                        {/* Name Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Name *
-                            </Label>
-                            <Input
-                                {...register("Name")}
-                                className="mt-1 w-full"
-                                placeholder="Enter credential name"
-                            />
-                            {errors.Name && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.Name.message}
-                                </p>
-                            )}
-                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                            <div className="space-y-5">
+                                {/* Basic Info */}
+                                <div className="space-y-4">
+                                    {/* Name */}
+                                    <div className="space-y-1.5">
+                                        <Label
+                                            htmlFor="cred-name"
+                                            className="text-xs font-medium"
+                                        >
+                                            Name{" "}
+                                            <span className="text-destructive">
+                                                *
+                                            </span>
+                                        </Label>
+                                        <div className="relative">
+                                            <Globe className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <Input
+                                                id="cred-name"
+                                                placeholder="e.g., GitHub, AWS Console"
+                                                {...register("Name")}
+                                                className={cn(
+                                                    "h-9 pl-8 text-sm",
+                                                    errors.Name &&
+                                                        "border-destructive",
+                                                )}
+                                            />
+                                        </div>
+                                        {errors.Name && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.Name.message}
+                                            </p>
+                                        )}
+                                    </div>
 
-                        {/* Username Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Username
-                            </Label>
-                            <div className="mt-1 flex gap-1">
-                                <Input
-                                    {...register("Username")}
-                                    className="mt-1 flex-1"
-                                    placeholder="Enter username"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() =>
-                                        copyToClipboard(getValues("Username"))
-                                    }
-                                >
-                                    <Copy className="h-3 w-3" />
-                                </Button>
-                            </div>
-                            {errors.Username && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.Username.message}
-                                </p>
-                            )}
-                        </div>
+                                    {/* Username */}
+                                    <div className="space-y-1.5">
+                                        <Label
+                                            htmlFor="cred-username"
+                                            className="text-xs font-medium"
+                                        >
+                                            Username / Email
+                                        </Label>
+                                        <div className="relative">
+                                            <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <Input
+                                                id="cred-username"
+                                                placeholder="username@email.com"
+                                                {...register("Username")}
+                                                className={cn(
+                                                    "h-9 pl-8 pr-9 text-sm",
+                                                    errors.Username &&
+                                                        "border-destructive",
+                                                )}
+                                            />
+                                            <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7"
+                                                                onClick={() =>
+                                                                    copyToClipboard(
+                                                                        getValues(
+                                                                            "Username",
+                                                                        ),
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Copy className="h-3 w-3 text-muted-foreground" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Copy
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
+                                        {errors.Username && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.Username.message}
+                                            </p>
+                                        )}
+                                    </div>
 
-                        {/* Password Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Password
-                            </Label>
-                            <div className="mt-1 flex gap-1">
-                                <Input
-                                    {...register("Password")}
-                                    type={
-                                        showFormPassword ? "text" : "password"
-                                    }
-                                    className="mt-1 flex-1"
-                                    placeholder="Enter password"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() =>
-                                        setShowFormPassword(!showFormPassword)
-                                    }
-                                >
-                                    {showFormPassword ? (
-                                        <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                    ) : (
-                                        <Eye className="h-3 w-3 text-muted-foreground" />
-                                    )}
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() =>
-                                        copyToClipboard(getValues("Password"))
-                                    }
-                                >
-                                    <Copy className="h-3 w-3 text-muted-foreground" />
-                                </Button>
-                            </div>
-                            {errors.Password && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.Password.message}
-                                </p>
-                            )}
-                        </div>
+                                    {/* Password */}
+                                    <div className="space-y-1.5">
+                                        <Label
+                                            htmlFor="cred-password"
+                                            className="text-xs font-medium"
+                                        >
+                                            Password
+                                        </Label>
+                                        <div className="relative">
+                                            <Key className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <Input
+                                                id="cred-password"
+                                                type={
+                                                    showFormPassword
+                                                        ? "text"
+                                                        : "password"
+                                                }
+                                                placeholder="Enter password"
+                                                {...register("Password")}
+                                                className={cn(
+                                                    "h-9 pl-8 pr-[7rem] font-mono text-sm",
+                                                    errors.Password &&
+                                                        "border-destructive",
+                                                )}
+                                            />
+                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7"
+                                                                onClick={() =>
+                                                                    setShowFormPassword(
+                                                                        !showFormPassword,
+                                                                    )
+                                                                }
+                                                            >
+                                                                {showFormPassword ? (
+                                                                    <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                                                ) : (
+                                                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                                                )}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {showFormPassword
+                                                                ? "Hide"
+                                                                : "Show"}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7"
+                                                                onClick={() =>
+                                                                    setShowPasswordGenerator(
+                                                                        true,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Generate password
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7"
+                                                                onClick={() =>
+                                                                    copyToClipboard(
+                                                                        getValues(
+                                                                            "Password",
+                                                                        ),
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Copy className="h-3 w-3 text-muted-foreground" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Copy
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
+                                        {errors.Password && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.Password.message}
+                                            </p>
+                                        )}
+                                    </div>
 
-                        {/* TOTP Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                TOTP
-                            </Label>
-                            <Controller
-                                control={control}
-                                name="TOTP"
-                                render={({ field: { onChange, value } }) => (
-                                    <>
-                                        {value != null ? (
-                                            <div className="mt-1 rounded-md border border-border bg-muted/50 p-3">
-                                                <TOTPControl
+                                    {/* URL */}
+                                    <div className="space-y-1.5">
+                                        <Label
+                                            htmlFor="cred-url"
+                                            className="text-xs font-medium"
+                                        >
+                                            Website URL
+                                        </Label>
+                                        <div className="relative">
+                                            <LinkIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <Input
+                                                id="cred-url"
+                                                type="url"
+                                                placeholder="https://example.com"
+                                                {...register("URL")}
+                                                className={cn(
+                                                    "h-9 pl-8 pr-[4.5rem] text-sm",
+                                                    errors.URL &&
+                                                        "border-destructive",
+                                                )}
+                                            />
+                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7"
+                                                                onClick={() => {
+                                                                    const url =
+                                                                        getValues(
+                                                                            "URL",
+                                                                        );
+                                                                    if (!url)
+                                                                        return;
+                                                                    const fullUrl =
+                                                                        url.startsWith(
+                                                                            "http",
+                                                                        )
+                                                                            ? url
+                                                                            : `https://${url}`;
+                                                                    window.open(
+                                                                        fullUrl,
+                                                                        "_blank",
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <ArrowRightSquare className="h-3 w-3 text-muted-foreground" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Open
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7"
+                                                                onClick={() =>
+                                                                    copyToClipboard(
+                                                                        getValues(
+                                                                            "URL",
+                                                                        ),
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Copy className="h-3 w-3 text-muted-foreground" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Copy
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
+                                        {errors.URL && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.URL.message}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Tags */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium">
+                                            Tags
+                                        </Label>
+                                        <Controller
+                                            control={control}
+                                            name="Tags"
+                                            render={({
+                                                field: { onChange, value },
+                                            }) => (
+                                                <TagBox
                                                     onChange={onChange}
                                                     value={value}
                                                 />
-                                            </div>
-                                        ) : (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="mt-1 h-8 w-full border-border text-xs hover:bg-muted/50"
-                                                onClick={() =>
-                                                    totpModalVisible[1](true)
-                                                }
-                                            >
-                                                Configure TOTP
-                                            </Button>
+                                            )}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Press Enter to add a tag
+                                        </p>
+                                        {errors.Tags && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.Tags.message}
+                                            </p>
                                         )}
-                                    </>
-                                )}
-                            />
-                            {errors.TOTP && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.TOTP.message}
-                                </p>
-                            )}
-                        </div>
+                                    </div>
 
-                        {/* Tags Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Tags
-                            </Label>
-                            <Controller
-                                control={control}
-                                name="Tags"
-                                render={({ field: { onChange, value } }) => (
-                                    <div className="mt-1 rounded-md border border-border bg-muted/50 p-2">
-                                        <TagBox
-                                            onChange={onChange}
-                                            value={value}
+                                    {/* Notes */}
+                                    <div className="space-y-1.5">
+                                        <Label
+                                            htmlFor="cred-notes"
+                                            className="text-xs font-medium"
+                                        >
+                                            Notes
+                                        </Label>
+                                        <Textarea
+                                            id="cred-notes"
+                                            placeholder="Add any additional notes..."
+                                            {...register("Notes")}
+                                            className="min-h-[72px] resize-none text-sm"
+                                        />
+                                        {errors.Notes && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.Notes.message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* TOTP */}
+                                <Separator />
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-xs font-medium">
+                                                Two-Factor Authentication
+                                            </Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Enable TOTP for this credential
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            checked={!!watchedTotp}
+                                            onCheckedChange={handleTotpToggle}
                                         />
                                     </div>
-                                )}
-                            />
-                            {errors.Tags && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.Tags.message}
-                                </p>
-                            )}
+                                    {watchedTotp && (
+                                        <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                                            <div className="space-y-1.5">
+                                                <Label
+                                                    htmlFor="totp-label"
+                                                    className="text-xs"
+                                                >
+                                                    TOTP Label
+                                                </Label>
+                                                <Input
+                                                    id="totp-label"
+                                                    placeholder="Credential"
+                                                    {...register("TOTP.Label")}
+                                                    className="h-8 text-sm"
+                                                />
+                                                {errors.TOTP?.Label && (
+                                                    <p className="text-xs text-destructive">
+                                                        {
+                                                            errors.TOTP.Label
+                                                                .message
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label
+                                                    htmlFor="totp-secret"
+                                                    className="text-xs"
+                                                >
+                                                    TOTP Secret
+                                                </Label>
+                                                <Input
+                                                    id="totp-secret"
+                                                    placeholder="Base32 secret"
+                                                    {...register("TOTP.Secret")}
+                                                    className="h-8 font-mono text-sm"
+                                                />
+                                                {errors.TOTP?.Secret && (
+                                                    <p className="text-xs text-destructive">
+                                                        {
+                                                            errors.TOTP.Secret
+                                                                .message
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1.5">
+                                                    <Label
+                                                        htmlFor="totp-period"
+                                                        className="text-xs"
+                                                    >
+                                                        Period (seconds)
+                                                    </Label>
+                                                    <Input
+                                                        id="totp-period"
+                                                        type="number"
+                                                        min={1}
+                                                        {...register(
+                                                            "TOTP.Period",
+                                                            {
+                                                                valueAsNumber:
+                                                                    true,
+                                                            },
+                                                        )}
+                                                        className="h-8 text-sm"
+                                                    />
+                                                    {errors.TOTP?.Period && (
+                                                        <p className="text-xs text-destructive">
+                                                            {
+                                                                errors.TOTP
+                                                                    .Period
+                                                                    .message
+                                                            }
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label
+                                                        htmlFor="totp-digits"
+                                                        className="text-xs"
+                                                    >
+                                                        Digits
+                                                    </Label>
+                                                    <Input
+                                                        id="totp-digits"
+                                                        type="number"
+                                                        min={1}
+                                                        {...register(
+                                                            "TOTP.Digits",
+                                                            {
+                                                                valueAsNumber:
+                                                                    true,
+                                                            },
+                                                        )}
+                                                        className="h-8 text-sm"
+                                                    />
+                                                    {errors.TOTP?.Digits && (
+                                                        <p className="text-xs text-destructive">
+                                                            {
+                                                                errors.TOTP
+                                                                    .Digits
+                                                                    .message
+                                                            }
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">
+                                                    Algorithm
+                                                </Label>
+                                                <Controller
+                                                    name="TOTP.Algorithm"
+                                                    control={control}
+                                                    render={({ field }) => (
+                                                        <Select
+                                                            value={String(
+                                                                field.value ??
+                                                                    TOTPConstants.ALGORITHM_DEFAULT,
+                                                            )}
+                                                            onValueChange={(
+                                                                value,
+                                                            ) =>
+                                                                field.onChange(
+                                                                    Number(
+                                                                        value,
+                                                                    ),
+                                                                )
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="h-8 text-sm">
+                                                                <SelectValue placeholder="Select algorithm" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem
+                                                                    value={String(
+                                                                        VaultUtilTypes
+                                                                            .TOTPAlgorithm
+                                                                            .SHA1,
+                                                                    )}
+                                                                >
+                                                                    SHA1
+                                                                </SelectItem>
+                                                                <SelectItem
+                                                                    value={String(
+                                                                        VaultUtilTypes
+                                                                            .TOTPAlgorithm
+                                                                            .SHA256,
+                                                                    )}
+                                                                >
+                                                                    SHA256
+                                                                </SelectItem>
+                                                                <SelectItem
+                                                                    value={String(
+                                                                        VaultUtilTypes
+                                                                            .TOTPAlgorithm
+                                                                            .SHA512,
+                                                                    )}
+                                                                >
+                                                                    SHA512
+                                                                </SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
+                                                />
+                                                {errors.TOTP?.Algorithm && (
+                                                    <p className="text-xs text-destructive">
+                                                        {
+                                                            errors.TOTP
+                                                                .Algorithm
+                                                                .message
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Custom Fields */}
+                                <Separator />
+                                <div>
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <div>
+                                            <Label className="text-xs font-medium">
+                                                Custom Fields
+                                            </Label>
+                                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                                Add additional information
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleAddCustomField}
+                                            className="h-7 gap-1.5 text-xs"
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                            Add Field
+                                        </Button>
+                                    </div>
+
+                                    {customFields.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {customFields.map(
+                                                (field, index) => {
+                                                    const fieldType = watch(
+                                                        `CustomFields.${index}.Type`,
+                                                    );
+                                                    return (
+                                                        <div
+                                                            key={field.id}
+                                                            className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-2.5"
+                                                        >
+                                                            <GripVertical className="mt-2 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                                                            <div className="flex-1 space-y-2">
+                                                                <Input
+                                                                    placeholder="Field name"
+                                                                    {...register(
+                                                                        `CustomFields.${index}.Name`,
+                                                                    )}
+                                                                    className="h-8 text-sm"
+                                                                />
+                                                                <div className="flex items-center gap-2">
+                                                                    <Input
+                                                                        placeholder="Value"
+                                                                        type={
+                                                                            fieldType ===
+                                                                            VaultUtilTypes
+                                                                                .CustomFieldType
+                                                                                .MaskedText
+                                                                                ? "password"
+                                                                                : "text"
+                                                                        }
+                                                                        {...register(
+                                                                            `CustomFields.${index}.Value`,
+                                                                        )}
+                                                                        className="h-8 font-mono text-sm"
+                                                                    />
+                                                                    <Controller
+                                                                        control={
+                                                                            control
+                                                                        }
+                                                                        name={`CustomFields.${index}.Type`}
+                                                                        render={({
+                                                                            field:
+                                                                                typeField,
+                                                                        }) => (
+                                                                            <Select
+                                                                                value={String(
+                                                                                    typeField.value ??
+                                                                                        VaultUtilTypes
+                                                                                            .CustomFieldType
+                                                                                            .Text,
+                                                                                )}
+                                                                                onValueChange={(
+                                                                                    value,
+                                                                                ) =>
+                                                                                    typeField.onChange(
+                                                                                        Number(
+                                                                                            value,
+                                                                                        ),
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                <SelectTrigger className="h-8 w-24 text-xs">
+                                                                                    <SelectValue />
+                                                                                </SelectTrigger>
+                                                                                <SelectContent>
+                                                                                    <SelectItem
+                                                                                        value={String(
+                                                                                            VaultUtilTypes
+                                                                                                .CustomFieldType
+                                                                                                .Text,
+                                                                                        )}
+                                                                                    >
+                                                                                        Text
+                                                                                    </SelectItem>
+                                                                                    <SelectItem
+                                                                                        value={String(
+                                                                                            VaultUtilTypes
+                                                                                                .CustomFieldType
+                                                                                                .MaskedText,
+                                                                                        )}
+                                                                                    >
+                                                                                        Hidden
+                                                                                    </SelectItem>
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    removeCustomField(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                },
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-md border border-dashed border-border py-5 text-center">
+                                            <FileText className="mx-auto mb-1.5 h-6 w-6 text-muted-foreground" />
+                                            <p className="text-xs text-muted-foreground">
+                                                No custom fields yet
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
-                        {/* URL Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Website (URL)
-                            </Label>
-                            <div className="mt-1 flex gap-1">
-                                <Input
-                                    {...register("URL")}
-                                    type="url"
-                                    className="mt-1 flex-1"
-                                    placeholder="https://example.com"
-                                />
+                        <DialogFooter className="border-t border-border bg-background/50 px-5 py-3">
+                            <div className="flex w-full items-center gap-2">
                                 <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() => {
-                                        const url = getValues("URL");
-                                        if (url) {
-                                            const fullUrl = url.startsWith(
-                                                "http",
-                                            )
-                                                ? url
-                                                : `https://${url}`;
-                                            window.open(fullUrl, "_blank");
-                                        }
-                                    }}
-                                >
-                                    <ArrowRightSquare className="h-3 w-3 text-muted-foreground" />
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-muted/50"
-                                    onClick={() =>
-                                        copyToClipboard(getValues("URL"))
+                                    variant="outline"
+                                    className="h-8 flex-1 text-xs"
+                                    onClick={requestCloseCredentialForm}
+                                    disabled={
+                                        isCreating || isUpdating || isSubmitting
                                     }
                                 >
-                                    <Copy className="h-3 w-3 text-muted-foreground" />
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    className="h-8 flex-1 text-xs"
+                                    disabled={
+                                        isSubmitting || isCreating || isUpdating
+                                    }
+                                >
+                                    {(isSubmitting ||
+                                        isCreating ||
+                                        isUpdating) && (
+                                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                    )}
+                                    {isCreating
+                                        ? "Creating..."
+                                        : isUpdating
+                                          ? "Saving..."
+                                          : isSubmitting
+                                            ? "Saving..."
+                                            : credentialFormMode === "create"
+                                              ? "Create Credential"
+                                              : "Save Changes"}
                                 </Button>
                             </div>
-                            {errors.URL && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.URL.message}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Notes Field */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Notes
-                            </Label>
-                            <textarea
-                                {...register("Notes")}
-                                className="mt-1 w-full resize-none rounded-md border border-input bg-input p-2 text-xs text-foreground focus:border-ring focus:ring-ring/20"
-                                placeholder="Add notes"
-                                rows={3}
-                            />
-                            {errors.Notes && (
-                                <p className="mt-1 text-xs text-destructive">
-                                    {errors.Notes.message}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-2 border-t border-border pt-4">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                className="h-8 flex-1 text-xs"
-                                onClick={closeCredentialForm}
-                                disabled={
-                                    isCreating || isUpdating || isSubmitting
-                                }
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                className="h-8 flex-1 text-xs"
-                                disabled={
-                                    isSubmitting || isCreating || isUpdating
-                                }
-                            >
-                                {(isSubmitting || isCreating || isUpdating) && (
-                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                )}
-                                {isCreating
-                                    ? "Creating..."
-                                    : isUpdating
-                                      ? "Updating..."
-                                      : isSubmitting
-                                        ? "Saving..."
-                                        : credentialFormMode === "create"
-                                          ? "Create"
-                                          : "Update"}
-                            </Button>
-                        </div>
+                        </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
 
-            {/* TOTP Configuration Dialog */}
-            <Dialog
-                open={totpModalVisible[0]}
-                onOpenChange={() => totpModalVisible[1](false)}
-            >
-                <DialogContent
-                    className="w-80 shadow-2xl"
-                    aria-describedby={undefined}
-                >
-                    <DialogHeader>
-                        <DialogTitle className="text-sm text-foreground">
-                            Configure TOTP
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Label
-                            </Label>
-                            <Input
-                                value={totpFormData.Label}
-                                onChange={(
-                                    e: React.ChangeEvent<HTMLInputElement>,
-                                ) =>
-                                    setTotpFormData({
-                                        ...totpFormData,
-                                        Label: e.target.value,
-                                    })
-                                }
-                                className="mt-1 text-xs"
-                                placeholder="Account name"
-                            />
-                        </div>
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Secret
-                            </Label>
-                            <Input
-                                value={totpFormData.Secret}
-                                onChange={(
-                                    e: React.ChangeEvent<HTMLInputElement>,
-                                ) =>
-                                    setTotpFormData({
-                                        ...totpFormData,
-                                        Secret: e.target.value,
-                                    })
-                                }
-                                className="mt-1 font-mono text-xs"
-                                placeholder="Enter TOTP secret"
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label className="text-xs text-muted-foreground">
-                                    Period
-                                </Label>
-                                <Input
-                                    type="number"
-                                    value={totpFormData.Period}
-                                    onChange={(
-                                        e: React.ChangeEvent<HTMLInputElement>,
-                                    ) =>
-                                        setTotpFormData({
-                                            ...totpFormData,
-                                            Period:
-                                                parseInt(e.target.value) || 30,
-                                        })
-                                    }
-                                    className="mt-1 text-xs"
-                                    min="1"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-xs text-muted-foreground">
-                                    Digits
-                                </Label>
-                                <Input
-                                    type="number"
-                                    value={totpFormData.Digits}
-                                    onChange={(
-                                        e: React.ChangeEvent<HTMLInputElement>,
-                                    ) =>
-                                        setTotpFormData({
-                                            ...totpFormData,
-                                            Digits:
-                                                parseInt(e.target.value) || 6,
-                                        })
-                                    }
-                                    className="mt-1 text-xs"
-                                    min="1"
-                                    max="10"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <Label className="text-xs text-muted-foreground">
-                                Algorithm
-                            </Label>
-                            <select
-                                value={totpFormData.Algorithm}
-                                onChange={(e) =>
-                                    setTotpFormData({
-                                        ...totpFormData,
-                                        Algorithm: e.target
-                                            .value as unknown as VaultUtilTypes.TOTPAlgorithm,
-                                    })
-                                }
-                                className="mt-1 w-full rounded-md border border-input bg-input p-2 text-xs text-foreground focus:border-ring focus:ring-ring/20"
-                            >
-                                <option
-                                    value={VaultUtilTypes.TOTPAlgorithm.SHA1}
-                                >
-                                    SHA1
-                                </option>
-                                <option
-                                    value={VaultUtilTypes.TOTPAlgorithm.SHA256}
-                                >
-                                    SHA256
-                                </option>
-                                <option
-                                    value={VaultUtilTypes.TOTPAlgorithm.SHA512}
-                                >
-                                    SHA512
-                                </option>
-                            </select>
-                        </div>
-                        <div className="flex gap-2 border-t border-border pt-4">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                className="h-8 flex-1 text-xs"
-                                onClick={() => totpModalVisible[1](false)}
-                                disabled={isSubmitting}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="button"
-                                className="h-8 flex-1 text-xs"
-                                onClick={handleTOTPSubmit}
-                                disabled={isSubmitting}
-                            >
-                                {isSubmitting && (
-                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                )}
-                                {isSubmitting ? "Adding..." : "Add TOTP"}
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <PasswordGeneratorDialog
+                open={showPasswordGenerator}
+                onOpenChange={setShowPasswordGenerator}
+                onPasswordSelect={handleGeneratedPasswordSelect}
+            />
 
             <ManualSynchronizationDialog
                 showDialogFnRef={showManualSyncDialog}

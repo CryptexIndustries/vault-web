@@ -94,6 +94,20 @@ function validateOrigin(
         return { valid: true };
     }
 
+    // The receive-link flow runs in a dedicated extension page (link.html)
+    // to give the QR scanner / linking progress more room than the action
+    // popup. It needs to talk to the SW just like the popup does.
+    if (claimedOrigin === "link") {
+        if (!sender.url?.startsWith(chrome.runtime.getURL("/link.html"))) {
+            return {
+                valid: false,
+                error: "Invalid link page origin",
+                code: "INVALID_ORIGIN",
+            };
+        }
+        return { valid: true };
+    }
+
     // For offscreen document messages
     if (claimedOrigin === "offscreen") {
         // Offscreen should come from the offscreen document

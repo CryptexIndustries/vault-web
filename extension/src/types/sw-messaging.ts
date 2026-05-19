@@ -20,6 +20,52 @@ export enum MessageType {
     SyncGetItemVersionVectors = 12,
     SyncGetConfiguration = 13,
     SyncUpdateCredentials = 14,
+
+    /**
+     * Proxied tRPC fetch from a UI context (popup/link page) to the SW.
+     * The SW is solely responsible for attaching the Authorization header
+     * and performing/refreshing the Online Services session. Body is the
+     * raw fetch payload; SW returns the deserialized HTTP response shape.
+     */
+    ProxyFetch = 15,
+
+    /**
+     * Bootstraps an Online Services session in the SW using the device
+     * credentials decrypted out of a link package. Used during the link
+     * receive flow, before the vault has been persisted.
+     */
+    OnlineServicesEstablish = 16,
+
+    /** Discards any cached Online Services session token in the SW. */
+    OnlineServicesClear = 17,
+}
+
+/**
+ * The set of in-extension contexts that may originate envelope traffic.
+ * "link" covers the dedicated `link.html` page used for the receive-link
+ * flow, which historically wasn't recognised by the origin validator.
+ */
+export type EnvelopeOrigin = "popup" | "offscreen" | "worker" | "link";
+
+/**
+ * Wire shape used by `MessageType.ProxyFetch` request payloads.
+ * Only string bodies are supported (sufficient for tRPC `httpBatchLink`).
+ */
+export interface ProxyFetchRequestPayload {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    body: string | null;
+}
+
+/** Wire shape returned to the caller after the SW executes the proxied fetch. */
+export interface ProxyFetchResponsePayload {
+    ok: boolean;
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: string;
+    error?: string;
 }
 
 // The payload is defined by the message type
@@ -127,7 +173,7 @@ export type LiteCredential = {
 export interface EncryptedEnvelope {
     type: MessageType;
     requestId: string;
-    origin: "popup" | "offscreen" | "worker";
+    origin: EnvelopeOrigin;
     keyId: string;
     timestamp: string;
     payload: {
@@ -143,7 +189,7 @@ export interface EncryptedEnvelope {
 export interface PlaintextEnvelope {
     type: MessageType;
     requestId: string;
-    origin: "popup" | "offscreen" | "worker";
+    origin: EnvelopeOrigin;
     timestamp: string;
     payload: ({ ok: boolean } & any) | { ok: false; error: string };
 }

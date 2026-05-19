@@ -11,8 +11,8 @@ html {
 html,
 body,
 #root {
-    width: 360px;
-    min-height: 480px;
+    width: 720px;
+    min-height: 520px;
 }
 
 .dark {

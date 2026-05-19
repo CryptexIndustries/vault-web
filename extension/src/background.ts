@@ -16,6 +16,12 @@ import {
 } from "./utils/session-utils";
 import { validateEnvelope } from "./utils/security-utils";
 import { EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
+import { handleProxyFetch } from "./background/request-auth-interceptor";
+import {
+    clearOnlineServicesSession as clearOnlineServicesSessionInSW,
+    ensureOnlineServicesSessionFromUnlockedVault,
+    establishOnlineServicesSession,
+} from "./app_lib/auth-session-ext";
 
 const OFFSCREEN_URL = chrome.runtime.getURL("/offscreen.html");
 
@@ -245,12 +251,31 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 await setVaultInSessionStorage(metadata, vault, encryptionData);
 
+                // Seed the Online Services session from the just-unlocked
+                // vault so the SW has both the credentials AND a fresh JWT
+                // before any tRPC call reaches the proxy-fetch interceptor.
+                // Fire-and-forget keeps unlock latency unaffected; the
+                // interceptor will await any in-flight establish via
+                // `ensureFreshOnlineServicesSession`'s singleton.
+                void ensureOnlineServicesSessionFromUnlockedVault().catch(
+                    (error) => {
+                        console.warn(
+                            "[SW] OS session bootstrap on unlock failed",
+                            error,
+                        );
+                    },
+                );
+
                 return { ok: true };
             }
 
             case MessageType.Lock: {
                 // Zero out the session storage (unlocked vault metadata and vault)
                 await clearSessionStorage();
+                // The OS session is tied to the unlocked vault's identity.
+                // Lock should drop the JWT so a relocked-but-not-restarted
+                // browser doesn't leave a usable Authorization header behind.
+                await clearOnlineServicesSessionInSW();
 
                 return { ok: true };
             }
@@ -499,6 +524,36 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
 
+                return { ok: true };
+            }
+
+            case MessageType.ProxyFetch: {
+                // Forward to the request-auth-interceptor, which owns the
+                // logic that decides if/which Authorization header to attach.
+                const response = await handleProxyFetch(payload);
+                return response;
+            }
+
+            case MessageType.OnlineServicesEstablish: {
+                if (
+                    !payload ||
+                    typeof payload.deviceId !== "string" ||
+                    typeof payload.privateKeyJWK !== "string"
+                ) {
+                    return {
+                        ok: false,
+                        error: "INVALID_ESTABLISH_PAYLOAD",
+                    };
+                }
+                const result = await establishOnlineServicesSession({
+                    deviceId: payload.deviceId,
+                    privateKeyJWK: payload.privateKeyJWK,
+                });
+                return result;
+            }
+
+            case MessageType.OnlineServicesClear: {
+                await clearOnlineServicesSessionInSW();
                 return { ok: true };
             }
 
@@ -778,12 +833,15 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 // Set up idle detection to lock the vault after 30 minutes of inactivity
-chrome.idle.setDetectionInterval(30 * 60);
+chrome.idle.setDetectionInterval(60 * 30);
 chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === "idle") {
         console.debug("[SW] Vault locked due to inactivity");
 
         // Lock the vault
         await clearSessionStorage();
+        // Drop the JWT alongside the vault so the next unlock starts from a
+        // clean Authorization state (see the matching call in MessageType.Lock).
+        await clearOnlineServicesSessionInSW();
     }
 });

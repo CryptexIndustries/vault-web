@@ -40,8 +40,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-
+# build output
 dist/
-
-spec.md
-impl.md

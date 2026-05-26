@@ -1,4 +1,4 @@
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { trpcReact } from "../../utils/trpc";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
@@ -47,7 +47,7 @@ const ContactUsForm: React.FC<ContactUsFormProps> = ({
     const { mutate: sendMessage } = trpcReact.v1.feedback.contact.useMutation({
         onSuccess: async () => {
             hideModalFn();
-            toast.success("Successfully sent!");
+            toast.success("Message sent successfully.");
         },
         onError(error) {
             toast.error("Something went wrong. Please try again later.");

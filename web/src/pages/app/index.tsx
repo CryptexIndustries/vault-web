@@ -9,7 +9,6 @@ import * as Storage from "../../app_lib/vault-utils/storage";
 import * as Vault from "../../app_lib/vault-utils/vault";
 import * as FormSchemas from "../../app_lib/vault-utils/form-schemas";
 import * as VaultEncryption from "../../app_lib/vault-utils/encryption";
-import NotificationContainer from "../../components/general/notification-container";
 import HTMLHeader from "../../components/html-header";
 import HTMLMain from "../../components/html-main";
 
@@ -202,7 +201,6 @@ const AppIndex: React.FC = () => {
 
                 {isVaultUnlocked && <VaultDashboard />}
             </HTMLMain>
-            <NotificationContainer pauseOnHover={false} />
         </>
     );
 };

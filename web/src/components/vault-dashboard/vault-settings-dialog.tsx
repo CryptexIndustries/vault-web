@@ -3,7 +3,7 @@ import { Download, FileJson, ShieldAlert, Upload } from "lucide-react";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import {
     encryptionFormGroupSchema,
     EncryptionFormGroupSchemaType,
@@ -235,7 +235,7 @@ export function VaultSettingsDialog({
         try {
             const { credentials, groups } = await ImportExport.BitwardenJSON(file);
             if (!credentials.length) {
-                toast.warn("Bitwarden export has no credentials.");
+                toast.warning("Bitwarden export has no credentials.");
                 return;
             }
             await importCredentials(credentials, groups);
@@ -264,7 +264,7 @@ export function VaultSettingsDialog({
             });
 
             if (!columns.length) {
-                toast.warn("CSV file has no headers.");
+                toast.warning("CSV file has no headers.");
                 return;
             }
 
@@ -276,7 +276,7 @@ export function VaultSettingsDialog({
                     fieldMapping,
                     async (credentials) => {
                         if (!credentials.length) {
-                            toast.warn("CSV file has no credentials.");
+                            toast.warning("CSV file has no credentials.");
                             resolve();
                             return;
                         }

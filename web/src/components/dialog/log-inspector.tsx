@@ -51,6 +51,8 @@ const levelColors: Record<LogLevel, { row: string; badge: string; text: string }
 };
 
 const groupColors: Record<LogGroup, string> = {
+    [LogGroup.OnlineServices]: "bg-purple-200 text-purple-800",
+    [LogGroup.Vault]: "bg-green-200 text-green-800",
     [LogGroup.Synchronization]: "bg-violet-200 text-violet-800",
     [LogGroup.UI]: "bg-pink-200 text-pink-800",
     [LogGroup.Import]: "bg-green-200 text-green-800",
@@ -60,6 +62,8 @@ const groupColors: Record<LogGroup, string> = {
 };
 
 const groupIcons: Record<LogGroup, string> = {
+    [LogGroup.OnlineServices]: "🌐",
+    [LogGroup.Vault]: "💰",
     [LogGroup.Synchronization]: "🔄",
     [LogGroup.UI]: "🖥️",
     [LogGroup.Import]: "📂",
@@ -260,21 +264,33 @@ export const LogInspectorDialog: React.FC<{
     const toggleGroup = (group: LogGroup) =>
         setSelectedGroups((prev) => {
             const next = new Set(prev);
-            next.has(group) ? next.delete(group) : next.add(group);
+            if (next.has(group)) {
+                next.delete(group);
+            } else {
+                next.add(group);
+            }
             return next;
         });
 
     const toggleLevel = (level: LogLevel) =>
         setSelectedLevels((prev) => {
             const next = new Set(prev);
-            next.has(level) ? next.delete(level) : next.add(level);
+            if (next.has(level)) {
+                next.delete(level);
+            } else {
+                next.add(level);
+            }
             return next;
         });
 
     const toggleEntryExpanded = (id: string) =>
         setExpandedEntries((prev) => {
             const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
             return next;
         });
 

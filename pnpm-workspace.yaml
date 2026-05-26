@@ -3,10 +3,23 @@ packages:
   - extension
   - packages/shared-ui
 
-onlyBuiltDependencies:
-  - '@prisma/client'
-  - '@prisma/engines'
-  - argon2
-  - prisma
-  - sharp
-  - unrs-resolver
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200
+blockExoticSubdeps: true
+engineStrict: true
+nodeVersion: 20.19.0
+pmOnFail: error
+verifyDepsBeforeRun: error
+strictDepBuilds: true
+savePrefix: ""
+
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true

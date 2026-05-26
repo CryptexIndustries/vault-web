@@ -8,7 +8,6 @@ import HTMLMain from "@/components/html-main";
 
 import { CryptexVaultLogo } from "@/components/brand-image";
 import { Body, Footer, GenericModal } from "@/components/general/modal";
-import NotificationContainer from "@/components/general/notification-container";
 import Spinner from "@/components/general/spinner";
 import ContactUsForm from "@/components/index/contact-us-form";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,7 @@ import {
     Zap,
 } from "lucide-react";
 
-const Index: NextPage = ({}) => {
+const Index: NextPage = () => {
     const contactUsModalVisibility = useState(false);
     const contactUsModalSubmitting = useState(false);
 
@@ -129,7 +128,6 @@ const Index: NextPage = ({}) => {
                     </Button>
                 </Footer>
             </GenericModal>
-            <NotificationContainer />
         </>
     );
 };

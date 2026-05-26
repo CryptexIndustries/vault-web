@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
+import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english.js";
 import { Brain, Copy, Hash, RefreshCw, Shield, X } from "lucide-react";
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";

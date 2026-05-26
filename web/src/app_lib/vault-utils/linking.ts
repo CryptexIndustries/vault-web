@@ -1,5 +1,5 @@
 import * as bip39 from "@scure/bip39";
-import { wordlist } from "@scure/bip39/wordlists/english";
+import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { err, ok } from "neverthrow";
 import * as VaultUtilTypes from "../proto/vault";
 import * as VaultEncryption from "./encryption";

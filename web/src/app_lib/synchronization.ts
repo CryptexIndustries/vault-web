@@ -21,7 +21,6 @@ import {
     type SCCWebRTCEventHandler,
     type SignalingServerMessage,
 } from "./synchronization-utils";
-import { throwWithStaticGenerationBailoutError } from "next/dist/server/request/utils";
 
 
 /**

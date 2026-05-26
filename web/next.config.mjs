@@ -62,9 +62,6 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
     headers,
     compiler: {
         removeConsole: rmConsoleFromBuild,
@@ -73,10 +70,6 @@ const nextConfig = {
         "@heroicons/react/20/solid": {
             transform: "@heroicons/react/20/solid/{{member}}",
         },
-    },
-    i18n: {
-        locales: ["en"],
-        defaultLocale: "en",
     },
 };
 

@@ -204,9 +204,6 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                     this.Blob
                         .KDFConfigPBKDF2) as VaultUtilTypes.KeyDerivationConfigPBKDF2,
             );
-
-            // Rewrite the secret to random bytes
-            crypto.getRandomValues(_secret);
         }
 
         // Serialize the vault metadata and save it to the database

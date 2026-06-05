@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     AlertCircle,
@@ -14,6 +14,7 @@ import {
     X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ulid } from "ulidx";
 
 import {
     Accordion,
@@ -26,13 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 import {
@@ -40,8 +34,6 @@ import {
     KeyDerivationFunction,
 } from "@/app_lib/proto/vault";
 import {
-    EncryptDataBlob,
-    hashSecret,
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
 } from "@/app_lib/vault-utils/encryption";
@@ -59,7 +51,7 @@ import {
 import { saveVault, VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { LinkedDevices, OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
-import { enumToRecord, LINK_FILE_EXTENSION } from "@/utils/consts";
+import { LINK_FILE_EXTENSION } from "@/utils/consts";
 import {
     clearOnlineServicesSessionViaSW,
     establishOnlineServicesSessionViaSW,
@@ -72,6 +64,7 @@ import {
     vaultLog,
 } from "../utils/ext-logging";
 import BarcodeScanner from "./qr-scanner";
+import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
 
 type ReceiveLinkMethod = "qr" | "file";
 type ReceiveLinkStage =
@@ -234,15 +227,13 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const {
         register,
         handleSubmit,
-        control,
         reset: resetEncryptionForm,
-        watch,
         formState: { errors: encryptionErrors },
     } = useForm<EncryptionFormGroupSchemaType>({
         resolver: zodResolver(encryptionFormGroupSchema),
         defaultValues: {
             Secret: "",
-            Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
+            Encryption: EncryptionAlgorithm.AES256,
             EncryptionKeyDerivationFunction: KeyDerivationFunction.Argon2ID,
             EncryptionConfig: {
                 iterations: KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
@@ -251,8 +242,6 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
             },
         },
     });
-
-    const selectedKdf = watch("EncryptionKeyDerivationFunction");
 
     const progressRef = useRef<ProgressEntry[]>([]);
     const receivedVaultRef = useRef<Uint8Array | null>(null);
@@ -385,13 +374,17 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         metadata.CreatedAt = new Date().toISOString();
 
         const vaultBytes = VaultUtilTypes.Vault.encode(vault).finish();
-        metadata.Blob = await EncryptDataBlob(
+        const vaultId = ulid();
+        metadata.Blob = await createLinkedVaultEnvelopeBlob(
             vaultBytes,
-            await hashSecret(formData.Secret),
-            formData.Encryption,
-            formData.EncryptionKeyDerivationFunction,
-            formData.EncryptionConfig,
-            formData.EncryptionConfig,
+            {
+                vaultId,
+                masterPassword: formData.Secret,
+                kdfConfig: new KeyDerivationConfig_Argon2ID(
+                    formData.EncryptionConfig.memLimit,
+                    formData.EncryptionConfig.opsLimit,
+                ),
+            },
         );
 
         await saveVault(
@@ -400,6 +393,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         );
         vaultLog.info("Linked vault encrypted and persisted", {
             size: rawVaultBinary.byteLength,
+            vaultId,
         });
     };
 
@@ -837,8 +831,8 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                         <AlertTitle className="text-xs">Vault received</AlertTitle>
                         <AlertDescription className="text-[11px] leading-snug">
-                            Create a passphrase and choose encryption settings for
-                            this device.
+                            Create a passphrase for this device. Linked extension
+                            vaults use AES-GCM with Argon2ID.
                         </AlertDescription>
                     </Alert>
                     <div className="space-y-1.5">
@@ -892,186 +886,54 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                             </AccordionTrigger>
                             <AccordionContent>
                                 <div className="space-y-2 pt-2">
-                                    <div className="space-y-1">
-                                        <Label
-                                            htmlFor="link-encryption-algorithm"
-                                            className="text-[11px]"
-                                        >
-                                            Encryption algorithm
-                                        </Label>
-                                        <Controller
-                                            name="Encryption"
-                                            control={control}
-                                            render={({ field }) => (
-                                                <Select
-                                                    value={String(field.value)}
-                                                    onValueChange={(value) =>
-                                                        field.onChange(
-                                                            Number(value),
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        id="link-encryption-algorithm"
-                                                        className="h-8 text-xs"
-                                                    >
-                                                        <SelectValue placeholder="Select algorithm" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {Object.entries(
-                                                            enumToRecord(
-                                                                EncryptionAlgorithm,
-                                                            ),
-                                                        ).map(
-                                                            ([value, label]) => (
-                                                                <SelectItem
-                                                                    key={label}
-                                                                    value={String(
-                                                                        value,
-                                                                    )}
-                                                                >
-                                                                    {label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            )}
-                                        />
-                                        {encryptionErrors.Encryption ? (
-                                            <p className="text-[11px] text-destructive">
-                                                {
-                                                    encryptionErrors.Encryption
-                                                        .message
-                                                }
-                                            </p>
-                                        ) : null}
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <Label
-                                            htmlFor="link-key-derivation"
-                                            className="text-[11px]"
-                                        >
-                                            Key derivation function
-                                        </Label>
-                                        <Controller
-                                            name="EncryptionKeyDerivationFunction"
-                                            control={control}
-                                            render={({ field }) => (
-                                                <Select
-                                                    value={String(field.value)}
-                                                    onValueChange={(value) =>
-                                                        field.onChange(
-                                                            Number(value),
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        id="link-key-derivation"
-                                                        className="h-8 text-xs"
-                                                    >
-                                                        <SelectValue placeholder="Select function" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {Object.entries(
-                                                            enumToRecord(
-                                                                KeyDerivationFunction,
-                                                            ),
-                                                        ).map(
-                                                            ([value, label]) => (
-                                                                <SelectItem
-                                                                    key={label}
-                                                                    value={String(
-                                                                        value,
-                                                                    )}
-                                                                >
-                                                                    {label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            )}
-                                        />
-                                        {encryptionErrors.EncryptionKeyDerivationFunction ? (
-                                            <p className="text-[11px] text-destructive">
-                                                {
-                                                    encryptionErrors
-                                                        .EncryptionKeyDerivationFunction
-                                                        .message
-                                                }
-                                            </p>
-                                        ) : null}
-                                    </div>
-
-                                    {selectedKdf.toString() ===
-                                        KeyDerivationFunction.Argon2ID.toString() && (
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="space-y-1">
-                                                <Label
-                                                    htmlFor="link-mem-limit"
-                                                    className="text-[11px]"
-                                                >
-                                                    Memory limit (MiB)
-                                                </Label>
-                                                <Input
-                                                    id="link-mem-limit"
-                                                    type="number"
-                                                    min={
-                                                        KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
-                                                    }
-                                                    className="h-8 text-xs"
-                                                    {...register(
-                                                        "EncryptionConfig.memLimit",
-                                                    )}
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label
-                                                    htmlFor="link-ops-limit"
-                                                    className="text-[11px]"
-                                                >
-                                                    Operations limit
-                                                </Label>
-                                                <Input
-                                                    id="link-ops-limit"
-                                                    type="number"
-                                                    min={
-                                                        KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
-                                                    }
-                                                    max={
-                                                        KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
-                                                    }
-                                                    className="h-8 text-xs"
-                                                    {...register(
-                                                        "EncryptionConfig.opsLimit",
-                                                    )}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {selectedKdf.toString() ===
-                                        KeyDerivationFunction.PBKDF2.toString() && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Algorithm is fixed to AES-GCM. KEK is
+                                        derived from this passphrase with
+                                        Argon2ID.
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
                                         <div className="space-y-1">
                                             <Label
-                                                htmlFor="link-pbkdf-iterations"
+                                                htmlFor="link-mem-limit"
                                                 className="text-[11px]"
                                             >
-                                                Iterations
+                                                Memory limit (MiB)
                                             </Label>
                                             <Input
-                                                id="link-pbkdf-iterations"
+                                                id="link-mem-limit"
                                                 type="number"
-                                                min={2}
+                                                min={
+                                                    KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
+                                                }
                                                 className="h-8 text-xs"
                                                 {...register(
-                                                    "EncryptionConfig.iterations",
+                                                    "EncryptionConfig.memLimit",
                                                 )}
                                             />
                                         </div>
-                                    )}
+                                        <div className="space-y-1">
+                                            <Label
+                                                htmlFor="link-ops-limit"
+                                                className="text-[11px]"
+                                            >
+                                                Operations limit
+                                            </Label>
+                                            <Input
+                                                id="link-ops-limit"
+                                                type="number"
+                                                min={
+                                                    KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
+                                                }
+                                                max={
+                                                    KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
+                                                }
+                                                className="h-8 text-xs"
+                                                {...register(
+                                                    "EncryptionConfig.opsLimit",
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
 
                                     {encryptionErrors.EncryptionConfig ? (
                                         <p className="text-[11px] text-destructive">

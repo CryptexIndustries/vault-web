@@ -55,10 +55,14 @@ the `NEXT_PUBLIC_*` names that web/ expects, and enforces in production:
 - `VITE_APP_URL` uses `https://`.
 
 The Vite config ([`extension/vite.config.ts`](vite.config.ts)) additionally
-rewrites `manifest.json` on production builds: `host_permissions` is narrowed
-to the API host (derived from `VITE_APP_URL`) and the Pusher host (derived
-from `VITE_PUSHER_APP_HOST` + `VITE_PUSHER_APP_TLS` + `VITE_PUSHER_APP_PORT`)
-instead of the broad `https://*/*` allowed in development.
+rewrites `manifest.json` at build time:
+
+- `VITE_EXTENSION_NAME_PREFIX` prepends to `name` and `action.default_title`
+  (defaults to `[DEV]` in `.env.development`; unset in production).
+- On production builds, `host_permissions` is narrowed to the API host
+  (derived from `VITE_APP_URL`) and the Pusher host (derived from
+  `VITE_PUSHER_APP_HOST` + `VITE_PUSHER_APP_TLS` + `VITE_PUSHER_APP_PORT`)
+  instead of the broad `https://*/*` allowed in development.
 
 ### Dev
 

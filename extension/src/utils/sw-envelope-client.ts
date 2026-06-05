@@ -28,12 +28,24 @@ type ServerPublicKey = {
 
 let serverPublicKey: ServerPublicKey | null = null;
 let inflightPublicKeyFetch: Promise<ServerPublicKey | null> | null = null;
+let originOverride: EnvelopeOrigin | null = null;
+
+/**
+ * Forces `detectEnvelopeOrigin()` to return a specific value. Used by
+ * the content script, which doesn't run on an extension URL and so
+ * can't be classified by URL inspection alone. Pass `null` to revert
+ * to auto-detection.
+ */
+export function setEnvelopeOriginOverride(origin: EnvelopeOrigin | null): void {
+    originOverride = origin;
+}
 
 /**
  * Maps the current extension page to the envelope origin tag expected by
  * the SW's origin validator. See `utils/security-utils.ts#validateOrigin`.
  */
 export function detectEnvelopeOrigin(): EnvelopeOrigin {
+    if (originOverride) return originOverride;
     if (
         typeof window === "undefined" ||
         typeof window.location === "undefined"
@@ -44,6 +56,9 @@ export function detectEnvelopeOrigin(): EnvelopeOrigin {
     if (pathname.endsWith("/popup.html")) return "popup";
     if (pathname.endsWith("/link.html")) return "link";
     if (pathname.endsWith("/offscreen.html")) return "offscreen";
+    if (pathname.endsWith("/autofill-icon.html")) return "autofill-icon";
+    if (pathname.endsWith("/autofill-menu.html")) return "autofill-menu";
+    if (pathname.endsWith("/autofill-save.html")) return "autofill-save";
     return "popup";
 }
 

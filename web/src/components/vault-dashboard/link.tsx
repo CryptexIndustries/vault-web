@@ -61,7 +61,7 @@ import {
 } from "@/app_lib/online-services";
 import { establishPremiumSession } from "@/app_lib/auth-session";
 import {
-    getVaultSecretFromSession,
+    getVaultDEKFromSession,
     MISSING_VAULT_SECRET_ERROR,
 } from "@/utils/vault-session";
 import {
@@ -667,7 +667,7 @@ export function SendLinkRequestDialog({
                 return;
             }
 
-            const vaultSecret = getVaultSecretFromSession();
+            const vaultSecret = await getVaultDEKFromSession();
             if (vaultSecret.isErr()) {
                 addToProgressLog(MISSING_VAULT_SECRET_ERROR, "error");
                 setIsOperationInProgress(false);
@@ -1477,7 +1477,7 @@ export function ReceiveLinkRequestDialog({
             throw new Error("Current vault metadata is unavailable.");
         }
 
-        const vaultSecret = getVaultSecretFromSession();
+        const vaultSecret = await getVaultDEKFromSession();
         if (vaultSecret.isErr()) {
             throw new Error(MISSING_VAULT_SECRET_ERROR);
         }

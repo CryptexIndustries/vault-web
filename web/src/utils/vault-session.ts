@@ -1,73 +1,62 @@
-import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
 import { type VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { type Vault } from "@/app_lib/vault-utils/vault";
 import { err, ok, type Result } from "neverthrow";
 
-export const SESSION_STORAGE_VAULT_SECRET_KEY = "vaultSecret";
 export const MISSING_VAULT_SECRET_ERROR =
-    "Vault encryption secret is missing. Unlock your vault again.";
-export type VaultSessionError = "VAULT_SECRET_NOT_FOUND" | "VAULT_SAVE_FAILED";
-
+    "Vault data encryption key is missing. Please unlock your vault again.";
+export type VaultSessionError = "VAULT_DEK_NOT_FOUND" | "VAULT_SAVE_FAILED";
 
 /**
- * Get the vault secret from the session storage
- * @returns The vault secret as a Uint8Array
+ * Active vault DEK for session lookup.
  */
-export const getVaultSecretFromSession = (): Result<
-    Uint8Array,
-    "VAULT_SECRET_NOT_FOUND"
-> => {
-    const vaultSecret = sessionStorage.getItem(SESSION_STORAGE_VAULT_SECRET_KEY);
-    if (!vaultSecret?.length) return err("VAULT_SECRET_NOT_FOUND");
+let activeVaultDEK: CryptoKey | null = null;
 
-    try {
-        return ok(Uint8Array.fromBase64(vaultSecret));
-    } catch {
-        return err("VAULT_SECRET_NOT_FOUND");
+const isSessionVaultDEK = (dek: unknown): dek is CryptoKey =>
+    typeof dek === "object" &&
+    dek !== null &&
+    "type" in dek &&
+    (dek as CryptoKey).type === "secret";
+
+export const setVaultDEKInSession = (dek: CryptoKey): void => {
+    activeVaultDEK = dek;
+};
+
+export const setVaultDEKInSessionForMetadata = (
+    vaultMetadata: VaultMetadata,
+    dek: CryptoKey | undefined,
+): void => {
+    if (vaultMetadata.DBIndex == null || !isSessionVaultDEK(dek)) {
+        return;
     }
+
+    setVaultDEKInSession(dek);
 };
 
-/**
- * Set the vault secret in the session storage
- * @param secret The secret to set in the session storage
- */
-export const setVaultSecretInSession = (secret: Uint8Array) => {
-    sessionStorage.setItem(
-        SESSION_STORAGE_VAULT_SECRET_KEY,
-        secret.toBase64(),
-    );
+export const getVaultDEKFromSession = (): Result<
+    CryptoKey,
+    "VAULT_DEK_NOT_FOUND"
+> => {
+    if (activeVaultDEK == null) {
+        return err("VAULT_DEK_NOT_FOUND");
+    }
+    return ok(activeVaultDEK);
 };
 
-/**
- * Clear the vault secret from the session storage
- */
-export const clearVaultSecretFromSession = () => {
-    sessionStorage.removeItem(SESSION_STORAGE_VAULT_SECRET_KEY);
+export const clearVaultDEKFromSession = (): void => {
+    activeVaultDEK = null;
 };
 
-/**
- * Save the vault with the session secret
- * @param vaultMetadata The vault metadata
- * @param vault The vault to save
- * @param encryptionConfigFormSchema The encryption config form schema
- * @returns The result of the save operation
- */
-export const saveVaultWithSessionSecret = async (
+export const saveVaultWithSessionDEK = async (
     vaultMetadata: VaultMetadata,
     vault: Vault | null,
-    encryptionConfigFormSchema?: EncryptionFormGroupSchemaType,
-) : Promise<Result<void, VaultSessionError>> => {
-    const secretRes = getVaultSecretFromSession();
-    if (secretRes.isErr()) {
-        return err(secretRes.error);
+): Promise<Result<void, VaultSessionError>> => {
+    const dekRes = getVaultDEKFromSession();
+    if (dekRes.isErr()) {
+        return err(dekRes.error);
     }
 
     try {
-        await vaultMetadata.save(
-            vault,
-            secretRes.value,
-            encryptionConfigFormSchema,
-        );
+        await vaultMetadata.save(vault, dekRes.value);
         return ok(undefined);
     } catch {
         return err("VAULT_SAVE_FAILED");

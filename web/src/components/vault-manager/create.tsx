@@ -1,4 +1,4 @@
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import {
     encryptionFormGroupSchema,
     EncryptionFormGroupSchemaType,
@@ -17,14 +17,6 @@ import {
     AccordionTrigger,
 } from "../ui/accordion";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../ui/select";
-import { enumToRecord } from "@/utils/consts";
-import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
 } from "@/app_lib/proto/vault";
@@ -34,19 +26,41 @@ import {
 } from "@/app_lib/vault-utils/encryption";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
+import {
+    SecondFactorOptions,
+    type SecondFactorChoice,
+    choiceToSource,
+} from "./second-factor-options";
+import type {
+    VaultCreateSecondFactorOptions,
+    VaultPendingUnlock,
+    VaultRevealSecrets,
+} from "@/app_lib/vault-utils/vault-unlock-types";
+import { useState } from "react";
 
 const CreateVaultTab: React.FC<{
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-    ) => Promise<boolean>;
+        secondFactorOptions?: VaultCreateSecondFactorOptions,
+    ) => Promise<
+        | false
+        | {
+              ok: true;
+              revealSecrets: VaultRevealSecrets;
+              pendingUnlock: VaultPendingUnlock;
+          }
+    >;
 }> = ({ executeCallback }) => {
+    const [secondFactorChoice, setSecondFactorChoice] =
+        useState<SecondFactorChoice>("none");
+    const [secondFactorSource, setSecondFactorSource] = useState(
+        choiceToSource("none"),
+    );
     const {
         handleSubmit,
-        control,
         register,
         setValue,
         formState: { errors, isSubmitting },
-        watch,
     } = useForm<NewVaultFormSchemaType & EncryptionFormGroupSchemaType>({
         resolver: zodResolver(
             newVaultFormSchema.merge(encryptionFormGroupSchema),
@@ -68,7 +82,9 @@ const CreateVaultTab: React.FC<{
     const tryCreateVault = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
     ) => {
-        await executeCallback(formData);
+        await executeCallback(formData, {
+            secondFactor: secondFactorSource,
+        });
     };
 
     return (
@@ -130,6 +146,22 @@ const CreateVaultTab: React.FC<{
             </div>
 
             <div className="space-y-2">
+                <SecondFactorOptions
+                    value={secondFactorChoice}
+                    onChange={(choice, source) => {
+                        setSecondFactorChoice(choice);
+                        setSecondFactorSource(source);
+                    }}
+                />
+                <p className="text-muted-foreground text-xs">
+                    A second factor adds a separate key on top of your secret
+                    key, so an attacker who learns or guesses your secret still
+                    cannot open the vault. Recommended if your vault holds
+                    high-value credentials.
+                </p>
+            </div>
+
+            <div className="space-y-2">
                 <Accordion
                     type="single"
                     collapsible
@@ -140,178 +172,46 @@ const CreateVaultTab: React.FC<{
                             Encryption Configuration
                         </AccordionTrigger>
                         <AccordionContent className="space-y-4 px-4 pb-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="encryption-algorithm">
-                                    Encryption Algorithm
-                                </Label>
-                                <Controller
-                                    name="Encryption"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select
-                                            value={field.value.toString()}
-                                            onValueChange={(value) => {
-                                                field.onChange(Number(value));
-                                            }}
-                                        >
-                                            <SelectTrigger id="encryption-algorithm">
-                                                <SelectValue placeholder="Select algorithm" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(
-                                                    enumToRecord(
-                                                        EncryptionAlgorithm,
-                                                    ),
-                                                ).map(([value, label]) => (
-                                                    <SelectItem
-                                                        key={label}
-                                                        value={String(value)}
-                                                    >
-                                                        {label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.Encryption && (
-                                    <p className="text-destructive-foreground">
-                                        {errors.Encryption.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="key-derivation-function">
-                                    Key Derivation Function
-                                </Label>
-                                <Controller
-                                    name="EncryptionKeyDerivationFunction"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select
-                                            value={field.value.toString()}
-                                            onValueChange={(value) => {
-                                                field.onChange(Number(value));
-                                            }}
-                                        >
-                                            <SelectTrigger id="key-derivation-function">
-                                                <SelectValue placeholder="Select function" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(
-                                                    enumToRecord(
-                                                        KeyDerivationFunction,
-                                                    ),
-                                                ).map(([value, label]) => (
-                                                    <SelectItem
-                                                        key={label}
-                                                        value={String(value)}
-                                                    >
-                                                        {label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.EncryptionKeyDerivationFunction && (
-                                    <p className="text-destructive-foreground">
-                                        {
-                                            errors
-                                                .EncryptionKeyDerivationFunction
-                                                .message
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="memory-limit">
+                                        Memory Limit (MiB)
+                                    </Label>
+                                    <Input
+                                        id="memory-limit"
+                                        type="number"
+                                        min={
+                                            KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
                                         }
-                                    </p>
-                                )}
+                                        {...register(
+                                            "EncryptionConfig.memLimit",
+                                        )}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="operations-limit">
+                                        Operations Limit
+                                    </Label>
+                                    <Input
+                                        id="operations-limit"
+                                        type="number"
+                                        min={
+                                            KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
+                                        }
+                                        max={
+                                            KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
+                                        }
+                                        {...register(
+                                            "EncryptionConfig.opsLimit",
+                                        )}
+                                    />
+                                </div>
                             </div>
-
-                            {watch(
-                                "EncryptionKeyDerivationFunction",
-                            ).toString() ===
-                                KeyDerivationFunction.Argon2ID.toString() && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="memory-limit">
-                                                Memory Limit (MiB)
-                                            </Label>
-                                            <Input
-                                                id="memory-limit"
-                                                type="number"
-                                                min={
-                                                    KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
-                                                }
-                                                {...register(
-                                                    "EncryptionConfig.memLimit",
-                                                )}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="operations-limit">
-                                                Operations Limit
-                                            </Label>
-                                            <Input
-                                                id="operations-limit"
-                                                type="number"
-                                                min={
-                                                    KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
-                                                }
-                                                max={
-                                                    KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
-                                                }
-                                                {...register(
-                                                    "EncryptionConfig.opsLimit",
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {watch(
-                                "EncryptionKeyDerivationFunction",
-                            ).toString() ===
-                                KeyDerivationFunction.PBKDF2.toString() && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="memory-limit">
-                                                Iterations
-                                            </Label>
-                                            <Input
-                                                id="pkdf-iterations"
-                                                type="number"
-                                                min={2}
-                                                {...register(
-                                                    "EncryptionConfig.iterations",
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
                             {errors.EncryptionConfig && (
                                 <p className="text-destructive-foreground">
                                     {errors.EncryptionConfig.message}
                                 </p>
                             )}
-
-                            {/* <div className="space-y-2"> */}
-                            {/*     <Label htmlFor="additional-config"> */}
-                            {/*         Additional Configuration (JSON) */}
-                            {/*     </Label> */}
-                            {/*     <Textarea */}
-                            {/*         id="additional-config" */}
-                            {/*         value={decryptionConfig} */}
-                            {/*         onChange={(e) => */}
-                            {/*             setDecryptionConfig(e.target.value) */}
-                            {/*         } */}
-                            {/*         placeholder="Enter additional configuration as JSON" */}
-                            {/*         rows={3} */}
-                            {/*     /> */}
-                            {/* </div> */}
-                            {/* --------------------- */}
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>

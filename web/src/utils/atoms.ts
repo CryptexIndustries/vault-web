@@ -1,7 +1,7 @@
 import { atom, createStore } from "jotai";
 import { focusAtom } from "jotai-optics";
 import { selectAtom } from "jotai/utils";
-import { OnlineServices, Vault } from "../app_lib/vault-utils/vault";
+import { Vault } from "../app_lib/vault-utils/vault";
 import { type VaultMetadata } from "../app_lib/vault-utils/storage";
 
 export type OnlineServicesData = {

@@ -3,6 +3,7 @@
 
 interface ImportMetaEnv {
     readonly VITE_APP_URL?: string;
+    readonly VITE_EXTENSION_NAME_PREFIX?: string;
 
     readonly VITE_PUSHER_APP_ID?: string;
     readonly VITE_PUSHER_APP_KEY?: string;

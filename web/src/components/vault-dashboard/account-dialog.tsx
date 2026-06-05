@@ -59,7 +59,7 @@ import {
 } from "@/utils/atoms";
 import {
     MISSING_VAULT_SECRET_ERROR,
-    saveVaultWithSessionSecret,
+    saveVaultWithSessionDEK,
 } from "@/utils/vault-session";
 import { trpcReact } from "@/utils/trpc";
 import {
@@ -105,9 +105,9 @@ function useSaveVault() {
                 return false;
             }
             setUnlockedVault(next);
-            const res = await saveVaultWithSessionSecret(vaultMetadata, next);
+            const res = await saveVaultWithSessionDEK(vaultMetadata, next);
             if (res.isErr()) {
-                if (res.error === "VAULT_SECRET_NOT_FOUND") {
+                if (res.error === "VAULT_DEK_NOT_FOUND") {
                     toast.error(MISSING_VAULT_SECRET_ERROR);
                 } else {
                     toast.error("Failed to save vault.");

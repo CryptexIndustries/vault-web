@@ -1,19 +1,50 @@
 {
     "manifest_version": 3,
-    "name": "Cryptex Vault Extension",
-    "version": "0.1.0",
-    "description": "Browser extension for Cryptex Vault: Decentralized password manager.",
+    "name": "Cryptex Vault: Decentralized password manager",
+    "version": "1.0.0",
+    "description": "A decentralized password manager for the modern web. Keeping your credentials secure and private.",
+    "icons": {
+        "16": "assets/icons/icon-16.png",
+        "32": "assets/icons/icon-32.png",
+        "48": "assets/icons/icon-48.png"
+    },
     "action": {
         "default_popup": "/popup.html",
-        "default_title": "Cryptex Vault"
+        "default_title": "Cryptex Vault",
+        "default_icon": {
+            "16": "assets/icons/icon-16.png",
+            "32": "assets/icons/icon-32.png",
+            "48": "assets/icons/icon-48.png"
+        }
     },
     "background": {
         "service_worker": "/background.js",
         "type": "module"
     },
-    "permissions": ["storage", "idle", "offscreen"],
+    "permissions": ["storage", "idle", "offscreen", "activeTab", "scripting"],
     "content_security_policy": {
         "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
     },
-    "host_permissions": ["https://*/*", "http://*/*"]
+    "host_permissions": ["https://*/*", "http://*/*"],
+    "content_scripts": [
+        {
+            "matches": ["http://*/*", "https://*/*"],
+            "js": ["assets/autofill-cs.js"],
+            "run_at": "document_idle",
+            "all_frames": false,
+            "match_about_blank": false
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "autofill-icon.html",
+                    "autofill-generator.html",
+                    "autofill-menu.html",
+                "autofill-save.html",
+                "assets/*"
+            ],
+            "matches": ["http://*/*", "https://*/*"]
+        }
+    ]
 }

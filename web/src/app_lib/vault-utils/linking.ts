@@ -26,7 +26,7 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
         linkingPackage: LinkingPackage;
     }> {
         const mnemonic = bip39.generateMnemonic(wordlist, 128);
-        const secret = await VaultEncryption.hashSecret(mnemonic);
+        const secret = new TextEncoder().encode(mnemonic);
 
         const newEncryptedBlob: VaultEncryption.EncryptedBlob =
             VaultEncryption.EncryptedBlob.CreateDefault();
@@ -64,7 +64,7 @@ export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
 
         const decryptedRes = await VaultEncryption.DecryptDataBlob(
             encryptedBlob,
-            await VaultEncryption.hashSecret(secret),
+            new TextEncoder().encode(secret),
             encryptedBlob.Algorithm,
             encryptedBlob.KeyDerivationFunc,
             encryptedBlob.KeyDerivationFunc ===

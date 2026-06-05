@@ -34,27 +34,24 @@ import {
     unlockedVaultMetadataAtom,
     unlockedVaultWriteOnlyAtom,
     vaultCredentialsAtom,
-    vaultGet,
 } from "@/utils/atoms";
 import {
     onlineServicesLog,
     signalingLog,
-    uiLog,
     vaultLog,
     vaultLogger,
     webrtcLog,
 } from "@/utils/logging";
 import {
     MISSING_VAULT_SECRET_ERROR,
-    clearVaultSecretFromSession,
-    getVaultSecretFromSession,
-    saveVaultWithSessionSecret,
+    clearVaultDEKFromSession,
+    saveVaultWithSessionDEK,
 } from "@/utils/vault-session";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { SyncConnectionController, VaultOperations } from "src/app_lib/synchronization";
+import type { SyncConnectionController } from "src/app_lib/synchronization";
 import { AccountDialog } from "./account-dialog";
 import { CredentialDetail } from "./credential-detail";
 import { CredentialsList } from "./credentials-list";
@@ -66,9 +63,8 @@ import {
 import { EditDrawer } from "./edit-drawer";
 import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 import type { VaultSignalingConfig } from "./link";
+import { useSyncConnectionController } from "./sync-controller";
 import { VaultSettingsDialog } from "./vault-settings-dialog";
-import { VaultMetadata } from "src/app_lib/vault-utils/storage";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import {
     type SCCEvent,
     type SignalingEventData,
@@ -80,86 +76,6 @@ import {
 } from "src/app_lib/synchronization-utils";
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
-
-// Global sync connection controller will be created in the component
-let GlobalSyncConnectionController: SyncConnectionController;
-
-const createVaultOperations = (setUnlockedVault: (vault: Vault | ((prev: Vault) => Vault)) => void, vaultMetadata: VaultMetadata | null): VaultOperations => {
-    return {
-        getItemVersionVectors: async () => {
-            return vaultGet().Credentials.map(c => ({
-                ID: c.ID,
-                Hash: c.Hash,
-                Version: c.Version,
-                DateModifiedTimestamp: c.DateModifiedTimestamp,
-                Deleted: c.Deleted,
-            }));
-        },
-        getItemCredentials: async (itemIDs: string[]) => vaultGet().Credentials.filter(c => itemIDs.includes(c.ID)),
-        updateCredentials: async (credentials: VaultUtilTypes.Credential[]) => {
-            const currentVault = vaultGet();
-            const credentialsMap = new Map(
-                currentVault.Credentials.map((credential) => [credential.ID, credential]),
-            );
-
-            // Update existing credentials and append missing ones without mutating state in place.
-            for (const credential of credentials) {
-                credentialsMap.set(credential.ID, credential);
-            }
-
-            const updatedVault = Object.assign(
-                Object.create(Object.getPrototypeOf(currentVault)),
-                currentVault,
-                {
-                    Credentials: Array.from(credentialsMap.values()),
-                },
-            );
-
-            setUnlockedVault(updatedVault);
-
-            const toastId = toast.loading("Updating vault data...");
-
-            try {
-                // Trigger the vault's save function (this might not be needed when the auto-save feature is implemented)
-                const vaultSecretRes = getVaultSecretFromSession();
-                if (vaultSecretRes.isErr()) {
-                    uiLog.error("Failed to save vault data after synchronization. Failed to retrieve the encryption secret.", {
-                        error: vaultSecretRes.error,
-                    });
-                    toast.error("Failed to save vault data after synchronization. Please check the logs for more information.", {
-                        id: toastId,
-                    });
-                    return;
-                }
-
-                if (vaultMetadata) {
-                    await vaultMetadata.save(updatedVault, vaultSecretRes.value);
-                }
-
-                toast.success("Vault data saved.", {
-                    id: toastId,
-                    duration: 3000,
-                });
-            } catch (e) {
-                uiLog.error("An error occurred while saving vault data after synchronization.", {
-                    error: e,
-                });
-                toast.error(
-                    "An error occurred while saving the vault data after synchronization. Please check the logs for more information.",
-                    {
-                        id: toastId,
-                        duration: 3000,
-                    });
-            }
-        },
-        getSynchronizationConfig: async () => vaultGet().LinkedDevices,
-    };
-};
-
-// Create sync connection controller with vault operations
-const createSyncConnectionController = (setUnlockedVault: (vault: Vault | ((prev: Vault) => Vault)) => void, vaultMetadata: VaultMetadata | null) => {
-    return new SyncConnectionController(createVaultOperations(setUnlockedVault, vaultMetadata));
-};
 
 function getDeviceLastSyncDate(device: LinkedDevice): Date | null {
     return device.LastSync ? new Date(device.LastSync) : null;
@@ -297,7 +213,7 @@ function useDeviceConnectionLifecycle(
                         SyncConnectionControllerEventType.SynchronizationMessage &&
                     event.event === WebRTCMessageEventType.Synchronized
                 ) {
-                    device.updateLastSync();
+                    device.LastSync = new Date().toISOString();
                     mergeDeviceConnectionStatus(device, {
                         lastSync: getDeviceLastSyncDate(device),
                     });
@@ -477,15 +393,14 @@ export function VaultDashboard() {
     const showLogInspectorDialogRef = useRef<(() => void) | null>(null);
     const pendingKeySequenceRef = useRef<string | null>(null);
     const pendingKeyTimeoutRef = useRef<number | null>(null);
-
-    if (!GlobalSyncConnectionController) {
-        GlobalSyncConnectionController = createSyncConnectionController(setUnlockedVault, unlockedVaultMetadata);
-        GlobalSyncConnectionController.init();
-    }
+    const syncConnectionController = useSyncConnectionController(
+        setUnlockedVault,
+        unlockedVaultMetadata,
+    );
 
     const deviceConnectionStatuses = useDeviceConnectionLifecycle(
         linkedDevices,
-        GlobalSyncConnectionController,
+        syncConnectionController,
     );
 
     useEffect(() => {
@@ -552,12 +467,12 @@ export function VaultDashboard() {
                 return;
             }
 
-            const saveRes = await saveVaultWithSessionSecret(
+            const saveRes = await saveVaultWithSessionDEK(
                 unlockedVaultMetadata,
                 updatedVault,
             );
             if (saveRes.isErr()) {
-                if (saveRes.error === "VAULT_SECRET_NOT_FOUND") {
+                if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
                     toast.error(
                         "Failed to save vault. Vault encryption secret is missing.",
                         {
@@ -632,13 +547,13 @@ export function VaultDashboard() {
 
             updatedVault.LinkedDevices = updatedLinkedDevices;
 
-            const saveRes = await saveVaultWithSessionSecret(
+            const saveRes = await saveVaultWithSessionDEK(
                 unlockedVaultMetadata,
                 updatedVault,
             );
             if (saveRes.isErr()) {
                 const message =
-                    saveRes.error === "VAULT_SECRET_NOT_FOUND"
+                    saveRes.error === "VAULT_DEK_NOT_FOUND"
                         ? "Failed to save signaling configuration. Vault encryption secret is missing."
                         : "Failed to save signaling configuration.";
                 toast.error(message, { id: toastId });
@@ -688,13 +603,13 @@ export function VaultDashboard() {
             );
             updatedVault.LinkedDevices = updatedLinkedDevices;
 
-            const saveRes = await saveVaultWithSessionSecret(
+            const saveRes = await saveVaultWithSessionDEK(
                 unlockedVaultMetadata,
                 updatedVault,
             );
             if (saveRes.isErr()) {
                 const message =
-                    saveRes.error === "VAULT_SECRET_NOT_FOUND"
+                    saveRes.error === "VAULT_DEK_NOT_FOUND"
                         ? "Failed to save device configuration. Vault encryption secret is missing."
                         : "Failed to save device configuration.";
                 toast.error(message, { id: toastId });
@@ -800,12 +715,12 @@ export function VaultDashboard() {
                         setVaultCredentials(deleted.value);
                         setUnlockedVault(updatedVault);
 
-                        const saveRes = await saveVaultWithSessionSecret(
+                        const saveRes = await saveVaultWithSessionDEK(
                             unlockedVaultMetadata,
                             updatedVault,
                         );
                         if (saveRes.isErr()) {
-                            if (saveRes.error === "VAULT_SECRET_NOT_FOUND") {
+                            if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
                                 toast.error(
                                     "Failed to remove credential. Vault encryption secret is missing.",
                                     { id: toastId },
@@ -934,12 +849,12 @@ export function VaultDashboard() {
 
         const toastId = toast.loading("Securing vault...");
 
-        const saveRes = await saveVaultWithSessionSecret(
+        const saveRes = await saveVaultWithSessionDEK(
             unlockedVaultMetadata,
             unlockedVault,
         );
         if (saveRes.isErr()) {
-            if (saveRes.error === "VAULT_SECRET_NOT_FOUND") {
+            if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
                 toast.error(MISSING_VAULT_SECRET_ERROR, { id: toastId });
                 return;
             }
@@ -954,7 +869,7 @@ export function VaultDashboard() {
         }
 
         try {
-            clearVaultSecretFromSession();
+            clearVaultDEKFromSession();
 
             onlineServicesStore.set(
                 onlineServicesAuthConnectionStatusAtom,
@@ -1231,7 +1146,7 @@ export function VaultDashboard() {
                         onLockVault={lockVaultConfirm}
                         signalingConfig={vaultSignalingConfig}
                         onSaveSignalingConfig={handleSaveSignalingConfig}
-                        syncConnectionController={GlobalSyncConnectionController}
+                        syncConnectionController={syncConnectionController}
                         deviceConnectionStatuses={deviceConnectionStatuses}
                         showWarningDialog={showWarningDialog}
                         isMobile
@@ -1255,7 +1170,7 @@ export function VaultDashboard() {
                     onLockVault={lockVaultConfirm}
                     signalingConfig={vaultSignalingConfig}
                     onSaveSignalingConfig={handleSaveSignalingConfig}
-                    syncConnectionController={GlobalSyncConnectionController}
+                    syncConnectionController={syncConnectionController}
                     deviceConnectionStatuses={deviceConnectionStatuses}
                     showWarningDialog={showWarningDialog}
                 />

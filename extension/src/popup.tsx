@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 import {
     EncryptedEnvelope,
     MessageType,
+    type PendingSavePrompt,
     type PlaintextEnvelope,
 } from "./types/sw-messaging";
 import {
@@ -29,7 +30,9 @@ import {
     vaultLog,
 } from "./utils/ext-logging";
 import PopupUnlock from "./components/popup-unlock";
+import PopupSaveCredential from "./components/popup-save-credential";
 import VaultView from "./vault-view";
+import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 
 const openLinkTab = () => {
     if (typeof chrome === "undefined" || !chrome.runtime || !chrome.tabs) {
@@ -59,6 +62,9 @@ const App = () => {
     const [bgStateLoaded, setBgStateLoaded] = useState(false);
     const [serverPublicKey, setServerPublicKey] =
         useState<ServerPublicKey | null>(null);
+    const [pendingSave, setPendingSave] = useState<PendingSavePrompt | null>(
+        null,
+    );
 
     const rawVaults = useLiveQuery(() => Storage.db.vaults.toArray());
     const hasVaults = (rawVaults?.length ?? 0) > 0;
@@ -193,6 +199,26 @@ const App = () => {
             await fetchState();
         })();
     }, [serverPublicKey]);
+
+    useEffect(() => {
+        if (!bg.unlocked) {
+            setPendingSave(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            const res = await sendEncryptedEnvelopeToSW<{
+                ok: true;
+                prompt: PendingSavePrompt | null;
+            }>(MessageType.GetPendingSavePrompt, null);
+            if (cancelled) return;
+            if (!res.ok || !res.payload?.ok) return;
+            setPendingSave(res.payload.prompt);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [bg.unlocked]);
 
     const tryDecryptVault = async (
         metadata: Storage.VaultMetadata,
@@ -387,6 +413,14 @@ const App = () => {
         }
 
         if (bg.unlocked && bg.metadata) {
+            if (pendingSave) {
+                return (
+                    <PopupSaveCredential
+                        prompt={pendingSave}
+                        onDone={() => setPendingSave(null)}
+                    />
+                );
+            }
             return (
                 <VaultView
                     name={bg.metadata.name}

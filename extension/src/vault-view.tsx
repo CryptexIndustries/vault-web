@@ -31,7 +31,7 @@ import {
     User,
     X,
 } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import {
     EncryptedEnvelope,
@@ -44,8 +44,6 @@ import {
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
-
-import { ManualSynchronizationDialog, ManualSyncShowDialogFnPropType } from "@/components/dialog/synchronization";
 
 // Shadcn UI Components
 import { SyncConnectionController, VaultOperations } from "@/app_lib/synchronization";
@@ -281,9 +279,6 @@ const VaultView: React.FC<VaultViewProps> = ({
     const linkedDevicesRef = useRef<VaultUtilTypes.LinkedDevice[]>([]);
 
     const showWarningDialogFnRef = useRef<WarningDialogShowFn>(() => {
-        // No-op
-    });
-    const showManualSyncDialog = useRef<ManualSyncShowDialogFnPropType>(() => {
         // No-op
     });
     const refreshCredentialsRef = useRef<(() => Promise<Result<void, string>>) | null>(null);
@@ -969,57 +964,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
-    const refreshCredentials = async () => {
-        if (!serverPublicKey) {
-            console.error(
-                "REFRESH_CREDENTIALS_FAILED: No server public key available for encrypted messaging",
-            );
-            return err("NO_PUBLIC_KEY_AVAILABLE");
-        }
-
-        setIsRefreshing(true);
-        const res = await _refreshCredentials();
-        if (res.isOk()) {
-            setCredentials(res.value);
-            setIsRefreshing(false);
-            return ok();
-        }
-
-        if (res.error === "STALE_KEY") {
-            const refreshKeyResult = await onStaleKeyError();
-            if (refreshKeyResult.isErr()) {
-                console.error(
-                    "Failed to refresh credentials, tried to refresh public key but failed: " +
-                        refreshKeyResult.error,
-                );
-                return err("FAILED_TO_REFRESH_CREDENTIALS_STALE_KEY");
-            }
-
-            const resRetry = await _refreshCredentials();
-            if (resRetry.isErr()) {
-                console.error(
-                    "Failed to refresh credentials after retrying: " +
-                        resRetry.error,
-                );
-            } else {
-                setCredentials(resRetry.value);
-                setIsRefreshing(false);
-                return ok();
-            }
-        } else {
-            console.error("Failed to refresh credentials: " + res.error);
-        }
-
-        setIsRefreshing(false);
-
-        return err("FAILED_TO_REFRESH_CREDENTIALS");
-    };
-
-    useEffect(() => {
-        refreshCredentialsRef.current = refreshCredentials;
-    }, [refreshCredentials]);
-
-    const _refreshCredentials = async () => {
+    const _refreshCredentials = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
         const envelope = await createEncryptedEnvelope(
@@ -1063,7 +1008,57 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
-    };
+    }, [serverPublicKey]);
+
+    const refreshCredentials = useCallback(async () => {
+        if (!serverPublicKey) {
+            console.error(
+                "REFRESH_CREDENTIALS_FAILED: No server public key available for encrypted messaging",
+            );
+            return err("NO_PUBLIC_KEY_AVAILABLE");
+        }
+
+        setIsRefreshing(true);
+        const res = await _refreshCredentials();
+        if (res.isOk()) {
+            setCredentials(res.value);
+            setIsRefreshing(false);
+            return ok();
+        }
+
+        if (res.error === "STALE_KEY") {
+            const refreshKeyResult = await onStaleKeyError();
+            if (refreshKeyResult.isErr()) {
+                console.error(
+                    "Failed to refresh credentials, tried to refresh public key but failed: " +
+                        refreshKeyResult.error,
+                );
+                return err("FAILED_TO_REFRESH_CREDENTIALS_STALE_KEY");
+            }
+
+            const resRetry = await _refreshCredentials();
+            if (resRetry.isErr()) {
+                console.error(
+                    "Failed to refresh credentials after retrying: " +
+                        resRetry.error,
+                );
+            } else {
+                setCredentials(resRetry.value);
+                setIsRefreshing(false);
+                return ok();
+            }
+        } else {
+            console.error("Failed to refresh credentials: " + res.error);
+        }
+
+        setIsRefreshing(false);
+
+        return err("FAILED_TO_REFRESH_CREDENTIALS");
+    }, [serverPublicKey, onStaleKeyError, _refreshCredentials]);
+
+    useEffect(() => {
+        refreshCredentialsRef.current = refreshCredentials;
+    }, [refreshCredentials]);
 
     const _getSyncConfig = async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -2550,10 +2545,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                 onPasswordSelect={handleGeneratedPasswordSelect}
             />
 
-            <ManualSynchronizationDialog
-                showDialogFnRef={showManualSyncDialog}
-                showWarningDialog={showWarningDialogFnRef.current}
-            />
             <WarningDialog
                 showFnRef={showWarningDialogFnRef}
             />

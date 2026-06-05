@@ -1,10 +1,4 @@
 import { VaultMetadata } from "@/app_lib/vault-utils/storage";
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,15 +10,22 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Edit2, LoaderCircle, Trash2, Unlock } from "lucide-react";
+import {
+    Edit2,
+    LifeBuoy,
+    LoaderCircle,
+    Quote,
+    Trash2,
+    Unlock,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-
-import { enumToRecord } from "@/utils/consts";
+import { useForm } from "react-hook-form";
 import { Err, Ok } from "neverthrow";
+import type { VaultUnlockFlowResult } from "@/app_lib/vault-utils/vault-unlock-types";
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
+    SecondFactorKind,
 } from "../../app_lib/proto/vault";
 import {
     KeyDerivationConfig_Argon2ID,
@@ -60,25 +61,29 @@ import { Textarea } from "../ui/textarea";
 
 const LOCAL_STORAGE_LAST_SELECTED_VAULT = "last-selected-vault";
 
-const UnlockTab: React.FC<{
+type UnlockTabProps = {
     vaults: VaultMetadata[] | undefined;
     executeCallback: (
         metadata: VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
-    ) => Promise<
-        | Err<
-              never,
-              | "VAULT_BLOB_NULL"
-              | "VAULT_BLOB_INVALID_TYPE"
-              | "KEY_DERIVATION_FN_CONFIG_UNDEFINED"
-              | "KEY_DERIVATION_FN_INVALID"
-              | "DECRYPTION_FAILED"
-              | "ENCRYPTION_ALGORITHM_INVALID"
-          >
-        | Ok<void, never>
-    >;
+        unlockExtras?: {
+            useRecovery?: boolean;
+            recoveryCode?: string;
+            secondFactorPassphrase?: string;
+        },
+    ) => Promise<Err<never, string> | Ok<VaultUnlockFlowResult, never>>;
     deleteVaultCallback: (dbIndex: number) => Promise<void>;
-}> = ({ vaults, executeCallback, deleteVaultCallback }) => {
+};
+
+/**
+ * Encapsulates the unlock / edit / delete behaviour so the presentation layer
+ * stays focused on layout.
+ */
+function useUnlockController({
+    vaults,
+    executeCallback,
+    deleteVaultCallback,
+}: UnlockTabProps) {
     const [selectedVault, _setSelectedVault] = useState("");
     const [isDecrypting, setIsDecrypting] = useState(false);
     const [selectedVaultDisplayName, setSelectedVaultDisplayName] =
@@ -88,17 +93,11 @@ const UnlockTab: React.FC<{
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isVaultUpdating, setIsVaultUpdating] = useState(false);
     const [isVaultUpdatingError, setIsVaultUpdatingError] = useState(false);
+    const [useRecovery, setUseRecovery] = useState(false);
+    const [recoveryCode, setRecoveryCode] = useState("");
+    const [secondFactorPassphrase, setSecondFactorPassphrase] = useState("");
 
-    const {
-        handleSubmit,
-        register,
-        control,
-        formState: { errors },
-        reset: resetForm,
-        watch,
-        setFocus,
-        setValue,
-    } = useForm<EncryptionFormGroupSchemaType>({
+    const form = useForm<EncryptionFormGroupSchemaType>({
         resolver: zodResolver(encryptionFormGroupSchema),
         defaultValues: {
             Secret: "",
@@ -111,63 +110,64 @@ const UnlockTab: React.FC<{
             },
         },
     });
+    const { handleSubmit, reset: resetForm, setFocus, getValues } = form;
 
-    const {
-        handleSubmit: handleEditSubmit,
-        register: registerEdit,
-        formState: { errors: editErrors },
-        reset: resetEditForm,
-        setValue: setEditValue,
-    } = useForm<EditVaultFormSchemaType>({
+    const editForm = useForm<EditVaultFormSchemaType>({
         resolver: zodResolver(editVaultFormSchema),
-        defaultValues: {
-            Name: "",
-            Description: "",
-        },
+        defaultValues: { Name: "", Description: "" },
     });
 
+    const findVault = (dbIndex: string) =>
+        vaults?.find((i) => i.DBIndex?.toString() === dbIndex);
+
+    const setSelectedVault = (value: string) => {
+        _setSelectedVault(value);
+        setSecondFactorPassphrase("");
+        const data = findVault(value);
+        if (!data) return;
+
+        localStorage.setItem(LOCAL_STORAGE_LAST_SELECTED_VAULT, value);
+
+        resetForm({
+            Secret: "",
+            Encryption: data?.Blob?.Algorithm ?? 0,
+            EncryptionKeyDerivationFunction: data?.Blob?.KeyDerivationFunc ?? 0,
+            EncryptionConfig: {
+                iterations:
+                    data?.Blob?.KDFConfigPBKDF2?.iterations ??
+                    KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
+                memLimit:
+                    data?.Blob?.KDFConfigArgon2ID?.memLimit ??
+                    KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+                opsLimit:
+                    data?.Blob?.KDFConfigArgon2ID?.opsLimit ??
+                    KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+            },
+        });
+    };
+
     const openEditDialog = () => {
-        const selectedVaultData = vaults?.find(
-            (i) => i.DBIndex?.toString() === selectedVault,
-        );
-
-        if (!selectedVaultData) return;
-
-        // Set the form values to the current vault data
-        setEditValue("Name", selectedVaultData.Name);
-        setEditValue("Description", selectedVaultData.Description);
-
+        const data = findVault(selectedVault);
+        if (!data) return;
+        editForm.setValue("Name", data.Name);
+        editForm.setValue("Description", data.Description);
         setIsEditDialogOpen(true);
     };
 
     const handleVaultUpdate = async (formData: EditVaultFormSchemaType) => {
         if (isVaultUpdating) return;
-
-        const selectedVaultData = vaults?.find(
-            (i) => i.DBIndex?.toString() === selectedVault,
-        );
-
-        if (!selectedVaultData) return;
+        const data = findVault(selectedVault);
+        if (!data) return;
 
         setIsVaultUpdating(true);
         setIsVaultUpdatingError(false);
-
         try {
-            // Update the vault metadata
-            selectedVaultData.Name = formData.Name;
-            selectedVaultData.Description = formData.Description;
-
-            // Save the updated metadata (passing null as vault instance to only update metadata)
-            await selectedVaultData.save(null, new Uint8Array(0));
-
-            // Update the display name
+            data.Name = formData.Name;
+            data.Description = formData.Description;
+            await data.save(null, new Uint8Array(0));
             setSelectedVaultDisplayName(formData.Name);
-
-            // Close the dialog
             setIsEditDialogOpen(false);
-
-            // Reset the form
-            resetEditForm();
+            editForm.reset();
         } catch (e) {
             console.error("Error updating vault:", e);
             setIsVaultUpdatingError(true);
@@ -176,80 +176,41 @@ const UnlockTab: React.FC<{
         }
     };
 
-    const setSelectedVault = (value: string) => {
-        _setSelectedVault(value);
-
-        // Set all the form fields
-        const selectedVaultData = vaults?.find(
-            (i) => i.DBIndex?.toString() === value,
-        );
-
-        if (!selectedVaultData) return;
-
-        // Set the DBIndex to LocalStorage so we can load it later on first load
-        localStorage.setItem(LOCAL_STORAGE_LAST_SELECTED_VAULT, value);
-
-        const encryptionFormDefaultValues: EncryptionFormGroupSchemaType = {
-            Secret: "",
-            Encryption: selectedVaultData?.Blob?.Algorithm ?? 0,
-            EncryptionKeyDerivationFunction:
-                selectedVaultData?.Blob?.KeyDerivationFunc ?? 0,
-            EncryptionConfig: {
-                iterations:
-                    selectedVaultData?.Blob?.KDFConfigPBKDF2?.iterations ??
-                    KeyDerivationConfig_PBKDF2.DEFAULT_ITERATIONS,
-                memLimit:
-                    selectedVaultData?.Blob?.KDFConfigArgon2ID?.memLimit ??
-                    KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
-                opsLimit:
-                    selectedVaultData?.Blob?.KDFConfigArgon2ID?.opsLimit ??
-                    KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
-            },
-        };
-
-        resetForm(encryptionFormDefaultValues);
-    };
-
     const tryUnlock = async (formData: EncryptionFormGroupSchemaType) => {
-        const selectedVaultData = vaults?.find(
-            (i) => i.DBIndex?.toString() === selectedVault,
-        );
-
-        if (!selectedVaultData) return;
+        const data = findVault(selectedVault);
+        if (!data) return;
 
         setIsDecrypting(true);
+        // Give the UI breathing room to paint the loading state since unlock is heavy on the main thread.
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Give the UI some breathing room to show the loading state since the unlock process is weighty on the main thread
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const decryptRes = await executeCallback(selectedVaultData, formData);
+        const decryptRes = await executeCallback(data, formData, {
+            useRecovery,
+            recoveryCode: useRecovery ? recoveryCode.trim() : undefined,
+            secondFactorPassphrase:
+                !useRecovery && secondFactorPassphrase.trim().length > 0
+                    ? secondFactorPassphrase.trim()
+                    : undefined,
+        });
         setIsDecrypting(false);
 
-        // Time the form reset so that it doesn't disturb the UX
         if (decryptRes.isErr()) {
             console.error("Decryption failed:", decryptRes.error);
             return;
         }
-
-        setTimeout(() => {
-            resetForm();
-        }, 200);
+        setTimeout(() => resetForm(), 200);
     };
 
     const handleVaultDelete = async () => {
         if (isVaultDeleting) return;
-
         const dbIndex = Number(selectedVault);
         if (dbIndex == null || isNaN(dbIndex)) {
             setIsVaultDeletingError(true);
             return;
         }
-
         setIsVaultDeleting(true);
         try {
             await deleteVaultCallback(dbIndex);
-
-            // Remove the last selected vault from LocalStorage because it is no longer valid
             localStorage.removeItem(LOCAL_STORAGE_LAST_SELECTED_VAULT);
         } catch (e) {
             console.error("Error deleting vault:", e);
@@ -258,445 +219,387 @@ const UnlockTab: React.FC<{
         } finally {
             setIsVaultDeleting(false);
         }
-
-        // Reset the form
         resetForm();
     };
 
     useEffect(() => {
-        // Update the selected vault name after the vault has been selected
-        const selectedVaultData = vaults?.find(
+        const data = vaults?.find(
             (i) => i.DBIndex?.toString() === selectedVault,
         );
-
-        if (!selectedVaultData) return;
-
-        setSelectedVaultDisplayName(selectedVaultData.Name);
-    }, [selectedVault]);
+        if (!data) return;
+        setSelectedVaultDisplayName(data.Name);
+    }, [selectedVault, vaults]);
 
     useEffect(() => {
         if (vaults?.length) {
-            // Try to load the last selected vault from LocalStorage
-            const lastSelectedVault = localStorage.getItem(
+            const last = localStorage.getItem(
                 LOCAL_STORAGE_LAST_SELECTED_VAULT,
             );
-
-            // Make sure the last selected vault still exists in the vaults array
             const exists =
                 vaults.findIndex(
-                    (v) => v.DBIndex && v.DBIndex === Number(lastSelectedVault),
+                    (v) => v.DBIndex && v.DBIndex === Number(last),
                 ) !== -1;
-
-            // Set the last selected vault or default to the first one
-            if (lastSelectedVault && exists) {
-                setSelectedVault(lastSelectedVault);
+            if (last && exists) {
+                setSelectedVault(last);
             } else {
                 setSelectedVault(vaults[0]!.DBIndex?.toString() ?? "UNKNOWN");
             }
         }
         setFocus("Secret");
+        // setSelectedVault/setFocus are stable for the lifetime of this hook;
+        // we only want to re-run vault initialization when the vault list changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [vaults]);
 
-    if (vaults == null) return null;
+    const selectedVaultData = findVault(selectedVault);
+    const selectedRequiresPassphrase =
+        !useRecovery &&
+        (selectedVaultData?.Blob?.Envelope?.PrimaryFactorKind ===
+            SecondFactorKind.PASSPHRASE_128 ||
+            selectedVaultData?.Blob?.Envelope?.PrimaryFactorKind ===
+                SecondFactorKind.PASSPHRASE_256);
+
+    return {
+        form,
+        editForm,
+        selectedVault,
+        setSelectedVault,
+        selectedVaultDisplayName,
+        isDecrypting,
+        isVaultDeleting,
+        isVaultDeletingError,
+        isEditDialogOpen,
+        setIsEditDialogOpen,
+        isVaultUpdating,
+        isVaultUpdatingError,
+        useRecovery,
+        setUseRecovery,
+        recoveryCode,
+        setRecoveryCode,
+        secondFactorPassphrase,
+        setSecondFactorPassphrase,
+        selectedRequiresPassphrase,
+        openEditDialog,
+        handleVaultUpdate,
+        handleVaultDelete,
+        // In recovery mode the secret key is unused, so skip the form's
+        // zod validation (which requires a non-empty secret) and unlock directly.
+        submitUnlock: () =>
+            useRecovery ? tryUnlock(getValues()) : handleSubmit(tryUnlock)(),
+    };
+}
+
+type Controller = ReturnType<typeof useUnlockController>;
+
+const EditVaultDialog: React.FC<{ ctrl: Controller }> = ({ ctrl }) => {
+    const {
+        editForm,
+        isEditDialogOpen,
+        setIsEditDialogOpen,
+        isVaultUpdating,
+        isVaultUpdatingError,
+        handleVaultUpdate,
+    } = ctrl;
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = editForm;
 
     return (
-        <div className="space-y-4 pt-4">
-            <div className="space-y-2">
-                <Label htmlFor="vault-select">Select Vault *</Label>
-                <div className="flex items-center gap-2">
-                    <Select
-                        value={selectedVault}
-                        onValueChange={setSelectedVault}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Edit Vault</DialogTitle>
+                    <DialogDescription>
+                        Make changes to your vault information here. Click save
+                        when you&apos;re done.
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(handleVaultUpdate)}>
+                    <div className="flex flex-col gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-name">Name *</Label>
+                            <FormInput
+                                id="edit-name"
+                                type="text"
+                                placeholder="Vault name"
+                                {...register("Name")}
+                            />
+                            {errors.Name && (
+                                <p className="text-destructive-foreground">
+                                    {errors.Name.message}
+                                </p>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-description">
+                                Description
+                            </Label>
+                            <Textarea
+                                id="edit-description"
+                                placeholder="Vault description (optional)"
+                                {...register("Description")}
+                            />
+                            {errors.Description && (
+                                <p className="text-destructive-foreground">
+                                    {errors.Description.message}
+                                </p>
+                            )}
+                        </div>
+                        {isVaultUpdatingError && (
+                            <p className="text-destructive-foreground">
+                                There was an error updating the vault. Please
+                                try again. There is more information in the
+                                console.
+                            </p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsEditDialogOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={isVaultUpdating}>
+                            {isVaultUpdating ? (
+                                <span className="flex items-center">
+                                    <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </span>
+                            ) : (
+                                "Save Changes"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+const DeleteVaultDialog: React.FC<{
+    ctrl: Controller;
+    children: React.ReactNode;
+}> = ({ ctrl, children }) => {
+    const {
+        selectedVaultDisplayName,
+        isVaultDeleting,
+        isVaultDeletingError,
+        handleVaultDelete,
+    } = ctrl;
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="text-foreground">
+                        Delete Vault
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-foreground">
+                        Are you sure you want to delete vault{" "}
+                        <span className="font-bold">
+                            {selectedVaultDisplayName}
+                        </span>
+                        ? This action cannot be undone and will permanently
+                        remove all vault data.
+                        {isVaultDeletingError && (
+                            <p className="text-destructive-foreground">
+                                There was an error deleting the vault. Please
+                                try again. There is more information in the
+                                console.
+                            </p>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel className="text-foreground">
+                        Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handleVaultDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                        <SelectTrigger id="vault-select">
-                            <SelectValue placeholder="Select a vault" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {vaults.map((vault) => (
-                                <SelectItem
-                                    key={vault.DBIndex}
-                                    value={
-                                        vault.DBIndex?.toString() ?? "UNKNOWN"
-                                    }
-                                >
-                                    <span className="line-clamp-2 max-w-56 text-ellipsis text-start">
-                                        {vault.Name}
-                                    </span>
-                                    <span className="line-clamp-2 max-w-60 text-ellipsis text-start text-xs text-muted-foreground">
-                                        {vault.Description.length > 0
-                                            ? vault.Description
-                                            : "No description provided"}
-                                    </span>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        {isVaultDeleting ? (
+                            <span className="flex items-center">
+                                <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin" />
+                                Deleting...
+                            </span>
+                        ) : (
+                            "Delete Vault"
+                        )}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+};
+
+const SecretField: React.FC<{ ctrl: Controller; id: string }> = ({
+    ctrl,
+    id,
+}) => {
+    const {
+        register,
+        setValue,
+        formState: { errors },
+    } = ctrl.form;
+    return (
+        <>
+            <FormInput
+                id={id}
+                type="password"
+                placeholder={
+                    ctrl.useRecovery
+                        ? "Optional when using recovery"
+                        : "Enter your secret key"
+                }
+                className="pr-16"
+                {...register("Secret", { required: !ctrl.useRecovery })}
+                setValue={(value) => setValue("Secret", value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") ctrl.submitUnlock();
+                }}
+            />
+            {errors.Secret && !ctrl.useRecovery && (
+                <p className="text-destructive-foreground">
+                    {errors.Secret.message}
+                </p>
+            )}
+        </>
+    );
+};
+
+/**
+ * Minimal, single-column unlock screen. Vault picker on top, secret key
+ * centre-stage, with recovery and advanced decryption options demoted to quiet
+ * toggles so the common case stays uncluttered.
+ */
+const UnlockTab: React.FC<UnlockTabProps> = (props) => {
+    const ctrl = useUnlockController(props);
+    const [showRecovery, setShowRecovery] = useState(false);
+
+    if (props.vaults == null) return null;
+
+    const selectedVaultData = props.vaults.find(
+        (v) => v.DBIndex?.toString() === ctrl.selectedVault,
+    );
+    const selectedDescription = selectedVaultData?.Description?.trim();
+
+    return (
+        <div className="space-y-2 pt-6">
+            <div className="flex items-center gap-2">
+                <Select
+                    value={ctrl.selectedVault}
+                    onValueChange={ctrl.setSelectedVault}
+                >
+                    <SelectTrigger id="vault-select" className="h-11">
+                        <SelectValue placeholder="Select a vault" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {props.vaults.map((vault) => (
+                            <SelectItem
+                                key={vault.DBIndex}
+                                value={vault.DBIndex?.toString() ?? "UNKNOWN"}
+                            >
+                                <span className="line-clamp-1 max-w-56 text-start">
+                                    {vault.Name}
+                                </span>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={ctrl.openEditDialog}
+                    disabled={ctrl.isVaultDeleting || ctrl.isDecrypting}
+                    className="h-9 w-9 shrink-0 p-0"
+                >
+                    <Edit2 className="h-4 w-4" />
+                    <span className="sr-only">
+                        Edit vault &quot;{ctrl.selectedVaultDisplayName}&quot;
+                    </span>
+                </Button>
+                <DeleteVaultDialog ctrl={ctrl}>
                     <Button
                         size="sm"
                         variant="ghost"
-                        onClick={openEditDialog}
-                        disabled={isVaultDeleting || isDecrypting || isVaultUpdating}
-                        className="h-8 w-8 p-0"
+                        disabled={ctrl.isVaultDeleting || ctrl.isDecrypting}
+                        className="h-9 w-9 shrink-0 p-0 text-destructive hover:text-destructive"
                     >
-                        <Edit2 className="h-4 w-4" />
-                        <span className="sr-only">Edit vault &quot;{selectedVaultDisplayName}&quot;</span>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">
+                            Delete vault &quot;
+                            {ctrl.selectedVaultDisplayName}&quot;
+                        </span>
                     </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={isVaultDeleting || isDecrypting}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">
-                                    Delete vault &quot;
-                                    {selectedVaultDisplayName}&quot;
-                                </span>
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle className="text-foreground">
-                                    Delete Vault
-                                </AlertDialogTitle>
-                                <AlertDialogDescription className="text-foreground">
-                                    Are you sure you want to delete vault{" "}
-                                    <span className="font-bold">
-                                        {selectedVaultDisplayName}
-                                    </span>
-                                    ? This action cannot be undone and will
-                                    permanently remove all vault data.
-                                    {isVaultDeletingError && (
-                                        <p className="text-destructive-foreground">
-                                            There was an error deleting the
-                                            vault. Please try again. There is
-                                            more information in the console.
-                                        </p>
-                                    )}
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel className="text-foreground">
-                                    Cancel
-                                </AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={handleVaultDelete}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                    {isVaultDeleting ? (
-                                        <span className="flex items-center">
-                                            <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin text-white" />
-                                            Deleting...
-                                        </span>
-                                    ) : (
-                                        "Delete Vault"
-                                    )}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </div>
-
-                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                    <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                            <DialogTitle>Edit Vault</DialogTitle>
-                            <DialogDescription>
-                                Make changes to your vault information here. Click save when you&apos;re done.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <form onSubmit={handleEditSubmit(handleVaultUpdate)}>
-                            <div className="flex flex-col gap-4 py-4">
-                                <div className="flex items-center gap-4">
-                                    <Label htmlFor="edit-name" className="w-24 text-right flex-shrink-0">
-                                        Name *
-                                    </Label>
-                                    <div className="w-full">
-                                    <FormInput
-                                        id="edit-name"
-                                        type="text"
-                                        placeholder="Vault name"
-                                        className="flex-1 w-full"
-                                        {...registerEdit("Name")}
-                                    />
-                                    </div>
-                                </div>
-                                {editErrors.Name && (
-                                    <p className="text-destructive-foreground ml-28">
-                                        {editErrors.Name.message}
-                                    </p>
-                                )}
-                                <div className="flex items-start gap-4">
-                                    <Label htmlFor="edit-description" className="w-24 text-right flex-shrink-0 mt-2">
-                                        Description
-                                    </Label>
-                                    <Textarea
-                                        id="edit-description"
-                                        placeholder="Vault description (optional)"
-                                        className="w-full pr-10"
-                                        {...registerEdit("Description")}
-                                    />
-                                </div>
-                                {editErrors.Description && (
-                                    <p className="text-destructive-foreground ml-28">
-                                        {editErrors.Description.message}
-                                    </p>
-                                )}
-                                {isVaultUpdatingError && (
-                                    <p className="text-destructive-foreground ml-28">
-                                        There was an error updating the vault. Please try again. There is more information in the console.
-                                    </p>
-                                )}
-                            </div>
-                            <DialogFooter>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setIsEditDialogOpen(false)}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={isVaultUpdating}
-                                >
-                                    {isVaultUpdating ? (
-                                        <span className="flex items-center">
-                                            <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin text-white" />
-                                            Saving...
-                                        </span>
-                                    ) : (
-                                        "Save Changes"
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                </DeleteVaultDialog>
             </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="secret-key">Secret Key *</Label>
-                <FormInput
-                    id="secret-key"
-                    type="password"
-                    placeholder="Enter your secret key"
-                    autoFocus={true}
-                    className="pr-10"
-                    {...register("Secret")}
-                    setValue={(value) => setValue("Secret", value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                            handleSubmit(tryUnlock)();
-                        }
-                    }}
-                />
-                {errors.Secret && (
-                    <p className="text-destructive-foreground">
-                        {errors.Secret.message}
+            {selectedDescription && (
+                <div className="relative overflow-hidden rounded-lg border-l-2 border-primary/30 bg-gradient-to-r from-primary/5 to-transparent px-3.5 py-2.5">
+                    <Quote className="absolute right-1.5 h-6 w-6 rotate-180 text-primary/40" />
+                    <p
+                        className="relative line-clamp-2 max-h-24 overflow-y-hidden whitespace-pre-line pr-6 text-sm italic leading-relaxed text-muted-foreground"
+                        title={selectedDescription}
+                    >
+                        {selectedDescription}
                     </p>
+                </div>
+            )}
+
+            <div className="space-y-2">
+                <Label
+                    htmlFor="secret-key"
+                    className="text-xs text-muted-foreground"
+                >
+                    {ctrl.useRecovery ? "Recovery code" : "Secret key"}
+                </Label>
+                {showRecovery ? (
+                    <Input
+                        id="recovery-code"
+                        placeholder="Recovery code"
+                        value={ctrl.recoveryCode}
+                        onChange={(e) => ctrl.setRecoveryCode(e.target.value)}
+                        className="font-mono text-xs"
+                    />
+                ) : (
+                    <SecretField ctrl={ctrl} id="secret-key" />
                 )}
             </div>
 
-            <div className="space-y-2">
-                <Accordion
-                    type="single"
-                    collapsible
-                    className="w-full rounded-md border"
-                >
-                    <AccordionItem value="decryption-config">
-                        <AccordionTrigger className="px-4">
-                            Decryption Configuration
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 px-4 pb-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="decryption-algorithm">
-                                    Decryption Algorithm
-                                </Label>
-                                <Controller
-                                    name="Encryption"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select
-                                            value={field.value.toString()}
-                                            onValueChange={(value) => {
-                                                field.onChange(Number(value));
-                                            }}
-                                        >
-                                            <SelectTrigger id="decryption-algorithm">
-                                                <SelectValue placeholder="Select algorithm" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(
-                                                    enumToRecord(
-                                                        EncryptionAlgorithm,
-                                                    ),
-                                                ).map(([value, label]) => (
-                                                    <SelectItem
-                                                        key={label}
-                                                        value={String(value)}
-                                                    >
-                                                        {label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.Encryption && (
-                                    <p className="text-destructive-foreground">
-                                        {errors.Encryption.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="key-derivation-function">
-                                    Key Derivation Function
-                                </Label>
-                                <Controller
-                                    name="EncryptionKeyDerivationFunction"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select
-                                            value={field.value.toString()}
-                                            onValueChange={(value) => {
-                                                field.onChange(Number(value));
-                                            }}
-                                        >
-                                            <SelectTrigger id="key-derivation-function">
-                                                <SelectValue placeholder="Select function" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(
-                                                    enumToRecord(
-                                                        KeyDerivationFunction,
-                                                    ),
-                                                ).map(([value, label]) => (
-                                                    <SelectItem
-                                                        key={label}
-                                                        value={String(value)}
-                                                    >
-                                                        {label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.EncryptionKeyDerivationFunction && (
-                                    <p className="text-destructive-foreground">
-                                        {
-                                            errors
-                                                .EncryptionKeyDerivationFunction
-                                                .message
-                                        }
-                                    </p>
-                                )}
-                            </div>
-
-                            {watch(
-                                "EncryptionKeyDerivationFunction",
-                            ).toString() ===
-                                KeyDerivationFunction.Argon2ID.toString() && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="memory-limit">
-                                                Memory Limit (MiB)
-                                            </Label>
-                                            <Input
-                                                id="memory-limit"
-                                                type="number"
-                                                min={
-                                                    KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
-                                                }
-                                                {...register(
-                                                    "EncryptionConfig.memLimit",
-                                                )}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="operations-limit">
-                                                Operations Limit
-                                            </Label>
-                                            <Input
-                                                id="operations-limit"
-                                                type="number"
-                                                min={
-                                                    KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
-                                                }
-                                                max={
-                                                    KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
-                                                }
-                                                {...register(
-                                                    "EncryptionConfig.opsLimit",
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {watch(
-                                "EncryptionKeyDerivationFunction",
-                            ).toString() ===
-                                KeyDerivationFunction.PBKDF2.toString() && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="memory-limit">
-                                                Iterations
-                                            </Label>
-                                            <Input
-                                                id="pkdf-iterations"
-                                                type="number"
-                                                min={2}
-                                                {...register(
-                                                    "EncryptionConfig.iterations",
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                            {errors.EncryptionConfig && (
-                                <p className="text-destructive-foreground">
-                                    {errors.EncryptionConfig.message}
-                                </p>
-                            )}
-
-                            {/* <div className="space-y-2"> */}
-                            {/*     <Label htmlFor="additional-config"> */}
-                            {/*         Additional Configuration (JSON) */}
-                            {/*     </Label> */}
-                            {/*     <Textarea */}
-                            {/*         id="additional-config" */}
-                            {/*         value={decryptionConfig} */}
-                            {/*         onChange={(e) => */}
-                            {/*             setDecryptionConfig(e.target.value) */}
-                            {/*         } */}
-                            {/*         placeholder="Enter additional configuration as JSON" */}
-                            {/*         rows={3} */}
-                            {/*     /> */}
-                            {/* </div> */}
-                            {/* --------------------- */}
-                        </AccordionContent>
-                    </AccordionItem>
-                </Accordion>
-            </div>
+            {ctrl.selectedRequiresPassphrase && (
+                <div className="space-y-2">
+                    <Label
+                        htmlFor="second-factor-passphrase"
+                        className="text-xs text-muted-foreground"
+                    >
+                        Second-factor passphrase
+                    </Label>
+                    <Input
+                        id="second-factor-passphrase"
+                        type="password"
+                        placeholder="Optional on this device, required after restore"
+                        value={ctrl.secondFactorPassphrase}
+                        onChange={(e) =>
+                            ctrl.setSecondFactorPassphrase(e.target.value)
+                        }
+                        className="font-mono text-xs"
+                    />
+                </div>
+            )}
 
             <Button
-                className="w-full"
-                variant="link"
-                onClick={handleSubmit(tryUnlock)}
-                disabled={isDecrypting || selectedVault.length === 0}
+                className="h-11 w-full"
+                onClick={ctrl.submitUnlock}
+                disabled={ctrl.isDecrypting || ctrl.selectedVault.length === 0}
             >
-                {isDecrypting ? (
+                {ctrl.isDecrypting ? (
                     <span className="flex items-center">
-                        <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin text-white" />
+                        <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin" />
                         Decrypting Vault...
                     </span>
                 ) : (
@@ -706,6 +609,25 @@ const UnlockTab: React.FC<{
                     </span>
                 )}
             </Button>
+
+            <div className="flex items-center text-xs">
+                <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                        const next = !showRecovery;
+                        setShowRecovery(next);
+                        ctrl.setUseRecovery(next);
+                    }}
+                >
+                    <LifeBuoy className="h-3.5 w-3.5" />
+                    {showRecovery
+                        ? "Use password instead"
+                        : "Use recovery code"}
+                </button>
+            </div>
+
+            <EditVaultDialog ctrl={ctrl} />
         </div>
     );
 };

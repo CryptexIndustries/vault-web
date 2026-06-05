@@ -38,14 +38,74 @@ export enum MessageType {
 
     /** Discards any cached Online Services session token in the SW. */
     OnlineServicesClear = 17,
+
+    /**
+     * Autofill: list credentials matching a page origin. Returns two
+     * buckets so the UI can prioritise exact-host matches over eTLD+1
+     * fuzzy matches. Never returns secrets.
+     */
+    GetCredentialsForOrigin = 19,
+
+    /**
+     * Autofill: one-shot fetch of a credential's secret material
+     * (username + password + optional TOTP secret). The SW does not cache
+     * the response; the caller is expected to wipe the values immediately
+     * after injecting them into the page.
+     */
+    GetCredentialSecret = 20,
+
+    /**
+     * Autofill: stash a "would you like to save this login?" prompt
+     * payload in SW-owned session storage and surface a UI cue (badge +
+     * best-effort `chrome.action.openPopup()`). The popup later reads the
+     * payload through `GetPendingSavePrompt`.
+     */
+    SaveCredentialPrompt = 21,
+
+    /** Autofill: popup reads a pending save-credential prompt (if any). */
+    GetPendingSavePrompt = 22,
+
+    /** Autofill: popup clears a pending save-credential prompt. */
+    ConsumePendingSavePrompt = 23,
+
+    /**
+     * Autofill: content script asks the SW to open the action popup so
+     * the user can unlock the vault. The SW invokes
+     * `chrome.action.openPopup()` (best-effort; not all Chrome versions
+     * honour it outside a user gesture).
+     */
+    OpenPopup = 24,
+
+    /**
+     * Autofill: compute a fresh TOTP code for a credential. Used by the
+     * inline menu when the focused field is `one-time-code`.
+     */
+    GenerateTOTP = 25,
 }
 
 /**
  * The set of in-extension contexts that may originate envelope traffic.
  * "link" covers the dedicated `link.html` page used for the receive-link
  * flow, which historically wasn't recognised by the origin validator.
+ * The "autofill-*" origins cover the page-injected autofill surfaces:
+ *   - `autofill-cs`: content script running in the host page (isolated
+ *     world). Only ever validated when `sender.frameId === 0` so
+ *     clickjacked sub-frames cannot pose as the top frame.
+ *   - `autofill-icon`: per-field icon iframe loaded from the extension.
+ *   - `autofill-menu`: shared inline picker/unlock iframe loaded from the
+ *     extension.
+ *   - `autofill-save`: persistent save-login iframe loaded from the
+ *     extension.
  */
-export type EnvelopeOrigin = "popup" | "offscreen" | "worker" | "link";
+export type EnvelopeOrigin =
+    | "popup"
+    | "offscreen"
+    | "worker"
+    | "link"
+    | "autofill-cs"
+    | "autofill-icon"
+    | "autofill-menu"
+    | "autofill-save";
 
 /**
  * Wire shape used by `MessageType.ProxyFetch` request payloads.
@@ -103,7 +163,69 @@ export type LiteCredential = {
     name: string;
     username: string;
     url: string;
+    hasTOTP?: boolean;
 };
+
+/** Payload for `MessageType.GetCredentialsForOrigin`. */
+export interface GetCredentialsForOriginRequest {
+    host: string;
+    etldPlus1: string;
+}
+
+/** Response for `MessageType.GetCredentialsForOrigin`. */
+export interface GetCredentialsForOriginResponse {
+    ok: boolean;
+    /** Exact host matches (e.g. `accounts.example.com` == `accounts.example.com`). */
+    exact: LiteCredential[];
+    /** eTLD+1 matches that did not match exactly. */
+    fuzzy: LiteCredential[];
+    error?: string;
+}
+
+/** Payload for `MessageType.GetCredentialSecret`. */
+export interface GetCredentialSecretRequest {
+    id: string;
+}
+
+/** Response for `MessageType.GetCredentialSecret`. */
+export interface GetCredentialSecretResponse {
+    ok: boolean;
+    username?: string;
+    password?: string;
+    totpSecret?: {
+        secret: string;
+        algorithm: number;
+        digits: number;
+        period: number;
+    } | null;
+    error?: string;
+}
+
+/** Payload for `MessageType.SaveCredentialPrompt`. */
+export interface SaveCredentialPromptRequest {
+    host: string;
+    url: string;
+    username: string;
+    password: string;
+}
+
+/** Response shape returned from `MessageType.GetPendingSavePrompt`. */
+export interface PendingSavePrompt {
+    host: string;
+    url: string;
+    username: string;
+    password: string;
+    /** Epoch millis when the prompt was stashed. Used to enforce a TTL. */
+    stashedAt: number;
+}
+
+/** Response for `MessageType.GenerateTOTP`. */
+export interface GenerateTOTPResponse {
+    ok: boolean;
+    code?: string;
+    timeRemaining?: number;
+    error?: string;
+}
 
 // type MessageResponsePayload = {
 //     [-1]: { error: string }; // Error response

@@ -305,6 +305,28 @@ describe("auth-session freshness checks", () => {
             sessionToken: "token_2",
         });
     });
+
+    it("returns false when passkey re-authentication fails after refresh failure", async () => {
+        refreshMutate.mockRejectedValue(new Error("expired"));
+        challengeMutate.mockRejectedValue(new Error("challenge failed"));
+
+        const vault = new Vault();
+        Vault.bindOnlineServices(
+            vault,
+            new OnlineServices("device_1", "", "public_jwk", "private_jwk"),
+        );
+        vaultStore.set(unlockedVaultAtom, vault);
+
+        setOnlineServicesData({
+            deviceId: "device_1",
+            sessionToken: "token_1",
+            sessionExpiresAt: Date.now() + 10_000,
+            remoteData: null,
+        });
+
+        await expect(ensureFreshOnlineServicesSession()).resolves.toBe(false);
+        expect(challengeMutate).toHaveBeenCalledWith({ deviceId: "device_1" });
+    });
 });
 
 describe("createBareAuthHeader", () => {

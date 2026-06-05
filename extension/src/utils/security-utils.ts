@@ -134,6 +134,86 @@ function validateOrigin(
         return { valid: true };
     }
 
+    // Autofill icon iframe: extension-origin page loaded inside a host
+    // tab. Validate against its known URL prefix; the page is rendered
+    // cross-origin to the host so the host cannot spoof it.
+    if (claimedOrigin === "autofill-icon") {
+        if (
+            !sender.url?.startsWith(
+                chrome.runtime.getURL("/autofill-icon.html"),
+            )
+        ) {
+            return {
+                valid: false,
+                error: "Invalid autofill-icon origin",
+                code: "INVALID_ORIGIN",
+            };
+        }
+        return { valid: true };
+    }
+
+    // Autofill menu iframe: same reasoning as the icon iframe.
+    if (claimedOrigin === "autofill-menu") {
+        if (
+            !sender.url?.startsWith(
+                chrome.runtime.getURL("/autofill-menu.html"),
+            )
+        ) {
+            return {
+                valid: false,
+                error: "Invalid autofill-menu origin",
+                code: "INVALID_ORIGIN",
+            };
+        }
+        return { valid: true };
+    }
+
+    // Autofill save iframe: persistent save-login panel on host pages.
+    if (claimedOrigin === "autofill-save") {
+        if (
+            !sender.url?.startsWith(
+                chrome.runtime.getURL("/autofill-save.html"),
+            )
+        ) {
+            return {
+                valid: false,
+                error: "Invalid autofill-save origin",
+                code: "INVALID_ORIGIN",
+            };
+        }
+        return { valid: true };
+    }
+
+    // Content script: lives in an isolated world inside a tab. Chrome
+    // populates `sender.tab` for content-script messages. We additionally
+    // enforce `frameId === 0` so messages originating from sub-frames
+    // (clickjacking risk) can never claim the autofill-cs origin even if
+    // a future content_scripts entry allows `all_frames`.
+    if (claimedOrigin === "autofill-cs") {
+        if (sender.id !== chrome.runtime.id) {
+            return {
+                valid: false,
+                error: "autofill-cs must come from this extension",
+                code: "INVALID_SENDER",
+            };
+        }
+        if (!sender.tab) {
+            return {
+                valid: false,
+                error: "autofill-cs must come from a tab",
+                code: "INVALID_ORIGIN",
+            };
+        }
+        if (sender.frameId !== 0) {
+            return {
+                valid: false,
+                error: "autofill-cs is only allowed in the top frame",
+                code: "INVALID_FRAME",
+            };
+        }
+        return { valid: true };
+    }
+
     return {
         valid: false,
         error: "Unknown origin type",

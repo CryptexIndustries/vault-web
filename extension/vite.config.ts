@@ -27,6 +27,16 @@ export default defineConfig(({ mode }) => {
         }
     }
 
+    const withExtensionNamePrefix = (
+        base: string,
+        prefix: string | undefined,
+    ): string => {
+        const trimmed = prefix?.trim();
+        if (!trimmed) return base;
+        const spacer = /[\s]$/.test(trimmed) ? "" : " ";
+        return `${trimmed}${spacer}${base}`;
+    };
+
     const productionHostPermissions = (): string[] => {
         const hosts = new Set<string>();
         const add = (url: string | undefined) => {
@@ -82,7 +92,13 @@ export default defineConfig(({ mode }) => {
         publicDir: "public",
         build: {
             sourcemap: !isProduction,
-            emptyOutDir: true,
+            // emptyOutDir is `false` here because we run a second
+            // Vite invocation (`vite.config.content.ts`) right after
+            // this one that emits the autofill content script. If we
+            // emptied during watch mode we'd race-delete the content
+            // script's output. The `clean` script wipes `dist/` once
+            // before each build sequence instead.
+            emptyOutDir: false,
             outDir: "dist",
             target: "es2022",
             rollupOptions: {
@@ -92,6 +108,22 @@ export default defineConfig(({ mode }) => {
                     offscreen: path.resolve(__dirname, "offscreen.html"),
                     logs: path.resolve(__dirname, "logs.html"),
                     link: path.resolve(__dirname, "link.html"),
+                    "autofill-icon": path.resolve(
+                        __dirname,
+                        "autofill-icon.html",
+                    ),
+                    "autofill-menu": path.resolve(
+                        __dirname,
+                        "autofill-menu.html",
+                    ),
+                    "autofill-save": path.resolve(
+                        __dirname,
+                        "autofill-save.html",
+                    ),
+                    "autofill-generator": path.resolve(
+                        __dirname,
+                        "autofill-generator.html",
+                    ),
                 },
                 output: {
                     entryFileNames: (chunk) => {
@@ -125,9 +157,26 @@ export default defineConfig(({ mode }) => {
                             const manifest = JSON.parse(
                                 fs.readFileSync(sourcePath, "utf-8"),
                             ) as {
+                                name?: string;
+                                action?: { default_title?: string };
                                 host_permissions?: string[];
                                 [key: string]: unknown;
                             };
+
+                            const namePrefix = env.VITE_EXTENSION_NAME_PREFIX;
+                            if (typeof manifest.name === "string") {
+                                manifest.name = withExtensionNamePrefix(
+                                    manifest.name,
+                                    namePrefix,
+                                );
+                            }
+                            if (typeof manifest.action?.default_title === "string") {
+                                manifest.action.default_title =
+                                    withExtensionNamePrefix(
+                                        manifest.action.default_title,
+                                        namePrefix,
+                                    );
+                            }
 
                             if (isProduction) {
                                 const prodHosts = productionHostPermissions();

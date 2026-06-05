@@ -22,9 +22,15 @@ import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
 import { VaultDashboard } from "@/components/vault-dashboard/vault-dashboard";
 import {
-    clearVaultSecretFromSession,
-    setVaultSecretInSession,
+    clearVaultDEKFromSession,
+    setVaultDEKInSessionForMetadata,
 } from "@/utils/vault-session";
+import type {
+    VaultCreateSecondFactorOptions,
+    VaultPendingUnlock,
+    VaultRevealSecrets,
+} from "@/app_lib/vault-utils/vault-unlock-types";
+import { SecondFactorKind } from "@/app_lib/proto/vault";
 import {
     establishPremiumSession,
     syncOnlineServicesRemoteConfiguration,
@@ -37,60 +43,57 @@ const AppIndex: React.FC = () => {
     const isVaultUnlocked = useAtomValue(isVaultUnlockedAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
-    // const refreshOnlineServicesRemoteData = useFetchOnlineServicesData();
-
-    // Create sync connection controller with vault operations
-    // const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    // if (!GlobalSyncConnectionController) {
-    //     GlobalSyncConnectionController = createSyncConnectionController(setUnlockedVault, vaultMetadata);
-    //     GlobalSyncConnectionController.init();
-    // }
 
     console.debug("MAIN RERENDER", isVaultUnlocked);
 
-    // useEffect(() => {
-    //     return () => {
-    //         console.warn(
-    //             "[SCC - Verbose Signaling] Cleaning up the sync connection controller...",
-    //             isVaultUnlocked,
-    //         );
-    //         // Clean up the synchronization connections, if any
-    //         GlobalSyncConnectionController.teardown();
-    //     };
-    // }, [isVaultUnlocked]);
-    //
-
     // Register the beforeunload event handler
     useEffect(() => {
-        window.addEventListener("beforeunload", clearVaultSecretFromSession);
+        const onUnload = () => {
+            clearVaultDEKFromSession();
+        };
+        window.addEventListener("beforeunload", onUnload);
         return () => {
-            window.removeEventListener(
-                "beforeunload",
-                clearVaultSecretFromSession,
-            );
+            window.removeEventListener("beforeunload", onUnload);
         };
     }, []);
+
+    const finalizeVaultUnlock = (
+        metadata: Storage.VaultMetadata,
+        vault: Vault.Vault,
+        dek: CryptoKey,
+    ) => {
+        setVaultDEKInSessionForMetadata(metadata, dek);
+        setUnlockedVaultMetadata(metadata);
+        setUnlockedVault(vault);
+    };
 
     const tryVaultDecrypt = async (
         metadata: Storage.VaultMetadata,
         formData: FormSchemas.EncryptionFormGroupSchemaType,
+        unlockExtras?: {
+            useRecovery?: boolean;
+            recoveryCode?: string;
+            secondFactorPassphrase?: string;
+        },
     ) => {
+        // WebAuthn unlock is resolved inside decryptVault from the synced
+        // envelope slot; no device-local lookup needed.
         const vaultRes = await metadata.decryptVault(
             formData.Secret,
             formData.Encryption,
             formData.EncryptionKeyDerivationFunction,
             formData.EncryptionConfig,
+            {
+                masterPassword: formData.Secret,
+                useRecovery: unlockExtras?.useRecovery,
+                recoveryCode: unlockExtras?.recoveryCode,
+                secondFactorPassphrase: unlockExtras?.secondFactorPassphrase,
+            },
         );
 
         if (vaultRes.isErr()) return err(vaultRes.error);
 
-        const { vault, encryptionData } = vaultRes.value;
-
-        // Set the vault metadata and vault atoms
-        setVaultSecretInSession(encryptionData);
-
-        // Rewrite the encryption data to random bytes
-        crypto.getRandomValues(encryptionData);
+        const { vault, dek, revealSecrets } = vaultRes.value;
 
         try {
             if (vault && Vault.Vault.isOnlineServicesBound(vault)) {
@@ -116,32 +119,64 @@ const AppIndex: React.FC = () => {
             );
         }
 
-        setUnlockedVaultMetadata(metadata);
-        setUnlockedVault(vault);
+        if (revealSecrets) {
+            return ok({
+                revealSecrets,
+                pendingUnlock: { metadata, vault, dek },
+            });
+        }
 
-        return ok();
+        finalizeVaultUnlock(metadata, vault, dek);
+        return ok({});
     };
 
     const tryCreateVault = async (
         formData: FormSchemas.NewVaultFormSchemaType &
             FormSchemas.EncryptionFormGroupSchemaType,
-    ) => {
+        secondFactorOptions?: VaultCreateSecondFactorOptions,
+    ): Promise<
+        | false
+        | {
+              ok: true;
+              revealSecrets: VaultRevealSecrets;
+              pendingUnlock: VaultPendingUnlock;
+          }
+    > => {
         try {
-            const vaultMetadata = await Storage.VaultMetadata.createNewVault(
+            const created = await Storage.VaultMetadata.createNewVault(
                 formData,
                 formData,
                 false,
                 0,
+                secondFactorOptions,
             );
 
-            // Passing a null vault instance and a new Uint8Array(0) as the secret is valid, as we are just saving the already-encrypted blob to the database
-            await vaultMetadata.save(null, new Uint8Array(0));
+            await created.metadata.save(null, created.dek);
+
+            if (
+                secondFactorOptions?.secondFactor &&
+                secondFactorOptions.secondFactor.kind !== SecondFactorKind.NONE
+            ) {
+                await created.metadata.persistSecondFactorEnrollment(
+                    created.enrolledFactor,
+                );
+            }
+
+            // Defer unlocked atoms until the reveal dialog is acknowledged.
+            // Setting them here unmounts VaultManager before the dialog renders.
+            return {
+                ok: true,
+                revealSecrets: created.revealSecrets,
+                pendingUnlock: {
+                    metadata: created.metadata,
+                    vault: created.vault,
+                    dek: created.dek,
+                },
+            };
         } catch (e) {
             console.error("Failed to create a vault", e);
             return false;
         }
-
-        return true;
     };
 
     const tryRestoreVault = async (
@@ -192,6 +227,9 @@ const AppIndex: React.FC = () => {
                                 <VaultManager
                                     tryDecryptVaultCallback={tryVaultDecrypt}
                                     tryCreateVaultCallback={tryCreateVault}
+                                    finalizeVaultUnlockCallback={
+                                        finalizeVaultUnlock
+                                    }
                                     tryRestoreVaultCallback={tryRestoreVault}
                                 />
                             </div>

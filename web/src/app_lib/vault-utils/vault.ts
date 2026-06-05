@@ -171,40 +171,6 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
         this.TURNServerIDs = turnServerIDs;
         this.SignalingServerID = signalingServerID;
     }
-
-    public updateLastSync(): void {
-        this.LastSync = new Date().toISOString();
-    }
-
-    public set setName(name: string) {
-        if (name.trim().length > 0) {
-            this.Name = name;
-        }
-    }
-
-    public set setAutoConnect(autoConnect: boolean) {
-        this.AutoConnect = autoConnect;
-    }
-
-    public set setSyncTimeout(syncTimeout: boolean) {
-        this.SyncTimeout = syncTimeout;
-    }
-
-    public set setSyncTimeoutPeriod(syncTimeoutPeriod: number) {
-        this.SyncTimeoutPeriod = Math.abs(syncTimeoutPeriod);
-    }
-
-    public set setSTUNServers(ids: string[]) {
-        this.STUNServerIDs = ids;
-    }
-
-    public set setTURNServers(ids: string[]) {
-        this.TURNServerIDs = ids;
-    }
-
-    public set setSignalingServer(id: string) {
-        this.SignalingServerID = id;
-    }
 }
 
 export class STUNServerConfiguration
@@ -293,18 +259,6 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
 
         newInstance.Devices = rawOnlineServices.Devices.map((ld) =>
             Object.assign(new LinkedDevice(), ld),
-        );
-
-        // TODO: Remove these
-        newInstance.STUNServers = rawOnlineServices.STUNServers.map((stun) =>
-            Object.assign(new STUNServerConfiguration(), stun),
-        );
-        newInstance.TURNServers = rawOnlineServices.TURNServers.map((turn) =>
-            Object.assign(new TURNServerConfiguration(), turn),
-        );
-        newInstance.SignalingServers = rawOnlineServices.SignalingServers.map(
-            (signaling) =>
-                Object.assign(new SignalingServerConfiguration(), signaling),
         );
 
         return newInstance;

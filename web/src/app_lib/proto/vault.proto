@@ -20,6 +20,47 @@ enum KeyDerivationFunction {
     PBKDF2 = 0;
     Argon2ID = 1;
 }
+
+enum SecondFactorKind {
+    NONE = 0;
+    PASSPHRASE_128 = 1;
+    PASSPHRASE_256 = 2;
+    WEBAUTHN_PRF = 3;
+}
+
+enum KeySlotKind {
+    PRIMARY = 0;
+    RECOVERY = 1;
+}
+
+message KeySlot {
+    KeySlotKind Kind = 1;
+    bytes WrappedDEK = 2;
+    string WrapAlgo = 3;
+    string Salt = 4;
+    KeyDerivationConfig_Argon2ID KDFConfigArgon2ID = 5;
+    string HKDFSalt = 6;
+    string HKDFInfo = 7;
+    SecondFactorKind FactorKind = 8;
+
+    // WebAuthn PRF factor metadata (non-secret). Stored in the synced envelope
+    // so the factor does not depend on device-local IndexedDB state.
+    // Base64 credential id, needed for the assertion allowCredentials list.
+    string WebauthnCredentialId = 9;
+    // Base64 PRF eval salt, needed to reproduce the PRF output on unlock.
+    string WebauthnPrfSalt = 10;
+    // Base64 salt used to derive reproducible passphrase second-factor material.
+    string SecondFactorSalt = 11;
+}
+
+message KeyEnvelope {
+    int32 Version = 1;
+    string DEKAlgo = 2;
+    repeated KeySlot Slots = 3;
+    SecondFactorKind PrimaryFactorKind = 4;
+    // Stable vault identifier used for KEK context.
+    string VaultID = 5;
+}
 //#endregion Encryption
 
 //#region Vault Metadata
@@ -50,6 +91,7 @@ message EncryptedBlob {
     bytes Blob = 5;
     string Salt = 6;
     string HeaderIV = 7;
+    optional KeyEnvelope Envelope = 10;
 }
 //#endregion Vault Metadata
 

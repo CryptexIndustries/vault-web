@@ -211,15 +211,5 @@ export async function syncOnlineServicesRemoteConfiguration(): Promise<void> {
     const next = Object.assign(new Vault(), vault);
     next.OnlineServices.IsRootDevice = config.root;
 
-    // TODO: Remove this. Unnecessary vault save.
-    // const saveRes = await saveVaultWithSessionSecret(meta, next);
-    // if (saveRes.isErr()) {
-    //     console.warn(
-    //         "[syncOnlineServicesRemoteConfiguration] could not persist IsRootDevice",
-    //         saveRes.error,
-    //     );
-    //     return;
-    // }
-
     vaultStore.set(unlockedVaultAtom, next);
 }

@@ -18,16 +18,31 @@ import { validateEnvelope } from "./utils/security-utils";
 import { EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
 import { handleProxyFetch } from "./background/request-auth-interceptor";
 import {
+    handleConsumePendingSavePrompt,
+    handleGenerateTOTP,
+    handleGetCredentialsForOrigin,
+    handleGetCredentialSecret,
+    handleGetPendingSavePrompt,
+    handleOpenPopup,
+    handleSaveCredentialPrompt,
+} from "./background/autofill-router";
+import {
     clearOnlineServicesSession as clearOnlineServicesSessionInSW,
     ensureOnlineServicesSessionFromUnlockedVault,
     establishOnlineServicesSession,
 } from "./app_lib/auth-session-ext";
+import {
+    clearAllVaultKeyMaterial,
+    clearSessionDEK,
+    getSessionDEK,
+    setSessionDEKFromVaultMetadata,
+} from "./background/session-dek-store";
 
 const OFFSCREEN_URL = chrome.runtime.getURL("/offscreen.html");
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
-const UNLOCKED_VAULT_SECRET_KEY = "UVS";
+const ACTIVE_VAULT_DB_INDEX_KEY = "AVI";
 
 type LegacyMessage = {
     type: -1;
@@ -247,9 +262,16 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: res.error };
                 }
 
-                const { vault, encryptionData } = res.value;
+                const { vault } = res.value;
 
-                await setVaultInSessionStorage(metadata, vault, encryptionData);
+                if (metadata.DBIndex == null) {
+                    return { ok: false, error: "METADATA_INDEX_NULL" };
+                }
+
+                await setSessionDEKFromVaultMetadata(metadata.DBIndex, metadata, {
+                    masterPassword: payload.form.Secret,
+                });
+                await setVaultInSessionStorage(metadata, vault, metadata.DBIndex);
 
                 // Seed the Online Services session from the just-unlocked
                 // vault so the SW has both the credentials AND a fresh JWT
@@ -342,9 +364,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.CreateCredential: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
-                const vaultSecret = await getVaultSecretFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
 
-                if (!vault || !metadata || !vaultSecret) {
+                if (!vault || !metadata || !dek) {
                     return {
                         ok: false,
                         credential: null,
@@ -360,9 +382,20 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     new Storage.VaultMetadata(),
                     metadata,
                 );
-                await metadataInstance.save(vault, vaultSecret);
 
-                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
+                console.log(metadata.Blob?.Envelope?.Slots.map((s) => ({
+                    isUint8: s.WrappedDEK instanceof Uint8Array,
+                    ctor: s.WrappedDEK?.constructor?.name,
+                    len: s.WrappedDEK?.length,
+                })));
+
+                await metadataInstance.save(vault, dek);
+
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
 
                 const lightCredential: LiteCredential = {
                     id: data.ID,
@@ -377,9 +410,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.UpdateCredential: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
-                const vaultSecret = await getVaultSecretFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
 
-                if (!vault || !metadata || !vaultSecret) {
+                if (!vault || !metadata || !dek) {
                     return {
                         ok: false,
                         credential: null,
@@ -407,9 +440,13 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     new Storage.VaultMetadata(),
                     metadata,
                 );
-                await metadataInstance.save(vault, vaultSecret);
+                await metadataInstance.save(vault, dek);
 
-                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
 
                 return { ok: true };
             }
@@ -417,9 +454,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.DeleteCredential: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
-                const vaultSecret = await getVaultSecretFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
 
-                if (!vault || !metadata || !vaultSecret) {
+                if (!vault || !metadata || !dek) {
                     return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 }
 
@@ -443,9 +480,13 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     new Storage.VaultMetadata(),
                     metadata,
                 );
-                await metadataInstance.save(vault, vaultSecret);
+                await metadataInstance.save(vault, dek);
 
-                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
 
                 return { ok: true };
             }
@@ -499,9 +540,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.SyncUpdateCredentials: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
-                const vaultSecret = await getVaultSecretFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
 
-                if (!vault || !metadata || !vaultSecret) {
+                if (!vault || !metadata || !dek) {
                     return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 }
 
@@ -520,9 +561,13 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     new Storage.VaultMetadata(),
                     metadata,
                 );
-                await metadataInstance.save(vault, vaultSecret);
+                await metadataInstance.save(vault, dek);
 
-                await setVaultInSessionStorage(metadataInstance, vault, vaultSecret);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
 
                 return { ok: true };
             }
@@ -555,6 +600,37 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.OnlineServicesClear: {
                 await clearOnlineServicesSessionInSW();
                 return { ok: true };
+            }
+
+            case MessageType.GetCredentialsForOrigin: {
+                const vault = await getVaultFromSessionStorage();
+                return await handleGetCredentialsForOrigin(payload, vault);
+            }
+
+            case MessageType.GetCredentialSecret: {
+                const vault = await getVaultFromSessionStorage();
+                return await handleGetCredentialSecret(payload, vault);
+            }
+
+            case MessageType.GenerateTOTP: {
+                const vault = await getVaultFromSessionStorage();
+                return await handleGenerateTOTP(payload, vault);
+            }
+
+            case MessageType.SaveCredentialPrompt: {
+                return await handleSaveCredentialPrompt(payload);
+            }
+
+            case MessageType.GetPendingSavePrompt: {
+                return await handleGetPendingSavePrompt();
+            }
+
+            case MessageType.ConsumePendingSavePrompt: {
+                return await handleConsumePendingSavePrompt();
+            }
+
+            case MessageType.OpenPopup: {
+                return await handleOpenPopup();
             }
 
             default:
@@ -730,41 +806,44 @@ async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.Vaul
     const _metadata = await chrome.storage.session.get([
         UNLOCKED_VAULT_METADATA_KEY,
     ]);
-    return _metadata[
-        UNLOCKED_VAULT_METADATA_KEY
-    ] as VaultUtilTypes.VaultMetadata | null;
+    const encodedMetadata = _metadata[UNLOCKED_VAULT_METADATA_KEY];
+    if (encodedMetadata == null) return null;
+    return Storage.VaultMetadata.deserializeMetadataBinary(
+        Uint8Array.fromBase64(encodedMetadata),
+    );
 }
 
-async function getVaultSecretFromSessionStorage(): Promise<Uint8Array | null> {
-    const _vaultSecretB64 = await chrome.storage.session.get([
-        UNLOCKED_VAULT_SECRET_KEY,
-    ]);
-    const _vaultSecret = _vaultSecretB64[UNLOCKED_VAULT_SECRET_KEY] as
-        | string
-        | null;
+async function getActiveVaultDbIndex(): Promise<number | null> {
+    const stored = await chrome.storage.session.get([ACTIVE_VAULT_DB_INDEX_KEY]);
+    const idx = stored[ACTIVE_VAULT_DB_INDEX_KEY];
+    return typeof idx === "number" ? idx : null;
+}
 
-    // TODO: Replace with Uint8Array.fromBase64() in about 3 months
-    return _vaultSecret
-        ? Uint8Array.from(atob(_vaultSecret), (c) => c.charCodeAt(0))
-        : null;
+async function getVaultDEKFromSessionStorage(): Promise<CryptoKey | null> {
+    const vaultDbIndex = await getActiveVaultDbIndex();
+    if (vaultDbIndex == null) return null;
+    return getSessionDEK(vaultDbIndex);
 }
 
 async function setVaultInSessionStorage(
     metadata: VaultUtilTypes.VaultMetadata,
     vault: VaultUtilTypes.Vault,
-    vaultSecret: Uint8Array,
+    vaultDbIndex: number,
 ): Promise<void> {
-    // Convert the encryption data to a base64 string
-    const _vaultSecret = btoa(String.fromCharCode(...vaultSecret));
-
+    const encodedMetadata = VaultUtilTypes.VaultMetadata.encode(metadata).finish().toBase64();
     await chrome.storage.session.set({
-        [UNLOCKED_VAULT_METADATA_KEY]: metadata,
+        [UNLOCKED_VAULT_METADATA_KEY]: encodedMetadata,
         [UNLOCKED_VAULT_KEY]: vault,
-        [UNLOCKED_VAULT_SECRET_KEY]: _vaultSecret,
+        [ACTIVE_VAULT_DB_INDEX_KEY]: vaultDbIndex,
     });
 }
 
 async function clearSessionStorage(): Promise<void> {
+    const idx = await getActiveVaultDbIndex();
+    if (idx != null) {
+        await clearSessionDEK(idx);
+    }
+    await clearAllVaultKeyMaterial();
     await chrome.storage.session.clear();
 }
 

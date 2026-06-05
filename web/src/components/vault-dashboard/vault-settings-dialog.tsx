@@ -1,14 +1,7 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Download, FileJson, ShieldAlert, Upload } from "lucide-react";
+import { Download, FileJson, ShieldCheck, Upload } from "lucide-react";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { useRef, useState } from "react";
-import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import {
-    encryptionFormGroupSchema,
-    EncryptionFormGroupSchemaType,
-} from "@/app_lib/vault-utils/form-schemas";
-import { hashSecret } from "@/app_lib/vault-utils/encryption";
 import * as ImportExport from "@/app_lib/vault-utils/import-export";
 import * as Storage from "@/app_lib/vault-utils/storage";
 import {
@@ -16,10 +9,6 @@ import {
     upsertGroup,
     Vault as VaultInstance,
 } from "@/app_lib/vault-utils/vault";
-import {
-    EncryptionAlgorithm,
-    KeyDerivationFunction,
-} from "@/app_lib/proto/vault";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -37,17 +26,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { VaultSecurityDialog } from "@/components/vault-dashboard/vault-security-dialog";
 import {
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
@@ -56,9 +37,8 @@ import {
 import { importLog, vaultLog, vaultLogger } from "@/utils/logging";
 import {
     MISSING_VAULT_SECRET_ERROR,
-    getVaultSecretFromSession,
-    saveVaultWithSessionSecret,
-    setVaultSecretInSession,
+    getVaultDEKFromSession,
+    saveVaultWithSessionDEK,
 } from "@/utils/vault-session";
 import { BACKUP_FILE_EXTENSION } from "src/utils/consts";
 
@@ -106,7 +86,7 @@ export function VaultSettingsDialog({
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const [isLoading, setIsLoading] = useState(false);
-    const [isEncryptionDialogOpen, setIsEncryptionDialogOpen] = useState(false);
+    const [isSecurityDialogOpen, setIsSecurityDialogOpen] = useState(false);
     const bitwardenInputRef = useRef<HTMLInputElement>(null);
     const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,33 +95,13 @@ export function VaultSettingsDialog({
         0,
     );
 
-    const encryptionForm = useForm<EncryptionFormGroupSchemaType>({
-        resolver: zodResolver(encryptionFormGroupSchema),
-        defaultValues: {
-            Secret: "",
-            Encryption:
-                vaultMetadata?.Blob?.Algorithm ??
-                EncryptionAlgorithm.XChaCha20Poly1305,
-            EncryptionKeyDerivationFunction:
-                vaultMetadata?.Blob?.KeyDerivationFunc ??
-                KeyDerivationFunction.Argon2ID,
-            EncryptionConfig: {
-                memLimit: vaultMetadata?.Blob?.KDFConfigArgon2ID?.memLimit ?? 19456,
-                opsLimit: vaultMetadata?.Blob?.KDFConfigArgon2ID?.opsLimit ?? 2,
-                iterations: vaultMetadata?.Blob?.KDFConfigPBKDF2?.iterations ?? 600000,
-            },
-        },
-    });
-
-    const encryptionKdf = encryptionForm.watch("EncryptionKeyDerivationFunction");
-
-    const ensureSecret = () => {
-        const secretRes = getVaultSecretFromSession();
-        if (secretRes.isErr()) {
+    const ensureDEK = async () => {
+        const dekRes = await getVaultDEKFromSession();
+        if (dekRes.isErr()) {
             toast.error(MISSING_VAULT_SECRET_ERROR);
             return null;
         }
-        return secretRes.value;
+        return dekRes.value;
     };
 
     const importCredentials = async (
@@ -153,8 +113,8 @@ export function VaultSettingsDialog({
             return;
         }
 
-        const sessionSecret = ensureSecret();
-        if (!sessionSecret) return;
+        const sessionDek = await ensureDEK();
+        if (!sessionDek) return;
 
         const vaultCopy = Object.assign(new VaultInstance(), unlockedVault);
 
@@ -171,9 +131,9 @@ export function VaultSettingsDialog({
             vaultCopy.Credentials.push(assimilated);
         }
 
-        const saveRes = await saveVaultWithSessionSecret(vaultMetadata, vaultCopy);
+        const saveRes = await saveVaultWithSessionDEK(vaultMetadata, vaultCopy);
         if (saveRes.isErr()) {
-            if (saveRes.error === "VAULT_SECRET_NOT_FOUND") {
+            if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
                 return;
             }
             throw new Error("VAULT_SAVE_FAILED");
@@ -187,15 +147,15 @@ export function VaultSettingsDialog({
             return;
         }
 
-        const sessionSecret = ensureSecret();
-        if (!sessionSecret) return;
+        const sessionDek = await ensureDEK();
+        if (!sessionDek) return;
 
         setIsLoading(true);
         try {
             const serializedData = await Storage.serializeVault(
                 unlockedVault,
                 vaultMetadata.Blob,
-                sessionSecret,
+                sessionDek,
             );
             const blob = new Blob([serializedData], {
                 type: "application/octet-stream",
@@ -298,47 +258,6 @@ export function VaultSettingsDialog({
             setIsLoading(false);
         }
     };
-
-    const handleChangeEncryption = encryptionForm.handleSubmit(async (formData) => {
-        if (!vaultMetadata) {
-            toast.error("Vault metadata is unavailable.");
-            return;
-        }
-
-        const sessionSecret = ensureSecret();
-        if (!sessionSecret) return;
-
-        setIsLoading(true);
-        try {
-            const saveRes = await saveVaultWithSessionSecret(
-                vaultMetadata,
-                unlockedVault,
-                formData,
-            );
-            if (saveRes.isErr()) {
-                if (saveRes.error === "VAULT_SECRET_NOT_FOUND") {
-                    toast.error(MISSING_VAULT_SECRET_ERROR);
-                    return;
-                }
-
-                toast.error("Failed to update encryption settings.");
-                return;
-            }
-            const hashedSecret = await hashSecret(formData.Secret);
-            setVaultSecretInSession(hashedSecret);
-            toast.success("Vault encryption settings updated.");
-            setIsEncryptionDialogOpen(false);
-            encryptionForm.reset({
-                ...formData,
-                Secret: "",
-            });
-        } catch (error) {
-            vaultLog.error("Failed to update encryption settings", { error });
-            toast.error("Failed to update encryption settings.");
-        } finally {
-            setIsLoading(false);
-        }
-    });
 
     const sectionCardClassName = "vault-settings-card min-w-0 shadow-sm";
     const actionButtonClassName =
@@ -481,21 +400,24 @@ export function VaultSettingsDialog({
                             <Card className={sectionCardClassName}>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-base">
-                                        Encryption
+                                        Encryption &amp; Security
                                     </CardTitle>
                                     <CardDescription>
-                                        Re-encrypt vault with updated settings.
+                                        Master password, second factor, and
+                                        recovery code.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <Button
                                         variant="outline"
                                         className={actionButtonClassName}
-                                        onClick={() => setIsEncryptionDialogOpen(true)}
+                                        onClick={() =>
+                                            setIsSecurityDialogOpen(true)
+                                        }
                                         disabled={isLoading}
                                     >
-                                        <ShieldAlert className="h-4 w-4" />
-                                        Change Encryption Configuration
+                                        <ShieldCheck className="h-4 w-4" />
+                                        Manage Encryption &amp; Security
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -538,155 +460,10 @@ export function VaultSettingsDialog({
                 </DialogContent>
             </Dialog>
 
-            <Dialog
-                open={isEncryptionDialogOpen}
-                onOpenChange={setIsEncryptionDialogOpen}
-            >
-                <DialogContent className="vault-settings-dialog sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle>Change Encryption Configuration</DialogTitle>
-                        <DialogDescription>
-                            Updating encryption may take time for larger vaults.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4">
-                        <div className="vault-settings-warning rounded-md border p-3 text-xs">
-                            Re-encryption rewrites vault data with the selected algorithm and KDF.
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="encryption-secret">Vault Secret</Label>
-                            <Input
-                                id="encryption-secret"
-                                type="password"
-                                placeholder="Enter new secret"
-                                className="vault-settings-input"
-                                {...encryptionForm.register("Secret")}
-                            />
-                            {encryptionForm.formState.errors.Secret && (
-                                <p className="text-destructive text-xs">
-                                    {encryptionForm.formState.errors.Secret.message}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Encryption Algorithm</Label>
-                            <Select
-                                value={String(encryptionForm.watch("Encryption"))}
-                                onValueChange={(value) =>
-                                    encryptionForm.setValue(
-                                        "Encryption",
-                                        Number(value) as EncryptionAlgorithm,
-                                        { shouldValidate: true },
-                                    )
-                                }
-                            >
-                                <SelectTrigger className="vault-settings-input">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem
-                                        value={String(EncryptionAlgorithm.XChaCha20Poly1305)}
-                                    >
-                                        XChaCha20-Poly1305
-                                    </SelectItem>
-                                    <SelectItem value={String(EncryptionAlgorithm.AES256)}>
-                                        AES-256
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Key Derivation Function</Label>
-                            <Select
-                                value={String(
-                                    encryptionForm.watch(
-                                        "EncryptionKeyDerivationFunction",
-                                    ),
-                                )}
-                                onValueChange={(value) =>
-                                    encryptionForm.setValue(
-                                        "EncryptionKeyDerivationFunction",
-                                        Number(value) as KeyDerivationFunction,
-                                        { shouldValidate: true },
-                                    )
-                                }
-                            >
-                                <SelectTrigger className="vault-settings-input">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={String(KeyDerivationFunction.Argon2ID)}>
-                                        Argon2ID
-                                    </SelectItem>
-                                    <SelectItem value={String(KeyDerivationFunction.PBKDF2)}>
-                                        PBKDF2
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {encryptionKdf === KeyDerivationFunction.Argon2ID ? (
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="kdf-mem-limit">Memory Limit</Label>
-                                    <Input
-                                        id="kdf-mem-limit"
-                                        type="number"
-                                        className="vault-settings-input"
-                                        {...encryptionForm.register(
-                                            "EncryptionConfig.memLimit",
-                                        )}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="kdf-ops-limit">Ops Limit</Label>
-                                    <Input
-                                        id="kdf-ops-limit"
-                                        type="number"
-                                        className="vault-settings-input"
-                                        {...encryptionForm.register(
-                                            "EncryptionConfig.opsLimit",
-                                        )}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                <Label htmlFor="kdf-iterations">Iterations</Label>
-                                <Input
-                                    id="kdf-iterations"
-                                    type="number"
-                                    className="vault-settings-input"
-                                    {...encryptionForm.register(
-                                        "EncryptionConfig.iterations",
-                                    )}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    <DialogFooter className="vault-settings-footer gap-2 border-t pt-4">
-                        <Button
-                            variant="outline"
-                            className="vault-settings-action-button"
-                            onClick={() => setIsEncryptionDialogOpen(false)}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            className="vault-settings-primary-button"
-                            onClick={handleChangeEncryption}
-                            disabled={isLoading}
-                        >
-                            Save
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <VaultSecurityDialog
+                open={isSecurityDialogOpen}
+                onOpenChange={setIsSecurityDialogOpen}
+            />
         </>
     );
 }

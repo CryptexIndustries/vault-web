@@ -47,11 +47,19 @@ export class KeyDerivationConfig_Argon2ID
     }
 }
 
+export function isPrimarySlot(slot: VaultUtilTypes.KeySlot): slot is VaultUtilTypes.KeySlot & { Kind: VaultUtilTypes.KeySlotKind.PRIMARY } {
+    return slot.Kind === VaultUtilTypes.KeySlotKind.PRIMARY;
+}
+
+export function isRecoverySlot(slot: VaultUtilTypes.KeySlot): slot is VaultUtilTypes.KeySlot & { Kind: VaultUtilTypes.KeySlotKind.RECOVERY } {
+    return slot.Kind === VaultUtilTypes.KeySlotKind.RECOVERY;
+}
+
 export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
     /*
      * NOTE: This property is **not** serialized and saved in the vault
      */
-    private LATEST_VERSION = 2;
+    private LATEST_VERSION = 3;
     public Version: number;
     public CurrentVersion = 0;
     public Algorithm: VaultUtilTypes.EncryptionAlgorithm;
@@ -65,6 +73,7 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
     public Blob: Uint8Array;
     public Salt: string;
     public HeaderIV: string;
+    public Envelope: VaultUtilTypes.KeyEnvelope | undefined;
 
     constructor(
         algorithm: VaultUtilTypes.EncryptionAlgorithm,
@@ -83,6 +92,7 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
         this.Blob = blob;
         this.Salt = salt;
         this.HeaderIV = headerIV;
+        this.Envelope = undefined;
     }
 
     /**
@@ -140,6 +150,16 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
             result.requiresSave = true;
         }
 
+        if (this.CurrentVersion < 3 && this.Version < 3 && !this.Envelope) {
+            console.warn(
+                `Encrypted blob marked for envelope upgrade (from version ${this.CurrentVersion})`,
+            );
+            this.CurrentVersion = 3;
+            result.upgraded = true;
+            result.version = this.CurrentVersion;
+            result.requiresSave = true;
+        }
+
         return result;
     }
 
@@ -163,7 +183,7 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
     public static fromBinary(data: Uint8Array): EncryptedBlob {
         const obj = VaultUtilTypes.EncryptedBlob.decode(data);
 
-        return new EncryptedBlob(
+        const instance = new EncryptedBlob(
             obj.Algorithm,
             obj.KeyDerivationFunc,
             obj.KeyDerivationFunc ===
@@ -178,9 +198,18 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
             obj.Salt,
             obj.HeaderIV,
         );
+        instance.Envelope = obj.Envelope;
+        if (obj.Envelope) {
+            instance.Version = Math.max(instance.Version, 3);
+        }
+        return instance;
     }
 }
 
+/**
+ * TODO: Simplify this by removing the option for AES256 and only using XChaCha20Poly1305.
+ * Similarly, we should remove the option for PBKDF2 and only use Argon2ID.
+ */
 export const EncryptDataBlob = async (
     blob: Uint8Array,
     secret: Uint8Array,
@@ -189,7 +218,6 @@ export const EncryptDataBlob = async (
     kdfConfigArgon2ID: KeyDerivationConfig_Argon2ID,
     kdfConfigPBKDF2: KeyDerivationConfig_PBKDF2,
 ): Promise<EncryptedBlob> => {
-    // FIXME: This is a temporary fix to prevent the compiler from complaining about the union type
     const configuration:
         | KeyDerivationConfig_Argon2ID
         | KeyDerivationConfig_PBKDF2 =

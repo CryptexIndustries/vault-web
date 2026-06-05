@@ -30,6 +30,7 @@ jest.mock(
 
 import {
     CredentialFormSchema,
+    CustomField,
     Group,
     LinkedDevice,
     LinkedDevices,
@@ -124,17 +125,15 @@ describe("vault-utils/vault", () => {
 
     it("handles linked device mutators and guards empty names", () => {
         const device = new LinkedDevice("Device A", "sync-a");
-        device.setName = "   ";
-        expect(device.Name).toBe("Device A");
 
-        device.setName = "Renamed";
-        device.setAutoConnect = false;
-        device.setSyncTimeout = true;
-        device.setSyncTimeoutPeriod = -15;
-        device.setSTUNServers = ["stun-1"];
-        device.setTURNServers = ["turn-1"];
-        device.setSignalingServer = "sig-1";
-        device.updateLastSync();
+        device.Name = "Renamed";
+        device.AutoConnect = false;
+        device.SyncTimeout = true;
+        device.SyncTimeoutPeriod = 15;
+        device.STUNServerIDs = ["stun-1"];
+        device.TURNServerIDs = ["turn-1"];
+        device.SignalingServerID = "sig-1";
+        device.LastSync = new Date().toISOString();
 
         expect(device.Name).toBe("Renamed");
         expect(device.AutoConnect).toBe(false);
@@ -230,6 +229,17 @@ describe("vault-utils/vault", () => {
 
         expect(result.code).toBe("123456");
         expect(result.timeRemaining).toBe(10);
+    });
+
+    it("initializes custom fields with default values", () => {
+        const field = new CustomField();
+
+        expect(field).toMatchObject({
+            ID: "-1",
+            Name: "",
+            Type: CustomFieldType.Text,
+            Value: "",
+        });
     });
 
     it("passes the expected TOTP parameters to the generator", () => {

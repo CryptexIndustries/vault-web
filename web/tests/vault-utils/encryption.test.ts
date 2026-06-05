@@ -152,6 +152,7 @@ import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
     hashSecret,
+    isRecoverySlot,
 } from "../../src/app_lib/vault-utils/encryption";
 
 describe("vault-utils/encryption", () => {
@@ -176,6 +177,19 @@ describe("vault-utils/encryption", () => {
         expect(blob.KDFConfigArgon2ID).toBeInstanceOf(KeyDerivationConfig_Argon2ID);
     });
 
+    it("identifies recovery slots", () => {
+        expect(
+            isRecoverySlot({
+                Kind: VaultUtilTypes.KeySlotKind.RECOVERY,
+            } as VaultUtilTypes.KeySlot),
+        ).toBe(true);
+        expect(
+            isRecoverySlot({
+                Kind: VaultUtilTypes.KeySlotKind.PRIMARY,
+            } as VaultUtilTypes.KeySlot),
+        ).toBe(false);
+    });
+
     it("upgrades legacy encrypted blob metadata and marks requiresSave", () => {
         const blob = EncryptedBlob.CreateDefault();
         blob.Version = 1;
@@ -185,10 +199,10 @@ describe("vault-utils/encryption", () => {
 
         expect(result).toEqual({
             upgraded: true,
-            version: 2,
+            version: 3,
             requiresSave: true,
         });
-        expect(blob.CurrentVersion).toBe(2);
+        expect(blob.CurrentVersion).toBe(3);
     });
 
     it("encrypts and decrypts AES256 data with PBKDF2", async () => {
@@ -635,6 +649,28 @@ describe("vault-utils/encryption", () => {
         }
     });
 
+    it("XChaCha20 decrypt returns KEY_DERIVATION_FN_INVALID for invalid kdf", async () => {
+        const encrypted = EncryptedBlob.CreateDefault();
+        encrypted.Algorithm = VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305;
+        encrypted.KeyDerivationFunc = VaultUtilTypes.KeyDerivationFunction.Argon2ID;
+        encrypted.Blob = new Uint8Array([1, 2, 3]);
+        encrypted.Salt = Buffer.from(new Uint8Array(16)).toString("base64");
+        encrypted.HeaderIV = Buffer.from(new Uint8Array(24)).toString("base64");
+
+        const decrypted = await DecryptDataBlob(
+            encrypted,
+            await hashSecret("pw"),
+            VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+            999 as VaultUtilTypes.KeyDerivationFunction,
+            new KeyDerivationConfig_Argon2ID(),
+        );
+
+        expect(decrypted.isErr()).toBe(true);
+        if (decrypted.isErr()) {
+            expect(decrypted.error).toBe("KEY_DERIVATION_FN_INVALID");
+        }
+    });
+
     it("serializes and deserializes encrypted blobs from binary", async () => {
         const payload = new Uint8Array([9, 8, 7]);
         const encrypted = await EncryptDataBlob(
@@ -645,6 +681,13 @@ describe("vault-utils/encryption", () => {
             new KeyDerivationConfig_Argon2ID(),
             new KeyDerivationConfig_PBKDF2(),
         );
+        encrypted.Envelope = {
+            Version: 3,
+            DEKAlgo: "AES-GCM-256",
+            Slots: [],
+            PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+            VaultID: "vault-1",
+        };
 
         const binary = VaultUtilTypes.EncryptedBlob.encode(encrypted).finish();
         const deserialized = EncryptedBlob.fromBinary(binary);
@@ -652,5 +695,6 @@ describe("vault-utils/encryption", () => {
         expect(deserialized.Salt).toBe(encrypted.Salt);
         expect(deserialized.HeaderIV).toBe(encrypted.HeaderIV);
         expect(Array.from(deserialized.Blob)).toEqual(Array.from(encrypted.Blob));
+        expect(deserialized.Envelope?.VaultID).toBe("vault-1");
     });
 });

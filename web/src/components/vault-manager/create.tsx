@@ -36,7 +36,10 @@ import type {
     VaultPendingUnlock,
     VaultRevealSecrets,
 } from "@/app_lib/vault-utils/vault-unlock-types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
+import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
+import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
 
 const CreateVaultTab: React.FC<{
     executeCallback: (
@@ -56,10 +59,12 @@ const CreateVaultTab: React.FC<{
     const [secondFactorSource, setSecondFactorSource] = useState(
         choiceToSource("none"),
     );
+    const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
     const {
         handleSubmit,
         register,
         setValue,
+        watch,
         formState: { errors, isSubmitting },
     } = useForm<NewVaultFormSchemaType & EncryptionFormGroupSchemaType>({
         resolver: zodResolver(
@@ -78,6 +83,21 @@ const CreateVaultTab: React.FC<{
             },
         },
     });
+
+    const secret = watch("Secret");
+    const memLimit = watch("EncryptionConfig.memLimit");
+    const opsLimit = watch("EncryptionConfig.opsLimit");
+
+    useEffect(() => {
+        setKdfRiskAcknowledged(false);
+    }, [memLimit, opsLimit]);
+
+    const belowRecommendedKdf = isBelowOwaspRecommendedArgon2id(
+        Number(memLimit),
+        Number(opsLimit),
+    );
+    const submitBlockedByKdf =
+        belowRecommendedKdf && !kdfRiskAcknowledged;
 
     const tryCreateVault = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
@@ -143,6 +163,7 @@ const CreateVaultTab: React.FC<{
                         {errors.Secret.message}
                     </p>
                 )}
+                <PasswordStrengthMeter password={secret} />
             </div>
 
             <div className="space-y-2">
@@ -207,6 +228,12 @@ const CreateVaultTab: React.FC<{
                                     />
                                 </div>
                             </div>
+                            <KdfBelowRecommendedAck
+                                memLimit={Number(memLimit)}
+                                opsLimit={Number(opsLimit)}
+                                acknowledged={kdfRiskAcknowledged}
+                                onAcknowledgedChange={setKdfRiskAcknowledged}
+                            />
                             {errors.EncryptionConfig && (
                                 <p className="text-destructive-foreground">
                                     {errors.EncryptionConfig.message}
@@ -221,7 +248,7 @@ const CreateVaultTab: React.FC<{
                 className="w-full"
                 variant="link"
                 onClick={handleSubmit(tryCreateVault)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || submitBlockedByKdf}
             >
                 {isSubmitting ? (
                     <span className="flex items-center">

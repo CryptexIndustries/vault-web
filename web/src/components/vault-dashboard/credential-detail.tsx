@@ -32,6 +32,7 @@ import {
 import { CustomFieldType } from "@/app_lib/proto/vault";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
+import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 
 interface CredentialDetailProps {
     credential: VaultCredential | null;
@@ -158,6 +159,13 @@ function CopyableField({
                     </TooltipProvider>
                 </div>
             </div>
+            {isPassword && value.length > 0 ? (
+                <PasswordStrengthMeter
+                    password={value}
+                    showSuggestions={false}
+                    className="mt-2"
+                />
+            ) : null}
         </div>
     );
 }

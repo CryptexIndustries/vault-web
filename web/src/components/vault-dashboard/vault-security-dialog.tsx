@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
+import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
+import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
 import { useAtomValue } from "jotai/react";
 import {
     Copy,
@@ -140,6 +143,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         null,
     );
     const [revealRecovery, setRevealRecovery] = useState<string | null>(null);
+    const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
 
     // Reset local state to the vault's current configuration whenever the
     // dialog opens, so stale input never leaks across sessions.
@@ -161,7 +165,19 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         );
         setRevealPassphrase(null);
         setRevealRecovery(null);
+        setKdfRiskAcknowledged(false);
     }, [open, currentKind, vaultMetadata]);
+
+    useEffect(() => {
+        setKdfRiskAcknowledged(false);
+    }, [memLimit, opsLimit]);
+
+    const belowRecommendedKdf = isBelowOwaspRecommendedArgon2id(
+        Number(memLimit),
+        Number(opsLimit),
+    );
+    const submitBlockedByKdf =
+        belowRecommendedKdf && !kdfRiskAcknowledged;
 
     const requireCurrentPassword = (): boolean => {
         if (currentPassword.trim().length === 0) {
@@ -388,6 +404,9 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                                 />
                             </div>
                         </div>
+                        {newPassword.length > 0 && (
+                            <PasswordStrengthMeter password={newPassword} />
+                        )}
 
                         <SecondFactorOptions
                             value={factorChoice}
@@ -457,6 +476,14 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                                         />
                                     </div>
                                 </AccordionContent>
+                                <KdfBelowRecommendedAck
+                                    memLimit={Number(memLimit)}
+                                    opsLimit={Number(opsLimit)}
+                                    acknowledged={kdfRiskAcknowledged}
+                                    onAcknowledgedChange={
+                                        setKdfRiskAcknowledged
+                                    }
+                                />
                             </AccordionItem>
                         </Accordion>
 
@@ -481,7 +508,9 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                         <Button
                             className="vault-settings-primary-button w-full"
                             onClick={handleSaveSecurity}
-                            disabled={!isEnvelope || busy}
+                            disabled={
+                                !isEnvelope || busy || submitBlockedByKdf
+                            }
                         >
                             {isSaving ? (
                                 <span className="flex items-center">

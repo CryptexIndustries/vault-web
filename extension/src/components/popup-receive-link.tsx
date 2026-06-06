@@ -65,6 +65,9 @@ import {
 } from "../utils/ext-logging";
 import BarcodeScanner from "./qr-scanner";
 import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
+import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
+import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
+import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
 
 type ReceiveLinkMethod = "qr" | "file";
 type ReceiveLinkStage =
@@ -223,10 +226,12 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const [progress, setProgress] = useState<ProgressEntry[]>([]);
     const [passphraseConfirm, setPassphraseConfirm] = useState("");
     const [isSavingVault, setIsSavingVault] = useState(false);
+    const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
 
     const {
         register,
         handleSubmit,
+        watch,
         reset: resetEncryptionForm,
         formState: { errors: encryptionErrors },
     } = useForm<EncryptionFormGroupSchemaType>({
@@ -242,6 +247,21 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
             },
         },
     });
+
+    const secret = watch("Secret");
+    const memLimit = watch("EncryptionConfig.memLimit");
+    const opsLimit = watch("EncryptionConfig.opsLimit");
+
+    useEffect(() => {
+        setKdfRiskAcknowledged(false);
+    }, [memLimit, opsLimit]);
+
+    const belowRecommendedKdf = isBelowOwaspRecommendedArgon2id(
+        Number(memLimit),
+        Number(opsLimit),
+    );
+    const submitBlockedByKdf =
+        belowRecommendedKdf && !kdfRiskAcknowledged;
 
     const progressRef = useRef<ProgressEntry[]>([]);
     const receivedVaultRef = useRef<Uint8Array | null>(null);
@@ -272,6 +292,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         setFormError("");
         resetEncryptionForm();
         setPassphraseConfirm("");
+        setKdfRiskAcknowledged(false);
         setIsSavingVault(false);
         setSteps(createSteps());
         setProgress([]);
@@ -851,6 +872,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                 {encryptionErrors.Secret.message}
                             </p>
                         ) : null}
+                        <PasswordStrengthMeter password={secret} compact />
                     </div>
                     <div className="space-y-1.5">
                         <Label
@@ -935,6 +957,16 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                         </div>
                                     </div>
 
+                                    <KdfBelowRecommendedAck
+                                        memLimit={Number(memLimit)}
+                                        opsLimit={Number(opsLimit)}
+                                        acknowledged={kdfRiskAcknowledged}
+                                        onAcknowledgedChange={
+                                            setKdfRiskAcknowledged
+                                        }
+                                        compact
+                                    />
+
                                     {encryptionErrors.EncryptionConfig ? (
                                         <p className="text-[11px] text-destructive">
                                             {
@@ -956,7 +988,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     <Button
                         type="submit"
                         size="sm"
-                        disabled={isSavingVault}
+                        disabled={isSavingVault || submitBlockedByKdf}
                     >
                         {isSavingVault ? (
                             <>

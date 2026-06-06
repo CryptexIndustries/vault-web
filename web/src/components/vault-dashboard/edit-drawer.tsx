@@ -56,6 +56,7 @@ import { CustomFieldType, ItemType, TOTPAlgorithm } from "@/app_lib/proto/vault"
 import { cn } from "@/lib/utils";
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
 import { PasswordGeneratorDialog } from "@/components/ui/password-generator";
+import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import {
     WarningDialog,
     WarningDialogShowFn,
@@ -199,6 +200,7 @@ export function EditDrawer({
     });
 
     const watchedTotp = watch("TOTP");
+    const watchedPassword = watch("Password");
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
 
     useEffect(() => {
@@ -463,6 +465,9 @@ export function EditDrawer({
                                         {errors.Password.message}
                                     </p>
                                 )}
+                                <PasswordStrengthMeter
+                                    password={watchedPassword}
+                                />
                             </div>
 
                             <div className="space-y-2">
@@ -684,6 +689,9 @@ export function EditDrawer({
                                         const fieldType = watch(
                                             `CustomFields.${index}.Type`,
                                         );
+                                        const fieldValue = watch(
+                                            `CustomFields.${index}.Value`,
+                                        );
                                         return (
                                         <div
                                             key={field.id}
@@ -756,6 +764,13 @@ export function EditDrawer({
                                                         )}
                                                     />
                                                 </div>
+                                                {fieldType ===
+                                                    CustomFieldType.MaskedText &&
+                                                fieldValue.length > 0 ? (
+                                                    <PasswordStrengthMeter
+                                                        password={fieldValue}
+                                                    />
+                                                ) : null}
                                             </div>
                                             <Button
                                                 type="button"

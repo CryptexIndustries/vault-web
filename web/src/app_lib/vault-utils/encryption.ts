@@ -35,6 +35,10 @@ export class KeyDerivationConfig_Argon2ID
     public static readonly MIN_OPS_LIMIT = 1; // sodium.crypto_pwhash_OPSLIMIT_MIN;
     public static readonly MAX_OPS_LIMIT = 4; // sodium.crypto_pwhash_OPSLIMIT_MAX;
 
+    /** OWASP Password Storage Cheat Sheet minimum for Argon2id (MiB / passes). */
+    public static readonly RECOMMENDED_MEM_LIMIT = 19;
+    public static readonly RECOMMENDED_OPS_LIMIT = 2;
+
     public memLimit: number;
     public opsLimit: number;
 

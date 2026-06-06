@@ -1613,14 +1613,14 @@ class VaultItemSynchronization {
 
         syncLog.info(
             "Received a sync data response message from the remote device",
-            { envelopeId: envelopeID, credentialsCount: credentials.length, credentials, deviceId: remoteDeviceID }
+            { envelopeId: envelopeID, credentialsCount: credentials.length, credentialIds: credentials.map((c) => c.ID), deviceId: remoteDeviceID }
         );
 
         await this.vaultOps.updateCredentials(credentials);
 
         syncLog.info(
             "Updated credentials in the vault",
-            { envelopeId: envelopeID, credentialsCount: credentials.length, credentials, deviceId: remoteDeviceID }
+            { envelopeId: envelopeID, credentialsCount: credentials.length, credentialIds: credentials.map((c) => c.ID), deviceId: remoteDeviceID }
         );
         this.updateLastSync(remoteDeviceID);
     }

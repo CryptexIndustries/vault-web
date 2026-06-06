@@ -9,7 +9,7 @@ trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 43200
 blockExoticSubdeps: true
 engineStrict: true
-nodeVersion: 22.22.2
+nodeVersion: 24.16.0
 pmOnFail: error
 verifyDepsBeforeRun: error
 strictDepBuilds: true

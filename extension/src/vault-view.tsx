@@ -122,6 +122,17 @@ const createVaultOperations = (
         getSynchronizationConfig: async () => {
             return await getSynchronizationConfig(serverPublicKey);
         },
+        getSyncSigningPrivateKey: async () => {
+            const config = await getSynchronizationConfig(serverPublicKey);
+            return config.SyncSigningPrivateKey || null;
+        },
+        getRemoteSyncPublicKey: async (linkedDeviceId: string) => {
+            const config = await getSynchronizationConfig(serverPublicKey);
+            const device = config.Devices.find(
+                (entry) => entry.ID === linkedDeviceId,
+            );
+            return device?.RemoteSyncPublicKey || null;
+        },
     };
 };
 

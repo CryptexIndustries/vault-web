@@ -124,7 +124,7 @@ describe("vault-utils/vault", () => {
     });
 
     it("handles linked device mutators and guards empty names", () => {
-        const device = new LinkedDevice("Device A", "sync-a");
+        const device = new LinkedDevice("Device A", "sync-a", "remote-key-a");
 
         device.Name = "Renamed";
         device.AutoConnect = false;
@@ -151,6 +151,7 @@ describe("vault-utils/vault", () => {
             linked,
             "Device 1",
             "sync-1",
+            "remote-key-1",
             ["stun-a"],
             ["turn-a"],
             "sig-a",
@@ -622,6 +623,7 @@ describe("vault-utils/vault", () => {
             source.LinkedDevices,
             "Peer Device",
             "peer-sync",
+            "peer-remote-key",
             ["stun-a"],
             ["turn-a"],
             "sig-a",
@@ -637,6 +639,7 @@ describe("vault-utils/vault", () => {
             ["stun-new"],
             ["turn-new"],
             ONLINE_SERVICES_SELECTION_ID,
+            "local-sync-public-key",
         );
 
         expect(packaged).not.toBe(source);
@@ -680,6 +683,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
         const device = new LinkedDevice(
             "n",
             "s",
+            "remote-key",
             Date.now(),
             true,
             false,
@@ -695,6 +699,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
         const device = new LinkedDevice(
             "n",
             "s",
+            "remote-key",
             Date.now(),
             true,
             false,
@@ -710,6 +715,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
         const device = new LinkedDevice(
             "n",
             "s",
+            "remote-key",
             Date.now(),
             true,
             false,
@@ -725,6 +731,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
         const device = new LinkedDevice(
             "n",
             "s",
+            "remote-key",
             Date.now(),
             true,
             false,

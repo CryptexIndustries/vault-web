@@ -50,6 +50,9 @@ import {
 } from "@/app_lib/vault-utils/form-schemas";
 import { saveVault, VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { LinkedDevices, OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
+import {
+    ensureSyncSigningKeypair,
+} from "@/app_lib/vault-utils/sync-signing";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import { LINK_FILE_EXTENSION } from "@/utils/consts";
 import {
@@ -105,6 +108,11 @@ const stepCopy: Record<
     [LinkingProcessStep.DirectConnection]: {
         title: "Private channel",
         description: "Building encrypted peer-to-peer connection.",
+    },
+    [LinkingProcessStep.SyncKeyExchange]: {
+        title: "Quantum-safe sync setup",
+        description:
+            "Sharing post-quantum keys used to verify future sync messages.",
     },
     [LinkingProcessStep.SignalingCleanup]: {
         title: "Drop relay",
@@ -271,6 +279,11 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const abortedRef = useRef(false);
 
     const onlineServicesRef = useRef<OnlineServices | null>(null);
+    const senderSyncPublicKeyRef = useRef("");
+    const pendingSyncSigningKeysRef = useRef<{
+        publicKey: string;
+        privateKey: string;
+    } | null>(null);
 
     const addProgress = (
         message: string,
@@ -302,6 +315,9 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         failedRef.current = false;
         abortedRef.current = false;
         controllerRef.current = null;
+        onlineServicesRef.current = null;
+        senderSyncPublicKeyRef.current = "";
+        pendingSyncSigningKeysRef.current = null;
     };
 
     useEffect(() => () => {
@@ -385,6 +401,19 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         const raw = VaultUtilTypes.Vault.decode(rawVaultBinary);
         const vault = Object.assign(new Vault(), raw);
         vault.LinkedDevices = LinkedDevices.fromGeneric(vault.LinkedDevices);
+        if (pendingSyncSigningKeysRef.current) {
+            vault.LinkedDevices.SyncSigningPublicKey =
+                pendingSyncSigningKeysRef.current.publicKey;
+            vault.LinkedDevices.SyncSigningPrivateKey =
+                pendingSyncSigningKeysRef.current.privateKey;
+        } else {
+            await ensureSyncSigningKeypair(vault.LinkedDevices);
+        }
+        if (senderSyncPublicKeyRef.current) {
+            for (const device of vault.LinkedDevices.Devices) {
+                device.RemoteSyncPublicKey = senderSyncPublicKeyRef.current;
+            }
+        }
         if (onlineServicesRef.current) {
             vault.OnlineServices = onlineServicesRef.current;
         }
@@ -493,6 +522,11 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 linkingBlob.SignalingServer == null ||
                 !linkingBlob.STUNServers.length ||
                 !linkingBlob.TURNServers.length;
+            if (!linkingBlob.SyncSigningPublicKey) {
+                throw new Error(
+                    "Link package is missing sync signing material. Create a new link package and try again.",
+                );
+            }
 
             receivedDeviceId =
                 linkingBlob.OnlineServices?.DeviceId ?? null;
@@ -548,9 +582,20 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 hasSignaling: !!linkingBlob.SignalingServer,
             });
 
+            senderSyncPublicKeyRef.current =
+                linkingBlob.SyncSigningPublicKey ?? "";
+
+            const pendingLinkedDevices = new LinkedDevices();
+            await ensureSyncSigningKeypair(pendingLinkedDevices);
+            pendingSyncSigningKeysRef.current = {
+                publicKey: pendingLinkedDevices.SyncSigningPublicKey,
+                privateKey: pendingLinkedDevices.SyncSigningPrivateKey,
+            };
+
             controllerRef.current = new LinkingProcessController(
                 linkingBlob,
                 usesOnlineServices,
+                pendingLinkedDevices.SyncSigningPublicKey,
                 async (status) => {
                     updateStep(status);
 

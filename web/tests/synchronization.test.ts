@@ -1,8 +1,24 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+    describe,
+    it,
+    expect,
+    jest,
+    beforeEach,
+    afterEach,
+    beforeAll,
+} from "@jest/globals";
 import { err, ok } from "neverthrow";
+import { webcrypto } from "node:crypto";
 import { TextDecoder, TextEncoder } from "util";
 
 import * as VaultUtilTypes from "../src/app_lib/proto/vault";
+
+if (!globalThis.crypto?.subtle) {
+    Object.defineProperty(globalThis, "crypto", {
+        value: webcrypto,
+        writable: true,
+    });
+}
 
 Object.defineProperty(globalThis, "TextEncoder", {
     value: TextEncoder,
@@ -38,13 +54,37 @@ jest.mock("../src/utils/trpc", () => ({
 
 import { SyncConnectionController } from "../src/app_lib/synchronization";
 import { SynchronizationEnvelope } from "../src/app_lib/synchronization-utils";
+import { ensureSyncSigningKeypair } from "../src/app_lib/vault-utils/sync-signing";
+import { LinkedDevices } from "../src/app_lib/vault-utils/vault";
 
 type VaultOpsMock = {
     getItemVersionVectors: jest.MockedFunction<() => Promise<VaultUtilTypes.VersionVector[]>>;
     getItemCredentials: jest.MockedFunction<(itemIDs: string[]) => Promise<VaultUtilTypes.Credential[]>>;
     updateCredentials: jest.MockedFunction<(credentials: VaultUtilTypes.Credential[]) => Promise<void>>;
     getSynchronizationConfig: jest.MockedFunction<() => Promise<VaultUtilTypes.LinkedDevices>>;
+    getSyncSigningPrivateKey: jest.MockedFunction<() => Promise<string | null>>;
+    getRemoteSyncPublicKey: jest.MockedFunction<(linkedDeviceId: string) => Promise<string | null>>;
 };
+
+type TestSyncKeys = {
+    localPrivateKey: string;
+    remotePrivateKey: string;
+    remotePublicKey: string;
+};
+
+let testSyncKeys: TestSyncKeys;
+
+beforeAll(async () => {
+    const localKeys = new LinkedDevices();
+    const remoteKeys = new LinkedDevices();
+    await ensureSyncSigningKeypair(localKeys);
+    await ensureSyncSigningKeypair(remoteKeys);
+    testSyncKeys = {
+        localPrivateKey: localKeys.SyncSigningPrivateKey,
+        remotePrivateKey: remoteKeys.SyncSigningPrivateKey,
+        remotePublicKey: remoteKeys.SyncSigningPublicKey,
+    };
+});
 
 type VaultItemSynchronizationHandle = {
     transmitSyncHello(deviceID: string, dataChannel: RTCDataChannel): Promise<void>;
@@ -55,8 +95,13 @@ type VaultItemSynchronizationHandle = {
     ): Promise<void>;
 };
 
-const asArrayBuffer = (bytes: Uint8Array): ArrayBuffer =>
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+const asArrayBuffer = (bytes: Uint8Array | ArrayBuffer): ArrayBuffer =>
+    bytes instanceof ArrayBuffer
+        ? bytes
+        : bytes.buffer.slice(
+              bytes.byteOffset,
+              bytes.byteOffset + bytes.byteLength,
+          ) as ArrayBuffer;
 
 const createMessageEvent = (bytes: Uint8Array): MessageEvent =>
     ({ data: asArrayBuffer(bytes) }) as MessageEvent;
@@ -106,6 +151,12 @@ const setup = () => {
                     ID: "our-device",
                 }) as VaultUtilTypes.LinkedDevices,
         ),
+        getSyncSigningPrivateKey: jest.fn(
+            async () => testSyncKeys.localPrivateKey,
+        ),
+        getRemoteSyncPublicKey: jest.fn(
+            async () => testSyncKeys.remotePublicKey,
+        ),
     };
 
     const controller = new SyncConnectionController(vaultOps);
@@ -148,7 +199,7 @@ describe("VaultItemSynchronization", () => {
         expect(sendMock).toHaveBeenCalledTimes(1);
 
         const serializedEnvelope = sendMock.mock.calls[0]?.[0] as Uint8Array;
-        const decoded = SynchronizationEnvelope.deserialize(asArrayBuffer(serializedEnvelope));
+        const decoded = await SynchronizationEnvelope.deserialize(asArrayBuffer(serializedEnvelope));
 
         expect(decoded.isOk()).toBe(true);
         if (decoded.isOk()) {
@@ -166,7 +217,7 @@ describe("VaultItemSynchronization", () => {
         const syncErrorSpy = jest
             .spyOn(controller, "broadcastWebRTCSyncErrorEvent")
             .mockImplementation(() => undefined);
-        jest.spyOn(SynchronizationEnvelope, "deserialize").mockReturnValueOnce(
+        jest.spyOn(SynchronizationEnvelope, "deserialize").mockResolvedValueOnce(
             err("SYNC_ENVELOPE_DESERIALIZATION_FAILED"),
         );
 
@@ -194,10 +245,13 @@ describe("VaultItemSynchronization", () => {
             versionVector("item-b", 2, "local-b", 100),
         ]);
 
-        const remoteHello = SynchronizationEnvelope.createSyncHelloMessage([
-            versionVector("item-a", 2, "remote-a", 110),
-            versionVector("item-c", 1, "remote-c", 90),
-        ]);
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [
+                versionVector("item-a", 2, "remote-a", 110),
+                versionVector("item-c", 1, "remote-c", 90),
+            ],
+            testSyncKeys.remotePrivateKey,
+        );
 
         await sync.onDataChannelMessage(
             "remote-device",
@@ -208,7 +262,7 @@ describe("VaultItemSynchronization", () => {
         expect(sendMock).toHaveBeenCalledTimes(2);
         expect(synchronizedSpy).not.toHaveBeenCalled();
 
-        const echoMessage = SynchronizationEnvelope.deserialize(
+        const echoMessage = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(sendMock.mock.calls[0]![0] as Uint8Array),
         );
         expect(echoMessage.isOk()).toBe(true);
@@ -218,7 +272,7 @@ describe("VaultItemSynchronization", () => {
             );
         }
 
-        const requestMessage = SynchronizationEnvelope.deserialize(
+        const requestMessage = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(sendMock.mock.calls[1]![0] as Uint8Array),
         );
         expect(requestMessage.isOk()).toBe(true);
@@ -242,7 +296,10 @@ describe("VaultItemSynchronization", () => {
         vaultOps.getItemVersionVectors.mockResolvedValueOnce([localVector]);
         vaultOps.getItemVersionVectors.mockResolvedValueOnce([localVector]);
 
-        const remoteHello = SynchronizationEnvelope.createSyncHelloMessage([remoteVector]);
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [remoteVector],
+            testSyncKeys.remotePrivateKey,
+        );
         await sync.onDataChannelMessage(
             "remote-device",
             dataChannel,
@@ -250,7 +307,7 @@ describe("VaultItemSynchronization", () => {
         );
 
         expect(sendMock).toHaveBeenCalledTimes(1);
-        const onlySent = SynchronizationEnvelope.deserialize(
+        const onlySent = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(sendMock.mock.calls[0]![0] as Uint8Array),
         );
         expect(onlySent.isOk()).toBe(true);
@@ -276,7 +333,10 @@ describe("VaultItemSynchronization", () => {
         vaultOps.getItemVersionVectors.mockResolvedValueOnce([localVector]);
         vaultOps.getItemVersionVectors.mockResolvedValueOnce([localVector]);
 
-        const remoteHello = SynchronizationEnvelope.createSyncHelloMessage([remoteVector]);
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [remoteVector],
+            testSyncKeys.remotePrivateKey,
+        );
         await sync.onDataChannelMessage(
             "a-device",
             dataChannel,
@@ -286,7 +346,7 @@ describe("VaultItemSynchronization", () => {
         expect(sendMock).toHaveBeenCalledTimes(2);
         expect(synchronizedSpy).not.toHaveBeenCalled();
 
-        const requestMessage = SynchronizationEnvelope.deserialize(
+        const requestMessage = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(sendMock.mock.calls[1]![0] as Uint8Array),
         );
         expect(requestMessage.isOk()).toBe(true);
@@ -307,16 +367,10 @@ describe("VaultItemSynchronization", () => {
         const localVectors = [versionVector("item-a", 1, "local-a", 100)];
         vaultOps.getItemVersionVectors.mockResolvedValueOnce(localVectors);
 
-        const remoteEcho = {
-            envelopeID: "echo-id",
-            data: VaultUtilTypes.SynchronizationEnvelope.encode({
-                ID: "echo-id",
-                Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
-                Payload: VaultUtilTypes.SyncHelloEchoMessage.encode({
-                    VersionVectors: [versionVector("item-a", 2, "remote-a", 200)],
-                }).finish(),
-            }).finish(),
-        };
+        const remoteEcho = await SynchronizationEnvelope.createSyncHelloEchoMessage(
+            [versionVector("item-a", 2, "remote-a", 200)],
+            testSyncKeys.remotePrivateKey,
+        );
 
         await sync.onDataChannelMessage(
             "remote-device",
@@ -327,7 +381,7 @@ describe("VaultItemSynchronization", () => {
         expect(sendMock).toHaveBeenCalledTimes(1);
         expect(synchronizedSpy).not.toHaveBeenCalled();
 
-        const requestMessage = SynchronizationEnvelope.deserialize(
+        const requestMessage = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(sendMock.mock.calls[0]![0] as Uint8Array),
         );
         expect(requestMessage.isOk()).toBe(true);
@@ -344,29 +398,27 @@ describe("VaultItemSynchronization", () => {
         const requestedCredentials = [credential("item-a"), credential("item-b")];
         vaultOps.getItemCredentials.mockResolvedValueOnce(requestedCredentials);
 
-        const syncDataRequestEnvelope = VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: "request-envelope-id",
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
-            Payload: VaultUtilTypes.SyncDataRequestMessage.encode({
-                ItemIDs: ["item-a", "item-b"],
-            }).finish(),
-        }).finish();
+        const syncDataRequestEnvelope =
+            await SynchronizationEnvelope.createSyncDataRequestMessage(
+                ["item-a", "item-b"],
+                testSyncKeys.remotePrivateKey,
+            );
 
         await sync.onDataChannelMessage(
             "remote-device",
             dataChannel,
-            createMessageEvent(syncDataRequestEnvelope),
+            createMessageEvent(syncDataRequestEnvelope.data),
         );
 
         expect(vaultOps.getItemCredentials).toHaveBeenCalledWith(["item-a", "item-b"]);
         expect(sendMock).toHaveBeenCalledTimes(1);
 
-        const responseMessage = SynchronizationEnvelope.deserialize(
+        const responseMessage = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(sendMock.mock.calls[0]![0] as Uint8Array),
         );
         expect(responseMessage.isOk()).toBe(true);
         if (responseMessage.isOk()) {
-            expect(responseMessage.value.id).toBe("request-envelope-id");
+            expect(responseMessage.value.id).toBe(syncDataRequestEnvelope.envelopeID);
             expect(responseMessage.value.command).toBe(
                 VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
             );
@@ -377,19 +429,34 @@ describe("VaultItemSynchronization", () => {
     });
 
     it("on SyncDataResponse updates local credentials and marks sync complete", async () => {
-        const { controller, vaultOps, sync, dataChannel } = setup();
+        const { controller, vaultOps, sync, dataChannel, sendMock } = setup();
         const synchronizedSpy = jest
             .spyOn(controller, "broadcastWebRTCSynchronizedEvent")
             .mockImplementation(() => undefined);
         const incomingCredentials = [credential("item-a")];
 
-        const syncDataResponseEnvelope = VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: "response-envelope-id",
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
-            Payload: VaultUtilTypes.SyncDataResponseMessage.encode({
-                Credentials: incomingCredentials,
-            }).finish(),
-        }).finish();
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [versionVector("item-a", 2, "remote-a", 200)],
+            testSyncKeys.remotePrivateKey,
+        );
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(remoteHello.data),
+        );
+
+        const requestMessage = await SynchronizationEnvelope.deserialize(
+            asArrayBuffer(sendMock.mock.calls[1]![0] as Uint8Array),
+        );
+        expect(requestMessage.isOk()).toBe(true);
+        if (!requestMessage.isOk()) return;
+
+        const syncDataResponseEnvelope =
+            await SynchronizationEnvelope.createSyncDataResponseMessage(
+                requestMessage.value.id,
+                incomingCredentials,
+                testSyncKeys.remotePrivateKey,
+            );
 
         await sync.onDataChannelMessage(
             "remote-device",
@@ -399,6 +466,55 @@ describe("VaultItemSynchronization", () => {
 
         expect(vaultOps.updateCredentials).toHaveBeenCalledWith(incomingCredentials);
         expect(synchronizedSpy).toHaveBeenCalledWith("remote-device");
+    });
+
+    it("drops unsolicited SyncDataResponse messages", async () => {
+        const { controller, vaultOps, sync, dataChannel } = setup();
+        const synchronizedSpy = jest
+            .spyOn(controller, "broadcastWebRTCSynchronizedEvent")
+            .mockImplementation(() => undefined);
+        const incomingCredentials = [credential("item-a")];
+
+        const syncDataResponseEnvelope =
+            await SynchronizationEnvelope.createSyncDataResponseMessage(
+                "unsolicited-response-id",
+                incomingCredentials,
+                testSyncKeys.remotePrivateKey,
+            );
+
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(syncDataResponseEnvelope),
+        );
+
+        expect(vaultOps.updateCredentials).not.toHaveBeenCalled();
+        expect(synchronizedSpy).not.toHaveBeenCalled();
+    });
+
+    it("drops sync messages with invalid signatures", async () => {
+        const { controller, vaultOps, sync, dataChannel } = setup();
+        const synchronizedSpy = jest
+            .spyOn(controller, "broadcastWebRTCSynchronizedEvent")
+            .mockImplementation(() => undefined);
+
+        const unsignedHello = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: "unsigned-hello",
+            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
+            Payload: VaultUtilTypes.SyncHelloMessage.encode({
+                VersionVectors: [versionVector("item-a", 1, "hash", 100)],
+            }).finish(),
+            Signature: new Uint8Array(),
+        }).finish();
+
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(unsignedHello),
+        );
+
+        expect(vaultOps.updateCredentials).not.toHaveBeenCalled();
+        expect(synchronizedSpy).not.toHaveBeenCalled();
     });
 
     it("handles malformed runtime payload types without mutating vault state", async () => {
@@ -426,7 +542,10 @@ describe("VaultItemSynchronization", () => {
         vaultOps.getItemVersionVectors.mockResolvedValueOnce([localVector]);
         vaultOps.getItemVersionVectors.mockResolvedValueOnce([localVector]);
 
-        const remoteHello = SynchronizationEnvelope.createSyncHelloMessage([remoteVector]);
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [remoteVector],
+            testSyncKeys.remotePrivateKey,
+        );
         await sync.onDataChannelMessage(
             "remote-device",
             dataChannel,
@@ -441,19 +560,17 @@ describe("VaultItemSynchronization", () => {
         const { vaultOps, sync, dataChannel, sendMock } = setup();
         vaultOps.getItemCredentials.mockRejectedValueOnce(new Error("vault read failed"));
 
-        const syncDataRequestEnvelope = VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: "request-envelope-id",
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
-            Payload: VaultUtilTypes.SyncDataRequestMessage.encode({
-                ItemIDs: ["item-a"],
-            }).finish(),
-        }).finish();
+        const syncDataRequestEnvelope =
+            await SynchronizationEnvelope.createSyncDataRequestMessage(
+                ["item-a"],
+                testSyncKeys.remotePrivateKey,
+            );
 
         await expect(
             sync.onDataChannelMessage(
                 "remote-device",
                 dataChannel,
-                createMessageEvent(syncDataRequestEnvelope),
+                createMessageEvent(syncDataRequestEnvelope.data),
             ),
         ).rejects.toThrow("vault read failed");
 
@@ -461,7 +578,7 @@ describe("VaultItemSynchronization", () => {
     });
 
     it("propagates SyncDataResponse vault write failures and does not mark sync complete", async () => {
-        const { controller, vaultOps, sync, dataChannel } = setup();
+        const { controller, vaultOps, sync, dataChannel, sendMock } = setup();
         const synchronizedSpy = jest
             .spyOn(controller, "broadcastWebRTCSynchronizedEvent")
             .mockImplementation(() => undefined);
@@ -470,13 +587,28 @@ describe("VaultItemSynchronization", () => {
         );
         const incomingCredentials = [credential("item-a")];
 
-        const syncDataResponseEnvelope = VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: "response-envelope-id",
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
-            Payload: VaultUtilTypes.SyncDataResponseMessage.encode({
-                Credentials: incomingCredentials,
-            }).finish(),
-        }).finish();
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [versionVector("item-a", 2, "remote-a", 200)],
+            testSyncKeys.remotePrivateKey,
+        );
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(remoteHello.data),
+        );
+
+        const requestMessage = await SynchronizationEnvelope.deserialize(
+            asArrayBuffer(sendMock.mock.calls[1]![0] as Uint8Array),
+        );
+        expect(requestMessage.isOk()).toBe(true);
+        if (!requestMessage.isOk()) return;
+
+        const syncDataResponseEnvelope =
+            await SynchronizationEnvelope.createSyncDataResponseMessage(
+                requestMessage.value.id,
+                incomingCredentials,
+                testSyncKeys.remotePrivateKey,
+            );
 
         await expect(
             sync.onDataChannelMessage(
@@ -496,9 +628,10 @@ describe("VaultItemSynchronization", () => {
             versionVector("item-a", 1, "local-a", 100),
         ]);
 
-        const remoteHello = SynchronizationEnvelope.createSyncHelloMessage([
-            versionVector("item-a", 2, "remote-a", 200),
-        ]);
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [versionVector("item-a", 2, "remote-a", 200)],
+            testSyncKeys.remotePrivateKey,
+        );
 
         await sync.onDataChannelMessage(
             "remote-device",
@@ -512,18 +645,130 @@ describe("VaultItemSynchronization", () => {
         );
 
         expect(sendMock).toHaveBeenCalledTimes(4);
-        const outboundCommands = sendMock.mock.calls.map((call: unknown[]) => {
-            const decoded = SynchronizationEnvelope.deserialize(
-                asArrayBuffer(call[0] as Uint8Array),
-            );
-            return decoded.isOk() ? decoded.value.command : null;
-        });
+        const outboundCommands = await Promise.all(
+            sendMock.mock.calls.map(async (call: unknown[]) => {
+                const decoded = await SynchronizationEnvelope.deserialize(
+                    asArrayBuffer(call[0] as Uint8Array),
+                );
+                return decoded.isOk() ? decoded.value.command : null;
+            }),
+        );
 
         expect(outboundCommands).toEqual([
             VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
             VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
             VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
             VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
+        ]);
+    });
+
+    it("does not track pending data requests when data channel send fails", async () => {
+        const { vaultOps, sync, dataChannel, sendMock } = setup();
+        vaultOps.getItemVersionVectors.mockResolvedValue([
+            versionVector("item-a", 1, "local-a", 100),
+        ]);
+        sendMock.mockImplementation((() => {
+            let calls = 0;
+            return () => {
+                calls++;
+                if (calls === 2) {
+                    throw new Error("send failed");
+                }
+            };
+        })());
+
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [versionVector("item-a", 2, "remote-a", 200)],
+            testSyncKeys.remotePrivateKey,
+        );
+
+        await expect(
+            sync.onDataChannelMessage(
+                "remote-device",
+                dataChannel,
+                createMessageEvent(remoteHello.data),
+            ),
+        ).rejects.toThrow("send failed");
+
+        const failedRequest = await SynchronizationEnvelope.deserialize(
+            asArrayBuffer(sendMock.mock.calls[1]![0] as Uint8Array),
+        );
+        expect(failedRequest.isOk()).toBe(true);
+        if (!failedRequest.isOk()) return;
+
+        const response = await SynchronizationEnvelope.createSyncDataResponseMessage(
+            failedRequest.value.id,
+            [credential("item-a")],
+            testSyncKeys.remotePrivateKey,
+        );
+
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(response),
+        );
+
+        expect(vaultOps.updateCredentials).not.toHaveBeenCalled();
+    });
+
+    it("caps pending data requests per device and drops responses for evicted requests", async () => {
+        const { vaultOps, sync, dataChannel, sendMock } = setup();
+        vaultOps.getItemVersionVectors.mockResolvedValue([]);
+        const remoteHello = await SynchronizationEnvelope.createSyncHelloMessage(
+            [versionVector("item-a", 2, "remote-a", 200)],
+            testSyncKeys.remotePrivateKey,
+        );
+
+        for (let i = 0; i < 33; i++) {
+            await sync.onDataChannelMessage(
+                "remote-device",
+                dataChannel,
+                createMessageEvent(remoteHello.data),
+            );
+        }
+
+        const requestIds: string[] = [];
+        for (const call of sendMock.mock.calls) {
+            const decoded = await SynchronizationEnvelope.deserialize(
+                asArrayBuffer(call[0] as Uint8Array),
+            );
+            if (
+                decoded.isOk() &&
+                decoded.value.command ===
+                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest
+            ) {
+                requestIds.push(decoded.value.id);
+            }
+        }
+
+        expect(requestIds).toHaveLength(33);
+        const staleResponse =
+            await SynchronizationEnvelope.createSyncDataResponseMessage(
+                requestIds[0]!,
+                [credential("stale")],
+                testSyncKeys.remotePrivateKey,
+            );
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(staleResponse),
+        );
+        expect(vaultOps.updateCredentials).not.toHaveBeenCalled();
+
+        const latestResponse =
+            await SynchronizationEnvelope.createSyncDataResponseMessage(
+                requestIds.at(-1)!,
+                [credential("latest")],
+                testSyncKeys.remotePrivateKey,
+            );
+        await sync.onDataChannelMessage(
+            "remote-device",
+            dataChannel,
+            createMessageEvent(latestResponse),
+        );
+        expect(vaultOps.updateCredentials).toHaveBeenCalledTimes(1);
+        expect(vaultOps.updateCredentials).toHaveBeenCalledWith([
+            credential("latest"),
         ]);
     });
 
@@ -536,12 +781,12 @@ describe("VaultItemSynchronization", () => {
             .spyOn(controller, "broadcastWebRTCSynchronizedEvent")
             .mockImplementation(() => undefined);
 
-        jest.spyOn(SynchronizationEnvelope, "deserialize").mockReturnValueOnce(
+        jest.spyOn(SynchronizationEnvelope, "deserialize").mockResolvedValueOnce(
             ok({
                 id: "unknown-command-id",
                 command: 999 as VaultUtilTypes.VaultItemSynchronizationMessageCommand,
                 data: {} as VaultUtilTypes.SyncHelloMessage,
-            }) as ReturnType<typeof SynchronizationEnvelope.deserialize>,
+            }),
         );
 
         await sync.onDataChannelMessage(

@@ -593,7 +593,7 @@ export function VaultDashboard() {
             updatedLinkedDevices.Devices = updatedLinkedDevices.Devices.map(
                 (device) => {
                     if (device.ID !== config.ID) return device;
-                    return Object.assign(new LinkedDevice(), device, {
+                    return Object.assign(LinkedDevices.fromGenericDevice(device), {
                         Name: config.Name,
                         AutoConnect: config.AutoConnect,
                         SyncTimeout: config.SyncTimeout,

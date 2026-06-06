@@ -7,6 +7,10 @@ import { initPusherInstance, initWebRTC } from "../synchronization";
 import { constructLinkPresenceChannelName } from "../online-services";
 import Pusher, { Channel } from "pusher-js";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
+import {
+    encodeLinkSyncKeyMessage,
+    parseLinkSyncKeyMessage,
+} from "./sync-signing";
 
 export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
     Blob: Uint8Array;
@@ -129,6 +133,7 @@ export enum LinkingProcessStep {
     Signaling,
     SignalingWaitingOtherDevice,
     DirectConnection,
+    SyncKeyExchange,
     SignalingCleanup,
     VaultTransfer,
     VaultSave,
@@ -170,6 +175,7 @@ export interface LinkingProcessStatus {
 export class LinkingProcessController {
     linkingPackage: VaultUtilTypes.LinkingPackageBlob;
     usesOnlineServices: boolean;
+    localSyncPublicKey: string;
     onStatusChange: (state: LinkingProcessStatus) => Promise<void>;
 
     signalingServer: Pusher;
@@ -177,14 +183,17 @@ export class LinkingProcessController {
     webRTCConnection: RTCPeerConnection;
     private hasDirectConnection = false;
     private hasTerminalError = false;
+    private sentLocalSyncPublicKey = false;
 
     public constructor(
         linkingBlob: VaultUtilTypes.LinkingPackageBlob,
         usesOnlineServices: boolean,
+        localSyncPublicKey: string,
         onStatusChange: (state: LinkingProcessStatus) => Promise<void>,
     ) {
         this.linkingPackage = linkingBlob;
         this.usesOnlineServices = usesOnlineServices;
+        this.localSyncPublicKey = localSyncPublicKey;
         this.onStatusChange = onStatusChange;
 
         const { signalingServer, signalingServerChannel } =
@@ -445,17 +454,37 @@ export class LinkingProcessController {
 
         webRTConnection.ondatachannel = (event) => {
             this.onStatusChange({
-                Step: LinkingProcessStep.VaultTransfer,
+                Step: LinkingProcessStep.SyncKeyExchange,
                 State: LinkingProcessState.Active,
                 LogMessage: {
-                    message: "Received WebRTC data channel",
+                    message: "Waiting for post-quantum sync key...",
                     timestamp: Date.now(),
-                    type: "debug",
+                    type: "info",
                 },
             });
 
             const receiveChannel = event.channel;
             receiveChannel.onmessage = async (event) => {
+                const remoteSyncPublicKey = parseLinkSyncKeyMessage(event.data);
+                if (remoteSyncPublicKey) {
+                    if (!this.sentLocalSyncPublicKey) {
+                        receiveChannel.send(
+                            new Uint8Array(encodeLinkSyncKeyMessage(this.localSyncPublicKey)),
+                        );
+                        this.sentLocalSyncPublicKey = true;
+                    }
+                    this.onStatusChange({
+                        Step: LinkingProcessStep.SyncKeyExchange,
+                        State: LinkingProcessState.Completed,
+                        LogMessage: {
+                            message: "Quantum-safe sync keys exchanged.",
+                            timestamp: Date.now(),
+                            type: "info",
+                        },
+                    });
+                    return;
+                }
+
                 this.onStatusChange({
                     Step: LinkingProcessStep.VaultTransfer,
                     State: LinkingProcessState.Active,

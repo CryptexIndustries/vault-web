@@ -1,6 +1,10 @@
 import { ulid } from "ulidx";
 import * as VaultUtilTypes from "./proto/vault";
 import { err, ok } from "neverthrow";
+import {
+    signSyncEnvelopeFields,
+    verifySyncEnvelopeFields,
+} from "./vault-utils/sync-signing";
 
 /**
  * WebSocket signaling server connection status.
@@ -118,19 +122,23 @@ export class SynchronizationEnvelope
     ID: string;
     Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand;
     Payload: Uint8Array;
+    Signature: Uint8Array;
 
     private constructor(
         id: string,
         command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
         payload: Uint8Array,
+        signature: Uint8Array = new Uint8Array(),
     ) {
         this.ID = id ?? ulid();
         this.Command = command;
         this.Payload = payload;
+        this.Signature = signature;
     }
 
-    public static deserialize(
+    public static async deserialize(
         data: ArrayBuffer,
+        options?: { verifyPublicKey?: string },
     ) {
         let decoded: VaultUtilTypes.SynchronizationEnvelope;
         try {
@@ -141,10 +149,25 @@ export class SynchronizationEnvelope
             return err("SYNC_ENVELOPE_DESERIALIZATION_FAILED");
         }
 
+        const verifyPublicKey = options?.verifyPublicKey;
+        if (verifyPublicKey) {
+            const signatureValid = await verifySyncEnvelopeFields(
+                verifyPublicKey,
+                decoded.ID,
+                decoded.Command,
+                decoded.Payload,
+                decoded.Signature,
+            );
+            if (!signatureValid) {
+                return err("SYNC_ENVELOPE_SIGNATURE_INVALID");
+            }
+        }
+
         const message: SynchronizationEnvelope = {
             ID: decoded.ID,
             Command: decoded.Command,
             Payload: decoded.Payload,
+            Signature: decoded.Signature,
         };
 
         // Based on the command, deserialize the payload
@@ -204,15 +227,43 @@ export class SynchronizationEnvelope
         ).finish();
     }
 
-    public static createSyncHelloMessage(versionVectors: VaultUtilTypes.VersionVector[]) {
-        const envelopeID = ulid();
-        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: envelopeID,
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
-            Payload: VaultUtilTypes.SyncHelloMessage.encode({
-                VersionVectors: versionVectors,
+    private static async encodeSignedEnvelope(
+        envelopeID: string,
+        command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
+        payload: Uint8Array,
+        privateKey: string,
+    ): Promise<Uint8Array> {
+        const signature = await signSyncEnvelopeFields(
+            privateKey,
+            envelopeID,
+            command,
+            payload,
+        );
+
+        return new Uint8Array(
+            VaultUtilTypes.SynchronizationEnvelope.encode({
+                ID: envelopeID,
+                Command: command,
+                Payload: payload,
+                Signature: signature,
             }).finish(),
-        }).finish());
+        );
+    }
+
+    public static async createSyncHelloMessage(
+        versionVectors: VaultUtilTypes.VersionVector[],
+        privateKey: string,
+    ) {
+        const envelopeID = ulid();
+        const payload = VaultUtilTypes.SyncHelloMessage.encode({
+            VersionVectors: versionVectors,
+        }).finish();
+        const data = await SynchronizationEnvelope.encodeSignedEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
+            payload,
+            privateKey,
+        );
 
         return {
             envelopeID,
@@ -220,15 +271,20 @@ export class SynchronizationEnvelope
         };
     }
 
-    public static createSyncHelloEchoMessage(versionVectors: VaultUtilTypes.VersionVector[]) {
+    public static async createSyncHelloEchoMessage(
+        versionVectors: VaultUtilTypes.VersionVector[],
+        privateKey: string,
+    ) {
         const envelopeID = ulid();
-        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: envelopeID,
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
-            Payload: VaultUtilTypes.SyncHelloEchoMessage.encode({
-                VersionVectors: versionVectors,
-            }).finish(),
-        }).finish());
+        const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
+            VersionVectors: versionVectors,
+        }).finish();
+        const data = await SynchronizationEnvelope.encodeSignedEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
+            payload,
+            privateKey,
+        );
 
         return {
             envelopeID,
@@ -236,15 +292,20 @@ export class SynchronizationEnvelope
         };
     }
 
-    public static createSyncDataRequestMessage(itemIDs: string[]) {
+    public static async createSyncDataRequestMessage(
+        itemIDs: string[],
+        privateKey: string,
+    ) {
         const envelopeID = ulid();
-        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: envelopeID,
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
-            Payload: VaultUtilTypes.SyncDataRequestMessage.encode({
-                ItemIDs: itemIDs,
-            }).finish(),
-        }).finish());
+        const payload = VaultUtilTypes.SyncDataRequestMessage.encode({
+            ItemIDs: itemIDs,
+        }).finish();
+        const data = await SynchronizationEnvelope.encodeSignedEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
+            payload,
+            privateKey,
+        );
 
         return {
             envelopeID,
@@ -252,16 +313,21 @@ export class SynchronizationEnvelope
         };
     }
 
-    public static createSyncDataResponseMessage(envelopeID: string, credentials: VaultUtilTypes.Credential[]) {
-        const data = new Uint8Array(VaultUtilTypes.SynchronizationEnvelope.encode({
-            ID: envelopeID,
-            Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
-            Payload: VaultUtilTypes.SyncDataResponseMessage.encode({
-                Credentials: credentials,
-            }).finish(),
-        }).finish());
+    public static async createSyncDataResponseMessage(
+        envelopeID: string,
+        credentials: VaultUtilTypes.Credential[],
+        privateKey: string,
+    ) {
+        const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
+            Credentials: credentials,
+        }).finish();
 
-        return data;
+        return SynchronizationEnvelope.encodeSignedEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
+            payload,
+            privateKey,
+        );
     }
 }
 

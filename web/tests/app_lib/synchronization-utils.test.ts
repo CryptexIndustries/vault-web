@@ -1,4 +1,22 @@
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, beforeAll } from "@jest/globals";
+import { webcrypto } from "node:crypto";
+import { ensureSyncSigningKeypair } from "../../src/app_lib/vault-utils/sync-signing";
+import { LinkedDevices } from "../../src/app_lib/vault-utils/vault";
+
+if (!globalThis.crypto?.subtle) {
+    Object.defineProperty(globalThis, "crypto", {
+        value: webcrypto,
+        writable: true,
+    });
+}
+
+let testPrivateKey: string;
+
+beforeAll(async () => {
+    const linkedDevices = new LinkedDevices();
+    await ensureSyncSigningKeypair(linkedDevices);
+    testPrivateKey = linkedDevices.SyncSigningPrivateKey;
+});
 import { TextDecoder, TextEncoder } from "util";
 
 Object.defineProperty(globalThis, "TextEncoder", {
@@ -58,12 +76,13 @@ const credential = (id: string): VaultUtilTypes.Credential => ({
 });
 
 describe("SynchronizationEnvelope.serialize", () => {
-    it("round-trips a SyncHello message", () => {
-        const { data, envelopeID } = SynchronizationEnvelope.createSyncHelloMessage([
-            versionVector("item-a", 1, "hash-a", 100),
-        ]);
+    it("round-trips a SyncHello message", async () => {
+        const { data, envelopeID } = await SynchronizationEnvelope.createSyncHelloMessage(
+            [versionVector("item-a", 1, "hash-a", 100)],
+            testPrivateKey,
+        );
 
-        const decoded = SynchronizationEnvelope.deserialize(asArrayBuffer(data));
+        const decoded = await SynchronizationEnvelope.deserialize(asArrayBuffer(data));
         expect(decoded.isOk()).toBe(true);
         if (decoded.isOk()) {
             expect(decoded.value.id).toBe(envelopeID);
@@ -126,90 +145,96 @@ describe("SynchronizationEnvelope.serialize", () => {
 });
 
 describe("SynchronizationEnvelope.deserialize", () => {
-    it("returns SYNC_ENVELOPE_DESERIALIZATION_FAILED on garbage outer bytes", () => {
+    it("returns SYNC_ENVELOPE_DESERIALIZATION_FAILED on garbage outer bytes", async () => {
         const garbage = new Uint8Array([0xff, 0xff, 0xff, 0xff, 0xff]);
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(garbage));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(garbage));
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
             expect(result.error).toBe("SYNC_ENVELOPE_DESERIALIZATION_FAILED");
         }
     });
 
-    it("returns SYNC_HELLO_DESERIALIZATION_FAILED when SyncHello payload is malformed", () => {
+    it("returns SYNC_HELLO_DESERIALIZATION_FAILED when SyncHello payload is malformed", async () => {
         const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: "bad-hello",
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
             Payload: new Uint8Array([0xff, 0xff, 0xff]),
+            Signature: new Uint8Array(),
         }).finish();
 
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
             expect(result.error).toBe("SYNC_HELLO_DESERIALIZATION_FAILED");
         }
     });
 
-    it("returns SYNC_HELLO_ECHO_DESERIALIZATION_FAILED when SyncHelloEcho payload is malformed", () => {
+    it("returns SYNC_HELLO_ECHO_DESERIALIZATION_FAILED when SyncHelloEcho payload is malformed", async () => {
         const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: "bad-echo",
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
             Payload: new Uint8Array([0xff, 0xff, 0xff]),
+            Signature: new Uint8Array(),
         }).finish();
 
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
             expect(result.error).toBe("SYNC_HELLO_ECHO_DESERIALIZATION_FAILED");
         }
     });
 
-    it("returns SYNC_DATA_REQUEST_DESERIALIZATION_FAILED when SyncDataRequest payload is malformed", () => {
+    it("returns SYNC_DATA_REQUEST_DESERIALIZATION_FAILED when SyncDataRequest payload is malformed", async () => {
         const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: "bad-data-req",
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataRequest,
             Payload: new Uint8Array([0xff, 0xff, 0xff]),
+            Signature: new Uint8Array(),
         }).finish();
 
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
             expect(result.error).toBe("SYNC_DATA_REQUEST_DESERIALIZATION_FAILED");
         }
     });
 
-    it("returns SYNC_DATA_RESPONSE_DESERIALIZATION_FAILED when SyncDataResponse payload is malformed", () => {
+    it("returns SYNC_DATA_RESPONSE_DESERIALIZATION_FAILED when SyncDataResponse payload is malformed", async () => {
         const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: "bad-data-res",
             Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncDataResponse,
             Payload: new Uint8Array([0xff, 0xff, 0xff]),
+            Signature: new Uint8Array(),
         }).finish();
 
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
             expect(result.error).toBe("SYNC_DATA_RESPONSE_DESERIALIZATION_FAILED");
         }
     });
 
-    it("returns SYNC_INVALID_COMMAND for an unknown command value", () => {
+    it("returns SYNC_INVALID_COMMAND for an unknown command value", async () => {
         const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
             ID: "unknown-cmd",
             Command: 999 as VaultUtilTypes.VaultItemSynchronizationMessageCommand,
             Payload: new Uint8Array(),
+            Signature: new Uint8Array(),
         }).finish();
 
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(envelope));
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
             expect(result.error).toBe("SYNC_INVALID_COMMAND");
         }
     });
 
-    it("decodes a SyncHelloEcho envelope", () => {
-        const { data } = SynchronizationEnvelope.createSyncHelloEchoMessage([
-            versionVector("item-e", 5, "echo-hash", 500),
-        ]);
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(data));
+    it("decodes a SyncHelloEcho envelope", async () => {
+        const { data } = await SynchronizationEnvelope.createSyncHelloEchoMessage(
+            [versionVector("item-e", 5, "echo-hash", 500)],
+            testPrivateKey,
+        );
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(data));
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
             expect(result.value.command).toBe(
@@ -221,12 +246,12 @@ describe("SynchronizationEnvelope.deserialize", () => {
         }
     });
 
-    it("decodes a SyncDataRequest envelope", () => {
-        const { data } = SynchronizationEnvelope.createSyncDataRequestMessage([
-            "item-x",
-            "item-y",
-        ]);
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(data));
+    it("decodes a SyncDataRequest envelope", async () => {
+        const { data } = await SynchronizationEnvelope.createSyncDataRequestMessage(
+            ["item-x", "item-y"],
+            testPrivateKey,
+        );
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(data));
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
             expect(result.value.command).toBe(
@@ -238,13 +263,14 @@ describe("SynchronizationEnvelope.deserialize", () => {
         }
     });
 
-    it("decodes a SyncDataResponse envelope", () => {
+    it("decodes a SyncDataResponse envelope", async () => {
         const credentials = [credential("item-a"), credential("item-b")];
-        const data = SynchronizationEnvelope.createSyncDataResponseMessage(
+        const data = await SynchronizationEnvelope.createSyncDataResponseMessage(
             "response-envelope",
             credentials,
+            testPrivateKey,
         );
-        const result = SynchronizationEnvelope.deserialize(asArrayBuffer(data));
+        const result = await SynchronizationEnvelope.deserialize(asArrayBuffer(data));
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
             expect(result.value.id).toBe("response-envelope");

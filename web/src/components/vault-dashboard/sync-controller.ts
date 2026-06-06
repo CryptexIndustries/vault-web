@@ -131,6 +131,17 @@ export const createVaultOperations = (
             }
         },
         getSynchronizationConfig: async () => vaultGet().LinkedDevices,
+        getSyncSigningPrivateKey: async () => {
+            const privateKey =
+                vaultGet().LinkedDevices.SyncSigningPrivateKey;
+            return privateKey || null;
+        },
+        getRemoteSyncPublicKey: async (linkedDeviceId: string) => {
+            const device = vaultGet().LinkedDevices.Devices.find(
+                (entry) => entry.ID === linkedDeviceId,
+            );
+            return device?.RemoteSyncPublicKey || null;
+        },
     };
 };
 

@@ -22,6 +22,7 @@ import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
 
 const uint8ToBase64 = (value: Uint8Array): string =>
     Buffer.from(value).toString("base64");
+const utf8Bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
 
 const mockGenerateMnemonic: jest.MockedFunction<
     (wordlist: string[], strength: number) => string
@@ -120,6 +121,7 @@ describe("vault-utils/linking", () => {
                     STUNServers: [],
                     TURNServers: [],
                     SignalingServer: undefined,
+                    SyncSigningPublicKey: "sync-public-key",
                 }).finish(),
             ),
         );
@@ -136,6 +138,7 @@ describe("vault-utils/linking", () => {
             STUNServers: [],
             TURNServers: [],
             SignalingServer: undefined,
+            SyncSigningPublicKey: "source-sync-public-key",
         });
 
         const result = await LinkingPackage.createNewPackage(sourceBlob);
@@ -143,8 +146,14 @@ describe("vault-utils/linking", () => {
         expect(result.mnemonic).toContain("alpha beta");
         expect(result.linkingPackage).toBeInstanceOf(LinkingPackage);
         expect(result.linkingPackage.Salt).toBe("salt-b64");
-        expect(mockHashSecret).toHaveBeenCalledWith(result.mnemonic);
+        expect(mockHashSecret).not.toHaveBeenCalled();
         expect(mockEncryptDataBlob).toHaveBeenCalledTimes(1);
+        expect(mockEncryptDataBlob.mock.calls[0]?.[1]).toEqual(
+            utf8Bytes(result.mnemonic),
+        );
+        expect(mockEncryptDataBlob.mock.calls[0]?.[0]).toEqual(
+            VaultUtilTypes.LinkingPackageBlob.encode(sourceBlob).finish(),
+        );
     });
 
     it("decrypts package back to LinkingPackageBlob payload", async () => {
@@ -156,7 +165,10 @@ describe("vault-utils/linking", () => {
         if (res.isOk()) {
             expect(res.value.SyncID).toBe("sync-1");
         }
-        expect(mockHashSecret).toHaveBeenCalledWith("mnemonic words");
+        expect(mockHashSecret).not.toHaveBeenCalled();
+        expect(mockDecryptDataBlob.mock.calls[0]?.[1]).toEqual(
+            utf8Bytes("mnemonic words"),
+        );
     });
 
     it("propagates decryption errors", async () => {

@@ -148,10 +148,12 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
     public STUNServerIDs: string[] = [];
     public TURNServerIDs: string[] = [];
     public SignalingServerID = ONLINE_SERVICES_SELECTION_ID;
+    public RemoteSyncPublicKey = "";
 
     constructor(
-        deviceName = "",
-        syncID = "",
+        deviceName: string,
+        syncID: string,
+        remoteSyncPublicKey: string,
         linkedAtTimestamp = Date.now(),
         autoConnect = true,
         syncTimeout = false,
@@ -163,6 +165,7 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
         this.ID = ulid();
         this.Name = deviceName;
         this.SyncID = syncID;
+        this.RemoteSyncPublicKey = remoteSyncPublicKey;
         this.LinkedAtTimestamp = linkedAtTimestamp;
         this.AutoConnect = autoConnect;
         this.SyncTimeout = syncTimeout;
@@ -249,6 +252,8 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
     public STUNServers: STUNServerConfiguration[] = [];
     public TURNServers: TURNServerConfiguration[] = [];
     public SignalingServers: SignalingServerConfiguration[] = [];
+    public SyncSigningPublicKey = "";
+    public SyncSigningPrivateKey = "";
 
     public static fromGeneric(rawOnlineServices: VaultUtilTypes.LinkedDevices) {
         // TODO: Remove this
@@ -258,16 +263,27 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
         );
 
         newInstance.Devices = rawOnlineServices.Devices.map((ld) =>
-            Object.assign(new LinkedDevice(), ld),
+            LinkedDevices.fromGenericDevice(ld),
         );
 
         return newInstance;
+    }
+
+    public static fromGenericDevice(
+        rawDevice: VaultUtilTypes.LinkedDevice,
+    ): LinkedDevice {
+        return Object.assign(
+            Object.create(LinkedDevice.prototype) as LinkedDevice,
+            { RemoteSyncPublicKey: "" },
+            rawDevice,
+        );
     }
 
     public static addLinkedDevice(
         instance: LinkedDevices,
         deviceName: string,
         syncID: string,
+        remoteSyncPublicKey: string,
         stunServerIDs: string[] = [],
         turnServerIDs: string[] = [],
         signalingServerID: string = ONLINE_SERVICES_SELECTION_ID,
@@ -275,20 +291,21 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
         autoConnect?: boolean,
         syncTimeout?: boolean,
         syncTimeoutPeriod?: number,
-    ): void {
-        instance.Devices.push(
-            new LinkedDevice(
-                deviceName,
-                syncID,
-                linkedAtTimestamp,
-                autoConnect,
-                syncTimeout,
-                syncTimeoutPeriod,
-                stunServerIDs,
-                turnServerIDs,
-                signalingServerID ?? ONLINE_SERVICES_SELECTION_ID,
-            ),
+    ): LinkedDevice {
+        const device = new LinkedDevice(
+            deviceName,
+            syncID,
+            remoteSyncPublicKey,
+            linkedAtTimestamp,
+            autoConnect,
+            syncTimeout,
+            syncTimeoutPeriod,
+            stunServerIDs,
+            turnServerIDs,
+            signalingServerID ?? ONLINE_SERVICES_SELECTION_ID,
         );
+        instance.Devices.push(device);
+        return device;
     }
 
     public static removeLinkedDevice(
@@ -781,6 +798,7 @@ export const packageForLinking = (
     stunServerIDs: string[],
     turnServerIDs: string[],
     signalingServerID: string,
+    localSyncPublicKey: string,
 ): Vault => {
     // Create a copy of the vault so we don't modify the original
     const vaultCopy = Object.assign(new Vault(), instance);
@@ -813,6 +831,7 @@ export const packageForLinking = (
         vaultCopy.LinkedDevices,
         deviceName,
         syncID,
+        localSyncPublicKey,
         stunServerIDs,
         turnServerIDs,
         signalingServerID,

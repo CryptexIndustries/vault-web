@@ -36,6 +36,7 @@ import {
     NewVaultFormSchemaType,
     VaultEncryptionConfigurationsFormElementType,
 } from "./form-schemas";
+import { ensureSyncSigningKeypair } from "./sync-signing";
 import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
 import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
@@ -159,6 +160,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         vaultMetadata.LastUsed = undefined;
 
         const freshVault = new Vault(seedVault, seedCount);
+        await ensureSyncSigningKeypair(freshVault.LinkedDevices);
         const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
 
         const secondFactorSource: SecondFactorSource =
@@ -676,6 +678,13 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         );
 
         vaultObject.upgrade();
+
+        const generatedSyncKeys = await ensureSyncSigningKeypair(
+            vaultObject.LinkedDevices,
+        );
+        if (generatedSyncKeys) {
+            blobUpgradeResult.requiresSave = true;
+        }
 
         if (blobUpgradeResult.requiresSave && this.DBIndex != null) {
             await this.save(vaultObject, dek);

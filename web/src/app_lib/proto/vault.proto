@@ -191,6 +191,10 @@ message LinkedDevices {
     repeated STUNServerConfiguration STUNServers = 6;
     repeated TURNServerConfiguration TURNServers = 7;
     repeated SignalingServerConfiguration SignalingServers = 8;
+
+    /** ML-DSA-65 keypair for signing sync envelopes (one per vault installation). */
+    string SyncSigningPublicKey = 9;
+    string SyncSigningPrivateKey = 10;
 }
 
 message LinkedDevice {
@@ -225,6 +229,9 @@ message LinkedDevice {
       * @default "OnlineServices" - The Cryptex Vault Online Service Signaling server will be used.
       */
     string SignalingServerID = 11;
+
+    /** Remote peer sync-signing public key, exchanged during linking. */
+    string RemoteSyncPublicKey = 13;
 }
 //#endregion LinkedDevices
 
@@ -293,6 +300,9 @@ message SynchronizationEnvelope {
     VaultItemSynchronizationMessageCommand Command = 2;
     
     bytes Payload = 3;
+
+    /** ECDSA P-256 (SHA-256) signature over encoded ID + Command + Payload. */
+    bytes Signature = 4;
 }
 
 message SyncHelloMessage {
@@ -319,6 +329,9 @@ message LinkingPackageBlob {
     repeated STUNServerConfiguration STUNServers = 3;
     repeated TURNServerConfiguration TURNServers = 4;
     SignalingServerConfiguration SignalingServer = 5;
+
+    /** Sender vault installation sync-signing public key. */
+    string SyncSigningPublicKey = 6;
 }
 
 message LinkingPackage {

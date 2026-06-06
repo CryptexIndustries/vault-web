@@ -196,6 +196,9 @@ export interface LinkedDevices {
     STUNServers: STUNServerConfiguration[];
     TURNServers: TURNServerConfiguration[];
     SignalingServers: SignalingServerConfiguration[];
+    /** ML-DSA-65 keypair for signing sync envelopes (one per vault installation). */
+    SyncSigningPublicKey: string;
+    SyncSigningPrivateKey: string;
 }
 
 export interface LinkedDevice {
@@ -227,6 +230,8 @@ export interface LinkedDevice {
      * @default "OnlineServices" - The Cryptex Vault Online Service Signaling server will be used.
      */
     SignalingServerID: string;
+    /** Remote peer sync-signing public key, exchanged during linking. */
+    RemoteSyncPublicKey: string;
 }
 
 /** #region Credentials */
@@ -280,6 +285,8 @@ export interface SynchronizationEnvelope {
     ID: string;
     Command: VaultItemSynchronizationMessageCommand;
     Payload: Uint8Array;
+    /** ECDSA P-256 (SHA-256) signature over encoded ID + Command + Payload. */
+    Signature: Uint8Array;
 }
 
 export interface SyncHelloMessage {
@@ -305,6 +312,8 @@ export interface LinkingPackageBlob {
     STUNServers: STUNServerConfiguration[];
     TURNServers: TURNServerConfiguration[];
     SignalingServer: SignalingServerConfiguration | undefined;
+    /** Sender vault installation sync-signing public key. */
+    SyncSigningPublicKey: string;
 }
 
 export interface LinkingPackage {
@@ -1907,6 +1916,8 @@ function createBaseLinkedDevices(): LinkedDevices {
         STUNServers: [],
         TURNServers: [],
         SignalingServers: [],
+        SyncSigningPublicKey: "",
+        SyncSigningPrivateKey: "",
     };
 }
 
@@ -1929,6 +1940,12 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
                 v!,
                 writer.uint32(66).fork(),
             ).join();
+        }
+        if (message.SyncSigningPublicKey !== "") {
+            writer.uint32(74).string(message.SyncSigningPublicKey);
+        }
+        if (message.SyncSigningPrivateKey !== "") {
+            writer.uint32(82).string(message.SyncSigningPrivateKey);
         }
         return writer;
     },
@@ -1984,6 +2001,22 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
                     );
                     continue;
                 }
+                case 9: {
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    message.SyncSigningPublicKey = reader.string();
+                    continue;
+                }
+                case 10: {
+                    if (tag !== 82) {
+                        break;
+                    }
+
+                    message.SyncSigningPrivateKey = reader.string();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2016,6 +2049,8 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
             object.SignalingServers?.map((e) =>
                 SignalingServerConfiguration.fromPartial(e),
             ) || [];
+        message.SyncSigningPublicKey = object.SyncSigningPublicKey ?? "";
+        message.SyncSigningPrivateKey = object.SyncSigningPrivateKey ?? "";
         return message;
     },
 };
@@ -2032,6 +2067,7 @@ function createBaseLinkedDevice(): LinkedDevice {
         STUNServerIDs: [],
         TURNServerIDs: [],
         SignalingServerID: "",
+        RemoteSyncPublicKey: "",
     };
 }
 
@@ -2072,6 +2108,9 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
         }
         if (message.SignalingServerID !== "") {
             writer.uint32(90).string(message.SignalingServerID);
+        }
+        if (message.RemoteSyncPublicKey !== "") {
+            writer.uint32(106).string(message.RemoteSyncPublicKey);
         }
         return writer;
     },
@@ -2172,6 +2211,14 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
                     message.SignalingServerID = reader.string();
                     continue;
                 }
+                case 13: {
+                    if (tag !== 106) {
+                        break;
+                    }
+
+                    message.RemoteSyncPublicKey = reader.string();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2201,6 +2248,7 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
         message.STUNServerIDs = object.STUNServerIDs?.map((e) => e) || [];
         message.TURNServerIDs = object.TURNServerIDs?.map((e) => e) || [];
         message.SignalingServerID = object.SignalingServerID ?? "";
+        message.RemoteSyncPublicKey = object.RemoteSyncPublicKey ?? "";
         return message;
     },
 };
@@ -2722,7 +2770,12 @@ export const TOTP: MessageFns<TOTP> = {
 };
 
 function createBaseSynchronizationEnvelope(): SynchronizationEnvelope {
-    return { ID: "", Command: 0, Payload: new Uint8Array(0) };
+    return {
+        ID: "",
+        Command: 0,
+        Payload: new Uint8Array(0),
+        Signature: new Uint8Array(0),
+    };
 }
 
 export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
@@ -2738,6 +2791,9 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
         }
         if (message.Payload.length !== 0) {
             writer.uint32(26).bytes(message.Payload);
+        }
+        if (message.Signature.length !== 0) {
+            writer.uint32(34).bytes(message.Signature);
         }
         return writer;
     },
@@ -2777,6 +2833,14 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
                     message.Payload = reader.bytes();
                     continue;
                 }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Signature = reader.bytes();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2798,6 +2862,7 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
         message.ID = object.ID ?? "";
         message.Command = object.Command ?? 0;
         message.Payload = object.Payload ?? new Uint8Array(0);
+        message.Signature = object.Signature ?? new Uint8Array(0);
         return message;
     },
 };
@@ -3048,6 +3113,7 @@ function createBaseLinkingPackageBlob(): LinkingPackageBlob {
         STUNServers: [],
         TURNServers: [],
         SignalingServer: undefined,
+        SyncSigningPublicKey: "",
     };
 }
 
@@ -3076,6 +3142,9 @@ export const LinkingPackageBlob: MessageFns<LinkingPackageBlob> = {
                 message.SignalingServer,
                 writer.uint32(42).fork(),
             ).join();
+        }
+        if (message.SyncSigningPublicKey !== "") {
+            writer.uint32(50).string(message.SyncSigningPublicKey);
         }
         return writer;
     },
@@ -3142,6 +3211,14 @@ export const LinkingPackageBlob: MessageFns<LinkingPackageBlob> = {
                         );
                     continue;
                 }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.SyncSigningPublicKey = reader.string();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -3181,6 +3258,7 @@ export const LinkingPackageBlob: MessageFns<LinkingPackageBlob> = {
                       object.SignalingServer,
                   )
                 : undefined;
+        message.SyncSigningPublicKey = object.SyncSigningPublicKey ?? "";
         return message;
     },
 };

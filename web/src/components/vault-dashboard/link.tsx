@@ -30,7 +30,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Group,
-    LinkedDevice,
     LinkedDevices,
     OnlineServices,
     SignalingServerConfiguration,
@@ -54,6 +53,11 @@ import {
     privateKeyJwkToString,
     publicKeyJwkToString,
 } from "@/app_lib/vault-utils/passkey";
+import {
+    encodeLinkSyncKeyMessage,
+    ensureSyncSigningKeypair,
+    parseLinkSyncKeyMessage,
+} from "@/app_lib/vault-utils/sync-signing";
 import * as Synchronization from "@/app_lib/synchronization";
 import {
     constructLinkPresenceChannelName,
@@ -86,6 +90,12 @@ import {
 } from "@/utils/logging";
 import { trpcReact } from "@/utils/trpc";
 import { cn } from "@/lib/utils";
+import {
+    createChunkedQRCodeFrames,
+    DEFAULT_CHUNKED_QR_CHARS,
+    DEFAULT_CHUNKED_QR_CYCLE_MS,
+    type ChunkedQRCodeProgress,
+} from "@/lib/chunked-qr";
 import { TRPCClientError } from "@trpc/client";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import {
@@ -124,6 +134,23 @@ type ProgressLogType = {
 };
 
 const DynamicQRCode = dynamic(() => import("react-qr-code"), { ssr: false });
+const MISSING_SYNC_SIGNING_KEY_ERROR =
+    "Vault sync signing keys are missing. Lock and unlock the vault, then try linking again.";
+
+const errorMessage = (error: unknown, fallback: string): string =>
+    error instanceof Error && error.message ? error.message : fallback;
+
+const requireSyncSigningPublicKey = (
+    linkedDevices: VaultUtilTypes.LinkedDevices,
+): string => {
+    if (
+        !linkedDevices.SyncSigningPublicKey ||
+        !linkedDevices.SyncSigningPrivateKey
+    ) {
+        throw new Error(MISSING_SYNC_SIGNING_KEY_ERROR);
+    }
+    return linkedDevices.SyncSigningPublicKey;
+};
 
 const linkMethodCopy: Record<
     LinkMethod,
@@ -147,8 +174,52 @@ const linkMethodCopy: Record<
     },
 };
 
-function LinkingQRCode({ value }: { value: string }) {
+function LinkingQRCode({
+    value,
+    cycleMs = DEFAULT_CHUNKED_QR_CYCLE_MS,
+    chunkChars = DEFAULT_CHUNKED_QR_CHARS,
+}: {
+    value: string;
+    cycleMs?: number;
+    chunkChars?: number;
+}) {
     const [copied, setCopied] = useState(false);
+    const [frames, setFrames] = useState<string[]>([]);
+    const [activeFrameIndex, setActiveFrameIndex] = useState(0);
+    const [frameError, setFrameError] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+        setFrameError("");
+        setFrames(value.length <= chunkChars ? [value] : []);
+        setActiveFrameIndex(0);
+
+        void createChunkedQRCodeFrames(value, chunkChars)
+            .then((nextFrames) => {
+                if (cancelled) return;
+                setFrames(nextFrames);
+                setActiveFrameIndex(0);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setFrameError("Failed to prepare QR code chunks.");
+                setFrames([]);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [chunkChars, value]);
+
+    useEffect(() => {
+        if (frames.length <= 1) return;
+
+        const interval = window.setInterval(() => {
+            setActiveFrameIndex((index) => (index + 1) % frames.length);
+        }, cycleMs);
+
+        return () => window.clearInterval(interval);
+    }, [cycleMs, frames.length]);
 
     const copy = async () => {
         try {
@@ -161,6 +232,8 @@ function LinkingQRCode({ value }: { value: string }) {
         }
     };
 
+    const frameValue = frames[activeFrameIndex] ?? "";
+
     return (
         <button
             type="button"
@@ -168,12 +241,64 @@ function LinkingQRCode({ value }: { value: string }) {
             className="group inline-flex flex-col items-center gap-2 rounded-xl border bg-background p-3 text-center transition hover:bg-muted/50"
         >
             <span className="rounded-lg bg-white p-3">
-                <DynamicQRCode value={value} size={220} />
+                {frameValue ? (
+                    <DynamicQRCode value={frameValue} size={220} />
+                ) : (
+                    <span className="flex h-[220px] w-[220px] items-center justify-center text-xs text-muted-foreground">
+                        {frameError || "Preparing QR chunks..."}
+                    </span>
+                )}
             </span>
+            {frames.length > 1 ? (
+                <span className="text-xs text-muted-foreground">
+                    Part {activeFrameIndex + 1} of {frames.length}
+                </span>
+            ) : null}
             <span className="text-xs text-muted-foreground">
                 {copied ? "Copied" : "Click QR to copy payload"}
             </span>
         </button>
+    );
+}
+
+function PqcKeyExchangeStep({
+    status,
+}: {
+    status: LinkingProcessState;
+}) {
+    const stateCopy: Record<LinkingProcessState, string> = {
+        [LinkingProcessState.Pending]: "Waiting for private channel",
+        [LinkingProcessState.Active]: "Sharing post-quantum sync keys",
+        [LinkingProcessState.Completed]: "Quantum-safe sync keys ready",
+        [LinkingProcessState.Error]: "Quantum-safe sync setup failed",
+        [LinkingProcessState.Warning]: "Quantum-safe sync setup warning",
+    };
+
+    const icon =
+        status === LinkingProcessState.Completed ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        ) : status === LinkingProcessState.Active ? (
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        ) : status === LinkingProcessState.Error ? (
+            <AlertCircle className="h-4 w-4 text-destructive" />
+        ) : (
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+        );
+
+    return (
+        <div className="flex gap-3 rounded-xl border p-4">
+            <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-muted">
+                {icon}
+            </span>
+            <span className="min-w-0">
+                <span className="block text-sm font-medium">
+                    Quantum-safe sync setup
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                    {stateCopy[status]}
+                </span>
+            </span>
+        </div>
     );
 }
 
@@ -368,6 +493,8 @@ export function SendLinkRequestDialog({
     const [isOperationInProgress, setIsOperationInProgress] = useState(false);
     const [readyForOtherDevice, setReadyForOtherDevice] = useState(false);
     const [progressLog, setProgressLog] = useState<ProgressLogType[]>([]);
+    const [syncKeyExchangeStatus, setSyncKeyExchangeStatus] =
+        useState<LinkingProcessState>(LinkingProcessState.Pending);
     const [mnemonic, setMnemonic] = useState("");
     const [linkingPackageBase64, setLinkingPackageBase64] = useState("");
     const [linkingPackageBinary, setLinkingPackageBinary] =
@@ -422,6 +549,7 @@ export function SendLinkRequestDialog({
         setReadyForOtherDevice(false);
         setProgressLog([]);
         progressLogRef.current = [];
+        setSyncKeyExchangeStatus(LinkingProcessState.Pending);
         setMnemonic("");
         setLinkingPackageBase64("");
         setLinkingPackageBinary(null);
@@ -554,6 +682,9 @@ export function SendLinkRequestDialog({
 
         try {
             addToProgressLog("Encrypting link package...", "info");
+            const syncSigningPublicKey = requireSyncSigningPublicKey(
+                unlockedVault.LinkedDevices,
+            );
 
             const { linkingPackage, mnemonic } =
                 await LinkingPackage.createNewPackage({
@@ -562,6 +693,7 @@ export function SendLinkRequestDialog({
                     TURNServers: turnServers,
                     SignalingServer: signalingServer,
                     OnlineServices: linkedPeerOnlineServices ?? undefined,
+                    SyncSigningPublicKey: syncSigningPublicKey,
                 });
 
             setMnemonic(mnemonic);
@@ -573,7 +705,10 @@ export function SendLinkRequestDialog({
                 linkedPeerOnlineServices,
             };
         } catch (error) {
-            addToProgressLog("Failed to create link package.", "error");
+            addToProgressLog(
+                errorMessage(error, "Failed to create link package."),
+                "error",
+            );
             throw error;
         }
     };
@@ -658,21 +793,83 @@ export function SendLinkRequestDialog({
             }
         };
 
+        const remoteSyncPublicKeyRef: { current: string | null } = {
+            current: null,
+        };
+
+        webRTCDataChannel.onmessage = (event) => {
+            const remoteKey = parseLinkSyncKeyMessage(event.data);
+            if (remoteKey) {
+                remoteSyncPublicKeyRef.current = remoteKey;
+            }
+        };
+
         webRTCDataChannel.onopen = async () => {
             addToProgressLog("Sending vault to other device...", "info");
 
             if (!vaultMetadata || !unlockedVault) {
                 addToProgressLog("Vault metadata is unavailable.", "error");
+                setSyncKeyExchangeStatus(LinkingProcessState.Error);
                 stopLinking();
                 return;
             }
 
-            const vaultSecret = await getVaultDEKFromSession();
+            const vaultSecret = getVaultDEKFromSession();
             if (vaultSecret.isErr()) {
                 addToProgressLog(MISSING_VAULT_SECRET_ERROR, "error");
                 setIsOperationInProgress(false);
+                setSyncKeyExchangeStatus(LinkingProcessState.Error);
                 return;
             }
+
+            let syncSigningPublicKey: string;
+            try {
+                syncSigningPublicKey = requireSyncSigningPublicKey(
+                    unlockedVault.LinkedDevices,
+                );
+            } catch (error) {
+                const message = errorMessage(
+                    error,
+                    MISSING_SYNC_SIGNING_KEY_ERROR,
+                );
+                addToProgressLog(message, "error");
+                toast.error(message);
+                setSyncKeyExchangeStatus(LinkingProcessState.Error);
+                stopLinking();
+                return;
+            }
+
+            setSyncKeyExchangeStatus(LinkingProcessState.Active);
+            addToProgressLog(
+                "Exchanging post-quantum sync verification keys...",
+                "info",
+            );
+            webRTCDataChannel.send(
+                new Uint8Array(encodeLinkSyncKeyMessage(
+                    syncSigningPublicKey,
+                )),
+            );
+
+            const waitStartedAt = Date.now();
+            while (
+                !remoteSyncPublicKeyRef.current &&
+                Date.now() - waitStartedAt < 15_000
+            ) {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+
+            const remoteSyncPublicKey = remoteSyncPublicKeyRef.current;
+            if (!remoteSyncPublicKey) {
+                addToProgressLog(
+                    "Timed out waiting for remote sync signing key.",
+                    "error",
+                );
+                setSyncKeyExchangeStatus(LinkingProcessState.Error);
+                stopLinking();
+                return;
+            }
+            setSyncKeyExchangeStatus(LinkingProcessState.Completed);
+            addToProgressLog("Quantum-safe sync keys exchanged.");
 
             addToProgressLog("Packaging vault data...", "info");
             const exportedVault = packageForLinking(
@@ -681,6 +878,7 @@ export function SendLinkRequestDialog({
                 stunServers.map((server) => server.ID),
                 turnServers.map((server) => server.ID),
                 signalingServer?.ID ?? ONLINE_SERVICES_SELECTION_ID,
+                syncSigningPublicKey,
             );
 
             const serializedVault = vaultMetadata.exportForLinking(exportedVault);
@@ -692,6 +890,7 @@ export function SendLinkRequestDialog({
                 unlockedVault.LinkedDevices,
                 cleanDeviceName,
                 syncID,
+                remoteSyncPublicKey,
                 stunServers.map((server) => server.ID),
                 turnServers.map((server) => server.ID),
                 signalingServer?.ID,
@@ -706,9 +905,19 @@ export function SendLinkRequestDialog({
 
         webRTCDataChannel.onerror = () => {
             addToProgressLog("Failed to send vault data.", "error");
+            setSyncKeyExchangeStatus((current) =>
+                current === LinkingProcessState.Completed
+                    ? current
+                    : LinkingProcessState.Error,
+            );
             stopLinking();
         };
         webRTCDataChannel.onclose = () => {
+            setSyncKeyExchangeStatus((current) =>
+                current === LinkingProcessState.Completed
+                    ? current
+                    : LinkingProcessState.Error,
+            );
             webRTConnection.close();
             setIsOperationInProgress(false);
         };
@@ -823,6 +1032,7 @@ export function SendLinkRequestDialog({
         setIsOperationInProgress(true);
         setProgressLog([]);
         progressLogRef.current = [];
+        setSyncKeyExchangeStatus(LinkingProcessState.Pending);
 
         try {
             const connectionPackage = await prepareConnectionPackage(
@@ -833,10 +1043,9 @@ export function SendLinkRequestDialog({
                 signalingServer,
             );
             const packageBinary = connectionPackage.linkingPackage.toBinary();
+            const packageBase64 = connectionPackage.linkingPackage.toBase64();
             setLinkingPackageBinary(packageBinary);
-            setLinkingPackageBase64(
-                connectionPackage.linkingPackage.toBase64(),
-            );
+            setLinkingPackageBase64(packageBase64);
 
             if (selectedLinkMethodRef.current === "file") {
                 downloadLinkingPackage(packageBinary, cleanDeviceName);
@@ -868,11 +1077,10 @@ export function SendLinkRequestDialog({
                 error,
                 },
             );
-            addToProgressLog(
-                "Linking failed. Check console for details.",
-                "error",
-            );
-            toast.error("Failed to link device.");
+            const message = errorMessage(error, "Failed to link device.");
+            setFormError(message);
+            addToProgressLog(message, "error");
+            toast.error(message);
             setIsOperationInProgress(false);
         }
     };
@@ -1143,6 +1351,9 @@ export function SendLinkRequestDialog({
                         </div>
 
                         <div className="space-y-4">
+                            <PqcKeyExchangeStep
+                                status={syncKeyExchangeStatus}
+                            />
                             <div className="rounded-xl border p-4">
                                 <p className="text-sm font-medium">Mnemonic</p>
                                 {mnemonic ? (
@@ -1239,6 +1450,11 @@ const receiveLinkStepCopy: Record<
         title: "Private channel",
         description: "Building encrypted peer-to-peer connection.",
     },
+    [LinkingProcessStep.SyncKeyExchange]: {
+        title: "Quantum-safe sync setup",
+        description:
+            "Sharing post-quantum keys used to verify future sync messages.",
+    },
     [LinkingProcessStep.SignalingCleanup]: {
         title: "Drop relay",
         description: "Relay no longer needed after direct connection.",
@@ -1274,7 +1490,7 @@ const cloneCredential = (credential: VaultUtilTypes.Credential) => {
 };
 
 const cloneLinkedDevice = (device: VaultUtilTypes.LinkedDevice) =>
-    Object.assign(new LinkedDevice(), device);
+    LinkedDevices.fromGenericDevice(device);
 
 const cloneSTUNServerConfig = (server: VaultUtilTypes.STUNServerConfiguration) =>
     Object.assign(new STUNServerConfiguration(), server);
@@ -1364,6 +1580,8 @@ export function ReceiveLinkRequestDialog({
     const [qrCodeData, setQRCodeData] = useState("");
     const [linkFile, setLinkFile] = useState<File | null>(null);
     const [isScanning, setIsScanning] = useState(false);
+    const [qrChunkProgress, setQrChunkProgress] =
+        useState<ChunkedQRCodeProgress | null>(null);
     const [cameraError, setCameraError] = useState("");
     const [formError, setFormError] = useState("");
     const [steps, setSteps] = useState<ReceiveLinkStep[]>(
@@ -1404,6 +1622,7 @@ export function ReceiveLinkRequestDialog({
         setQRCodeData("");
         setLinkFile(null);
         setIsScanning(false);
+        setQrChunkProgress(null);
         setCameraError("");
         setFormError("");
         setSteps(createReceiveLinkSteps());
@@ -1472,12 +1691,13 @@ export function ReceiveLinkRequestDialog({
     const mergeReceivedVault = async (
         receivedVaultData: Uint8Array,
         onlineServicesOverwrite: OnlineServices | null,
+        senderSyncPublicKey: string,
     ) => {
         if (!vaultMetadata) {
             throw new Error("Current vault metadata is unavailable.");
         }
 
-        const vaultSecret = await getVaultDEKFromSession();
+        const vaultSecret = getVaultDEKFromSession();
         if (vaultSecret.isErr()) {
             throw new Error(MISSING_VAULT_SECRET_ERROR);
         }
@@ -1566,11 +1786,17 @@ export function ReceiveLinkRequestDialog({
                 continue;
             }
 
-            mergedVault.LinkedDevices.Devices.push(cloneLinkedDevice(device));
+            const clonedDevice = cloneLinkedDevice(device);
+            if (senderSyncPublicKey) {
+                clonedDevice.RemoteSyncPublicKey = senderSyncPublicKey;
+            }
+            mergedVault.LinkedDevices.Devices.push(clonedDevice);
             existingDeviceIDs.add(device.ID);
             existingSyncIDs.add(device.SyncID);
             devicesAdded++;
         }
+
+        await ensureSyncSigningKeypair(mergedVault.LinkedDevices);
 
         await vaultMetadata.save(mergedVault, vaultSecret.value);
         await setUnlockedVault(mergedVault);
@@ -1673,6 +1899,11 @@ export function ReceiveLinkRequestDialog({
                 linkingBlob.SignalingServer == null ||
                 !linkingBlob.STUNServers.length ||
                 !linkingBlob.TURNServers.length;
+            if (!linkingBlob.SyncSigningPublicKey) {
+                throw new Error(
+                    "Link package is missing sync signing material. Create a new link package and try again.",
+                );
+            }
             receiveUsesOnlineServices = usesOnlineServices;
             receivedOnlineServicesDeviceId =
                 linkingBlob.OnlineServices?.DeviceId ?? null;
@@ -1718,9 +1949,23 @@ export function ReceiveLinkRequestDialog({
 
             addReceiveLog("Link package unlocked.", "done");
 
+            const generatedSyncKeys = await ensureSyncSigningKeypair(
+                unlockedVault.LinkedDevices,
+            );
+            if (generatedSyncKeys && vaultMetadata) {
+                const vaultSecret = getVaultDEKFromSession();
+                if (vaultSecret.isOk()) {
+                    await vaultMetadata.save(
+                        unlockedVault,
+                        vaultSecret.value,
+                    );
+                }
+            }
+
             controllerRef.current = new LinkingProcessController(
                 linkingBlob,
                 usesOnlineServices,
+                unlockedVault.LinkedDevices.SyncSigningPublicKey,
                 async (status) => {
                     updateStep(status);
 
@@ -1732,6 +1977,7 @@ export function ReceiveLinkRequestDialog({
                         await mergeReceivedVault(
                             status.VaultBinaryData,
                             onlineServicesOverwrite,
+                            linkingBlob.SyncSigningPublicKey,
                         );
                     }
 
@@ -1838,13 +2084,16 @@ export function ReceiveLinkRequestDialog({
                                                     setQRCodeData(
                                                         result.getText(),
                                                     );
+                                                    setQrChunkProgress(null);
                                                     setIsScanning(false);
                                                 }
                                             }}
+                                            onChunkProgress={setQrChunkProgress}
                                             onError={(error) => {
                                                 uiLog.warn("QR scanner error", {
                                                     error,
                                                 });
+                                                setQrChunkProgress(null);
                                                 setCameraError(
                                                     "Camera unavailable. Paste QR data instead.",
                                                 );
@@ -1870,6 +2119,7 @@ export function ReceiveLinkRequestDialog({
                                                 onClick={() => {
                                                     setCameraError("");
                                                     setQRCodeData("");
+                                                    setQrChunkProgress(null);
                                                     setIsScanning(true);
                                                 }}
                                             >
@@ -1879,6 +2129,13 @@ export function ReceiveLinkRequestDialog({
                                         </div>
                                     )}
                                 </div>
+                                {qrChunkProgress ? (
+                                    <p className="text-sm text-muted-foreground">
+                                        Scanned {qrChunkProgress.received} of{" "}
+                                        {qrChunkProgress.total} QR parts. Keep
+                                        camera pointed at sender.
+                                    </p>
+                                ) : null}
                                 <Textarea
                                     value={qrCodeData}
                                     onChange={(event) =>
@@ -1892,7 +2149,10 @@ export function ReceiveLinkRequestDialog({
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => setQRCodeData("")}
+                                        onClick={() => {
+                                            setQRCodeData("");
+                                            setQrChunkProgress(null);
+                                        }}
                                     >
                                         <X className="mr-2 h-4 w-4" />
                                         Clear QR data

@@ -9,6 +9,17 @@ import {
     it,
     jest,
 } from "@jest/globals";
+import { TextDecoder, TextEncoder } from "util";
+
+Object.defineProperty(globalThis, "TextEncoder", {
+    value: TextEncoder,
+    writable: true,
+});
+
+Object.defineProperty(globalThis, "TextDecoder", {
+    value: TextDecoder,
+    writable: true,
+});
 
 const initPusherInstanceMock = jest.fn();
 const initWebRTCMock = jest.fn();
@@ -46,6 +57,9 @@ import {
     LinkingProcessState,
     LinkingProcessStep,
 } from "../../src/app_lib/vault-utils/linking";
+import {
+    encodeLinkSyncKeyMessage,
+} from "../../src/app_lib/vault-utils/sync-signing";
 import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
 
 type StateChangeHandler = (state: {
@@ -114,11 +128,13 @@ function buildController() {
         TURNServers: [],
         OnlineServices: undefined,
         SignalingServer: undefined,
+        SyncSigningPublicKey: "remote-sync-public-key",
     });
 
     const controller = new LinkingProcessController(
         blob,
         false,
+        "local-sync-public-key",
         onStatusChange,
     );
 
@@ -375,6 +391,42 @@ describe("LinkingProcessController", () => {
         expect(vaultDelivered).toBe(true);
         expect(peerConnection.close).toHaveBeenCalled();
         expect(signalingServer.disconnect).toHaveBeenCalled();
+    });
+
+    it("ondatachannel exchanges PQC sync public keys before vault transfer", async () => {
+        const {
+            peerConnection,
+            onStatusChange,
+        } = buildController();
+        const recvChannel: {
+            onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
+            send: jest.Mock;
+        } = {
+            send: jest.fn(),
+        };
+        peerConnection.ondatachannel?.({ channel: recvChannel });
+
+        const keyMessage = encodeLinkSyncKeyMessage("remote-sync-public-key");
+        await recvChannel.onmessage?.({ data: keyMessage.buffer });
+
+        expect(recvChannel.send).toHaveBeenCalledTimes(1);
+        const statuses = onStatusChange.mock.calls.map(
+            (call) => call[0] as { Step: number; State: number },
+        );
+        expect(
+            statuses.some(
+                (status) =>
+                    status.Step === LinkingProcessStep.SyncKeyExchange &&
+                    status.State === LinkingProcessState.Active,
+            ),
+        ).toBe(true);
+        expect(
+            statuses.some(
+                (status) =>
+                    status.Step === LinkingProcessStep.SyncKeyExchange &&
+                    status.State === LinkingProcessState.Completed,
+            ),
+        ).toBe(true);
     });
 
     it("ondatachannel onmessage swallows onStatusChange throw and emits VaultSave Error", async () => {

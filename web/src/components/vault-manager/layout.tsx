@@ -32,6 +32,7 @@ import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
 import * as Vault from "../../app_lib/vault-utils/vault";
+import { clearDeviceSecondFactor } from "@/app_lib/vault-utils/vault-key-store";
 
 type OperationStatus = {
     status: "idle" | "loading" | "success" | "error";
@@ -188,6 +189,7 @@ const VaultManager: React.FC<{
 
     const deleteVaultCallback = async (dbIndex: number) => {
         await Storage.db.vaults.delete(dbIndex);
+        await clearDeviceSecondFactor(dbIndex);
 
         const newVaultCount = await Storage.db.vaults.count();
 

@@ -11,11 +11,34 @@
 function defineNextConfig(config) {
     return config;
 }
+
+const contentSecurityPolicy = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' ws: wss: https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+].join("; ");
+
 const headers = () => {
     return [
         {
             source: "/(.*)",
             headers: [
+                {
+                    key: "Content-Security-Policy",
+                    value: contentSecurityPolicy,
+                },
+                {
+                    key: "Strict-Transport-Security",
+                    value: "max-age=63072000; includeSubDomains; preload",
+                },
                 {
                     key: "X-DNS-Prefetch-Control",
                     value: "on",

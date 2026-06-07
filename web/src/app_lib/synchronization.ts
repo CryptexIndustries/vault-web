@@ -129,7 +129,7 @@ const onlineServicesPusherInstance = (syncID: string): Pusher => {
             customHandler: async (req, next) => {
                 try {
                     const data =
-                        await trpc.v1.device.signalingAuthChannel.query({
+                        await trpc.v1.device.signalingAuthChannel.mutate({
                             channel_name: req.channelName,
                             socket_id: req.socketId,
                         });

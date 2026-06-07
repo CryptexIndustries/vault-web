@@ -548,7 +548,7 @@ export const WhyWhatHowSection = () => {
                                                     <a
                                                         href={step.url}
                                                         target="_blank"
-                                                        rel="noreferrer"
+                                                        rel="noopener noreferrer"
                                                     >
                                                         <LinkIcon className="text-primary ml-2 h-5 w-5" />
                                                     </a>

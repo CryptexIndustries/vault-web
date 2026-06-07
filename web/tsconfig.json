@@ -37,7 +37,8 @@
       "@cryptex-industries/shared-ui/*": [
         "../packages/shared-ui/*"
       ]
-    }
+    },
+    "moduleResolution": "bundler"
   },
   "include": [
     "next-env.d.ts",

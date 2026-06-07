@@ -19,6 +19,7 @@ type QRScannerResult = {
 
 type BarcodeScannerProps = {
     onUpdate?: (error: unknown, result?: QRScannerResult | null) => void;
+    onError?: (error: unknown) => void;
     onChunkProgress?: (progress: ChunkedQRCodeProgress | null) => void;
     [key: string]: unknown;
 };

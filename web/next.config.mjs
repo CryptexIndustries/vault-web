@@ -82,9 +82,6 @@ const nextConfig = {
     images: {
         domains: [],
     },
-    typescript: {
-        ignoreBuildErrors: true,
-    },
     headers,
     compiler: {
         removeConsole: rmConsoleFromBuild,

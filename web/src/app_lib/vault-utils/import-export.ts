@@ -14,8 +14,6 @@ export const vaultToJSON = (vaultInstance: Vault) => {
 
     const stringifiedData = JSON.stringify(sanitizedVault, null, 4);
 
-    console.debug("Deserialized vault: ", stringifiedData);
-
     // Trigger data download
     const blob = new Blob([stringifiedData], {
         type: "application/json",

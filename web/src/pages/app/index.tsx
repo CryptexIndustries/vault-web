@@ -44,8 +44,6 @@ const AppIndex: React.FC = () => {
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
 
-    console.debug("MAIN RERENDER", isVaultUnlocked);
-
     // Register the beforeunload event handler
     useEffect(() => {
         const onUnload = () => {

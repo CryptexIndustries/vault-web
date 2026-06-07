@@ -104,7 +104,6 @@ const VaultManager: React.FC<{
             ),
         );
 
-        console.debug("[VaultManager] Encrypted Vaults found:", encVaults);
         return encVaults;
     }, [_encryptedVaults]);
     const isLoading = encryptedVaults == null;

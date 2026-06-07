@@ -32,6 +32,7 @@ import {
     SelectValue,
 } from "./select";
 import { Textarea } from "./textarea";
+import { copySecretToClipboard } from "@/utils/clipboard";
 
 const passwordGeneratorSchema = z.object({
     type: z.enum(["random", "memorable"]),
@@ -192,9 +193,10 @@ function usePasswordGenerator(showToasts: boolean) {
 
     const copyToClipboard = useCallback(async () => {
         if (!generatedPassword) return;
-        await navigator.clipboard.writeText(generatedPassword);
-        notifySuccess("Password copied to clipboard!");
-    }, [generatedPassword, notifySuccess]);
+        await copySecretToClipboard(generatedPassword, {
+            showToast: showToasts,
+        });
+    }, [generatedPassword, showToasts]);
 
     useEffect(() => {
         generatePassword(watch());

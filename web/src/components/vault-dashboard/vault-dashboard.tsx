@@ -35,6 +35,7 @@ import {
     unlockedVaultWriteOnlyAtom,
     vaultCredentialsAtom,
 } from "@/utils/atoms";
+import { copySecretToClipboard } from "@/utils/clipboard";
 import {
     onlineServicesLog,
     signalingLog,
@@ -631,27 +632,18 @@ export function VaultDashboard() {
     }, []);
 
     const handleCopyUsername = useCallback((credential: VaultCredential) => {
-        navigator.clipboard.writeText(credential.Username);
-        toast.info("Copied username to clipboard.");
+        void copySecretToClipboard(credential.Username);
     }, []);
 
     const handleCopyPassword = useCallback((credential: VaultCredential) => {
-        navigator.clipboard.writeText(credential.Password);
-        toast.info("Copied password to clipboard.");
+        void copySecretToClipboard(credential.Password);
     }, []);
 
     const handleCopyTOTP = useCallback((credential: VaultCredential) => {
         if (!credential.TOTP) return;
         const data = calculateTOTP(credential.TOTP);
 
-        navigator.clipboard.writeText(data.code);
-        toast.info(
-            `Copied OTP to clipboard; ${data.timeRemaining} seconds left`,
-            {
-                duration: 3000,
-                id: "copy-otp",
-            },
-        );
+        void copySecretToClipboard(data.code, { toastId: "copy-otp" });
     }, []);
 
     const handleOpenCredentialUrl = useCallback(

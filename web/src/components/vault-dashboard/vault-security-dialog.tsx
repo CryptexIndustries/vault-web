@@ -39,6 +39,7 @@ import {
     choiceToSource,
 } from "@/components/vault-manager/second-factor-options";
 import { unlockedVaultMetadataAtom } from "@/utils/atoms";
+import { copySecretToClipboard } from "@/utils/clipboard";
 import { vaultLog } from "@/utils/logging";
 
 type Props = {
@@ -85,12 +86,7 @@ const SecretReveal: React.FC<{
     helper?: string;
 }> = ({ label, value, helper }) => {
     const copy = async () => {
-        try {
-            await navigator.clipboard.writeText(value);
-            toast.success(`${label} copied to clipboard.`);
-        } catch {
-            toast.error("Clipboard unavailable. Copy it manually.");
-        }
+        await copySecretToClipboard(value);
     };
 
     return (

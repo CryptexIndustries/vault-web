@@ -32,6 +32,7 @@ import {
 import { CustomFieldType } from "@/app_lib/proto/vault";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
+import { copySecretToClipboard } from "@/utils/clipboard";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 
 interface CredentialDetailProps {
@@ -200,9 +201,11 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
 
     const handleCopy = () => {
         if (totpCode === "------") return;
-        navigator.clipboard.writeText(totpCode);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+        void copySecretToClipboard(totpCode).then((copied) => {
+            if (!copied) return;
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        });
     };
 
     return (
@@ -309,9 +312,11 @@ export function CredentialDetail({
     const hiddenTagCount = Math.max(allTags.length - MAX_VISIBLE_TAGS, 0);
 
     const handleCopy = (field: string, value: string) => {
-        navigator.clipboard.writeText(value);
-        setCopiedField(field);
-        setTimeout(() => setCopiedField(null), 2000);
+        void copySecretToClipboard(value).then((copied) => {
+            if (!copied) return;
+            setCopiedField(field);
+            setTimeout(() => setCopiedField(null), 2000);
+        });
     };
 
     if (!credential) {

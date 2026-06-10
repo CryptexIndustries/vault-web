@@ -721,9 +721,10 @@ export function SendLinkRequestDialog({
         signalingServer: VaultUtilTypes.SignalingServerConfiguration | null,
         onlineServicesDeviceID: string | null,
     ) => {
-        const webRTConnection = Synchronization.initWebRTC(
+        const webRTConnection = await Synchronization.initWebRTC(
             stunServers,
             turnServers,
+            turnServers.length === 0 ? { syncId: syncID } : undefined,
         );
         const webRTCDataChannel = webRTConnection.createDataChannel("linking");
         let iceCandidatesGenerated = 0;
@@ -1962,7 +1963,7 @@ export function ReceiveLinkRequestDialog({
                 }
             }
 
-            controllerRef.current = new LinkingProcessController(
+            const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
                 unlockedVault.LinkedDevices.SyncSigningPublicKey,
@@ -1995,6 +1996,10 @@ export function ReceiveLinkRequestDialog({
                     }
                 },
             );
+            if (controllerResult.isErr()) {
+                throw controllerResult.error;
+            }
+            controllerRef.current = controllerResult.value;
         } catch (error) {
             const logReceiveError = receiveUsesOnlineServices
                 ? onlineServicesLog.error

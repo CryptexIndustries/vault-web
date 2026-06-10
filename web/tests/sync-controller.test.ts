@@ -29,6 +29,18 @@ jest.mock("../src/utils/trpc", () => ({
                 signalingAuthChannel: {
                     query: jest.fn(async () => ({ auth: "stub-auth" })),
                 },
+                turnCredentials: {
+                    mutate: jest.fn(async () => ({
+                        iceServers: [
+                            {
+                                urls: "turn:test.example.com:5349",
+                                username: "test-user",
+                                credential: "test-cred",
+                            },
+                        ],
+                        expiresAt: Date.now() + 300_000,
+                    })),
+                },
             },
         },
     },
@@ -939,7 +951,7 @@ describe("SyncConnectionController orchestration", () => {
         expect(channel.trigger).not.toHaveBeenCalled();
     });
 
-    it("_setupWebRTCConnection wires data channel open/close/error/message handlers via ondatachannel", () => {
+    it("_setupWebRTCConnection wires data channel open/close/error/message handlers via ondatachannel", async () => {
         const vaultOps = buildVaultOps();
         const controller = new SyncConnectionController(vaultOps);
 
@@ -989,6 +1001,7 @@ describe("SyncConnectionController orchestration", () => {
             const device = {
                 ID: "device-1",
                 Name: "Device",
+                SyncID: "sync-1",
                 STUNServerIDs: [],
                 TURNServerIDs: [],
             } as unknown as VaultUtilTypes.LinkedDevice;
@@ -998,13 +1011,13 @@ describe("SyncConnectionController orchestration", () => {
                 TURNServers: [],
             } as unknown as VaultUtilTypes.LinkedDevices;
 
-            (
+            await (
                 controller as unknown as {
                     _setupWebRTCConnection: (
                         l: unknown,
                         c: unknown,
                         d: unknown,
-                    ) => unknown;
+                    ) => Promise<unknown>;
                 }
             )._setupWebRTCConnection(linkedDevices, fakeChannel, device);
 

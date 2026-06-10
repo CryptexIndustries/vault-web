@@ -47,6 +47,18 @@ jest.mock("../src/utils/trpc", () => ({
                 signalingAuthChannel: {
                     query: jest.fn(async () => ({ auth: "stub-auth" })),
                 },
+                turnCredentials: {
+                    mutate: jest.fn(async () => ({
+                        iceServers: [
+                            {
+                                urls: "turn:test.example.com:5349",
+                                username: "test-user",
+                                credential: "test-cred",
+                            },
+                        ],
+                        expiresAt: Date.now() + 300_000,
+                    })),
+                },
             },
         },
     },

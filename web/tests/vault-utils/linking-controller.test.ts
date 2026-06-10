@@ -71,7 +71,7 @@ type ClientLinkHandler = (data: {
     data: unknown;
 }) => Promise<void>;
 
-function buildController() {
+async function buildController() {
     const channelHandlers: Record<string, (...args: unknown[]) => unknown> = {};
     const connectionHandlers: Record<
         string,
@@ -118,7 +118,7 @@ function buildController() {
         })),
         addIceCandidate: jest.fn(async () => undefined),
     };
-    initWebRTCMock.mockReturnValue(peerConnection);
+    initWebRTCMock.mockResolvedValue(peerConnection);
 
     const onStatusChange = jest.fn(async () => undefined);
 
@@ -131,15 +131,18 @@ function buildController() {
         SyncSigningPublicKey: "remote-sync-public-key",
     });
 
-    const controller = new LinkingProcessController(
+    const controllerResult = await LinkingProcessController.create(
         blob,
         false,
         "local-sync-public-key",
         onStatusChange,
     );
+    if (controllerResult.isErr()) {
+        throw controllerResult.error;
+    }
 
     return {
-        controller,
+        controller: controllerResult.value,
         onStatusChange,
         channel,
         signalingServer,
@@ -164,8 +167,8 @@ describe("LinkingProcessController", () => {
         jest.useRealTimers();
     });
 
-    it("subscribes to channel and binds Pusher events", () => {
-        const { signalingServer, channel } = buildController();
+    it("subscribes to channel and binds Pusher events", async () => {
+        const { signalingServer, channel } = await buildController();
         expect(initPusherInstanceMock).toHaveBeenCalled();
         expect(signalingServer.subscribe).toHaveBeenCalledWith(
             "presence-link-sync-1",
@@ -184,8 +187,34 @@ describe("LinkingProcessController", () => {
         );
     });
 
+    it("returns Err when WebRTC setup fails", async () => {
+        const setupError = new Error("turn credentials unavailable");
+        initWebRTCMock.mockRejectedValueOnce(setupError);
+        const blob = VaultUtilTypes.LinkingPackageBlob.create({
+            SyncID: "sync-1",
+            STUNServers: [],
+            TURNServers: [],
+            OnlineServices: undefined,
+            SignalingServer: undefined,
+            SyncSigningPublicKey: "remote-sync-public-key",
+        });
+
+        const result = await LinkingProcessController.create(
+            blob,
+            false,
+            "local-sync-public-key",
+            async () => undefined,
+        );
+
+        expect(result.isErr()).toBe(true);
+        if (result.isErr()) {
+            expect(result.error).toBe(setupError);
+        }
+        expect(initPusherInstanceMock).not.toHaveBeenCalled();
+    });
+
     it("emits Signaling Active on connecting and Completed on connected state_change", async () => {
-        const { onStatusChange, connectionHandlers } = buildController();
+        const { onStatusChange, connectionHandlers } = await buildController();
         const handler = connectionHandlers.state_change;
         handler?.({ previous: "initialized", current: "connecting" });
         handler?.({ previous: "connecting", current: "connected" });
@@ -209,8 +238,8 @@ describe("LinkingProcessController", () => {
         ).toBe(true);
     });
 
-    it("emits Error on failed/unavailable state_change", () => {
-        const { onStatusChange, connectionHandlers } = buildController();
+    it("emits Error on failed/unavailable state_change", async () => {
+        const { onStatusChange, connectionHandlers } = await buildController();
         const handler = connectionHandlers.state_change;
         handler?.({ previous: "connecting", current: "failed" });
 
@@ -222,8 +251,8 @@ describe("LinkingProcessController", () => {
         expect(errored).toBe(true);
     });
 
-    it("ignores disconnected state_change before direct connection is established", () => {
-        const { onStatusChange, connectionHandlers } = buildController();
+    it("ignores disconnected state_change before direct connection is established", async () => {
+        const { onStatusChange, connectionHandlers } = await buildController();
         const handler = connectionHandlers.state_change;
         handler?.({ previous: "connecting", current: "disconnected" });
         const cleanupEmitted = onStatusChange.mock.calls.some(
@@ -234,12 +263,12 @@ describe("LinkingProcessController", () => {
         expect(cleanupEmitted).toBe(false);
     });
 
-    it("emits SignalingCleanup Completed when disconnected after direct connection established", () => {
+    it("emits SignalingCleanup Completed when disconnected after direct connection established", async () => {
         const {
             onStatusChange,
             connectionHandlers,
             peerConnection,
-        } = buildController();
+        } = await buildController();
         peerConnection.connectionState = "connected";
         peerConnection.onconnectionstatechange?.();
         const handler = connectionHandlers.state_change;
@@ -254,12 +283,12 @@ describe("LinkingProcessController", () => {
         expect(cleanup).toBe(true);
     });
 
-    it("handles subscription_error by disconnecting signaling server", () => {
+    it("handles subscription_error by disconnecting signaling server", async () => {
         const {
             channelHandlers,
             signalingServer,
             onStatusChange,
-        } = buildController();
+        } = await buildController();
         channelHandlers["pusher:subscription_error"]?.();
         expect(signalingServer.disconnect).toHaveBeenCalled();
         expect(signalingServer.unsubscribe).toHaveBeenCalledWith(
@@ -273,8 +302,8 @@ describe("LinkingProcessController", () => {
         expect(errored).toBe(true);
     });
 
-    it("subscription_succeeded emits SignalingWaitingOtherDevice", () => {
-        const { channelHandlers, onStatusChange } = buildController();
+    it("subscription_succeeded emits SignalingWaitingOtherDevice", async () => {
+        const { channelHandlers, onStatusChange } = await buildController();
         channelHandlers["pusher:subscription_succeeded"]?.();
         const found = onStatusChange.mock.calls.some(
             (c) =>
@@ -289,7 +318,7 @@ describe("LinkingProcessController", () => {
             channelHandlers,
             channel,
             peerConnection,
-        } = buildController();
+        } = await buildController();
         const offer = { type: "offer", sdp: "v=0" };
         await channelHandlers["client-link"]?.({
             type: "offer",
@@ -305,7 +334,7 @@ describe("LinkingProcessController", () => {
     });
 
     it("handles client-link ice-candidate by adding to peer connection", async () => {
-        const { channelHandlers, peerConnection } = buildController();
+        const { channelHandlers, peerConnection } = await buildController();
         const candidate = { candidate: "abc" };
         await channelHandlers["client-link"]?.({
             type: "ice-candidate",
@@ -314,12 +343,12 @@ describe("LinkingProcessController", () => {
         expect(peerConnection.addIceCandidate).toHaveBeenCalledWith(candidate);
     });
 
-    it("connected connectionStateChange emits DirectConnection Completed + drops signaling", () => {
+    it("connected connectionStateChange emits DirectConnection Completed + drops signaling", async () => {
         const {
             peerConnection,
             signalingServer,
             onStatusChange,
-        } = buildController();
+        } = await buildController();
         peerConnection.connectionState = "connected";
         peerConnection.onconnectionstatechange?.();
         expect(signalingServer.disconnect).toHaveBeenCalled();
@@ -333,8 +362,8 @@ describe("LinkingProcessController", () => {
         expect(completed).toBe(true);
     });
 
-    it("failed connectionStateChange emits Error", () => {
-        const { peerConnection, onStatusChange } = buildController();
+    it("failed connectionStateChange emits Error", async () => {
+        const { peerConnection, onStatusChange } = await buildController();
         peerConnection.connectionState = "failed";
         peerConnection.onconnectionstatechange?.();
         const errored = onStatusChange.mock.calls.some(
@@ -347,8 +376,8 @@ describe("LinkingProcessController", () => {
         expect(errored).toBe(true);
     });
 
-    it("disconnected connectionStateChange emits DirectConnectionCleanup Completed", () => {
-        const { peerConnection, onStatusChange } = buildController();
+    it("disconnected connectionStateChange emits DirectConnectionCleanup Completed", async () => {
+        const { peerConnection, onStatusChange } = await buildController();
         peerConnection.connectionState = "disconnected";
         peerConnection.onconnectionstatechange?.();
         const cleanup = onStatusChange.mock.calls.some(
@@ -366,7 +395,7 @@ describe("LinkingProcessController", () => {
             peerConnection,
             onStatusChange,
             signalingServer,
-        } = buildController();
+        } = await buildController();
         const recvChannel: {
             onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
             onerror?: (e: unknown) => unknown;
@@ -397,7 +426,7 @@ describe("LinkingProcessController", () => {
         const {
             peerConnection,
             onStatusChange,
-        } = buildController();
+        } = await buildController();
         const recvChannel: {
             onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
             send: jest.Mock;
@@ -430,7 +459,7 @@ describe("LinkingProcessController", () => {
     });
 
     it("ondatachannel onmessage swallows onStatusChange throw and emits VaultSave Error", async () => {
-        const built = buildController();
+        const built = await buildController();
         // First call always succeeds; on the success branch we throw.
         built.onStatusChange.mockImplementation(async (status) => {
             if (
@@ -458,11 +487,11 @@ describe("LinkingProcessController", () => {
         expect(saveErrored).toBe(true);
     });
 
-    it("ondatachannel onerror emits Error and onclose triggers cleanup", () => {
+    it("ondatachannel onerror emits Error and onclose triggers cleanup", async () => {
         const {
             peerConnection,
             onStatusChange,
-        } = buildController();
+        } = await buildController();
         const recvChannel: {
             onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
             onerror?: (e: unknown) => unknown;
@@ -484,8 +513,8 @@ describe("LinkingProcessController", () => {
         expect(peerConnection.close).toHaveBeenCalled();
     });
 
-    it("onicecandidate triggers client-link for non-null candidate", () => {
-        const { peerConnection, channel } = buildController();
+    it("onicecandidate triggers client-link for non-null candidate", async () => {
+        const { peerConnection, channel } = await buildController();
         peerConnection.onicecandidate?.({
             candidate: { candidate: "abc" },
         });
@@ -495,12 +524,12 @@ describe("LinkingProcessController", () => {
         );
     });
 
-    it("onicecandidate with no candidates ever emits Error and cleanup", () => {
+    it("onicecandidate with no candidates ever emits Error and cleanup", async () => {
         const {
             peerConnection,
             onStatusChange,
             signalingServer,
-        } = buildController();
+        } = await buildController();
         peerConnection.onicecandidate?.({ candidate: null });
         const errored = onStatusChange.mock.calls.some(
             (c) =>
@@ -514,14 +543,14 @@ describe("LinkingProcessController", () => {
         expect(signalingServer.disconnect).toHaveBeenCalled();
     });
 
-    it("abortWaitingForDevice unbinds, unsubscribes, disconnects, and closes connection", () => {
+    it("abortWaitingForDevice unbinds, unsubscribes, disconnects, and closes connection", async () => {
         const {
             controller,
             channel,
             signalingServer,
             peerConnection,
             onStatusChange,
-        } = buildController();
+        } = await buildController();
         controller.abortWaitingForDevice();
         expect(channel.unbind).toHaveBeenCalled();
         expect(signalingServer.unsubscribe).toHaveBeenCalledWith(

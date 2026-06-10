@@ -592,7 +592,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 privateKey: pendingLinkedDevices.SyncSigningPrivateKey,
             };
 
-            controllerRef.current = new LinkingProcessController(
+            const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
                 pendingLinkedDevices.SyncSigningPublicKey,
@@ -628,6 +628,10 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     }
                 },
             );
+            if (controllerResult.isErr()) {
+                throw controllerResult.error;
+            }
+            controllerRef.current = controllerResult.value;
         } catch (error) {
             const message =
                 error instanceof Error

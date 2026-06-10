@@ -35,31 +35,10 @@ export interface VaultOperations {
     getRemoteSyncPublicKey(linkedDeviceId: string): Promise<string | null>;
 }
 
-const onlineServicesSTUN = [
-    // {
-    //     urls: "stun:localhost:5349",
-    // },
-    {
-        urls: "stun:rtc.cryptex-vault.com:5349",
-    },
-    {
-        urls: "stun:stun.l.google.com:19302",
-    },
-    {
-        urls: "stun:stun1.l.google.com:19302",
-    },
-    {
-        urls: "stun:stun2.l.google.com:19302",
-    },
-];
-
-const onlineServicesTURN = [
-    {
-        urls: "turn:rtc.cryptex-vault.com:5349",
-        username: "cryx",
-        credential: "cryx",
-    },
-];
+export type InitWebRTCOptions = {
+    /** Required when using Cryptex Online Services TURN (no custom TURN servers). */
+    syncId?: string;
+};
 
 const constructSyncChannelName = (
     syncID: string,
@@ -70,29 +49,58 @@ const constructSyncChannelName = (
 const MAX_PENDING_SYNC_DATA_REQUESTS_PER_DEVICE = 32;
 const PENDING_SYNC_DATA_REQUEST_TTL_MS = 2 * 60 * 1000;
 
-export const initWebRTC = (
+function createReadySignal(): {
+    promise: Promise<void>;
+    resolve: () => void;
+} {
+    let resolveReady: (() => void) | undefined;
+    const promise = new Promise<void>((resolve) => {
+        resolveReady = resolve;
+    });
+
+    if (!resolveReady) {
+        throw new Error("Failed to initialize readiness signal.");
+    }
+
+    return {
+        promise,
+        resolve: resolveReady,
+    };
+}
+
+export const initWebRTC = async (
     stunServers: VaultUtilTypes.STUNServerConfiguration[],
     turnServers: VaultUtilTypes.TURNServerConfiguration[],
-): RTCPeerConnection => {
-    // In case there are no STUN servers selected, use the default (Cryptex Vault Online Services) ones
+    options?: InitWebRTCOptions,
+): Promise<RTCPeerConnection> => {
     const _stunServers =
-        stunServers.length == 0
-            ? onlineServicesSTUN
+        stunServers.length === 0
+            ? []
             : stunServers.map((stunServer) => ({
                   urls: `stun:${stunServer.Host}`,
               }));
 
-    // In case there are no TURN servers selected, use the default (Cryptex Vault Online Services) ones
-    const _turnServers =
-        turnServers.length == 0
-            ? onlineServicesTURN
-            : turnServers.map((turnServer) => ({
-                  urls: `turn:${turnServer.Host}`,
-                  username: turnServer.Username,
-                  credential: turnServer.Password,
-              }));
+    let _turnServers: RTCIceServer[];
+    if (turnServers.length === 0) {
+        if (!options?.syncId) {
+            throw new Error(
+                "syncId is required to fetch Online Services TURN credentials",
+            );
+        }
 
-    // Return the initialized RTCPeerConnection
+        await ensureFreshOnlineServicesSession();
+        const turnCredentials = await trpc.v1.device.turnCredentials.mutate({
+            syncId: options.syncId,
+        });
+        _turnServers = turnCredentials.iceServers;
+    } else {
+        _turnServers = turnServers.map((turnServer) => ({
+            urls: `turn:${turnServer.Host}`,
+            username: turnServer.Username,
+            credential: turnServer.Password,
+        }));
+    }
+
     return new RTCPeerConnection({
         iceServers: [..._stunServers, ..._turnServers],
     });
@@ -452,6 +460,7 @@ export class SyncConnectionController {
         signalingServerConn: Pusher,
         device: VaultUtilTypes.LinkedDevice,
         channelName: string,
+        webRTCReady?: Promise<void>,
     ) {
         //console.debug(channelName, signalingServerConn.allChannels());
         // Check if we're already subscribed to this channel
@@ -499,8 +508,19 @@ export class SyncConnectionController {
                 { memberId: data.id, channelName }
             );
 
+            await webRTCReady;
+            if (!this._webRTConnections.has(device.ID)) {
+                signalingLog.warn(
+                    "Skipping WebRTC offer because connection setup is unavailable",
+                    { memberId: data.id, channelName },
+                );
+                return;
+            }
+
             // Create a WebRTC offer and send it to the new device to initiate the connection
             const offer = await this._craftWebRTCOffer(device.ID);
+            if (!offer) return;
+
             channel.trigger(this._signalingEventName, {
                 type: SignalingServerMessageType.Offer,
                 data: offer,
@@ -613,7 +633,7 @@ export class SyncConnectionController {
         }
     }
 
-    private _setupWebRTCConnection(
+    private async _setupWebRTCConnection(
         linkedDevices: VaultUtilTypes.LinkedDevices,
         signalingChannel: Channel,
         device: VaultUtilTypes.LinkedDevice,
@@ -625,8 +645,9 @@ export class SyncConnectionController {
             device.TURNServerIDs.includes(server.ID),
         );
 
-        // Instantiate the WebRTC object
-        const webRTC = initWebRTC(stun, turn);
+        const webRTC = await initWebRTC(stun, turn, {
+            syncId: device.SyncID,
+        });
 
         webRTC.onconnectionstatechange = () => {
             let newWebRTCStatus: WebRTCStatus;
@@ -909,25 +930,40 @@ export class SyncConnectionController {
         }
 
         const channelName = constructSyncChannelName(device.SyncID);
+        const webRTCReady = createReadySignal();
 
         const channel = this._setupSignalingSubscriptions(
             signalingServerConn,
             device,
             channelName,
+            webRTCReady.promise,
         );
 
-        // Trigger the WebRTC connection setup
-        const webRTC = this._setupWebRTCConnection(
-            linkedDevicesConfig,
-            channel,
-            device,
-        );
+        let webRTC: RTCPeerConnection;
+        try {
+            webRTC = await this._setupWebRTCConnection(
+                linkedDevicesConfig,
+                channel,
+                device,
+            );
+        } catch (error) {
+            webRTCReady.resolve();
+            channel.unsubscribe();
+            channel.unbind();
+            webrtcLog.error(
+                "Failed to initialize WebRTC connection",
+                { deviceId: device.ID, error },
+            );
+            this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
+            this.broadcastWebRTCConnectionEvent(device.ID, WebRTCStatus.Failed);
+            return false;
+        }
 
-        // Add the WebRTC connection to the list of WebRTC connections
         this._webRTConnections.set(device.ID, {
             connection: webRTC,
             dataChannel: null,
         });
+        webRTCReady.resolve();
 
         return true;
     }
@@ -1441,9 +1477,10 @@ class VaultItemSynchronization {
 
         // Compare the versions of the version vectors that are matching IDs
         const versionsLargerThanLocal = versionVectorsMatchingIDs.filter(vector => {
-            // NOTE: Asserting that the local version vector exists because we filtered out the version vectors that don't match IDs
-            const localVersion = localVersionVectors.find(localVector => localVector.ID === vector.ID)!.Version;
-            return localVersion < vector.Version;
+            const localVector = localVersionVectors.find(
+                localVector => localVector.ID === vector.ID,
+            );
+            return localVector !== undefined && localVector.Version < vector.Version;
         });
         if (versionsLargerThanLocal.length > 0) {
             idsToRequest.push(...versionsLargerThanLocal.map(vector => vector.ID));

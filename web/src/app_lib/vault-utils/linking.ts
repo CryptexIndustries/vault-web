@@ -1,6 +1,6 @@
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
-import { err, ok } from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 import * as VaultUtilTypes from "../proto/vault";
 import * as VaultEncryption from "./encryption";
 import { initPusherInstance, initWebRTC } from "../synchronization";
@@ -173,44 +173,84 @@ export interface LinkingProcessStatus {
 }
 
 export class LinkingProcessController {
-    linkingPackage: VaultUtilTypes.LinkingPackageBlob;
-    usesOnlineServices: boolean;
-    localSyncPublicKey: string;
-    onStatusChange: (state: LinkingProcessStatus) => Promise<void>;
+    readonly linkingPackage: VaultUtilTypes.LinkingPackageBlob;
+    readonly usesOnlineServices: boolean;
+    readonly localSyncPublicKey: string;
+    readonly onStatusChange: (state: LinkingProcessStatus) => Promise<void>;
 
-    signalingServer: Pusher;
-    signalingServerChannel: Channel;
-    webRTCConnection: RTCPeerConnection;
+    private readonly signalingServer: Pusher;
+    private readonly signalingServerChannel: Channel;
+    private readonly webRTCConnection: RTCPeerConnection;
     private hasDirectConnection = false;
     private hasTerminalError = false;
     private sentLocalSyncPublicKey = false;
 
-    public constructor(
+    private constructor(
         linkingBlob: VaultUtilTypes.LinkingPackageBlob,
         usesOnlineServices: boolean,
         localSyncPublicKey: string,
         onStatusChange: (state: LinkingProcessStatus) => Promise<void>,
+        signalingServer: Pusher,
+        signalingServerChannel: Channel,
+        webRTCConnection: RTCPeerConnection,
     ) {
         this.linkingPackage = linkingBlob;
         this.usesOnlineServices = usesOnlineServices;
         this.localSyncPublicKey = localSyncPublicKey;
         this.onStatusChange = onStatusChange;
-
-        const { signalingServer, signalingServerChannel } =
-            this.setupSignalingConnection();
         this.signalingServer = signalingServer;
         this.signalingServerChannel = signalingServerChannel;
-
-        this.webRTCConnection = this.setupWebRTC();
+        this.webRTCConnection = webRTCConnection;
     }
 
-    private setupSignalingConnection() {
-        // Init the signaling server connection object
-        const signalingServer = initPusherInstance(
-            this.linkingPackage.SignalingServer ?? null,
-            this.linkingPackage.SyncID,
-        );
+    private disconnectSignalingServer(): void {
+        this.signalingServer.disconnect();
+        this.signalingServer.unbind();
+    }
 
+    public static async create(
+        linkingBlob: VaultUtilTypes.LinkingPackageBlob,
+        usesOnlineServices: boolean,
+        localSyncPublicKey: string,
+        onStatusChange: (state: LinkingProcessStatus) => Promise<void>,
+    ): ResultAsync<LinkingProcessController, Error> {
+        return ResultAsync.fromPromise(
+            (async () => {
+                const webRTCConnection = await initWebRTC(
+                    linkingBlob.STUNServers,
+                    linkingBlob.TURNServers,
+                    linkingBlob.TURNServers.length === 0
+                        ? { syncId: linkingBlob.SyncID }
+                        : undefined,
+                );
+                const signalingServer = initPusherInstance(
+                    linkingBlob.SignalingServer ?? null,
+                    linkingBlob.SyncID,
+                );
+                const channelName = constructLinkPresenceChannelName(
+                    linkingBlob.SyncID,
+                );
+                const signalingServerChannel = signalingServer.subscribe(channelName);
+                const controller = new LinkingProcessController(
+                    linkingBlob,
+                    usesOnlineServices,
+                    localSyncPublicKey,
+                    onStatusChange,
+                    signalingServer,
+                    signalingServerChannel,
+                    webRTCConnection,
+                );
+
+                controller.bindSignalingConnection(channelName);
+                controller.bindWebRTCConnection();
+
+                return controller;
+            })(),
+            (error) => (error instanceof Error ? error : new Error(String(error))),
+        );
+    }
+
+    private bindSignalingConnection(channelName: string): void {
         type PusherInternalConnectionState =
             | "initialized"
             | "connecting"
@@ -218,7 +258,7 @@ export class LinkingProcessController {
             | "unavailable"
             | "disconnected"
             | "failed";
-        signalingServer.connection.bind(
+        this.signalingServer.connection.bind(
             "state_change",
             (state: {
                 previous: PusherInternalConnectionState;
@@ -288,9 +328,7 @@ export class LinkingProcessController {
             },
         );
 
-        const channelName = constructLinkPresenceChannelName(this.linkingPackage.SyncID);
-        const signalingServerChannel = signalingServer.subscribe(channelName);
-        signalingServerChannel.bind("pusher:subscription_error", () => {
+        this.signalingServerChannel.bind("pusher:subscription_error", () => {
             this.hasTerminalError = true;
             this.onStatusChange({
                 Step: LinkingProcessStep.Signaling,
@@ -301,11 +339,11 @@ export class LinkingProcessController {
                     type: "error",
                 },
             });
-            signalingServer.unsubscribe(channelName);
-            signalingServer.disconnect();
+            this.signalingServer.unsubscribe(channelName);
+            this.signalingServer.disconnect();
         });
 
-        signalingServerChannel.bind("pusher:subscription_succeeded", () => {
+        this.signalingServerChannel.bind("pusher:subscription_succeeded", () => {
             this.onStatusChange({
                 Step: LinkingProcessStep.SignalingWaitingOtherDevice,
                 State: LinkingProcessState.Active,
@@ -317,7 +355,7 @@ export class LinkingProcessController {
             });
         });
 
-        signalingServerChannel.bind(
+        this.signalingServerChannel.bind(
             "client-link",
             async (data: {
                 type: "offer" | "ice-candidate";
@@ -351,7 +389,7 @@ export class LinkingProcessController {
 
                     const answer = await this.webRTCConnection.createAnswer();
                     await this.webRTCConnection.setLocalDescription(answer);
-                    signalingServerChannel.trigger("client-link", {
+                    this.signalingServerChannel.trigger("client-link", {
                         type: "answer",
                         data: answer,
                     });
@@ -362,20 +400,13 @@ export class LinkingProcessController {
                 }
             },
         );
-
-        return { signalingServer, signalingServerChannel };
     }
 
-    private setupWebRTC() {
-        const webRTConnection = initWebRTC(
-            this.linkingPackage.STUNServers,
-            this.linkingPackage.TURNServers,
-        );
-
+    private bindWebRTCConnection(): void {
+        const webRTConnection = this.webRTCConnection;
         const cleanup = () => {
             webRTConnection.close();
-            this.signalingServer.disconnect();
-            this.signalingServer.unbind();
+            this.disconnectSignalingServer();
 
             this.onStatusChange({
                 Step: LinkingProcessStep.DirectConnectionCleanup,
@@ -422,8 +453,7 @@ export class LinkingProcessController {
                     },
                 });
 
-                this.signalingServer.disconnect();
-                this.signalingServer.unbind();
+                this.disconnectSignalingServer();
             } else if (webRTConnection.connectionState === "failed") {
                 this.hasTerminalError = true;
                 this.onStatusChange({
@@ -611,8 +641,6 @@ export class LinkingProcessController {
                 cleanup();
             }
         };
-
-        return webRTConnection;
     }
 
     public abortWaitingForDevice() {

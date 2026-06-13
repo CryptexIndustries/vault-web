@@ -17,9 +17,28 @@ const TRPC_PATH_PREFIX = "/api/trpc/";
 
 /** True iff `url` targets the configured tRPC HTTP endpoint. */
 export function isTrpcApiRequest(url: string, appUrl: string): boolean {
-    if (!url.startsWith(appUrl)) return false;
-    const tail = url.slice(appUrl.length);
-    return tail.startsWith(TRPC_PATH_PREFIX);
+    try {
+        const requestUrl = new URL(url);
+        const appBaseUrl = new URL(appUrl);
+        if (
+            requestUrl.protocol !== "http:" &&
+            requestUrl.protocol !== "https:"
+        ) {
+            return false;
+        }
+        if (
+            appBaseUrl.protocol !== "http:" &&
+            appBaseUrl.protocol !== "https:"
+        ) {
+            return false;
+        }
+        if (requestUrl.origin !== appBaseUrl.origin) return false;
+
+        const appPath = appBaseUrl.pathname.replace(/\/+$/, "");
+        return requestUrl.pathname.startsWith(`${appPath}${TRPC_PATH_PREFIX}`);
+    } catch {
+        return false;
+    }
 }
 
 /**

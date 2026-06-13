@@ -56,23 +56,74 @@ function serializeResponseHeaders(headers: Headers): Record<string, string> {
     return out;
 }
 
+function proxyFetchError(
+    statusText: string,
+    error: string,
+): ProxyFetchResponsePayload {
+    return {
+        ok: false,
+        status: 0,
+        statusText,
+        headers: {},
+        body: "",
+        error,
+    };
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+
+    return Object.entries(value).every(
+        ([name, headerValue]) =>
+            typeof name === "string" && typeof headerValue === "string",
+    );
+}
+
 export async function handleProxyFetch(
     payload: ProxyFetchRequestPayload,
 ): Promise<ProxyFetchResponsePayload> {
     if (!payload || typeof payload.url !== "string") {
-        return {
-            ok: false,
-            status: 0,
-            statusText: "Bad proxy fetch payload",
-            headers: {},
-            body: "",
-            error: "INVALID_PROXY_FETCH_PAYLOAD",
-        };
+        return proxyFetchError(
+            "Bad proxy fetch payload",
+            "INVALID_PROXY_FETCH_PAYLOAD",
+        );
+    }
+    if (payload.headers != null && !isStringRecord(payload.headers)) {
+        return proxyFetchError(
+            "Bad proxy fetch payload",
+            "INVALID_PROXY_FETCH_PAYLOAD",
+        );
+    }
+    if (payload.body != null && typeof payload.body !== "string") {
+        return proxyFetchError(
+            "Bad proxy fetch payload",
+            "INVALID_PROXY_FETCH_PAYLOAD",
+        );
     }
 
     const appUrl = env.NEXT_PUBLIC_APP_URL;
     const isTrpc = isTrpcApiRequest(payload.url, appUrl);
-    const needsAuth = isTrpc && trpcBatchRequiresAuth(payload.url);
+    if (!isTrpc) {
+        return proxyFetchError(
+            "Proxy fetch destination not allowed",
+            "PROXY_FETCH_DESTINATION_NOT_ALLOWED",
+        );
+    }
+
+    const method =
+        typeof payload.method === "string" && payload.method
+            ? payload.method.toUpperCase()
+            : "GET";
+    if (method !== "GET" && method !== "POST") {
+        return proxyFetchError(
+            "Proxy fetch method not allowed",
+            "PROXY_FETCH_METHOD_NOT_ALLOWED",
+        );
+    }
+
+    const needsAuth = trpcBatchRequiresAuth(payload.url);
 
     // Always start from a sanitised header set so the popup can never
     // forge or override the SW's session token by mistake.
@@ -91,9 +142,9 @@ export async function handleProxyFetch(
 
     try {
         const response = await fetch(payload.url, {
-            method: payload.method ?? "GET",
+            method,
             headers,
-            body: payload.body ?? undefined,
+            body: method === "POST" ? (payload.body ?? undefined) : undefined,
             // The popup talks to the API over the extension origin -
             // `omit` makes sure we never leak cookies for the API host
             // (the JWT we just injected is the only credential we want).

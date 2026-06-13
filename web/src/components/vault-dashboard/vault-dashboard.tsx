@@ -64,7 +64,10 @@ import {
 import { EditDrawer } from "./edit-drawer";
 import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 import type { VaultSignalingConfig } from "./link";
-import { useSyncConnectionController } from "./sync-controller";
+import {
+    shouldAutoReconnectAfterWebRTCStatus,
+    useSyncConnectionController,
+} from "./sync-controller";
 import { VaultSettingsDialog } from "./vault-settings-dialog";
 import {
     type SCCEvent,
@@ -259,17 +262,17 @@ function useDeviceConnectionLifecycle(
                         }, period);
                         timeoutIDs.push(timeoutID);
                     } else if (
-                        event.connectionState === WebRTCStatus.Disconnected ||
-                        event.connectionState === WebRTCStatus.Failed
+                        shouldAutoReconnectAfterWebRTCStatus(
+                            device,
+                            event.connectionState,
+                        )
                     ) {
-                        if (device.AutoConnect) {
-                            void syncConnectionController.disconnectDevice(
-                                device,
-                            );
-                            void syncConnectionController.connectDevice(
-                                device.ID,
-                            );
-                        }
+                        void syncConnectionController.disconnectDevice(
+                            device,
+                        );
+                        void syncConnectionController.connectDevice(
+                            device.ID,
+                        );
                     }
                 }
             };

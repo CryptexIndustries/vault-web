@@ -33,7 +33,9 @@ import { Vault } from "../src/app_lib/vault-utils/vault";
 import {
     createVaultOperations,
     getVaultMetadataLifecycleKey,
+    shouldAutoReconnectAfterWebRTCStatus,
 } from "../src/components/vault-dashboard/sync-controller";
+import { WebRTCStatus } from "../src/app_lib/synchronization-utils";
 import {
     unlockedVaultAtom,
     vaultStore,
@@ -103,6 +105,25 @@ describe("vault dashboard sync controller helpers", () => {
         expect(getVaultMetadataLifecycleKey(unsavedA)).not.toBe(
             getVaultMetadataLifecycleKey(unsavedB),
         );
+    });
+
+    it("auto-reconnects clean disconnects but not failed connection setup", () => {
+        const autoConnectDevice = {
+            AutoConnect: true,
+        } as Pick<VaultUtilTypes.LinkedDevice, "AutoConnect">;
+
+        expect(
+            shouldAutoReconnectAfterWebRTCStatus(
+                autoConnectDevice,
+                WebRTCStatus.Disconnected,
+            ),
+        ).toBe(true);
+        expect(
+            shouldAutoReconnectAfterWebRTCStatus(
+                autoConnectDevice,
+                WebRTCStatus.Failed,
+            ),
+        ).toBe(false);
     });
 
     it("sync update saves through the current vault metadata provider", async () => {

@@ -111,6 +111,12 @@ export const initWebRTC = async (
         }
 
         await ensureFreshOnlineServicesSession();
+        if (!createBareAuthHeader().Authorization) {
+            throw new Error(
+                "Online Services sign-in is required to fetch TURN credentials",
+            );
+        }
+
         const turnCredentials = await trpc.v1.device.turnCredentials.mutate({
             syncId: options.syncId,
         });

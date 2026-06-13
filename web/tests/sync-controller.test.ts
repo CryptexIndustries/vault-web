@@ -22,6 +22,17 @@ jest.mock("../src/env/client.mjs", () => ({
     },
 }));
 
+const turnCredentialsMutate = jest.fn(async () => ({
+    iceServers: [
+        {
+            urls: "turn:test.example.com:5349",
+            username: "test-user",
+            credential: "test-cred",
+        },
+    ],
+    expiresAt: Date.now() + 300_000,
+}));
+
 jest.mock("../src/utils/trpc", () => ({
     trpc: {
         v1: {
@@ -30,16 +41,7 @@ jest.mock("../src/utils/trpc", () => ({
                     query: jest.fn(async () => ({ auth: "stub-auth" })),
                 },
                 turnCredentials: {
-                    mutate: jest.fn(async () => ({
-                        iceServers: [
-                            {
-                                urls: "turn:test.example.com:5349",
-                                username: "test-user",
-                                credential: "test-cred",
-                            },
-                        ],
-                        expiresAt: Date.now() + 300_000,
-                    })),
+                    mutate: turnCredentialsMutate,
                 },
             },
         },
@@ -47,7 +49,7 @@ jest.mock("../src/utils/trpc", () => ({
 }));
 
 jest.mock("../src/app_lib/auth-session", () => ({
-    createBareAuthHeader: jest.fn(() => ({ Authorization: "" })),
+    createBareAuthHeader: jest.fn(() => ({ Authorization: "Bearer token_1" })),
     ensureFreshOnlineServicesSession: jest.fn(async () => true),
 }));
 
@@ -918,6 +920,57 @@ describe("SyncConnectionController orchestration", () => {
                     originalRTC;
             }
         }
+    });
+
+    it("connectDevice reports failed once when TURN credential fetch rejects", async () => {
+        const vaultOps = buildVaultOps();
+        const device = {
+            ID: "device-target",
+            Name: "Target",
+            SignalingServerID: "ss-existing",
+            SyncID: "sync-1",
+            STUNServerIDs: [],
+            TURNServerIDs: [],
+        } as unknown as VaultUtilTypes.LinkedDevice;
+        vaultOps.getSynchronizationConfig.mockResolvedValue({
+            Devices: [device],
+            SignalingServers: [],
+            STUNServers: [],
+            TURNServers: [],
+        } as unknown as VaultUtilTypes.LinkedDevices);
+        turnCredentialsMutate.mockRejectedValueOnce(new Error("TURN unavailable"));
+
+        const controller = new SyncConnectionController(vaultOps);
+        const handler = jest.fn();
+        controller.registerSyncWebRTCHandler("device-target", handler);
+
+        const fakeServer = makeFakePusher();
+        fakeServer.connection.state = "connected";
+        const subscribedChannel = makeFakeChannel("presence-sync-sync-1");
+        fakeServer.subscribe.mockReturnValue(subscribedChannel);
+        injectInternalState(controller, {
+            signalingServers: new Map([["ss-existing", fakeServer]]),
+        });
+
+        await expect(controller.connectDevice("device-target")).resolves.toBe(
+            false,
+        );
+
+        expect(turnCredentialsMutate).toHaveBeenCalledTimes(1);
+        expect(subscribedChannel.unsubscribe).toHaveBeenCalled();
+        expect(subscribedChannel.unbind).toHaveBeenCalled();
+        expect(handler).toHaveBeenCalledWith(
+            expect.objectContaining({
+                connectionState: WebRTCStatus.Failed,
+            }),
+        );
+        expect(
+            (
+                controller as unknown as {
+                    _webRTConnections: Map<string, unknown>;
+                }
+            )._webRTConnections.has("device-target"),
+        ).toBe(false);
     });
 
     it("_processSignalingData logs and returns for unknown message type (default branch)", async () => {

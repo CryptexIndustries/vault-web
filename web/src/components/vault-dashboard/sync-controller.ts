@@ -7,6 +7,7 @@ import {
     SyncConnectionController,
     type VaultOperations,
 } from "@/app_lib/synchronization";
+import { WebRTCStatus } from "@/app_lib/synchronization-utils";
 import { uiLog } from "@/utils/logging";
 import { vaultGet } from "@/utils/atoms";
 import { getVaultDEKFromSession } from "@/utils/vault-session";
@@ -43,6 +44,16 @@ export function getVaultMetadataLifecycleKey(
     }
 
     return fallbackKey;
+}
+
+export function shouldAutoReconnectAfterWebRTCStatus(
+    device: Pick<VaultUtilTypes.LinkedDevice, "AutoConnect">,
+    connectionState: WebRTCStatus,
+) {
+    return (
+        device.AutoConnect &&
+        connectionState === WebRTCStatus.Disconnected
+    );
 }
 
 export const createVaultOperations = (

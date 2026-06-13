@@ -36,6 +36,7 @@ import {
     vaultCredentialsAtom,
 } from "@/utils/atoms";
 import { copySecretToClipboard } from "@/utils/clipboard";
+import { normalizeCredentialUrl } from "@/utils/credential-url";
 import {
     onlineServicesLog,
     signalingLog,
@@ -651,17 +652,12 @@ export function VaultDashboard() {
 
     const handleOpenCredentialUrl = useCallback(
         (credential: VaultCredential) => {
-            if (!credential.URL || !URL.canParse(credential.URL)) {
+            const urlString = normalizeCredentialUrl(credential.URL);
+            if (!urlString) {
                 toast.error("Credential URL is invalid.");
                 return;
             }
 
-            const url = new URL(credential.URL);
-            if (url.protocol !== "https:") {
-                url.protocol = "https:";
-            }
-
-            const urlString = url.toString();
             showWarningDialogFnRef.current?.(
                 `You are about to visit "${urlString}"`,
                 () => {

@@ -25,6 +25,7 @@ import {
 import { VaultCredential } from "@/app_lib/vault-utils/vault";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
+import { normalizeCredentialUrl } from "@/utils/credential-url";
 
 interface CredentialsListProps {
     credentials: VaultCredential[];
@@ -455,18 +456,19 @@ export function CredentialsList({
                                                         Copy OTP
                                                     </DropdownMenuItem>
                                                 )}
-                                                {credential.URL &&
-                                                    URL.canParse(credential.URL) && (
-                                                        <DropdownMenuItem
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onOpenUrl(credential);
-                                                            }}
-                                                        >
-                                                            <Globe className="mr-2 h-4 w-4" />
-                                                            Open URL
-                                                        </DropdownMenuItem>
-                                                    )}
+                                                {normalizeCredentialUrl(
+                                                    credential.URL,
+                                                ) && (
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onOpenUrl(credential);
+                                                        }}
+                                                    >
+                                                        <Globe className="mr-2 h-4 w-4" />
+                                                        Open URL
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     className="text-destructive"

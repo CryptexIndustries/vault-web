@@ -88,8 +88,8 @@ Before submitting to the Chrome Web Store:
    Store listing.
 3. Run `pnpm --filter extension build` and inspect
    `extension/dist/manifest.json`:
-   - `host_permissions` should only contain the production API + Pusher
-     hosts.
-   - No `*.map` files in `extension/dist`.
+    - `host_permissions` should only contain the production API + Pusher
+      hosts.
+    - No `*.map` files in `extension/dist`.
 4. Smoke-test the production bundle against the staging API (load unpacked
    `dist/` in Chrome, link a vault, unlock it).

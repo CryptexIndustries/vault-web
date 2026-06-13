@@ -249,7 +249,10 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
 
         const hasStoredCreds = !!record.deviceId && !!record.privateKeyJWK;
         refreshInFlight = (async () => {
-            if (hasStoredCreds && (await reauthenticateFromStoredCredentials())) {
+            if (
+                hasStoredCreds &&
+                (await reauthenticateFromStoredCredentials())
+            ) {
                 return true;
             }
             return establishOnlineServicesSessionFromUnlockedVault();

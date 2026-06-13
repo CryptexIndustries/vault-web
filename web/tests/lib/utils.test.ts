@@ -17,18 +17,20 @@ beforeAll(() => {
     ).toBase64;
 
     if (typeof ctor.fromBase64 !== "function") {
-        ctor.fromBase64 = (b64: string) => new Uint8Array(Buffer.from(b64, "base64"));
+        ctor.fromBase64 = (b64: string) =>
+            new Uint8Array(Buffer.from(b64, "base64"));
     }
     if (
         typeof (Uint8Array.prototype as unknown as { toBase64?: () => string })
             .toBase64 !== "function"
     ) {
-        (Uint8Array.prototype as unknown as { toBase64: () => string }).toBase64 =
-            function () {
-                return Buffer.from(this as unknown as Uint8Array).toString(
-                    "base64",
-                );
-            };
+        (
+            Uint8Array.prototype as unknown as { toBase64: () => string }
+        ).toBase64 = function () {
+            return Buffer.from(this as unknown as Uint8Array).toString(
+                "base64",
+            );
+        };
     }
 });
 
@@ -39,7 +41,9 @@ afterAll(() => {
     } else {
         ctor.fromBase64 = polyfillState.originalFromBase64;
     }
-    const proto = Uint8Array.prototype as unknown as { toBase64?: () => string };
+    const proto = Uint8Array.prototype as unknown as {
+        toBase64?: () => string;
+    };
     if (polyfillState.originalToBase64 === undefined) {
         delete proto.toBase64;
     } else {

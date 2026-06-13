@@ -48,7 +48,8 @@ import {
     hashSecret,
 } from "../../src/app_lib/vault-utils/encryption";
 
-const decodeUtf8 = (value: Uint8Array): string => new TextDecoder().decode(value);
+const decodeUtf8 = (value: Uint8Array): string =>
+    new TextDecoder().decode(value);
 
 describe("vault-utils/encryption integration (real libsodium)", () => {
     beforeAll(async () => {
@@ -78,7 +79,9 @@ describe("vault-utils/encryption integration (real libsodium)", () => {
 
         expect(decrypted.isOk()).toBe(true);
         if (decrypted.isOk()) {
-            expect(decodeUtf8(decrypted.value)).toBe("integration-test-payload");
+            expect(decodeUtf8(decrypted.value)).toBe(
+                "integration-test-payload",
+            );
         }
     });
 
@@ -227,6 +230,8 @@ describe("vault-utils/encryption integration (real libsodium)", () => {
 
         expect(encryptedA.Salt).not.toBe(encryptedB.Salt);
         expect(encryptedA.HeaderIV).not.toBe(encryptedB.HeaderIV);
-        expect(Array.from(encryptedA.Blob)).not.toEqual(Array.from(encryptedB.Blob));
+        expect(Array.from(encryptedA.Blob)).not.toEqual(
+            Array.from(encryptedB.Blob),
+        );
     });
 });

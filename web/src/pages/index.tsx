@@ -355,7 +355,7 @@ export const WhyWhatHowSection = () => {
                     <div className="space-y-8">
                         <div className="mb-8 flex items-center space-x-4">
                             <div className="rounded-full bg-zinc-800 p-2">
-                                <HelpCircle className="text-primary h-6 w-6" />
+                                <HelpCircle className="h-6 w-6 text-primary" />
                             </div>
                             <h2 className="text-3xl font-bold">Why?</h2>
                         </div>
@@ -365,7 +365,7 @@ export const WhyWhatHowSection = () => {
                                 <div className="h-1 bg-primary"></div>
                                 <CardContent className="pt-6">
                                     <h3 className="mb-3 flex items-center text-xl font-semibold">
-                                        <Lock className="text-primary mr-2 h-5 w-5" />
+                                        <Lock className="mr-2 h-5 w-5 text-primary" />
                                         Security-First Approach
                                     </h3>
                                     <p className="text-zinc-300">
@@ -383,7 +383,7 @@ export const WhyWhatHowSection = () => {
                                 <div className="h-1 bg-primary"></div>
                                 <CardContent className="pt-6">
                                     <h3 className="mb-3 flex items-center text-xl font-semibold">
-                                        <Shield className="text-primary mr-2 h-5 w-5" />
+                                        <Shield className="mr-2 h-5 w-5 text-primary" />
                                         Uncompromised Independence
                                     </h3>
                                     <p className="text-zinc-300">
@@ -403,7 +403,7 @@ export const WhyWhatHowSection = () => {
                     <div className="space-y-8">
                         <div className="mb-8 flex items-center space-x-4">
                             <div className="rounded-full bg-zinc-800 p-2">
-                                <Zap className="text-primary h-6 w-6" />
+                                <Zap className="h-6 w-6 text-primary" />
                             </div>
                             <h2 className="text-3xl font-bold">What?</h2>
                         </div>
@@ -412,7 +412,7 @@ export const WhyWhatHowSection = () => {
                             {[
                                 {
                                     icon: (
-                                        <Lock className="text-primary h-5 w-5" />
+                                        <Lock className="h-5 w-5 text-primary" />
                                     ),
                                     title: "Zero-Knowledge Architecture",
                                     description:
@@ -420,7 +420,7 @@ export const WhyWhatHowSection = () => {
                                 },
                                 {
                                     icon: (
-                                        <Wifi className="text-primary h-5 w-5" />
+                                        <Wifi className="h-5 w-5 text-primary" />
                                     ),
                                     title: "WebRTC P2P Sync",
                                     description:
@@ -428,7 +428,7 @@ export const WhyWhatHowSection = () => {
                                 },
                                 {
                                     icon: (
-                                        <Server className="text-primary h-5 w-5" />
+                                        <Server className="h-5 w-5 text-primary" />
                                     ),
                                     title: "Transparent Relay",
                                     description:
@@ -436,7 +436,7 @@ export const WhyWhatHowSection = () => {
                                 },
                                 {
                                     icon: (
-                                        <Database className="text-primary h-5 w-5" />
+                                        <Database className="h-5 w-5 text-primary" />
                                     ),
                                     title: "Optional Signaling",
                                     description:
@@ -465,7 +465,7 @@ export const WhyWhatHowSection = () => {
                     <div className="space-y-8">
                         <div className="mb-8 flex items-center space-x-4">
                             <div className="rounded-full bg-zinc-800 p-2">
-                                <Code className="text-primary h-6 w-6" />
+                                <Code className="h-6 w-6 text-primary" />
                             </div>
                             <h2 className="text-3xl font-bold">How?</h2>
                         </div>
@@ -480,7 +480,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "The code behind Cryptex Vault is available for anyone to read (source-available). Verify the security, run it locally, contribute to the project.",
                                         icon: (
-                                            <GitFork className="text-primary h-5 w-5" />
+                                            <GitFork className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -489,7 +489,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "You initialize your encrypted vault on your device; a strong master password derives the encryption key locally.",
                                         icon: (
-                                            <Lock className="text-primary h-5 w-5" />
+                                            <Lock className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -498,7 +498,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "Devices exchange connection info via STUN/TURN to negotiate a direct WebRTC link; signaling only facilitates connection setup, not data exchange.",
                                         icon: (
-                                            <Wifi className="text-primary h-5 w-5" />
+                                            <Wifi className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -507,7 +507,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "Once peers are connected, vault changes replicate over an encrypted P2P channel, ensuring data never touches third-party servers.",
                                         icon: (
-                                            <Shield className="text-primary h-5 w-5" />
+                                            <Shield className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -516,7 +516,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "If a direct link can't form, we seamlessly switch to TURN relays so your devices stay in sync, even across restrictive networks.",
                                         icon: (
-                                            <Server className="text-primary h-5 w-5" />
+                                            <Server className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -525,7 +525,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "No matter our company's status, your existing devices will continue syncing peer-to-peer without interruption.",
                                         icon: (
-                                            <Users className="text-primary h-5 w-5" />
+                                            <Users className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                 ].map((step, index) => (
@@ -538,7 +538,7 @@ export const WhyWhatHowSection = () => {
                                         </div>
                                         <div>
                                             <div className="flex items-center">
-                                                <div className="text-primary mr-3 font-mono text-sm">
+                                                <div className="mr-3 font-mono text-sm text-primary">
                                                     {step.step}
                                                 </div>
                                                 <h3 className="text-xl font-semibold">
@@ -550,7 +550,7 @@ export const WhyWhatHowSection = () => {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        <LinkIcon className="text-primary ml-2 h-5 w-5" />
+                                                        <LinkIcon className="ml-2 h-5 w-5 text-primary" />
                                                     </a>
                                                 )}
                                             </div>

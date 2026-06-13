@@ -23,12 +23,7 @@ import {
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
-import {
-    generalLog,
-    openLogsTab,
-    uiLog,
-    vaultLog,
-} from "./utils/ext-logging";
+import { generalLog, openLogsTab, uiLog, vaultLog } from "./utils/ext-logging";
 import PopupUnlock from "./components/popup-unlock";
 import PopupSaveCredential from "./components/popup-save-credential";
 import VaultView from "./vault-view";
@@ -104,9 +99,7 @@ const App = () => {
      * @returns An error if the public key refresh fails, otherwise ok.
      */
     const handleStaleKeyError = async () => {
-        generalLog.debug(
-            "Stale key handler called, refreshing public key",
-        );
+        generalLog.debug("Stale key handler called, refreshing public key");
 
         const res = await requestServerPublicKey();
 
@@ -126,9 +119,7 @@ const App = () => {
                         "Failed to get server public key on popup init",
                         { error: res.error },
                     );
-                    return err(
-                        "Failed to get server public key: " + res.error,
-                    );
+                    return err("Failed to get server public key: " + res.error);
                 }
 
                 if (!serverPublicKey) {
@@ -163,10 +154,7 @@ const App = () => {
                     return;
                 }
 
-                if (
-                    !res.payload.ok &&
-                    res.payload.error === "STALE_KEY"
-                ) {
+                if (!res.payload.ok && res.payload.error === "STALE_KEY") {
                     const retryRes = await handleStaleKeyError();
                     if (retryRes.isErr()) {
                         generalLog.error(
@@ -190,9 +178,12 @@ const App = () => {
                     return;
                 }
 
-                generalLog.warn("Unexpected plaintext envelope while fetching state", {
-                    payload: res.payload,
-                });
+                generalLog.warn(
+                    "Unexpected plaintext envelope while fetching state",
+                    {
+                        payload: res.payload,
+                    },
+                );
                 setBgStateLoaded(true);
             };
 
@@ -341,21 +332,16 @@ const App = () => {
 
         const pubKeyRetry = await handleStaleKeyError();
         if (pubKeyRetry.isErr()) {
-            vaultLog.error(
-                "Failed to refresh public key while locking",
-                { error: pubKeyRetry.error },
-            );
-            return err(
-                "LOCK_VAULT_FAILED_STALE_KEY: " + pubKeyRetry.error,
-            );
+            vaultLog.error("Failed to refresh public key while locking", {
+                error: pubKeyRetry.error,
+            });
+            return err("LOCK_VAULT_FAILED_STALE_KEY: " + pubKeyRetry.error);
         }
 
         const retryRes = await _handleLock();
         if (retryRes.isErr()) {
             vaultLog.error("Lock retry failed", { error: retryRes.error });
-            return err(
-                "LOCK_VAULT_FAILED_AFTER_RETRY: " + retryRes.error,
-            );
+            return err("LOCK_VAULT_FAILED_AFTER_RETRY: " + retryRes.error);
         }
 
         recordSuccess();
@@ -444,8 +430,9 @@ const App = () => {
                             </h1>
                             <p className="text-[11px] leading-snug text-muted-foreground">
                                 Link this browser to an existing vault from
-                                another device. Linking opens in a new tab so the
-                                QR scanner and progress view have enough room.
+                                another device. Linking opens in a new tab so
+                                the QR scanner and progress view have enough
+                                room.
                             </p>
                         </div>
                         <Button
@@ -460,8 +447,8 @@ const App = () => {
                             Link this device
                         </Button>
                         <p className="text-[10px] text-muted-foreground">
-                            Once the linked vault is saved, this popup will switch
-                            to the unlock screen automatically.
+                            Once the linked vault is saved, this popup will
+                            switch to the unlock screen automatically.
                         </p>
                     </div>
                 </div>

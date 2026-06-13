@@ -5,4 +5,3 @@ export type OffscreenInboundMessage = {
 export type OffscreenOutboundMessage = {
     type: "PONG";
 };
-

@@ -4,5 +4,12 @@
   "sortTailwindcss": {},
   "printWidth": 80,
   "sortPackageJson": false,
-  "ignorePatterns": []
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/out/**",
+    "**/coverage/**",
+    "**/.next/**"
+  ]
 }

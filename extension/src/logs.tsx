@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
     ChevronDown,
@@ -24,29 +30,31 @@ import {
     type LogEntry,
 } from "./utils/ext-logging";
 
-const levelStyles: Record<LogLevel, { row: string; badge: string; text: string }> =
-    {
-        [LogLevel.Debug]: {
-            row: "bg-muted/30",
-            badge: "bg-muted text-muted-foreground",
-            text: "text-muted-foreground",
-        },
-        [LogLevel.Info]: {
-            row: "bg-blue-500/10",
-            badge: "bg-blue-500/30 text-blue-200",
-            text: "text-blue-100",
-        },
-        [LogLevel.Warn]: {
-            row: "bg-amber-500/10",
-            badge: "bg-amber-500/30 text-amber-200",
-            text: "text-amber-100",
-        },
-        [LogLevel.Error]: {
-            row: "bg-destructive/15",
-            badge: "bg-destructive/40 text-foreground",
-            text: "text-foreground",
-        },
-    };
+const levelStyles: Record<
+    LogLevel,
+    { row: string; badge: string; text: string }
+> = {
+    [LogLevel.Debug]: {
+        row: "bg-muted/30",
+        badge: "bg-muted text-muted-foreground",
+        text: "text-muted-foreground",
+    },
+    [LogLevel.Info]: {
+        row: "bg-blue-500/10",
+        badge: "bg-blue-500/30 text-blue-200",
+        text: "text-blue-100",
+    },
+    [LogLevel.Warn]: {
+        row: "bg-amber-500/10",
+        badge: "bg-amber-500/30 text-amber-200",
+        text: "text-amber-100",
+    },
+    [LogLevel.Error]: {
+        row: "bg-destructive/15",
+        badge: "bg-destructive/40 text-foreground",
+        text: "text-foreground",
+    },
+};
 
 const groupStyles: Record<LogGroup, string> = {
     [LogGroup.WebRTC]: "bg-cyan-500/30 text-cyan-100",
@@ -167,10 +175,7 @@ function LogRow({
                     {entry.group}
                 </span>
                 <span
-                    className={cn(
-                        "flex-grow break-words text-sm",
-                        style.text,
-                    )}
+                    className={cn("flex-grow break-words text-sm", style.text)}
                 >
                     {entry.message}
                 </span>
@@ -220,8 +225,7 @@ const LogsApp = () => {
 
     useEffect(() => {
         if (autoScroll && containerRef.current) {
-            containerRef.current.scrollTop =
-                containerRef.current.scrollHeight;
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
     }, [logs, autoScroll]);
 
@@ -485,9 +489,7 @@ const LogsApp = () => {
                                         label={level}
                                         isActive={selectedLevels.has(level)}
                                         onClick={() => toggleLevel(level)}
-                                        colorClass={
-                                            levelStyles[level].badge
-                                        }
+                                        colorClass={levelStyles[level].badge}
                                     />
                                 ))}
                             </div>

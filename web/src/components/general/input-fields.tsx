@@ -1,8 +1,6 @@
 import React from "react";
 import { toast } from "sonner";
-import {
-    ClipboardDocumentIcon,
-} from "@heroicons/react/20/solid";
+import { ClipboardDocumentIcon } from "@heroicons/react/20/solid";
 import clsx from "clsx";
 import { Input } from "../ui/input";
 import { Eye, EyeOff, Shield } from "lucide-react";
@@ -370,78 +368,91 @@ export const ClipboardButton = ({ value }: { value?: string }) => {
 export const FormInput = React.forwardRef<
     HTMLInputElement,
     React.ComponentPropsWithoutRef<"input"> & {
-        setValue?: (value: string) => void; 
-        showPasswordGenerator?: boolean; 
+        setValue?: (value: string) => void;
+        showPasswordGenerator?: boolean;
     }
->(({ className, type, onChange, value, setValue, showPasswordGenerator = false, ...props }, ref) => {
-    const [showPassword, setShowPassword] = React.useState(false);
-    const [showGeneratorDialog, setShowGeneratorDialog] = React.useState(false);
+>(
+    (
+        {
+            className,
+            type,
+            onChange,
+            value,
+            setValue,
+            showPasswordGenerator = false,
+            ...props
+        },
+        ref,
+    ) => {
+        const [showPassword, setShowPassword] = React.useState(false);
+        const [showGeneratorDialog, setShowGeneratorDialog] =
+            React.useState(false);
 
-    const classes = React.useMemo(() => {
-        return clsx({
-            className: true,
-            "font-mono": type === "password" && showPassword,
-            "pr-16": type === "password", // Extra padding for two buttons (eye + generator)
-        });
-    }, [type, className, showPassword]);
+        const classes = React.useMemo(() => {
+            return clsx({
+                className: true,
+                "font-mono": type === "password" && showPassword,
+                "pr-16": type === "password", // Extra padding for two buttons (eye + generator)
+            });
+        }, [type, className, showPassword]);
 
-    const handlePasswordSelect = (password: string) => {
-        if (setValue) {
-            // Use setValue if provided (React Hook Form)
-            setValue(password);
-        } else {
-            // Fallback to synthetic event
-            const event = {
-                target: {
-                    value: password,
-                },
-            } as React.ChangeEvent<HTMLInputElement>;
-            onChange?.(event);
-        }
-    };
+        const handlePasswordSelect = (password: string) => {
+            if (setValue) {
+                // Use setValue if provided (React Hook Form)
+                setValue(password);
+            } else {
+                // Fallback to synthetic event
+                const event = {
+                    target: {
+                        value: password,
+                    },
+                } as React.ChangeEvent<HTMLInputElement>;
+                onChange?.(event);
+            }
+        };
 
-    // TODO: Implement the save to clipboard button
-    // const saveToClipboard = async () => {
-    //     if (!value) return;
-    //     await navigator.clipboard.writeText(value);
-    //     toast.info("Copied to clipboard");
-    // };
+        // TODO: Implement the save to clipboard button
+        // const saveToClipboard = async () => {
+        //     if (!value) return;
+        //     await navigator.clipboard.writeText(value);
+        //     toast.info("Copied to clipboard");
+        // };
 
-    return (
-        <>
-            <div className="relative">
-                <Input
-                    className={classes}
-                    type={showPassword ? "text" : type}
-                    ref={ref}
-                    value={value}
-                    onChange={onChange}
-                    {...props}
-                />
-                {type === "password" && (
-                    <>
-                        <button
-                            className="absolute right-2 top-2"
-                            onClick={() => setShowPassword(!showPassword)}
-                            type="button"
-                        >
-                            {showPassword ? (
-                                <EyeOff className="h-5 w-5 text-muted-foreground hover:text-foreground" />
-                            ) : (
-                                <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
-                            )}
-                        </button>
-                        {showPasswordGenerator && (
+        return (
+            <>
+                <div className="relative">
+                    <Input
+                        className={classes}
+                        type={showPassword ? "text" : type}
+                        ref={ref}
+                        value={value}
+                        onChange={onChange}
+                        {...props}
+                    />
+                    {type === "password" && (
+                        <>
                             <button
-                                className="absolute right-8 top-2"
-                                onClick={() => setShowGeneratorDialog(true)}
+                                className="absolute right-2 top-2"
+                                onClick={() => setShowPassword(!showPassword)}
                                 type="button"
-                                title="Generate password"
                             >
-                                <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                                {showPassword ? (
+                                    <EyeOff className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                                ) : (
+                                    <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                                )}
                             </button>
-                        )}
-                        {/* {showClipboardButton && (
+                            {showPasswordGenerator && (
+                                <button
+                                    className="absolute right-8 top-2"
+                                    onClick={() => setShowGeneratorDialog(true)}
+                                    type="button"
+                                    title="Generate password"
+                                >
+                                    <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                                </button>
+                            )}
+                            {/* {showClipboardButton && (
                             <button
                                     className="absolute right-14 top-2"
                                     aria-hidden="true"
@@ -453,19 +464,20 @@ export const FormInput = React.forwardRef<
                                 />
                             </button>
                         )} */}
-                    </>
-                )}
-            </div>
-            {
-                type === "password" && (
+                        </>
+                    )}
+                </div>
+                {type === "password" && (
                     <PasswordGeneratorDialog
                         open={showGeneratorDialog}
                         onOpenChange={setShowGeneratorDialog}
-                        onPasswordSelect={setValue ? handlePasswordSelect : undefined}
+                        onPasswordSelect={
+                            setValue ? handlePasswordSelect : undefined
+                        }
                     />
-                )
-            }
-        </>
-    );
-});
+                )}
+            </>
+        );
+    },
+);
 FormInput.displayName = "FormInput";

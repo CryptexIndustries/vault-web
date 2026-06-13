@@ -54,7 +54,8 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             },
             {
                 type: "changed",
-                description: "The `web` package version has been bumped to `v1.3.0`.",
+                description:
+                    "The `web` package version has been bumped to `v1.3.0`.",
             },
             {
                 type: "changed",
@@ -84,7 +85,8 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
         changes: [
             {
                 type: "added",
-                description: "QR code data can be copied in the in-vault linking dialog.",
+                description:
+                    "QR code data can be copied in the in-vault linking dialog.",
             },
             {
                 type: "added",
@@ -92,19 +94,23 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             },
             {
                 type: "added",
-                description: "Implemented a new vault metadata editor in the Vault Manager.",
+                description:
+                    "Implemented a new vault metadata editor in the Vault Manager.",
             },
             {
                 type: "added",
-                description: "Implemented a credential generator dialog on every password input field.",
+                description:
+                    "Implemented a credential generator dialog on every password input field.",
             },
             {
                 type: "changed",
-                description: "Strip the linking configuration and devices from the generated backup.",
+                description:
+                    "Strip the linking configuration and devices from the generated backup.",
             },
             {
                 type: "changed",
-                description: "The `web` package version has been bumped to `v1.2.0`.",
+                description:
+                    "The `web` package version has been bumped to `v1.2.0`.",
             },
             {
                 type: "fix",
@@ -280,7 +286,10 @@ export const ChangelogDialog: React.FC = ({}) => {
 
     useEffect(() => {
         try {
-            const lastSeen = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+            const lastSeen =
+                typeof window !== "undefined"
+                    ? localStorage.getItem(storageKey)
+                    : null;
             setHasUnseen(!!currentVersion && lastSeen !== currentVersion);
         } catch (_) {
             // ignore storage errors
@@ -307,14 +316,14 @@ export const ChangelogDialog: React.FC = ({}) => {
                 <Button
                     variant="ghost"
                     // size="xs"
-                    className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+                    className="text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <span className="relative inline-block">
                         {currentVersion}
                         {hasUnseen && (
                             <span
                                 aria-label="New changelog"
-                                className="absolute -top-1 -right-1 inline-block h-2 w-2 rounded-full ring-2 ring-background bg-red-500 animate-pulse"
+                                className="absolute -right-1 -top-1 inline-block h-2 w-2 animate-pulse rounded-full bg-red-500 ring-2 ring-background"
                             />
                         )}
                     </span>
@@ -366,7 +375,7 @@ export const ChangelogDialog: React.FC = ({}) => {
                                             </Badge>
                                         )}
                                     </div>
-                                    <div className="text-muted-foreground flex items-center gap-1 text-sm">
+                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                         <Calendar className="h-3 w-3" />
                                         <span>{release.date}</span>
                                     </div>

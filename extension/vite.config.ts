@@ -127,8 +127,7 @@ export default defineConfig(({ mode }) => {
                 },
                 output: {
                     entryFileNames: (chunk) => {
-                        if (chunk.name === "background")
-                            return "background.js";
+                        if (chunk.name === "background") return "background.js";
                         if (chunk.name === "offscreen") return "offscreen.js";
                         return "assets/[name]-[hash].js";
                     },
@@ -170,7 +169,10 @@ export default defineConfig(({ mode }) => {
                                     namePrefix,
                                 );
                             }
-                            if (typeof manifest.action?.default_title === "string") {
+                            if (
+                                typeof manifest.action?.default_title ===
+                                "string"
+                            ) {
                                 manifest.action.default_title =
                                     withExtensionNamePrefix(
                                         manifest.action.default_title,

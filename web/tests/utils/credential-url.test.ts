@@ -19,9 +19,9 @@ describe("normalizeCredentialUrl", () => {
     });
 
     it("keeps explicit https URLs", () => {
-        expect(normalizeCredentialUrl("https://example.com/login?next=%2F")).toBe(
-            "https://example.com/login?next=%2F",
-        );
+        expect(
+            normalizeCredentialUrl("https://example.com/login?next=%2F"),
+        ).toBe("https://example.com/login?next=%2F");
     });
 
     it("allows explicit http URLs", () => {
@@ -31,9 +31,9 @@ describe("normalizeCredentialUrl", () => {
     });
 
     it("allows embedded URL credentials for user-owned URLs", () => {
-        expect(normalizeCredentialUrl("https://user:pass@example.com/login")).toBe(
-            "https://user:pass@example.com/login",
-        );
+        expect(
+            normalizeCredentialUrl("https://user:pass@example.com/login"),
+        ).toBe("https://user:pass@example.com/login");
     });
 
     it("rejects javascript URLs", () => {
@@ -41,8 +41,9 @@ describe("normalizeCredentialUrl", () => {
     });
 
     it("rejects data URLs", () => {
-        expect(normalizeCredentialUrl("data:text/html,<script>alert(1)</script>"))
-            .toBeNull();
+        expect(
+            normalizeCredentialUrl("data:text/html,<script>alert(1)</script>"),
+        ).toBeNull();
     });
 
     it("rejects unsupported explicit schemes", () => {

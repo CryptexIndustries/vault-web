@@ -23,10 +23,7 @@ import {
 } from "../types/sw-messaging";
 import { sendEncryptedEnvelopeToSW } from "../utils/sw-envelope-client";
 import { uiLog, vaultLog } from "../utils/ext-logging";
-import {
-    CustomFieldType,
-    ItemType,
-} from "@/app_lib/proto/vault";
+import { CustomFieldType, ItemType } from "@/app_lib/proto/vault";
 
 export type PopupSaveCredentialProps = {
     prompt: PendingSavePrompt;
@@ -76,7 +73,8 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
         setSaving(true);
         setError(null);
         const res = await sendEncryptedEnvelopeToSW<
-            { ok: true; credential: LiteCredential } | { ok: false; error: string }
+            | { ok: true; credential: LiteCredential }
+            | { ok: false; error: string }
         >(MessageType.CreateCredential, {
             form: {
                 ID: null,
@@ -101,7 +99,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
         if (!res.ok || !res.payload?.ok) {
             const code = !res.ok
                 ? res.error
-                : (res.payload as { error?: string })?.error ?? "UNKNOWN";
+                : ((res.payload as { error?: string })?.error ?? "UNKNOWN");
             vaultLog.warn("Save-credential prompt failed", { code });
             setError(code);
             setSaving(false);
@@ -115,9 +113,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
     };
 
     return (
-        <div
-            className={`flex flex-col p-4${embedded ? "" : " h-full"}`}
-        >
+        <div className={`flex flex-col p-4${embedded ? "" : " h-full"}`}>
             <header className="flex items-start gap-2 pb-3">
                 <span className="rounded-md bg-primary/15 p-1.5 text-primary">
                     <ShieldCheck className="h-4 w-4" />

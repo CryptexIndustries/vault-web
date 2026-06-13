@@ -27,12 +27,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
     Tooltip,
@@ -144,7 +139,10 @@ function computeLayout(map: RelationshipMap): ConstellationLayout {
     let placed = 0;
     while (placed < orbiters.length) {
         ringCount++;
-        placed += Math.min(RING_BASE_CAPACITY * ringCount, orbiters.length - placed);
+        placed += Math.min(
+            RING_BASE_CAPACITY * ringCount,
+            orbiters.length - placed,
+        );
     }
     const maxRadius = ringCount * RING_BASE_RADIUS;
 
@@ -261,8 +259,7 @@ export function DevicesConstellation({
             );
         };
         document.addEventListener("fullscreenchange", onChange);
-        return () =>
-            document.removeEventListener("fullscreenchange", onChange);
+        return () => document.removeEventListener("fullscreenchange", onChange);
     }, []);
 
     const toggleFullscreen = useCallback(() => {
@@ -544,9 +541,7 @@ export function DevicesConstellation({
                                             from={from}
                                             to={to}
                                             highlighted={highlighted}
-                                            dimmed={
-                                                !!selection && !highlighted
-                                            }
+                                            dimmed={!!selection && !highlighted}
                                             dashed={!rel.localDevice}
                                             onClick={() =>
                                                 setSelection({

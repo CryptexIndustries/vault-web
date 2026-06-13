@@ -49,7 +49,8 @@ export interface FieldGroup {
 }
 
 const USERNAME_HINT = /user|email|login|account|identifi|signin|usern/i;
-const OTP_HINT = /otp|totp|one[-_ ]?time|verification[-_ ]?code|2fa|mfa|auth[-_ ]?code/i;
+const OTP_HINT =
+    /otp|totp|one[-_ ]?time|verification[-_ ]?code|2fa|mfa|auth[-_ ]?code/i;
 const SIGNUP_PASSWORD_HINT =
     /confirm|new[-_ ]?pass|signup|register|create[-_ ]?pass|repeat|re[-_ ]?enter/i;
 const PAGE_SIGNUP_HINT =
@@ -97,12 +98,7 @@ function getFieldId(el: HTMLInputElement): string {
  */
 function autocompleteTokens(el: HTMLInputElement): Set<string> {
     const raw = el.getAttribute("autocomplete") ?? "";
-    return new Set(
-        raw
-            .toLowerCase()
-            .split(/\s+/)
-            .filter(Boolean),
-    );
+    return new Set(raw.toLowerCase().split(/\s+/).filter(Boolean));
 }
 
 function nameSignal(el: HTMLInputElement): string {
@@ -214,7 +210,7 @@ function groupContainer(el: HTMLInputElement): Element {
         if (
             walker.tagName === "SECTION" ||
             walker.tagName === "FIELDSET" ||
-            walker.tagName === "DIV" && walker.getAttribute("role") === "form"
+            (walker.tagName === "DIV" && walker.getAttribute("role") === "form")
         ) {
             return walker;
         }

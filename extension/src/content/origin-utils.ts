@@ -14,7 +14,10 @@ export { etldPlus1 } from "../utils/etld";
  * documents (file://, chrome://, about:blank...), which the caller
  * should treat as "no autofill on this page".
  */
-export function getEffectiveOrigin(): { host: string; etldPlus1: string } | null {
+export function getEffectiveOrigin(): {
+    host: string;
+    etldPlus1: string;
+} | null {
     if (typeof window === "undefined" || !window.location) return null;
     const proto = window.location.protocol;
     if (proto !== "http:" && proto !== "https:") return null;

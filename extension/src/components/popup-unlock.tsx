@@ -191,7 +191,7 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
             className="flex h-full flex-col p-4"
         >
             {isSingleVault ? (
-                <div className="flex flex-col items-center gap-3 pt-6 pb-5 text-center">
+                <div className="flex flex-col items-center gap-3 pb-5 pt-6 text-center">
                     <span className="rounded-full bg-primary/15 p-3 text-primary">
                         <Lock className="h-6 w-6" />
                     </span>
@@ -215,8 +215,7 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
                                 Unlock vault
                             </h1>
                             <p className="text-[11px] leading-snug text-muted-foreground">
-                                Enter your vault password to access
-                                credentials.
+                                Enter your vault password to access credentials.
                             </p>
                         </div>
                     </header>

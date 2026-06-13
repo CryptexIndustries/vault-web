@@ -5,7 +5,14 @@
  * envelope/crypto stack with an in-memory key-store + Dexie mock, then proves
  * each change by unlocking through VaultMetadata.decryptVault.
  */
-import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from "@jest/globals";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
 
@@ -123,7 +130,11 @@ async function buildVault(masterPassword: string): Promise<VaultMetadata> {
 
 async function unlock(
     metadata: VaultMetadata,
-    params: { masterPassword: string; useRecovery?: boolean; recoveryCode?: string },
+    params: {
+        masterPassword: string;
+        useRecovery?: boolean;
+        recoveryCode?: string;
+    },
 ): Promise<boolean> {
     const res = await metadata.decryptVault(
         params.masterPassword,
@@ -183,7 +194,9 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
         expect(res.isErr()).toBe(true);
         expect((res as { error: string }).error).toBe("DEK_UNWRAP_FAILED");
         // Original password still works (nothing was persisted destructively).
-        expect(await unlock(metadata, { masterPassword: "correct" })).toBe(true);
+        expect(await unlock(metadata, { masterPassword: "correct" })).toBe(
+            true,
+        );
     });
 
     it("keeps existing device factor when reconfigure auth fails", async () => {
@@ -220,7 +233,10 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
 
         expect(res.isOk()).toBe(true);
         const revealSecrets = res as {
-            value: { secondFactorKind?: number; secondFactorPassphrase?: string };
+            value: {
+                secondFactorKind?: number;
+                secondFactorPassphrase?: string;
+            };
         };
         expect(revealSecrets.value?.secondFactorPassphrase).toBeTruthy();
         expect(revealSecrets.value?.secondFactorKind).toBe(

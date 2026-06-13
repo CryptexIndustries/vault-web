@@ -797,7 +797,10 @@ export function SendLinkRequestDialog({
 
         webRTConnection.onconnectionstatechange = () => {
             if (webRTConnection.connectionState === "connected") {
-                addToProgressLog("Private connection established. Closing signaling...", "info");
+                addToProgressLog(
+                    "Private connection established. Closing signaling...",
+                    "info",
+                );
                 signalingServerConnection.disconnect();
                 signalingServerConnection.unbind();
             } else if (

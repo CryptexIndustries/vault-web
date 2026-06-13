@@ -46,9 +46,7 @@ let entryCounter = 0;
 let writeQueue: Promise<void> = Promise.resolve();
 
 const hasChromeStorage = (): boolean =>
-    typeof chrome !== "undefined" &&
-    !!chrome.storage &&
-    !!chrome.storage.local;
+    typeof chrome !== "undefined" && !!chrome.storage && !!chrome.storage.local;
 
 const persist = (entry: LogEntry) => {
     if (!hasChromeStorage()) return;

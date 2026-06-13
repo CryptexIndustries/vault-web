@@ -32,10 +32,9 @@ const LinkPage = () => {
                             Link Cryptex Vault
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            Pair this browser with a vault from another
-                            device. After linking you set a passphrase, then
-                            this tab closes and you unlock from the extension
-                            popup.
+                            Pair this browser with a vault from another device.
+                            After linking you set a passphrase, then this tab
+                            closes and you unlock from the extension popup.
                         </p>
                     </div>
                 </header>

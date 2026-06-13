@@ -342,13 +342,11 @@ describe("SyncConnectionController orchestration", () => {
         const events = handler.mock.calls.map(
             (c) => c[0] as { event?: WebRTCMessageEventType },
         );
-        expect(events.some((e) => e.event === WebRTCMessageEventType.Error)).toBe(
-            true,
-        );
         expect(
-            events.some(
-                (e) => e.event === WebRTCMessageEventType.Synchronized,
-            ),
+            events.some((e) => e.event === WebRTCMessageEventType.Error),
+        ).toBe(true);
+        expect(
+            events.some((e) => e.event === WebRTCMessageEventType.Synchronized),
         ).toBe(true);
     });
 
@@ -368,10 +366,7 @@ describe("SyncConnectionController orchestration", () => {
 
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: makeFakePeer(), dataChannel: null },
-                ],
+                ["device-1", { connection: makeFakePeer(), dataChannel: null }],
             ]),
         });
         controller.transmitSyncHello("device-1");
@@ -481,10 +476,7 @@ describe("SyncConnectionController orchestration", () => {
         const peer = makeFakePeer();
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: peer, dataChannel: null },
-                ],
+                ["device-1", { connection: peer, dataChannel: null }],
             ]),
         });
         (
@@ -526,10 +518,7 @@ describe("SyncConnectionController orchestration", () => {
         const peer = makeFakePeer();
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: peer, dataChannel: null },
-                ],
+                ["device-1", { connection: peer, dataChannel: null }],
             ]),
         });
 
@@ -559,10 +548,7 @@ describe("SyncConnectionController orchestration", () => {
         const peer = makeFakePeer();
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: peer, dataChannel: null },
-                ],
+                ["device-1", { connection: peer, dataChannel: null }],
             ]),
         });
         const channel = makeFakeChannel("presence-sync-x");
@@ -599,10 +585,7 @@ describe("SyncConnectionController orchestration", () => {
         const peer = makeFakePeer();
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: peer, dataChannel: null },
-                ],
+                ["device-1", { connection: peer, dataChannel: null }],
             ]),
         });
         const channel = makeFakeChannel("presence-sync-x");
@@ -633,10 +616,7 @@ describe("SyncConnectionController orchestration", () => {
         const peer = makeFakePeer();
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: peer, dataChannel: null },
-                ],
+                ["device-1", { connection: peer, dataChannel: null }],
             ]),
         });
         const channel = makeFakeChannel("presence-sync-x");
@@ -743,10 +723,7 @@ describe("SyncConnectionController orchestration", () => {
         const peer = makeFakePeer();
         injectInternalState(controller, {
             webRTConnections: new Map([
-                [
-                    "device-1",
-                    { connection: peer, dataChannel: null },
-                ],
+                ["device-1", { connection: peer, dataChannel: null }],
             ]),
         });
         const fakeServer = makeFakePusher();
@@ -808,12 +785,10 @@ describe("SyncConnectionController orchestration", () => {
         expect(pusherConstructorMock.mock.calls.length).toBe(beforeCount + 1);
         expect(conn).toBeDefined();
 
-        const tracked = (
-            controller as unknown as {
-                _signalingServers: Map<string, unknown>;
-                _signalingServerConnectionStatus: Map<string, SignalingStatus>;
-            }
-        );
+        const tracked = controller as unknown as {
+            _signalingServers: Map<string, unknown>;
+            _signalingServerConnectionStatus: Map<string, SignalingStatus>;
+        };
         expect(tracked._signalingServers.get("ss-1")).toBe(conn);
         // Status is initialized to Disconnected immediately on connect.
         expect(tracked._signalingServerConnectionStatus.get("ss-1")).toBe(
@@ -879,7 +854,8 @@ describe("SyncConnectionController orchestration", () => {
             onmessage: null,
             label: "data-channel",
         }));
-        const originalRTC = (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection;
+        const originalRTC = (globalThis as { RTCPeerConnection?: unknown })
+            .RTCPeerConnection;
         (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection =
             function FakeRTCPeerConnection() {
                 return {
@@ -897,9 +873,9 @@ describe("SyncConnectionController orchestration", () => {
         });
 
         try {
-            await expect(controller.connectDevice("device-target")).resolves.toBe(
-                true,
-            );
+            await expect(
+                controller.connectDevice("device-target"),
+            ).resolves.toBe(true);
             expect(fakeServer.subscribe).toHaveBeenCalledWith(
                 "presence-sync-sync-1",
             );
@@ -910,14 +886,17 @@ describe("SyncConnectionController orchestration", () => {
                 }
             )._webRTConnections;
             expect(conns.has("device-target")).toBe(true);
-            expect(peerCreateDataChannelSpy).toHaveBeenCalledWith("data-channel");
+            expect(peerCreateDataChannelSpy).toHaveBeenCalledWith(
+                "data-channel",
+            );
         } finally {
             if (originalRTC === undefined) {
                 delete (globalThis as { RTCPeerConnection?: unknown })
                     .RTCPeerConnection;
             } else {
-                (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection =
-                    originalRTC;
+                (
+                    globalThis as { RTCPeerConnection?: unknown }
+                ).RTCPeerConnection = originalRTC;
             }
         }
     });
@@ -938,7 +917,9 @@ describe("SyncConnectionController orchestration", () => {
             STUNServers: [],
             TURNServers: [],
         } as unknown as VaultUtilTypes.LinkedDevices);
-        turnCredentialsMutate.mockRejectedValueOnce(new Error("TURN unavailable"));
+        turnCredentialsMutate.mockRejectedValueOnce(
+            new Error("TURN unavailable"),
+        );
 
         const controller = new SyncConnectionController(vaultOps);
         const handler = jest.fn();
@@ -1119,7 +1100,8 @@ describe("SyncConnectionController orchestration", () => {
                     [
                         "device-1",
                         {
-                            connection: fakePeer as unknown as RTCPeerConnection,
+                            connection:
+                                fakePeer as unknown as RTCPeerConnection,
                             dataChannel: null,
                         },
                     ],
@@ -1130,10 +1112,7 @@ describe("SyncConnectionController orchestration", () => {
             );
             const trackedConn = (
                 controller as unknown as {
-                    _webRTConnections: Map<
-                        string,
-                        { dataChannel: unknown }
-                    >;
+                    _webRTConnections: Map<string, { dataChannel: unknown }>;
                 }
             )._webRTConnections.get("device-1");
             expect(trackedConn?.dataChannel).toBe(remoteDataChannel);
@@ -1183,8 +1162,9 @@ describe("SyncConnectionController orchestration", () => {
                 delete (globalThis as { RTCPeerConnection?: unknown })
                     .RTCPeerConnection;
             } else {
-                (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection =
-                    originalRTC;
+                (
+                    globalThis as { RTCPeerConnection?: unknown }
+                ).RTCPeerConnection = originalRTC;
             }
         }
     });

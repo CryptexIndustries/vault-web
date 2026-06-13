@@ -84,8 +84,7 @@ export const GenericModal: React.FC<ModalProps> = ({
     };
 
     const panelClass = clsx({
-        "relative w-full transform overflow-hidden rounded-md text-left shadow-xl transition-all sm:my-8 sm:w-full":
-            true,
+        "relative w-full transform overflow-hidden rounded-md text-left shadow-xl transition-all sm:my-8 sm:w-full": true,
         "sm:max-w-sm": width === "sm",
         "sm:max-w-md": width === "md",
         "sm:max-w-lg": width === "lg",

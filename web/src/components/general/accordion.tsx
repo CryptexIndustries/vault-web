@@ -42,8 +42,7 @@ export const AccordionItem: React.FC<AccordionItemProps> = ({
             <>
                 <DisclosureButton
                     className={clsx({
-                        "text-md flex w-full items-center justify-between rounded-lg px-4 py-2 text-left font-medium text-white hover:opacity-90 focus:outline-none focus-visible:opacity-90 focus-visible:ring focus-visible:ring-opacity-75":
-                            true,
+                        "text-md flex w-full items-center justify-between rounded-lg px-4 py-2 text-left font-medium text-white hover:opacity-90 focus:outline-none focus-visible:opacity-90 focus-visible:ring focus-visible:ring-opacity-75": true,
                         [buttonClassName]: true,
                     })}
                 >

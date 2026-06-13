@@ -302,4 +302,3 @@ export function makeWebAuthnUnlockFromSlot(
 ): () => Promise<CryptoKey> {
     return () => unlockWebAuthnPrf(credentialIdB64, prfSaltB64);
 }
-

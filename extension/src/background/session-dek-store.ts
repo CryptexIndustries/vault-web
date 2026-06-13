@@ -170,7 +170,9 @@ export async function clearSessionDEK(vaultDbIndex: number): Promise<void> {
 
 export async function clearAllVaultKeyMaterial(): Promise<void> {
     const all = await chrome.storage.session.get(null);
-    const keys = Object.keys(all).filter((key) => key.startsWith(STORAGE_PREFIX));
+    const keys = Object.keys(all).filter((key) =>
+        key.startsWith(STORAGE_PREFIX),
+    );
     if (keys.length > 0) {
         await chrome.storage.session.remove(keys);
     }

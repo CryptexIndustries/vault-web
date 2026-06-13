@@ -14,9 +14,7 @@ import "./autofill-generator.css";
 import { PasswordGeneratorPanel } from "@/components/ui/password-generator";
 import { uiLog } from "./utils/ext-logging";
 
-type ParentMessage =
-    | { kind: "use"; password: string }
-    | { kind: "close" };
+type ParentMessage = { kind: "use"; password: string } | { kind: "close" };
 
 let outboundPort: MessagePort | null = null;
 
@@ -60,7 +58,7 @@ const App = () => {
     }, []);
 
     return (
-        <div className="dark autofill-generator-panel">
+        <div className="autofill-generator-panel dark">
             <PasswordGeneratorPanel
                 compact
                 onCancel={() => postToParent({ kind: "close" })}

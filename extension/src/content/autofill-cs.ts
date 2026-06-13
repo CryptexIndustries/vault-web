@@ -110,7 +110,10 @@ let initialised = false;
 
 function shouldRun(): boolean {
     if (!isTopFrame()) return false;
-    if (window.location.protocol !== "http:" && window.location.protocol !== "https:") {
+    if (
+        window.location.protocol !== "http:" &&
+        window.location.protocol !== "https:"
+    ) {
         return false;
     }
     return true;
@@ -133,11 +136,7 @@ function positionIconOverField(
     const size = Math.min(ICON_SIZE_PX, rect.height - 4);
     const top = rect.top + (rect.height - size) / 2 + window.scrollY;
     const left =
-        rect.left +
-        rect.width -
-        size -
-        ICON_RIGHT_PADDING_PX +
-        window.scrollX;
+        rect.left + rect.width - size - ICON_RIGHT_PADDING_PX + window.scrollX;
     iframe.style.top = `${Math.max(top, 0)}px`;
     iframe.style.left = `${Math.max(left, 0)}px`;
     iframe.style.width = `${size}px`;
@@ -250,7 +249,11 @@ function closeGenerator(): void {
         generatorIframe = null;
     }
     generatorActiveIcon = null;
-    document.removeEventListener("mousedown", onGeneratorDocumentMouseDown, true);
+    document.removeEventListener(
+        "mousedown",
+        onGeneratorDocumentMouseDown,
+        true,
+    );
     document.removeEventListener("keydown", onGeneratorDocumentKeyDown, true);
 }
 
@@ -326,10 +329,7 @@ function onGeneratorDocumentKeyDown(event: KeyboardEvent): void {
 
 async function openGeneratorForField(icon: IconHandle): Promise<void> {
     closeMenu();
-    if (
-        generatorIframe &&
-        generatorActiveIcon?.field === icon.field
-    ) {
+    if (generatorIframe && generatorActiveIcon?.field === icon.field) {
         closeGenerator();
         return;
     }
@@ -368,11 +368,9 @@ async function openGeneratorForField(icon: IconHandle): Promise<void> {
             void handleGeneratorMessage(ev.data, icon, group);
         };
         channel.port1.start();
-        iframe.contentWindow?.postMessage(
-            { kind: "init" },
-            EXTENSION_ORIGIN,
-            [channel.port2],
-        );
+        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
+            channel.port2,
+        ]);
         try {
             generatorPort.postMessage({ kind: "init" });
         } catch (err) {
@@ -471,11 +469,9 @@ async function openMenuForGroup(group: FieldGroup): Promise<void> {
             void handleMenuMessage(ev.data, group);
         };
         channel.port1.start();
-        iframe.contentWindow?.postMessage(
-            { kind: "init" },
-            EXTENSION_ORIGIN,
-            [channel.port2],
-        );
+        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
+            channel.port2,
+        ]);
         try {
             menuPort.postMessage({ kind: "init", payload: init });
         } catch (err) {
@@ -494,7 +490,13 @@ function onDocumentMouseDown(event: MouseEvent): void {
     if (target instanceof Node && menuIframe.contains(target)) return;
     // Clicks on icons should not dismiss the menu either (the icon handler will toggle).
     const path = event.composedPath?.() ?? [];
-    if (path.some((n) => n instanceof Element && n.getAttribute?.("data-cryptex-autofill") === "icon")) {
+    if (
+        path.some(
+            (n) =>
+                n instanceof Element &&
+                n.getAttribute?.("data-cryptex-autofill") === "icon",
+        )
+    ) {
         return;
     }
     closeMenu();
@@ -530,10 +532,7 @@ function clampSaveIframeHeight(contentHeight: number): number {
         SAVE_MIN_HEIGHT_PX,
         window.innerHeight - SAVE_VIEWPORT_PADDING_PX,
     );
-    return Math.min(
-        Math.max(contentHeight, SAVE_MIN_HEIGHT_PX),
-        maxHeight,
-    );
+    return Math.min(Math.max(contentHeight, SAVE_MIN_HEIGHT_PX), maxHeight);
 }
 
 function mountSavePrompt(payload: {
@@ -589,11 +588,9 @@ function mountSavePrompt(payload: {
             }
         };
         channel.port1.start();
-        iframe.contentWindow?.postMessage(
-            { kind: "init" },
-            EXTENSION_ORIGIN,
-            [channel.port2],
-        );
+        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
+            channel.port2,
+        ]);
         try {
             savePort.postMessage({ kind: "init", payload });
         } catch (err) {
@@ -603,9 +600,7 @@ function mountSavePrompt(payload: {
     window.addEventListener("message", handshake);
 }
 
-function pendingPromptToPayload(
-    prompt: PendingSavePrompt,
-): {
+function pendingPromptToPayload(prompt: PendingSavePrompt): {
     host: string;
     url: string;
     username: string;
@@ -852,7 +847,12 @@ function reconcile(): void {
             continue;
         }
 
-        mountIconForField(group, group.anchor.el, group.anchor.kind, "autofill");
+        mountIconForField(
+            group,
+            group.anchor.el,
+            group.anchor.kind,
+            "autofill",
+        );
         seenFields.add(group.anchor.el);
     }
 

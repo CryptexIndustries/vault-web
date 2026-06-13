@@ -2,7 +2,14 @@
  * `libsodium-wrappers-sumo` is mocked below. For real XChaCha20-Poly1305 / Argon2ID behavior,
  * see `encryption.integration.test.ts`.
  */
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+    describe,
+    it,
+    expect,
+    jest,
+    beforeEach,
+    afterEach,
+} from "@jest/globals";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
 
@@ -24,10 +31,14 @@ Object.defineProperty(globalThis, "crypto", {
 jest.mock(
     "@/lib/utils",
     () => ({
-        base64ToUint8: (value: string) => new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) => Buffer.from(value).toString("base64"),
-        base64UrlToUint8: (value: string) => new Uint8Array(Buffer.from(value, "base64url")),
-        uint8ToBase64Url: (value: Uint8Array) => Buffer.from(value).toString("base64url"),
+        base64ToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64")),
+        uint8ToBase64: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64"),
+        base64UrlToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64url")),
+        uint8ToBase64Url: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64url"),
     }),
     { virtual: true },
 );
@@ -44,7 +55,10 @@ jest.mock("libsodium-wrappers-sumo", () => {
     };
 
     const toKey = (data: Uint8Array) => Buffer.from(data).toString("base64");
-    const ciphertextState = new Map<string, { key: string; header: string; message: Uint8Array }>();
+    const ciphertextState = new Map<
+        string,
+        { key: string; header: string; message: Uint8Array }
+    >();
     let randomCounter = 0;
 
     const makePseudoRandom = (size: number): Uint8Array => {
@@ -75,7 +89,8 @@ jest.mock("libsodium-wrappers-sumo", () => {
                 for (let i = 0; i < keyLen; i++) {
                     const s = secret[i % secret.length] ?? 0;
                     const sa = salt[i % salt.length] ?? 0;
-                    output[i] = (s ^ sa ^ (opsLimit + i) ^ (memLimit & 0xff)) & 0xff;
+                    output[i] =
+                        (s ^ sa ^ (opsLimit + i) ^ (memLimit & 0xff)) & 0xff;
                 }
                 return output;
             },
@@ -106,7 +121,10 @@ jest.mock("libsodium-wrappers-sumo", () => {
                 ciphertextState.set(cKey, {
                     key: toKey(state.key),
                     // libsodium uses header from init; we bind it to state in this mock.
-                    header: toKey((state as { header?: Uint8Array }).header ?? new Uint8Array()),
+                    header: toKey(
+                        (state as { header?: Uint8Array }).header ??
+                            new Uint8Array(),
+                    ),
                     message: new Uint8Array(blob),
                 });
                 return out;
@@ -120,10 +138,7 @@ jest.mock("libsodium-wrappers-sumo", () => {
             }),
         ),
         crypto_secretstream_xchacha20poly1305_pull: jest.fn(
-            (
-                state: { header: string; key: string },
-                encrypted: Uint8Array,
-            ) => {
+            (state: { header: string; key: string }, encrypted: Uint8Array) => {
                 const record = ciphertextState.get(toKey(encrypted));
                 if (
                     record == undefined ||
@@ -160,7 +175,9 @@ import {
 describe("vault-utils/encryption", () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        (sodium as typeof sodium & { __resetMockState: () => void }).__resetMockState();
+        (
+            sodium as typeof sodium & { __resetMockState: () => void }
+        ).__resetMockState();
     });
 
     afterEach(() => {
@@ -176,7 +193,9 @@ describe("vault-utils/encryption", () => {
         expect(blob.KeyDerivationFunc).toBe(
             VaultUtilTypes.KeyDerivationFunction.Argon2ID,
         );
-        expect(blob.KDFConfigArgon2ID).toBeInstanceOf(KeyDerivationConfig_Argon2ID);
+        expect(blob.KDFConfigArgon2ID).toBeInstanceOf(
+            KeyDerivationConfig_Argon2ID,
+        );
     });
 
     it("identifies recovery slots", () => {
@@ -230,7 +249,9 @@ describe("vault-utils/encryption", () => {
 
         expect(decrypted.isOk()).toBe(true);
         if (decrypted.isOk()) {
-            expect(new TextDecoder().decode(decrypted.value)).toBe("secret payload");
+            expect(new TextDecoder().decode(decrypted.value)).toBe(
+                "secret payload",
+            );
         }
     });
 
@@ -288,7 +309,9 @@ describe("vault-utils/encryption", () => {
             expect(Array.from(decrypted.value)).toEqual([1, 2, 3, 4]);
         }
         expect(sodium.crypto_pwhash).toHaveBeenCalled();
-        expect(sodium.crypto_secretstream_xchacha20poly1305_push).toHaveBeenCalled();
+        expect(
+            sodium.crypto_secretstream_xchacha20poly1305_push,
+        ).toHaveBeenCalled();
     });
 
     it("fails XChaCha20 decryption with wrong secret", async () => {
@@ -400,7 +423,9 @@ describe("vault-utils/encryption", () => {
 
         expect(encryptedA.Salt).not.toBe(encryptedB.Salt);
         expect(encryptedA.HeaderIV).not.toBe(encryptedB.HeaderIV);
-        expect(Array.from(encryptedA.Blob)).not.toEqual(Array.from(encryptedB.Blob));
+        expect(Array.from(encryptedA.Blob)).not.toEqual(
+            Array.from(encryptedB.Blob),
+        );
     });
 
     it("validates encrypted blob payload type before decryption", async () => {
@@ -653,8 +678,10 @@ describe("vault-utils/encryption", () => {
 
     it("XChaCha20 decrypt returns KEY_DERIVATION_FN_INVALID for invalid kdf", async () => {
         const encrypted = EncryptedBlob.CreateDefault();
-        encrypted.Algorithm = VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305;
-        encrypted.KeyDerivationFunc = VaultUtilTypes.KeyDerivationFunction.Argon2ID;
+        encrypted.Algorithm =
+            VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305;
+        encrypted.KeyDerivationFunc =
+            VaultUtilTypes.KeyDerivationFunction.Argon2ID;
         encrypted.Blob = new Uint8Array([1, 2, 3]);
         encrypted.Salt = Buffer.from(new Uint8Array(16)).toString("base64");
         encrypted.HeaderIV = Buffer.from(new Uint8Array(24)).toString("base64");
@@ -696,7 +723,9 @@ describe("vault-utils/encryption", () => {
 
         expect(deserialized.Salt).toBe(encrypted.Salt);
         expect(deserialized.HeaderIV).toBe(encrypted.HeaderIV);
-        expect(Array.from(deserialized.Blob)).toEqual(Array.from(encrypted.Blob));
+        expect(Array.from(deserialized.Blob)).toEqual(
+            Array.from(encrypted.Blob),
+        );
         expect(deserialized.Envelope?.VaultID).toBe("vault-1");
     });
 });

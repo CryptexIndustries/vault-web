@@ -1279,7 +1279,6 @@ type SyncSessionState = {
     rejectReady?: (error: Error) => void;
 };
 
-
 /**
  * Handles vault item synchronization operations using callbacks instead of global state
  */
@@ -1429,7 +1428,11 @@ class VaultItemSynchronization {
         if (!localKeys || !remoteBundle) {
             syncLog.info(
                 "Cannot start encrypted sync session - sync keys are unavailable",
-                { deviceId: remoteDeviceID, localKeysAvailable: !!localKeys, remoteBundleAvailable: !!remoteBundle },
+                {
+                    deviceId: remoteDeviceID,
+                    localKeysAvailable: !!localKeys,
+                    remoteBundleAvailable: !!remoteBundle,
+                },
             );
             return null;
         }
@@ -1568,7 +1571,11 @@ class VaultItemSynchronization {
         if (!localKeys || !remoteBundle) {
             syncLog.info(
                 "Dropped sync session init - sync keys are unavailable",
-                { deviceId: remoteDeviceID, localKeysAvailable: !!localKeys, remoteBundleAvailable: !!remoteBundle },
+                {
+                    deviceId: remoteDeviceID,
+                    localKeysAvailable: !!localKeys,
+                    remoteBundleAvailable: !!remoteBundle,
+                },
             );
             return;
         }

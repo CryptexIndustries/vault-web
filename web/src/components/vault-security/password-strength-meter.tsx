@@ -37,7 +37,8 @@ export function PasswordStrengthMeter({
 
     const { score, feedback } = result;
     const weak = isWeakPasswordScore(score);
-    const label = PASSWORD_STRENGTH_LABELS[score] ?? PASSWORD_STRENGTH_LABELS[0];
+    const label =
+        PASSWORD_STRENGTH_LABELS[score] ?? PASSWORD_STRENGTH_LABELS[0];
     const warning = feedback.warning?.trim();
     const suggestions = feedback.suggestions
         .map((item) => item.trim())
@@ -75,9 +76,7 @@ export function PasswordStrengthMeter({
                     className={cn(
                         "shrink-0 font-medium",
                         compact ? "text-[10px]" : "text-xs",
-                        weak
-                            ? "text-destructive"
-                            : "text-muted-foreground",
+                        weak ? "text-destructive" : "text-muted-foreground",
                     )}
                 >
                     {label}

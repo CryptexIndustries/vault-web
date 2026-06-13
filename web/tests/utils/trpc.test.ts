@@ -1,10 +1,4 @@
-import {
-    describe,
-    it,
-    expect,
-    jest,
-    beforeEach,
-} from "@jest/globals";
+import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 
 const ensureFreshOnlineServicesSessionMock = jest.fn(async () => true);
 const createBareAuthHeaderMock = jest.fn(() => ({ Authorization: "" }));
@@ -41,7 +35,9 @@ const getHeadersFn = () => {
     const lastCall = mockHttpBatchLink.mock.calls[
         mockHttpBatchLink.mock.calls.length - 1
     ]![0] as {
-        headers: (args: { opList: FakeOp[] }) => Promise<Record<string, string>>;
+        headers: (args: {
+            opList: FakeOp[];
+        }) => Promise<Record<string, string>>;
     };
     return lastCall.headers;
 };

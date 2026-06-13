@@ -8,7 +8,10 @@ import {
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
 import type { VersionedRouter } from "../server/trpc";
-import { createBareAuthHeader, ensureFreshOnlineServicesSession } from "../app_lib/auth-session";
+import {
+    createBareAuthHeader,
+    ensureFreshOnlineServicesSession,
+} from "../app_lib/auth-session";
 
 function shouldEnsureFreshSession(opList: Operation[]) {
     return opList.some((op) => !op.path.startsWith("v1.auth."));
@@ -62,7 +65,8 @@ export const trpc = createTRPCClient<VersionedRouter>({
         }),
         httpBatchLink({
             url: "/api/trpc",
-            headers: async ({ opList }) => createHeadersWithFreshSession(opList),
+            headers: async ({ opList }) =>
+                createHeadersWithFreshSession(opList),
             transformer: superjson,
         }),
     ],

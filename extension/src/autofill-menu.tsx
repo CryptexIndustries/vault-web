@@ -180,8 +180,8 @@ const App = () => {
                             Unlock Cryptex Vault
                         </h1>
                         <p className="text-[11px] leading-snug text-muted-foreground">
-                            Unlock to autofill on <strong>{headingHost}</strong>.
-                            For your safety, the password is only ever entered
+                            Unlock to autofill on <strong>{headingHost}</strong>
+                            . For your safety, the password is only ever entered
                             in the extension popup.
                         </p>
                     </div>

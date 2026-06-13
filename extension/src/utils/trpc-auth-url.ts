@@ -35,7 +35,10 @@ export function parseTrpcOperationPaths(url: string): string[] {
     const pathSegment = afterPrefix.split("?")[0]?.replace(/\/+$/, "") ?? "";
     if (!pathSegment) return [];
 
-    return pathSegment.split(",").map((p) => p.trim()).filter(Boolean);
+    return pathSegment
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
 }
 
 /**

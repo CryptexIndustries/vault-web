@@ -71,7 +71,9 @@ describe("linked vault envelope", () => {
 
         const [primarySlot, _recoverySlot] = blob.Envelope?.Slots ?? [];
         expect(primarySlot?.Kind).toBe(VaultUtilTypes.KeySlotKind.PRIMARY);
-        expect(primarySlot?.FactorKind).toBe(VaultUtilTypes.SecondFactorKind.NONE);
+        expect(primarySlot?.FactorKind).toBe(
+            VaultUtilTypes.SecondFactorKind.NONE,
+        );
         expect(primarySlot?.HKDFSalt).not.toBe("");
         expect(primarySlot?.HKDFInfo).toContain(vaultId);
         expect(

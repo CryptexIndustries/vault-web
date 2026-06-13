@@ -3,16 +3,23 @@ import { describe, it, expect, jest } from "@jest/globals";
 jest.mock(
     "@/lib/utils",
     () => ({
-        base64ToUint8: (value: string) => new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) => Buffer.from(value).toString("base64"),
-        base64UrlToUint8: (value: string) => new Uint8Array(Buffer.from(value, "base64url")),
-        uint8ToBase64Url: (value: Uint8Array) => Buffer.from(value).toString("base64url"),
+        base64ToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64")),
+        uint8ToBase64: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64"),
+        base64UrlToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64url")),
+        uint8ToBase64Url: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64url"),
     }),
     { virtual: true },
 );
 
 import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
-import { BACKUP_FILE_EXTENSION, REQUIRED_FIELD_ERROR } from "../../src/utils/consts";
+import {
+    BACKUP_FILE_EXTENSION,
+    REQUIRED_FIELD_ERROR,
+} from "../../src/utils/consts";
 import {
     GroupSchema,
     SynchronizationSTUNUpsertSchema,
@@ -39,9 +46,9 @@ describe("vault-utils/form-schemas", () => {
         expect(vaultEncryptionFormElement.parse(undefined)).toBe(
             VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
         );
-        expect(vaultEncryptionKeyDerivationFunctionFormElement.parse(undefined)).toBe(
-            VaultUtilTypes.KeyDerivationFunction.Argon2ID,
-        );
+        expect(
+            vaultEncryptionKeyDerivationFunctionFormElement.parse(undefined),
+        ).toBe(VaultUtilTypes.KeyDerivationFunction.Argon2ID);
     });
 
     it("coerces encryption configuration and validates argon2 bounds", () => {
@@ -118,9 +125,9 @@ describe("vault-utils/form-schemas", () => {
     });
 
     it("validates captcha schema variants", () => {
-        expect(unlockVaultFormSchema.parse({ CaptchaToken: "" }).CaptchaToken).toBe(
-            "",
-        );
+        expect(
+            unlockVaultFormSchema.parse({ CaptchaToken: "" }).CaptchaToken,
+        ).toBe("");
         expect(() =>
             unlockVaultWCaptchaFormSchema.parse({ CaptchaToken: "" }),
         ).toThrow("Captcha is required.");
@@ -511,7 +518,10 @@ describe("vault-utils/form-schemas", () => {
                 }),
             ).toThrow("Application ID is required");
             expect(() =>
-                SynchronizationSignalingUpsertSchema.parse({ ...base, Key: "" }),
+                SynchronizationSignalingUpsertSchema.parse({
+                    ...base,
+                    Key: "",
+                }),
             ).toThrow("Key is required");
             expect(() =>
                 SynchronizationSignalingUpsertSchema.parse({

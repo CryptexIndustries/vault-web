@@ -74,4 +74,3 @@ export default function BarcodeScanner({
 
     return <RawBarcodeScanner {...props} onUpdate={handleUpdate} />;
 }
-

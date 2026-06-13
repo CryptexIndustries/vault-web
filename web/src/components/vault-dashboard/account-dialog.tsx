@@ -377,19 +377,22 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         },
     });
 
-    const copyToClipboard = useCallback(async (text: string, copiedLabel: string) => {
-        const trimmed = text.trim();
-        if (!trimmed) {
-            toast.error("Nothing to copy.");
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(trimmed);
-            toast.success(`${copiedLabel} copied.`);
-        } catch {
-            toast.error("Could not copy to clipboard.");
-        }
-    }, []);
+    const copyToClipboard = useCallback(
+        async (text: string, copiedLabel: string) => {
+            const trimmed = text.trim();
+            if (!trimmed) {
+                toast.error("Nothing to copy.");
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(trimmed);
+                toast.success(`${copiedLabel} copied.`);
+            } catch {
+                toast.error("Could not copy to clipboard.");
+            }
+        },
+        [],
+    );
 
     const persistSessionAndRefresh = async () => {
         await syncOnlineServicesRemoteConfiguration();
@@ -434,9 +437,12 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                 setRegisterCaptcha("");
             }
         } catch (e) {
-            onlineServicesLog.error("Online Services account registration failed", {
-                error: e,
-            });
+            onlineServicesLog.error(
+                "Online Services account registration failed",
+                {
+                    error: e,
+                },
+            );
             toast.error(
                 e instanceof Error ? e.message : "Registration failed.",
             );
@@ -518,10 +524,13 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                 setRemoveLocalBindingOpen(false);
             }
         } catch (e) {
-            onlineServicesLog.error("Failed to remove local Online Services binding", {
-                deviceId: vault.OnlineServices?.DeviceId,
-                error: e,
-            });
+            onlineServicesLog.error(
+                "Failed to remove local Online Services binding",
+                {
+                    deviceId: vault.OnlineServices?.DeviceId,
+                    error: e,
+                },
+            );
             toast.error(
                 e instanceof Error
                     ? e.message
@@ -989,10 +998,12 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                         Recovery phrase
                                     </h3>
                                     <p className="text-xs text-muted-foreground">
-                                        Generates a recovery phrase stored server-side (hashed)
-                                        to recover your Online Services account (subscription).
-                                        You can only generate one until it is cleared. Recovery
-                                        always requires your User ID together with the phrase.
+                                        Generates a recovery phrase stored
+                                        server-side (hashed) to recover your
+                                        Online Services account (subscription).
+                                        You can only generate one until it is
+                                        cleared. Recovery always requires your
+                                        User ID together with the phrase.
                                     </p>
                                     {recoveryPhraseAlreadyOnServer &&
                                     !recoveryPhraseToCopy ? (
@@ -1072,17 +1083,18 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                                     Shown once in plain text.
                                                     Account recovery needs{" "}
                                                     <strong>
-                                                        both your User ID and this
-                                                        phrase
+                                                        both your User ID and
+                                                        this phrase
                                                     </strong>
-                                                    — neither replaces the other.
-                                                    Anyone with both can recover
-                                                    your Online Services account
-                                                    (subscription).
+                                                    — neither replaces the
+                                                    other. Anyone with both can
+                                                    recover your Online Services
+                                                    account (subscription).
                                                 </p>
                                                 <div className="space-y-2">
                                                     <Label className="text-amber-950 dark:text-amber-50">
-                                                        User ID (required with phrase)
+                                                        User ID (required with
+                                                        phrase)
                                                     </Label>
                                                     <p className="break-all rounded-md border border-amber-500/40 bg-background/60 px-3 py-2 font-mono text-xs">
                                                         {vault.OnlineServices
@@ -1094,7 +1106,8 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                                         variant="secondary"
                                                         className="gap-2"
                                                         disabled={
-                                                            !vault.OnlineServices
+                                                            !vault
+                                                                .OnlineServices
                                                                 ?.UserID
                                                         }
                                                         onClick={() =>
@@ -1249,9 +1262,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            Delete account?
-                        </AlertDialogTitle>
+                        <AlertDialogTitle>Delete account?</AlertDialogTitle>
                         <AlertDialogDescription>
                             This permanently removes the server account. Root
                             device only. This action cannot be undone.

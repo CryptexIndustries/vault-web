@@ -25,10 +25,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-    VaultCredential,
-    calculateTOTP,
-} from "@/app_lib/vault-utils/vault";
+import { VaultCredential, calculateTOTP } from "@/app_lib/vault-utils/vault";
 import { CustomFieldType } from "@/app_lib/proto/vault";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
@@ -79,12 +76,12 @@ function CopyableField({
     return (
         <div className="group min-w-0">
             <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     {label}
                 </span>
             </div>
-            <div className="bg-muted/50 border-border group-hover:border-primary/30 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border p-3 transition-colors">
-                <Icon className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+            <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
+                <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <span
                     className={cn(
                         "block min-w-0 flex-1 font-mono text-sm text-foreground",
@@ -132,9 +129,7 @@ function CopyableField({
                                         <ExternalLink className="h-3.5 w-3.5" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                    Open website
-                                </TooltipContent>
+                                <TooltipContent>Open website</TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
                     )}
@@ -211,7 +206,7 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
     return (
         <div className="group">
             <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Two-Factor Code
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -235,9 +230,9 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
                     </span>
                 </div>
             </div>
-            <div className="bg-primary/5 border-primary/20 flex items-center gap-2 rounded-lg border p-3">
-                <Shield className="text-primary h-4 w-4 flex-shrink-0" />
-                <span className="text-primary flex-1 font-mono text-lg font-semibold tracking-[0.25em]">
+            <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <Shield className="h-4 w-4 flex-shrink-0 text-primary" />
+                <span className="flex-1 font-mono text-lg font-semibold tracking-[0.25em] text-primary">
                     {totpCode.slice(0, 3)} {totpCode.slice(3)}
                 </span>
                 <div className="flex items-center gap-2">
@@ -321,15 +316,15 @@ export function CredentialDetail({
 
     if (!credential) {
         return (
-            <div className="border-border bg-card flex h-screen w-96 items-center justify-center border-l">
+            <div className="flex h-screen w-96 items-center justify-center border-l border-border bg-card">
                 <div className="p-8 text-center">
-                    <div className="bg-muted mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-                        <Key className="text-muted-foreground h-8 w-8" />
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                        <Key className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <p className="text-foreground font-medium">
+                    <p className="font-medium text-foreground">
                         Select a credential
                     </p>
-                    <p className="text-muted-foreground mt-1 text-sm">
+                    <p className="mt-1 text-sm text-muted-foreground">
                         Choose an item from the list to view its details
                     </p>
                 </div>
@@ -347,14 +342,14 @@ export function CredentialDetail({
             )}
         >
             {/* Header */}
-            <div className="border-border border-b p-4">
+            <div className="border-b border-border p-4">
                 <div className="mb-4 flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-muted h-12 w-12 items-center justify-center rounded-lg hidden sm:flex">
-                            <Globe className="text-muted-foreground h-6 w-6" />
+                        <div className="hidden h-12 w-12 items-center justify-center rounded-lg bg-muted sm:flex">
+                            <Globe className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <div>
-                            <h3 className="text-foreground font-semibold line-clamp-2">
+                            <h3 className="line-clamp-2 font-semibold text-foreground">
                                 {credential.Name}
                             </h3>
                             <div className="mt-1 flex flex-wrap gap-1.5">
@@ -383,7 +378,7 @@ export function CredentialDetail({
                                                     {hiddenTags.map((tag) => (
                                                         <span
                                                             key={tag}
-                                                            className="bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-[11px]"
+                                                            className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground"
                                                         >
                                                             {tag}
                                                         </span>
@@ -431,7 +426,13 @@ export function CredentialDetail({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="outline" size="icon" onClick={() => onDeleteCredential(credential)}>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() =>
+                                        onDeleteCredential(credential)
+                                    }
+                                >
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                             </TooltipTrigger>
@@ -482,11 +483,11 @@ export function CredentialDetail({
                     {/* Description */}
                     {credential.Notes && (
                         <div>
-                            <span className="text-muted-foreground mb-1.5 block text-xs font-medium uppercase tracking-wider">
+                            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
                                 Notes
                             </span>
-                            <div className="bg-muted/50 border-border rounded-lg border p-3">
-                                <p className="text-foreground text-sm">
+                            <div className="rounded-lg border border-border bg-muted/50 p-3">
+                                <p className="text-sm text-foreground">
                                     {credential.Notes}
                                 </p>
                             </div>
@@ -498,7 +499,7 @@ export function CredentialDetail({
                         <>
                             <Separator className="my-4" />
                             <div className="mb-3 flex items-center justify-between">
-                                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                                     Custom Fields
                                 </span>
                                 <Badge variant="secondary" className="text-xs">
@@ -534,7 +535,7 @@ export function CredentialDetail({
                     <Separator className="my-4" />
                     <div className="space-y-3">
                         <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground flex items-center gap-2">
+                            <span className="flex items-center gap-2 text-muted-foreground">
                                 <Clock className="h-4 w-4" />
                                 Last modified
                             </span>
@@ -550,7 +551,7 @@ export function CredentialDetail({
                             </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground flex items-center gap-2">
+                            <span className="flex items-center gap-2 text-muted-foreground">
                                 <Plus className="h-4 w-4" />
                                 Created
                             </span>

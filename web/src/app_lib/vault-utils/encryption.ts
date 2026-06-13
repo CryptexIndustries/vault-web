@@ -51,11 +51,19 @@ export class KeyDerivationConfig_Argon2ID
     }
 }
 
-export function isPrimarySlot(slot: VaultUtilTypes.KeySlot): slot is VaultUtilTypes.KeySlot & { Kind: VaultUtilTypes.KeySlotKind.PRIMARY } {
+export function isPrimarySlot(
+    slot: VaultUtilTypes.KeySlot,
+): slot is VaultUtilTypes.KeySlot & {
+    Kind: VaultUtilTypes.KeySlotKind.PRIMARY;
+} {
     return slot.Kind === VaultUtilTypes.KeySlotKind.PRIMARY;
 }
 
-export function isRecoverySlot(slot: VaultUtilTypes.KeySlot): slot is VaultUtilTypes.KeySlot & { Kind: VaultUtilTypes.KeySlotKind.RECOVERY } {
+export function isRecoverySlot(
+    slot: VaultUtilTypes.KeySlot,
+): slot is VaultUtilTypes.KeySlot & {
+    Kind: VaultUtilTypes.KeySlotKind.RECOVERY;
+} {
     return slot.Kind === VaultUtilTypes.KeySlotKind.RECOVERY;
 }
 
@@ -191,11 +199,11 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
             obj.Algorithm,
             obj.KeyDerivationFunc,
             obj.KeyDerivationFunc ===
-            VaultUtilTypes.KeyDerivationFunction.Argon2ID
+                VaultUtilTypes.KeyDerivationFunction.Argon2ID
                 ? (obj.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID)
                 : null,
             obj.KeyDerivationFunc ===
-            VaultUtilTypes.KeyDerivationFunction.PBKDF2
+                VaultUtilTypes.KeyDerivationFunction.PBKDF2
                 ? (obj.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2)
                 : null,
             obj.Blob,

@@ -3,7 +3,8 @@ import { Loader2 } from "lucide-react";
 
 const LazyBarcodeScanner = lazy(() => import("react-qr-barcode-scanner"));
 
-type BarcodeScannerComponent = typeof import("react-qr-barcode-scanner").default;
+type BarcodeScannerComponent =
+    typeof import("react-qr-barcode-scanner").default;
 type BarcodeScannerProps = React.ComponentProps<BarcodeScannerComponent>;
 
 const Fallback = () => (

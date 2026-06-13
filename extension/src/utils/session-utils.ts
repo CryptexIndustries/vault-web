@@ -360,7 +360,9 @@ export async function decryptResponseEnvelope<T>(
         if (decryptedBytes.isErr()) {
             return {
                 ok: false,
-                error: err("ENVELOPE_DECRYPTION_FAILED: " + decryptedBytes.error),
+                error: err(
+                    "ENVELOPE_DECRYPTION_FAILED: " + decryptedBytes.error,
+                ),
             };
         }
 

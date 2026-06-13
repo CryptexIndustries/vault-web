@@ -40,5 +40,7 @@ export function normalizeCredentialUrl(rawUrl?: string | null): string | null {
         return null;
     }
 
-    return parseAllowedCredentialUrl(`https://${trimmedUrl}`)?.toString() ?? null;
+    return (
+        parseAllowedCredentialUrl(`https://${trimmedUrl}`)?.toString() ?? null
+    );
 }

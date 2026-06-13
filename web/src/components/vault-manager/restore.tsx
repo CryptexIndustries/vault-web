@@ -158,14 +158,14 @@ const RestoreTab: React.FC<{
                             </>
                         ) : (
                             <>
-                                <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
-                                    <UploadCloud className="text-muted-foreground h-6 w-6" />
+                                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                                    <UploadCloud className="h-6 w-6 text-muted-foreground" />
                                 </div>
-                                <p className="text-foreground mb-1 text-sm font-medium">
+                                <p className="mb-1 text-sm font-medium text-foreground">
                                     Drop your .{BACKUP_FILE_EXTENSION} file
                                     here, or click to browse
                                 </p>
-                                <p className="text-muted-foreground text-xs">
+                                <p className="text-xs text-muted-foreground">
                                     Only .{BACKUP_FILE_EXTENSION} vault backup
                                     files are supported
                                 </p>

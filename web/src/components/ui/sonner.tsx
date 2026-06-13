@@ -18,8 +18,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
                     toast: "group toast border shadow-lg",
                     title: "text-[#fcf8ec]",
                     description: "text-[#c7cddc]",
-                    actionButton: "bg-[#ff5668] text-[#fcf8ec] hover:bg-[#ff6f7e]",
-                    cancelButton: "bg-[#181d2b] text-[#fcf8ec] hover:bg-[#141926]",
+                    actionButton:
+                        "bg-[#ff5668] text-[#fcf8ec] hover:bg-[#ff6f7e]",
+                    cancelButton:
+                        "bg-[#181d2b] text-[#fcf8ec] hover:bg-[#141926]",
                     closeButton:
                         "border-[#181d2b] bg-[#262e43] text-[#c7cddc] hover:text-[#fcf8ec]",
                     success: "border-[#25c472]/60",

@@ -56,7 +56,10 @@ export const PossibleFields: Array<{ fieldText: string; field: Fields }> = [
     { fieldText: "Notes", field: "Notes" },
     { fieldText: "DateCreatedTimestamp", field: "DateCreatedTimestamp" },
     { fieldText: "DateModifiedTimestamp", field: "DateModifiedTimestamp" },
-    { fieldText: "DatePasswordChangedTimestamp", field: "DatePasswordChangedTimestamp" },
+    {
+        fieldText: "DatePasswordChangedTimestamp",
+        field: "DatePasswordChangedTimestamp",
+    },
     { fieldText: "Deleted", field: "Deleted" },
 ];
 
@@ -155,9 +158,7 @@ export const CSVGetColNames = (
 export const CSV = async (
     file: File,
     fields: FieldsSchemaType,
-    onSuccess: (
-        credentials: Credential[],
-    ) => Promise<void>,
+    onSuccess: (credentials: Credential[]) => Promise<void>,
     onFailure: (error: Error) => void,
 ): Promise<void> => {
     Papa.parse(file, {
@@ -188,9 +189,7 @@ export const CSV = async (
                     .join(CredentialConstants.TAG_SEPARATOR);
             };
 
-            const tryParseNumber = (
-                value: string | null,
-            ): number | null => {
+            const tryParseNumber = (value: string | null): number | null => {
                 if (value == null || value === "") return null;
                 // Try to parse the value as a number
                 const parsed = Number(value);
@@ -210,7 +209,9 @@ export const CSV = async (
 
                         Type: ItemType.Credentials,
                         GroupID: "",
-                        Name: extractValue(row, "Name", "Import") ?? "Unnamed item",
+                        Name:
+                            extractValue(row, "Name", "Import") ??
+                            "Unnamed item",
                         Username: extractValue(row, "Username") ?? "",
                         Password: extractValue(row, "Password") ?? "",
                         Tags: parseTags(extractValue(row, "Tags") ?? ""),
@@ -226,7 +227,8 @@ export const CSV = async (
                         DateCreatedTimestamp: 0,
                         DateModifiedTimestamp: 0,
                         DatePasswordChangedTimestamp: 0,
-                        Deleted: extractValue(row, "Deleted", "false") === "true",
+                        Deleted:
+                            extractValue(row, "Deleted", "false") === "true",
                         Hash: "",
                     };
 
@@ -239,19 +241,29 @@ export const CSV = async (
                     const now = Date.now();
 
                     // Parse the csv dates to timestamps and hash the credential
-                    const dateCreated = tryParseNumber(extractValue(row, "DateCreatedTimestamp")) ?? now;
+                    const dateCreated =
+                        tryParseNumber(
+                            extractValue(row, "DateCreatedTimestamp"),
+                        ) ?? now;
                     if (dateCreated != null) {
                         parsedCredential.DateCreatedTimestamp = dateCreated;
                     }
 
-                    const dateModified = tryParseNumber(extractValue(row, "DateModifiedTimestamp")) ?? now;
+                    const dateModified =
+                        tryParseNumber(
+                            extractValue(row, "DateModifiedTimestamp"),
+                        ) ?? now;
                     if (dateModified != null) {
                         parsedCredential.DateModifiedTimestamp = dateModified;
                     }
 
-                    const datePasswordChanged = tryParseNumber(extractValue(row, "DatePasswordChangedTimestamp")) ?? now;
+                    const datePasswordChanged =
+                        tryParseNumber(
+                            extractValue(row, "DatePasswordChangedTimestamp"),
+                        ) ?? now;
                     if (datePasswordChanged != null) {
-                        parsedCredential.DatePasswordChangedTimestamp = datePasswordChanged;
+                        parsedCredential.DatePasswordChangedTimestamp =
+                            datePasswordChanged;
                     }
 
                     credentials.push(parsedCredential);

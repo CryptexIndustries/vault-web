@@ -1,7 +1,14 @@
 /**
  * @jest-environment node
  */
-import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from "@jest/globals";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
 
@@ -42,7 +49,12 @@ jest.mock(
 
 const mockStoredFactors = new Map<
     number,
-    { key: CryptoKey | null; kind: number; credentialId?: string; prfSalt?: string }
+    {
+        key: CryptoKey | null;
+        kind: number;
+        credentialId?: string;
+        prfSalt?: string;
+    }
 >();
 
 const mockSetDeviceSecondFactorKey = jest.fn(
@@ -115,11 +127,17 @@ function installWebAuthnMocks(options?: {
     const createCredential =
         options && "createCredential" in options
             ? options.createCredential
-            : new MockPublicKeyCredential(new Uint8Array([1, 2, 3]), options?.createPrf);
+            : new MockPublicKeyCredential(
+                  new Uint8Array([1, 2, 3]),
+                  options?.createPrf,
+              );
     const getCredential =
         options && "getCredential" in options
             ? options.getCredential
-            : new MockPublicKeyCredential(new Uint8Array([1, 2, 3]), options?.getPrf);
+            : new MockPublicKeyCredential(
+                  new Uint8Array([1, 2, 3]),
+                  options?.getPrf,
+              );
     const credentials = {
         create: jest.fn(async () => createCredential),
         get: jest.fn(async () => getCredential),
@@ -155,7 +173,8 @@ describe("second-factor", () => {
         MockPublicKeyCredential.capabilities = { "extension:prf": true };
         delete (globalThis as { window?: unknown }).window;
         delete (globalThis as { navigator?: unknown }).navigator;
-        delete (globalThis as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+        delete (globalThis as { PublicKeyCredential?: unknown })
+            .PublicKeyCredential;
     });
 
     it("returns a null key for NONE enrollment and unlock", async () => {
@@ -187,7 +206,9 @@ describe("second-factor", () => {
             kdf,
         );
 
-        expect(enrolled.kind).toBe(VaultUtilTypes.SecondFactorKind.PASSPHRASE_128);
+        expect(enrolled.kind).toBe(
+            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        );
         expect(enrolled.displaySecret).toBeTruthy();
         expect(enrolled.passphraseSalt).toBeTruthy();
         expect(enrolled.hkdfBaseKey).toBeTruthy();
@@ -264,9 +285,13 @@ describe("second-factor", () => {
             kdf,
         );
 
-        expect(enrolled.kind).toBe(VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF);
+        expect(enrolled.kind).toBe(
+            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        );
         expect(enrolled.hkdfBaseKey).toBeInstanceOf(CryptoKey);
-        expect(enrolled.webauthnCredentialId).toBe(Buffer.from([1, 2, 3]).toString("base64"));
+        expect(enrolled.webauthnCredentialId).toBe(
+            Buffer.from([1, 2, 3]).toString("base64"),
+        );
         expect(enrolled.webauthnPrfSalt).toBeTruthy();
         expect(credentials.create).toHaveBeenCalledTimes(1);
         expect(credentials.get).not.toHaveBeenCalled();
@@ -298,7 +323,9 @@ describe("second-factor", () => {
             ),
         ).rejects.toThrow("WEBAUTHN_UNAVAILABLE");
 
-        installWebAuthnMocks({ createPrf: crypto.getRandomValues(new Uint8Array(32)) });
+        installWebAuthnMocks({
+            createPrf: crypto.getRandomValues(new Uint8Array(32)),
+        });
         MockPublicKeyCredential.capabilities = { "extension:prf": false };
         await expect(
             enrollSecondFactor(
@@ -348,7 +375,10 @@ describe("second-factor", () => {
         const prfSalt = Buffer.from([6, 5, 4]).toString("base64");
 
         const direct = await unlockWebAuthnPrf(credentialId, prfSalt);
-        const fromSlot = await makeWebAuthnUnlockFromSlot(credentialId, prfSalt)();
+        const fromSlot = await makeWebAuthnUnlockFromSlot(
+            credentialId,
+            prfSalt,
+        )();
         const resolved = await resolveSecondFactorForUnlock(
             undefined,
             VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,

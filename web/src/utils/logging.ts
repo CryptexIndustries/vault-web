@@ -68,7 +68,12 @@ class VaultLogger {
     /**
      * Internal method to add a log entry
      */
-    private addLog(group: LogGroup, level: LogLevel, message: string, data?: unknown): void {
+    private addLog(
+        group: LogGroup,
+        level: LogLevel,
+        message: string,
+        data?: unknown,
+    ): void {
         if (!this.enabled) return;
 
         const entry: LogEntry = {
@@ -93,7 +98,8 @@ class VaultLogger {
         // Also output to console in development
         if (process.env.NODE_ENV === "development") {
             const prefix = `[${group}]`;
-            const consoleData = data !== undefined ? [message, data] : [message];
+            const consoleData =
+                data !== undefined ? [message, data] : [message];
             switch (level) {
                 case LogLevel.Debug:
                     console.debug(prefix, ...consoleData);
@@ -155,7 +161,9 @@ class VaultLogger {
             allLogs.push(...groupLogs);
         }
         // Sort by timestamp
-        return allLogs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        return allLogs.sort(
+            (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+        );
     }
 
     /**
@@ -170,22 +178,26 @@ class VaultLogger {
         let logs = this.getAllLogs();
 
         if (options.groups && options.groups.length > 0) {
-            logs = logs.filter(log => options.groups!.includes(log.group));
+            logs = logs.filter((log) => options.groups!.includes(log.group));
         }
 
         if (options.levels && options.levels.length > 0) {
-            logs = logs.filter(log => options.levels!.includes(log.level));
+            logs = logs.filter((log) => options.levels!.includes(log.level));
         }
 
         if (options.since) {
-            logs = logs.filter(log => log.timestamp >= options.since!);
+            logs = logs.filter((log) => log.timestamp >= options.since!);
         }
 
         if (options.searchText) {
             const searchLower = options.searchText.toLowerCase();
-            logs = logs.filter(log => 
-                log.message.toLowerCase().includes(searchLower) ||
-                (log.data && JSON.stringify(log.data).toLowerCase().includes(searchLower))
+            logs = logs.filter(
+                (log) =>
+                    log.message.toLowerCase().includes(searchLower) ||
+                    (log.data &&
+                        JSON.stringify(log.data)
+                            .toLowerCase()
+                            .includes(searchLower)),
             );
         }
 
@@ -227,10 +239,10 @@ class VaultLogger {
         groups?: LogGroup[];
         levels?: LogLevel[];
     }): string {
-        const logs = options 
+        const logs = options
             ? this.getFilteredLogs(options)
             : this.getAllLogs();
-        
+
         return JSON.stringify(logs, null, 2);
     }
 }
@@ -240,64 +252,96 @@ export const vaultLogger = new VaultLogger();
 
 // Convenience functions for synchronization logging
 export const syncLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.Synchronization, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.Synchronization, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.Synchronization, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.Synchronization, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.Synchronization, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.Synchronization, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.Synchronization, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.Synchronization, message, data),
 };
 
 // Convenience functions for WebRTC logging (sub-category of sync)
 export const webrtcLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.WebRTC, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.WebRTC, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.WebRTC, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.WebRTC, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.WebRTC, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.WebRTC, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.WebRTC, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.WebRTC, message, data),
 };
 
 // Convenience functions for Signaling logging (sub-category of sync)
 export const signalingLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.Signaling, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.Signaling, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.Signaling, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.Signaling, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.Signaling, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.Signaling, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.Signaling, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.Signaling, message, data),
 };
 
 // Convenience functions for vault data and lifecycle logging
 export const vaultLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.Vault, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.Vault, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.Vault, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.Vault, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.Vault, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.Vault, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.Vault, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.Vault, message, data),
 };
 
 // Convenience functions for Online Services logging
 export const onlineServicesLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.OnlineServices, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.OnlineServices, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.OnlineServices, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.OnlineServices, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.OnlineServices, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.OnlineServices, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.OnlineServices, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.OnlineServices, message, data),
 };
 
 // Convenience functions for UI logging
 export const uiLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.UI, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.UI, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.UI, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.UI, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.UI, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.UI, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.UI, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.UI, message, data),
 };
 
 // Convenience functions for Import logging
 export const importLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.Import, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.Import, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.Import, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.Import, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.Import, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.Import, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.Import, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.Import, message, data),
 };
 
 // Convenience functions for General logging
 export const generalLog = {
-    debug: (message: string, data?: unknown) => vaultLogger.debug(LogGroup.General, message, data),
-    info: (message: string, data?: unknown) => vaultLogger.info(LogGroup.General, message, data),
-    warn: (message: string, data?: unknown) => vaultLogger.warn(LogGroup.General, message, data),
-    error: (message: string, data?: unknown) => vaultLogger.error(LogGroup.General, message, data),
+    debug: (message: string, data?: unknown) =>
+        vaultLogger.debug(LogGroup.General, message, data),
+    info: (message: string, data?: unknown) =>
+        vaultLogger.info(LogGroup.General, message, data),
+    warn: (message: string, data?: unknown) =>
+        vaultLogger.warn(LogGroup.General, message, data),
+    error: (message: string, data?: unknown) =>
+        vaultLogger.error(LogGroup.General, message, data),
 };

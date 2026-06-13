@@ -64,7 +64,11 @@ jest.mock("dexie", () => {
 });
 
 import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
-import { TOTP, Vault, VaultCredential } from "../../src/app_lib/vault-utils/vault";
+import {
+    TOTP,
+    Vault,
+    VaultCredential,
+} from "../../src/app_lib/vault-utils/vault";
 import type {
     EncryptionFormGroupSchemaType,
     NewVaultFormSchemaType,
@@ -111,7 +115,10 @@ type ReconfigurePrimaryFactorFn = (
     next: unknown,
     kdfConfig: VaultUtilTypes.KeyDerivationConfigArgon2ID,
 ) => Promise<
-    Result<import("../../src/app_lib/vault-utils/encryption").EncryptedBlob, string>
+    Result<
+        import("../../src/app_lib/vault-utils/encryption").EncryptedBlob,
+        string
+    >
 >;
 
 type RotateRecoveryCodeFn = (
@@ -136,7 +143,8 @@ const mockReencryptVaultBytesWithDEK: jest.MockedFunction<ReencryptVaultBytesWit
     jest.fn();
 const mockReconfigurePrimaryFactor: jest.MockedFunction<ReconfigurePrimaryFactorFn> =
     jest.fn();
-const mockRotateRecoveryCode: jest.MockedFunction<RotateRecoveryCodeFn> = jest.fn();
+const mockRotateRecoveryCode: jest.MockedFunction<RotateRecoveryCodeFn> =
+    jest.fn();
 const mockHashSecret: jest.MockedFunction<
     (secret: string) => Promise<Uint8Array>
 > = jest.fn();
@@ -323,7 +331,8 @@ describe("vault-utils/storage", () => {
         jest.clearAllMocks();
         delete (globalThis as { window?: unknown }).window;
         delete (globalThis as { navigator?: unknown }).navigator;
-        delete (globalThis as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+        delete (globalThis as { PublicKeyCredential?: unknown })
+            .PublicKeyCredential;
 
         db.vaults = {
             update: jest.fn(async () => 1),
@@ -347,7 +356,9 @@ describe("vault-utils/storage", () => {
         mockReencryptVaultBytesWithDEK.mockImplementation(
             async (_bytes, _dek, existing) => existing,
         );
-        mockReconfigurePrimaryFactor.mockImplementation(async (blob) => ok(blob));
+        mockReconfigurePrimaryFactor.mockImplementation(async (blob) =>
+            ok(blob),
+        );
         mockRotateRecoveryCode.mockImplementation(async (blob) =>
             ok({ blob, recoveryCode: "rotated-recovery-code" }),
         );
@@ -436,10 +447,7 @@ describe("vault-utils/storage", () => {
         metadata.Blob = EncryptedBlob.CreateDefault();
 
         await expect(
-            metadata.save(
-                new Vault(),
-                new Uint8Array([1]),
-            ),
+            metadata.save(new Vault(), new Uint8Array([1])),
         ).rejects.toThrow("Invalid encryption key type for save");
 
         expect(mockHashSecret).not.toHaveBeenCalledWith("vault-secret");
@@ -453,10 +461,7 @@ describe("vault-utils/storage", () => {
         const { update: updateMock } = getVaultTableMocks();
         const beforeLastUsed = metadata.LastUsed;
 
-        await metadata.save(
-            null,
-            new Uint8Array([1, 2, 3]),
-        );
+        await metadata.save(null, new Uint8Array([1, 2, 3]));
 
         expect(mockEncryptDataBlob).not.toHaveBeenCalled();
         expect(metadata.LastUsed).toBe(beforeLastUsed);
@@ -668,9 +673,9 @@ describe("vault-utils/storage", () => {
 
         mockReencryptVaultBytesWithDEK.mockImplementationOnce(async (blob) => {
             const decoded = VaultUtilTypes.Vault.decode(blob);
-            expect((decoded.LinkedDevices as { ID?: string } | undefined)?.ID).not.toBe(
-                "linked",
-            );
+            expect(
+                (decoded.LinkedDevices as { ID?: string } | undefined)?.ID,
+            ).not.toBe("linked");
             expect(decoded.LinkedDevices?.Devices ?? []).toHaveLength(0);
             return existingBlob;
         });
@@ -797,7 +802,9 @@ describe("vault-utils/storage", () => {
     it("reports current second-factor failures during reconfigure and recovery reset", async () => {
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
-        metadata.Blob = makeEnvelopeBlob(VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF);
+        metadata.Blob = makeEnvelopeBlob(
+            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        );
 
         await expect(
             metadata.reconfigureSecurity({
@@ -839,9 +846,13 @@ describe("vault-utils/storage", () => {
         installWebAuthnMocks();
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
-        metadata.Blob = makeEnvelopeBlob(VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF);
+        metadata.Blob = makeEnvelopeBlob(
+            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        );
         const primarySlot = metadata.Blob.Envelope!.Slots[0]!;
-        primarySlot.WebauthnCredentialId = Buffer.from([1, 2, 3]).toString("base64");
+        primarySlot.WebauthnCredentialId = Buffer.from([1, 2, 3]).toString(
+            "base64",
+        );
         primarySlot.WebauthnPrfSalt = Buffer.from([4, 5, 6]).toString("base64");
 
         await expect(
@@ -895,30 +906,38 @@ describe("vault-utils/storage", () => {
         installWebAuthnMocks();
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
-        metadata.Blob = makeEnvelopeBlob(VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF);
+        metadata.Blob = makeEnvelopeBlob(
+            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        );
         const primarySlot = metadata.Blob.Envelope!.Slots[0]!;
-        primarySlot.WebauthnCredentialId = Buffer.from([1, 2, 3]).toString("base64");
+        primarySlot.WebauthnCredentialId = Buffer.from([1, 2, 3]).toString(
+            "base64",
+        );
         primarySlot.WebauthnPrfSalt = Buffer.from([4, 5, 6]).toString("base64");
 
         const vault = new Vault();
         const credential = new VaultCredential();
-        credential.TOTP = Object.assign(new TOTP(), { Secret: "JBSWY3DPEHPK3PXP" });
-        vault.Credentials = [credential];
-        mockOpenEnvelopeBlob.mockImplementationOnce(async (_blob, _vaultId, options) => {
-            expect(
-                (options as { secondFactorHkdfBase?: CryptoKey | null })
-                    .secondFactorHkdfBase,
-            ).toBeTruthy();
-            const dek = await webcrypto.subtle.generateKey(
-                { name: "AES-GCM", length: 256 },
-                false,
-                ["encrypt", "decrypt"],
-            );
-            return ok({
-                dek,
-                plaintext: VaultUtilTypes.Vault.encode(vault).finish(),
-            });
+        credential.TOTP = Object.assign(new TOTP(), {
+            Secret: "JBSWY3DPEHPK3PXP",
         });
+        vault.Credentials = [credential];
+        mockOpenEnvelopeBlob.mockImplementationOnce(
+            async (_blob, _vaultId, options) => {
+                expect(
+                    (options as { secondFactorHkdfBase?: CryptoKey | null })
+                        .secondFactorHkdfBase,
+                ).toBeTruthy();
+                const dek = await webcrypto.subtle.generateKey(
+                    { name: "AES-GCM", length: 256 },
+                    false,
+                    ["encrypt", "decrypt"],
+                );
+                return ok({
+                    dek,
+                    plaintext: VaultUtilTypes.Vault.encode(vault).finish(),
+                });
+            },
+        );
 
         const result = await metadata.decryptVault(
             "pw",
@@ -935,7 +954,9 @@ describe("vault-utils/storage", () => {
     it("decryptVault returns WebAuthn resolve errors", async () => {
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
-        metadata.Blob = makeEnvelopeBlob(VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF);
+        metadata.Blob = makeEnvelopeBlob(
+            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        );
 
         const result = await metadata.decryptVault(
             "pw",
@@ -945,7 +966,9 @@ describe("vault-utils/storage", () => {
         );
 
         expect(result.isErr()).toBe(true);
-        expect((result as { error: string }).error).toBe("WEBAUTHN_UNLOCK_REQUIRED");
+        expect((result as { error: string }).error).toBe(
+            "WEBAUTHN_UNLOCK_REQUIRED",
+        );
     });
 
     it("deserializeMetadataBinary preserves envelope data and backfills missing vault id", () => {

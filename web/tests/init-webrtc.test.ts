@@ -54,7 +54,9 @@ describe("initWebRTC", () => {
     });
 
     it("fetches Online Services TURN credentials when no custom servers are configured", async () => {
-        const rtcConstructor = jest.fn(function FakeRTC(config: RTCConfiguration) {
+        const rtcConstructor = jest.fn(function FakeRTC(
+            config: RTCConfiguration,
+        ) {
             return {
                 close: jest.fn(),
                 iceServers: config.iceServers,
@@ -85,7 +87,9 @@ describe("initWebRTC", () => {
     });
 
     it("uses custom TURN servers without calling turnCredentials", async () => {
-        const rtcConstructor = jest.fn(function FakeRTC(config: RTCConfiguration) {
+        const rtcConstructor = jest.fn(function FakeRTC(
+            config: RTCConfiguration,
+        ) {
             return {
                 close: jest.fn(),
                 iceServers: config.iceServers,
@@ -129,7 +133,9 @@ describe("initWebRTC", () => {
         createBareAuthHeader.mockReturnValue({
             Authorization: "",
         });
-        const rtcConstructor = jest.fn(function FakeRTC(config: RTCConfiguration) {
+        const rtcConstructor = jest.fn(function FakeRTC(
+            config: RTCConfiguration,
+        ) {
             return {
                 close: jest.fn(),
                 iceServers: config.iceServers,
@@ -185,7 +191,9 @@ describe("initWebRTC", () => {
             Authorization: "",
         });
 
-        await expect(initWebRTC([], [], { syncId: "sync_rel_1" })).rejects.toThrow(
+        await expect(
+            initWebRTC([], [], { syncId: "sync_rel_1" }),
+        ).rejects.toThrow(
             "Online Services sign-in is required to fetch TURN credentials",
         );
         expect(turnCredentialsMutate).not.toHaveBeenCalled();

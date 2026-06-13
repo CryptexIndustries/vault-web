@@ -39,8 +39,8 @@
         {
             "resources": [
                 "autofill-icon.html",
-                    "autofill-generator.html",
-                    "autofill-menu.html",
+                "autofill-generator.html",
+                "autofill-menu.html",
                 "autofill-save.html",
                 "assets/*"
             ],

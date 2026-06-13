@@ -50,10 +50,7 @@ export function shouldAutoReconnectAfterWebRTCStatus(
     device: Pick<VaultUtilTypes.LinkedDevice, "AutoConnect">,
     connectionState: WebRTCStatus,
 ) {
-    return (
-        device.AutoConnect &&
-        connectionState === WebRTCStatus.Disconnected
-    );
+    return device.AutoConnect && connectionState === WebRTCStatus.Disconnected;
 }
 
 export const createVaultOperations = (

@@ -18,9 +18,7 @@ import { uiLog } from "./utils/ext-logging";
 
 type InitPayload = Omit<PendingSavePrompt, "stashedAt">;
 
-type ParentMessage =
-    | { kind: "close" }
-    | { kind: "resize"; height: number };
+type ParentMessage = { kind: "close" } | { kind: "resize"; height: number };
 
 type IncomingMessage = { kind: "init"; payload: InitPayload };
 

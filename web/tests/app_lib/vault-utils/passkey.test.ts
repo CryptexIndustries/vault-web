@@ -96,7 +96,13 @@ describe("passkey.ts", () => {
             .spyOn(crypto.subtle, "importKey")
             .mockRejectedValueOnce(new Error("importKey boom"));
         try {
-            const fakeJwk = { kty: "EC", crv: "P-256", d: "AA", x: "BB", y: "CC" };
+            const fakeJwk = {
+                kty: "EC",
+                crv: "P-256",
+                d: "AA",
+                x: "BB",
+                y: "CC",
+            };
             await expect(
                 signChallenge(fakeJwk as never, new Uint8Array([1, 2, 3])),
             ).rejects.toThrow("importKey boom");
@@ -122,10 +128,15 @@ describe("passkey.ts", () => {
     describe("integration with server verifyPasskeySignature", () => {
         it("signChallenge output verifies with verifyPasskeySignature on same challenge bytes", async () => {
             const { publicKey, privateKey } = await generateKeyPair();
-            const challengeBytes = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
+            const challengeBytes = Buffer.from(
+                crypto.getRandomValues(new Uint8Array(32)),
+            );
             const challengeUint = new Uint8Array(challengeBytes);
 
-            const signatureB64Url = await signChallenge(privateKey, challengeUint);
+            const signatureB64Url = await signChallenge(
+                privateKey,
+                challengeUint,
+            );
 
             const ok = verifyPasskeySignature(
                 publicKeyJwkToString(publicKey),
@@ -140,7 +151,10 @@ describe("passkey.ts", () => {
             const a = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
             const b = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
 
-            const signatureB64Url = await signChallenge(privateKey, new Uint8Array(a));
+            const signatureB64Url = await signChallenge(
+                privateKey,
+                new Uint8Array(a),
+            );
 
             expect(
                 verifyPasskeySignature(
@@ -154,7 +168,9 @@ describe("passkey.ts", () => {
         it("fails with wrong public key", async () => {
             const { publicKey: pk1, privateKey } = await generateKeyPair();
             const { publicKey: pk2 } = await generateKeyPair();
-            const challengeBytes = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
+            const challengeBytes = Buffer.from(
+                crypto.getRandomValues(new Uint8Array(32)),
+            );
 
             const signatureB64Url = await signChallenge(
                 privateKey,

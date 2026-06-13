@@ -1,10 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
-
 import {
-    LogGroup,
-    LogLevel,
-    vaultLogger,
-} from "../../src/utils/logging";
+    describe,
+    it,
+    expect,
+    beforeEach,
+    afterEach,
+    jest,
+} from "@jest/globals";
+
+import { LogGroup, LogLevel, vaultLogger } from "../../src/utils/logging";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 
@@ -27,7 +30,9 @@ describe("vaultLogger", () => {
             vaultLogger.info(LogGroup.General, "should-not-record");
             vaultLogger.error(LogGroup.Vault, "also-not-recorded");
 
-            expect(vaultLogger.getLogsByGroup(LogGroup.General)).toHaveLength(0);
+            expect(vaultLogger.getLogsByGroup(LogGroup.General)).toHaveLength(
+                0,
+            );
             expect(vaultLogger.getLogsByGroup(LogGroup.Vault)).toHaveLength(0);
 
             vaultLogger.setEnabled(true);
@@ -59,8 +64,12 @@ describe("vaultLogger", () => {
             }
             vaultLogger.info(LogGroup.Signaling, "sig-1");
 
-            expect(vaultLogger.getLogsByGroup(LogGroup.WebRTC)).toHaveLength(500);
-            expect(vaultLogger.getLogsByGroup(LogGroup.Signaling)).toHaveLength(1);
+            expect(vaultLogger.getLogsByGroup(LogGroup.WebRTC)).toHaveLength(
+                500,
+            );
+            expect(vaultLogger.getLogsByGroup(LogGroup.Signaling)).toHaveLength(
+                1,
+            );
         });
     });
 
@@ -210,10 +219,18 @@ describe("vaultLogger", () => {
     describe("development console branch", () => {
         it("does not emit to console in non-development environment", () => {
             process.env.NODE_ENV = "production";
-            const debug = jest.spyOn(console, "debug").mockImplementation(() => {});
-            const info = jest.spyOn(console, "info").mockImplementation(() => {});
-            const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
-            const error = jest.spyOn(console, "error").mockImplementation(() => {});
+            const debug = jest
+                .spyOn(console, "debug")
+                .mockImplementation(() => {});
+            const info = jest
+                .spyOn(console, "info")
+                .mockImplementation(() => {});
+            const warn = jest
+                .spyOn(console, "warn")
+                .mockImplementation(() => {});
+            const error = jest
+                .spyOn(console, "error")
+                .mockImplementation(() => {});
 
             vaultLogger.debug(LogGroup.UI, "no-console");
             vaultLogger.info(LogGroup.UI, "no-console");
@@ -228,10 +245,18 @@ describe("vaultLogger", () => {
 
         it("emits each level to the matching console method in development", () => {
             process.env.NODE_ENV = "development";
-            const debug = jest.spyOn(console, "debug").mockImplementation(() => {});
-            const info = jest.spyOn(console, "info").mockImplementation(() => {});
-            const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
-            const error = jest.spyOn(console, "error").mockImplementation(() => {});
+            const debug = jest
+                .spyOn(console, "debug")
+                .mockImplementation(() => {});
+            const info = jest
+                .spyOn(console, "info")
+                .mockImplementation(() => {});
+            const warn = jest
+                .spyOn(console, "warn")
+                .mockImplementation(() => {});
+            const error = jest
+                .spyOn(console, "error")
+                .mockImplementation(() => {});
 
             vaultLogger.debug(LogGroup.UI, "d-msg");
             vaultLogger.info(LogGroup.UI, "i-msg", { ctx: 1 });

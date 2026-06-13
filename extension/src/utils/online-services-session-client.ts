@@ -28,4 +28,3 @@ export async function clearOnlineServicesSessionViaSW(): Promise<void> {
         null,
     );
 }
-

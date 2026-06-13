@@ -25,7 +25,9 @@ type IconMessage =
     | { kind: "hover-enter" }
     | { kind: "hover-leave" };
 
-const button = document.getElementById("autofill-icon") as HTMLButtonElement | null;
+const button = document.getElementById(
+    "autofill-icon",
+) as HTMLButtonElement | null;
 const shieldIcon = document.getElementById("autofill-icon-shield");
 const keyIcon = document.getElementById("autofill-icon-key");
 const iconMode =

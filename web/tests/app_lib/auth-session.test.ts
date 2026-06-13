@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 
-if (typeof (Uint8Array as unknown as { fromBase64?: unknown }).fromBase64 !== "function") {
+if (
+    typeof (Uint8Array as unknown as { fromBase64?: unknown }).fromBase64 !==
+    "function"
+) {
     Object.defineProperty(Uint8Array, "fromBase64", {
         value: (input: string) => new Uint8Array(Buffer.from(input, "base64")),
         writable: true,
@@ -23,20 +26,18 @@ type VerifyInput = {
 };
 type VerifyResult = { sessionToken: string; expiresAt: number };
 
-const refreshMutate =
-    jest.fn() as jest.MockedFunction<
-        (input: RefreshInput) => Promise<RefreshResult>
-    >;
-const challengeMutate =
-    jest.fn() as jest.MockedFunction<
-        (input: ChallengeInput) => Promise<ChallengeResult>
-    >;
-const verifyMutate =
-    jest.fn() as jest.MockedFunction<
-        (input: VerifyInput) => Promise<VerifyResult>
-    >;
-const configurationQuery =
-    jest.fn() as jest.MockedFunction<() => Promise<unknown>>;
+const refreshMutate = jest.fn() as jest.MockedFunction<
+    (input: RefreshInput) => Promise<RefreshResult>
+>;
+const challengeMutate = jest.fn() as jest.MockedFunction<
+    (input: ChallengeInput) => Promise<ChallengeResult>
+>;
+const verifyMutate = jest.fn() as jest.MockedFunction<
+    (input: VerifyInput) => Promise<VerifyResult>
+>;
+const configurationQuery = jest.fn() as jest.MockedFunction<
+    () => Promise<unknown>
+>;
 
 jest.mock("@trpc/client", () => ({
     createTRPCClient: jest.fn(() => ({
@@ -101,10 +102,12 @@ jest.mock("../../src/utils/trpc", () => ({
     },
 }));
 
-const mockParseJwkFromString =
-    parseJwkFromString as jest.MockedFunction<typeof parseJwkFromString>;
-const mockSignChallenge =
-    signChallenge as jest.MockedFunction<typeof signChallenge>;
+const mockParseJwkFromString = parseJwkFromString as jest.MockedFunction<
+    typeof parseJwkFromString
+>;
+const mockSignChallenge = signChallenge as jest.MockedFunction<
+    typeof signChallenge
+>;
 
 describe("auth-session freshness checks", () => {
     beforeEach(() => {
@@ -253,7 +256,10 @@ describe("auth-session freshness checks", () => {
             expiresAt: Date.now() + 15 * 60_000,
         });
 
-        await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+        await expect(Promise.all([first, second])).resolves.toEqual([
+            true,
+            true,
+        ]);
         expect(refreshMutate).toHaveBeenCalledTimes(1);
     });
 
@@ -400,10 +406,10 @@ describe("establishPremiumSession", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         setOnlineServicesData(null);
-        onlineServicesStore.set(
-            onlineServicesAuthConnectionStatusAtom,
-            { status: "DISCONNECTED", statusDescription: "Disconnected" },
-        );
+        onlineServicesStore.set(onlineServicesAuthConnectionStatusAtom, {
+            status: "DISCONNECTED",
+            statusDescription: "Disconnected",
+        });
         mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
         mockSignChallenge.mockResolvedValue("signed_sig");
     });

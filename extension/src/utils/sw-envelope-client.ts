@@ -179,6 +179,6 @@ export async function sendEncryptedEnvelopeToSW<T>(
         error:
             result.kind === "stale-key"
                 ? "STALE_KEY"
-                : result.error ?? "UNKNOWN_ENVELOPE_ERROR",
+                : (result.error ?? "UNKNOWN_ENVELOPE_ERROR"),
     };
 }

@@ -57,9 +57,7 @@ import {
 } from "src/app_lib/synchronization-utils";
 import { SyncConnectionController } from "src/app_lib/synchronization";
 import { useSetAtom } from "jotai";
-import {
-    linkedDevicesAtom,
-} from "src/utils/atoms";
+import { linkedDevicesAtom } from "src/utils/atoms";
 import { toast } from "sonner";
 import { trpcReact } from "src/utils/trpc";
 import { onlineServicesLog } from "src/utils/logging";
@@ -926,20 +924,21 @@ export function DeviceSidebar({
                 <ScrollArea className="flex-1 px-2">
                     <div className="space-y-1 pb-4">
                         {devices.map((device) => {
-                            const connectionStatus =
-                                deviceConnectionStatuses[device.ID] ?? {
-                                    signalingServerStatus:
-                                        syncConnectionController.getSignalingStatus(
-                                            device.SignalingServerID,
-                                        ),
-                                    webRTCStatus:
-                                        syncConnectionController.getWebRTCStatus(
-                                            device.ID,
-                                        ),
-                                    lastSync: device.LastSync
-                                        ? new Date(device.LastSync)
-                                        : null,
-                                };
+                            const connectionStatus = deviceConnectionStatuses[
+                                device.ID
+                            ] ?? {
+                                signalingServerStatus:
+                                    syncConnectionController.getSignalingStatus(
+                                        device.SignalingServerID,
+                                    ),
+                                webRTCStatus:
+                                    syncConnectionController.getWebRTCStatus(
+                                        device.ID,
+                                    ),
+                                lastSync: device.LastSync
+                                    ? new Date(device.LastSync)
+                                    : null,
+                            };
 
                             return (
                                 <DeviceItem

@@ -41,7 +41,8 @@ describe("OnlineServicesAuthenticationStatusHelpers", () => {
     });
 
     it("setConnecting returns CONNECTING with default label", () => {
-        const status = OnlineServicesAuthenticationStatusHelpers.setConnecting();
+        const status =
+            OnlineServicesAuthenticationStatusHelpers.setConnecting();
         expect(status).toEqual({
             status: "CONNECTING",
             statusDescription: "Signing in...",
@@ -49,7 +50,8 @@ describe("OnlineServicesAuthenticationStatusHelpers", () => {
     });
 
     it("setDisconnected returns DISCONNECTED with default label", () => {
-        const status = OnlineServicesAuthenticationStatusHelpers.setDisconnected();
+        const status =
+            OnlineServicesAuthenticationStatusHelpers.setDisconnected();
         expect(status).toEqual({
             status: "DISCONNECTED",
             statusDescription: "Disconnected",
@@ -118,10 +120,7 @@ describe("unlockedVaultWriteOnlyAtom", () => {
 
     it("setter awaits an async producer function", async () => {
         const next = new Vault();
-        await vaultStore.set(
-            unlockedVaultWriteOnlyAtom,
-            async () => next,
-        );
+        await vaultStore.set(unlockedVaultWriteOnlyAtom, async () => next);
         expect(vaultStore.get(unlockedVaultAtom)).toBe(next);
     });
 

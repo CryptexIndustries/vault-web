@@ -96,8 +96,7 @@ const CreateVaultTab: React.FC<{
         Number(memLimit),
         Number(opsLimit),
     );
-    const submitBlockedByKdf =
-        belowRecommendedKdf && !kdfRiskAcknowledged;
+    const submitBlockedByKdf = belowRecommendedKdf && !kdfRiskAcknowledged;
 
     const tryCreateVault = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
@@ -174,7 +173,7 @@ const CreateVaultTab: React.FC<{
                         setSecondFactorSource(source);
                     }}
                 />
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                     A second factor adds a separate key on top of your secret
                     key, so an attacker who learns or guesses your secret still
                     cannot open the vault. Recommended if your vault holds

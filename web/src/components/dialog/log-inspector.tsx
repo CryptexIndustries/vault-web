@@ -27,7 +27,10 @@ import {
     vaultLogger,
 } from "@/utils/logging";
 
-const levelColors: Record<LogLevel, { row: string; badge: string; text: string }> = {
+const levelColors: Record<
+    LogLevel,
+    { row: string; badge: string; text: string }
+> = {
     [LogLevel.Debug]: {
         row: "bg-slate-50",
         badge: "bg-slate-200 text-slate-700",
@@ -182,7 +185,12 @@ function LogEntryRow({
                 >
                     {groupIcons[entry.group]} {entry.group}
                 </span>
-                <span className={cn("flex-grow break-words text-sm", levelStyle.text)}>
+                <span
+                    className={cn(
+                        "flex-grow break-words text-sm",
+                        levelStyle.text,
+                    )}
+                >
                     {entry.message}
                 </span>
                 {hasData && !isExpanded && (
@@ -213,7 +221,9 @@ export const LogInspectorDialog: React.FC<{
     const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(
         new Set(Object.values(LogLevel)),
     );
-    const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+    const [expandedEntries, setExpandedEntries] = useState<Set<string>>(
+        new Set(),
+    );
     const [autoScroll, setAutoScroll] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -241,7 +251,8 @@ export const LogInspectorDialog: React.FC<{
 
     useEffect(() => {
         if (autoScroll && logContainerRef.current) {
-            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+            logContainerRef.current.scrollTop =
+                logContainerRef.current.scrollHeight;
         }
     }, [logs, autoScroll]);
 
@@ -342,7 +353,7 @@ export const LogInspectorDialog: React.FC<{
                 <div className="flex flex-col gap-2 border-b p-3">
                     <div className="flex items-center gap-2">
                         <div className="relative flex-grow">
-                            <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 type="text"
                                 placeholder="Search logs..."
@@ -356,9 +367,9 @@ export const LogInspectorDialog: React.FC<{
                                 <button
                                     type="button"
                                     onClick={() => setSearchQuery("")}
-                                    className="hover:bg-muted absolute right-2 top-1/2 -translate-y-1/2 rounded p-1"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 hover:bg-muted"
                                 >
-                                    <X className="text-muted-foreground h-4 w-4" />
+                                    <X className="h-4 w-4 text-muted-foreground" />
                                 </button>
                             )}
                         </div>
@@ -390,10 +401,10 @@ export const LogInspectorDialog: React.FC<{
                     </div>
 
                     {showFilters && (
-                        <div className="bg-background flex flex-col gap-3 rounded-lg border p-3">
+                        <div className="flex flex-col gap-3 rounded-lg border bg-background p-3">
                             <div>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                         Groups
                                     </span>
                                     <div className="flex gap-1 text-xs">
@@ -410,7 +421,9 @@ export const LogInspectorDialog: React.FC<{
                                         >
                                             All
                                         </button>
-                                        <span className="text-muted-foreground">|</span>
+                                        <span className="text-muted-foreground">
+                                            |
+                                        </span>
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -439,7 +452,7 @@ export const LogInspectorDialog: React.FC<{
 
                             <div>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                         Levels
                                     </span>
                                     <div className="flex gap-1 text-xs">
@@ -456,7 +469,9 @@ export const LogInspectorDialog: React.FC<{
                                         >
                                             All
                                         </button>
-                                        <span className="text-muted-foreground">|</span>
+                                        <span className="text-muted-foreground">
+                                            |
+                                        </span>
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -480,7 +495,9 @@ export const LogInspectorDialog: React.FC<{
                                             label={level}
                                             isActive={selectedLevels.has(level)}
                                             onClick={() => toggleLevel(level)}
-                                            colorClass={levelColors[level].badge}
+                                            colorClass={
+                                                levelColors[level].badge
+                                            }
                                         />
                                     ))}
                                 </div>
@@ -493,7 +510,9 @@ export const LogInspectorDialog: React.FC<{
                                     onClick={() =>
                                         setExpandedEntries(
                                             new Set(
-                                                filteredLogs.map((log) => log.id),
+                                                filteredLogs.map(
+                                                    (log) => log.id,
+                                                ),
                                             ),
                                         )
                                     }
@@ -503,7 +522,9 @@ export const LogInspectorDialog: React.FC<{
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => setExpandedEntries(new Set())}
+                                    onClick={() =>
+                                        setExpandedEntries(new Set())
+                                    }
                                 >
                                     Collapse All
                                 </Button>
@@ -514,10 +535,10 @@ export const LogInspectorDialog: React.FC<{
 
                 <div
                     ref={logContainerRef}
-                    className="bg-background flex-grow overflow-y-auto font-mono text-sm"
+                    className="flex-grow overflow-y-auto bg-background font-mono text-sm"
                 >
                     {filteredLogs.length === 0 ? (
-                        <div className="text-muted-foreground flex h-full flex-col items-center justify-center">
+                        <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                             <div className="mb-2 text-4xl">📋</div>
                             <p className="text-lg font-medium">
                                 No logs to display
@@ -540,7 +561,7 @@ export const LogInspectorDialog: React.FC<{
                     )}
                 </div>
 
-                <div className="bg-muted/40 text-muted-foreground flex items-center justify-between border-t px-3 py-2 text-xs">
+                <div className="flex items-center justify-between border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     <span>
                         Showing <strong>{filteredLogs.length}</strong> of{" "}
                         <strong>{totalLogCount}</strong> logs

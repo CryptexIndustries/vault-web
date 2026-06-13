@@ -172,8 +172,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         Number(memLimit),
         Number(opsLimit),
     );
-    const submitBlockedByKdf =
-        belowRecommendedKdf && !kdfRiskAcknowledged;
+    const submitBlockedByKdf = belowRecommendedKdf && !kdfRiskAcknowledged;
 
     const requireCurrentPassword = (): boolean => {
         if (currentPassword.trim().length === 0) {
@@ -504,9 +503,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                         <Button
                             className="vault-settings-primary-button w-full"
                             onClick={handleSaveSecurity}
-                            disabled={
-                                !isEnvelope || busy || submitBlockedByKdf
-                            }
+                            disabled={!isEnvelope || busy || submitBlockedByKdf}
                         >
                             {isSaving ? (
                                 <span className="flex items-center">

@@ -1,16 +1,13 @@
 /**
  * @jest-environment jsdom
  */
-import {
-    describe,
-    it,
-    expect,
-    jest,
-    beforeEach,
-} from "@jest/globals";
+import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { webcrypto } from "crypto";
 
-Object.defineProperty(globalThis, "crypto", { value: webcrypto, writable: true });
+Object.defineProperty(globalThis, "crypto", {
+    value: webcrypto,
+    writable: true,
+});
 
 import {
     clearVaultDEKFromSession,
@@ -30,7 +27,9 @@ describe("vault-session", () => {
         it("returns VAULT_DEK_NOT_FOUND when no active DEK", () => {
             const res = getVaultDEKFromSession();
             expect(res.isErr()).toBe(true);
-            expect((res as { error: string }).error).toBe("VAULT_DEK_NOT_FOUND");
+            expect((res as { error: string }).error).toBe(
+                "VAULT_DEK_NOT_FOUND",
+            );
         });
 
         it("returns the same non-extractable DEK handle set in session", async () => {
@@ -79,7 +78,9 @@ describe("vault-session", () => {
             clearVaultDEKFromSession();
             const res = getVaultDEKFromSession();
             expect(res.isErr()).toBe(true);
-            expect((res as { error: string }).error).toBe("VAULT_DEK_NOT_FOUND");
+            expect((res as { error: string }).error).toBe(
+                "VAULT_DEK_NOT_FOUND",
+            );
         });
     });
 
@@ -105,11 +106,16 @@ describe("vault-session", () => {
                 ["encrypt", "decrypt"],
             );
 
-            setVaultDEKInSessionForMetadata({ DBIndex: undefined } as never, dek);
+            setVaultDEKInSessionForMetadata(
+                { DBIndex: undefined } as never,
+                dek,
+            );
 
             const res = getVaultDEKFromSession();
             expect(res.isErr()).toBe(true);
-            expect((res as { error: string }).error).toBe("VAULT_DEK_NOT_FOUND");
+            expect((res as { error: string }).error).toBe(
+                "VAULT_DEK_NOT_FOUND",
+            );
         });
 
         it("does not set active DEK from legacy byte secrets", () => {
@@ -120,14 +126,19 @@ describe("vault-session", () => {
 
             const res = getVaultDEKFromSession();
             expect(res.isErr()).toBe(true);
-            expect((res as { error: string }).error).toBe("VAULT_DEK_NOT_FOUND");
+            expect((res as { error: string }).error).toBe(
+                "VAULT_DEK_NOT_FOUND",
+            );
         });
     });
 
     describe("saveVaultWithSessionDEK", () => {
         it("returns VAULT_DEK_NOT_FOUND when DEK missing in session", async () => {
             const metadata = { save: jest.fn() };
-            const result = await saveVaultWithSessionDEK(metadata as never, null);
+            const result = await saveVaultWithSessionDEK(
+                metadata as never,
+                null,
+            );
             expect(result.isErr()).toBe(true);
             expect((result as { error: string }).error).toBe(
                 "VAULT_DEK_NOT_FOUND",
@@ -145,7 +156,10 @@ describe("vault-session", () => {
             const save = jest.fn(async () => undefined);
             const metadata = { save };
 
-            const result = await saveVaultWithSessionDEK(metadata as never, null);
+            const result = await saveVaultWithSessionDEK(
+                metadata as never,
+                null,
+            );
             expect(result.isOk()).toBe(true);
             expect(save).toHaveBeenCalledTimes(1);
             expect(save).toHaveBeenCalledWith(null, dek);
@@ -163,9 +177,14 @@ describe("vault-session", () => {
             });
             const metadata = { save };
 
-            const result = await saveVaultWithSessionDEK(metadata as never, null);
+            const result = await saveVaultWithSessionDEK(
+                metadata as never,
+                null,
+            );
             expect(result.isErr()).toBe(true);
-            expect((result as { error: string }).error).toBe("VAULT_SAVE_FAILED");
+            expect((result as { error: string }).error).toBe(
+                "VAULT_SAVE_FAILED",
+            );
         });
     });
 });

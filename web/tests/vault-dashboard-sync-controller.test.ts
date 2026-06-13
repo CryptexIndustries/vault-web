@@ -36,10 +36,7 @@ import {
     shouldAutoReconnectAfterWebRTCStatus,
 } from "../src/components/vault-dashboard/sync-controller";
 import { WebRTCStatus } from "../src/app_lib/synchronization-utils";
-import {
-    unlockedVaultAtom,
-    vaultStore,
-} from "../src/utils/atoms";
+import { unlockedVaultAtom, vaultStore } from "../src/utils/atoms";
 import { getVaultDEKFromSession } from "../src/utils/vault-session";
 
 const sessionDEK = { type: "secret" } as CryptoKey;
@@ -65,10 +62,7 @@ const credential = (id: string): VaultUtilTypes.Credential => ({
     Deleted: false,
 });
 
-const metadata = (
-    dbIndex: number | undefined,
-    vaultID: string | undefined,
-) =>
+const metadata = (dbIndex: number | undefined, vaultID: string | undefined) =>
     ({
         DBIndex: dbIndex,
         Blob: vaultID
@@ -130,13 +124,15 @@ describe("vault dashboard sync controller helpers", () => {
         const vaultA = metadata(1, "vault-a");
         const vaultB = metadata(2, "vault-b");
         let activeMetadata = vaultA;
-        const setUnlockedVault = jest.fn((next: Vault | ((prev: Vault) => Vault)) => {
-            const vault =
-                typeof next === "function"
-                    ? next(vaultStore.get(unlockedVaultAtom))
-                    : next;
-            vaultStore.set(unlockedVaultAtom, vault);
-        });
+        const setUnlockedVault = jest.fn(
+            (next: Vault | ((prev: Vault) => Vault)) => {
+                const vault =
+                    typeof next === "function"
+                        ? next(vaultStore.get(unlockedVaultAtom))
+                        : next;
+                vaultStore.set(unlockedVaultAtom, vault);
+            },
+        );
 
         const operations = createVaultOperations(
             setUnlockedVault,

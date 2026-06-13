@@ -133,12 +133,16 @@ export const WarningDialog: React.FC<{
         setIsLoadingState(false);
     };
 
-    const confirmLabel = countdown !== null
-        ? `${confirmationButtonText ?? "Confirm"} (${countdown}s)`
-        : (confirmationButtonText ?? "Confirm");
+    const confirmLabel =
+        countdown !== null
+            ? `${confirmationButtonText ?? "Confirm"} (${countdown}s)`
+            : (confirmationButtonText ?? "Confirm");
 
     return (
-        <Dialog open={dialogVisible} onOpenChange={(open) => !open && hideModal()}>
+        <Dialog
+            open={dialogVisible}
+            onOpenChange={(open) => !open && hideModal()}
+        >
             <DialogContent className="w-[92vw] max-w-md">
                 <DialogHeader className="space-y-2 text-left">
                     <div className="flex items-center gap-2">

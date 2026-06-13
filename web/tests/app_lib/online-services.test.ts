@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+    describe,
+    it,
+    expect,
+    jest,
+    beforeEach,
+    afterEach,
+} from "@jest/globals";
 
 const customerPortalQueryMock = jest.fn();
 const checkoutURLQueryMock = jest.fn();
@@ -113,9 +120,7 @@ describe("online-services", () => {
         });
 
         it("returns the prefix-only string when id is empty", () => {
-            expect(constructLinkPresenceChannelName("")).toBe(
-                "presence-link-",
-            );
+            expect(constructLinkPresenceChannelName("")).toBe("presence-link-");
         });
     });
 });

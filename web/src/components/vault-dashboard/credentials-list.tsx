@@ -212,21 +212,21 @@ export function CredentialsList({
     }, [searchFocusRequestToken]);
 
     return (
-        <div className="bg-background flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col bg-background">
             {/* Header */}
-            <div className="border-border border-b p-2 sm:p-3">
+            <div className="border-b border-border p-2 sm:p-3">
                 {/* Search */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                     <Button
                         onClick={onAddNew}
-                        className="w-full gap-2 inline-flex sm:w-auto"
+                        className="inline-flex w-full gap-2 sm:w-auto"
                         size="sm"
                     >
                         <Plus className="h-4 w-4" />
                         <span>Add New</span>
                     </Button>
                     <div className="relative flex-1">
-                        <Search className="text-muted-foreground absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2" />
+                        <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             ref={searchInputRef}
                             placeholder='Search (e.g. tag:"work","urgent" or note:"shared account")'
@@ -244,7 +244,7 @@ export function CredentialsList({
                     </div>
                     <div className="flex items-center gap-2">
                         {!isMobile && (
-                            <div className="border-border flex items-center overflow-hidden rounded-md border">
+                            <div className="flex items-center overflow-hidden rounded-md border border-border">
                                 <Button
                                     variant={
                                         viewMode === "list"
@@ -276,10 +276,14 @@ export function CredentialsList({
                     </div>
                 </div>
                 <div className="flex items-center justify-between px-2 sm:pt-2">
-                    <p className="text-muted-foreground hidden text-xs sm:block">
-                        Press <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[11px]">?</kbd> for shortcuts
+                    <p className="hidden text-xs text-muted-foreground sm:block">
+                        Press{" "}
+                        <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                            ?
+                        </kbd>{" "}
+                        for shortcuts
                     </p>
-                    <p className="text-muted-foreground text-xs sm:text-sm">
+                    <p className="text-xs text-muted-foreground sm:text-sm">
                         {filteredCredentials.length} rows
                     </p>
                 </div>
@@ -296,23 +300,22 @@ export function CredentialsList({
                         computeItemKey={(_index, credential) => credential.ID}
                         itemContent={(_index, credential) => {
                             const tags = parseTags(credential.Tags);
-                            const visibleTags = tags.slice(
-                                0,
-                                MAX_VISIBLE_TAGS,
-                            );
+                            const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
                             const hiddenTagCount = Math.max(
-                                tags.length -
-                                    MAX_VISIBLE_TAGS,
+                                tags.length - MAX_VISIBLE_TAGS,
                                 0,
                             );
                             return (
-                                <div className="px-1 sm:px-2 first:pt-3 sm:first:pt-2">
+                                <div className="px-1 first:pt-3 sm:px-2 sm:first:pt-2">
                                     <div
                                         role="button"
                                         tabIndex={0}
                                         onClick={() => onSelect(credential)}
                                         onKeyDown={(e) => {
-                                            if (e.key === "Enter" || e.key === " ") {
+                                            if (
+                                                e.key === "Enter" ||
+                                                e.key === " "
+                                            ) {
                                                 e.preventDefault();
                                                 onSelect(credential);
                                             }
@@ -326,20 +329,20 @@ export function CredentialsList({
                                         )}
                                     >
                                         {/* Favicon */}
-                                        <div className="bg-muted flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
-                                            <Globe className="text-muted-foreground h-4 w-4 sm:h-5 sm:w-5" />
+                                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted sm:h-10 sm:w-10">
+                                            <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
                                         </div>
 
                                         {/* Content */}
                                         <div className="min-w-0 flex-1">
                                             <div className="mb-1 flex min-w-0 items-center gap-2">
-                                                <span className="text-foreground block min-w-0 truncate text-sm font-medium sm:text-base">
+                                                <span className="block min-w-0 truncate text-sm font-medium text-foreground sm:text-base">
                                                     {credential.Name}
                                                 </span>
                                                 {credential.TOTP && (
                                                     <Badge
                                                         variant="outline"
-                                                        className="border-primary/20 bg-primary/10 text-primary h-5 flex-shrink-0 px-1.5 py-0 text-xs"
+                                                        className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
                                                     >
                                                         <Key className="mr-1 h-3 w-3" />
                                                         <span className="hidden sm:inline">
@@ -348,7 +351,7 @@ export function CredentialsList({
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <p className="text-muted-foreground truncate text-xs sm:text-sm">
+                                            <p className="truncate text-xs text-muted-foreground sm:text-sm">
                                                 {credential.Username}
                                             </p>
                                             <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
@@ -356,7 +359,7 @@ export function CredentialsList({
                                                     <Badge
                                                         key={tag}
                                                         variant="outline"
-                                                        className="border-border/70 bg-muted/60 max-w-[110px] text-xs text-muted-foreground"
+                                                        className="max-w-[110px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
                                                     >
                                                         <span className="truncate">
                                                             {tag}
@@ -372,7 +375,7 @@ export function CredentialsList({
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs sm:hidden">
+                                            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground sm:hidden">
                                                 <Clock className="h-3 w-3" />
                                                 {formatDate(
                                                     credential.DateModifiedTimestamp ||
@@ -387,7 +390,7 @@ export function CredentialsList({
                                                 <Badge
                                                     key={tag}
                                                     variant="outline"
-                                                    className="border-border/70 bg-muted/60 max-w-[120px] text-xs text-muted-foreground"
+                                                    className="max-w-[120px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
                                                 >
                                                     <span className="truncate">
                                                         {tag}
@@ -403,7 +406,7 @@ export function CredentialsList({
                                                 </Badge>
                                             )}
                                         </div>
-                                        <div className="text-muted-foreground hidden flex-shrink-0 items-center gap-1 text-xs sm:flex">
+                                        <div className="hidden flex-shrink-0 items-center gap-1 text-xs text-muted-foreground sm:flex">
                                             <Clock className="h-3 w-3" />
                                             {formatDate(
                                                 credential.DateModifiedTimestamp ||
@@ -413,7 +416,9 @@ export function CredentialsList({
                                         <DropdownMenu>
                                             <DropdownMenuTrigger
                                                 asChild
-                                                onClick={(e) => e.stopPropagation()}
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
                                             >
                                                 <Button
                                                     variant="ghost"
@@ -428,7 +433,9 @@ export function CredentialsList({
                                                 <DropdownMenuItem
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onCopyUsername(credential);
+                                                        onCopyUsername(
+                                                            credential,
+                                                        );
                                                     }}
                                                 >
                                                     <Copy className="mr-2 h-4 w-4" />
@@ -438,7 +445,9 @@ export function CredentialsList({
                                                     <DropdownMenuItem
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            onCopyPassword(credential);
+                                                            onCopyPassword(
+                                                                credential,
+                                                            );
                                                         }}
                                                     >
                                                         <Key className="mr-2 h-4 w-4" />
@@ -449,7 +458,9 @@ export function CredentialsList({
                                                     <DropdownMenuItem
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            onCopyTOTP(credential);
+                                                            onCopyTOTP(
+                                                                credential,
+                                                            );
                                                         }}
                                                     >
                                                         <Key className="mr-2 h-4 w-4" />
@@ -462,7 +473,9 @@ export function CredentialsList({
                                                     <DropdownMenuItem
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            onOpenUrl(credential);
+                                                            onOpenUrl(
+                                                                credential,
+                                                            );
                                                         }}
                                                     >
                                                         <Globe className="mr-2 h-4 w-4" />
@@ -474,7 +487,9 @@ export function CredentialsList({
                                                     className="text-destructive"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onDeleteCredential(credential);
+                                                        onDeleteCredential(
+                                                            credential,
+                                                        );
                                                     }}
                                                 >
                                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -493,12 +508,9 @@ export function CredentialsList({
                     <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4">
                         {filteredCredentials.map((credential) => {
                             const tags = parseTags(credential.Tags);
-                            const visibleTags = (
-                                tags
-                            ).slice(0, MAX_VISIBLE_TAGS);
+                            const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
                             const hiddenTagCount = Math.max(
-                                tags.length -
-                                    MAX_VISIBLE_TAGS,
+                                tags.length - MAX_VISIBLE_TAGS,
                                 0,
                             );
                             return (
@@ -508,7 +520,10 @@ export function CredentialsList({
                                     tabIndex={0}
                                     onClick={() => onSelect(credential)}
                                     onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === " ") {
+                                        if (
+                                            e.key === "Enter" ||
+                                            e.key === " "
+                                        ) {
                                             e.preventDefault();
                                             onSelect(credential);
                                         }
@@ -521,75 +536,74 @@ export function CredentialsList({
                                             : "bg-card border-border",
                                     )}
                                 >
-                            {/* Favicon */}
-                            <div
-                                className="bg-muted mb-3 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg"
-                            >
-                                <Globe
-                                    className="text-muted-foreground h-5 w-5"
-                                />
-                            </div>
+                                    {/* Favicon */}
+                                    <div className="mb-3 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
+                                        <Globe className="h-5 w-5 text-muted-foreground" />
+                                    </div>
 
-                            {/* Content */}
-                            <div className="min-w-0">
-                                <div className="mb-1 flex min-w-0 items-center gap-2">
-                                    <span className="text-foreground block min-w-0 flex-1 truncate text-sm font-medium sm:text-base">
-                                        {credential.Name}
-                                    </span>
-                                    {credential.TOTP && (
-                                        <Badge
-                                            variant="outline"
-                                            className="border-primary/20 bg-primary/10 text-primary h-5 flex-shrink-0 px-1.5 py-0 text-xs"
-                                        >
-                                            <Key className="mr-1 h-3 w-3" />
-                                            <span className="hidden sm:inline">
-                                                2FA
+                                    {/* Content */}
+                                    <div className="min-w-0">
+                                        <div className="mb-1 flex min-w-0 items-center gap-2">
+                                            <span className="block min-w-0 flex-1 truncate text-sm font-medium text-foreground sm:text-base">
+                                                {credential.Name}
                                             </span>
-                                        </Badge>
-                                    )}
-                                </div>
-                                <p className="text-muted-foreground truncate text-xs sm:text-sm">
-                                    {credential.Username}
-                                </p>
-                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                    {visibleTags.map((tag) => (
-                                        <Badge
-                                            key={tag}
-                                            variant="outline"
-                                            className="border-border/70 bg-muted/60 max-w-[120px] text-xs text-muted-foreground"
-                                        >
-                                            <span className="truncate">
-                                                {tag}
-                                            </span>
-                                        </Badge>
-                                    ))}
-                                    {hiddenTagCount > 0 && (
-                                        <Badge variant="secondary" className="text-xs">
-                                            +{hiddenTagCount}
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
+                                            {credential.TOTP && (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
+                                                >
+                                                    <Key className="mr-1 h-3 w-3" />
+                                                    <span className="hidden sm:inline">
+                                                        2FA
+                                                    </span>
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                            {credential.Username}
+                                        </p>
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                            {visibleTags.map((tag) => (
+                                                <Badge
+                                                    key={tag}
+                                                    variant="outline"
+                                                    className="max-w-[120px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
+                                                >
+                                                    <span className="truncate">
+                                                        {tag}
+                                                    </span>
+                                                </Badge>
+                                            ))}
+                                            {hiddenTagCount > 0 && (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-xs"
+                                                >
+                                                    +{hiddenTagCount}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
 
-                            {/* List view extras */}
+                                    {/* List view extras */}
                                 </div>
                             );
                         })}
 
-                    {filteredCredentials.length === 0 && (
-                        <div className="py-12 text-center">
-                            <div className="bg-muted mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-                                <Search className="text-muted-foreground h-6 w-6" />
+                        {filteredCredentials.length === 0 && (
+                            <div className="py-12 text-center">
+                                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                                    <Search className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                                <p className="text-muted-foreground">
+                                    No credentials found
+                                </p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Try a different search term
+                                </p>
                             </div>
-                            <p className="text-muted-foreground">
-                                No credentials found
-                            </p>
-                            <p className="text-muted-foreground mt-1 text-sm">
-                                Try a different search term
-                            </p>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

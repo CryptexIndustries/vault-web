@@ -37,10 +37,7 @@ export default defineConfig(({ mode }) => {
             outDir: "dist",
             target: "es2022",
             rollupOptions: {
-                input: path.resolve(
-                    __dirname,
-                    "src/content/autofill-cs.ts",
-                ),
+                input: path.resolve(__dirname, "src/content/autofill-cs.ts"),
                 output: {
                     format: "iife",
                     entryFileNames: "assets/autofill-cs.js",

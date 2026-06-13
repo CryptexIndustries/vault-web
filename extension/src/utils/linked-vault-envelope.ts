@@ -79,14 +79,20 @@ export async function createLinkedVaultEnvelopeBlob(
     // blob.Envelope = envelope;
 
     // return blob;
-    const envelope = await createEnvelopeEncryptedBlob(vaultBytes, options.masterPassword, options.vaultId, {
-        kind: VaultUtilTypes.SecondFactorKind.NONE,
-        hkdfBaseKey: null,
-        // passphraseSalt: "",
-        // displaySecret: "",
-        // webauthnCredentialId: "",
-        // webauthnPrfSalt: "",
-    }, options.kdfConfig);
+    const envelope = await createEnvelopeEncryptedBlob(
+        vaultBytes,
+        options.masterPassword,
+        options.vaultId,
+        {
+            kind: VaultUtilTypes.SecondFactorKind.NONE,
+            hkdfBaseKey: null,
+            // passphraseSalt: "",
+            // displaySecret: "",
+            // webauthnCredentialId: "",
+            // webauthnPrfSalt: "",
+        },
+        options.kdfConfig,
+    );
 
     return envelope.blob;
 }

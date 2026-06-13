@@ -40,8 +40,10 @@ export function KeyboardShortcutsDialog({
                             key={shortcut.key}
                             className="flex items-center justify-between rounded-md border px-3 py-2"
                         >
-                            <span className="text-sm">{shortcut.description}</span>
-                            <kbd className="bg-muted text-foreground rounded px-2 py-1 font-mono text-xs">
+                            <span className="text-sm">
+                                {shortcut.description}
+                            </span>
+                            <kbd className="rounded bg-muted px-2 py-1 font-mono text-xs text-foreground">
                                 {shortcut.key}
                             </kbd>
                         </div>

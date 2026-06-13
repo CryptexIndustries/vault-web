@@ -96,8 +96,7 @@ export const ButtonFlat: React.FC<ButtonFlatProps> = ({
             ref={ref_}
             type="button"
             className={clsx({
-                "inline-flex justify-center rounded-sm border text-base font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm":
-                    true,
+                "inline-flex justify-center rounded-sm border text-base font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm": true,
                 "w-full sm:w-auto": !inhibitAutoWidth,
                 [paddingClasses]: true,
                 [disabledClass]: true,

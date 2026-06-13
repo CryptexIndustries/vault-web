@@ -49,7 +49,9 @@ type VaultSettingsDialogProps = {
 };
 
 function buildCsvMapping(columns: string[]): ImportExport.FieldsSchemaType {
-    const lookup = new Map(columns.map((column) => [column.toLowerCase().trim(), column]));
+    const lookup = new Map(
+        columns.map((column) => [column.toLowerCase().trim(), column]),
+    );
     const pick = (...aliases: string[]) => {
         for (const alias of aliases) {
             const found = lookup.get(alias.toLowerCase());
@@ -66,8 +68,16 @@ function buildCsvMapping(columns: string[]): ImportExport.FieldsSchemaType {
         Tags: pick("tags", "tag", "folder"),
         URL: pick("url", "website", "uri", "login_uri"),
         Notes: pick("notes", "note"),
-        DateCreatedTimestamp: pick("datecreatedtimestamp", "createdat", "created") as unknown as number | null,
-        DateModifiedTimestamp: pick("datemodifiedtimestamp", "updatedat", "updated") as unknown as number | null,
+        DateCreatedTimestamp: pick(
+            "datecreatedtimestamp",
+            "createdat",
+            "created",
+        ) as unknown as number | null,
+        DateModifiedTimestamp: pick(
+            "datemodifiedtimestamp",
+            "updatedat",
+            "updated",
+        ) as unknown as number | null,
         DatePasswordChangedTimestamp: pick(
             "datepasswordchangedtimestamp",
             "passwordchangedat",
@@ -105,8 +115,12 @@ export function VaultSettingsDialog({
     };
 
     const importCredentials = async (
-        credentials: Awaited<ReturnType<typeof ImportExport.BitwardenJSON>>["credentials"],
-        groups: Awaited<ReturnType<typeof ImportExport.BitwardenJSON>>["groups"] = [],
+        credentials: Awaited<
+            ReturnType<typeof ImportExport.BitwardenJSON>
+        >["credentials"],
+        groups: Awaited<
+            ReturnType<typeof ImportExport.BitwardenJSON>
+        >["groups"] = [],
     ) => {
         if (!vaultMetadata) {
             toast.error("Vault metadata is unavailable.");
@@ -119,7 +133,8 @@ export function VaultSettingsDialog({
         const vaultCopy = Object.assign(new VaultInstance(), unlockedVault);
 
         for (const group of groups) {
-            const existing = vaultCopy.Groups.find((item) => item.ID === group.ID) ?? null;
+            const existing =
+                vaultCopy.Groups.find((item) => item.ID === group.ID) ?? null;
             const merged = upsertGroup(existing, group);
             if (!existing) {
                 vaultCopy.Groups.push(merged);
@@ -186,14 +201,17 @@ export function VaultSettingsDialog({
         }
     };
 
-    const handleBitwardenImport: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
+    const handleBitwardenImport: React.ChangeEventHandler<
+        HTMLInputElement
+    > = async (event) => {
         const file = event.target.files?.[0];
         event.target.value = "";
         if (!file) return;
 
         setIsLoading(true);
         try {
-            const { credentials, groups } = await ImportExport.BitwardenJSON(file);
+            const { credentials, groups } =
+                await ImportExport.BitwardenJSON(file);
             if (!credentials.length) {
                 toast.warning("Bitwarden export has no credentials.");
                 return;
@@ -212,7 +230,9 @@ export function VaultSettingsDialog({
         }
     };
 
-    const handleCsvImport: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
+    const handleCsvImport: React.ChangeEventHandler<HTMLInputElement> = async (
+        event,
+    ) => {
         const file = event.target.files?.[0];
         event.target.value = "";
         if (!file) return;
@@ -241,7 +261,9 @@ export function VaultSettingsDialog({
                             return;
                         }
                         await importCredentials(credentials);
-                        toast.success(`Imported ${credentials.length} credentials.`);
+                        toast.success(
+                            `Imported ${credentials.length} credentials.`,
+                        );
                         resolve();
                     },
                     reject,
@@ -272,7 +294,8 @@ export function VaultSettingsDialog({
                             Vault Settings
                         </DialogTitle>
                         <DialogDescription>
-                            Manage backup, import/export, encryption, and diagnostics in one place.
+                            Manage backup, import/export, encryption, and
+                            diagnostics in one place.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -289,16 +312,23 @@ export function VaultSettingsDialog({
                                 </CardHeader>
                                 <CardContent className="space-y-3 text-sm">
                                     <div className="flex items-center justify-between gap-3">
-                                        <span className="text-muted-foreground">Name</span>
+                                        <span className="text-muted-foreground">
+                                            Name
+                                        </span>
                                         <span className="max-w-[70%] truncate text-right font-medium">
-                                            {vaultMetadata?.Name || "Unknown Vault"}
+                                            {vaultMetadata?.Name ||
+                                                "Unknown Vault"}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between gap-3">
-                                        <span className="text-muted-foreground">Created</span>
+                                        <span className="text-muted-foreground">
+                                            Created
+                                        </span>
                                         <span className="font-medium">
                                             {vaultMetadata?.CreatedAt
-                                                ? new Date(vaultMetadata.CreatedAt).toLocaleDateString()
+                                                ? new Date(
+                                                      vaultMetadata.CreatedAt,
+                                                  ).toLocaleDateString()
                                                 : "Unknown"}
                                         </span>
                                     </div>
@@ -333,14 +363,17 @@ export function VaultSettingsDialog({
                                         Import
                                     </CardTitle>
                                     <CardDescription>
-                                        Import from Bitwarden JSON or generic CSV.
+                                        Import from Bitwarden JSON or generic
+                                        CSV.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-2">
                                     <Button
                                         variant="outline"
                                         className={actionButtonClassName}
-                                        onClick={() => bitwardenInputRef.current?.click()}
+                                        onClick={() =>
+                                            bitwardenInputRef.current?.click()
+                                        }
                                         disabled={isLoading}
                                     >
                                         <Upload className="h-4 w-4" />
@@ -349,7 +382,9 @@ export function VaultSettingsDialog({
                                     <Button
                                         variant="outline"
                                         className={actionButtonClassName}
-                                        onClick={() => csvInputRef.current?.click()}
+                                        onClick={() =>
+                                            csvInputRef.current?.click()
+                                        }
                                         disabled={isLoading}
                                     >
                                         <Upload className="h-4 w-4" />
@@ -383,7 +418,8 @@ export function VaultSettingsDialog({
                                 </CardHeader>
                                 <CardContent className="space-y-2">
                                     <div className="vault-settings-warning rounded-md border p-3 text-xs">
-                                        Exported JSON is unencrypted. Store it safely.
+                                        Exported JSON is unencrypted. Store it
+                                        safely.
                                     </div>
                                     <Button
                                         variant="outline"
@@ -432,9 +468,11 @@ export function VaultSettingsDialog({
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-2">
-                                    <p className="text-muted-foreground text-xs">
+                                    <p className="text-xs text-muted-foreground">
                                         Available logs:{" "}
-                                        <span className="font-mono text-foreground">{logCount}</span>
+                                        <span className="font-mono text-foreground">
+                                            {logCount}
+                                        </span>
                                     </p>
                                     <Separator />
                                     <Button
@@ -452,7 +490,10 @@ export function VaultSettingsDialog({
 
                     <DialogFooter className="vault-settings-footer border-t px-4 py-4 sm:px-6">
                         <DialogClose asChild>
-                            <Button variant="outline" className="vault-settings-action-button">
+                            <Button
+                                variant="outline"
+                                className="vault-settings-action-button"
+                            >
                                 Close
                             </Button>
                         </DialogClose>

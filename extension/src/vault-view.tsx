@@ -46,7 +46,10 @@ import {
 } from "./utils/session-utils";
 
 // Shadcn UI Components
-import { SyncConnectionController, VaultOperations } from "@/app_lib/synchronization";
+import {
+    SyncConnectionController,
+    VaultOperations,
+} from "@/app_lib/synchronization";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,7 +88,10 @@ import {
 import { cn } from "@/lib/utils";
 import { err, ok, Result } from "neverthrow";
 import { validateEnvelope } from "./utils/security-utils";
-import { WarningDialog, WarningDialogShowFn } from "@/components/dialog/warning";
+import {
+    WarningDialog,
+    WarningDialogShowFn,
+} from "@/components/dialog/warning";
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
 
 type VaultViewProps = {
@@ -102,7 +108,7 @@ type CredentialFormMode = "create" | "edit" | null;
 
 let GlobalSyncConnectionController: SyncConnectionController | null = null;
 
-type ServerPublicKey = NonNullable<VaultViewProps['serverPublicKey']>;
+type ServerPublicKey = NonNullable<VaultViewProps["serverPublicKey"]>;
 
 const createVaultOperations = (
     serverPublicKey: ServerPublicKey,
@@ -136,7 +142,10 @@ const createVaultOperations = (
     };
 };
 
-const getCredentials = async (serverPublicKey: ServerPublicKey, itemIDs: string[]): Promise<VaultUtilTypes.Credential[]> => {
+const getCredentials = async (
+    serverPublicKey: ServerPublicKey,
+    itemIDs: string[],
+): Promise<VaultUtilTypes.Credential[]> => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncGetItemCredentials,
         { itemIDs },
@@ -145,16 +154,26 @@ const getCredentials = async (serverPublicKey: ServerPublicKey, itemIDs: string[
         "popup",
     );
 
-    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    const res: EncryptedEnvelope | PlaintextEnvelope =
+        await chrome.runtime.sendMessage(envelope);
     if (isEncryptedEnvelope(res)) {
-        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; credentials: VaultUtilTypes.Credential[] }>(res);
+        const decryptedPayload = await decryptResponseEnvelope<
+            | { ok: false; error: string }
+            | { ok: true; credentials: VaultUtilTypes.Credential[] }
+        >(res);
         if (!decryptedPayload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):", decryptedPayload.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):",
+                decryptedPayload.error,
+            );
             return [];
         }
 
         if (!decryptedPayload.payload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):", decryptedPayload.payload.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):",
+                decryptedPayload.payload.error,
+            );
             return [];
         }
 
@@ -162,11 +181,16 @@ const getCredentials = async (serverPublicKey: ServerPublicKey, itemIDs: string[
     }
 
     // If we're here, it's an erroneous response from the background script (plaintext envelope)
-    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):", res.payload);
+    console.error(
+        "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):",
+        res.payload,
+    );
     return [];
 };
 
-const getItemVersionVectors = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.VersionVector[]> => {
+const getItemVersionVectors = async (
+    serverPublicKey: ServerPublicKey,
+): Promise<VaultUtilTypes.VersionVector[]> => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncGetItemVersionVectors,
         null,
@@ -175,17 +199,26 @@ const getItemVersionVectors = async (serverPublicKey: ServerPublicKey): Promise<
         "popup",
     );
 
-    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    const res: EncryptedEnvelope | PlaintextEnvelope =
+        await chrome.runtime.sendMessage(envelope);
     if (isEncryptedEnvelope(res)) {
-        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; versionVectors: VaultUtilTypes.VersionVector[] }>(res);
+        const decryptedPayload = await decryptResponseEnvelope<
+            | { ok: false; error: string }
+            | { ok: true; versionVectors: VaultUtilTypes.VersionVector[] }
+        >(res);
         if (!decryptedPayload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemVersionVectors):", decryptedPayload.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemVersionVectors):",
+                decryptedPayload.error,
+            );
             return [];
         }
 
-
         if (!decryptedPayload.payload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to get item version vectors (SyncGetItemVersionVectors):", decryptedPayload.payload.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to get item version vectors (SyncGetItemVersionVectors):",
+                decryptedPayload.payload.error,
+            );
             return [];
         }
 
@@ -193,11 +226,16 @@ const getItemVersionVectors = async (serverPublicKey: ServerPublicKey): Promise<
     }
 
     // If we're here, it's an erroneous response from the background script (plaintext envelope)
-    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors):", res.payload);
+    console.error(
+        "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors):",
+        res.payload,
+    );
     return [];
 };
 
-const getSynchronizationConfig = async (serverPublicKey: ServerPublicKey): Promise<VaultUtilTypes.LinkedDevices> => {
+const getSynchronizationConfig = async (
+    serverPublicKey: ServerPublicKey,
+): Promise<VaultUtilTypes.LinkedDevices> => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncGetConfiguration,
         null,
@@ -206,16 +244,26 @@ const getSynchronizationConfig = async (serverPublicKey: ServerPublicKey): Promi
         "popup",
     );
 
-    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    const res: EncryptedEnvelope | PlaintextEnvelope =
+        await chrome.runtime.sendMessage(envelope);
     if (isEncryptedEnvelope(res)) {
-        const decryptedPayload = await decryptResponseEnvelope<{ ok: false; error: string } | { ok: true; config: VaultUtilTypes.LinkedDevices }>(res);
+        const decryptedPayload = await decryptResponseEnvelope<
+            | { ok: false; error: string }
+            | { ok: true; config: VaultUtilTypes.LinkedDevices }
+        >(res);
         if (!decryptedPayload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetConfiguration):", decryptedPayload.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetConfiguration):",
+                decryptedPayload.error,
+            );
             return null as unknown as VaultUtilTypes.LinkedDevices;
         }
 
         if (!decryptedPayload.payload.ok) {
-            console.error("[SYNCHRONIZATION-POPUP] Failed to get synchronization configuration (SyncGetConfiguration):", decryptedPayload.payload.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to get synchronization configuration (SyncGetConfiguration):",
+                decryptedPayload.payload.error,
+            );
             return null as unknown as VaultUtilTypes.LinkedDevices;
         }
 
@@ -223,11 +271,17 @@ const getSynchronizationConfig = async (serverPublicKey: ServerPublicKey): Promi
     }
 
     // If we're here, it's an erroneous response from the background script (plaintext envelope)
-    console.error("[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetConfiguration):", res.payload);
+    console.error(
+        "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetConfiguration):",
+        res.payload,
+    );
     return null as unknown as VaultUtilTypes.LinkedDevices;
 };
 
-const updateCredentials = async (serverPublicKey: ServerPublicKey, credentials: VaultUtilTypes.Credential[]) => {
+const updateCredentials = async (
+    serverPublicKey: ServerPublicKey,
+    credentials: VaultUtilTypes.Credential[],
+) => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncUpdateCredentials,
         { credentials },
@@ -236,19 +290,28 @@ const updateCredentials = async (serverPublicKey: ServerPublicKey, credentials: 
         "popup",
     );
 
-    const res: EncryptedEnvelope | PlaintextEnvelope = await chrome.runtime.sendMessage(envelope);
+    const res: EncryptedEnvelope | PlaintextEnvelope =
+        await chrome.runtime.sendMessage(envelope);
 
     // The expected successful response is an encrypted envelope
     if (isEncryptedEnvelope(res)) {
-        const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean }>(res);
+        const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean }>(
+            res,
+        );
         if (!decryptedPayload?.ok) {
             // return err("FAILED_TO_UPDATE_CREDENTIALS_AND_DIFFS");
-            console.error("[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:", decryptedPayload?.error);
+            console.error(
+                "[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:",
+                decryptedPayload?.error,
+            );
             return;
         }
     } else {
         // If we're here, it's an erroneous response from the background script (plaintext envelope)
-        console.error("[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:", res.payload);
+        console.error(
+            "[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:",
+            res.payload,
+        );
     }
 };
 
@@ -292,7 +355,9 @@ const VaultView: React.FC<VaultViewProps> = ({
     const showWarningDialogFnRef = useRef<WarningDialogShowFn>(() => {
         // No-op
     });
-    const refreshCredentialsRef = useRef<(() => Promise<Result<void, string>>) | null>(null);
+    const refreshCredentialsRef = useRef<
+        (() => Promise<Result<void, string>>) | null
+    >(null);
 
     // Form management
     const {
@@ -473,11 +538,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         | "disconnected"
         | "failed"
         | "error";
-    type WebRTCDisplayStatus =
-        | "connected"
-        | "connecting"
-        | "failed"
-        | "idle";
+    type WebRTCDisplayStatus = "connected" | "connecting" | "failed" | "idle";
     type ConnectionTone = "green" | "yellow" | "red";
 
     const getSignalingDisplayStatus = (
@@ -640,7 +701,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">WebRTC</span>
+                            <span className="text-muted-foreground">
+                                WebRTC
+                            </span>
                             <span
                                 className={`font-medium ${textToneClasses[getStatusTone(webrtcDisplay)]}`}
                             >
@@ -843,8 +906,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
-                | { ok: true }
-                | { ok: false; error: string }
+                { ok: true } | { ok: false; error: string }
             >(res);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
@@ -990,13 +1052,16 @@ const VaultView: React.FC<VaultViewProps> = ({
             await chrome.runtime.sendMessage(envelope);
 
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{
-                ok: true;
-                credentials: LiteCredential[];
-            } | {
-                ok: false;
-                error: string;
-            }>(res);
+            const decryptedPayload = await decryptResponseEnvelope<
+                | {
+                      ok: true;
+                      credentials: LiteCredential[];
+                  }
+                | {
+                      ok: false;
+                      error: string;
+                  }
+            >(res);
 
             if (!decryptedPayload?.ok) {
                 console.error(
@@ -1007,7 +1072,10 @@ const VaultView: React.FC<VaultViewProps> = ({
             }
 
             if (!decryptedPayload.payload.ok) {
-                console.error("Failed to get credentials (GetCredentials):", decryptedPayload.payload.error);
+                console.error(
+                    "Failed to get credentials (GetCredentials):",
+                    decryptedPayload.payload.error,
+                );
                 return err("FAILED_TO_GET_CREDENTIALS");
             }
 
@@ -1086,21 +1154,30 @@ const VaultView: React.FC<VaultViewProps> = ({
             await chrome.runtime.sendMessage(envelope);
 
         if (isEncryptedEnvelope(res)) {
-            const decryptedPayload = await decryptResponseEnvelope<{
-                ok: true;
-                config: VaultUtilTypes.LinkedDevices;
-            } | {
-                ok: false;
-                error: string;
-            }>(res);
+            const decryptedPayload = await decryptResponseEnvelope<
+                | {
+                      ok: true;
+                      config: VaultUtilTypes.LinkedDevices;
+                  }
+                | {
+                      ok: false;
+                      error: string;
+                  }
+            >(res);
 
             if (!decryptedPayload?.ok) {
-                console.error("Failed to decrypt encrypted response (SyncGetConfiguration):", decryptedPayload.error);
+                console.error(
+                    "Failed to decrypt encrypted response (SyncGetConfiguration):",
+                    decryptedPayload.error,
+                );
                 return err("ENVELOPE_FAILED_DECRYPTION");
             }
 
             if (!decryptedPayload.payload.ok) {
-                console.error("Failed to get synchronization configuration (SyncGetConfiguration):", decryptedPayload.payload.error);
+                console.error(
+                    "Failed to get synchronization configuration (SyncGetConfiguration):",
+                    decryptedPayload.payload.error,
+                );
                 return err("FAILED_TO_GET_SYNCHRONIZATION_CONFIGURATION");
             }
 
@@ -1359,8 +1436,13 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const handleSyncNow = () => {
-        if (GlobalSyncConnectionController && linkedDevicesRef.current.length > 0) {
-            GlobalSyncConnectionController.transmitSyncHello(linkedDevicesRef.current[0].ID);
+        if (
+            GlobalSyncConnectionController &&
+            linkedDevicesRef.current.length > 0
+        ) {
+            GlobalSyncConnectionController.transmitSyncHello(
+                linkedDevicesRef.current[0].ID,
+            );
         }
     };
 
@@ -1393,7 +1475,10 @@ const VaultView: React.FC<VaultViewProps> = ({
             (async () => {
                 const syncConfig = await _getSyncConfig();
                 if (syncConfig.isErr()) {
-                    console.error("Failed to get synchronization configuration:", syncConfig.error);
+                    console.error(
+                        "Failed to get synchronization configuration:",
+                        syncConfig.error,
+                    );
                     return;
                 }
 
@@ -1423,28 +1508,33 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 SynchronizationUtils.SignalingStatus.Connected
                             ) {
                                 setSignalingStatus(
-                                    SynchronizationUtils.SignalingStatus.Connected,
+                                    SynchronizationUtils.SignalingStatus
+                                        .Connected,
                                 );
                             } else if (
                                 event.data.connectionState ===
-                                SynchronizationUtils.SignalingStatus.Disconnected
+                                SynchronizationUtils.SignalingStatus
+                                    .Disconnected
                             ) {
                                 setSignalingStatus(
-                                    SynchronizationUtils.SignalingStatus.Disconnected,
+                                    SynchronizationUtils.SignalingStatus
+                                        .Disconnected,
                                 );
                             } else if (
                                 event.data.connectionState ===
                                 SynchronizationUtils.SignalingStatus.Connecting
                             ) {
                                 setSignalingStatus(
-                                    SynchronizationUtils.SignalingStatus.Connecting,
+                                    SynchronizationUtils.SignalingStatus
+                                        .Connecting,
                                 );
                             } else if (
                                 event.data.connectionState ===
                                 SynchronizationUtils.SignalingStatus.Unavailable
                             ) {
                                 setSignalingStatus(
-                                    SynchronizationUtils.SignalingStatus.Unavailable,
+                                    SynchronizationUtils.SignalingStatus
+                                        .Unavailable,
                                 );
                             } else if (
                                 event.data.connectionState ===
@@ -1460,12 +1550,20 @@ const VaultView: React.FC<VaultViewProps> = ({
                     GlobalSyncConnectionController.registerSyncWebRTCHandler(
                         device.ID,
                         async (event) => {
-                            if (event.type === SynchronizationUtils.SyncConnectionControllerEventType.ConnectionStatus) {
+                            if (
+                                event.type ===
+                                SynchronizationUtils
+                                    .SyncConnectionControllerEventType
+                                    .ConnectionStatus
+                            ) {
                                 setWebRTCStatus(event.connectionState);
 
                                 if (
-                                    event.connectionState === SynchronizationUtils.WebRTCStatus.Disconnected ||
-                                    event.connectionState === SynchronizationUtils.WebRTCStatus.Failed
+                                    event.connectionState ===
+                                        SynchronizationUtils.WebRTCStatus
+                                            .Disconnected ||
+                                    event.connectionState ===
+                                        SynchronizationUtils.WebRTCStatus.Failed
                                 ) {
                                     // Trigger a reconnection attempt
                                     await GlobalSyncConnectionController?.connectDevice(
@@ -1474,12 +1572,26 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 }
                             }
 
-                            if (event.type === SynchronizationUtils.SyncConnectionControllerEventType.SynchronizationMessage) {
-                                if (event.event === SynchronizationUtils.WebRTCMessageEventType.Synchronized) {
+                            if (
+                                event.type ===
+                                SynchronizationUtils
+                                    .SyncConnectionControllerEventType
+                                    .SynchronizationMessage
+                            ) {
+                                if (
+                                    event.event ===
+                                    SynchronizationUtils.WebRTCMessageEventType
+                                        .Synchronized
+                                ) {
                                     setLastSync(new Date());
-                                } else if (event.event === SynchronizationUtils.WebRTCMessageEventType.Error) {
+                                } else if (
+                                    event.event ===
+                                    SynchronizationUtils.WebRTCMessageEventType
+                                        .Error
+                                ) {
                                     setWebRTCStatus(
-                                        SynchronizationUtils.WebRTCStatus.Failed,
+                                        SynchronizationUtils.WebRTCStatus
+                                            .Failed,
                                     );
 
                                     console.warn(
@@ -1493,7 +1605,9 @@ const VaultView: React.FC<VaultViewProps> = ({
 
                     // TODO: figure out what to do with the VaultDataUpdate event... That crap was supposed to be used exclusively for triggering a UI update and not for updating global vault state
 
-                    await GlobalSyncConnectionController.connectDevice(device.ID);
+                    await GlobalSyncConnectionController.connectDevice(
+                        device.ID,
+                    );
                 }
             })();
         }
@@ -1562,9 +1676,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                             <Input
                                 placeholder="Search credentials..."
                                 value={searchQuery}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                    setSearchQuery(e.target.value)
-                                }
+                                onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>,
+                                ) => setSearchQuery(e.target.value)}
                                 className="h-7 border-border bg-input pl-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20"
                             />
                         </div>
@@ -1580,7 +1694,8 @@ const VaultView: React.FC<VaultViewProps> = ({
                             <div className="space-y-0 p-1">
                                 {filteredCredentials.map((credential) => {
                                     const isSelected =
-                                        selectedCredential?.ID === credential.id;
+                                        selectedCredential?.ID ===
+                                        credential.id;
                                     return (
                                         <div
                                             key={credential.id}
@@ -1627,7 +1742,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                             {credential.name}
                                                         </div>
                                                         <div className="-mt-0.5 truncate text-xs leading-tight text-muted-foreground">
-                                                            {credential.username}
+                                                            {
+                                                                credential.username
+                                                            }
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1636,7 +1753,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                         asChild
                                                         onClick={(
                                                             e: React.MouseEvent,
-                                                        ) => e.stopPropagation()}
+                                                        ) =>
+                                                            e.stopPropagation()
+                                                        }
                                                     >
                                                         <Button
                                                             variant="ghost"
@@ -1674,7 +1793,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                 );
                                                             }}
                                                             className="text-xs text-destructive"
-                                                            disabled={isDeleting}
+                                                            disabled={
+                                                                isDeleting
+                                                            }
                                                         >
                                                             {isDeleting ? (
                                                                 <Loader2 className="mr-2 h-3 w-3 animate-spin" />
@@ -2245,8 +2366,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                         {...register(
                                                             "TOTP.Period",
                                                             {
-                                                                valueAsNumber:
-                                                                    true,
+                                                                valueAsNumber: true,
                                                             },
                                                         )}
                                                         className="h-8 text-sm"
@@ -2275,8 +2395,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                         {...register(
                                                             "TOTP.Digits",
                                                             {
-                                                                valueAsNumber:
-                                                                    true,
+                                                                valueAsNumber: true,
                                                             },
                                                         )}
                                                         className="h-8 text-sm"
@@ -2431,8 +2550,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                         }
                                                                         name={`CustomFields.${index}.Type`}
                                                                         render={({
-                                                                            field:
-                                                                                typeField,
+                                                                            field: typeField,
                                                                         }) => (
                                                                             <Select
                                                                                 value={String(
@@ -2556,9 +2674,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 onPasswordSelect={handleGeneratedPasswordSelect}
             />
 
-            <WarningDialog
-                showFnRef={showWarningDialogFnRef}
-            />
+            <WarningDialog showFnRef={showWarningDialogFnRef} />
         </div>
     );
 };

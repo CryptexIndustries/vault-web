@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+    describe,
+    it,
+    expect,
+    jest,
+    beforeEach,
+    afterEach,
+} from "@jest/globals";
 
 jest.mock("papaparse", () => ({
     __esModule: true,
@@ -80,7 +87,9 @@ describe("vault-utils/import-export", () => {
                 value: MockBlob as unknown as typeof Blob,
             });
 
-            const createObjectURL = jest.fn().mockReturnValue("blob:download-url");
+            const createObjectURL = jest
+                .fn()
+                .mockReturnValue("blob:download-url");
             const revokeObjectURL = jest.fn();
             Object.defineProperty(URL, "createObjectURL", {
                 configurable: true,
@@ -112,7 +121,9 @@ describe("vault-utils/import-export", () => {
 
                 expect(createElement).toHaveBeenCalledWith("a");
                 expect(createObjectURL).toHaveBeenCalledTimes(1);
-                expect(revokeObjectURL).toHaveBeenCalledWith("blob:download-url");
+                expect(revokeObjectURL).toHaveBeenCalledWith(
+                    "blob:download-url",
+                );
                 expect(click).toHaveBeenCalledTimes(1);
 
                 expect(blobPayloads).toHaveLength(1);
@@ -433,7 +444,8 @@ describe("vault-utils/import-export", () => {
 
             readAsText(_file: File) {
                 if (MockFileReader.failWithError) {
-                    this.error = MockFileReader.nextError ?? new Error("read failed");
+                    this.error =
+                        MockFileReader.nextError ?? new Error("read failed");
                     this.onerror?.();
                     return;
                 }
@@ -474,7 +486,12 @@ describe("vault-utils/import-export", () => {
                             username: "alice",
                             password: "pw",
                             totp: "TOTPSECRET",
-                            uris: [{ match: "default", uri: "https://mail.example.com" }],
+                            uris: [
+                                {
+                                    match: "default",
+                                    uri: "https://mail.example.com",
+                                },
+                            ],
                         },
                         fields: [
                             { name: "text", value: "value-1", type: 0 },
@@ -501,7 +518,10 @@ describe("vault-utils/import-export", () => {
                         type: 3,
                         name: "Card item",
                         passwordHistory: [
-                            { password: "x", lastUsedDate: "2024-01-04T00:00:00.000Z" },
+                            {
+                                password: "x",
+                                lastUsedDate: "2024-01-04T00:00:00.000Z",
+                            },
                         ],
                     },
                 ],

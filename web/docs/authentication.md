@@ -20,11 +20,11 @@ This is an implementation document for the current codebase, not a product-level
 - `vault`: The locally unlocked Cryptex Vault object stored in the frontend.
 - `OnlineServices`: The section of the vault that stores server-account binding material.
 - `passkey binding`: In this codebase, this means the vault stores:
-  - `DeviceId` (server-generated device id; equals **`UserDevice.id`**)
-  - `UserID` (account id; equals **`User.id`**)
-  - `PrivateKeyJWK`
-  - `PublicKeyJWK`
-  - `IsRootDevice` (cached value of the server's **`UserDevice.is_root`** for this device)
+    - `DeviceId` (server-generated device id; equals **`UserDevice.id`**)
+    - `UserID` (account id; equals **`User.id`**)
+    - `PrivateKeyJWK`
+    - `PublicKeyJWK`
+    - `IsRootDevice` (cached value of the server's **`UserDevice.is_root`** for this device)
 - `deviceId`: The server id stored in **`vault.OnlineServices.DeviceId`** must match **`UserDevice.id`** for **`auth.verify`** to succeed. For **`device.link`**, the sender generates a **new** key pair, calls the server with the new **public** key, and ships both keys to the peer inside the encrypted **`LinkingPackageBlob.OnlineServices`** (a full `OnlineServices` payload, including the private key).
 - `session token`: A short-lived JWT used in `Authorization: Bearer <token>`.
 - `protectedProcedure`: A tRPC procedure that requires a valid session token.
@@ -35,14 +35,16 @@ This is an implementation document for the current codebase, not a product-level
 The authentication model is split into two layers:
 
 1. Long-lived local binding
-  The unlocked vault's `OnlineServices` stores the account binding material:
-  - `DeviceId` (server **`UserDevice.id`**)
-  - `UserID` (server **`User.id`**)
-  - `PublicKeyJWK`
-  - `PrivateKeyJWK`
-  - `IsRootDevice` (cached server root flag)
+   The unlocked vault's `OnlineServices` stores the account binding material:
+
+- `DeviceId` (server **`UserDevice.id`**)
+- `UserID` (server **`User.id`**)
+- `PublicKeyJWK`
+- `PrivateKeyJWK`
+- `IsRootDevice` (cached server root flag)
+
 2. Short-lived server session
-  The frontend proves possession of the private key via challenge-response and receives a short-lived JWT session token.
+   The frontend proves possession of the private key via challenge-response and receives a short-lived JWT session token.
 
 The local binding is persistent in the vault. The JWT is ephemeral and stored only in frontend app state.
 
@@ -98,28 +100,28 @@ The server also uses Redis for:
 ### Frontend
 
 - `web/src/app_lib/auth-session.ts`
-Owns challenge-response sign-in, refresh, lazy preflight freshness checks, and refresh fallback re-authentication.
+  Owns challenge-response sign-in, refresh, lazy preflight freshness checks, and refresh fallback re-authentication.
 - `web/src/utils/trpc.ts`
-Attaches the bearer token and runs the shared preflight freshness hook before protected traffic.
+  Attaches the bearer token and runs the shared preflight freshness hook before protected traffic.
 - `web/src/components/vault-dashboard/vault-dashboard.tsx`
-Performs automatic sign-in when a vault with passkey binding is opened.
+  Performs automatic sign-in when a vault with passkey binding is opened.
 - `web/src/components/vault-dashboard/account-dialog.tsx`
-Handles registration, recovery, account management, and post-auth configuration refresh.
+  Handles registration, recovery, account management, and post-auth configuration refresh.
 
 ### Backend
 
 - `web/src/server/trpc/routes/v1/auth.router.ts`
-Defines `register`, `challenge`, `verify`, `refresh`, and `recover`.
+  Defines `register`, `challenge`, `verify`, `refresh`, and `recover`.
 - `web/src/server/trpc/trpc.ts`
-Defines `protectedProcedure` middleware that validates bearer JWTs and derives request auth context.
+  Defines `protectedProcedure` middleware that validates bearer JWTs and derives request auth context.
 - `web/src/server/auth/challenge.ts`
-Creates and consumes one-time challenges and verifies signatures.
+  Creates and consumes one-time challenges and verifies signatures.
 - `web/src/server/auth/jwt.ts`
-Signs and verifies session JWTs.
+  Signs and verifies session JWTs.
 - `web/src/server/auth/session-cache.ts`
-Caches subscription-derived session data in Redis.
+  Caches subscription-derived session data in Redis.
 - `web/src/server/trpc/routes/v1/user.router.ts`
-Exposes protected account configuration and recovery-token operations.
+  Exposes protected account configuration and recovery-token operations.
 
 ## End-To-End Model
 
@@ -128,10 +130,12 @@ At a high level:
 1. Registration creates a server user record and a **root `UserDevice`** row holding the passkey **public** key.
 2. The frontend stores the full passkey binding in the vault.
 3. Sign-in uses challenge-response:
-  - server issues challenge
-  - frontend signs challenge with vault private key
-  - server verifies signature against stored public key
-  - server issues short-lived JWT
+
+- server issues challenge
+- frontend signs challenge with vault private key
+- server verifies signature against stored public key
+- server issues short-lived JWT
+
 4. Protected tRPC procedures require that JWT in `Authorization: Bearer`.
 5. Before protected requests, the client checks whether the JWT is near expiry.
 6. If near expiry, the client first tries `auth.refresh`.
@@ -184,8 +188,6 @@ sequenceDiagram
     end
 ```
 
-
-
 ## Registration Flow
 
 Registration creates a new server user and binds that account into the local vault.
@@ -226,8 +228,6 @@ sequenceDiagram
     frontend->>frontend: Store sessionToken and sessionExpiresAt
 ```
 
-
-
 ### Important Notes
 
 - The server never receives the private key.
@@ -259,8 +259,9 @@ The dashboard `ensureSession` effect does this:
 2. If a session token already exists and `data.deviceId !== vault.OnlineServices.DeviceId`, clear the frontend online-services session state (mismatched binding).
 3. If a session token already exists and matches, return early - keep the live session.
 4. Otherwise:
-  - call `establishPremiumSession({ deviceId, privateKeyJWK })`
-  - then call `syncOnlineServicesRemoteConfiguration()`
+
+- call `establishPremiumSession({ deviceId, privateKeyJWK })`
+- then call `syncOnlineServicesRemoteConfiguration()`
 
 ### Challenge-Response Steps
 
@@ -270,12 +271,16 @@ The dashboard `ensureSession` effect does this:
 2. Decode returned challenge bytes
 3. Sign challenge with the locally stored private key
 4. Call `v1.auth.verify` with:
-  - `challengeId`
-  - `signature`
-  - `deviceId`
+
+- `challengeId`
+- `signature`
+- `deviceId`
+
 5. Receive:
-  - `sessionToken`
-  - `expiresAt`
+
+- `sessionToken`
+- `expiresAt`
+
 6. Store both in frontend session state
 7. Mark online-services connection status as connected
 
@@ -302,8 +307,6 @@ sequenceDiagram
     auth_verify-->>frontend: sessionToken, expiresAt
     frontend->>frontend: Store JWT in onlineServicesDataAtom
 ```
-
-
 
 ## Protected Request Flow
 
@@ -337,18 +340,23 @@ For a `protectedProcedure`, the server:
 1. Parses the `Authorization` header in `createContext()`
 2. Verifies the JWT signature and expiry
 3. Extracts:
-  - `sub` as **device id** (`UserDevice.id`)
-  - `root` as a cached device-root hint from the token
+
+- `sub` as **device id** (`UserDevice.id`)
+- `root` as a cached device-root hint from the token
+
 4. Confirms the device row still exists; resolves **`user_id`** for subscription
 5. Loads subscription configuration:
-  - from Redis cache if present
-  - otherwise from the database and then re-caches it
+
+- from Redis cache if present
+- otherwise from the database and then re-caches it
+
 6. Enriches the request context with:
-  - `user.id`
-  - `deviceId`
-  - `rootDevice`
-  - `subscriptionConfig`
-  - `rateLimitKey`
+
+- `user.id`
+- `deviceId`
+- `rootDevice`
+- `subscriptionConfig`
+- `rateLimitKey`
 
 ### Protected Request Diagram
 
@@ -392,8 +400,6 @@ sequenceDiagram
     end
 ```
 
-
-
 ## Refresh And Re-Authentication
 
 This is one of the most important parts of the current implementation.
@@ -423,8 +429,9 @@ That means a token is considered stale-enough when it has 60 seconds or less rem
 1. Reads the existing token from `onlineServicesStore`
 2. Calls `v1.auth.refresh({ sessionToken })`
 3. On success, replaces:
-  - `sessionToken`
-  - `sessionExpiresAt`
+
+- `sessionToken`
+- `sessionExpiresAt`
 
 ### Why Refresh Can Fail
 
@@ -444,8 +451,10 @@ That function:
 1. Reads the unlocked vault via `getUnlockedVault()`
 2. Verifies the vault is still bound (`Vault.isOnlineServicesBound(vault)`)
 3. Extracts:
-  - `vault.OnlineServices.DeviceId`
-  - `vault.OnlineServices.PrivateKeyJWK`
+
+- `vault.OnlineServices.DeviceId`
+- `vault.OnlineServices.PrivateKeyJWK`
+
 4. Calls `establishPremiumSession({ deviceId, privateKeyJWK })`
 
 This gives the app a second chance to recover automatically as long as:
@@ -498,16 +507,14 @@ sequenceDiagram
     end
 ```
 
-
-
 ## Why `auth.refresh` And Full Re-Auth Both Exist
 
 They solve different problems:
 
 - `auth.refresh`
-Extends a still-valid session token cheaply without doing a full challenge-response cycle.
+  Extends a still-valid session token cheaply without doing a full challenge-response cycle.
 - full re-authentication
-Recovers when refresh cannot succeed anymore, especially after expiry.
+  Recovers when refresh cannot succeed anymore, especially after expiry.
 
 Because `auth.refresh` verifies the incoming JWT before issuing a new one, it cannot revive an already-expired token. That is why the fallback re-auth path is necessary.
 
@@ -575,15 +582,19 @@ It is used when the user has:
 In `AccountDialog`:
 
 1. User enters:
-  - account `userId`
-  - recovery phrase
-  - captcha
+
+- account `userId`
+- recovery phrase
+- captcha
+
 2. Frontend generates a new local keypair
 3. Frontend calls `v1.auth.recover` with:
-  - `userId`
-  - `recoveryPhrase`
-  - `newPublicKeyJWK`
-  - `captchaToken`
+
+- `userId`
+- `recoveryPhrase`
+- `newPublicKeyJWK`
+- `captchaToken`
+
 4. Server verifies the recovery phrase against the stored hash and validates the new public key (P-256 EC JWK)
 5. In a single Prisma `$transaction` the server **deletes all `UserDevice` rows** for that user, clears `recovery_token` / `recovery_token_created_at`, and **creates a new root `UserDevice`** (id `ulid()`, `public_key = newPublicKeyJWK`, `is_root: true`). Returns **`{ success: true, deviceId }`**.
 6. Server invalidates cached session data for every device of that user (in practice only the new device id remains after the transaction).
@@ -612,8 +623,6 @@ sequenceDiagram
     frontend->>auth_bootstrap: establishPremiumSession with new private key
     auth_bootstrap-->>frontend: sessionToken + expiresAt
 ```
-
-
 
 ## Recovery Token Management
 
@@ -876,8 +885,6 @@ sequenceDiagram
     end
 ```
 
-
-
 ### Auto Sign-In
 
 ```mermaid
@@ -919,8 +926,6 @@ sequenceDiagram
         end
     end
 ```
-
-
 
 ### Preflight Freshness Check
 
@@ -976,24 +981,22 @@ sequenceDiagram
     end
 ```
 
-
-
 ## Practical Notes For Future Changes
 
 - If you add new protected routes, they automatically inherit the shared preflight freshness behavior as long as they use the standard tRPC clients from `web/src/utils/trpc.ts`.
 - If you add new auth bootstrap routes, keep them under `v1.auth.*` unless they truly need the preflight hook.
 - If you add new privileged actions, rely on server-side `ctx.rootDevice` and not on the JWT `root` claim alone.
 - If you change the session-expiry model, review:
-  - `SESSION_TOKEN_EXPIRY_SECONDS`
-  - `SESSION_REFRESH_LEAD_MS`
-  - `auth.refresh`
-  - `ensureFreshOnlineServicesSession()`
+    - `SESSION_TOKEN_EXPIRY_SECONDS`
+    - `SESSION_REFRESH_LEAD_MS`
+    - `auth.refresh`
+    - `ensureFreshOnlineServicesSession()`
 - If you change the vault binding model, review:
-  - `Vault.bindOnlineServices` / `Vault.unbindOnlineServices`
-  - `Vault.isOnlineServicesBound`
-  - the `OnlineServices` class fields (`DeviceId`, `UserID`, `PublicKeyJWK`, `PrivateKeyJWK`, `IsRootDevice`)
-  - dashboard auto sign-in
-  - fallback re-authentication
+    - `Vault.bindOnlineServices` / `Vault.unbindOnlineServices`
+    - `Vault.isOnlineServicesBound`
+    - the `OnlineServices` class fields (`DeviceId`, `UserID`, `PublicKeyJWK`, `PrivateKeyJWK`, `IsRootDevice`)
+    - dashboard auto sign-in
+    - fallback re-authentication
 
 ## Source Map
 
@@ -1007,4 +1010,3 @@ sequenceDiagram
 - JWT signing and verification: `web/src/server/auth/jwt.ts`
 - Challenge generation and verification: `web/src/server/auth/challenge.ts`
 - Session cache: `web/src/server/auth/session-cache.ts`
-

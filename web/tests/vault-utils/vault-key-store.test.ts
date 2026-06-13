@@ -58,8 +58,9 @@ describe("vault-key-store", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         records.clear();
-        (keyStoreDb as unknown as { deviceSecondFactors: typeof table })
-            .deviceSecondFactors = table;
+        (
+            keyStoreDb as unknown as { deviceSecondFactors: typeof table }
+        ).deviceSecondFactors = table;
     });
 
     it("constructs the key-store database and re-exports the vault database", () => {

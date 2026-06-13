@@ -101,6 +101,15 @@ export default defineConfig(({ mode }) => {
             emptyOutDir: false,
             outDir: "dist",
             target: "es2022",
+            minify: isProduction ? "terser" : undefined,
+            terserOptions: isProduction
+                ? {
+                      compress: {
+                          drop_debugger: true,
+                          drop_console: ["log", "info", "debug"],
+                      },
+                  }
+                : undefined,
             rollupOptions: {
                 input: {
                     popup: path.resolve(__dirname, "popup.html"),

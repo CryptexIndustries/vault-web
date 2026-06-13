@@ -23,7 +23,6 @@ import { PasswordGeneratorDialog } from "@/components/ui/password-generator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
-    clearOnlineServicesSession,
     linkedDevicesAtom,
     onlineServicesAuthConnectionStatusAtom,
     onlineServicesAuthenticationStatus,
@@ -41,14 +40,17 @@ import {
     onlineServicesLog,
     signalingLog,
     vaultLog,
-    vaultLogger,
     webrtcLog,
 } from "@/utils/logging";
 import {
     MISSING_VAULT_SECRET_ERROR,
-    clearVaultDEKFromSession,
     saveVaultWithSessionDEK,
 } from "@/utils/vault-session";
+import {
+    useVaultAutoLock,
+    type VaultAutoLockReason,
+} from "@/utils/vault-auto-lock";
+import { lockUnlockedVault } from "@/utils/vault-lock";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -160,7 +162,10 @@ function useDeviceConnectionLifecycle(
                 ...previousStatuses,
                 [device.ID]: {
                     ...(previousStatuses[device.ID] ??
-                        getDeviceConnectionStatus(device, syncConnectionController)),
+                        getDeviceConnectionStatus(
+                            device,
+                            syncConnectionController,
+                        )),
                     ...status,
                 },
             }));
@@ -255,11 +260,14 @@ function useDeviceConnectionLifecycle(
                             void syncConnectionController.disconnectDevice(
                                 device,
                             );
-                            webrtcLog.info("Sync timeout expired, disconnecting device", {
-                                deviceId: device.ID,
-                                deviceName: device.Name,
-                                timeoutMs: period,
-                            });
+                            webrtcLog.info(
+                                "Sync timeout expired, disconnecting device",
+                                {
+                                    deviceId: device.ID,
+                                    deviceName: device.Name,
+                                    timeoutMs: period,
+                                },
+                            );
                         }, period);
                         timeoutIDs.push(timeoutID);
                     } else if (
@@ -268,12 +276,8 @@ function useDeviceConnectionLifecycle(
                             event.connectionState,
                         )
                     ) {
-                        void syncConnectionController.disconnectDevice(
-                            device,
-                        );
-                        void syncConnectionController.connectDevice(
-                            device.ID,
-                        );
+                        void syncConnectionController.disconnectDevice(device);
+                        void syncConnectionController.connectDevice(device.ID);
                     }
                 }
             };
@@ -285,11 +289,14 @@ function useDeviceConnectionLifecycle(
                 );
 
             if (!handlerID) {
-                signalingLog.error("Failed to register sync signaling handler", {
-                    deviceId: device.ID,
-                    deviceName: device.Name,
-                    signalingServerId: device.SignalingServerID,
-                });
+                signalingLog.error(
+                    "Failed to register sync signaling handler",
+                    {
+                        deviceId: device.ID,
+                        deviceName: device.Name,
+                        signalingServerId: device.SignalingServerID,
+                    },
+                );
                 return;
             }
 
@@ -598,12 +605,15 @@ export function VaultDashboard() {
             updatedLinkedDevices.Devices = updatedLinkedDevices.Devices.map(
                 (device) => {
                     if (device.ID !== config.ID) return device;
-                    return Object.assign(LinkedDevices.fromGenericDevice(device), {
-                        Name: config.Name,
-                        AutoConnect: config.AutoConnect,
-                        SyncTimeout: config.SyncTimeout,
-                        SyncTimeoutPeriod: config.SyncTimeoutPeriod,
-                    });
+                    return Object.assign(
+                        LinkedDevices.fromGenericDevice(device),
+                        {
+                            Name: config.Name,
+                            AutoConnect: config.AutoConnect,
+                            SyncTimeout: config.SyncTimeout,
+                            SyncTimeoutPeriod: config.SyncTimeoutPeriod,
+                        },
+                    );
                 },
             );
             updatedVault.LinkedDevices = updatedLinkedDevices;
@@ -795,7 +805,10 @@ export function VaultDashboard() {
                 onlineServicesAuthConnectionStatusAtom,
                 onlineServicesAuthenticationStatus.disconnected(),
             );
-        } else if (data?.sessionToken?.length && data.deviceId === vaultOs.DeviceId) {
+        } else if (
+            data?.sessionToken?.length &&
+            data.deviceId === vaultOs.DeviceId
+        ) {
             // Get out, we're already signed in and the device id matches
             return;
         }
@@ -808,10 +821,13 @@ export function VaultDashboard() {
             if (cancelled) return;
             await syncOnlineServicesRemoteConfiguration();
         } catch (e) {
-            onlineServicesLog.error("Failed to establish Online Services session", {
-                deviceId: vaultOs.DeviceId,
-                error: e,
-            });
+            onlineServicesLog.error(
+                "Failed to establish Online Services session",
+                {
+                    deviceId: vaultOs.DeviceId,
+                    error: e,
+                },
+            );
             toast.error(
                 "Could not sign in to Online Services. Open Account to retry.",
             );
@@ -832,61 +848,62 @@ export function VaultDashboard() {
         setIsPasswordGeneratorOpen(true);
     }, []);
 
-    const handleLockVault = useCallback(async () => {
-        if (!unlockedVaultMetadata) {
-            toast.error("Vault metadata is unavailable.");
-            return;
-        }
+    const lockVault = useCallback(
+        async (reason?: VaultAutoLockReason) => {
+            const toastId = toast.loading(
+                reason ? "Auto-locking vault..." : "Securing vault...",
+            );
 
-        const toastId = toast.loading("Securing vault...");
+            const lockRes = await lockUnlockedVault({
+                unlockedVaultMetadata,
+                unlockedVault,
+                setUnlockedVault,
+                setUnlockedVaultMetadata,
+                syncConnectionController,
+            });
 
-        const saveRes = await saveVaultWithSessionDEK(
-            unlockedVaultMetadata,
-            unlockedVault,
-        );
-        if (saveRes.isErr()) {
-            if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
+            if (lockRes.isOk()) {
+                toast.success(
+                    reason ? "Vault auto-locked." : "Vault secured.",
+                    {
+                        id: toastId,
+                        duration: 3000,
+                    },
+                );
+                return;
+            }
+
+            if (lockRes.error === "VAULT_METADATA_MISSING") {
+                toast.error("Vault metadata is unavailable.", { id: toastId });
+                return;
+            }
+
+            if (lockRes.error === "VAULT_DEK_NOT_FOUND") {
                 toast.error(MISSING_VAULT_SECRET_ERROR, { id: toastId });
                 return;
             }
 
-            toast.error(
-                "Failed to save vault. There is a high possibility of data loss!",
-                {
-                    id: toastId,
-                },
-            );
-            return;
-        }
-
-        try {
-            clearVaultDEKFromSession();
-
-            onlineServicesStore.set(
-                onlineServicesAuthConnectionStatusAtom,
-                onlineServicesAuthenticationStatus.disconnected(),
-            );
-            clearOnlineServicesSession();
-            setUnlockedVaultMetadata(null);
-            await setUnlockedVault(async () => new Vault());
-            vaultLogger.clearAll();
-
-            toast.success("Vault secured.", { id: toastId, duration: 3000 });
-        } catch (error) {
-            vaultLog.error("Failed to lock vault", { error });
             toast.error(
                 "Failed to lock vault. There is a high possibility of data loss!",
                 {
                     id: toastId,
                 },
             );
-        }
-    }, [
-        setUnlockedVault,
-        setUnlockedVaultMetadata,
-        unlockedVault,
-        unlockedVaultMetadata,
-    ]);
+        },
+        [
+            setUnlockedVault,
+            setUnlockedVaultMetadata,
+            syncConnectionController,
+            unlockedVault,
+            unlockedVaultMetadata,
+        ],
+    );
+
+    const handleLockVault = useCallback(async () => {
+        await lockVault();
+    }, [lockVault]);
+
+    useVaultAutoLock(lockVault);
 
     const showWarningDialog = useCallback(
         (...args: Parameters<WarningDialogShowFn>) => {

@@ -7,10 +7,19 @@ import { initPusherInstance, initWebRTC } from "../synchronization";
 import { constructLinkPresenceChannelName } from "../online-services";
 import Pusher, { Channel } from "pusher-js";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
+import { decapsulateSyncKem } from "./post-quantum-kem";
 import {
-    encodeLinkSyncKeyMessage,
-    parseLinkSyncKeyMessage,
-} from "./sync-signing";
+    buildSyncKeyBundle,
+    createLinkMac,
+    createNonce,
+    deriveAeadKey,
+    linkReceiverBundleMacBytes,
+    linkSenderHelloMacBytes,
+    linkVaultTransferContext,
+    openAead,
+    type SyncKeyPair,
+    verifyLinkMac,
+} from "./sync-crypto";
 
 export class LinkingPackage implements VaultUtilTypes.LinkingPackage {
     Blob: Uint8Array;
@@ -175,7 +184,8 @@ export interface LinkingProcessStatus {
 export class LinkingProcessController {
     readonly linkingPackage: VaultUtilTypes.LinkingPackageBlob;
     readonly usesOnlineServices: boolean;
-    readonly localSyncPublicKey: string;
+    readonly localKeyPair: SyncKeyPair;
+    readonly linkSecret: string;
     readonly onStatusChange: (state: LinkingProcessStatus) => Promise<void>;
 
     private readonly signalingServer: Pusher;
@@ -183,12 +193,14 @@ export class LinkingProcessController {
     private readonly webRTCConnection: RTCPeerConnection;
     private hasDirectConnection = false;
     private hasTerminalError = false;
-    private sentLocalSyncPublicKey = false;
+    private receiverKeyBundleSent = false;
+    private senderKeyBundle: VaultUtilTypes.SyncKeyBundle | null = null;
 
     private constructor(
         linkingBlob: VaultUtilTypes.LinkingPackageBlob,
         usesOnlineServices: boolean,
-        localSyncPublicKey: string,
+        localKeyPair: SyncKeyPair,
+        linkSecret: string,
         onStatusChange: (state: LinkingProcessStatus) => Promise<void>,
         signalingServer: Pusher,
         signalingServerChannel: Channel,
@@ -196,7 +208,8 @@ export class LinkingProcessController {
     ) {
         this.linkingPackage = linkingBlob;
         this.usesOnlineServices = usesOnlineServices;
-        this.localSyncPublicKey = localSyncPublicKey;
+        this.localKeyPair = localKeyPair;
+        this.linkSecret = linkSecret;
         this.onStatusChange = onStatusChange;
         this.signalingServer = signalingServer;
         this.signalingServerChannel = signalingServerChannel;
@@ -208,10 +221,11 @@ export class LinkingProcessController {
         this.signalingServer.unbind();
     }
 
-    public static async create(
+    public static create(
         linkingBlob: VaultUtilTypes.LinkingPackageBlob,
         usesOnlineServices: boolean,
-        localSyncPublicKey: string,
+        localKeyPair: SyncKeyPair,
+        linkSecret: string,
         onStatusChange: (state: LinkingProcessStatus) => Promise<void>,
     ): ResultAsync<LinkingProcessController, Error> {
         return ResultAsync.fromPromise(
@@ -230,11 +244,13 @@ export class LinkingProcessController {
                 const channelName = constructLinkPresenceChannelName(
                     linkingBlob.SyncID,
                 );
-                const signalingServerChannel = signalingServer.subscribe(channelName);
+                const signalingServerChannel =
+                    signalingServer.subscribe(channelName);
                 const controller = new LinkingProcessController(
                     linkingBlob,
                     usesOnlineServices,
-                    localSyncPublicKey,
+                    localKeyPair,
+                    linkSecret,
                     onStatusChange,
                     signalingServer,
                     signalingServerChannel,
@@ -246,7 +262,8 @@ export class LinkingProcessController {
 
                 return controller;
             })(),
-            (error) => (error instanceof Error ? error : new Error(String(error))),
+            (error) =>
+                error instanceof Error ? error : new Error(String(error)),
         );
     }
 
@@ -310,7 +327,10 @@ export class LinkingProcessController {
                         });
                         break;
                     case "disconnected":
-                        if (!this.hasDirectConnection || this.hasTerminalError) {
+                        if (
+                            !this.hasDirectConnection ||
+                            this.hasTerminalError
+                        ) {
                             break;
                         }
 
@@ -343,17 +363,20 @@ export class LinkingProcessController {
             this.signalingServer.disconnect();
         });
 
-        this.signalingServerChannel.bind("pusher:subscription_succeeded", () => {
-            this.onStatusChange({
-                Step: LinkingProcessStep.SignalingWaitingOtherDevice,
-                State: LinkingProcessState.Active,
-                LogMessage: {
-                    message: "Waiting for other device to notice us...",
-                    timestamp: Date.now(),
-                    type: "info",
-                },
-            });
-        });
+        this.signalingServerChannel.bind(
+            "pusher:subscription_succeeded",
+            () => {
+                this.onStatusChange({
+                    Step: LinkingProcessStep.SignalingWaitingOtherDevice,
+                    State: LinkingProcessState.Active,
+                    LogMessage: {
+                        message: "Waiting for other device to notice us...",
+                        timestamp: Date.now(),
+                        type: "info",
+                    },
+                });
+            },
+        );
 
         this.signalingServerChannel.bind(
             "client-link",
@@ -423,11 +446,13 @@ export class LinkingProcessController {
             this.onStatusChange({
                 Step: LinkingProcessStep.DirectConnection,
                 State: LinkingProcessState.Active,
-                LogMessage: {
-                    message: `WebRTC connection state changed: ${webRTConnection.connectionState}`,
-                    timestamp: Date.now(),
-                    type: "debug",
-                },
+                // Internal WebRTC state churn is too noisy for the user-facing log.
+                // Protocol milestones below explain what is happening.
+                // LogMessage: {
+                //     message: `WebRTC connection state changed: ${webRTConnection.connectionState}`,
+                //     timestamp: Date.now(),
+                //     type: "debug",
+                // },
             });
 
             if (webRTConnection.connectionState === "connected") {
@@ -436,8 +461,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Completed,
                     LogMessage: {
-                        message:
-                            "Private connection established, dropping Signaling server connection...",
+                        message: "Private connection established.",
                         timestamp: Date.now(),
                         type: "info",
                     },
@@ -446,11 +470,13 @@ export class LinkingProcessController {
                 this.onStatusChange({
                     Step: LinkingProcessStep.VaultTransfer,
                     State: LinkingProcessState.Active,
-                    LogMessage: {
-                        message: "Starting vault data transfer...",
-                        timestamp: Date.now(),
-                        type: "info",
-                    },
+                    // The receiver has not seen the encrypted vault yet; avoid
+                    // logging this as transfer progress until bytes arrive.
+                    // LogMessage: {
+                    //     message: "Starting vault data transfer...",
+                    //     timestamp: Date.now(),
+                    //     type: "info",
+                    // },
                 });
 
                 this.disconnectSignalingServer();
@@ -487,7 +513,8 @@ export class LinkingProcessController {
                 Step: LinkingProcessStep.SyncKeyExchange,
                 State: LinkingProcessState.Active,
                 LogMessage: {
-                    message: "Waiting for post-quantum sync key...",
+                    message:
+                        "Private channel open. Waiting for sender authentication...",
                     timestamp: Date.now(),
                     type: "info",
                 },
@@ -495,23 +522,99 @@ export class LinkingProcessController {
 
             const receiveChannel = event.channel;
             receiveChannel.onmessage = async (event) => {
-                const remoteSyncPublicKey = parseLinkSyncKeyMessage(event.data);
-                if (remoteSyncPublicKey) {
-                    if (!this.sentLocalSyncPublicKey) {
-                        receiveChannel.send(
-                            new Uint8Array(encodeLinkSyncKeyMessage(this.localSyncPublicKey)),
+                if (!this.receiverKeyBundleSent) {
+                    try {
+                        const senderHello =
+                            VaultUtilTypes.LinkSenderHello.decode(
+                                new Uint8Array(event.data),
+                            );
+                        const packageBundle =
+                            this.linkingPackage.SenderKeyBundle;
+                        if (
+                            !packageBundle ||
+                            !packageBundle.SyncSigningPublicKey ||
+                            !packageBundle.SyncKemPublicKey
+                        ) {
+                            throw new Error("LINK_SENDER_KEY_BUNDLE_INVALID");
+                        }
+                        const senderMacValid = await verifyLinkMac(
+                            this.linkSecret,
+                            linkSenderHelloMacBytes(
+                                this.linkingPackage.SyncID,
+                                packageBundle,
+                                senderHello.Nonce,
+                            ),
+                            senderHello.Mac,
                         );
-                        this.sentLocalSyncPublicKey = true;
+                        if (!senderMacValid) {
+                            throw new Error("LINK_SENDER_MAC_INVALID");
+                        }
+                        this.onStatusChange({
+                            Step: LinkingProcessStep.SyncKeyExchange,
+                            State: LinkingProcessState.Active,
+                            LogMessage: {
+                                message:
+                                    "Sender authenticated. Sharing this device's post-quantum sync key...",
+                                timestamp: Date.now(),
+                                type: "info",
+                            },
+                        });
+
+                        const receiverBundle = buildSyncKeyBundle(
+                            this.localKeyPair.signingPublicKey,
+                            this.localKeyPair.kemPublicKey,
+                        );
+                        const receiverNonce = createNonce();
+                        const receiverMac = await createLinkMac(
+                            this.linkSecret,
+                            linkReceiverBundleMacBytes(
+                                this.linkingPackage.SyncID,
+                                packageBundle,
+                                receiverBundle,
+                                receiverNonce,
+                            ),
+                        );
+                        receiveChannel.send(
+                            toArrayBuffer(
+                                VaultUtilTypes.LinkReceiverKeyBundle.encode({
+                                    ReceiverKeyBundle: receiverBundle,
+                                    Nonce: receiverNonce,
+                                    Mac: receiverMac,
+                                }).finish(),
+                            ),
+                        );
+                        this.senderKeyBundle = packageBundle;
+                        this.receiverKeyBundleSent = true;
+                        this.onStatusChange({
+                            Step: LinkingProcessStep.SyncKeyExchange,
+                            State: LinkingProcessState.Completed,
+                            LogMessage: {
+                                message:
+                                    "Receiver key accepted. Waiting for encrypted vault transfer...",
+                                timestamp: Date.now(),
+                                type: "info",
+                            },
+                        });
+                    } catch (e) {
+                        this.hasTerminalError = true;
+                        this.onStatusChange({
+                            Step: LinkingProcessStep.SyncKeyExchange,
+                            State: LinkingProcessState.Error,
+                            LogMessage: {
+                                message:
+                                    "Failed to authenticate link key exchange.",
+                                timestamp: Date.now(),
+                                type: "error",
+                                details: {
+                                    type: "vault",
+                                    error:
+                                        e instanceof Error
+                                            ? e
+                                            : new Error(String(e)),
+                                },
+                            },
+                        });
                     }
-                    this.onStatusChange({
-                        Step: LinkingProcessStep.SyncKeyExchange,
-                        State: LinkingProcessState.Completed,
-                        LogMessage: {
-                            message: "Quantum-safe sync keys exchanged.",
-                            timestamp: Date.now(),
-                            type: "info",
-                        },
-                    });
                     return;
                 }
 
@@ -519,21 +622,54 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.VaultTransfer,
                     State: LinkingProcessState.Active,
                     LogMessage: {
-                        message: "Receiving Vault data...",
+                        message:
+                            "Receiving encrypted vault transfer and checking authenticity...",
                         timestamp: Date.now(),
                         type: "info",
                     },
                 });
 
-                const rawVaultMetadata: Uint8Array = new Uint8Array(event.data);
-
                 try {
+                    if (!this.senderKeyBundle) {
+                        throw new Error("LINK_SENDER_KEY_BUNDLE_MISSING");
+                    }
+                    const transfer = VaultUtilTypes.LinkVaultTransfer.decode(
+                        new Uint8Array(event.data),
+                    );
+                    const receiverBundle = buildSyncKeyBundle(
+                        this.localKeyPair.signingPublicKey,
+                        this.localKeyPair.kemPublicKey,
+                    );
+                    const transferContext = linkVaultTransferContext(
+                        this.linkingPackage.SyncID,
+                        this.senderKeyBundle,
+                        receiverBundle,
+                        transfer.KemCiphertext,
+                    );
+                    const sharedSecret = decapsulateSyncKem(
+                        transfer.KemCiphertext,
+                        this.localKeyPair.kemPrivateKey,
+                    );
+                    const transferKey = await deriveAeadKey(
+                        sharedSecret,
+                        transferContext,
+                    );
+                    const rawVaultMetadata = await openAead(
+                        transferKey,
+                        {
+                            nonce: transfer.Nonce,
+                            ciphertext: transfer.Ciphertext,
+                        },
+                        transferContext,
+                    );
+
                     await this.onStatusChange({
                         Step: LinkingProcessStep.VaultTransfer,
                         State: LinkingProcessState.Completed,
                         VaultBinaryData: rawVaultMetadata,
                         LogMessage: {
-                            message: "Vault data received successfully",
+                            message:
+                                "Vault authenticity confirmed. Transfer decrypted successfully.",
                             timestamp: Date.now(),
                             type: "info",
                         },
@@ -543,7 +679,8 @@ export class LinkingProcessController {
                         Step: LinkingProcessStep.VaultSave,
                         State: LinkingProcessState.Completed,
                         LogMessage: {
-                            message: "Vault saved successfully",
+                            message:
+                                "Vault is ready to merge or save on this device.",
                             timestamp: Date.now(),
                             type: "info",
                         },
@@ -662,4 +799,11 @@ export class LinkingProcessController {
             },
         });
     }
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+    return bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
 }

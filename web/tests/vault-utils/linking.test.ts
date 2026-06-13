@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+    describe,
+    it,
+    expect,
+    jest,
+    beforeEach,
+    afterEach,
+} from "@jest/globals";
 import { webcrypto } from "crypto";
 import { err, ok, type Result } from "neverthrow";
 import { TextDecoder, TextEncoder } from "util";
@@ -22,7 +29,8 @@ import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
 
 const uint8ToBase64 = (value: Uint8Array): string =>
     Buffer.from(value).toString("base64");
-const utf8Bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
+const utf8Bytes = (value: string): Uint8Array =>
+    new TextEncoder().encode(value);
 
 const mockGenerateMnemonic: jest.MockedFunction<
     (wordlist: string[], strength: number) => string
@@ -50,18 +58,20 @@ type DecryptDataBlobFn = (
         | VaultUtilTypes.KeyDerivationConfigPBKDF2,
 ) => Promise<Result<Uint8Array, string>>;
 
-const mockEncryptDataBlob: jest.MockedFunction<
-    EncryptDataBlobFn
-> = jest.fn();
-const mockDecryptDataBlob: jest.MockedFunction<
-    DecryptDataBlobFn
-> = jest.fn();
+const mockEncryptDataBlob: jest.MockedFunction<EncryptDataBlobFn> = jest.fn();
+const mockDecryptDataBlob: jest.MockedFunction<DecryptDataBlobFn> = jest.fn();
 
 jest.mock(
     "@/lib/utils",
     () => ({
-        base64ToUint8: (value: string) => new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) => Buffer.from(value).toString("base64"),
+        base64ToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64")),
+        uint8ToBase64: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64"),
+        base64UrlToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64url")),
+        uint8ToBase64Url: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64url"),
     }),
     { virtual: true },
 );
@@ -72,7 +82,9 @@ jest.mock("@scure/bip39", () => ({
 }));
 
 jest.mock("../../src/app_lib/vault-utils/encryption", () => {
-    const actual = jest.requireActual("../../src/app_lib/vault-utils/encryption") as object;
+    const actual = jest.requireActual(
+        "../../src/app_lib/vault-utils/encryption",
+    ) as object;
     return {
         __esModule: true,
         ...actual,
@@ -121,7 +133,10 @@ describe("vault-utils/linking", () => {
                     STUNServers: [],
                     TURNServers: [],
                     SignalingServer: undefined,
-                    SyncSigningPublicKey: "sync-public-key",
+                    SenderKeyBundle: {
+                        SyncSigningPublicKey: "sync-public-key",
+                        SyncKemPublicKey: "sync-kem-public-key",
+                    },
                 }).finish(),
             ),
         );
@@ -138,7 +153,10 @@ describe("vault-utils/linking", () => {
             STUNServers: [],
             TURNServers: [],
             SignalingServer: undefined,
-            SyncSigningPublicKey: "source-sync-public-key",
+            SenderKeyBundle: {
+                SyncSigningPublicKey: "source-sync-public-key",
+                SyncKemPublicKey: "source-sync-kem-public-key",
+            },
         });
 
         const result = await LinkingPackage.createNewPackage(sourceBlob);
@@ -157,7 +175,11 @@ describe("vault-utils/linking", () => {
     });
 
     it("decrypts package back to LinkingPackageBlob payload", async () => {
-        const pkg = new LinkingPackage(new Uint8Array([1, 2]), "salt", "header");
+        const pkg = new LinkingPackage(
+            new Uint8Array([1, 2]),
+            "salt",
+            "header",
+        );
 
         const res = await pkg.decryptPackage("mnemonic words");
 
@@ -184,7 +206,11 @@ describe("vault-utils/linking", () => {
     });
 
     it("serializes and deserializes package via binary and base64", () => {
-        const pkg = new LinkingPackage(new Uint8Array([9, 8, 7]), "salt", "header");
+        const pkg = new LinkingPackage(
+            new Uint8Array([9, 8, 7]),
+            "salt",
+            "header",
+        );
 
         const binary = pkg.toBinary();
         const parsedFromBinary = LinkingPackage.fromBinary(binary);

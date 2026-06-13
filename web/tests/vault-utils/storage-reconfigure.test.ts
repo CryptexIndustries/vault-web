@@ -29,6 +29,10 @@ jest.mock(
             new Uint8Array(Buffer.from(value, "base64")),
         uint8ToBase64: (value: Uint8Array): string =>
             Buffer.from(value).toString("base64"),
+        base64UrlToUint8: (value: string): Uint8Array =>
+            new Uint8Array(Buffer.from(value, "base64url")),
+        uint8ToBase64Url: (value: Uint8Array): string =>
+            Buffer.from(value).toString("base64url"),
     }),
     { virtual: true },
 );

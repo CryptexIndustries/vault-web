@@ -36,6 +36,7 @@ import {
     NewVaultFormSchemaType,
     VaultEncryptionConfigurationsFormElementType,
 } from "./form-schemas";
+import { ensureSyncKemKeypair } from "./post-quantum-kem";
 import { ensureSyncSigningKeypair } from "./sync-signing";
 import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
 import { err, ok, Result } from "neverthrow";
@@ -161,6 +162,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
         const freshVault = new Vault(seedVault, seedCount);
         await ensureSyncSigningKeypair(freshVault.LinkedDevices);
+        await ensureSyncKemKeypair(freshVault.LinkedDevices);
         const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
 
         const secondFactorSource: SecondFactorSource =
@@ -340,7 +342,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         if (!this.Blob?.Envelope) return null;
 
         const kind = this.Blob.Envelope.PrimaryFactorKind;
-        
+
         // If the primary factor is none, return null
         if (kind === VaultUtilTypes.SecondFactorKind.NONE) return null;
 
@@ -352,10 +354,11 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF &&
             primarySlot?.WebauthnCredentialId &&
             primarySlot?.WebauthnPrfSalt
-        ) resolvedWebAuthnUnlock = makeWebAuthnUnlockFromSlot(
-            primarySlot.WebauthnCredentialId,
-            primarySlot.WebauthnPrfSalt,
-        );
+        )
+            resolvedWebAuthnUnlock = makeWebAuthnUnlockFromSlot(
+                primarySlot.WebauthnCredentialId,
+                primarySlot.WebauthnPrfSalt,
+            );
 
         return resolveSecondFactorForUnlock(this.DBIndex, kind, {
             passphrase: passphrase?.trim() || undefined,
@@ -389,9 +392,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         newMasterPassword?: string;
         secondFactor: SecondFactorSource;
         kdfConfig?: KeyDerivationConfig_Argon2ID;
-    }): Promise<
-        Result<VaultRevealSecrets | null, string>
-    > {
+    }): Promise<Result<VaultRevealSecrets | null, string>> {
         if (
             this.Blob == null ||
             !this.Blob.Envelope ||
@@ -642,13 +643,9 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                     recoveryCode: migrated.recoveryCode,
                 };
 
-                const reopened = await openEnvelopeBlob(
-                    this.Blob,
-                    vaultId,
-                    {
-                        masterPassword,
-                    },
-                );
+                const reopened = await openEnvelopeBlob(this.Blob, vaultId, {
+                    masterPassword,
+                });
                 if (reopened.isErr()) return err(reopened.error);
                 dek = reopened.value.dek;
                 plaintext = reopened.value.plaintext;
@@ -682,7 +679,10 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const generatedSyncKeys = await ensureSyncSigningKeypair(
             vaultObject.LinkedDevices,
         );
-        if (generatedSyncKeys) {
+        const generatedSyncKemKeys = await ensureSyncKemKeypair(
+            vaultObject.LinkedDevices,
+        );
+        if (generatedSyncKeys || generatedSyncKemKeys) {
             blobUpgradeResult.requiresSave = true;
         }
 

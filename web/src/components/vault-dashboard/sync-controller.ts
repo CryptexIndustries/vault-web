@@ -107,7 +107,10 @@ export const createVaultOperations = (
 
                 const vaultMetadata = getVaultMetadata();
                 if (vaultMetadata) {
-                    await vaultMetadata.save(updatedVault, vaultSecretRes.value);
+                    await vaultMetadata.save(
+                        updatedVault,
+                        vaultSecretRes.value,
+                    );
                 }
 
                 toast.success("Vault data saved.", {
@@ -131,9 +134,20 @@ export const createVaultOperations = (
             }
         },
         getSynchronizationConfig: async () => vaultGet().LinkedDevices,
+        getSyncSigningPublicKey: async () => {
+            const publicKey = vaultGet().LinkedDevices.SyncSigningPublicKey;
+            return publicKey || null;
+        },
         getSyncSigningPrivateKey: async () => {
-            const privateKey =
-                vaultGet().LinkedDevices.SyncSigningPrivateKey;
+            const privateKey = vaultGet().LinkedDevices.SyncSigningPrivateKey;
+            return privateKey || null;
+        },
+        getSyncKemPublicKey: async () => {
+            const publicKey = vaultGet().LinkedDevices.SyncKemPublicKey;
+            return publicKey || null;
+        },
+        getSyncKemPrivateKey: async () => {
+            const privateKey = vaultGet().LinkedDevices.SyncKemPrivateKey;
             return privateKey || null;
         },
         getRemoteSyncPublicKey: async (linkedDeviceId: string) => {
@@ -141,6 +155,12 @@ export const createVaultOperations = (
                 (entry) => entry.ID === linkedDeviceId,
             );
             return device?.RemoteSyncPublicKey || null;
+        },
+        getRemoteSyncKemPublicKey: async (linkedDeviceId: string) => {
+            const device = vaultGet().LinkedDevices.Devices.find(
+                (entry) => entry.ID === linkedDeviceId,
+            );
+            return device?.RemoteSyncKemPublicKey || null;
         },
     };
 };
@@ -161,7 +181,8 @@ export function useSyncConnectionController(
     const vaultMetadataRef = useRef(vaultMetadata);
     vaultMetadataRef.current = vaultMetadata;
 
-    const vaultMetadataLifecycleKey = getVaultMetadataLifecycleKey(vaultMetadata);
+    const vaultMetadataLifecycleKey =
+        getVaultMetadataLifecycleKey(vaultMetadata);
     const syncConnectionControllerEntry = useMemo(
         () => ({
             key: vaultMetadataLifecycleKey,

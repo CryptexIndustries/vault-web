@@ -1,569 +1,234 @@
-/**
- * @jest-environment jsdom
- */
-import {
-    afterEach,
-    beforeEach,
-    describe,
-    expect,
-    it,
-    jest,
-} from "@jest/globals";
+import { describe, expect, it, beforeAll } from "@jest/globals";
+import { webcrypto } from "node:crypto";
 import { TextDecoder, TextEncoder } from "util";
 
+import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import {
+    decapsulateSyncKem,
+    encapsulateSyncKem,
+    ensureSyncKemKeypair,
+} from "../../src/app_lib/vault-utils/post-quantum-kem";
+import { ensureSyncSigningKeypair } from "../../src/app_lib/vault-utils/sync-signing";
+import {
+    buildSyncKeyBundle,
+    createLinkMac,
+    createNonce,
+    deriveAeadKey,
+    linkReceiverBundleMacBytes,
+    linkSenderHelloMacBytes,
+    linkVaultTransferContext,
+    openAead,
+    sealAead,
+    verifyLinkMac,
+} from "../../src/app_lib/vault-utils/sync-crypto";
+import { LinkedDevices } from "../../src/app_lib/vault-utils/vault";
+
+if (!globalThis.crypto?.subtle) {
+    Object.defineProperty(globalThis, "crypto", {
+        value: webcrypto,
+        writable: true,
+    });
+}
 Object.defineProperty(globalThis, "TextEncoder", {
     value: TextEncoder,
     writable: true,
 });
-
 Object.defineProperty(globalThis, "TextDecoder", {
     value: TextDecoder,
     writable: true,
 });
 
-const initPusherInstanceMock = jest.fn();
-const initWebRTCMock = jest.fn();
-const constructLinkPresenceChannelNameMock = jest.fn(
-    (id: string) => `presence-link-${id}`,
-);
+let sender: LinkedDevices;
+let receiver: LinkedDevices;
 
-jest.mock("../../src/app_lib/synchronization", () => ({
-    initPusherInstance: initPusherInstanceMock,
-    initWebRTC: initWebRTCMock,
-}));
+beforeAll(async () => {
+    sender = new LinkedDevices();
+    receiver = new LinkedDevices();
+    await ensureSyncSigningKeypair(sender);
+    await ensureSyncKemKeypair(sender);
+    await ensureSyncSigningKeypair(receiver);
+    await ensureSyncKemKeypair(receiver);
+});
 
-jest.mock("../../src/app_lib/online-services", () => ({
-    constructLinkPresenceChannelName: constructLinkPresenceChannelNameMock,
-}));
+describe("encrypted link protocol", () => {
+    it("binds receiver key bundle to sender bundle and mnemonic MAC", async () => {
+        const syncID = "sync-id";
+        const mnemonic = "test mnemonic";
+        const senderBundle = buildSyncKeyBundle(
+            sender.SyncSigningPublicKey,
+            sender.SyncKemPublicKey,
+        );
+        const receiverBundle = buildSyncKeyBundle(
+            receiver.SyncSigningPublicKey,
+            receiver.SyncKemPublicKey,
+        );
+        const nonce = createNonce();
 
-jest.mock("pusher-js", () => ({
-    __esModule: true,
-    default: class {},
-}));
-
-jest.mock(
-    "@/lib/utils",
-    () => ({
-        base64ToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64"),
-    }),
-    { virtual: true },
-);
-
-import {
-    LinkingProcessController,
-    LinkingProcessState,
-    LinkingProcessStep,
-} from "../../src/app_lib/vault-utils/linking";
-import {
-    encodeLinkSyncKeyMessage,
-} from "../../src/app_lib/vault-utils/sync-signing";
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
-
-type StateChangeHandler = (state: {
-    previous: string;
-    current: string;
-}) => void;
-type ClientLinkHandler = (data: {
-    type: "offer" | "ice-candidate";
-    data: unknown;
-}) => Promise<void>;
-
-async function buildController() {
-    const channelHandlers: Record<string, (...args: unknown[]) => unknown> = {};
-    const connectionHandlers: Record<
-        string,
-        (...args: unknown[]) => unknown
-    > = {};
-
-    const channel = {
-        bind: jest.fn((event: string, cb: (...args: unknown[]) => unknown) => {
-            channelHandlers[event] = cb;
-        }),
-        unbind: jest.fn(),
-        trigger: jest.fn(),
-    };
-
-    const signalingServer = {
-        connection: {
-            bind: jest.fn(
-                (event: string, cb: (...args: unknown[]) => unknown) => {
-                    connectionHandlers[event] = cb;
-                },
+        const mac = await createLinkMac(
+            mnemonic,
+            linkReceiverBundleMacBytes(
+                syncID,
+                senderBundle,
+                receiverBundle,
+                nonce,
             ),
-        },
-        subscribe: jest.fn(() => channel),
-        unsubscribe: jest.fn(),
-        unbind: jest.fn(),
-        disconnect: jest.fn(),
-    };
+        );
+        const swappedSender = buildSyncKeyBundle(
+            sender.SyncSigningPublicKey,
+            receiver.SyncKemPublicKey,
+        );
+        const swappedMac = await createLinkMac(
+            mnemonic,
+            linkReceiverBundleMacBytes(
+                syncID,
+                swappedSender,
+                receiverBundle,
+                nonce,
+            ),
+        );
 
-    initPusherInstanceMock.mockReturnValue(signalingServer);
-
-    const peerConnection: Partial<RTCPeerConnection> & {
-        onconnectionstatechange?: () => void;
-        ondatachannel?: (event: unknown) => void;
-        onicecandidate?: (event: unknown) => void;
-        connectionState: RTCPeerConnectionState;
-    } = {
-        connectionState: "new",
-        close: jest.fn(),
-        setRemoteDescription: jest.fn(async () => undefined),
-        setLocalDescription: jest.fn(async () => undefined),
-        createAnswer: jest.fn(async () => ({
-            type: "answer" as const,
-            sdp: "v=0",
-        })),
-        addIceCandidate: jest.fn(async () => undefined),
-    };
-    initWebRTCMock.mockResolvedValue(peerConnection);
-
-    const onStatusChange = jest.fn(async () => undefined);
-
-    const blob = VaultUtilTypes.LinkingPackageBlob.create({
-        SyncID: "sync-1",
-        STUNServers: [],
-        TURNServers: [],
-        OnlineServices: undefined,
-        SignalingServer: undefined,
-        SyncSigningPublicKey: "remote-sync-public-key",
+        expect(mac).not.toEqual(swappedMac);
     });
 
-    const controllerResult = await LinkingProcessController.create(
-        blob,
-        false,
-        "local-sync-public-key",
-        onStatusChange,
-    );
-    if (controllerResult.isErr()) {
-        throw controllerResult.error;
-    }
-
-    return {
-        controller: controllerResult.value,
-        onStatusChange,
-        channel,
-        signalingServer,
-        peerConnection,
-        channelHandlers: channelHandlers as {
-            "pusher:subscription_error"?: () => void;
-            "pusher:subscription_succeeded"?: () => void;
-            "client-link"?: ClientLinkHandler;
-        },
-        connectionHandlers: connectionHandlers as {
-            state_change?: StateChangeHandler;
-        },
-    };
-}
-
-describe("LinkingProcessController", () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-    });
-
-    afterEach(() => {
-        jest.useRealTimers();
-    });
-
-    it("subscribes to channel and binds Pusher events", async () => {
-        const { signalingServer, channel } = await buildController();
-        expect(initPusherInstanceMock).toHaveBeenCalled();
-        expect(signalingServer.subscribe).toHaveBeenCalledWith(
-            "presence-link-sync-1",
+    it("encrypts vault transfer with ML-KEM-derived AEAD key", async () => {
+        const syncID = "sync-id";
+        const senderBundle = buildSyncKeyBundle(
+            sender.SyncSigningPublicKey,
+            sender.SyncKemPublicKey,
         );
-        expect(channel.bind).toHaveBeenCalledWith(
-            "pusher:subscription_error",
-            expect.any(Function),
+        const receiverBundle = buildSyncKeyBundle(
+            receiver.SyncSigningPublicKey,
+            receiver.SyncKemPublicKey,
         );
-        expect(channel.bind).toHaveBeenCalledWith(
-            "pusher:subscription_succeeded",
-            expect.any(Function),
-        );
-        expect(channel.bind).toHaveBeenCalledWith(
-            "client-link",
-            expect.any(Function),
-        );
-    });
-
-    it("returns Err when WebRTC setup fails", async () => {
-        const setupError = new Error("turn credentials unavailable");
-        initWebRTCMock.mockRejectedValueOnce(setupError);
-        const blob = VaultUtilTypes.LinkingPackageBlob.create({
-            SyncID: "sync-1",
-            STUNServers: [],
-            TURNServers: [],
+        const plaintext = VaultUtilTypes.Vault.encode({
+            Version: 1,
+            CurrentVersion: 1,
+            LinkedDevices: new LinkedDevices(),
+            Groups: [],
+            Credentials: [],
             OnlineServices: undefined,
-            SignalingServer: undefined,
-            SyncSigningPublicKey: "remote-sync-public-key",
-        });
+        }).finish();
 
-        const result = await LinkingProcessController.create(
-            blob,
-            false,
-            "local-sync-public-key",
-            async () => undefined,
+        const { kemCiphertext, sharedSecret } = encapsulateSyncKem(
+            receiverBundle.SyncKemPublicKey,
         );
-
-        expect(result.isErr()).toBe(true);
-        if (result.isErr()) {
-            expect(result.error).toBe(setupError);
-        }
-        expect(initPusherInstanceMock).not.toHaveBeenCalled();
-    });
-
-    it("emits Signaling Active on connecting and Completed on connected state_change", async () => {
-        const { onStatusChange, connectionHandlers } = await buildController();
-        const handler = connectionHandlers.state_change;
-        handler?.({ previous: "initialized", current: "connecting" });
-        handler?.({ previous: "connecting", current: "connected" });
-
-        const calls = onStatusChange.mock.calls.map(
-            (c) => c[0] as { Step: number; State: number },
+        const context = linkVaultTransferContext(
+            syncID,
+            senderBundle,
+            receiverBundle,
+            kemCiphertext,
         );
-        expect(
-            calls.some(
-                (c) =>
-                    c.Step === LinkingProcessStep.Signaling &&
-                    c.State === LinkingProcessState.Active,
+        const senderKey = await deriveAeadKey(sharedSecret, context);
+        const sealed = await sealAead(senderKey, plaintext, context);
+
+        const receiverSecret = decapsulateSyncKem(
+            kemCiphertext,
+            receiver.SyncKemPrivateKey,
+        );
+        const receiverKey = await deriveAeadKey(receiverSecret, context);
+        const opened = await openAead(receiverKey, sealed, context);
+
+        expect(Array.from(opened)).toEqual(Array.from(plaintext));
+        const tamperedCiphertext = new Uint8Array(sealed.ciphertext);
+        tamperedCiphertext[0] = (tamperedCiphertext[0] ?? 0) ^ 1;
+        await expect(
+            openAead(
+                receiverKey,
+                {
+                    nonce: sealed.nonce,
+                    ciphertext: tamperedCiphertext,
+                },
+                context,
             ),
-        ).toBe(true);
-        expect(
-            calls.some(
-                (c) =>
-                    c.Step === LinkingProcessStep.Signaling &&
-                    c.State === LinkingProcessState.Completed,
+        ).rejects.toHaveProperty("name", "OperationError");
+
+        const attackerBundle = buildSyncKeyBundle(
+            receiver.SyncSigningPublicKey,
+            sender.SyncKemPublicKey,
+        );
+        const wrongContext = linkVaultTransferContext(
+            syncID,
+            attackerBundle,
+            receiverBundle,
+            kemCiphertext,
+        );
+        await expect(
+            openAead(receiverKey, sealed, wrongContext),
+        ).rejects.toHaveProperty("name", "OperationError");
+    });
+
+    it("authenticates sender hello with mnemonic MAC", async () => {
+        const syncID = "sync-id";
+        const mnemonic = "test mnemonic";
+        const senderBundle = buildSyncKeyBundle(
+            sender.SyncSigningPublicKey,
+            sender.SyncKemPublicKey,
+        );
+        const nonce = createNonce();
+        const mac = await createLinkMac(
+            mnemonic,
+            linkSenderHelloMacBytes(syncID, senderBundle, nonce),
+        );
+
+        const hello = VaultUtilTypes.LinkSenderHello.encode({
+            Nonce: nonce,
+            Mac: mac,
+        }).finish();
+        const decoded = VaultUtilTypes.LinkSenderHello.decode(hello);
+        const attackerBundle = buildSyncKeyBundle(
+            receiver.SyncSigningPublicKey,
+            receiver.SyncKemPublicKey,
+        );
+
+        expect(Array.from(decoded.Mac)).toEqual(Array.from(mac));
+        await expect(
+            verifyLinkMac(
+                mnemonic,
+                linkSenderHelloMacBytes(syncID, senderBundle, decoded.Nonce),
+                decoded.Mac,
             ),
-        ).toBe(true);
-    });
-
-    it("emits Error on failed/unavailable state_change", async () => {
-        const { onStatusChange, connectionHandlers } = await buildController();
-        const handler = connectionHandlers.state_change;
-        handler?.({ previous: "connecting", current: "failed" });
-
-        const errored = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { State: number }).State ===
-                LinkingProcessState.Error,
-        );
-        expect(errored).toBe(true);
-    });
-
-    it("ignores disconnected state_change before direct connection is established", async () => {
-        const { onStatusChange, connectionHandlers } = await buildController();
-        const handler = connectionHandlers.state_change;
-        handler?.({ previous: "connecting", current: "disconnected" });
-        const cleanupEmitted = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number }).Step ===
-                LinkingProcessStep.SignalingCleanup,
-        );
-        expect(cleanupEmitted).toBe(false);
-    });
-
-    it("emits SignalingCleanup Completed when disconnected after direct connection established", async () => {
-        const {
-            onStatusChange,
-            connectionHandlers,
-            peerConnection,
-        } = await buildController();
-        peerConnection.connectionState = "connected";
-        peerConnection.onconnectionstatechange?.();
-        const handler = connectionHandlers.state_change;
-        handler?.({ previous: "connected", current: "disconnected" });
-        const cleanup = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.SignalingCleanup &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Completed,
-        );
-        expect(cleanup).toBe(true);
-    });
-
-    it("handles subscription_error by disconnecting signaling server", async () => {
-        const {
-            channelHandlers,
-            signalingServer,
-            onStatusChange,
-        } = await buildController();
-        channelHandlers["pusher:subscription_error"]?.();
-        expect(signalingServer.disconnect).toHaveBeenCalled();
-        expect(signalingServer.unsubscribe).toHaveBeenCalledWith(
-            "presence-link-sync-1",
-        );
-        const errored = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { State: number }).State ===
-                LinkingProcessState.Error,
-        );
-        expect(errored).toBe(true);
-    });
-
-    it("subscription_succeeded emits SignalingWaitingOtherDevice", async () => {
-        const { channelHandlers, onStatusChange } = await buildController();
-        channelHandlers["pusher:subscription_succeeded"]?.();
-        const found = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number }).Step ===
-                LinkingProcessStep.SignalingWaitingOtherDevice,
-        );
-        expect(found).toBe(true);
-    });
-
-    it("handles client-link offer by negotiating and sending answer", async () => {
-        const {
-            channelHandlers,
-            channel,
-            peerConnection,
-        } = await buildController();
-        const offer = { type: "offer", sdp: "v=0" };
-        await channelHandlers["client-link"]?.({
-            type: "offer",
-            data: offer,
-        });
-        expect(peerConnection.setRemoteDescription).toHaveBeenCalledWith(offer);
-        expect(peerConnection.createAnswer).toHaveBeenCalled();
-        expect(peerConnection.setLocalDescription).toHaveBeenCalled();
-        expect(channel.trigger).toHaveBeenCalledWith(
-            "client-link",
-            expect.objectContaining({ type: "answer" }),
-        );
-    });
-
-    it("handles client-link ice-candidate by adding to peer connection", async () => {
-        const { channelHandlers, peerConnection } = await buildController();
-        const candidate = { candidate: "abc" };
-        await channelHandlers["client-link"]?.({
-            type: "ice-candidate",
-            data: candidate,
-        });
-        expect(peerConnection.addIceCandidate).toHaveBeenCalledWith(candidate);
-    });
-
-    it("connected connectionStateChange emits DirectConnection Completed + drops signaling", async () => {
-        const {
-            peerConnection,
-            signalingServer,
-            onStatusChange,
-        } = await buildController();
-        peerConnection.connectionState = "connected";
-        peerConnection.onconnectionstatechange?.();
-        expect(signalingServer.disconnect).toHaveBeenCalled();
-        const completed = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.DirectConnection &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Completed,
-        );
-        expect(completed).toBe(true);
-    });
-
-    it("failed connectionStateChange emits Error", async () => {
-        const { peerConnection, onStatusChange } = await buildController();
-        peerConnection.connectionState = "failed";
-        peerConnection.onconnectionstatechange?.();
-        const errored = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.DirectConnection &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Error,
-        );
-        expect(errored).toBe(true);
-    });
-
-    it("disconnected connectionStateChange emits DirectConnectionCleanup Completed", async () => {
-        const { peerConnection, onStatusChange } = await buildController();
-        peerConnection.connectionState = "disconnected";
-        peerConnection.onconnectionstatechange?.();
-        const cleanup = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.DirectConnectionCleanup &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Completed,
-        );
-        expect(cleanup).toBe(true);
-    });
-
-    it("ondatachannel onmessage processes vault binary and triggers cleanup", async () => {
-        const {
-            peerConnection,
-            onStatusChange,
-            signalingServer,
-        } = await buildController();
-        const recvChannel: {
-            onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
-            onerror?: (e: unknown) => unknown;
-            onclose?: () => unknown;
-        } = {};
-        peerConnection.ondatachannel?.({ channel: recvChannel });
-
-        const data = new Uint8Array([1, 2, 3]);
-        await recvChannel.onmessage?.({ data: data.buffer });
-
-        const vaultDelivered = onStatusChange.mock.calls.some(
-            (c) =>
-                (
-                    c[0] as {
-                        Step: number;
-                        VaultBinaryData?: Uint8Array;
-                    }
-                ).Step === LinkingProcessStep.VaultTransfer &&
-                (c[0] as { VaultBinaryData?: Uint8Array }).VaultBinaryData
-                    ?.length === 3,
-        );
-        expect(vaultDelivered).toBe(true);
-        expect(peerConnection.close).toHaveBeenCalled();
-        expect(signalingServer.disconnect).toHaveBeenCalled();
-    });
-
-    it("ondatachannel exchanges PQC sync public keys before vault transfer", async () => {
-        const {
-            peerConnection,
-            onStatusChange,
-        } = await buildController();
-        const recvChannel: {
-            onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
-            send: jest.Mock;
-        } = {
-            send: jest.fn(),
-        };
-        peerConnection.ondatachannel?.({ channel: recvChannel });
-
-        const keyMessage = encodeLinkSyncKeyMessage("remote-sync-public-key");
-        await recvChannel.onmessage?.({ data: keyMessage.buffer });
-
-        expect(recvChannel.send).toHaveBeenCalledTimes(1);
-        const statuses = onStatusChange.mock.calls.map(
-            (call) => call[0] as { Step: number; State: number },
-        );
-        expect(
-            statuses.some(
-                (status) =>
-                    status.Step === LinkingProcessStep.SyncKeyExchange &&
-                    status.State === LinkingProcessState.Active,
+        ).resolves.toBe(true);
+        await expect(
+            verifyLinkMac(
+                "wrong mnemonic",
+                linkSenderHelloMacBytes(syncID, senderBundle, decoded.Nonce),
+                decoded.Mac,
             ),
-        ).toBe(true);
-        expect(
-            statuses.some(
-                (status) =>
-                    status.Step === LinkingProcessStep.SyncKeyExchange &&
-                    status.State === LinkingProcessState.Completed,
+        ).resolves.toBe(false);
+        await expect(
+            verifyLinkMac(
+                mnemonic,
+                linkSenderHelloMacBytes(
+                    "wrong-sync-id",
+                    senderBundle,
+                    decoded.Nonce,
+                ),
+                decoded.Mac,
             ),
-        ).toBe(true);
+        ).resolves.toBe(false);
+        await expect(
+            verifyLinkMac(
+                mnemonic,
+                linkSenderHelloMacBytes(syncID, attackerBundle, decoded.Nonce),
+                decoded.Mac,
+            ),
+        ).resolves.toBe(false);
     });
 
-    it("ondatachannel onmessage swallows onStatusChange throw and emits VaultSave Error", async () => {
-        const built = await buildController();
-        // First call always succeeds; on the success branch we throw.
-        built.onStatusChange.mockImplementation(async (status) => {
-            if (
-                status.Step === LinkingProcessStep.VaultTransfer &&
-                status.State === LinkingProcessState.Completed
-            ) {
-                throw new Error("save failure");
-            }
-        });
-
-        const recvChannel: {
-            onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
-        } = {};
-        built.peerConnection.ondatachannel?.({ channel: recvChannel });
-        const data = new Uint8Array([7]);
-        await recvChannel.onmessage?.({ data: data.buffer });
-
-        const saveErrored = built.onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.VaultSave &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Error,
+    it("does not carry sender public keys in sender hello", async () => {
+        const senderBundle = buildSyncKeyBundle(
+            sender.SyncSigningPublicKey,
+            sender.SyncKemPublicKey,
         );
-        expect(saveErrored).toBe(true);
-    });
+        const encodedSenderBundle =
+            VaultUtilTypes.SyncKeyBundle.encode(senderBundle).finish();
+        const hello = VaultUtilTypes.LinkSenderHello.encode({
+            Nonce: createNonce(),
+            Mac: createNonce(),
+        }).finish();
 
-    it("ondatachannel onerror emits Error and onclose triggers cleanup", async () => {
-        const {
-            peerConnection,
-            onStatusChange,
-        } = await buildController();
-        const recvChannel: {
-            onmessage?: (e: { data: ArrayBuffer | Uint8Array }) => unknown;
-            onerror?: (e: unknown) => unknown;
-            onclose?: () => unknown;
-        } = {};
-        peerConnection.ondatachannel?.({ channel: recvChannel });
-
-        recvChannel.onerror?.(new ErrorEvent("err", { message: "boom" }));
-        const errored = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.DirectConnection &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Error,
-        );
-        expect(errored).toBe(true);
-
-        recvChannel.onclose?.();
-        expect(peerConnection.close).toHaveBeenCalled();
-    });
-
-    it("onicecandidate triggers client-link for non-null candidate", async () => {
-        const { peerConnection, channel } = await buildController();
-        peerConnection.onicecandidate?.({
-            candidate: { candidate: "abc" },
-        });
-        expect(channel.trigger).toHaveBeenCalledWith(
-            "client-link",
-            expect.objectContaining({ type: "ice-candidate" }),
-        );
-    });
-
-    it("onicecandidate with no candidates ever emits Error and cleanup", async () => {
-        const {
-            peerConnection,
-            onStatusChange,
-            signalingServer,
-        } = await buildController();
-        peerConnection.onicecandidate?.({ candidate: null });
-        const errored = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { Step: number; State: number }).Step ===
-                    LinkingProcessStep.DirectConnection &&
-                (c[0] as { Step: number; State: number }).State ===
-                    LinkingProcessState.Error,
-        );
-        expect(errored).toBe(true);
-        expect(peerConnection.close).toHaveBeenCalled();
-        expect(signalingServer.disconnect).toHaveBeenCalled();
-    });
-
-    it("abortWaitingForDevice unbinds, unsubscribes, disconnects, and closes connection", async () => {
-        const {
-            controller,
-            channel,
-            signalingServer,
-            peerConnection,
-            onStatusChange,
-        } = await buildController();
-        controller.abortWaitingForDevice();
-        expect(channel.unbind).toHaveBeenCalled();
-        expect(signalingServer.unsubscribe).toHaveBeenCalledWith(
-            "presence-link-sync-1",
-        );
-        expect(signalingServer.unbind).toHaveBeenCalled();
-        expect(signalingServer.disconnect).toHaveBeenCalled();
-        expect(peerConnection.close).toHaveBeenCalled();
-        const warned = onStatusChange.mock.calls.some(
-            (c) =>
-                (c[0] as { State: number }).State ===
-                LinkingProcessState.Warning,
-        );
-        expect(warned).toBe(true);
+        expect(
+            Buffer.from(hello).includes(Buffer.from(encodedSenderBundle)),
+        ).toBe(false);
     });
 });

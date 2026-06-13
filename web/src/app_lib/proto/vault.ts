@@ -51,12 +51,17 @@ export enum TOTPAlgorithm {
     SHA512 = 2,
 }
 
-/** #region Synchronization Message */
 export enum VaultItemSynchronizationMessageCommand {
     SyncHello = 0,
     SyncHelloEcho = 1,
     SyncDataRequest = 2,
     SyncDataResponse = 3,
+}
+
+export enum SyncWireMessageCommand {
+    SyncSessionInit = 0,
+    SyncSessionAccept = 1,
+    SyncEncryptedMessage = 2,
 }
 
 /** #region Encryption */
@@ -199,6 +204,9 @@ export interface LinkedDevices {
     /** ML-DSA-65 keypair for signing sync envelopes (one per vault installation). */
     SyncSigningPublicKey: string;
     SyncSigningPrivateKey: string;
+    /** ML-KEM-768 keypair for encrypting sync/link sessions (one per vault installation). */
+    SyncKemPublicKey: string;
+    SyncKemPrivateKey: string;
 }
 
 export interface LinkedDevice {
@@ -232,6 +240,8 @@ export interface LinkedDevice {
     SignalingServerID: string;
     /** Remote peer sync-signing public key, exchanged during linking. */
     RemoteSyncPublicKey: string;
+    /** Remote peer ML-KEM public key, exchanged during linking. */
+    RemoteSyncKemPublicKey: string;
 }
 
 /** #region Credentials */
@@ -281,12 +291,28 @@ export interface TOTP {
     Algorithm: TOTPAlgorithm;
 }
 
-export interface SynchronizationEnvelope {
+/** #region Synchronization Message */
+export interface SyncKeyBundle {
+    SyncSigningPublicKey: string;
+    SyncKemPublicKey: string;
+}
+
+export interface SyncPlaintextMessage {
     ID: string;
     Command: VaultItemSynchronizationMessageCommand;
     Payload: Uint8Array;
-    /** ECDSA P-256 (SHA-256) signature over encoded ID + Command + Payload. */
-    Signature: Uint8Array;
+}
+
+export interface SynchronizationEnvelope {
+    ID: string;
+    Command: SyncWireMessageCommand;
+    ProtocolVersion: number;
+    SessionID: string;
+    Sequence: number;
+    Nonce: Uint8Array;
+    Ciphertext: Uint8Array;
+    KemCiphertext: Uint8Array;
+    HandshakeSignature: Uint8Array;
 }
 
 export interface SyncHelloMessage {
@@ -312,8 +338,25 @@ export interface LinkingPackageBlob {
     STUNServers: STUNServerConfiguration[];
     TURNServers: TURNServerConfiguration[];
     SignalingServer: SignalingServerConfiguration | undefined;
-    /** Sender vault installation sync-signing public key. */
-    SyncSigningPublicKey: string;
+    /** Sender vault installation sync authentication/encryption public keys. */
+    SenderKeyBundle: SyncKeyBundle | undefined;
+}
+
+export interface LinkSenderHello {
+    Nonce: Uint8Array;
+    Mac: Uint8Array;
+}
+
+export interface LinkReceiverKeyBundle {
+    ReceiverKeyBundle: SyncKeyBundle | undefined;
+    Nonce: Uint8Array;
+    Mac: Uint8Array;
+}
+
+export interface LinkVaultTransfer {
+    KemCiphertext: Uint8Array;
+    Nonce: Uint8Array;
+    Ciphertext: Uint8Array;
 }
 
 export interface LinkingPackage {
@@ -1918,6 +1961,8 @@ function createBaseLinkedDevices(): LinkedDevices {
         SignalingServers: [],
         SyncSigningPublicKey: "",
         SyncSigningPrivateKey: "",
+        SyncKemPublicKey: "",
+        SyncKemPrivateKey: "",
     };
 }
 
@@ -1946,6 +1991,12 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
         }
         if (message.SyncSigningPrivateKey !== "") {
             writer.uint32(82).string(message.SyncSigningPrivateKey);
+        }
+        if (message.SyncKemPublicKey !== "") {
+            writer.uint32(90).string(message.SyncKemPublicKey);
+        }
+        if (message.SyncKemPrivateKey !== "") {
+            writer.uint32(98).string(message.SyncKemPrivateKey);
         }
         return writer;
     },
@@ -2017,6 +2068,22 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
                     message.SyncSigningPrivateKey = reader.string();
                     continue;
                 }
+                case 11: {
+                    if (tag !== 90) {
+                        break;
+                    }
+
+                    message.SyncKemPublicKey = reader.string();
+                    continue;
+                }
+                case 12: {
+                    if (tag !== 98) {
+                        break;
+                    }
+
+                    message.SyncKemPrivateKey = reader.string();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2051,6 +2118,8 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
             ) || [];
         message.SyncSigningPublicKey = object.SyncSigningPublicKey ?? "";
         message.SyncSigningPrivateKey = object.SyncSigningPrivateKey ?? "";
+        message.SyncKemPublicKey = object.SyncKemPublicKey ?? "";
+        message.SyncKemPrivateKey = object.SyncKemPrivateKey ?? "";
         return message;
     },
 };
@@ -2068,6 +2137,7 @@ function createBaseLinkedDevice(): LinkedDevice {
         TURNServerIDs: [],
         SignalingServerID: "",
         RemoteSyncPublicKey: "",
+        RemoteSyncKemPublicKey: "",
     };
 }
 
@@ -2111,6 +2181,9 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
         }
         if (message.RemoteSyncPublicKey !== "") {
             writer.uint32(106).string(message.RemoteSyncPublicKey);
+        }
+        if (message.RemoteSyncKemPublicKey !== "") {
+            writer.uint32(114).string(message.RemoteSyncKemPublicKey);
         }
         return writer;
     },
@@ -2219,6 +2292,14 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
                     message.RemoteSyncPublicKey = reader.string();
                     continue;
                 }
+                case 14: {
+                    if (tag !== 114) {
+                        break;
+                    }
+
+                    message.RemoteSyncKemPublicKey = reader.string();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2249,6 +2330,7 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
         message.TURNServerIDs = object.TURNServerIDs?.map((e) => e) || [];
         message.SignalingServerID = object.SignalingServerID ?? "";
         message.RemoteSyncPublicKey = object.RemoteSyncPublicKey ?? "";
+        message.RemoteSyncKemPublicKey = object.RemoteSyncKemPublicKey ?? "";
         return message;
     },
 };
@@ -2769,12 +2851,164 @@ export const TOTP: MessageFns<TOTP> = {
     },
 };
 
+function createBaseSyncKeyBundle(): SyncKeyBundle {
+    return { SyncSigningPublicKey: "", SyncKemPublicKey: "" };
+}
+
+export const SyncKeyBundle: MessageFns<SyncKeyBundle> = {
+    encode(
+        message: SyncKeyBundle,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.SyncSigningPublicKey !== "") {
+            writer.uint32(10).string(message.SyncSigningPublicKey);
+        }
+        if (message.SyncKemPublicKey !== "") {
+            writer.uint32(18).string(message.SyncKemPublicKey);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): SyncKeyBundle {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseSyncKeyBundle();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.SyncSigningPublicKey = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.SyncKemPublicKey = reader.string();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<SyncKeyBundle>, I>>(
+        base?: I,
+    ): SyncKeyBundle {
+        return SyncKeyBundle.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<SyncKeyBundle>, I>>(
+        object: I,
+    ): SyncKeyBundle {
+        const message = createBaseSyncKeyBundle();
+        message.SyncSigningPublicKey = object.SyncSigningPublicKey ?? "";
+        message.SyncKemPublicKey = object.SyncKemPublicKey ?? "";
+        return message;
+    },
+};
+
+function createBaseSyncPlaintextMessage(): SyncPlaintextMessage {
+    return { ID: "", Command: 0, Payload: new Uint8Array(0) };
+}
+
+export const SyncPlaintextMessage: MessageFns<SyncPlaintextMessage> = {
+    encode(
+        message: SyncPlaintextMessage,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Command !== 0) {
+            writer.uint32(16).int32(message.Command);
+        }
+        if (message.Payload.length !== 0) {
+            writer.uint32(26).bytes(message.Payload);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): SyncPlaintextMessage {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseSyncPlaintextMessage();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 16) {
+                        break;
+                    }
+
+                    message.Command = reader.int32() as any;
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Payload = reader.bytes();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<SyncPlaintextMessage>, I>>(
+        base?: I,
+    ): SyncPlaintextMessage {
+        return SyncPlaintextMessage.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<SyncPlaintextMessage>, I>>(
+        object: I,
+    ): SyncPlaintextMessage {
+        const message = createBaseSyncPlaintextMessage();
+        message.ID = object.ID ?? "";
+        message.Command = object.Command ?? 0;
+        message.Payload = object.Payload ?? new Uint8Array(0);
+        return message;
+    },
+};
+
 function createBaseSynchronizationEnvelope(): SynchronizationEnvelope {
     return {
         ID: "",
         Command: 0,
-        Payload: new Uint8Array(0),
-        Signature: new Uint8Array(0),
+        ProtocolVersion: 0,
+        SessionID: "",
+        Sequence: 0,
+        Nonce: new Uint8Array(0),
+        Ciphertext: new Uint8Array(0),
+        KemCiphertext: new Uint8Array(0),
+        HandshakeSignature: new Uint8Array(0),
     };
 }
 
@@ -2789,11 +3023,26 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
         if (message.Command !== 0) {
             writer.uint32(16).int32(message.Command);
         }
-        if (message.Payload.length !== 0) {
-            writer.uint32(26).bytes(message.Payload);
+        if (message.ProtocolVersion !== 0) {
+            writer.uint32(24).int32(message.ProtocolVersion);
         }
-        if (message.Signature.length !== 0) {
-            writer.uint32(34).bytes(message.Signature);
+        if (message.SessionID !== "") {
+            writer.uint32(34).string(message.SessionID);
+        }
+        if (message.Sequence !== 0) {
+            writer.uint32(40).int64(message.Sequence);
+        }
+        if (message.Nonce.length !== 0) {
+            writer.uint32(50).bytes(message.Nonce);
+        }
+        if (message.Ciphertext.length !== 0) {
+            writer.uint32(58).bytes(message.Ciphertext);
+        }
+        if (message.KemCiphertext.length !== 0) {
+            writer.uint32(66).bytes(message.KemCiphertext);
+        }
+        if (message.HandshakeSignature.length !== 0) {
+            writer.uint32(74).bytes(message.HandshakeSignature);
         }
         return writer;
     },
@@ -2826,11 +3075,11 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
                     continue;
                 }
                 case 3: {
-                    if (tag !== 26) {
+                    if (tag !== 24) {
                         break;
                     }
 
-                    message.Payload = reader.bytes();
+                    message.ProtocolVersion = reader.int32();
                     continue;
                 }
                 case 4: {
@@ -2838,7 +3087,47 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
                         break;
                     }
 
-                    message.Signature = reader.bytes();
+                    message.SessionID = reader.string();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 40) {
+                        break;
+                    }
+
+                    message.Sequence = longToNumber(reader.int64());
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.Nonce = reader.bytes();
+                    continue;
+                }
+                case 7: {
+                    if (tag !== 58) {
+                        break;
+                    }
+
+                    message.Ciphertext = reader.bytes();
+                    continue;
+                }
+                case 8: {
+                    if (tag !== 66) {
+                        break;
+                    }
+
+                    message.KemCiphertext = reader.bytes();
+                    continue;
+                }
+                case 9: {
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    message.HandshakeSignature = reader.bytes();
                     continue;
                 }
             }
@@ -2861,8 +3150,14 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
         const message = createBaseSynchronizationEnvelope();
         message.ID = object.ID ?? "";
         message.Command = object.Command ?? 0;
-        message.Payload = object.Payload ?? new Uint8Array(0);
-        message.Signature = object.Signature ?? new Uint8Array(0);
+        message.ProtocolVersion = object.ProtocolVersion ?? 0;
+        message.SessionID = object.SessionID ?? "";
+        message.Sequence = object.Sequence ?? 0;
+        message.Nonce = object.Nonce ?? new Uint8Array(0);
+        message.Ciphertext = object.Ciphertext ?? new Uint8Array(0);
+        message.KemCiphertext = object.KemCiphertext ?? new Uint8Array(0);
+        message.HandshakeSignature =
+            object.HandshakeSignature ?? new Uint8Array(0);
         return message;
     },
 };
@@ -3113,7 +3408,7 @@ function createBaseLinkingPackageBlob(): LinkingPackageBlob {
         STUNServers: [],
         TURNServers: [],
         SignalingServer: undefined,
-        SyncSigningPublicKey: "",
+        SenderKeyBundle: undefined,
     };
 }
 
@@ -3143,8 +3438,11 @@ export const LinkingPackageBlob: MessageFns<LinkingPackageBlob> = {
                 writer.uint32(42).fork(),
             ).join();
         }
-        if (message.SyncSigningPublicKey !== "") {
-            writer.uint32(50).string(message.SyncSigningPublicKey);
+        if (message.SenderKeyBundle !== undefined) {
+            SyncKeyBundle.encode(
+                message.SenderKeyBundle,
+                writer.uint32(50).fork(),
+            ).join();
         }
         return writer;
     },
@@ -3216,7 +3514,10 @@ export const LinkingPackageBlob: MessageFns<LinkingPackageBlob> = {
                         break;
                     }
 
-                    message.SyncSigningPublicKey = reader.string();
+                    message.SenderKeyBundle = SyncKeyBundle.decode(
+                        reader,
+                        reader.uint32(),
+                    );
                     continue;
                 }
             }
@@ -3258,7 +3559,257 @@ export const LinkingPackageBlob: MessageFns<LinkingPackageBlob> = {
                       object.SignalingServer,
                   )
                 : undefined;
-        message.SyncSigningPublicKey = object.SyncSigningPublicKey ?? "";
+        message.SenderKeyBundle =
+            object.SenderKeyBundle !== undefined &&
+            object.SenderKeyBundle !== null
+                ? SyncKeyBundle.fromPartial(object.SenderKeyBundle)
+                : undefined;
+        return message;
+    },
+};
+
+function createBaseLinkSenderHello(): LinkSenderHello {
+    return { Nonce: new Uint8Array(0), Mac: new Uint8Array(0) };
+}
+
+export const LinkSenderHello: MessageFns<LinkSenderHello> = {
+    encode(
+        message: LinkSenderHello,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.Nonce.length !== 0) {
+            writer.uint32(10).bytes(message.Nonce);
+        }
+        if (message.Mac.length !== 0) {
+            writer.uint32(18).bytes(message.Mac);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): LinkSenderHello {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseLinkSenderHello();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.Nonce = reader.bytes();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Mac = reader.bytes();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<LinkSenderHello>, I>>(
+        base?: I,
+    ): LinkSenderHello {
+        return LinkSenderHello.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<LinkSenderHello>, I>>(
+        object: I,
+    ): LinkSenderHello {
+        const message = createBaseLinkSenderHello();
+        message.Nonce = object.Nonce ?? new Uint8Array(0);
+        message.Mac = object.Mac ?? new Uint8Array(0);
+        return message;
+    },
+};
+
+function createBaseLinkReceiverKeyBundle(): LinkReceiverKeyBundle {
+    return {
+        ReceiverKeyBundle: undefined,
+        Nonce: new Uint8Array(0),
+        Mac: new Uint8Array(0),
+    };
+}
+
+export const LinkReceiverKeyBundle: MessageFns<LinkReceiverKeyBundle> = {
+    encode(
+        message: LinkReceiverKeyBundle,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.ReceiverKeyBundle !== undefined) {
+            SyncKeyBundle.encode(
+                message.ReceiverKeyBundle,
+                writer.uint32(10).fork(),
+            ).join();
+        }
+        if (message.Nonce.length !== 0) {
+            writer.uint32(18).bytes(message.Nonce);
+        }
+        if (message.Mac.length !== 0) {
+            writer.uint32(26).bytes(message.Mac);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): LinkReceiverKeyBundle {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseLinkReceiverKeyBundle();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ReceiverKeyBundle = SyncKeyBundle.decode(
+                        reader,
+                        reader.uint32(),
+                    );
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Nonce = reader.bytes();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Mac = reader.bytes();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<LinkReceiverKeyBundle>, I>>(
+        base?: I,
+    ): LinkReceiverKeyBundle {
+        return LinkReceiverKeyBundle.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<LinkReceiverKeyBundle>, I>>(
+        object: I,
+    ): LinkReceiverKeyBundle {
+        const message = createBaseLinkReceiverKeyBundle();
+        message.ReceiverKeyBundle =
+            object.ReceiverKeyBundle !== undefined &&
+            object.ReceiverKeyBundle !== null
+                ? SyncKeyBundle.fromPartial(object.ReceiverKeyBundle)
+                : undefined;
+        message.Nonce = object.Nonce ?? new Uint8Array(0);
+        message.Mac = object.Mac ?? new Uint8Array(0);
+        return message;
+    },
+};
+
+function createBaseLinkVaultTransfer(): LinkVaultTransfer {
+    return {
+        KemCiphertext: new Uint8Array(0),
+        Nonce: new Uint8Array(0),
+        Ciphertext: new Uint8Array(0),
+    };
+}
+
+export const LinkVaultTransfer: MessageFns<LinkVaultTransfer> = {
+    encode(
+        message: LinkVaultTransfer,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.KemCiphertext.length !== 0) {
+            writer.uint32(10).bytes(message.KemCiphertext);
+        }
+        if (message.Nonce.length !== 0) {
+            writer.uint32(18).bytes(message.Nonce);
+        }
+        if (message.Ciphertext.length !== 0) {
+            writer.uint32(26).bytes(message.Ciphertext);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): LinkVaultTransfer {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseLinkVaultTransfer();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.KemCiphertext = reader.bytes();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Nonce = reader.bytes();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Ciphertext = reader.bytes();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<LinkVaultTransfer>, I>>(
+        base?: I,
+    ): LinkVaultTransfer {
+        return LinkVaultTransfer.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<LinkVaultTransfer>, I>>(
+        object: I,
+    ): LinkVaultTransfer {
+        const message = createBaseLinkVaultTransfer();
+        message.KemCiphertext = object.KemCiphertext ?? new Uint8Array(0);
+        message.Nonce = object.Nonce ?? new Uint8Array(0);
+        message.Ciphertext = object.Ciphertext ?? new Uint8Array(0);
         return message;
     },
 };

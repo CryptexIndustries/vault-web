@@ -195,6 +195,10 @@ message LinkedDevices {
     /** ML-DSA-65 keypair for signing sync envelopes (one per vault installation). */
     string SyncSigningPublicKey = 9;
     string SyncSigningPrivateKey = 10;
+
+    /** ML-KEM-768 keypair for encrypting sync/link sessions (one per vault installation). */
+    string SyncKemPublicKey = 11;
+    string SyncKemPrivateKey = 12;
 }
 
 message LinkedDevice {
@@ -232,6 +236,9 @@ message LinkedDevice {
 
     /** Remote peer sync-signing public key, exchanged during linking. */
     string RemoteSyncPublicKey = 13;
+
+    /** Remote peer ML-KEM public key, exchanged during linking. */
+    string RemoteSyncKemPublicKey = 14;
 }
 //#endregion LinkedDevices
 
@@ -288,6 +295,11 @@ enum TOTPAlgorithm {
 //#endregion Credentials
 
 //#region Synchronization Message
+message SyncKeyBundle {
+    string SyncSigningPublicKey = 1;
+    string SyncKemPublicKey = 2;
+}
+
 enum VaultItemSynchronizationMessageCommand {
     SyncHello = 0;
     SyncHelloEcho = 1;
@@ -295,14 +307,28 @@ enum VaultItemSynchronizationMessageCommand {
     SyncDataResponse = 3;
 }
 
-message SynchronizationEnvelope {
+enum SyncWireMessageCommand {
+    SyncSessionInit = 0;
+    SyncSessionAccept = 1;
+    SyncEncryptedMessage = 2;
+}
+
+message SyncPlaintextMessage {
     string ID = 1;
     VaultItemSynchronizationMessageCommand Command = 2;
-    
     bytes Payload = 3;
+}
 
-    /** ECDSA P-256 (SHA-256) signature over encoded ID + Command + Payload. */
-    bytes Signature = 4;
+message SynchronizationEnvelope {
+    string ID = 1;
+    SyncWireMessageCommand Command = 2;
+    int32 ProtocolVersion = 3;
+    string SessionID = 4;
+    int64 Sequence = 5;
+    bytes Nonce = 6;
+    bytes Ciphertext = 7;
+    bytes KemCiphertext = 8;
+    bytes HandshakeSignature = 9;
 }
 
 message SyncHelloMessage {
@@ -330,8 +356,25 @@ message LinkingPackageBlob {
     repeated TURNServerConfiguration TURNServers = 4;
     SignalingServerConfiguration SignalingServer = 5;
 
-    /** Sender vault installation sync-signing public key. */
-    string SyncSigningPublicKey = 6;
+    /** Sender vault installation sync authentication/encryption public keys. */
+    SyncKeyBundle SenderKeyBundle = 6;
+}
+
+message LinkSenderHello {
+    bytes Nonce = 1;
+    bytes Mac = 2;
+}
+
+message LinkReceiverKeyBundle {
+    SyncKeyBundle ReceiverKeyBundle = 1;
+    bytes Nonce = 2;
+    bytes Mac = 3;
+}
+
+message LinkVaultTransfer {
+    bytes KemCiphertext = 1;
+    bytes Nonce = 2;
+    bytes Ciphertext = 3;
 }
 
 message LinkingPackage {

@@ -49,10 +49,13 @@ import {
     encryptionFormGroupSchema,
 } from "@/app_lib/vault-utils/form-schemas";
 import { saveVault, VaultMetadata } from "@/app_lib/vault-utils/storage";
-import { LinkedDevices, OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
 import {
-    ensureSyncSigningKeypair,
-} from "@/app_lib/vault-utils/sync-signing";
+    LinkedDevices,
+    OnlineServices,
+    Vault,
+} from "@/app_lib/vault-utils/vault";
+import { ensureSyncSigningKeypair } from "@/app_lib/vault-utils/sync-signing";
+import { ensureSyncKemKeypair } from "@/app_lib/vault-utils/post-quantum-kem";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import { LINK_FILE_EXTENSION } from "@/utils/consts";
 import {
@@ -133,13 +136,17 @@ const stepCopy: Record<
 };
 
 const createSteps = (): ReceiveLinkStep[] =>
-    (Object.entries(stepCopy) as [string, (typeof stepCopy)[LinkingProcessStep]][])
-        .map(([id, copy]) => ({
-            id: Number(id) as LinkingProcessStep,
-            title: copy.title,
-            description: copy.description,
-            status: LinkingProcessState.Pending,
-        }));
+    (
+        Object.entries(stepCopy) as [
+            string,
+            (typeof stepCopy)[LinkingProcessStep],
+        ][]
+    ).map(([id, copy]) => ({
+        id: Number(id) as LinkingProcessStep,
+        title: copy.title,
+        description: copy.description,
+        status: LinkingProcessState.Pending,
+    }));
 
 const progressColors: Record<ProgressEntry["type"], string> = {
     done: "text-emerald-500",
@@ -206,7 +213,9 @@ function ProgressLog({ entries }: { entries: ProgressEntry[] }) {
                         key={`${entry.message}-${index}`}
                         className="flex gap-2 text-[11px] leading-snug"
                     >
-                        <span className={cn("mt-0.5", progressColors[entry.type])}>
+                        <span
+                            className={cn("mt-0.5", progressColors[entry.type])}
+                        >
                             {entry.type === "done" ? "ok" : entry.type}
                         </span>
                         <span className="text-foreground">{entry.message}</span>
@@ -268,8 +277,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         Number(memLimit),
         Number(opsLimit),
     );
-    const submitBlockedByKdf =
-        belowRecommendedKdf && !kdfRiskAcknowledged;
+    const submitBlockedByKdf = belowRecommendedKdf && !kdfRiskAcknowledged;
 
     const progressRef = useRef<ProgressEntry[]>([]);
     const receivedVaultRef = useRef<Uint8Array | null>(null);
@@ -279,10 +287,14 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const abortedRef = useRef(false);
 
     const onlineServicesRef = useRef<OnlineServices | null>(null);
-    const senderSyncPublicKeyRef = useRef("");
-    const pendingSyncSigningKeysRef = useRef<{
-        publicKey: string;
-        privateKey: string;
+    const senderKeyBundleRef = useRef<VaultUtilTypes.SyncKeyBundle | null>(
+        null,
+    );
+    const pendingSyncKeysRef = useRef<{
+        signingPublicKey: string;
+        signingPrivateKey: string;
+        kemPublicKey: string;
+        kemPrivateKey: string;
     } | null>(null);
 
     const addProgress = (
@@ -316,14 +328,17 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         abortedRef.current = false;
         controllerRef.current = null;
         onlineServicesRef.current = null;
-        senderSyncPublicKeyRef.current = "";
-        pendingSyncSigningKeysRef.current = null;
+        senderKeyBundleRef.current = null;
+        pendingSyncKeysRef.current = null;
     };
 
-    useEffect(() => () => {
-        // Tear down any in-flight controller on unmount.
-        controllerRef.current = null;
-    }, []);
+    useEffect(
+        () => () => {
+            // Tear down any in-flight controller on unmount.
+            controllerRef.current = null;
+        },
+        [],
+    );
 
     const readLinkFile = async (file: File): Promise<Uint8Array> =>
         await new Promise((resolve, reject) => {
@@ -401,17 +416,27 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         const raw = VaultUtilTypes.Vault.decode(rawVaultBinary);
         const vault = Object.assign(new Vault(), raw);
         vault.LinkedDevices = LinkedDevices.fromGeneric(vault.LinkedDevices);
-        if (pendingSyncSigningKeysRef.current) {
+        if (pendingSyncKeysRef.current) {
             vault.LinkedDevices.SyncSigningPublicKey =
-                pendingSyncSigningKeysRef.current.publicKey;
+                pendingSyncKeysRef.current.signingPublicKey;
             vault.LinkedDevices.SyncSigningPrivateKey =
-                pendingSyncSigningKeysRef.current.privateKey;
+                pendingSyncKeysRef.current.signingPrivateKey;
+            vault.LinkedDevices.SyncKemPublicKey =
+                pendingSyncKeysRef.current.kemPublicKey;
+            vault.LinkedDevices.SyncKemPrivateKey =
+                pendingSyncKeysRef.current.kemPrivateKey;
         } else {
             await ensureSyncSigningKeypair(vault.LinkedDevices);
+            await ensureSyncKemKeypair(vault.LinkedDevices);
         }
-        if (senderSyncPublicKeyRef.current) {
+
+        if (senderKeyBundleRef.current) {
+            // Realistically, there will be only one device in the Devices list.
             for (const device of vault.LinkedDevices.Devices) {
-                device.RemoteSyncPublicKey = senderSyncPublicKeyRef.current;
+                device.RemoteSyncPublicKey =
+                    senderKeyBundleRef.current.SyncSigningPublicKey;
+                device.RemoteSyncKemPublicKey =
+                    senderKeyBundleRef.current.SyncKemPublicKey;
             }
         }
         if (onlineServicesRef.current) {
@@ -425,17 +450,14 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
 
         const vaultBytes = VaultUtilTypes.Vault.encode(vault).finish();
         const vaultId = ulid();
-        metadata.Blob = await createLinkedVaultEnvelopeBlob(
-            vaultBytes,
-            {
-                vaultId,
-                masterPassword: formData.Secret,
-                kdfConfig: new KeyDerivationConfig_Argon2ID(
-                    formData.EncryptionConfig.memLimit,
-                    formData.EncryptionConfig.opsLimit,
-                ),
-            },
-        );
+        metadata.Blob = await createLinkedVaultEnvelopeBlob(vaultBytes, {
+            vaultId,
+            masterPassword: formData.Secret,
+            kdfConfig: new KeyDerivationConfig_Argon2ID(
+                formData.EncryptionConfig.memLimit,
+                formData.EncryptionConfig.opsLimit,
+            ),
+        });
 
         await saveVault(
             undefined,
@@ -522,14 +544,16 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 linkingBlob.SignalingServer == null ||
                 !linkingBlob.STUNServers.length ||
                 !linkingBlob.TURNServers.length;
-            if (!linkingBlob.SyncSigningPublicKey) {
+            if (
+                !linkingBlob.SenderKeyBundle?.SyncSigningPublicKey ||
+                !linkingBlob.SenderKeyBundle.SyncKemPublicKey
+            ) {
                 throw new Error(
-                    "Link package is missing sync signing material. Create a new link package and try again.",
+                    "Link package is missing encrypted sync key material. Create a new link package and try again.",
                 );
             }
 
-            receivedDeviceId =
-                linkingBlob.OnlineServices?.DeviceId ?? null;
+            receivedDeviceId = linkingBlob.OnlineServices?.DeviceId ?? null;
 
             if (linkingBlob.OnlineServices) {
                 onlineServicesRef.current = new OnlineServices(
@@ -547,8 +571,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 const establishResult =
                     await establishOnlineServicesSessionViaSW({
                         deviceId: linkingBlob.OnlineServices.DeviceId,
-                        privateKeyJWK:
-                            linkingBlob.OnlineServices.PrivateKeyJWK,
+                        privateKeyJWK: linkingBlob.OnlineServices.PrivateKeyJWK,
                     });
                 if (establishResult.ok) {
                     onlineServicesLog.info(
@@ -582,20 +605,29 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 hasSignaling: !!linkingBlob.SignalingServer,
             });
 
-            senderSyncPublicKeyRef.current =
-                linkingBlob.SyncSigningPublicKey ?? "";
+            senderKeyBundleRef.current = linkingBlob.SenderKeyBundle;
 
             const pendingLinkedDevices = new LinkedDevices();
             await ensureSyncSigningKeypair(pendingLinkedDevices);
-            pendingSyncSigningKeysRef.current = {
-                publicKey: pendingLinkedDevices.SyncSigningPublicKey,
-                privateKey: pendingLinkedDevices.SyncSigningPrivateKey,
+            await ensureSyncKemKeypair(pendingLinkedDevices);
+            pendingSyncKeysRef.current = {
+                signingPublicKey: pendingLinkedDevices.SyncSigningPublicKey,
+                signingPrivateKey: pendingLinkedDevices.SyncSigningPrivateKey,
+                kemPublicKey: pendingLinkedDevices.SyncKemPublicKey,
+                kemPrivateKey: pendingLinkedDevices.SyncKemPrivateKey,
             };
 
             const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
-                pendingLinkedDevices.SyncSigningPublicKey,
+                {
+                    signingPublicKey: pendingLinkedDevices.SyncSigningPublicKey,
+                    signingPrivateKey:
+                        pendingLinkedDevices.SyncSigningPrivateKey,
+                    kemPublicKey: pendingLinkedDevices.SyncKemPublicKey,
+                    kemPrivateKey: pendingLinkedDevices.SyncKemPrivateKey,
+                },
+                mnemonic.trim(),
                 async (status) => {
                     updateStep(status);
 
@@ -605,7 +637,10 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         status.VaultBinaryData
                     ) {
                         receivedVaultRef.current = status.VaultBinaryData;
-                        addProgress("Vault data received.", "done");
+                        addProgress(
+                            "Vault authenticity confirmed. Ready to choose a passphrase.",
+                            "done",
+                        );
                     }
 
                     if (
@@ -736,13 +771,9 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                     <BarcodeScanner
                                         onUpdate={(_, result) => {
                                             if (result) {
-                                                setQRCodeData(
-                                                    result.getText(),
-                                                );
+                                                setQRCodeData(result.getText());
                                                 setIsScanning(false);
-                                                uiLog.info(
-                                                    "QR scan succeeded",
-                                                );
+                                                uiLog.info("QR scan succeeded");
                                             }
                                         }}
                                         onError={(error) => {
@@ -830,9 +861,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                 accept={`.${LINK_FILE_EXTENSION}`}
                                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                                 onChange={(event) =>
-                                    setLinkFile(
-                                        event.target.files?.[0] ?? null,
-                                    )
+                                    setLinkFile(event.target.files?.[0] ?? null)
                                 }
                             />
                             <Upload className="mx-auto mb-2 h-5 w-5 text-muted-foreground" />
@@ -876,10 +905,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     </div>
 
                     {formError ? (
-                        <p
-                            className="text-xs text-destructive"
-                            role="alert"
-                        >
+                        <p className="text-xs text-destructive" role="alert">
                             {formError}
                         </p>
                     ) : null}
@@ -899,10 +925,12 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 >
                     <Alert className="border-emerald-500/60 bg-emerald-500/10">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        <AlertTitle className="text-xs">Vault received</AlertTitle>
+                        <AlertTitle className="text-xs">
+                            Vault received
+                        </AlertTitle>
                         <AlertDescription className="text-[11px] leading-snug">
-                            Create a passphrase for this device. Linked extension
-                            vaults use AES-GCM with Argon2ID.
+                            Create a passphrase for this device. Linked
+                            extension vaults use AES-GCM with Argon2ID.
                         </AlertDescription>
                     </Alert>
                     <div className="space-y-1.5">
@@ -948,7 +976,10 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     </div>
 
                     <Accordion type="single" collapsible>
-                        <AccordionItem value="encryption" className="border-b-0">
+                        <AccordionItem
+                            value="encryption"
+                            className="border-b-0"
+                        >
                             <AccordionTrigger className="rounded-md border px-2 py-1.5 text-[11px] hover:no-underline">
                                 <span className="flex items-center gap-1.5">
                                     <Settings2 className="h-3.5 w-3.5" />
@@ -1019,8 +1050,8 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                     {encryptionErrors.EncryptionConfig ? (
                                         <p className="text-[11px] text-destructive">
                                             {
-                                                encryptionErrors.EncryptionConfig
-                                                    .message
+                                                encryptionErrors
+                                                    .EncryptionConfig.message
                                             }
                                         </p>
                                     ) : null}

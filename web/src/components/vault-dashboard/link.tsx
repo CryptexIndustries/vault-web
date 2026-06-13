@@ -54,10 +54,21 @@ import {
     publicKeyJwkToString,
 } from "@/app_lib/vault-utils/passkey";
 import {
-    encodeLinkSyncKeyMessage,
-    ensureSyncSigningKeypair,
-    parseLinkSyncKeyMessage,
-} from "@/app_lib/vault-utils/sync-signing";
+    encapsulateSyncKem,
+    ensureSyncKemKeypair,
+} from "@/app_lib/vault-utils/post-quantum-kem";
+import {
+    buildSyncKeyBundle,
+    createLinkMac,
+    createNonce,
+    deriveAeadKey,
+    linkReceiverBundleMacBytes,
+    linkSenderHelloMacBytes,
+    linkVaultTransferContext,
+    sealAead,
+    verifyLinkMac,
+} from "@/app_lib/vault-utils/sync-crypto";
+import { ensureSyncSigningKeypair } from "@/app_lib/vault-utils/sync-signing";
 import * as Synchronization from "@/app_lib/synchronization";
 import {
     constructLinkPresenceChannelName,
@@ -135,21 +146,26 @@ type ProgressLogType = {
 
 const DynamicQRCode = dynamic(() => import("react-qr-code"), { ssr: false });
 const MISSING_SYNC_SIGNING_KEY_ERROR =
-    "Vault sync signing keys are missing. Lock and unlock the vault, then try linking again.";
+    "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
 
 const errorMessage = (error: unknown, fallback: string): string =>
     error instanceof Error && error.message ? error.message : fallback;
 
-const requireSyncSigningPublicKey = (
+const requireLocalSyncKeyBundle = (
     linkedDevices: VaultUtilTypes.LinkedDevices,
-): string => {
+): VaultUtilTypes.SyncKeyBundle => {
     if (
         !linkedDevices.SyncSigningPublicKey ||
-        !linkedDevices.SyncSigningPrivateKey
+        !linkedDevices.SyncSigningPrivateKey ||
+        !linkedDevices.SyncKemPublicKey ||
+        !linkedDevices.SyncKemPrivateKey
     ) {
         throw new Error(MISSING_SYNC_SIGNING_KEY_ERROR);
     }
-    return linkedDevices.SyncSigningPublicKey;
+    return buildSyncKeyBundle(
+        linkedDevices.SyncSigningPublicKey,
+        linkedDevices.SyncKemPublicKey,
+    );
 };
 
 const linkMethodCopy: Record<
@@ -261,11 +277,7 @@ function LinkingQRCode({
     );
 }
 
-function PqcKeyExchangeStep({
-    status,
-}: {
-    status: LinkingProcessState;
-}) {
+function PqcKeyExchangeStep({ status }: { status: LinkingProcessState }) {
     const stateCopy: Record<LinkingProcessState, string> = {
         [LinkingProcessState.Pending]: "Waiting for private channel",
         [LinkingProcessState.Active]: "Sharing post-quantum sync keys",
@@ -381,7 +393,9 @@ function ServerMultiSelect({
     onChange: (value: string[]) => void;
     servers: { ID: string; Name: string; Host?: string }[];
 }) {
-    const selectedServers = servers.filter((server) => value.includes(server.ID));
+    const selectedServers = servers.filter((server) =>
+        value.includes(server.ID),
+    );
     const usesOnlineServices = value.includes(ONLINE_SERVICES_SELECTION_ID);
     const selectedLabel = usesOnlineServices
         ? "Cryptex Online Services"
@@ -503,6 +517,7 @@ export function SendLinkRequestDialog({
 
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const selectedLinkMethodRef = useRef<LinkMethod>("qr");
+    const vaultTransferSentRef = useRef(false);
     const cancelFnRef = useRef<() => Promise<void> | void>(() => {
         // No active linking attempt.
     });
@@ -549,6 +564,7 @@ export function SendLinkRequestDialog({
         setReadyForOtherDevice(false);
         setProgressLog([]);
         progressLogRef.current = [];
+        vaultTransferSentRef.current = false;
         setSyncKeyExchangeStatus(LinkingProcessState.Pending);
         setMnemonic("");
         setLinkingPackageBase64("");
@@ -682,7 +698,7 @@ export function SendLinkRequestDialog({
 
         try {
             addToProgressLog("Encrypting link package...", "info");
-            const syncSigningPublicKey = requireSyncSigningPublicKey(
+            const senderKeyBundle = requireLocalSyncKeyBundle(
                 unlockedVault.LinkedDevices,
             );
 
@@ -693,7 +709,7 @@ export function SendLinkRequestDialog({
                     TURNServers: turnServers,
                     SignalingServer: signalingServer,
                     OnlineServices: linkedPeerOnlineServices ?? undefined,
-                    SyncSigningPublicKey: syncSigningPublicKey,
+                    SenderKeyBundle: senderKeyBundle,
                 });
 
             setMnemonic(mnemonic);
@@ -702,6 +718,7 @@ export function SendLinkRequestDialog({
             return {
                 SyncID: syncId,
                 linkingPackage,
+                mnemonic,
                 linkedPeerOnlineServices,
             };
         } catch (error) {
@@ -720,6 +737,7 @@ export function SendLinkRequestDialog({
         turnServers: VaultUtilTypes.TURNServerConfiguration[],
         signalingServer: VaultUtilTypes.SignalingServerConfiguration | null,
         onlineServicesDeviceID: string | null,
+        linkSecret: string,
     ) => {
         const webRTConnection = await Synchronization.initWebRTC(
             stunServers,
@@ -779,34 +797,59 @@ export function SendLinkRequestDialog({
 
         webRTConnection.onconnectionstatechange = () => {
             if (webRTConnection.connectionState === "connected") {
-                addToProgressLog(
-                    "Private connection established. Closing signaling...",
-                    "info",
-                );
+                addToProgressLog("Private connection established. Closing signaling...", "info");
                 signalingServerConnection.disconnect();
                 signalingServerConnection.unbind();
             } else if (
                 webRTConnection.connectionState === "disconnected" ||
                 webRTConnection.connectionState === "failed"
             ) {
-                addToProgressLog("Private connection terminated.", "info");
                 setIsOperationInProgress(false);
             }
         };
 
-        const remoteSyncPublicKeyRef: { current: string | null } = {
+        const remoteKeyBundleRef: {
+            current: VaultUtilTypes.SyncKeyBundle | null;
+        } = {
             current: null,
         };
 
-        webRTCDataChannel.onmessage = (event) => {
-            const remoteKey = parseLinkSyncKeyMessage(event.data);
-            if (remoteKey) {
-                remoteSyncPublicKeyRef.current = remoteKey;
+        webRTCDataChannel.onmessage = async (event) => {
+            try {
+                const message = VaultUtilTypes.LinkReceiverKeyBundle.decode(
+                    new Uint8Array(event.data),
+                );
+                if (!message.ReceiverKeyBundle) return;
+                const senderBundle = requireLocalSyncKeyBundle(
+                    unlockedVault.LinkedDevices,
+                );
+                const macValid = await verifyLinkMac(
+                    linkSecret,
+                    linkReceiverBundleMacBytes(
+                        syncID,
+                        senderBundle,
+                        message.ReceiverKeyBundle,
+                        message.Nonce,
+                    ),
+                    message.Mac,
+                );
+                if (macValid) {
+                    remoteKeyBundleRef.current = message.ReceiverKeyBundle;
+                    addToProgressLog(
+                        "Receiver authenticated. Post-quantum sync key received.",
+                        "done",
+                    );
+                }
+            } catch {
+                addToProgressLog("Ignored malformed link key message.", "warn");
             }
         };
 
         webRTCDataChannel.onopen = async () => {
-            addToProgressLog("Sending vault to other device...", "info");
+            addToProgressLog(
+                "Private channel open. Authenticating the receiving device...",
+                "info",
+            );
 
             if (!vaultMetadata || !unlockedVault) {
                 addToProgressLog("Vault metadata is unavailable.", "error");
@@ -823,9 +866,9 @@ export function SendLinkRequestDialog({
                 return;
             }
 
-            let syncSigningPublicKey: string;
+            let senderKeyBundle: VaultUtilTypes.SyncKeyBundle;
             try {
-                syncSigningPublicKey = requireSyncSigningPublicKey(
+                senderKeyBundle = requireLocalSyncKeyBundle(
                     unlockedVault.LinkedDevices,
                 );
             } catch (error) {
@@ -842,27 +885,39 @@ export function SendLinkRequestDialog({
 
             setSyncKeyExchangeStatus(LinkingProcessState.Active);
             addToProgressLog(
-                "Exchanging post-quantum sync verification keys...",
+                "Exchanging authenticated post-quantum sync keys...",
                 "info",
             );
+            const senderNonce = createNonce();
+            const senderMac = await createLinkMac(
+                linkSecret,
+                linkSenderHelloMacBytes(syncID, senderKeyBundle, senderNonce),
+            );
             webRTCDataChannel.send(
-                new Uint8Array(encodeLinkSyncKeyMessage(
-                    syncSigningPublicKey,
-                )),
+                new Uint8Array(
+                    VaultUtilTypes.LinkSenderHello.encode({
+                        Nonce: senderNonce,
+                        Mac: senderMac,
+                    }).finish(),
+                ),
+            );
+            addToProgressLog(
+                "Waiting for receiver to prove it knows the mnemonic...",
+                "info",
             );
 
             const waitStartedAt = Date.now();
             while (
-                !remoteSyncPublicKeyRef.current &&
+                !remoteKeyBundleRef.current &&
                 Date.now() - waitStartedAt < 15_000
             ) {
                 await new Promise((resolve) => setTimeout(resolve, 50));
             }
 
-            const remoteSyncPublicKey = remoteSyncPublicKeyRef.current;
-            if (!remoteSyncPublicKey) {
+            const remoteKeyBundle = remoteKeyBundleRef.current;
+            if (!remoteKeyBundle) {
                 addToProgressLog(
-                    "Timed out waiting for remote sync signing key.",
+                    "Timed out waiting for authenticated remote sync keys.",
                     "error",
                 );
                 setSyncKeyExchangeStatus(LinkingProcessState.Error);
@@ -870,28 +925,62 @@ export function SendLinkRequestDialog({
                 return;
             }
             setSyncKeyExchangeStatus(LinkingProcessState.Completed);
-            addToProgressLog("Quantum-safe sync keys exchanged.");
+            addToProgressLog("Quantum-safe sync keys exchanged.", "done");
 
-            addToProgressLog("Packaging vault data...", "info");
+            addToProgressLog("Preparing vault package...", "info");
             const exportedVault = packageForLinking(
                 unlockedVault,
                 syncID,
                 stunServers.map((server) => server.ID),
                 turnServers.map((server) => server.ID),
                 signalingServer?.ID ?? ONLINE_SERVICES_SELECTION_ID,
-                syncSigningPublicKey,
+                senderKeyBundle.SyncSigningPublicKey,
+                senderKeyBundle.SyncKemPublicKey,
             );
 
-            const serializedVault = vaultMetadata.exportForLinking(exportedVault);
-            webRTCDataChannel.send(new Uint8Array(serializedVault));
-            addToProgressLog("Vault data sent.");
+            const serializedVault =
+                vaultMetadata.exportForLinking(exportedVault);
+            addToProgressLog(
+                "Encrypting vault for the authenticated receiver...",
+                "info",
+            );
+            const { kemCiphertext, sharedSecret } = encapsulateSyncKem(
+                remoteKeyBundle.SyncKemPublicKey,
+            );
+            const transferContext = linkVaultTransferContext(
+                syncID,
+                senderKeyBundle,
+                remoteKeyBundle,
+                kemCiphertext,
+            );
+            const transferKey = await deriveAeadKey(
+                sharedSecret,
+                transferContext,
+            );
+            const sealedVault = await sealAead(
+                transferKey,
+                new Uint8Array(serializedVault),
+                transferContext,
+            );
+            addToProgressLog("Sending encrypted vault transfer...", "info");
+            webRTCDataChannel.send(
+                new Uint8Array(
+                    VaultUtilTypes.LinkVaultTransfer.encode({
+                        KemCiphertext: kemCiphertext,
+                        Nonce: sealedVault.nonce,
+                        Ciphertext: sealedVault.ciphertext,
+                    }).finish(),
+                ),
+            );
+            vaultTransferSentRef.current = true;
+            addToProgressLog("Encrypted vault transfer sent.", "done");
 
-            addToProgressLog("Saving linked device...", "info");
             LinkedDevices.addLinkedDevice(
                 unlockedVault.LinkedDevices,
                 cleanDeviceName,
                 syncID,
-                remoteSyncPublicKey,
+                remoteKeyBundle.SyncSigningPublicKey,
+                remoteKeyBundle.SyncKemPublicKey,
                 stunServers.map((server) => server.ID),
                 turnServers.map((server) => server.ID),
                 signalingServer?.ID,
@@ -902,9 +991,13 @@ export function SendLinkRequestDialog({
 
             toast.success("Device linked.");
             addToProgressLog("Done. Safe to close this dialog.", "info");
+            setIsOperationInProgress(false);
         };
 
         webRTCDataChannel.onerror = () => {
+            if (vaultTransferSentRef.current) {
+                return;
+            }
             addToProgressLog("Failed to send vault data.", "error");
             setSyncKeyExchangeStatus((current) =>
                 current === LinkingProcessState.Completed
@@ -914,6 +1007,11 @@ export function SendLinkRequestDialog({
             stopLinking();
         };
         webRTCDataChannel.onclose = () => {
+            if (vaultTransferSentRef.current) {
+                setIsOperationInProgress(false);
+                webRTConnection.close();
+                return;
+            }
             setSyncKeyExchangeStatus((current) =>
                 current === LinkingProcessState.Completed
                     ? current
@@ -1033,6 +1131,7 @@ export function SendLinkRequestDialog({
         setIsOperationInProgress(true);
         setProgressLog([]);
         progressLogRef.current = [];
+        vaultTransferSentRef.current = false;
         setSyncKeyExchangeStatus(LinkingProcessState.Pending);
 
         try {
@@ -1060,6 +1159,7 @@ export function SendLinkRequestDialog({
                 signalingServer ?? null,
                 // If Online Services is used, we need to know the device ID (if we need to rollback)
                 connectionPackage.linkedPeerOnlineServices?.DeviceId ?? null,
+                connectionPackage.mnemonic,
             );
         } catch (error) {
             const logLinkError = usesOnlineServices
@@ -1070,12 +1170,12 @@ export function SendLinkRequestDialog({
                     ? "Failed to link device with Online Services"
                     : "Failed to link device",
                 {
-                linkMethod: selectedLinkMethodRef.current,
-                usesOnlineServices,
-                signalingServerId: signalingServerID,
-                stunServerCount: stunServers.length,
-                turnServerCount: turnServers.length,
-                error,
+                    linkMethod: selectedLinkMethodRef.current,
+                    usesOnlineServices,
+                    signalingServerId: signalingServerID,
+                    stunServerCount: stunServers.length,
+                    turnServerCount: turnServers.length,
+                    error,
                 },
             );
             const message = errorMessage(error, "Failed to link device.");
@@ -1163,8 +1263,8 @@ export function SendLinkRequestDialog({
                                 <AlertTitle>Cryptex Online Services</AlertTitle>
                                 <AlertDescription className="space-y-3">
                                     <p>
-                                        Selected Online Services entry needs account
-                                        access and paid-tier linking.
+                                        Selected Online Services entry needs
+                                        account access and paid-tier linking.
                                     </p>
                                     {onlineServicesIssue === "signin" ? (
                                         <Button
@@ -1493,11 +1593,13 @@ const cloneCredential = (credential: VaultUtilTypes.Credential) => {
 const cloneLinkedDevice = (device: VaultUtilTypes.LinkedDevice) =>
     LinkedDevices.fromGenericDevice(device);
 
-const cloneSTUNServerConfig = (server: VaultUtilTypes.STUNServerConfiguration) =>
-    Object.assign(new STUNServerConfiguration(), server);
+const cloneSTUNServerConfig = (
+    server: VaultUtilTypes.STUNServerConfiguration,
+) => Object.assign(new STUNServerConfiguration(), server);
 
-const cloneTURNServerConfig = (server: VaultUtilTypes.TURNServerConfiguration) =>
-    Object.assign(new TURNServerConfiguration(), server);
+const cloneTURNServerConfig = (
+    server: VaultUtilTypes.TURNServerConfiguration,
+) => Object.assign(new TURNServerConfiguration(), server);
 
 const cloneSignalingServerConfig = (
     server: VaultUtilTypes.SignalingServerConfiguration,
@@ -1589,9 +1691,8 @@ export function ReceiveLinkRequestDialog({
         createReceiveLinkSteps,
     );
     const [progressLog, setProgressLog] = useState<ProgressLogType[]>([]);
-    const [mergeSummary, setMergeSummary] = useState<ReceiveMergeSummary | null>(
-        null,
-    );
+    const [mergeSummary, setMergeSummary] =
+        useState<ReceiveMergeSummary | null>(null);
 
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const completedRef = useRef(false);
@@ -1660,7 +1761,8 @@ export function ReceiveLinkRequestDialog({
                 }
                 resolve(new Uint8Array(reader.result as ArrayBuffer));
             };
-            reader.onerror = () => reject(new Error("Failed to read link file."));
+            reader.onerror = () =>
+                reject(new Error("Failed to read link file."));
             reader.readAsArrayBuffer(linkFile);
         });
     };
@@ -1692,7 +1794,7 @@ export function ReceiveLinkRequestDialog({
     const mergeReceivedVault = async (
         receivedVaultData: Uint8Array,
         onlineServicesOverwrite: OnlineServices | null,
-        senderSyncPublicKey: string,
+        senderKeyBundle: VaultUtilTypes.SyncKeyBundle,
     ) => {
         if (!vaultMetadata) {
             throw new Error("Current vault metadata is unavailable.");
@@ -1705,7 +1807,8 @@ export function ReceiveLinkRequestDialog({
 
         const receivedVault = parseReceivedVault(receivedVaultData);
         const mergedVault = Object.assign(new Vault(), unlockedVault);
-        mergedVault.Credentials = unlockedVault.Credentials.map(cloneCredential);
+        mergedVault.Credentials =
+            unlockedVault.Credentials.map(cloneCredential);
         mergedVault.Groups = unlockedVault.Groups.map((group) =>
             Object.assign(new Group(), group),
         );
@@ -1723,7 +1826,10 @@ export function ReceiveLinkRequestDialog({
         );
 
         for (const credential of receivedVault.Credentials) {
-            if (credential.Deleted || existingCredentialIDs.has(credential.ID)) {
+            if (
+                credential.Deleted ||
+                existingCredentialIDs.has(credential.ID)
+            ) {
                 credentialsSkipped++;
                 continue;
             }
@@ -1788,9 +1894,10 @@ export function ReceiveLinkRequestDialog({
             }
 
             const clonedDevice = cloneLinkedDevice(device);
-            if (senderSyncPublicKey) {
-                clonedDevice.RemoteSyncPublicKey = senderSyncPublicKey;
-            }
+            clonedDevice.RemoteSyncPublicKey =
+                senderKeyBundle.SyncSigningPublicKey;
+            clonedDevice.RemoteSyncKemPublicKey =
+                senderKeyBundle.SyncKemPublicKey;
             mergedVault.LinkedDevices.Devices.push(clonedDevice);
             existingDeviceIDs.add(device.ID);
             existingSyncIDs.add(device.SyncID);
@@ -1798,6 +1905,7 @@ export function ReceiveLinkRequestDialog({
         }
 
         await ensureSyncSigningKeypair(mergedVault.LinkedDevices);
+        await ensureSyncKemKeypair(mergedVault.LinkedDevices);
 
         await vaultMetadata.save(mergedVault, vaultSecret.value);
         await setUnlockedVault(mergedVault);
@@ -1815,10 +1923,7 @@ export function ReceiveLinkRequestDialog({
     };
 
     const updateStep = (status: LinkingProcessStatus) => {
-        if (
-            failedRef.current &&
-            status.State !== LinkingProcessState.Error
-        ) {
+        if (failedRef.current && status.State !== LinkingProcessState.Error) {
             return;
         }
 
@@ -1900,11 +2005,15 @@ export function ReceiveLinkRequestDialog({
                 linkingBlob.SignalingServer == null ||
                 !linkingBlob.STUNServers.length ||
                 !linkingBlob.TURNServers.length;
-            if (!linkingBlob.SyncSigningPublicKey) {
+            if (
+                !linkingBlob.SenderKeyBundle?.SyncSigningPublicKey ||
+                !linkingBlob.SenderKeyBundle.SyncKemPublicKey
+            ) {
                 throw new Error(
-                    "Link package is missing sync signing material. Create a new link package and try again.",
+                    "Link package is missing encrypted sync key material. Create a new link package and try again.",
                 );
             }
+            const senderKeyBundle = linkingBlob.SenderKeyBundle;
             receiveUsesOnlineServices = usesOnlineServices;
             receivedOnlineServicesDeviceId =
                 linkingBlob.OnlineServices?.DeviceId ?? null;
@@ -1943,7 +2052,10 @@ export function ReceiveLinkRequestDialog({
                     deviceId: linkingBlob.OnlineServices.DeviceId,
                     privateKeyJWK: linkingBlob.OnlineServices.PrivateKeyJWK,
                 });
-                addReceiveLog("Online Services authentication applied.", "done");
+                addReceiveLog(
+                    "Online Services authentication applied.",
+                    "done",
+                );
             } else {
                 clearOnlineServicesSession();
             }
@@ -1953,20 +2065,29 @@ export function ReceiveLinkRequestDialog({
             const generatedSyncKeys = await ensureSyncSigningKeypair(
                 unlockedVault.LinkedDevices,
             );
-            if (generatedSyncKeys && vaultMetadata) {
+            const generatedKemKeys = await ensureSyncKemKeypair(
+                unlockedVault.LinkedDevices,
+            );
+            if ((generatedSyncKeys || generatedKemKeys) && vaultMetadata) {
                 const vaultSecret = getVaultDEKFromSession();
                 if (vaultSecret.isOk()) {
-                    await vaultMetadata.save(
-                        unlockedVault,
-                        vaultSecret.value,
-                    );
+                    await vaultMetadata.save(unlockedVault, vaultSecret.value);
                 }
             }
 
             const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
-                unlockedVault.LinkedDevices.SyncSigningPublicKey,
+                {
+                    signingPublicKey:
+                        unlockedVault.LinkedDevices.SyncSigningPublicKey,
+                    signingPrivateKey:
+                        unlockedVault.LinkedDevices.SyncSigningPrivateKey,
+                    kemPublicKey: unlockedVault.LinkedDevices.SyncKemPublicKey,
+                    kemPrivateKey:
+                        unlockedVault.LinkedDevices.SyncKemPrivateKey,
+                },
+                secret.trim(),
                 async (status) => {
                     updateStep(status);
 
@@ -1978,7 +2099,7 @@ export function ReceiveLinkRequestDialog({
                         await mergeReceivedVault(
                             status.VaultBinaryData,
                             onlineServicesOverwrite,
-                            linkingBlob.SyncSigningPublicKey,
+                            senderKeyBundle,
                         );
                     }
 
@@ -2033,9 +2154,9 @@ export function ReceiveLinkRequestDialog({
                 <DialogHeader>
                     <DialogTitle>Receive vault data</DialogTitle>
                     <DialogDescription>
-                        Scan or import the link package, enter the mnemonic, then
-                        merge missing credentials and linked devices into this
-                        vault.
+                        Scan or import the link package, enter the mnemonic,
+                        then merge missing credentials and linked devices into
+                        this vault.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -2235,7 +2356,10 @@ export function ReceiveLinkRequestDialog({
                         </div>
 
                         {formError ? (
-                            <p className="text-sm text-destructive" role="alert">
+                            <p
+                                className="text-sm text-destructive"
+                                role="alert"
+                            >
                                 {formError}
                             </p>
                         ) : null}
@@ -2251,9 +2375,9 @@ export function ReceiveLinkRequestDialog({
                                                 ? "Vault data merged"
                                                 : stage === "aborted"
                                                   ? "Linking aborted"
-                                                : stage === "failed"
-                                                  ? "Linking failed"
-                                                  : "Receiving vault data"}
+                                                  : stage === "failed"
+                                                    ? "Linking failed"
+                                                    : "Receiving vault data"}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                             Current credentials stay untouched.

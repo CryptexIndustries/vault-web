@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+    describe,
+    it,
+    expect,
+    jest,
+    beforeEach,
+    afterEach,
+} from "@jest/globals";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
 
@@ -22,8 +29,14 @@ Object.defineProperty(globalThis, "crypto", {
 jest.mock(
     "@/lib/utils",
     () => ({
-        base64ToUint8: (value: string) => new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) => Buffer.from(value).toString("base64"),
+        base64ToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64")),
+        uint8ToBase64: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64"),
+        base64UrlToUint8: (value: string) =>
+            new Uint8Array(Buffer.from(value, "base64url")),
+        uint8ToBase64Url: (value: Uint8Array) =>
+            Buffer.from(value).toString("base64url"),
     }),
     { virtual: true },
 );
@@ -124,7 +137,12 @@ describe("vault-utils/vault", () => {
     });
 
     it("handles linked device mutators and guards empty names", () => {
-        const device = new LinkedDevice("Device A", "sync-a", "remote-key-a");
+        const device = new LinkedDevice(
+            "Device A",
+            "sync-a",
+            "remote-key-a",
+            "remote-kem-a",
+        );
 
         device.Name = "Renamed";
         device.AutoConnect = false;
@@ -152,6 +170,7 @@ describe("vault-utils/vault", () => {
             "Device 1",
             "sync-1",
             "remote-key-1",
+            "remote-kem-1",
             ["stun-a"],
             ["turn-a"],
             "sig-a",
@@ -176,14 +195,19 @@ describe("vault-utils/vault", () => {
         });
         expect(added.ID).toMatch(/^[0-9A-Z]{26}$/);
 
-        const updated = LinkedDevices.removeLinkedDevice(linked.Devices, added.ID);
+        const updated = LinkedDevices.removeLinkedDevice(
+            linked.Devices,
+            added.ID,
+        );
         expect(updated).toEqual([]);
     });
 
     it("creates runtime class instances from generic linked devices payload", () => {
         const raw: LinkedDevices = Object.assign(new LinkedDevices(), {
             Devices: [{ ID: "d1", Name: "D1" }],
-            STUNServers: [{ ID: "s1", Name: "S1", Host: "stun://a", Version: 1 }],
+            STUNServers: [
+                { ID: "s1", Name: "S1", Host: "stun://a", Version: 1 },
+            ],
             TURNServers: [
                 {
                     ID: "t1",
@@ -544,10 +568,12 @@ describe("vault-utils/vault", () => {
     });
 
     it("upserts groups for both create and update paths", () => {
-        const created = upsertGroup(
-            null,
-            { ID: "group-id", Name: "Personal", Icon: "home", Color: "red" },
-        );
+        const created = upsertGroup(null, {
+            ID: "group-id",
+            Name: "Personal",
+            Icon: "home",
+            Color: "red",
+        });
         expect(created).toBeInstanceOf(Group);
         expect(created.ID).toBe("group-id");
 
@@ -624,6 +650,7 @@ describe("vault-utils/vault", () => {
             "Peer Device",
             "peer-sync",
             "peer-remote-key",
+            "peer-remote-kem",
             ["stun-a"],
             ["turn-a"],
             "sig-a",
@@ -640,6 +667,7 @@ describe("vault-utils/vault", () => {
             ["turn-new"],
             ONLINE_SERVICES_SELECTION_ID,
             "local-sync-public-key",
+            "local-sync-kem-public-key",
         );
 
         expect(packaged).not.toBe(source);
@@ -684,6 +712,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
             "n",
             "s",
             "remote-key",
+            "remote-kem",
             Date.now(),
             true,
             false,
@@ -700,6 +729,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
             "n",
             "s",
             "remote-key",
+            "remote-kem",
             Date.now(),
             true,
             false,
@@ -716,6 +746,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
             "n",
             "s",
             "remote-key",
+            "remote-kem",
             Date.now(),
             true,
             false,
@@ -732,6 +763,7 @@ describe("LinkedDevices.isUsingOnlineServices", () => {
             "n",
             "s",
             "remote-key",
+            "remote-kem",
             Date.now(),
             true,
             false,
@@ -798,12 +830,7 @@ describe("Server configuration constructors", () => {
     });
 
     it("TURNServerConfiguration sets fields and a fresh ULID", () => {
-        const turn = new TURNServerConfiguration(
-            "name",
-            "turn:host",
-            "u",
-            "p",
-        );
+        const turn = new TURNServerConfiguration("name", "turn:host", "u", "p");
         expect(turn.Name).toBe("name");
         expect(turn.Host).toBe("turn:host");
         expect(turn.Username).toBe("u");

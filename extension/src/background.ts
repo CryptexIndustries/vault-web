@@ -31,6 +31,7 @@ import {
     handleOpenPopup,
     handleSaveCredentialPrompt,
 } from "./background/autofill-router";
+import type { AutofillRequestOrigin } from "./background/autofill-router";
 import {
     clearOnlineServicesSession as clearOnlineServicesSessionInSW,
     ensureOnlineServicesSessionFromUnlockedVault,
@@ -42,6 +43,7 @@ import {
     getSessionDEK,
     setSessionDEKFromVaultMetadata,
 } from "./background/session-dek-store";
+import { etldPlus1 } from "./utils/etld";
 
 const OFFSCREEN_URL = chrome.runtime.getURL("/offscreen.html");
 
@@ -110,6 +112,26 @@ function isEncryptedMessageAllowedForOrigin(
     type: MessageType,
 ): boolean {
     return ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN[origin].has(type);
+}
+
+function getAutofillRequestOrigin(
+    sender: chrome.runtime.MessageSender,
+): AutofillRequestOrigin | null {
+    const sourceUrl = sender.url ?? sender.tab?.url;
+    if (!sourceUrl) return null;
+
+    try {
+        const url = new URL(sourceUrl);
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+            return null;
+        }
+
+        const host = url.hostname.toLowerCase();
+        if (!host) return null;
+        return { host, etldPlus1: etldPlus1(host) };
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -292,7 +314,11 @@ async function processEnvelope(
     );
 
     // Process the message based on type
-    const result = await processMessage(envelope.type, decryptedPayload);
+    const result = await processMessage(
+        envelope.type,
+        decryptedPayload,
+        sender,
+    );
 
     console.debug(
         "[SW] Previewing the response after processing:",
@@ -308,7 +334,11 @@ async function processEnvelope(
 /**
  * Processes a decrypted message payload and returns the response.
  */
-async function processMessage(type: MessageType, payload: any): Promise<any> {
+async function processMessage(
+    type: MessageType,
+    payload: any,
+    sender: chrome.runtime.MessageSender,
+): Promise<any> {
     await ensureOffscreenDocument();
 
     try {
@@ -723,12 +753,24 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
             case MessageType.GetCredentialSecret: {
                 const vault = await getVaultFromSessionStorage();
-                return await handleGetCredentialSecret(payload, vault);
+                const requestOrigin = getAutofillRequestOrigin(sender);
+                if (!requestOrigin) {
+                    return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
+                }
+                return await handleGetCredentialSecret(
+                    payload,
+                    vault,
+                    requestOrigin,
+                );
             }
 
             case MessageType.GenerateTOTP: {
                 const vault = await getVaultFromSessionStorage();
-                return await handleGenerateTOTP(payload, vault);
+                const requestOrigin = getAutofillRequestOrigin(sender);
+                if (!requestOrigin) {
+                    return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
+                }
+                return await handleGenerateTOTP(payload, vault, requestOrigin);
             }
 
             case MessageType.SaveCredentialPrompt: {

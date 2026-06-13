@@ -4,9 +4,9 @@
  * return, when to wipe, when to skip the popup) all live in one file.
  *
  * Inputs are the already-decrypted payload object handed back by the
- * envelope layer and the originating `chrome.runtime.MessageSender`.
- * Outputs are plain objects that the envelope layer will encrypt and
- * return to the caller.
+ * envelope layer, current vault state, and sender-derived origin context
+ * where needed. Outputs are plain objects that the envelope layer will
+ * encrypt and return to the caller.
  */
 
 import { calculateTOTP } from "@/app_lib/vault-utils/vault";
@@ -26,6 +26,11 @@ import { etldPlus1, parseOriginish } from "../utils/etld";
 const PENDING_SAVE_KEY = "PENDING_SAVE";
 const PENDING_SAVE_TTL_MS = 5 * 60 * 1000;
 const SAVE_BADGE = "+";
+
+export type AutofillRequestOrigin = {
+    host: string;
+    etldPlus1: string;
+};
 
 /** Lightweight projection of a credential for the picker UI. */
 function toLite(c: VaultUtilTypes.Credential): LiteCredential {
@@ -105,6 +110,7 @@ export async function handleGetCredentialsForOrigin(
 export async function handleGetCredentialSecret(
     payload: GetCredentialSecretRequest | null | undefined,
     vault: VaultUtilTypes.Vault | null,
+    requestOrigin: AutofillRequestOrigin,
 ): Promise<GetCredentialSecretResponse> {
     if (!payload || typeof payload.id !== "string") {
         return { ok: false, error: "INVALID_PAYLOAD" };
@@ -118,6 +124,10 @@ export async function handleGetCredentialSecret(
     );
     if (!cred) {
         return { ok: false, error: "NOT_FOUND" };
+    }
+    const originCheck = credentialMatchesRequestOrigin(cred, requestOrigin);
+    if (!originCheck.ok) {
+        return { ok: false, error: originCheck.error };
     }
 
     return {
@@ -139,6 +149,7 @@ export async function handleGetCredentialSecret(
 export async function handleGenerateTOTP(
     payload: { id: string } | null | undefined,
     vault: VaultUtilTypes.Vault | null,
+    requestOrigin: AutofillRequestOrigin,
 ): Promise<GenerateTOTPResponse> {
     if (!payload || typeof payload.id !== "string") {
         return { ok: false, error: "INVALID_PAYLOAD" };
@@ -150,6 +161,10 @@ export async function handleGenerateTOTP(
         (c) => c.ID === payload.id && !c.Deleted,
     );
     if (!cred) return { ok: false, error: "NOT_FOUND" };
+    const originCheck = credentialMatchesRequestOrigin(cred, requestOrigin);
+    if (!originCheck.ok) {
+        return { ok: false, error: originCheck.error };
+    }
     if (!cred.TOTP || !cred.TOTP.Secret) {
         return { ok: false, error: "TOTP_NOT_CONFIGURED" };
     }
@@ -162,6 +177,24 @@ export async function handleGenerateTOTP(
             error: err instanceof Error ? err.message : "TOTP_FAILED",
         };
     }
+}
+
+function credentialMatchesRequestOrigin(
+    cred: VaultUtilTypes.Credential,
+    requestOrigin: AutofillRequestOrigin,
+): { ok: true } | { ok: false; error: string } {
+    const parsed = parseOriginish(cred.URL);
+    if (!parsed) {
+        return { ok: false, error: "CREDENTIAL_ORIGIN_UNVERIFIED" };
+    }
+
+    const wantedHost = requestOrigin.host.toLowerCase();
+    const wantedEtld = requestOrigin.etldPlus1.toLowerCase();
+    if (parsed.host === wantedHost || parsed.etldPlus1 === wantedEtld) {
+        return { ok: true };
+    }
+
+    return { ok: false, error: "ORIGIN_MISMATCH" };
 }
 
 /**

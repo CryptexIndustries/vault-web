@@ -1,6 +1,12 @@
 import * as Storage from "@/app_lib/vault-utils/storage";
 import * as Vault from "@/app_lib/vault-utils/vault";
-import { LiteCredential, MessageType } from "./types/sw-messaging";
+import { MessageType } from "./types/sw-messaging";
+import type {
+    EncryptedEnvelope,
+    EnvelopeOrigin,
+    LiteCredential,
+    PlaintextEnvelope,
+} from "./types/sw-messaging";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import {
     generateECDHKeyPair,
@@ -15,7 +21,6 @@ import {
     isPlaintextEnvelope,
 } from "./utils/session-utils";
 import { validateEnvelope } from "./utils/security-utils";
-import { EncryptedEnvelope, PlaintextEnvelope } from "./types/sw-messaging";
 import { handleProxyFetch } from "./background/request-auth-interceptor";
 import {
     handleConsumePendingSavePrompt,
@@ -51,6 +56,62 @@ type LegacyMessage = {
     };
 };
 
+const POPUP_MESSAGE_TYPES = new Set<MessageType>([
+    MessageType.GetState,
+    MessageType.Unlock,
+    MessageType.Lock,
+    MessageType.GetCredentials,
+    MessageType.GetCredential,
+    MessageType.CreateCredential,
+    MessageType.UpdateCredential,
+    MessageType.DeleteCredential,
+    MessageType.GetLinkedDevices,
+    MessageType.SyncGetItemCredentials,
+    MessageType.SyncGetItemVersionVectors,
+    MessageType.SyncGetConfiguration,
+    MessageType.SyncUpdateCredentials,
+    MessageType.ProxyFetch,
+    MessageType.GetPendingSavePrompt,
+    MessageType.ConsumePendingSavePrompt,
+]);
+
+const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
+    EnvelopeOrigin,
+    ReadonlySet<MessageType>
+> = {
+    popup: POPUP_MESSAGE_TYPES,
+    link: new Set<MessageType>([
+        MessageType.ProxyFetch,
+        MessageType.OnlineServicesEstablish,
+        MessageType.OnlineServicesClear,
+    ]),
+    offscreen: new Set<MessageType>(),
+    worker: new Set<MessageType>(),
+    "autofill-cs": new Set<MessageType>([
+        MessageType.GetState,
+        MessageType.GetCredentialSecret,
+        MessageType.GenerateTOTP,
+        MessageType.SaveCredentialPrompt,
+        MessageType.GetPendingSavePrompt,
+        MessageType.OpenPopup,
+    ]),
+    "autofill-icon": new Set<MessageType>(),
+    "autofill-menu": new Set<MessageType>([
+        MessageType.GetCredentialsForOrigin,
+    ]),
+    "autofill-save": new Set<MessageType>([
+        MessageType.CreateCredential,
+        MessageType.ConsumePendingSavePrompt,
+    ]),
+};
+
+function isEncryptedMessageAllowedForOrigin(
+    origin: EnvelopeOrigin,
+    type: MessageType,
+): boolean {
+    return ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN[origin].has(type);
+}
+
 /**
  * Processes an envelope-based message and returns the appropriate response envelope.
  */
@@ -74,6 +135,23 @@ async function processEnvelope(
 
     // Handle encrypted envelopes
     if (isEncryptedEnvelope(envelope)) {
+        if (
+            !isEncryptedMessageAllowedForOrigin(envelope.origin, envelope.type)
+        ) {
+            return createPlaintextEnvelope(
+                envelope.type,
+                {
+                    ok: false,
+                    error: "Message type is not allowed for this origin",
+                    code: "MESSAGE_TYPE_NOT_ALLOWED",
+                    origin: envelope.origin,
+                    messageType:
+                        MessageType[envelope.type] ?? String(envelope.type),
+                },
+                "worker",
+            );
+        }
+
         try {
             // Get the active key pair
             const activeKey = await Storage.db.keyPairs
@@ -133,7 +211,7 @@ async function processEnvelope(
                 const decryptErrorMessage =
                     typeof decryptErrorRaw === "string"
                         ? decryptErrorRaw
-                          : "UNKNOWN_DECRYPTION_ERROR";
+                        : "UNKNOWN_DECRYPTION_ERROR";
 
                 return createPlaintextEnvelope(
                     envelope.type,
@@ -268,10 +346,18 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: "METADATA_INDEX_NULL" };
                 }
 
-                await setSessionDEKFromVaultMetadata(metadata.DBIndex, metadata, {
-                    masterPassword: payload.form.Secret,
-                });
-                await setVaultInSessionStorage(metadata, vault, metadata.DBIndex);
+                await setSessionDEKFromVaultMetadata(
+                    metadata.DBIndex,
+                    metadata,
+                    {
+                        masterPassword: payload.form.Secret,
+                    },
+                );
+                await setVaultInSessionStorage(
+                    metadata,
+                    vault,
+                    metadata.DBIndex,
+                );
 
                 // Seed the Online Services session from the just-unlocked
                 // vault so the SW has both the credentials AND a fresh JWT
@@ -330,14 +416,14 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     };
                 }
 
-                const list: LiteCredential[] = (vault?.Credentials ?? []).filter(c => !c.Deleted).map(
-                    (c) => ({
+                const list: LiteCredential[] = (vault?.Credentials ?? [])
+                    .filter((c) => !c.Deleted)
+                    .map((c) => ({
                         id: c.ID,
                         name: c.Name,
                         username: c.Username,
                         url: c.URL,
-                    }),
-                );
+                    }));
                 return { ok: true, credentials: list };
             }
 
@@ -383,11 +469,13 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     metadata,
                 );
 
-                console.log(metadata.Blob?.Envelope?.Slots.map((s) => ({
-                    isUint8: s.WrappedDEK instanceof Uint8Array,
-                    ctor: s.WrappedDEK?.constructor?.name,
-                    len: s.WrappedDEK?.length,
-                })));
+                console.log(
+                    metadata.Blob?.Envelope?.Slots.map((s) => ({
+                        isUint8: s.WrappedDEK instanceof Uint8Array,
+                        ctor: s.WrappedDEK?.constructor?.name,
+                        len: s.WrappedDEK?.length,
+                    })),
+                );
 
                 await metadataInstance.save(vault, dek);
 
@@ -468,12 +556,14 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                     return { ok: false, error: "NOT_FOUND" };
                 }
 
-                const credListResult = await Vault.deleteCredential(vault.Credentials, payload.id);
+                const credListResult = await Vault.deleteCredential(
+                    vault.Credentials,
+                    payload.id,
+                );
                 if (credListResult.isErr()) {
                     return { ok: false, error: credListResult.error };
                 }
                 vault.Credentials = [...credListResult.value];
-
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(
@@ -495,11 +585,19 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
                 const vault = await getVaultFromSessionStorage();
 
                 if (!vault) {
-                    return { ok: false, devices: [], error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        devices: [],
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
                 if (!vault.LinkedDevices) {
-                    return { ok: false, devices: [], error: "NO_SYNCHRONIZATION_CONFIGURATION" };
+                    return {
+                        ok: false,
+                        devices: [],
+                        error: "NO_SYNCHRONIZATION_CONFIGURATION",
+                    };
                 }
 
                 return { ok: true, devices: vault.LinkedDevices.Devices };
@@ -508,19 +606,29 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.SyncGetItemCredentials: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
-                    return { ok: false, credentials: [], error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        credentials: [],
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
-                const credentials = vault.Credentials.filter(c => payload.itemIDs.includes(c.ID));
+                const credentials = vault.Credentials.filter((c) =>
+                    payload.itemIDs.includes(c.ID),
+                );
                 return { ok: true, credentials };
             }
             case MessageType.SyncGetItemVersionVectors: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
-                    return { ok: false, versionVectors: [], error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        versionVectors: [],
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
 
-                const versionVectors = vault.Credentials.map(c => ({
+                const versionVectors = vault.Credentials.map((c) => ({
                     ID: c.ID,
                     Hash: c.Hash ?? "",
                     Version: c.Version,
@@ -533,7 +641,11 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
             case MessageType.SyncGetConfiguration: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
-                    return { ok: false, configuration: null, error: "VAULT_NOT_UNLOCKED" };
+                    return {
+                        ok: false,
+                        configuration: null,
+                        error: "VAULT_NOT_UNLOCKED",
+                    };
                 }
                 return { ok: true, config: vault.LinkedDevices };
             }
@@ -548,7 +660,9 @@ async function processMessage(type: MessageType, payload: any): Promise<any> {
 
                 // Iterate through the credentials and update the existing ones, append the new ones
                 for (const credential of payload.credentials) {
-                    const existingIndex = vault.Credentials.findIndex(c => c.ID === credential.ID);
+                    const existingIndex = vault.Credentials.findIndex(
+                        (c) => c.ID === credential.ID,
+                    );
                     if (existingIndex !== -1) {
                         vault.Credentials[existingIndex] = credential;
                     } else {
@@ -711,7 +825,9 @@ async function rotateKeyPair(): Promise<void> {
             publicKeyJwk: newKeyPair.publicKeyJwk,
         });
 
-        console.debug(`[SW] Rotated ECDH key pair. New key ID: ${newKeyPair.keyId}`);
+        console.debug(
+            `[SW] Rotated ECDH key pair. New key ID: ${newKeyPair.keyId}`,
+        );
 
         // TODO: Broadcast KEY_ROTATED to all connected clients (popup, offscreen)
         // For now, clients will discover rotation on next request via STALE_KEY error
@@ -771,7 +887,9 @@ async function ensureActiveKeyPair(): Promise<void> {
             publicKeyJwk: keyPair.publicKeyJwk,
         });
 
-        console.debug(`[SW] Generated new ECDH key pair with ID: ${keyPair.keyId}`);
+        console.debug(
+            `[SW] Generated new ECDH key pair with ID: ${keyPair.keyId}`,
+        );
     } catch (error) {
         console.error("[SW] Failed to ensure active key pair:", error);
         throw error;
@@ -814,7 +932,9 @@ async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.Vaul
 }
 
 async function getActiveVaultDbIndex(): Promise<number | null> {
-    const stored = await chrome.storage.session.get([ACTIVE_VAULT_DB_INDEX_KEY]);
+    const stored = await chrome.storage.session.get([
+        ACTIVE_VAULT_DB_INDEX_KEY,
+    ]);
     const idx = stored[ACTIVE_VAULT_DB_INDEX_KEY];
     return typeof idx === "number" ? idx : null;
 }
@@ -830,7 +950,9 @@ async function setVaultInSessionStorage(
     vault: VaultUtilTypes.Vault,
     vaultDbIndex: number,
 ): Promise<void> {
-    const encodedMetadata = VaultUtilTypes.VaultMetadata.encode(metadata).finish().toBase64();
+    const encodedMetadata = VaultUtilTypes.VaultMetadata.encode(metadata)
+        .finish()
+        .toBase64();
     await chrome.storage.session.set({
         [UNLOCKED_VAULT_METADATA_KEY]: encodedMetadata,
         [UNLOCKED_VAULT_KEY]: vault,

@@ -25,7 +25,7 @@
         "fmt-check:web": "pnpm --filter web fmt-check",
         "fmt-check:ext": "pnpm --filter extension fmt-check",
         "fmt-check": "pnpm fmt-check:web && pnpm fmt-check:ext",
-        "prepare": "lefthook install",
+        "prepare": "node scripts/install-lefthook.mjs",
         "test": "pnpm jest",
         "coverage": "pnpm jest --coverage"
     },

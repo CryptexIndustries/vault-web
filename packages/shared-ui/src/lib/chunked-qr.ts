@@ -23,6 +23,15 @@ export type ChunkedQRCodeCollectorState = {
     chunks: Map<number, string>;
 };
 
+export type ChunkedQRCodeScanResult = {
+    getText: () => string;
+};
+
+export type ChunkedQRCodeUpdateCallback<T extends ChunkedQRCodeScanResult> = (
+    error: unknown,
+    result?: T | null,
+) => void;
+
 export async function createChunkedQRCodeFrames(
     payload: string,
     chunkChars = DEFAULT_CHUNKED_QR_CHARS,
@@ -91,6 +100,91 @@ export async function collectChunkedQRCodeFrame(
     progress: ChunkedQRCodeProgress;
     payload: string | null;
 }> {
+    const collection = collectChunkedQRCodeFrameCandidate(currentState, frame);
+    if (!collection.payload) {
+        return collection;
+    }
+
+    if (await hasSha256Base64Url(collection.payload, collection.state.hash)) {
+        return collection;
+    }
+
+    return resetChunkedQRCodeCollection(frame);
+}
+
+export function handleChunkedQRCodeUpdate<T extends ChunkedQRCodeScanResult>({
+    currentState,
+    error,
+    result,
+    onUpdate,
+    onChunkProgress,
+    onStateChange,
+}: {
+    currentState: ChunkedQRCodeCollectorState | null;
+    error: unknown;
+    result?: T | null;
+    onUpdate?: ChunkedQRCodeUpdateCallback<T>;
+    onChunkProgress?: (progress: ChunkedQRCodeProgress | null) => void;
+    onStateChange: (state: ChunkedQRCodeCollectorState | null) => void;
+}) {
+    if (!result) {
+        onUpdate?.(error, result);
+        return;
+    }
+
+    const text = result.getText();
+    const frame = parseChunkedQRCodeFrame(text);
+    if (!frame) {
+        if (text.startsWith(`${CHUNKED_QR_PREFIX}:`)) {
+            onUpdate?.(error, null);
+            return;
+        }
+
+        onStateChange(null);
+        onChunkProgress?.(null);
+        onUpdate?.(error, result);
+        return;
+    }
+
+    const collection = collectChunkedQRCodeFrameCandidate(currentState, frame);
+    onStateChange(collection.state);
+    onChunkProgress?.(collection.progress);
+    if (!collection.payload) {
+        onUpdate?.(error, null);
+        return;
+    }
+
+    void hasSha256Base64Url(collection.payload, collection.state.hash)
+        .then((isValid) => {
+            if (!isValid) {
+                const reset = resetChunkedQRCodeCollection(frame);
+                onStateChange(reset.state);
+                onChunkProgress?.(reset.progress);
+                onUpdate?.(error, null);
+                return;
+            }
+
+            onStateChange(null);
+            onUpdate?.(error, {
+                ...result,
+                getText: () => collection.payload!,
+            });
+        })
+        .catch((chunkError) => {
+            onStateChange(null);
+            onChunkProgress?.(null);
+            onUpdate?.(chunkError, null);
+        });
+}
+
+function collectChunkedQRCodeFrameCandidate(
+    currentState: ChunkedQRCodeCollectorState | null,
+    frame: ChunkedQRCodeFrame,
+): {
+    state: ChunkedQRCodeCollectorState;
+    progress: ChunkedQRCodeProgress;
+    payload: string | null;
+} {
     const state =
         currentState &&
         currentState.transferId === frame.transferId &&
@@ -115,13 +209,20 @@ export async function collectChunkedQRCodeFrame(
         return { state, progress, payload: null };
     }
 
-    const payload = Array.from({ length: state.total }, (_, index) =>
-        state.chunks.get(index),
-    ).join("");
-    if (await hasSha256Base64Url(payload, state.hash)) {
-        return { state, progress, payload };
-    }
+    return {
+        state,
+        progress,
+        payload: Array.from({ length: state.total }, (_, index) =>
+            state.chunks.get(index),
+        ).join(""),
+    };
+}
 
+function resetChunkedQRCodeCollection(frame: ChunkedQRCodeFrame): {
+    state: ChunkedQRCodeCollectorState;
+    progress: ChunkedQRCodeProgress;
+    payload: null;
+} {
     return {
         state: {
             transferId: frame.transferId,

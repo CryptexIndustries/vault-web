@@ -70,6 +70,7 @@ import {
     vaultLog,
 } from "../utils/ext-logging";
 import BarcodeScanner from "./qr-scanner";
+import type { ChunkedQRCodeProgress } from "@ui/lib/chunked-qr";
 import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
@@ -237,6 +238,8 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const [qrCodeData, setQRCodeData] = useState("");
     const [linkFile, setLinkFile] = useState<File | null>(null);
     const [isScanning, setIsScanning] = useState(false);
+    const [qrChunkProgress, setQrChunkProgress] =
+        useState<ChunkedQRCodeProgress | null>(null);
     const [cameraError, setCameraError] = useState("");
     const [formError, setFormError] = useState("");
     const [steps, setSteps] = useState<ReceiveLinkStep[]>(createSteps);
@@ -313,6 +316,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         setQRCodeData("");
         setLinkFile(null);
         setIsScanning(false);
+        setQrChunkProgress(null);
         setCameraError("");
         setFormError("");
         resetEncryptionForm();
@@ -772,14 +776,17 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                         onUpdate={(_, result) => {
                                             if (result) {
                                                 setQRCodeData(result.getText());
+                                                setQrChunkProgress(null);
                                                 setIsScanning(false);
                                                 uiLog.info("QR scan succeeded");
                                             }
                                         }}
+                                        onChunkProgress={setQrChunkProgress}
                                         onError={(error) => {
                                             uiLog.warn("QR scanner error", {
                                                 error: String(error),
                                             });
+                                            setQrChunkProgress(null);
                                             setCameraError(
                                                 "Camera unavailable. Paste QR data instead.",
                                             );
@@ -800,6 +807,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                             onClick={() => {
                                                 setCameraError("");
                                                 setQRCodeData("");
+                                                setQrChunkProgress(null);
                                                 setIsScanning(true);
                                             }}
                                         >
@@ -809,6 +817,13 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                     </div>
                                 )}
                             </div>
+                            {qrChunkProgress ? (
+                                <p className="text-xs text-muted-foreground">
+                                    Scanned {qrChunkProgress.received} of{" "}
+                                    {qrChunkProgress.total} QR parts. Keep
+                                    camera pointed at sender.
+                                </p>
+                            ) : null}
                             <Textarea
                                 value={qrCodeData}
                                 onChange={(
@@ -823,7 +838,10 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => setQRCodeData("")}
+                                    onClick={() => {
+                                        setQRCodeData("");
+                                        setQrChunkProgress(null);
+                                    }}
                                 >
                                     <X className="mr-1 h-3.5 w-3.5" />
                                     Clear QR data

@@ -4,8 +4,11 @@ import { TextEncoder } from "util";
 import {
     collectChunkedQRCodeFrame,
     createChunkedQRCodeFrames,
+    handleChunkedQRCodeUpdate,
     parseChunkedQRCodeFrame,
-} from "../../src/lib/chunked-qr";
+    type ChunkedQRCodeCollectorState,
+    type ChunkedQRCodeProgress,
+} from "@ui/lib/chunked-qr";
 
 Object.defineProperty(globalThis, "crypto", {
     value: webcrypto,
@@ -47,5 +50,58 @@ describe("chunked QR helpers", () => {
         }
 
         expect(assembled).toBe(payload);
+    });
+
+    it("scan update helper waits for every chunk before emitting payload", async () => {
+        const payload = "abcdefghijklmnopqrstuvwxyz";
+        const frames = await createChunkedQRCodeFrames(payload, 7);
+        let state: ChunkedQRCodeCollectorState | null = null;
+        const progress: ChunkedQRCodeProgress[] = [];
+        const emitted: Array<string | null> = [];
+
+        for (const frameText of frames.slice(0, -1)) {
+            handleChunkedQRCodeUpdate({
+                currentState: state,
+                error: null,
+                result: { getText: () => frameText },
+                onUpdate: (_, result) =>
+                    emitted.push(result?.getText() ?? null),
+                onChunkProgress: (nextProgress) => {
+                    if (nextProgress) progress.push(nextProgress);
+                },
+                onStateChange: (nextState) => {
+                    state = nextState;
+                },
+            });
+        }
+
+        expect(state?.chunks.size).toBe(frames.length - 1);
+        expect(progress.at(-1)).toMatchObject({
+            received: frames.length - 1,
+            total: frames.length,
+        });
+        expect(emitted).toEqual(Array(frames.length - 1).fill(null));
+
+        await new Promise<void>((resolve) => {
+            handleChunkedQRCodeUpdate({
+                currentState: state,
+                error: null,
+                result: { getText: () => frames.at(-1)! },
+                onUpdate: (_, result) => {
+                    if (!result) return;
+                    emitted.push(result.getText());
+                    resolve();
+                },
+                onChunkProgress: (nextProgress) => {
+                    if (nextProgress) progress.push(nextProgress);
+                },
+                onStateChange: (nextState) => {
+                    state = nextState;
+                },
+            });
+        });
+
+        expect(emitted.at(-1)).toBe(payload);
+        expect(state).toBeNull();
     });
 });

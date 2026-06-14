@@ -106,7 +106,7 @@ import {
     DEFAULT_CHUNKED_QR_CHARS,
     DEFAULT_CHUNKED_QR_CYCLE_MS,
     type ChunkedQRCodeProgress,
-} from "@/lib/chunked-qr";
+} from "@ui/lib/chunked-qr";
 import { TRPCClientError } from "@trpc/client";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import {

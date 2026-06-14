@@ -606,7 +606,7 @@ function DeviceItem({
                     className={cn(
                         "flex h-8 w-8 items-center justify-center rounded-md",
                         connectionDisplay.tone === "connected"
-                            ? "bg-primary/10 text-primary"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                             : connectionDisplay.tone === "connecting"
                               ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                               : connectionDisplay.tone === "error"
@@ -620,7 +620,7 @@ function DeviceItem({
                     className={cn(
                         "border-sidebar absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2",
                         connectionDisplay.tone === "connected"
-                            ? "bg-primary"
+                            ? "bg-emerald-500"
                             : connectionDisplay.tone === "connecting"
                               ? "bg-amber-500"
                               : connectionDisplay.tone === "error"

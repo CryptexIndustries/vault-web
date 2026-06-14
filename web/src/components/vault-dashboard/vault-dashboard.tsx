@@ -780,7 +780,7 @@ export function VaultDashboard() {
     const accountButtonLabel = (() => {
         if (!passkeyBound) return "Sign up";
         if (!hasOnlineAuth) return "Sign in";
-        return "Connected";
+        return "Signed In";
     })();
 
     const accountButtonClassName = cn(

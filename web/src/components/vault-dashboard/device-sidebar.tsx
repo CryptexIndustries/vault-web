@@ -643,7 +643,7 @@ function DeviceItem({
                         connectionDisplay.tone === "error"
                             ? "text-destructive"
                             : connectionDisplay.tone === "connected"
-                              ? "text-primary"
+                              ? "text-emerald-700 dark:text-emerald-400"
                               : connectionDisplay.tone === "connecting"
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-muted-foreground",

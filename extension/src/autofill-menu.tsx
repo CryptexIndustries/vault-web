@@ -8,10 +8,9 @@
  *     accept the vault passphrase in the iframe — the iframe lives on
  *     a third-party page and we don't want users habituated to typing
  *     their vault secret somewhere a phishing page could imitate.
- *   - Unlocked: shows matching credentials (exact host first, eTLD+1
- *     under "Other matches"). When the focused field is an OTP slot,
- *     only credentials with TOTP configured are listed and selecting
- *     one fills the rolling code instead.
+ *   - Unlocked: shows exact-host matching credentials. When the focused
+ *     field is an OTP slot, only credentials with TOTP configured are
+ *     listed and selecting one fills the rolling code instead.
  *
  * Communication with the parent CS is bidirectional over a
  * `MessageChannel` port that the parent transfers in during the
@@ -29,6 +28,10 @@ import "./autofill-menu.css";
 import { MessageType, type LiteCredential } from "./types/sw-messaging";
 import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 import { uiLog } from "./utils/ext-logging";
+import {
+    claimAutofillFrameBootstrap,
+    isExpectedAutofillInit,
+} from "./utils/autofill-frame-bootstrap";
 
 type FieldKind = "username" | "password" | "newPassword" | "otp";
 
@@ -68,6 +71,8 @@ const App = () => {
     const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
+
         const onPortMessage = (event: MessageEvent) => {
             const data = event.data as IncomingMessage | undefined;
             if (!data || typeof data !== "object") return;
@@ -79,28 +84,41 @@ const App = () => {
             }
         };
 
-        const onBootstrap = (event: MessageEvent) => {
-            if (event.source !== window.parent) return;
-            const data = event.data as { kind?: string } | undefined;
-            if (data?.kind !== "init") return;
-            const port = event.ports?.[0];
-            if (!port) return;
-            window.removeEventListener("message", onBootstrap);
-            outboundPort = port;
-            port.onmessage = onPortMessage;
-            port.start();
-        };
+        let onBootstrap: ((event: MessageEvent) => void) | null = null;
+        void claimAutofillFrameBootstrap("autofill-menu").then((bootstrap) => {
+            if (cancelled || !bootstrap) return;
+            onBootstrap = (event: MessageEvent) => {
+                if (event.source !== window.parent) return;
+                if (!isExpectedAutofillInit(event.data, bootstrap)) return;
+                const port = event.ports?.[0];
+                if (!port) return;
+                const currentBootstrap = onBootstrap;
+                if (currentBootstrap) {
+                    window.removeEventListener("message", currentBootstrap);
+                }
+                onBootstrap = null;
+                outboundPort = port;
+                port.onmessage = onPortMessage;
+                port.start();
+            };
 
-        window.addEventListener("message", onBootstrap);
+            window.addEventListener("message", onBootstrap);
 
-        try {
-            window.parent.postMessage({ kind: "ready" }, "*");
-        } catch (err) {
-            uiLog.warn("[autofill-menu] ready post failed", { err });
-        }
+            try {
+                window.parent.postMessage(
+                    { kind: "ready", mountId: bootstrap.mountId },
+                    "*",
+                );
+            } catch (err) {
+                uiLog.warn("[autofill-menu] ready post failed", { err });
+            }
+        });
 
         return () => {
-            window.removeEventListener("message", onBootstrap);
+            cancelled = true;
+            if (onBootstrap) {
+                window.removeEventListener("message", onBootstrap);
+            }
             if (outboundPort) {
                 outboundPort.onmessage = null;
                 outboundPort.close();

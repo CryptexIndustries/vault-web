@@ -9,7 +9,7 @@
  *   - filling selected credentials and wiping local references
  *   - prompting the user to save new credentials on form submit
  *
- * Security choices (mirrors `docs/plan` and the design conversation):
+ * Security choices (mirrors `extension/docs/autofill/README.md`):
  *   - Top-frame only. Sub-frames cannot run autofill UI; the SW also
  *     enforces this via `sender.frameId === 0`.
  *   - All sensitive traffic with the SW uses the same envelope-encrypted
@@ -17,7 +17,8 @@
  *     `setEnvelopeOriginOverride("autofill-cs")` so the SW recognises us.
  *   - Iframe contents are loaded from the extension origin and isolated
  *     from the host page. Communication uses `MessageChannel` ports so
- *     unrelated `postMessage` traffic on the page cannot pose as the UI.
+ *     unrelated `postMessage` traffic on the page cannot pose as the UI;
+ *     each iframe first claims a SW-backed nonce before accepting `init`.
  *   - Credential secrets only live in local variables for the duration
  *     of a single fill, then references are cleared so GC can collect
  *     them. (JS strings are immutable; "wipe" amounts to dropping refs
@@ -28,13 +29,17 @@ import {
     MessageType,
     type GenerateTOTPResponse,
     type GetCredentialSecretResponse,
-    type LiteCredential,
     type PendingSavePrompt,
 } from "../types/sw-messaging";
 import {
     sendEncryptedEnvelopeToSW,
     setEnvelopeOriginOverride,
 } from "../utils/sw-envelope-client";
+import {
+    createAutofillFrameBootstrap,
+    withAutofillFrameMount,
+    type AutofillFrameBootstrap,
+} from "../utils/autofill-frame-bootstrap";
 import {
     detectGroups,
     isVisible,
@@ -79,12 +84,29 @@ interface IconHandle {
     groupId: string;
     mode: IconMode;
     iframe: HTMLIFrameElement;
+    mounted: boolean;
     port: MessagePort | null;
     cleanup: () => void;
 }
 
 const iconsByField = new Map<HTMLInputElement, IconHandle>();
 const trackedGroups = new Map<string, FieldGroup>();
+
+function postBootstrapInit(
+    iframe: HTMLIFrameElement,
+    bootstrap: AutofillFrameBootstrap,
+    port: MessagePort,
+): void {
+    iframe.contentWindow?.postMessage(
+        {
+            kind: "init",
+            mountId: bootstrap.mountId,
+            nonce: bootstrap.nonce,
+        },
+        EXTENSION_ORIGIN,
+        [port],
+    );
+}
 
 /**
  * Tracks credentials that were autofilled into a given field set so we
@@ -102,10 +124,16 @@ let menuActiveGroup: FieldGroup | null = null;
 let generatorIframe: HTMLIFrameElement | null = null;
 let generatorPort: MessagePort | null = null;
 let generatorActiveIcon: IconHandle | null = null;
+let menuHandshakeListener: ((event: MessageEvent) => void) | null = null;
+let generatorHandshakeListener: ((event: MessageEvent) => void) | null = null;
+let saveHandshakeListener: ((event: MessageEvent) => void) | null = null;
+let menuMountToken = 0;
+let generatorMountToken = 0;
 let menuLockPollTimer: number | null = null;
 let menuLockPollStartedAt = 0;
 let saveIframe: HTMLIFrameElement | null = null;
 let savePort: MessagePort | null = null;
+let saveMountToken = 0;
 let initialised = false;
 
 function shouldRun(): boolean {
@@ -157,7 +185,6 @@ function mountIconForField(
     }
 
     const iframe = document.createElement("iframe");
-    iframe.src = mode === "generator" ? GENERATOR_ICON_URL : ICON_URL;
     iframe.setAttribute("role", "presentation");
     iframe.setAttribute("data-cryptex-autofill", "icon");
     iframe.style.cssText = [
@@ -169,9 +196,6 @@ function mountIconForField(
         "pointer-events: auto",
     ].join(";");
 
-    document.documentElement.appendChild(iframe);
-    positionIconOverField(iframe, field);
-
     let handshakeListener: ((event: MessageEvent) => void) | null = null;
     const handle: IconHandle = {
         field,
@@ -179,6 +203,7 @@ function mountIconForField(
         groupId: group.groupId,
         mode,
         iframe,
+        mounted: false,
         port: null,
         cleanup: () => {
             if (handshakeListener) {
@@ -191,31 +216,53 @@ function mountIconForField(
         },
     };
 
-    handshakeListener = (event: MessageEvent) => {
-        if (event.source !== iframe.contentWindow) return;
-        const data = event.data as { kind?: string } | undefined;
-        if (data?.kind !== "ready") return;
-        if (event.origin !== EXTENSION_ORIGIN) return;
-        if (handshakeListener) {
-            window.removeEventListener("message", handshakeListener);
-            handshakeListener = null;
-        }
-        const channel = new MessageChannel();
-        handle.port = channel.port1;
-        channel.port1.onmessage = (ev) => {
-            const msg = ev.data as { kind?: string } | undefined;
-            if (msg?.kind === "click") {
-                void handleIconClick(handle);
-            }
-        };
-        channel.port1.start();
-        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
-            channel.port2,
-        ]);
-    };
-    window.addEventListener("message", handshakeListener);
-
     iconsByField.set(field, handle);
+
+    const initialise = async () => {
+        const bootstrap = await createAutofillFrameBootstrap("autofill-icon");
+        if (
+            !bootstrap ||
+            iconsByField.get(field) !== handle ||
+            !field.isConnected
+        ) {
+            handle.cleanup();
+            if (iconsByField.get(field) === handle) iconsByField.delete(field);
+            return;
+        }
+
+        iframe.src = withAutofillFrameMount(
+            mode === "generator" ? GENERATOR_ICON_URL : ICON_URL,
+            bootstrap.mountId,
+        );
+
+        document.documentElement.appendChild(iframe);
+        handle.mounted = true;
+        positionIconOverField(iframe, field);
+
+        handshakeListener = (event: MessageEvent) => {
+            if (event.source !== iframe.contentWindow) return;
+            const data = event.data as { kind?: string } | undefined;
+            if (data?.kind !== "ready") return;
+            if (event.origin !== EXTENSION_ORIGIN) return;
+            if (handshakeListener) {
+                window.removeEventListener("message", handshakeListener);
+                handshakeListener = null;
+            }
+            const channel = new MessageChannel();
+            handle.port = channel.port1;
+            channel.port1.onmessage = (ev) => {
+                const msg = ev.data as { kind?: string } | undefined;
+                if (msg?.kind === "click") {
+                    void handleIconClick(handle);
+                }
+            };
+            channel.port1.start();
+            postBootstrapInit(iframe, bootstrap, channel.port2);
+        };
+        window.addEventListener("message", handshakeListener);
+    };
+
+    void initialise();
     return handle;
 }
 
@@ -224,6 +271,11 @@ function mountIconForField(
 /* -------------------------------------------------------------------------- */
 
 function closeMenu(): void {
+    menuMountToken += 1;
+    if (menuHandshakeListener) {
+        window.removeEventListener("message", menuHandshakeListener);
+        menuHandshakeListener = null;
+    }
     if (menuLockPollTimer != null) {
         window.clearTimeout(menuLockPollTimer);
         menuLockPollTimer = null;
@@ -237,9 +289,16 @@ function closeMenu(): void {
         menuIframe = null;
     }
     menuActiveGroup = null;
+    document.removeEventListener("mousedown", onDocumentMouseDown, true);
+    document.removeEventListener("keydown", onDocumentKeyDown, true);
 }
 
 function closeGenerator(): void {
+    generatorMountToken += 1;
+    if (generatorHandshakeListener) {
+        window.removeEventListener("message", generatorHandshakeListener);
+        generatorHandshakeListener = null;
+    }
     if (generatorPort) {
         generatorPort.close();
         generatorPort = null;
@@ -334,12 +393,16 @@ async function openGeneratorForField(icon: IconHandle): Promise<void> {
         return;
     }
     closeGenerator();
+    const token = generatorMountToken;
 
     const group = trackedGroups.get(icon.groupId);
     if (!group) return;
 
+    const bootstrap = await createAutofillFrameBootstrap("autofill-generator");
+    if (!bootstrap || token !== generatorMountToken) return;
+
     const iframe = document.createElement("iframe");
-    iframe.src = GENERATOR_URL;
+    iframe.src = withAutofillFrameMount(GENERATOR_URL, bootstrap.mountId);
     iframe.setAttribute("data-cryptex-autofill", "generator");
     iframe.style.cssText = [
         "position: absolute",
@@ -356,28 +419,29 @@ async function openGeneratorForField(icon: IconHandle): Promise<void> {
     generatorIframe = iframe;
     generatorActiveIcon = icon;
 
-    const handshake = (event: MessageEvent) => {
+    generatorHandshakeListener = (event: MessageEvent) => {
         if (event.source !== iframe.contentWindow) return;
         const data = event.data as { kind?: string } | undefined;
         if (data?.kind !== "ready") return;
         if (event.origin !== EXTENSION_ORIGIN) return;
-        window.removeEventListener("message", handshake);
+        if (generatorHandshakeListener) {
+            window.removeEventListener("message", generatorHandshakeListener);
+            generatorHandshakeListener = null;
+        }
         const channel = new MessageChannel();
         generatorPort = channel.port1;
         channel.port1.onmessage = (ev) => {
             void handleGeneratorMessage(ev.data, icon, group);
         };
         channel.port1.start();
-        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
-            channel.port2,
-        ]);
+        postBootstrapInit(iframe, bootstrap, channel.port2);
         try {
             generatorPort.postMessage({ kind: "init" });
         } catch (err) {
             console.debug("[autofill-cs] generator init failed", err);
         }
     };
-    window.addEventListener("message", handshake);
+    window.addEventListener("message", generatorHandshakeListener);
 
     document.addEventListener("mousedown", onGeneratorDocumentMouseDown, true);
     document.addEventListener("keydown", onGeneratorDocumentKeyDown, true);
@@ -425,6 +489,7 @@ function fillGeneratedPassword(
 async function openMenuForGroup(group: FieldGroup): Promise<void> {
     closeMenu();
     closeGenerator();
+    const token = menuMountToken;
 
     const origin = getEffectiveOrigin();
     if (!origin) return;
@@ -432,8 +497,11 @@ async function openMenuForGroup(group: FieldGroup): Promise<void> {
     const lockedRes = await fetchVaultLocked();
     if (lockedRes === null) return;
 
+    const bootstrap = await createAutofillFrameBootstrap("autofill-menu");
+    if (!bootstrap || token !== menuMountToken) return;
+
     const iframe = document.createElement("iframe");
-    iframe.src = MENU_URL;
+    iframe.src = withAutofillFrameMount(MENU_URL, bootstrap.mountId);
     iframe.setAttribute("data-cryptex-autofill", "menu");
     iframe.style.cssText = [
         "position: absolute",
@@ -457,28 +525,29 @@ async function openMenuForGroup(group: FieldGroup): Promise<void> {
         locked: lockedRes,
     } as const;
 
-    const handshake = (event: MessageEvent) => {
+    menuHandshakeListener = (event: MessageEvent) => {
         if (event.source !== iframe.contentWindow) return;
         const data = event.data as { kind?: string } | undefined;
         if (data?.kind !== "ready") return;
         if (event.origin !== EXTENSION_ORIGIN) return;
-        window.removeEventListener("message", handshake);
+        if (menuHandshakeListener) {
+            window.removeEventListener("message", menuHandshakeListener);
+            menuHandshakeListener = null;
+        }
         const channel = new MessageChannel();
         menuPort = channel.port1;
         channel.port1.onmessage = (ev) => {
             void handleMenuMessage(ev.data, group);
         };
         channel.port1.start();
-        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
-            channel.port2,
-        ]);
+        postBootstrapInit(iframe, bootstrap, channel.port2);
         try {
             menuPort.postMessage({ kind: "init", payload: init });
         } catch (err) {
             console.debug("[autofill-cs] menu init failed", err);
         }
     };
-    window.addEventListener("message", handshake);
+    window.addEventListener("message", menuHandshakeListener);
 
     document.addEventListener("mousedown", onDocumentMouseDown, true);
     document.addEventListener("keydown", onDocumentKeyDown, true);
@@ -500,15 +569,11 @@ function onDocumentMouseDown(event: MouseEvent): void {
         return;
     }
     closeMenu();
-    document.removeEventListener("mousedown", onDocumentMouseDown, true);
-    document.removeEventListener("keydown", onDocumentKeyDown, true);
 }
 
 function onDocumentKeyDown(event: KeyboardEvent): void {
     if (event.key === "Escape" && menuIframe) {
         closeMenu();
-        document.removeEventListener("mousedown", onDocumentMouseDown, true);
-        document.removeEventListener("keydown", onDocumentKeyDown, true);
     }
 }
 
@@ -517,6 +582,11 @@ function onDocumentKeyDown(event: KeyboardEvent): void {
 /* -------------------------------------------------------------------------- */
 
 function closeSavePrompt(): void {
+    saveMountToken += 1;
+    if (saveHandshakeListener) {
+        window.removeEventListener("message", saveHandshakeListener);
+        saveHandshakeListener = null;
+    }
     if (savePort) {
         savePort.close();
         savePort = null;
@@ -542,9 +612,25 @@ function mountSavePrompt(payload: {
     password: string;
 }): void {
     closeSavePrompt();
+    const token = saveMountToken;
+
+    void mountSavePromptWithBootstrap(payload, token);
+}
+
+async function mountSavePromptWithBootstrap(
+    payload: {
+        host: string;
+        url: string;
+        username: string;
+        password: string;
+    },
+    token: number,
+): Promise<void> {
+    const bootstrap = await createAutofillFrameBootstrap("autofill-save");
+    if (!bootstrap || saveIframe || token !== saveMountToken) return;
 
     const iframe = document.createElement("iframe");
-    iframe.src = SAVE_URL;
+    iframe.src = withAutofillFrameMount(SAVE_URL, bootstrap.mountId);
     iframe.setAttribute("data-cryptex-autofill", "save");
     iframe.style.cssText = [
         "position: fixed",
@@ -563,12 +649,15 @@ function mountSavePrompt(payload: {
     document.documentElement.appendChild(iframe);
     saveIframe = iframe;
 
-    const handshake = (event: MessageEvent) => {
+    saveHandshakeListener = (event: MessageEvent) => {
         if (event.source !== iframe.contentWindow) return;
         const data = event.data as { kind?: string } | undefined;
         if (data?.kind !== "ready") return;
         if (event.origin !== EXTENSION_ORIGIN) return;
-        window.removeEventListener("message", handshake);
+        if (saveHandshakeListener) {
+            window.removeEventListener("message", saveHandshakeListener);
+            saveHandshakeListener = null;
+        }
         const channel = new MessageChannel();
         savePort = channel.port1;
         channel.port1.onmessage = (ev) => {
@@ -588,16 +677,14 @@ function mountSavePrompt(payload: {
             }
         };
         channel.port1.start();
-        iframe.contentWindow?.postMessage({ kind: "init" }, EXTENSION_ORIGIN, [
-            channel.port2,
-        ]);
+        postBootstrapInit(iframe, bootstrap, channel.port2);
         try {
             savePort.postMessage({ kind: "init", payload });
         } catch (err) {
             console.debug("[autofill-cs] save init failed", err);
         }
     };
-    window.addEventListener("message", handshake);
+    window.addEventListener("message", saveHandshakeListener);
 }
 
 function pendingPromptToPayload(prompt: PendingSavePrompt): {
@@ -869,6 +956,9 @@ function reconcile(): void {
 
     for (const [groupId] of trackedGroups) {
         if (!seenGroupIds.has(groupId)) {
+            if (menuActiveGroup?.groupId === groupId) {
+                closeMenu();
+            }
             trackedGroups.delete(groupId);
             lastFilledByGroup.delete(groupId);
         }

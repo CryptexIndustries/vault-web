@@ -13,6 +13,10 @@ import "./autofill-generator.css";
 
 import { PasswordGeneratorPanel } from "@/components/ui/password-generator";
 import { uiLog } from "./utils/ext-logging";
+import {
+    claimAutofillFrameBootstrap,
+    isExpectedAutofillInit,
+} from "./utils/autofill-frame-bootstrap";
 
 type ParentMessage = { kind: "use"; password: string } | { kind: "close" };
 
@@ -29,27 +33,46 @@ function postToParent(message: ParentMessage): void {
 
 const App = () => {
     useEffect(() => {
-        const onBootstrap = (event: MessageEvent) => {
-            if (event.source !== window.parent) return;
-            const data = event.data as { kind?: string } | undefined;
-            if (data?.kind !== "init") return;
-            const port = event.ports?.[0];
-            if (!port) return;
-            window.removeEventListener("message", onBootstrap);
-            outboundPort = port;
-            port.start();
-        };
+        let cancelled = false;
+        let onBootstrap: ((event: MessageEvent) => void) | null = null;
 
-        window.addEventListener("message", onBootstrap);
+        void claimAutofillFrameBootstrap("autofill-generator").then(
+            (bootstrap) => {
+                if (cancelled || !bootstrap) return;
+                onBootstrap = (event: MessageEvent) => {
+                    if (event.source !== window.parent) return;
+                    if (!isExpectedAutofillInit(event.data, bootstrap)) return;
+                    const port = event.ports?.[0];
+                    if (!port) return;
+                    const currentBootstrap = onBootstrap;
+                    if (currentBootstrap) {
+                        window.removeEventListener("message", currentBootstrap);
+                    }
+                    onBootstrap = null;
+                    outboundPort = port;
+                    port.start();
+                };
 
-        try {
-            window.parent.postMessage({ kind: "ready" }, "*");
-        } catch (err) {
-            uiLog.warn("[autofill-generator] ready post failed", { err });
-        }
+                window.addEventListener("message", onBootstrap);
+
+                try {
+                    window.parent.postMessage(
+                        { kind: "ready", mountId: bootstrap.mountId },
+                        "*",
+                    );
+                } catch (err) {
+                    uiLog.warn("[autofill-generator] ready post failed", {
+                        err,
+                    });
+                }
+            },
+        );
 
         return () => {
-            window.removeEventListener("message", onBootstrap);
+            cancelled = true;
+            if (onBootstrap) {
+                window.removeEventListener("message", onBootstrap);
+            }
             if (outboundPort) {
                 outboundPort.close();
                 outboundPort = null;

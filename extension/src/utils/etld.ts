@@ -1,13 +1,15 @@
 /**
- * Lightweight eTLD+1 derivation used by the autofill matcher.
+ * Lightweight eTLD+1 derivation used by autofill origin context.
  *
  * A full Public Suffix List bundle would add ~30 KB to every page the
  * content script touches, so we ship a hand-curated list of multi-label
  * suffixes (ccTLD second-levels + common platform suffixes) and fall
- * back to the last-two-labels heuristic for everything else. The result
- * is deterministic, dependency-free, and good enough for fuzzy
- * credential matching: the worst case is matching one label too narrow
- * (a single-host miss in an obscure ccTLD), never matching too broad.
+ * back to the last-two-labels heuristic for everything else.
+ *
+ * Security note: password/TOTP release is exact-host-only. This helper
+ * must not be used as an authority for releasing credentials across
+ * sibling subdomains unless a future explicit user-approved policy adds
+ * that behavior.
  */
 
 /**
@@ -161,7 +163,7 @@ export function parseOriginish(
 
     try {
         const url = new URL(trimmed);
-        const host = url.hostname.toLowerCase();
+        const host = url.hostname.toLowerCase().replace(/\.$/, "");
         if (!host) return null;
         return { host, etldPlus1: etldPlus1(host) };
     } catch {

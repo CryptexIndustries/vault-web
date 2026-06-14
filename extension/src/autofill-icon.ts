@@ -13,12 +13,18 @@
  * Handshake:
  *   1. On load the iframe posts `{ kind: "ready" }` to its parent
  *      window so the content script knows where to send the port.
- *   2. The content script replies with `{ kind: "init" }` carrying a
- *      `MessagePort` in the transfer list.
+ *   2. The content script replies with `{ kind: "init", nonce }`
+ *      carrying a `MessagePort` in the transfer list. The nonce is
+ *      claimed from the SW so the host page cannot spoof the bootstrap.
  *   3. From there, every interaction is sent over the port. The
  *      original `window.message` handler is removed so unsolicited
  *      page messages can't influence the iframe.
  */
+
+import {
+    claimAutofillFrameBootstrap,
+    isExpectedAutofillInit,
+} from "./utils/autofill-frame-bootstrap";
 
 type IconMessage =
     | { kind: "click" }
@@ -53,29 +59,37 @@ function post(message: IconMessage): void {
     }
 }
 
-function onBootstrapMessage(event: MessageEvent): void {
-    // The CS lives in the host page's window, so `event.source` will be
-    // `window.parent`. We rely on the transferred port rather than
-    // sniffing `event.origin` (the parent's origin is the host page,
-    // not the extension).
-    if (event.source !== window.parent) return;
-    const data = event.data as unknown;
-    if (
-        !data ||
-        typeof data !== "object" ||
-        (data as { kind?: unknown }).kind !== "init"
-    ) {
-        return;
+async function initialiseBootstrap(): Promise<void> {
+    const bootstrap = await claimAutofillFrameBootstrap("autofill-icon");
+    if (!bootstrap) return;
+
+    const onBootstrapMessage = (event: MessageEvent) => {
+        // The CS lives in the host page's window, so `event.source` will be
+        // `window.parent`. The parent origin is the host page, so the
+        // SW-backed nonce authenticates the content script instead.
+        if (event.source !== window.parent) return;
+        if (!isExpectedAutofillInit(event.data, bootstrap)) return;
+        const incoming = event.ports?.[0];
+        if (!incoming) return;
+
+        window.removeEventListener("message", onBootstrapMessage);
+        port = incoming;
+        port.start();
+    };
+
+    window.addEventListener("message", onBootstrapMessage);
+
+    // Announce ourselves to the parent. The CS will be listening for this
+    // before it hands us the port.
+    try {
+        window.parent.postMessage(
+            { kind: "ready", mountId: bootstrap.mountId },
+            "*",
+        );
+    } catch (err) {
+        console.debug("[autofill-icon] ready post failed", err);
     }
-    const incoming = event.ports?.[0];
-    if (!incoming) return;
-
-    window.removeEventListener("message", onBootstrapMessage);
-    port = incoming;
-    port.start();
 }
-
-window.addEventListener("message", onBootstrapMessage);
 
 if (button) {
     button.addEventListener("click", (ev) => {
@@ -87,10 +101,4 @@ if (button) {
     button.addEventListener("mouseleave", () => post({ kind: "hover-leave" }));
 }
 
-// Announce ourselves to the parent. The CS will be listening for this
-// before it hands us the port.
-try {
-    window.parent.postMessage({ kind: "ready" }, "*");
-} catch (err) {
-    console.debug("[autofill-icon] ready post failed", err);
-}
+void initialiseBootstrap();

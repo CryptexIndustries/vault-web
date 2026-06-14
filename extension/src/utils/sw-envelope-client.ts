@@ -58,6 +58,9 @@ export function detectEnvelopeOrigin(): EnvelopeOrigin {
     if (pathname.endsWith("/offscreen.html")) return "offscreen";
     if (pathname.endsWith("/autofill-icon.html")) return "autofill-icon";
     if (pathname.endsWith("/autofill-menu.html")) return "autofill-menu";
+    if (pathname.endsWith("/autofill-generator.html")) {
+        return "autofill-generator";
+    }
     if (pathname.endsWith("/autofill-save.html")) return "autofill-save";
     return "popup";
 }

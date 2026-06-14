@@ -81,6 +81,19 @@ export enum MessageType {
      * inline menu when the focused field is `one-time-code`.
      */
     GenerateTOTP = 25,
+
+    /**
+     * Autofill: content script registers an iframe bootstrap nonce with
+     * the SW before loading an extension iframe on a host page.
+     */
+    RegisterAutofillFrame = 26,
+
+    /**
+     * Autofill: extension iframe claims its bootstrap nonce from the SW.
+     * The host page can see the mount id in the iframe URL, but cannot
+     * call this extension-only message to learn the secret nonce.
+     */
+    ClaimAutofillFrame = 27,
 }
 
 /**
@@ -94,6 +107,8 @@ export enum MessageType {
  *   - `autofill-icon`: per-field icon iframe loaded from the extension.
  *   - `autofill-menu`: shared inline picker/unlock iframe loaded from the
  *     extension.
+ *   - `autofill-generator`: inline password generator iframe loaded from
+ *     the extension.
  *   - `autofill-save`: persistent save-login iframe loaded from the
  *     extension.
  */
@@ -105,6 +120,7 @@ export type EnvelopeOrigin =
     | "autofill-cs"
     | "autofill-icon"
     | "autofill-menu"
+    | "autofill-generator"
     | "autofill-save";
 
 /**
@@ -177,8 +193,31 @@ export interface GetCredentialsForOriginResponse {
     ok: boolean;
     /** Exact host matches (e.g. `accounts.example.com` == `accounts.example.com`). */
     exact: LiteCredential[];
-    /** eTLD+1 matches that did not match exactly. */
+    /** Reserved for future explicit user-approved sibling-domain matches. */
     fuzzy: LiteCredential[];
+    error?: string;
+}
+
+export type AutofillFrameKind =
+    | "autofill-icon"
+    | "autofill-menu"
+    | "autofill-generator"
+    | "autofill-save";
+
+export interface RegisterAutofillFrameRequest {
+    mountId: string;
+    nonce: string;
+    kind: AutofillFrameKind;
+}
+
+export interface ClaimAutofillFrameRequest {
+    mountId: string;
+    kind: AutofillFrameKind;
+}
+
+export interface ClaimAutofillFrameResponse {
+    ok: boolean;
+    nonce?: string;
     error?: string;
 }
 

@@ -23,6 +23,10 @@ import {
 import { validateEnvelope } from "./utils/security-utils";
 import { handleProxyFetch } from "./background/request-auth-interceptor";
 import {
+    claimAutofillFrameBootstrap,
+    registerAutofillFrameBootstrap,
+} from "./background/autofill-frame-bootstrap";
+import {
     handleConsumePendingSavePrompt,
     handleGenerateTOTP,
     handleGetCredentialsForOrigin,
@@ -96,14 +100,20 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.SaveCredentialPrompt,
         MessageType.GetPendingSavePrompt,
         MessageType.OpenPopup,
+        MessageType.RegisterAutofillFrame,
     ]),
-    "autofill-icon": new Set<MessageType>(),
+    "autofill-icon": new Set<MessageType>([MessageType.ClaimAutofillFrame]),
     "autofill-menu": new Set<MessageType>([
         MessageType.GetCredentialsForOrigin,
+        MessageType.ClaimAutofillFrame,
+    ]),
+    "autofill-generator": new Set<MessageType>([
+        MessageType.ClaimAutofillFrame,
     ]),
     "autofill-save": new Set<MessageType>([
         MessageType.CreateCredential,
         MessageType.ConsumePendingSavePrompt,
+        MessageType.ClaimAutofillFrame,
     ]),
 };
 
@@ -126,7 +136,7 @@ function getAutofillRequestOrigin(
             return null;
         }
 
-        const host = url.hostname.toLowerCase();
+        const host = url.hostname.toLowerCase().replace(/\.$/, "");
         if (!host) return null;
         return { host, etldPlus1: etldPlus1(host) };
     } catch {
@@ -339,9 +349,16 @@ async function processMessage(
     payload: any,
     sender: chrome.runtime.MessageSender,
 ): Promise<any> {
-    await ensureOffscreenDocument();
-
     try {
+        if (type === MessageType.RegisterAutofillFrame) {
+            return registerAutofillFrameBootstrap(payload, sender);
+        }
+        if (type === MessageType.ClaimAutofillFrame) {
+            return claimAutofillFrameBootstrap(payload, sender);
+        }
+
+        await ensureOffscreenDocument();
+
         switch (type) {
             case MessageType.Unlock: {
                 if (!payload.index) {

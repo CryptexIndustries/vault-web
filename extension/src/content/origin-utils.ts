@@ -22,7 +22,7 @@ export function getEffectiveOrigin(): {
     const proto = window.location.protocol;
     if (proto !== "http:" && proto !== "https:") return null;
 
-    const host = window.location.hostname.toLowerCase();
+    const host = window.location.hostname.toLowerCase().replace(/\.$/, "");
     if (!host) return null;
 
     return { host, etldPlus1: etldPlus1(host) };

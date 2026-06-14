@@ -15,6 +15,10 @@ import "./autofill-save.css";
 import PopupSaveCredential from "./components/popup-save-credential";
 import { type PendingSavePrompt } from "./types/sw-messaging";
 import { uiLog } from "./utils/ext-logging";
+import {
+    claimAutofillFrameBootstrap,
+    isExpectedAutofillInit,
+} from "./utils/autofill-frame-bootstrap";
 
 type InitPayload = Omit<PendingSavePrompt, "stashedAt">;
 
@@ -59,7 +63,7 @@ function useReportPanelHeight(
         report();
         const observer = new ResizeObserver(report);
         observer.observe(el);
-        for (const child of el.children) {
+        for (const child of Array.from(el.children)) {
             observer.observe(child);
         }
         return () => observer.disconnect();
@@ -73,6 +77,8 @@ const App = () => {
     useReportPanelHeight(panelRef, true, prompt ? "ready" : "loading");
 
     useEffect(() => {
+        let cancelled = false;
+
         const onPortMessage = (event: MessageEvent) => {
             const data = event.data as IncomingMessage | undefined;
             if (!data || typeof data !== "object") return;
@@ -84,28 +90,41 @@ const App = () => {
             }
         };
 
-        const onBootstrap = (event: MessageEvent) => {
-            if (event.source !== window.parent) return;
-            const data = event.data as { kind?: string } | undefined;
-            if (data?.kind !== "init") return;
-            const port = event.ports?.[0];
-            if (!port) return;
-            window.removeEventListener("message", onBootstrap);
-            outboundPort = port;
-            port.onmessage = onPortMessage;
-            port.start();
-        };
+        let onBootstrap: ((event: MessageEvent) => void) | null = null;
+        void claimAutofillFrameBootstrap("autofill-save").then((bootstrap) => {
+            if (cancelled || !bootstrap) return;
+            onBootstrap = (event: MessageEvent) => {
+                if (event.source !== window.parent) return;
+                if (!isExpectedAutofillInit(event.data, bootstrap)) return;
+                const port = event.ports?.[0];
+                if (!port) return;
+                const currentBootstrap = onBootstrap;
+                if (currentBootstrap) {
+                    window.removeEventListener("message", currentBootstrap);
+                }
+                onBootstrap = null;
+                outboundPort = port;
+                port.onmessage = onPortMessage;
+                port.start();
+            };
 
-        window.addEventListener("message", onBootstrap);
+            window.addEventListener("message", onBootstrap);
 
-        try {
-            window.parent.postMessage({ kind: "ready" }, "*");
-        } catch (err) {
-            uiLog.warn("[autofill-save] ready post failed", { err });
-        }
+            try {
+                window.parent.postMessage(
+                    { kind: "ready", mountId: bootstrap.mountId },
+                    "*",
+                );
+            } catch (err) {
+                uiLog.warn("[autofill-save] ready post failed", { err });
+            }
+        });
 
         return () => {
-            window.removeEventListener("message", onBootstrap);
+            cancelled = true;
+            if (onBootstrap) {
+                window.removeEventListener("message", onBootstrap);
+            }
             if (outboundPort) {
                 outboundPort.onmessage = null;
                 outboundPort.close();

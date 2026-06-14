@@ -21,7 +21,7 @@ import {
     PendingSavePrompt,
     SaveCredentialPromptRequest,
 } from "../types/sw-messaging";
-import { etldPlus1, parseOriginish } from "../utils/etld";
+import { parseOriginish } from "../utils/etld";
 
 const PENDING_SAVE_KEY = "PENDING_SAVE";
 const PENDING_SAVE_TTL_MS = 5 * 60 * 1000;
@@ -44,12 +44,12 @@ function toLite(c: VaultUtilTypes.Credential): LiteCredential {
 }
 
 /**
- * Matches a vault's credentials against `host` and `etldPlus1`. Returns
- * two buckets:
+ * Matches a vault's credentials against `host`. Returns two buckets:
  *   - `exact`: credentials whose stored URL hostname matches `host`
  *     verbatim.
- *   - `fuzzy`: credentials whose eTLD+1 matches but whose host does
- *     not. These are surfaced under "Other matches" in the UI.
+ *   - `fuzzy`: reserved for future explicit user-approved sibling-domain
+ *     matches. It stays empty by default to avoid surfacing credentials on
+ *     sibling subdomains or relying on a stale Public Suffix List.
  *
  * Credentials with no parseable URL never match. We don't try to be
  * clever with path matching; password managers that match on path
@@ -57,12 +57,10 @@ function toLite(c: VaultUtilTypes.Credential): LiteCredential {
  */
 export function matchCredentialsForOrigin(
     credentials: VaultUtilTypes.Credential[] | undefined,
-    request: GetCredentialsForOriginRequest,
+    request: { host: string },
 ): { exact: LiteCredential[]; fuzzy: LiteCredential[] } {
     const exact: LiteCredential[] = [];
-    const fuzzy: LiteCredential[] = [];
-    const wantedHost = request.host.toLowerCase();
-    const wantedEtld = request.etldPlus1.toLowerCase();
+    const wantedHost = request.host.toLowerCase().replace(/\.$/, "");
 
     for (const cred of credentials ?? []) {
         if (cred.Deleted) continue;
@@ -70,12 +68,10 @@ export function matchCredentialsForOrigin(
         if (!parsed) continue;
         if (parsed.host === wantedHost) {
             exact.push(toLite(cred));
-        } else if (parsed.etldPlus1 === wantedEtld) {
-            fuzzy.push(toLite(cred));
         }
     }
 
-    return { exact, fuzzy };
+    return { exact, fuzzy: [] };
 }
 
 export async function handleGetCredentialsForOrigin(
@@ -94,14 +90,9 @@ export async function handleGetCredentialsForOrigin(
         };
     }
 
-    const normalisedHost = payload.host.toLowerCase();
-    const normalisedEtld = payload.etldPlus1
-        ? payload.etldPlus1.toLowerCase()
-        : etldPlus1(normalisedHost);
-
+    const normalisedHost = payload.host.toLowerCase().replace(/\.$/, "");
     const { exact, fuzzy } = matchCredentialsForOrigin(vault.Credentials, {
         host: normalisedHost,
-        etldPlus1: normalisedEtld,
     });
 
     return { ok: true, exact, fuzzy };
@@ -188,9 +179,8 @@ function credentialMatchesRequestOrigin(
         return { ok: false, error: "CREDENTIAL_ORIGIN_UNVERIFIED" };
     }
 
-    const wantedHost = requestOrigin.host.toLowerCase();
-    const wantedEtld = requestOrigin.etldPlus1.toLowerCase();
-    if (parsed.host === wantedHost || parsed.etldPlus1 === wantedEtld) {
+    const wantedHost = requestOrigin.host.toLowerCase().replace(/\.$/, "");
+    if (parsed.host === wantedHost) {
         return { ok: true };
     }
 

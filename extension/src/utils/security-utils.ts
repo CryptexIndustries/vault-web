@@ -168,6 +168,22 @@ function validateOrigin(
         return { valid: true };
     }
 
+    // Autofill generator iframe: same extension-origin iframe model.
+    if (claimedOrigin === "autofill-generator") {
+        if (
+            !sender.url?.startsWith(
+                chrome.runtime.getURL("/autofill-generator.html"),
+            )
+        ) {
+            return {
+                valid: false,
+                error: "Invalid autofill-generator origin",
+                code: "INVALID_ORIGIN",
+            };
+        }
+        return { valid: true };
+    }
+
     // Autofill save iframe: persistent save-login panel on host pages.
     if (claimedOrigin === "autofill-save") {
         if (

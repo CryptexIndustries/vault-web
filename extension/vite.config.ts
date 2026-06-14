@@ -76,15 +76,19 @@ export default defineConfig(({ mode }) => {
                 "@/env/client.mjs": path.resolve(__dirname, "src/env.ts"),
                 "../../env/client.mjs": path.resolve(__dirname, "src/env.ts"),
                 "../env/client.mjs": path.resolve(__dirname, "src/env.ts"),
+                // Route web tRPC imports to the extension shim before the broad @ alias.
+                "@/utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
+                "../utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
+                "../../utils/trpc": path.resolve(
+                    __dirname,
+                    "src/trpc-ext.ts",
+                ),
                 "@": path.resolve(__dirname, "../web/src"),
                 "@ui": path.resolve(__dirname, "../packages/shared-ui/src"),
                 "@cryptex-industries/shared-ui": path.resolve(
                     __dirname,
                     "../packages/shared-ui",
                 ),
-                // Route all relative trpc imports in web to the extension shim
-                "../utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
-                "@/utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
                 // Use Pusher worker build in SW and popup to avoid window references
                 "pusher-js": "pusher-js/worker",
             },

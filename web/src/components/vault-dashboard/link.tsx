@@ -155,7 +155,7 @@ type ProgressLogType = {
 const DynamicQRCode = dynamic(() => import("react-qr-code"), { ssr: false });
 const MISSING_SYNC_SIGNING_KEY_ERROR =
     "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
-const SEND_LINK_QR_CYCLE_MS = DEFAULT_CHUNKED_QR_CYCLE_MS * 2;
+const SEND_LINK_QR_CYCLE_MS = DEFAULT_CHUNKED_QR_CYCLE_MS * 4;
 
 const errorMessage = (error: unknown, fallback: string): string =>
     error instanceof Error && error.message ? error.message : fallback;

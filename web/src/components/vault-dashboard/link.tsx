@@ -29,6 +29,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
     Group,
     LinkedDevices,
     OnlineServices,
@@ -114,6 +120,8 @@ import {
     Camera,
     CheckCircle2,
     Download,
+    Eye,
+    EyeOff,
     FileText,
     Loader2,
     Plus,
@@ -1683,6 +1691,7 @@ export function ReceiveLinkRequestDialog({
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
     const [method, setMethod] = useState<ReceiveLinkMethod>("qr");
     const [secret, setSecret] = useState("");
+    const [showSecret, setShowSecret] = useState(false);
     const [qrCodeData, setQRCodeData] = useState("");
     const [linkFile, setLinkFile] = useState<File | null>(null);
     const [isScanning, setIsScanning] = useState(false);
@@ -1724,6 +1733,7 @@ export function ReceiveLinkRequestDialog({
         setStage("input");
         setMethod("qr");
         setSecret("");
+        setShowSecret(false);
         setQRCodeData("");
         setLinkFile(null);
         setIsScanning(false);
@@ -2342,20 +2352,56 @@ export function ReceiveLinkRequestDialog({
                             <Label htmlFor="receive-link-secret">
                                 Mnemonic
                             </Label>
-                            <Input
-                                id="receive-link-secret"
-                                type="password"
-                                value={secret}
-                                onChange={(event) =>
-                                    setSecret(event.target.value)
-                                }
-                                placeholder="Words shown on sending device"
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                        void startReceiving();
+                            <div className="relative">
+                                <Input
+                                    id="receive-link-secret"
+                                    type={showSecret ? "text" : "password"}
+                                    value={secret}
+                                    onChange={(event) =>
+                                        setSecret(event.target.value)
                                     }
-                                }}
-                            />
+                                    placeholder="Words shown on sending device"
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                            void startReceiving();
+                                        }
+                                    }}
+                                    className="pr-10"
+                                />
+                                <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        setShowSecret(
+                                                            !showSecret,
+                                                        )
+                                                    }
+                                                    className="h-7 w-7"
+                                                    aria-label={
+                                                        showSecret
+                                                            ? "Hide mnemonic"
+                                                            : "Show mnemonic"
+                                                    }
+                                                >
+                                                    {showSecret ? (
+                                                        <EyeOff className="h-3.5 w-3.5" />
+                                                    ) : (
+                                                        <Eye className="h-3.5 w-3.5" />
+                                                    )}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {showSecret ? "Hide" : "Show"}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
+                            </div>
                         </div>
 
                         {formError ? (

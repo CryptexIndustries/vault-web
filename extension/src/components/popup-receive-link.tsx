@@ -5,6 +5,8 @@ import {
     AlertCircle,
     Camera,
     CheckCircle2,
+    Eye,
+    EyeOff,
     FileText,
     Loader2,
     Lock,
@@ -235,6 +237,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
     const [method, setMethod] = useState<ReceiveLinkMethod>("qr");
     const [mnemonic, setMnemonic] = useState("");
+    const [showMnemonic, setShowMnemonic] = useState(false);
     const [qrCodeData, setQRCodeData] = useState("");
     const [linkFile, setLinkFile] = useState<File | null>(null);
     const [isScanning, setIsScanning] = useState(false);
@@ -313,6 +316,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         setStage("input");
         setMethod("qr");
         setMnemonic("");
+        setShowMnemonic(false);
         setQRCodeData("");
         setLinkFile(null);
         setIsScanning(false);
@@ -903,23 +907,43 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         >
                             Mnemonic
                         </Label>
-                        <Input
-                            id="receive-link-mnemonic"
-                            type="password"
-                            value={mnemonic}
-                            onChange={(
-                                event: React.ChangeEvent<HTMLInputElement>,
-                            ) => setMnemonic(event.target.value)}
-                            placeholder="Words shown on sending device"
-                            onKeyDown={(
-                                event: React.KeyboardEvent<HTMLInputElement>,
-                            ) => {
-                                if (event.key === "Enter") {
-                                    void startReceiving();
+                        <div className="relative">
+                            <Input
+                                id="receive-link-mnemonic"
+                                type={showMnemonic ? "text" : "password"}
+                                value={mnemonic}
+                                onChange={(
+                                    event: React.ChangeEvent<HTMLInputElement>,
+                                ) => setMnemonic(event.target.value)}
+                                placeholder="Words shown on sending device"
+                                onKeyDown={(
+                                    event: React.KeyboardEvent<HTMLInputElement>,
+                                ) => {
+                                    if (event.key === "Enter") {
+                                        void startReceiving();
+                                    }
+                                }}
+                                className="pr-9 text-xs"
+                            />
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setShowMnemonic((value) => !value)
                                 }
-                            }}
-                            className="text-xs"
-                        />
+                                className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
+                                aria-label={
+                                    showMnemonic
+                                        ? "Hide mnemonic"
+                                        : "Show mnemonic"
+                                }
+                            >
+                                {showMnemonic ? (
+                                    <EyeOff className="h-3.5 w-3.5" />
+                                ) : (
+                                    <Eye className="h-3.5 w-3.5" />
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                     {formError ? (

@@ -95,7 +95,7 @@ export function PasswordStrengthMeter({
                 </p>
             )}
 
-            {warning ? (
+            {warning && showSuggestions ? (
                 <p
                     className={cn(
                         "text-muted-foreground",

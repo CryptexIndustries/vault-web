@@ -1,5 +1,5 @@
 export const CHUNKED_QR_PREFIX = "CVQ1";
-export const DEFAULT_CHUNKED_QR_CHARS = 1_500;
+export const DEFAULT_CHUNKED_QR_CHARS = 750;
 export const DEFAULT_CHUNKED_QR_CYCLE_MS = 250;
 
 export type ChunkedQRCodeFrame = {

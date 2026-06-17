@@ -1,5 +1,6 @@
 import { lazy, Suspense, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import type { IScannerProps, IDetectedBarcode } from "@yudiel/react-qr-scanner";
 import {
     handleChunkedQRCodeUpdate,
     type ChunkedQRCodeCollectorState,
@@ -7,15 +8,19 @@ import {
     type ChunkedQRCodeScanResult,
 } from "@ui/lib/chunked-qr";
 
-const LazyBarcodeScanner = lazy(() => import("react-qr-barcode-scanner"));
+const QR_SCAN_FORMATS = ["qr_code"] as NonNullable<IScannerProps["formats"]>;
 
-type BarcodeScannerComponent =
-    typeof import("react-qr-barcode-scanner").default;
-type RawBarcodeScannerProps = React.ComponentProps<BarcodeScannerComponent>;
+const LazyScanner = lazy(() =>
+    import("@yudiel/react-qr-scanner").then((module) => ({
+        default: module.Scanner,
+    })),
+);
+
 type QRScannerResult = ChunkedQRCodeScanResult;
-type BarcodeScannerProps = Omit<RawBarcodeScannerProps, "onUpdate"> & {
+type BarcodeScannerProps = Omit<IScannerProps, "onScan" | "onError"> & {
     onUpdate?: (error: unknown, result?: QRScannerResult | null) => void;
     onChunkProgress?: (progress: ChunkedQRCodeProgress | null) => void;
+    onError?: (error: unknown) => void;
 };
 
 const Fallback = () => (
@@ -28,14 +33,26 @@ const Fallback = () => (
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     onUpdate,
     onChunkProgress,
+    onError,
+    formats = QR_SCAN_FORMATS,
     ...props
 }) => {
     const chunkStateRef = useRef<ChunkedQRCodeCollectorState | null>(null);
 
-    const handleUpdate = (error: unknown, result?: QRScannerResult | null) => {
+    const handleScan: IScannerProps["onScan"] = (
+        detectedCodes: IDetectedBarcode[],
+    ) => {
+        const detected = detectedCodes[0];
+        if (!detected) {
+            return;
+        }
+
+        const result: QRScannerResult = {
+            getText: () => detected.rawValue,
+        };
         handleChunkedQRCodeUpdate({
             currentState: chunkStateRef.current,
-            error,
+            error: null,
             result,
             onUpdate,
             onChunkProgress,
@@ -47,9 +64,11 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
     return (
         <Suspense fallback={<Fallback />}>
-            <LazyBarcodeScanner
+            <LazyScanner
                 {...props}
-                onUpdate={handleUpdate as RawBarcodeScannerProps["onUpdate"]}
+                formats={formats}
+                onScan={handleScan}
+                onError={onError}
             />
         </Suspense>
     );

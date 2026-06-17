@@ -822,11 +822,21 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                 )}
                             </div>
                             {qrChunkProgress ? (
-                                <p className="text-xs text-muted-foreground">
-                                    Scanned {qrChunkProgress.received} of{" "}
-                                    {qrChunkProgress.total} QR parts. Keep
-                                    camera pointed at sender.
-                                </p>
+                                <div className="space-y-1.5">
+                                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/20">
+                                        <div
+                                            className="h-full rounded-full bg-primary transition-all"
+                                            style={{
+                                                width: `${(qrChunkProgress.received / qrChunkProgress.total) * 100}%`,
+                                            }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Scanned {qrChunkProgress.received} of{" "}
+                                        {qrChunkProgress.total} QR parts. Keep
+                                        camera pointed at sender.
+                                    </p>
+                                </div>
                             ) : null}
                             <Textarea
                                 value={qrCodeData}

@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import {
     Select,
     SelectContent,
@@ -127,6 +128,7 @@ import {
     Plus,
     QrCode,
     ShieldCheck,
+    Sun,
     Trash2,
     Upload,
     Volume2,
@@ -155,7 +157,7 @@ type ProgressLogType = {
 const DynamicQRCode = dynamic(() => import("react-qr-code"), { ssr: false });
 const MISSING_SYNC_SIGNING_KEY_ERROR =
     "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
-const SEND_LINK_QR_CYCLE_MS = DEFAULT_CHUNKED_QR_CYCLE_MS * 4;
+const SEND_LINK_QR_CYCLE_MS = DEFAULT_CHUNKED_QR_CYCLE_MS;
 
 const errorMessage = (error: unknown, fallback: string): string =>
     error instanceof Error && error.message ? error.message : fallback;
@@ -267,9 +269,9 @@ function LinkingQRCode({
         >
             <span className="rounded-lg bg-white p-3">
                 {frameValue ? (
-                    <DynamicQRCode value={frameValue} size={220} />
+                    <DynamicQRCode value={frameValue} size={400} />
                 ) : (
-                    <span className="flex h-[220px] w-[220px] items-center justify-center text-xs text-muted-foreground">
+                    <span className="flex h-[400px] w-[400px] items-center justify-center text-xs text-muted-foreground">
                         {frameError || "Preparing QR chunks..."}
                     </span>
                 )}
@@ -279,6 +281,10 @@ function LinkingQRCode({
                     Part {activeFrameIndex + 1} of {frames.length}
                 </span>
             ) : null}
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Sun className="h-3.5 w-3.5" />
+                Increase your display brightness for reliable scanning.
+            </span>
             <span className="text-xs text-muted-foreground">
                 {copied ? "Copied" : "Click QR to copy payload"}
             </span>
@@ -2271,11 +2277,20 @@ export function ReceiveLinkRequestDialog({
                                     )}
                                 </div>
                                 {qrChunkProgress ? (
-                                    <p className="text-sm text-muted-foreground">
-                                        Scanned {qrChunkProgress.received} of{" "}
-                                        {qrChunkProgress.total} QR parts. Keep
-                                        camera pointed at sender.
-                                    </p>
+                                    <div className="space-y-1.5">
+                                        <Progress
+                                            value={
+                                                (qrChunkProgress.received /
+                                                    qrChunkProgress.total) *
+                                                100
+                                            }
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Scanned {qrChunkProgress.received}{" "}
+                                            of {qrChunkProgress.total} QR parts.
+                                            Keep camera pointed at sender.
+                                        </p>
+                                    </div>
                                 ) : null}
                                 <Textarea
                                     value={qrCodeData}

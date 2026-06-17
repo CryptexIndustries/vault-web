@@ -776,6 +776,17 @@ export function VaultDashboard() {
 
     const passkeyBound = Vault.isOnlineServicesBound(unlockedVault);
     const hasOnlineAuth = !!onlineServicesData?.sessionToken?.length;
+    const remoteOnlineServicesData = onlineServicesData?.remoteData;
+    const isFreeOnlineServicesTier =
+        hasOnlineAuth &&
+        !!remoteOnlineServicesData &&
+        !remoteOnlineServicesData.canLink;
+    const showSubscriptionCta = !hasOnlineAuth || isFreeOnlineServicesTier;
+    const subscriptionCtaVariant = isFreeOnlineServicesTier
+        ? "upgrade"
+        : passkeyBound
+          ? "signin"
+          : "signup";
 
     const accountButtonLabel = (() => {
         if (!passkeyBound) return "Sign up";
@@ -1149,6 +1160,8 @@ export function VaultDashboard() {
                         onOpenAccountDialog={handleOpenAccountDialog}
                         accountButtonLabel={accountButtonLabel}
                         accountButtonClassName={accountButtonClassName}
+                        showSubscriptionCta={showSubscriptionCta}
+                        subscriptionCtaVariant={subscriptionCtaVariant}
                         onOpenVaultSettings={handleOpenVaultSettings}
                         onOpenPasswordGenerator={handleOpenPasswordGenerator}
                         onLockVault={lockVaultConfirm}
@@ -1173,6 +1186,8 @@ export function VaultDashboard() {
                     onOpenAccountDialog={handleOpenAccountDialog}
                     accountButtonLabel={accountButtonLabel}
                     accountButtonClassName={accountButtonClassName}
+                    showSubscriptionCta={showSubscriptionCta}
+                    subscriptionCtaVariant={subscriptionCtaVariant}
                     onOpenVaultSettings={handleOpenVaultSettings}
                     onOpenPasswordGenerator={handleOpenPasswordGenerator}
                     onLockVault={lockVaultConfirm}

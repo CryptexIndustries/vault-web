@@ -11,7 +11,6 @@ import {
     KeyRound,
     Settings,
     Lock,
-    User,
     ArrowRightToLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +49,10 @@ import {
     type VaultSignalingConfig,
     VaultSignalingConfigDialog,
 } from "./link";
+import {
+    SubscriptionCtaPopover,
+    type SubscriptionCtaVariant,
+} from "./subscription-cta-popover";
 import type { WarningDialogShowFn } from "@/components/dialog/warning";
 import {
     SignalingStatus,
@@ -92,6 +95,8 @@ interface DeviceSidebarProps {
     onOpenAccountDialog?: () => void;
     accountButtonLabel?: string;
     accountButtonClassName?: string;
+    showSubscriptionCta?: boolean;
+    subscriptionCtaVariant?: SubscriptionCtaVariant;
     onOpenPasswordGenerator?: () => void;
     onLockVault?: () => void;
     signalingConfig: VaultSignalingConfig;
@@ -737,6 +742,8 @@ export function DeviceSidebar({
     onOpenAccountDialog,
     accountButtonLabel = "Account",
     accountButtonClassName,
+    showSubscriptionCta = false,
+    subscriptionCtaVariant = "signup",
     onOpenPasswordGenerator,
     onLockVault,
     signalingConfig,
@@ -763,6 +770,10 @@ export function DeviceSidebar({
         if (!action) return;
         action();
         onClose?.();
+    };
+
+    const handleAccountAction = () => {
+        handleSidebarAction(onOpenAccountDialog);
     };
 
     const confirmUnlinkDevice = useCallback(
@@ -959,17 +970,14 @@ export function DeviceSidebar({
             </div>
 
             <div className="border-sidebar-border border-t p-2">
-                <Button
-                    variant="ghost"
-                    className={
-                        accountButtonClassName ??
-                        "hover:bg-sidebar-accent/70 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground"
-                    }
-                    onClick={() => handleSidebarAction(onOpenAccountDialog)}
-                >
-                    <User className="h-3.5 w-3.5" />
-                    {accountButtonLabel}
-                </Button>
+                <SubscriptionCtaPopover
+                    enabled={showSubscriptionCta}
+                    variant={subscriptionCtaVariant}
+                    isMobile={isMobile}
+                    buttonLabel={accountButtonLabel}
+                    buttonClassName={accountButtonClassName}
+                    onAccountAction={handleAccountAction}
+                />
                 <Button
                     variant="ghost"
                     className="hover:bg-sidebar-accent/70 mb-1 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground"

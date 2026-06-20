@@ -11,7 +11,6 @@ import {
 } from "@jest/globals";
 
 import {
-    VAULT_BACKGROUND_AUTO_LOCK_GRACE_MS,
     VAULT_IDLE_AUTO_LOCK_MS,
     startVaultAutoLock,
     type VaultAutoLockController,
@@ -26,11 +25,9 @@ function setVisibilityState(state: DocumentVisibilityState) {
 
 describe("startVaultAutoLock", () => {
     let controller: VaultAutoLockController | null = null;
-    let now: Date;
 
     beforeEach(() => {
-        now = new Date("2026-06-13T12:00:00.000Z");
-        jest.useFakeTimers({ now });
+        jest.useFakeTimers({ now: new Date("2026-06-13T12:00:00.000Z") });
         setVisibilityState("visible");
     });
 
@@ -67,69 +64,33 @@ describe("startVaultAutoLock", () => {
         expect(lock).toHaveBeenCalledWith("idle");
     });
 
-    it("locks after the background grace period", async () => {
+    it("continues the idle timeout while the tab is hidden", async () => {
         const lock = jest.fn(async () => undefined);
         controller = startVaultAutoLock({ lock });
 
+        await jest.advanceTimersByTimeAsync(VAULT_IDLE_AUTO_LOCK_MS - 1000);
         setVisibilityState("hidden");
-        document.dispatchEvent(new Event("visibilitychange"));
-        await jest.advanceTimersByTimeAsync(
-            VAULT_BACKGROUND_AUTO_LOCK_GRACE_MS - 1,
-        );
+        await jest.advanceTimersByTimeAsync(999);
         expect(lock).not.toHaveBeenCalled();
 
         await jest.advanceTimersByTimeAsync(1);
         expect(lock).toHaveBeenCalledTimes(1);
-        expect(lock).toHaveBeenCalledWith("background");
-    });
-
-    it("cancels background lock when the page becomes visible before grace expires", async () => {
-        const lock = jest.fn(async () => undefined);
-        controller = startVaultAutoLock({ lock });
-
-        setVisibilityState("hidden");
-        document.dispatchEvent(new Event("visibilitychange"));
-        await jest.advanceTimersByTimeAsync(
-            VAULT_BACKGROUND_AUTO_LOCK_GRACE_MS - 1000,
-        );
-
-        setVisibilityState("visible");
-        document.dispatchEvent(new Event("visibilitychange"));
-        await jest.advanceTimersByTimeAsync(1000);
-        expect(lock).not.toHaveBeenCalled();
-
-        await jest.advanceTimersByTimeAsync(VAULT_IDLE_AUTO_LOCK_MS);
-        expect(lock).toHaveBeenCalledTimes(1);
         expect(lock).toHaveBeenCalledWith("idle");
     });
 
-    it("locks immediately on return if hidden longer than the grace period", async () => {
+    it("does not reset the idle timeout when the tab becomes visible again", async () => {
         const lock = jest.fn(async () => undefined);
         controller = startVaultAutoLock({ lock });
 
+        await jest.advanceTimersByTimeAsync(VAULT_IDLE_AUTO_LOCK_MS - 5000);
         setVisibilityState("hidden");
-        document.dispatchEvent(new Event("visibilitychange"));
-        jest.setSystemTime(
-            new Date(now.getTime() + VAULT_BACKGROUND_AUTO_LOCK_GRACE_MS + 1),
-        );
-
+        await jest.advanceTimersByTimeAsync(2000);
         setVisibilityState("visible");
-        document.dispatchEvent(new Event("visibilitychange"));
+        await jest.advanceTimersByTimeAsync(2999);
+        expect(lock).not.toHaveBeenCalled();
 
+        await jest.advanceTimersByTimeAsync(1);
         expect(lock).toHaveBeenCalledTimes(1);
-        expect(lock).toHaveBeenCalledWith("background");
-    });
-
-    it("uses pagehide as a background lock trigger", async () => {
-        const lock = jest.fn(async () => undefined);
-        controller = startVaultAutoLock({ lock });
-
-        window.dispatchEvent(new PageTransitionEvent("pagehide"));
-        await jest.advanceTimersByTimeAsync(
-            VAULT_BACKGROUND_AUTO_LOCK_GRACE_MS,
-        );
-
-        expect(lock).toHaveBeenCalledTimes(1);
-        expect(lock).toHaveBeenCalledWith("pagehide");
+        expect(lock).toHaveBeenCalledWith("idle");
     });
 });

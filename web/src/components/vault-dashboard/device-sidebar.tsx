@@ -830,7 +830,7 @@ export function DeviceSidebar({
     return (
         <aside
             className={cn(
-                "bg-sidebar flex h-screen w-64 flex-col",
+                "bg-sidebar flex h-screen flex-col",
                 !isMobile && "border-border border-r",
             )}
         >

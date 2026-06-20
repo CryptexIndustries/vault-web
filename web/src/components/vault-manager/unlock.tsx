@@ -317,7 +317,7 @@ const EditVaultDialog: React.FC<{ ctrl: Controller }> = ({ ctrl }) => {
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(handleVaultUpdate)}>
-                    <div className="flex flex-col gap-4 py-4">
+                    <div className="flex flex-col gap-4 pb-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-name">Name *</Label>
                             <FormInput
@@ -489,145 +489,149 @@ const UnlockTab: React.FC<UnlockTabProps> = (props) => {
     const selectedDescription = selectedVaultData?.Description?.trim();
 
     return (
-        <div className="space-y-2 pt-6">
-            <div className="flex items-center gap-2">
-                <Select
-                    value={ctrl.selectedVault}
-                    onValueChange={ctrl.setSelectedVault}
-                >
-                    <SelectTrigger id="vault-select" className="h-11">
-                        <SelectValue placeholder="Select a vault" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {props.vaults.map((vault) => (
-                            <SelectItem
-                                key={vault.DBIndex}
-                                value={vault.DBIndex?.toString() ?? "UNKNOWN"}
-                            >
-                                <span className="line-clamp-1 max-w-56 text-start">
-                                    {vault.Name}
-                                </span>
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={ctrl.openEditDialog}
-                    disabled={ctrl.isVaultDeleting || ctrl.isDecrypting}
-                    className="h-9 w-9 shrink-0 p-0"
-                >
-                    <Edit2 className="h-4 w-4" />
-                    <span className="sr-only">
-                        Edit vault &quot;{ctrl.selectedVaultDisplayName}&quot;
-                    </span>
-                </Button>
-                <DeleteVaultDialog ctrl={ctrl}>
+        <div>
+            <div className="space-y-2 pt-4">
+                <div className="flex items-center gap-2">
+                    <Select
+                        value={ctrl.selectedVault}
+                        onValueChange={ctrl.setSelectedVault}
+                    >
+                        <SelectTrigger id="vault-select" className="h-11">
+                            <SelectValue placeholder="Select a vault" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {props.vaults.map((vault) => (
+                                <SelectItem
+                                    key={vault.DBIndex}
+                                    value={
+                                        vault.DBIndex?.toString() ?? "UNKNOWN"
+                                    }
+                                >
+                                    <span className="line-clamp-1 max-w-56 text-start">
+                                        {vault.Name}
+                                    </span>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <Button
                         size="sm"
                         variant="ghost"
+                        onClick={ctrl.openEditDialog}
                         disabled={ctrl.isVaultDeleting || ctrl.isDecrypting}
-                        className="h-9 w-9 shrink-0 p-0 text-destructive hover:text-destructive"
+                        className="h-9 w-9 shrink-0 p-0"
                     >
-                        <Trash2 className="h-4 w-4" />
+                        <Edit2 className="h-4 w-4" />
                         <span className="sr-only">
-                            Delete vault &quot;
-                            {ctrl.selectedVaultDisplayName}&quot;
+                            Edit vault &quot;{ctrl.selectedVaultDisplayName}
+                            &quot;
                         </span>
                     </Button>
-                </DeleteVaultDialog>
-            </div>
-
-            {selectedDescription && (
-                <div className="relative overflow-hidden rounded-lg border-l-2 border-primary/30 bg-gradient-to-r from-primary/5 to-transparent px-3.5 py-2.5">
-                    <Quote className="absolute right-1.5 h-6 w-6 rotate-180 text-primary/40" />
-                    <p
-                        className="relative line-clamp-2 max-h-24 overflow-y-hidden whitespace-pre-line pr-6 text-sm italic leading-relaxed text-muted-foreground"
-                        title={selectedDescription}
-                    >
-                        {selectedDescription}
-                    </p>
+                    <DeleteVaultDialog ctrl={ctrl}>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={ctrl.isVaultDeleting || ctrl.isDecrypting}
+                            className="h-9 w-9 shrink-0 p-0 text-destructive hover:text-destructive"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">
+                                Delete vault &quot;
+                                {ctrl.selectedVaultDisplayName}&quot;
+                            </span>
+                        </Button>
+                    </DeleteVaultDialog>
                 </div>
-            )}
 
-            <div className="space-y-2">
-                <Label
-                    htmlFor="secret-key"
-                    className="text-xs text-muted-foreground"
-                >
-                    {ctrl.useRecovery ? "Recovery code" : "Secret key"}
-                </Label>
-                {showRecovery ? (
-                    <Input
-                        id="recovery-code"
-                        placeholder="Recovery code"
-                        value={ctrl.recoveryCode}
-                        onChange={(e) => ctrl.setRecoveryCode(e.target.value)}
-                        className="font-mono text-xs"
-                    />
-                ) : (
-                    <SecretField ctrl={ctrl} id="secret-key" />
+                {selectedDescription && (
+                    <div className="relative overflow-hidden rounded-lg border-l-2 border-primary/30 bg-gradient-to-r from-primary/5 to-transparent px-3.5 py-2.5">
+                        <Quote className="absolute right-1.5 h-6 w-6 rotate-180 text-primary/40" />
+                        <p
+                            className="relative line-clamp-2 max-h-24 overflow-y-hidden whitespace-pre-line pr-6 text-sm italic leading-relaxed text-muted-foreground"
+                            title={selectedDescription}
+                        >
+                            {selectedDescription}
+                        </p>
+                    </div>
                 )}
-            </div>
 
-            {ctrl.selectedRequiresPassphrase && (
                 <div className="space-y-2">
-                    <Label
-                        htmlFor="second-factor-passphrase"
-                        className="text-xs text-muted-foreground"
-                    >
-                        Second-factor passphrase
-                    </Label>
-                    <Input
-                        id="second-factor-passphrase"
-                        type="password"
-                        placeholder="Optional on this device, required after restore"
-                        value={ctrl.secondFactorPassphrase}
-                        onChange={(e) =>
-                            ctrl.setSecondFactorPassphrase(e.target.value)
-                        }
-                        className="font-mono text-xs"
-                    />
+                    {showRecovery ? (
+                        <Input
+                            id="recovery-code"
+                            placeholder="Recovery code"
+                            value={ctrl.recoveryCode}
+                            onChange={(e) =>
+                                ctrl.setRecoveryCode(e.target.value)
+                            }
+                            className="font-mono text-xs"
+                        />
+                    ) : (
+                        <SecretField ctrl={ctrl} id="secret-key" />
+                    )}
                 </div>
-            )}
 
-            <Button
-                className="h-11 w-full"
-                onClick={ctrl.submitUnlock}
-                disabled={ctrl.isDecrypting || ctrl.selectedVault.length === 0}
-            >
-                {ctrl.isDecrypting ? (
-                    <span className="flex items-center">
-                        <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin" />
-                        Decrypting Vault...
-                    </span>
-                ) : (
-                    <span className="flex items-center">
-                        <Unlock className="mr-2 h-4 w-4" />
-                        Unlock Vault
-                    </span>
+                {ctrl.selectedRequiresPassphrase && (
+                    <div className="space-y-2">
+                        <Label
+                            htmlFor="second-factor-passphrase"
+                            className="text-xs text-muted-foreground"
+                        >
+                            Second-factor passphrase
+                        </Label>
+                        <Input
+                            id="second-factor-passphrase"
+                            type="password"
+                            placeholder="Optional on this device, required after restore"
+                            value={ctrl.secondFactorPassphrase}
+                            onChange={(e) =>
+                                ctrl.setSecondFactorPassphrase(e.target.value)
+                            }
+                            className="font-mono text-xs"
+                        />
+                    </div>
                 )}
-            </Button>
-
-            <div className="flex items-center text-xs">
-                <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                        const next = !showRecovery;
-                        setShowRecovery(next);
-                        ctrl.setUseRecovery(next);
-                    }}
-                >
-                    <LifeBuoy className="h-3.5 w-3.5" />
-                    {showRecovery
-                        ? "Use password instead"
-                        : "Use recovery code"}
-                </button>
+                <EditVaultDialog ctrl={ctrl} />
             </div>
 
-            <EditVaultDialog ctrl={ctrl} />
+            <div className="mt-6 space-y-2">
+                <Button
+                    className="w-full"
+                    onClick={ctrl.submitUnlock}
+                    disabled={
+                        ctrl.isDecrypting || ctrl.selectedVault.length === 0
+                    }
+                >
+                    {ctrl.isDecrypting ? (
+                        <span className="flex items-center">
+                            <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin" />
+                            Decrypting Vault...
+                        </span>
+                    ) : (
+                        <span className="flex items-center">
+                            <Unlock className="mr-2 h-4 w-4" />
+                            Unlock Vault
+                        </span>
+                    )}
+                </Button>
+
+                <div className="flex items-center text-xs">
+                    <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                            const next = !showRecovery;
+                            setShowRecovery(next);
+                            ctrl.setUseRecovery(next);
+                        }}
+                    >
+                        <LifeBuoy className="h-3.5 w-3.5" />
+                        {showRecovery
+                            ? "Use password instead"
+                            : "Use recovery code"}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
     Select,
@@ -6,6 +7,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { SecondFactorKind } from "@/app_lib/proto/vault";
 import type { SecondFactorSource } from "@/app_lib/vault-utils/second-factor";
 
@@ -35,8 +41,7 @@ type Props = {
 
 export function SecondFactorOptions({ value, onChange }: Props) {
     return (
-        <div className="space-y-2">
-            <Label>Second factor (optional)</Label>
+        <div className="flex gap-2 space-y-2">
             <Select
                 value={value}
                 onValueChange={(v) => {
@@ -60,10 +65,31 @@ export function SecondFactorOptions({ value, onChange }: Props) {
                     </SelectItem>
                 </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-                Generated passphrases work after backup restore if written down.
-                WebAuthn stays bound to the enrolled security key/browser.
-            </p>
+            <Popover>
+                <PopoverTrigger asChild>
+                    <Info
+                        className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
+                        strokeWidth={1.5}
+                    />
+                </PopoverTrigger>
+                <PopoverContent
+                    className="w-80 space-y-2 text-xs"
+                    side="top"
+                    align="start"
+                >
+                    <p>
+                        Generated passphrases are derived from your backup
+                        secret, so they will be regenerated automatically after
+                        a backup restore.
+                    </p>
+                    <p>
+                        If you write one down and restore from a different
+                        device, the regenerated passphrase will not match and
+                        you will need to re-enroll. WebAuthn is device-bound and
+                        stays bound to the enrolled security key and browser.
+                    </p>
+                </PopoverContent>
+            </Popover>
         </div>
     );
 }

@@ -269,9 +269,9 @@ function LinkingQRCode({
         >
             <span className="rounded-lg bg-white p-3">
                 {frameValue ? (
-                    <DynamicQRCode value={frameValue} size={400} />
+                    <DynamicQRCode value={frameValue} size={300} />
                 ) : (
-                    <span className="flex h-[400px] w-[400px] items-center justify-center text-xs text-muted-foreground">
+                    <span className="flex h-[300px] w-[300px] items-center justify-center text-xs text-muted-foreground">
                         {frameError || "Preparing QR chunks..."}
                     </span>
                 )}
@@ -289,43 +289,6 @@ function LinkingQRCode({
                 {copied ? "Copied" : "Click QR to copy payload"}
             </span>
         </button>
-    );
-}
-
-function PqcKeyExchangeStep({ status }: { status: LinkingProcessState }) {
-    const stateCopy: Record<LinkingProcessState, string> = {
-        [LinkingProcessState.Pending]: "Waiting for private channel",
-        [LinkingProcessState.Active]: "Sharing post-quantum sync keys",
-        [LinkingProcessState.Completed]: "Quantum-safe sync keys ready",
-        [LinkingProcessState.Error]: "Quantum-safe sync setup failed",
-        [LinkingProcessState.Warning]: "Quantum-safe sync setup warning",
-    };
-
-    const icon =
-        status === LinkingProcessState.Completed ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        ) : status === LinkingProcessState.Active ? (
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        ) : status === LinkingProcessState.Error ? (
-            <AlertCircle className="h-4 w-4 text-destructive" />
-        ) : (
-            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-        );
-
-    return (
-        <div className="flex gap-3 rounded-xl border p-4">
-            <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-muted">
-                {icon}
-            </span>
-            <span className="min-w-0">
-                <span className="block text-sm font-medium">
-                    Quantum-safe sync setup
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                    {stateCopy[status]}
-                </span>
-            </span>
-        </div>
     );
 }
 
@@ -1375,10 +1338,9 @@ export function SendLinkRequestDialog({
                                         <p className="text-sm font-medium">
                                             Transfer method
                                         </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Change anytime. Link package stays
-                                            same.
-                                        </p>
+                                        {/*<p className="text-xs text-muted-foreground">
+                                            Pick linking method.
+                                        </p>*/}
                                     </div>
                                     {selectedLinkMethod === "file" &&
                                     linkingPackageBinary ? (
@@ -1471,9 +1433,6 @@ export function SendLinkRequestDialog({
                         </div>
 
                         <div className="space-y-4">
-                            <PqcKeyExchangeStep
-                                status={syncKeyExchangeStatus}
-                            />
                             <div className="rounded-xl border p-4">
                                 <p className="text-sm font-medium">Mnemonic</p>
                                 {mnemonic ? (

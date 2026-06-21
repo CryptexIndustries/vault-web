@@ -9,6 +9,7 @@ import { trpc } from "../utils/trpc";
 import {
     createBareAuthHeader,
     ensureFreshOnlineServicesSession,
+    forceOnlineServicesSessionReauthentication,
 } from "./auth-session";
 import * as VaultUtilTypes from "./proto/vault";
 import {
@@ -117,9 +118,23 @@ export const initWebRTC = async (
             );
         }
 
-        const turnCredentials = await trpc.v1.device.turnCredentials.mutate({
-            syncId: options.syncId,
-        });
+        const syncId = options.syncId;
+        const fetchTurnCredentials = () =>
+            trpc.v1.device.turnCredentials.mutate({
+                syncId,
+            });
+        let turnCredentials: Awaited<ReturnType<typeof fetchTurnCredentials>>;
+        try {
+            turnCredentials = await fetchTurnCredentials();
+        } catch (error) {
+            const reauthenticated =
+                await forceOnlineServicesSessionReauthentication();
+            if (!reauthenticated) {
+                throw error;
+            }
+
+            turnCredentials = await fetchTurnCredentials();
+        }
         _turnServers = turnCredentials.iceServers;
     } else {
         _turnServers = turnServers.map((turnServer) => ({
@@ -163,15 +178,32 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
             endpoint: "",
             headersProvider: createBareAuthHeader,
             customHandler: async (req, next) => {
+                const authorizeChannel = () =>
+                    trpc.v1.device.signalingAuthChannel.mutate({
+                        channel_name: req.channelName,
+                        socket_id: req.socketId,
+                    });
+
                 try {
-                    const data =
-                        await trpc.v1.device.signalingAuthChannel.mutate({
-                            channel_name: req.channelName,
-                            socket_id: req.socketId,
-                        });
+                    const data = await authorizeChannel();
 
                     return next(null, data);
                 } catch (e) {
+                    const reauthenticated =
+                        await forceOnlineServicesSessionReauthentication();
+                    if (reauthenticated) {
+                        try {
+                            const data = await authorizeChannel();
+                            return next(null, data);
+                        } catch (retryError) {
+                            signalingLog.warn(
+                                "Failed to authorize Pusher channel after Online Services reauthentication",
+                                { error: retryError },
+                            );
+                            return next(retryError as Error, null);
+                        }
+                    }
+
                     signalingLog.warn(
                         "Failed to authorize Pusher channel with Online Services",
                         { error: e },

@@ -20,8 +20,10 @@ import { Vault } from "@/app_lib/vault-utils/vault";
 import type { VersionedRouter } from "@/server/trpc";
 
 const SESSION_REFRESH_LEAD_MS = 60_000;
+const FORCED_REAUTH_COOLDOWN_MS = 30_000;
 
 let refreshInFlight: Promise<boolean> | null = null;
+let nextForcedReauthAtMs = 0;
 
 export function createBareAuthHeader() {
     const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
@@ -91,35 +93,79 @@ async function reauthenticateOnlineServicesSession(): Promise<boolean> {
     }
 }
 
+function runOnlineServicesSessionRefresh(
+    refresh: () => Promise<boolean>,
+): Promise<boolean> {
+    if (refreshInFlight) {
+        return refreshInFlight;
+    }
+
+    refreshInFlight = refresh().finally(() => {
+        refreshInFlight = null;
+    });
+
+    return refreshInFlight;
+}
+
+export async function forceOnlineServicesSessionReauthentication(): Promise<boolean> {
+    if (refreshInFlight) {
+        return refreshInFlight;
+    }
+
+    const now = Date.now();
+    if (now < nextForcedReauthAtMs) {
+        return false;
+    }
+
+    nextForcedReauthAtMs = now + FORCED_REAUTH_COOLDOWN_MS;
+    return runOnlineServicesSessionRefresh(reauthenticateOnlineServicesSession);
+}
+
 export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
     const data = onlineServicesStore.get(onlineServicesDataAtom);
+    const vault = getUnlockedVault();
+    const vaultOnlineServices = Vault.isOnlineServicesBound(vault)
+        ? vault.OnlineServices
+        : null;
+
     if (!data?.sessionToken?.length) {
-        return false;
+        if (!vaultOnlineServices) return false;
+
+        return runOnlineServicesSessionRefresh(
+            reauthenticateOnlineServicesSession,
+        );
+    }
+
+    if (vaultOnlineServices && data.deviceId !== vaultOnlineServices.DeviceId) {
+        setOnlineServicesData(null);
+        return runOnlineServicesSessionRefresh(
+            reauthenticateOnlineServicesSession,
+        );
     }
 
     if (
         typeof data.sessionExpiresAt !== "number" ||
         !shouldRefreshSession(data.sessionExpiresAt)
     ) {
-        return false;
+        if (typeof data.sessionExpiresAt === "number") {
+            return false;
+        }
+
+        if (!vaultOnlineServices) return false;
+
+        return runOnlineServicesSessionRefresh(
+            reauthenticateOnlineServicesSession,
+        );
     }
 
-    if (refreshInFlight) {
-        return refreshInFlight;
-    }
-
-    refreshInFlight = (async () => {
+    return runOnlineServicesSessionRefresh(async () => {
         const refreshed = await refreshOnlineServicesSession();
         if (refreshed) {
             return true;
         }
 
         return reauthenticateOnlineServicesSession();
-    })().finally(() => {
-        refreshInFlight = null;
     });
-
-    return refreshInFlight;
 }
 
 /**

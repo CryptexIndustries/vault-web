@@ -72,6 +72,7 @@ import {
     createBareAuthHeader,
     ensureFreshOnlineServicesSession,
     establishPremiumSession,
+    forceOnlineServicesSessionReauthentication,
     refreshOnlineServicesSession,
     syncOnlineServicesRemoteConfiguration,
 } from "../../src/app_lib/auth-session";
@@ -139,6 +140,52 @@ describe("auth-session freshness checks", () => {
         expect(refreshMutate).not.toHaveBeenCalled();
     });
 
+    it("re-authenticates from the bound vault when no session token is cached", async () => {
+        challengeMutate.mockResolvedValue({
+            challengeId: "challenge_1",
+            challenge: btoa("challenge-bytes"),
+            expiresAt: Date.now() + 60_000,
+        });
+        verifyMutate.mockResolvedValue({
+            sessionToken: "token_2",
+            expiresAt: Date.now() + 15 * 60_000,
+        });
+        mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
+        mockSignChallenge.mockResolvedValue("signature_1");
+
+        const vault = new Vault();
+        Vault.bindOnlineServices(
+            vault,
+            new OnlineServices("device_1", "", "public_jwk", "private_jwk"),
+        );
+        vaultStore.set(unlockedVaultAtom, vault);
+
+        setOnlineServicesData({
+            deviceId: "device_1",
+            sessionToken: null,
+            sessionExpiresAt: null,
+            remoteData: null,
+        });
+
+        const refreshed = await ensureFreshOnlineServicesSession();
+        const session = onlineServicesStore.get(onlineServicesDataAtom);
+
+        expect(refreshed).toBe(true);
+        expect(refreshMutate).not.toHaveBeenCalled();
+        expect(challengeMutate).toHaveBeenCalledWith({
+            deviceId: "device_1",
+        });
+        expect(verifyMutate).toHaveBeenCalledWith({
+            challengeId: "challenge_1",
+            signature: "signature_1",
+            deviceId: "device_1",
+        });
+        expect(session).toMatchObject({
+            deviceId: "device_1",
+            sessionToken: "token_2",
+        });
+    });
+
     it("returns false when sessionExpiresAt is not set", async () => {
         setOnlineServicesData({
             deviceId: "device_1",
@@ -151,6 +198,103 @@ describe("auth-session freshness checks", () => {
 
         expect(refreshed).toBe(false);
         expect(refreshMutate).not.toHaveBeenCalled();
+    });
+
+    it("re-authenticates when the cached token belongs to a different device", async () => {
+        challengeMutate.mockResolvedValue({
+            challengeId: "challenge_2",
+            challenge: btoa("challenge-bytes"),
+            expiresAt: Date.now() + 60_000,
+        });
+        verifyMutate.mockResolvedValue({
+            sessionToken: "token_for_device_2",
+            expiresAt: Date.now() + 15 * 60_000,
+        });
+        mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
+        mockSignChallenge.mockResolvedValue("signature_2");
+
+        const vault = new Vault();
+        Vault.bindOnlineServices(
+            vault,
+            new OnlineServices("device_2", "", "public_jwk_2", "private_jwk_2"),
+        );
+        vaultStore.set(unlockedVaultAtom, vault);
+
+        setOnlineServicesData({
+            deviceId: "device_1",
+            sessionToken: "token_for_device_1",
+            sessionExpiresAt: Date.now() + 5 * 60_000,
+            remoteData: null,
+        });
+
+        const refreshed = await ensureFreshOnlineServicesSession();
+        const session = onlineServicesStore.get(onlineServicesDataAtom);
+
+        expect(refreshed).toBe(true);
+        expect(refreshMutate).not.toHaveBeenCalled();
+        expect(challengeMutate).toHaveBeenCalledWith({
+            deviceId: "device_2",
+        });
+        expect(verifyMutate).toHaveBeenCalledWith({
+            challengeId: "challenge_2",
+            signature: "signature_2",
+            deviceId: "device_2",
+        });
+        expect(session).toMatchObject({
+            deviceId: "device_2",
+            sessionToken: "token_for_device_2",
+        });
+    });
+
+    it("force re-authenticates even when a cached session is not near expiry", async () => {
+        challengeMutate.mockResolvedValue({
+            challengeId: "challenge_force",
+            challenge: btoa("challenge-bytes"),
+            expiresAt: Date.now() + 60_000,
+        });
+        verifyMutate.mockResolvedValue({
+            sessionToken: "forced_token",
+            expiresAt: Date.now() + 15 * 60_000,
+        });
+        mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
+        mockSignChallenge.mockResolvedValue("forced_signature");
+
+        const vault = new Vault();
+        Vault.bindOnlineServices(
+            vault,
+            new OnlineServices("device_1", "", "public_jwk", "private_jwk"),
+        );
+        vaultStore.set(unlockedVaultAtom, vault);
+
+        setOnlineServicesData({
+            deviceId: "device_1",
+            sessionToken: "existing_token",
+            sessionExpiresAt: Date.now() + 5 * 60_000,
+            remoteData: null,
+        });
+
+        const refreshed = await forceOnlineServicesSessionReauthentication();
+        const session = onlineServicesStore.get(onlineServicesDataAtom);
+
+        expect(refreshed).toBe(true);
+        expect(refreshMutate).not.toHaveBeenCalled();
+        expect(challengeMutate).toHaveBeenCalledWith({
+            deviceId: "device_1",
+        });
+        expect(verifyMutate).toHaveBeenCalledWith({
+            challengeId: "challenge_force",
+            signature: "forced_signature",
+            deviceId: "device_1",
+        });
+        expect(session).toMatchObject({
+            deviceId: "device_1",
+            sessionToken: "forced_token",
+        });
+
+        await expect(
+            forceOnlineServicesSessionReauthentication(),
+        ).resolves.toBe(false);
+        expect(challengeMutate).toHaveBeenCalledTimes(1);
     });
 
     it("returns false when refresh fails and the vault has no online services bound for re-auth", async () => {

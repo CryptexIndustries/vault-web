@@ -48,7 +48,8 @@ export interface FieldGroup {
     isSignup: boolean;
 }
 
-const USERNAME_HINT = /user|email|login|account|identifi|signin|usern/i;
+const USERNAME_HINT =
+    /\b(?:username|user[_-]?name|e[-_]?mail|login|sign[-_]?in|account|identifi(?:er|cation)?)\b/i;
 const OTP_HINT =
     /otp|totp|one[-_ ]?time|verification[-_ ]?code|2fa|mfa|auth[-_ ]?code/i;
 const SIGNUP_PASSWORD_HINT =
@@ -145,10 +146,10 @@ function classifyInput(el: HTMLInputElement): FieldKind | null {
 
     if (tokens.has("one-time-code")) return "otp";
 
-    if (type === "email" || tokens.has("email")) return "username";
     if (tokens.has("username")) return "username";
+    if (tokens.has("email")) return "username";
 
-    if (type === "tel" || type === "text") {
+    if (type === "tel" || type === "text" || type === "email") {
         const hint = nameSignal(el);
         if (OTP_HINT.test(hint)) {
             const maxLen = el.maxLength > 0 ? el.maxLength : Infinity;
@@ -166,7 +167,9 @@ function classifyInput(el: HTMLInputElement): FieldKind | null {
  * skip `<iframe>` contents — those are addressed by per-frame content
  * script injection (currently top-frame only).
  */
-function* walkInputs(root: ParentNode): IterableIterator<HTMLInputElement> {
+function* walkInputs(
+    root: ParentNode = document,
+): IterableIterator<HTMLInputElement> {
     const stack: ParentNode[] = [root];
     while (stack.length) {
         const node = stack.pop()!;
@@ -221,6 +224,34 @@ function groupContainer(el: HTMLInputElement): Element {
 }
 
 /**
+ * Login forms often use `type="email"` without autocomplete hints. Once
+ * we know the container has a password field, treat co-located email
+ * inputs as the username anchor.
+ */
+function promoteCoLocatedEmailUsernames(
+    container: Element,
+    fields: DetectedField[],
+): void {
+    const hasPasswordLike = fields.some(
+        (f) => f.kind === "password" || f.kind === "newPassword",
+    );
+    if (!hasPasswordLike) return;
+
+    const seen = new Set(fields.map((f) => f.el));
+    for (const input of walkInputs(container)) {
+        if ((input.type || "").toLowerCase() !== "email") continue;
+        if (input.readOnly || input.disabled || !isVisible(input)) continue;
+        if (seen.has(input)) continue;
+        fields.push({
+            el: input,
+            kind: "username",
+            fieldId: getFieldId(input),
+        });
+        seen.add(input);
+    }
+}
+
+/**
  * Scans the document for autofillable fields and clusters them into
  * groups. Each call returns a fresh array but reuses field ids across
  * calls (via the WeakMap) so the content script can reconcile groups
@@ -251,30 +282,36 @@ export function detectGroups(): FieldGroup[] {
 
     const groups: FieldGroup[] = [];
     for (const [container, fields] of fieldsByContainer) {
-        const hasCredField = fields.some(
-            (f) =>
-                f.kind === "username" ||
-                f.kind === "password" ||
-                f.kind === "newPassword" ||
-                f.kind === "otp",
-        );
-        if (!hasCredField) continue;
+        promoteCoLocatedEmailUsernames(container, fields);
 
         const passwordLike = fields.filter(
             (f) => f.kind === "password" || f.kind === "newPassword",
         );
         const hasUsername = fields.some((f) => f.kind === "username");
+        const otpFields = fields.filter((f) => f.kind === "otp");
         const isSignup =
             fields.some((f) => f.kind === "newPassword") ||
             passwordLike.length >= 2 ||
             (passwordLike.length >= 1 &&
                 hasUsername &&
                 containerLooksLikeSignup(container));
+
+        const isOtpOnly =
+            otpFields.length > 0 && passwordLike.length === 0 && !hasUsername;
+
+        if (isSignup) {
+            if (passwordLike.length === 0) continue;
+        } else if (isOtpOnly) {
+            // OTP step only — classifyInput already requires strict OTP signals.
+        } else if (!hasUsername || passwordLike.length === 0) {
+            continue;
+        }
+
         const anchor =
             fields.find((f) => f.kind === "username") ??
             fields.find((f) => f.kind === "password") ??
             fields.find((f) => f.kind === "newPassword") ??
-            fields.find((f) => f.kind === "otp")!;
+            otpFields[0]!;
 
         groups.push({
             groupId: getGroupId(container),

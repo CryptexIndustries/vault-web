@@ -22,9 +22,8 @@ const turnCredentialsMutate = jest.fn(async () => ({
     ],
     expiresAt: Date.now() + 300_000,
 }));
-const createBareAuthHeader = jest.fn(() => ({
-    Authorization: "Bearer token_1",
-}));
+const ensureFresh = jest.fn(async () => true);
+const forceReauthenticate = jest.fn(async () => false);
 
 jest.mock("../src/utils/trpc", () => ({
     trpc: {
@@ -38,9 +37,11 @@ jest.mock("../src/utils/trpc", () => ({
     },
 }));
 
-jest.mock("../src/app_lib/auth-session", () => ({
-    ensureFreshOnlineServicesSession: jest.fn(async () => true),
-    createBareAuthHeader,
+jest.mock("../src/app_lib/online-services-session", () => ({
+    onlineServicesSessionPort: {
+        ensureFresh,
+        forceReauthenticate,
+    },
 }));
 
 import { initWebRTC } from "../src/app_lib/synchronization";
@@ -48,9 +49,8 @@ import { initWebRTC } from "../src/app_lib/synchronization";
 describe("initWebRTC", () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        createBareAuthHeader.mockReturnValue({
-            Authorization: "Bearer token_1",
-        });
+        ensureFresh.mockResolvedValue(true);
+        forceReauthenticate.mockResolvedValue(false);
     });
 
     it("fetches Online Services TURN credentials when no custom servers are configured", async () => {
@@ -69,6 +69,7 @@ describe("initWebRTC", () => {
         try {
             await initWebRTC([], [], { syncId: "sync_rel_1" });
 
+            expect(ensureFresh).toHaveBeenCalled();
             expect(turnCredentialsMutate).toHaveBeenCalledWith({
                 syncId: "sync_rel_1",
             });
@@ -114,6 +115,7 @@ describe("initWebRTC", () => {
                 ],
             );
 
+            expect(ensureFresh).not.toHaveBeenCalled();
             expect(turnCredentialsMutate).not.toHaveBeenCalled();
             expect(rtcConstructor).toHaveBeenCalledWith({
                 iceServers: [
@@ -129,10 +131,7 @@ describe("initWebRTC", () => {
         }
     });
 
-    it("uses custom STUN/TURN servers while signed out without checking Online Services", async () => {
-        createBareAuthHeader.mockReturnValue({
-            Authorization: "",
-        });
+    it("uses custom STUN/TURN servers without calling Online Services", async () => {
         const rtcConstructor = jest.fn(function FakeRTC(
             config: RTCConfiguration,
         ) {
@@ -167,7 +166,7 @@ describe("initWebRTC", () => {
                 ],
             );
 
-            expect(createBareAuthHeader).not.toHaveBeenCalled();
+            expect(ensureFresh).not.toHaveBeenCalled();
             expect(turnCredentialsMutate).not.toHaveBeenCalled();
             expect(rtcConstructor).toHaveBeenCalledWith({
                 iceServers: [
@@ -186,16 +185,53 @@ describe("initWebRTC", () => {
         }
     });
 
-    it("rejects before fetching Online Services TURN credentials when signed out", async () => {
-        createBareAuthHeader.mockReturnValue({
-            Authorization: "",
-        });
+    it("propagates turnCredentials failure when reauthentication fails", async () => {
+        const unauthorized = new Error("UNAUTHORIZED");
+        turnCredentialsMutate.mockRejectedValueOnce(unauthorized);
+        forceReauthenticate.mockResolvedValueOnce(false);
 
         await expect(
             initWebRTC([], [], { syncId: "sync_rel_1" }),
-        ).rejects.toThrow(
-            "Online Services sign-in is required to fetch TURN credentials",
-        );
-        expect(turnCredentialsMutate).not.toHaveBeenCalled();
+        ).rejects.toThrow("UNAUTHORIZED");
+
+        expect(turnCredentialsMutate).toHaveBeenCalledTimes(1);
+        expect(forceReauthenticate).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries turnCredentials after successful reauthentication", async () => {
+        turnCredentialsMutate
+            .mockRejectedValueOnce(new Error("UNAUTHORIZED"))
+            .mockResolvedValueOnce({
+                iceServers: [
+                    {
+                        urls: "turn:retry.example.com:5349",
+                        username: "retry-user",
+                        credential: "retry-cred",
+                    },
+                ],
+                expiresAt: Date.now() + 300_000,
+            });
+        forceReauthenticate.mockResolvedValueOnce(true);
+
+        const rtcConstructor = jest.fn(function FakeRTC(
+            config: RTCConfiguration,
+        ) {
+            return {
+                close: jest.fn(),
+                iceServers: config.iceServers,
+            };
+        });
+        const original = globalThis.RTCPeerConnection;
+        globalThis.RTCPeerConnection =
+            rtcConstructor as unknown as typeof RTCPeerConnection;
+
+        try {
+            await initWebRTC([], [], { syncId: "sync_rel_1" });
+
+            expect(turnCredentialsMutate).toHaveBeenCalledTimes(2);
+            expect(forceReauthenticate).toHaveBeenCalledTimes(1);
+        } finally {
+            globalThis.RTCPeerConnection = original;
+        }
     });
 });

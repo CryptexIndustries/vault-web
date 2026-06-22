@@ -28,3 +28,23 @@ export async function clearOnlineServicesSessionViaSW(): Promise<void> {
         null,
     );
 }
+
+export async function ensureFreshOnlineServicesSessionViaSW(): Promise<boolean> {
+    const result = await sendEncryptedEnvelopeToSW<{ ok: boolean }>(
+        MessageType.OnlineServicesEnsureFresh,
+        null,
+    );
+
+    if (!result.ok) return false;
+    return result.payload.ok;
+}
+
+export async function forceReauthenticateOnlineServicesSessionViaSW(): Promise<boolean> {
+    const result = await sendEncryptedEnvelopeToSW<{ ok: boolean }>(
+        MessageType.OnlineServicesForceReauthenticate,
+        null,
+    );
+
+    if (!result.ok) return false;
+    return result.payload.ok;
+}

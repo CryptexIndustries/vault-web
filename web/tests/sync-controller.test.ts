@@ -48,9 +48,11 @@ jest.mock("../src/utils/trpc", () => ({
     },
 }));
 
-jest.mock("../src/app_lib/auth-session", () => ({
-    createBareAuthHeader: jest.fn(() => ({ Authorization: "Bearer token_1" })),
-    ensureFreshOnlineServicesSession: jest.fn(async () => true),
+jest.mock("../src/app_lib/online-services-session", () => ({
+    onlineServicesSessionPort: {
+        ensureFresh: jest.fn(async () => true),
+        forceReauthenticate: jest.fn(async () => false),
+    },
 }));
 
 jest.mock("pusher", () => ({

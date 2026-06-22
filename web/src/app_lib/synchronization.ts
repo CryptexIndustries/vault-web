@@ -6,11 +6,7 @@ import { env } from "../env/client.mjs";
 import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
 import { syncLog, signalingLog, webrtcLog } from "../utils/logging";
 import { trpc } from "../utils/trpc";
-import {
-    createBareAuthHeader,
-    ensureFreshOnlineServicesSession,
-    forceOnlineServicesSessionReauthentication,
-} from "./auth-session";
+import { onlineServicesSessionPort } from "@/app_lib/online-services-session";
 import * as VaultUtilTypes from "./proto/vault";
 import {
     // ManualConflictResolutionDialogData,
@@ -111,12 +107,7 @@ export const initWebRTC = async (
             );
         }
 
-        await ensureFreshOnlineServicesSession();
-        if (!createBareAuthHeader().Authorization) {
-            throw new Error(
-                "Online Services sign-in is required to fetch TURN credentials",
-            );
-        }
+        await onlineServicesSessionPort.ensureFresh();
 
         const syncId = options.syncId;
         const fetchTurnCredentials = () =>
@@ -128,7 +119,7 @@ export const initWebRTC = async (
             turnCredentials = await fetchTurnCredentials();
         } catch (error) {
             const reauthenticated =
-                await forceOnlineServicesSessionReauthentication();
+                await onlineServicesSessionPort.forceReauthenticate();
             if (!reauthenticated) {
                 throw error;
             }
@@ -167,7 +158,6 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
         userAuthentication: {
             transport: "ajax",
             endpoint: "",
-            headersProvider: createBareAuthHeader,
             customHandler: (req, _next) => {
                 signalingLog.debug("Pusher auth request", { request: req });
                 // return next(req);
@@ -176,7 +166,6 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
         channelAuthorization: {
             transport: "ajax",
             endpoint: "",
-            headersProvider: createBareAuthHeader,
             customHandler: async (req, next) => {
                 const authorizeChannel = () =>
                     trpc.v1.device.signalingAuthChannel.mutate({
@@ -190,7 +179,7 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
                     return next(null, data);
                 } catch (e) {
                     const reauthenticated =
-                        await forceOnlineServicesSessionReauthentication();
+                        await onlineServicesSessionPort.forceReauthenticate();
                     if (reauthenticated) {
                         try {
                             const data = await authorizeChannel();

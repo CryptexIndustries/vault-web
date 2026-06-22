@@ -39,6 +39,12 @@ export enum MessageType {
     /** Discards any cached Online Services session token in the SW. */
     OnlineServicesClear = 17,
 
+    /** Refreshes or re-establishes the SW Online Services session. */
+    OnlineServicesEnsureFresh = 18,
+
+    /** Forces a full Online Services re-auth in the SW after UNAUTHORIZED. */
+    OnlineServicesForceReauthenticate = 28,
+
     /**
      * Autofill: list credentials matching a page origin. Returns two
      * buckets so the UI can prioritise exact-host matches over eTLD+1

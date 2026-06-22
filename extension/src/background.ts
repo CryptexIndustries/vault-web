@@ -38,8 +38,10 @@ import {
 import type { AutofillRequestOrigin } from "./background/autofill-router";
 import {
     clearOnlineServicesSession as clearOnlineServicesSessionInSW,
+    ensureFreshOnlineServicesSession,
     ensureOnlineServicesSessionFromUnlockedVault,
     establishOnlineServicesSession,
+    forceOnlineServicesSessionReauthentication,
 } from "./app_lib/auth-session-ext";
 import {
     clearAllVaultKeyMaterial,
@@ -77,6 +79,8 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.SyncGetConfiguration,
     MessageType.SyncUpdateCredentials,
     MessageType.ProxyFetch,
+    MessageType.OnlineServicesEnsureFresh,
+    MessageType.OnlineServicesForceReauthenticate,
     MessageType.GetPendingSavePrompt,
     MessageType.ConsumePendingSavePrompt,
 ]);
@@ -90,6 +94,8 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.ProxyFetch,
         MessageType.OnlineServicesEstablish,
         MessageType.OnlineServicesClear,
+        MessageType.OnlineServicesEnsureFresh,
+        MessageType.OnlineServicesForceReauthenticate,
     ]),
     offscreen: new Set<MessageType>(),
     worker: new Set<MessageType>(),
@@ -761,6 +767,16 @@ async function processMessage(
             case MessageType.OnlineServicesClear: {
                 await clearOnlineServicesSessionInSW();
                 return { ok: true };
+            }
+
+            case MessageType.OnlineServicesEnsureFresh: {
+                const ok = await ensureFreshOnlineServicesSession();
+                return { ok };
+            }
+
+            case MessageType.OnlineServicesForceReauthenticate: {
+                const ok = await forceOnlineServicesSessionReauthentication();
+                return { ok };
             }
 
             case MessageType.GetCredentialsForOrigin: {

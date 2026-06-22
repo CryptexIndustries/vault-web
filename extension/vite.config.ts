@@ -79,9 +79,18 @@ export default defineConfig(({ mode }) => {
                 // Route web tRPC imports to the extension shim before the broad @ alias.
                 "@/utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
                 "../utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
-                "../../utils/trpc": path.resolve(
+                "../../utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
+                "@/app_lib/online-services-session/port": path.resolve(
                     __dirname,
-                    "src/trpc-ext.ts",
+                    "../web/src/app_lib/online-services-session/port.ts",
+                ),
+                "@/app_lib/online-services-session/protocol": path.resolve(
+                    __dirname,
+                    "../web/src/app_lib/online-services-session/protocol.ts",
+                ),
+                "@/app_lib/online-services-session": path.resolve(
+                    __dirname,
+                    "src/app_lib/online-services-session/extension.ts",
                 ),
                 "@": path.resolve(__dirname, "../web/src"),
                 "@ui": path.resolve(__dirname, "../packages/shared-ui/src"),

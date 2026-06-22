@@ -217,7 +217,7 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window       |
 | P1       | Phishing on exact-host saved credentials            | Partial           | User education; no eTLD+1 fuzzy release       |
 | P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`   |
-| P2       | `window.open` without `noopener` on credential URLs | Open              | Reverse tabnabbing from stored URLs           |
+| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens |
 | P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required       |
 | P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock              |
 | P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy   |
@@ -225,7 +225,6 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                  |
 | P3       | Logs persist metadata locally                       | Accepted          | User can clear                                |
 | P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                           |
-| P3       | Offscreen doc created but unused                    | Accepted          | Dead code; empty ACL                          |
 | P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                               |
 | P4       | Extension 2FA unsupported                           | Accepted          | `EXTENSION_2FA_UNSUPPORTED`                   |
@@ -288,13 +287,10 @@ sequenceDiagram
 
 Ordered by threat-model priority:
 
-1. Add `noopener,noreferrer` (or `window.open` with feature string) for
-   credential URL opens in `vault-view.tsx`.
-2. Implement response envelope validation (`TODOvalidateResponseEnvelope`).
-3. Broadcast `KEY_ROTATED` on ECDH rotation.
-4. Wire or remove offscreen document; align justification with actual behavior.
-5. Schema validation on `SyncUpdateCredentials` inbound credentials.
-6. Document contributor policy: never log credential fields to `extLogs`.
+1. Implement response envelope validation (`TODOvalidateResponseEnvelope`).
+2. Broadcast `KEY_ROTATED` on ECDH rotation.
+3. Schema validation on `SyncUpdateCredentials` inbound credentials.
+4. Document contributor policy: never log credential fields to `extLogs`.
 
 ## Related documentation
 

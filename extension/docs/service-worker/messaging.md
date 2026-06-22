@@ -42,7 +42,6 @@ Applied before decryption:
 | -------------------- | -------------------------------------------------------------------------- |
 | `popup`              | `sender.url` starts with `chrome.runtime.getURL("/popup.html")`            |
 | `link`               | `sender.url` starts with `chrome.runtime.getURL("/link.html")`             |
-| `offscreen`          | `sender.url === chrome.runtime.getURL("/offscreen.html")`                  |
 | `worker`             | `sender.id === chrome.runtime.id` only (response tag; weak client binding) |
 | `autofill-icon`      | URL prefix `/autofill-icon.html`                                           |
 | `autofill-menu`      | URL prefix `/autofill-menu.html`                                           |
@@ -71,9 +70,9 @@ Encrypted messages are rejected with `MESSAGE_TYPE_NOT_ALLOWED` when
 
 `ProxyFetch`, `OnlineServicesEstablish`, `OnlineServicesClear`
 
-### `offscreen` / `worker`
+### `worker`
 
-None (empty allowlists)
+None (empty allowlist)
 
 ### `autofill-cs` (top frame only)
 

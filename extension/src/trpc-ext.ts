@@ -6,7 +6,7 @@
  *   - The web app injects `Authorization: Bearer <jwt>` from the jotai
  *     `onlineServicesDataAtom` straight from the same JS realm that runs
  *     the React tree, because every authenticated tRPC call lives there.
- *   - The extension has multiple realms (popup, link page, offscreen,
+ *   - The extension has multiple realms (popup, link page,
  *     SW) and the popup's atoms vanish the moment the popup closes. So
  *     header ownership moves into the SW, and this file's
  *     `httpBatchLink` is just a transport that hands the raw request to

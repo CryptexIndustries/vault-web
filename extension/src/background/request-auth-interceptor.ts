@@ -3,7 +3,7 @@
  *
  * This is the file that does the "intercept the requests that need an
  * Authorization token and override the header value" job. The popup /
- * link page / offscreen document never call `fetch` directly for tRPC -
+ * link page never call `fetch` directly for tRPC -
  * they hand the SW a serialised request and the SW:
  *
  *   1. Decides whether this batch needs a session token at all (auth

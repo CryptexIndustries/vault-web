@@ -108,20 +108,6 @@ function validateOrigin(
         return { valid: true };
     }
 
-    // For offscreen document messages
-    if (claimedOrigin === "offscreen") {
-        // Offscreen should come from the offscreen document
-        const offscreenUrl = chrome.runtime.getURL("/offscreen.html");
-        if (sender.url !== offscreenUrl) {
-            return {
-                valid: false,
-                error: "Invalid offscreen origin",
-                code: "INVALID_ORIGIN",
-            };
-        }
-        return { valid: true };
-    }
-
     // For worker messges
     if (claimedOrigin === "worker") {
         if (sender.id !== chrome.runtime.id) {

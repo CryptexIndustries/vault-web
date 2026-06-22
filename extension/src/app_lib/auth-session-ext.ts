@@ -3,7 +3,7 @@
  *
  * The web app keeps its session in a jotai store because every authenticated
  * tRPC request happens inside the same JavaScript realm as the React tree.
- * In the extension that assumption breaks: the popup, link page, offscreen
+ * In the extension that assumption breaks: the popup and link page
  * document, and SW each get their own realm, and the popup atoms vanish
  * the moment the popup closes. To stop the Authorization header from being
  * "out of line" we move ownership entirely into the SW, which:

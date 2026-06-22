@@ -1427,7 +1427,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         const fullUrl = cred.URL.startsWith("http")
             ? cred.URL
             : `https://${cred.URL}`;
-        window.open(fullUrl, "_blank");
+        window.open(fullUrl, "_blank", "noopener,noreferrer");
     };
 
     const handleDeleteSelected = async (cred: VaultCredential) => {
@@ -1986,6 +1986,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                     window.open(
                                                                         fullUrl,
                                                                         "_blank",
+                                                                        "noopener,noreferrer",
                                                                     );
                                                                 }}
                                                             >

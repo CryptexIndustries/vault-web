@@ -24,7 +24,6 @@ flowchart TB
         Popup["popup.html"]
         Link["link.html"]
         Logs["logs.html"]
-        Offscreen["offscreen.html (stub)"]
     end
 
     subgraph sw["Service worker"]
@@ -46,18 +45,16 @@ flowchart TB
     Link -->|LinkingProcessController| Pusher & Peer
     BG --> Store & IDB
     BG -->|ProxyFetch| API
-    BG -.->|ensureOffscreenDocument| Offscreen
 ```
 
-| Realm            | Entry             | Trust                               | Can message SW?               |
-| ---------------- | ----------------- | ----------------------------------- | ----------------------------- |
-| Service worker   | `background.js`   | Root                                | N/A (handler)                 |
-| Action popup     | `popup.html`      | High                                | Yes — full vault ACL          |
-| Link tab         | `link.html`       | Medium-high                         | Yes — OS + proxy only         |
-| Logs tab         | `logs.html`       | Low                                 | No                            |
-| Content script   | `autofill-cs.js`  | Semi — top frame only               | Yes — autofill ACL            |
-| Autofill iframes | `autofill-*.html` | Semi — extension origin in host DOM | Yes — per-kind ACL            |
-| Offscreen        | `offscreen.html`  | Reserved                            | Plaintext `GetPublicKey` only |
+| Realm            | Entry             | Trust                               | Can message SW?       |
+| ---------------- | ----------------- | ----------------------------------- | --------------------- |
+| Service worker   | `background.js`   | Root                                | N/A (handler)         |
+| Action popup     | `popup.html`      | High                                | Yes — full vault ACL  |
+| Link tab         | `link.html`       | Medium-high                         | Yes — OS + proxy only |
+| Logs tab         | `logs.html`       | Low                                 | No                    |
+| Content script   | `autofill-cs.js`  | Semi — top frame only               | Yes — autofill ACL    |
+| Autofill iframes | `autofill-*.html` | Semi — extension origin in host DOM | Yes — per-kind ACL    |
 
 ## Three parallel stacks
 
@@ -72,8 +69,7 @@ flowchart TB
 
 3. **Pusher + WebRTC** — Shared web sync/link code runs in popup and link
    extension pages. Vault data crosses into WebRTC only through SW sync message
-   handlers. Offscreen document is provisioned for future background WebRTC but
-   is not wired today. See [sync-and-link/README.md](../sync-and-link/README.md).
+   handlers. See [sync-and-link/README.md](../sync-and-link/README.md).
 
 ## Shared web code
 

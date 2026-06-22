@@ -127,7 +127,6 @@ export default defineConfig(({ mode }) => {
                 input: {
                     popup: path.resolve(__dirname, "popup.html"),
                     background: path.resolve(__dirname, "src/background.ts"),
-                    offscreen: path.resolve(__dirname, "offscreen.html"),
                     logs: path.resolve(__dirname, "logs.html"),
                     link: path.resolve(__dirname, "link.html"),
                     "autofill-icon": path.resolve(
@@ -150,7 +149,6 @@ export default defineConfig(({ mode }) => {
                 output: {
                     entryFileNames: (chunk) => {
                         if (chunk.name === "background") return "background.js";
-                        if (chunk.name === "offscreen") return "offscreen.js";
                         return "assets/[name]-[hash].js";
                     },
                     chunkFileNames: "assets/[name]-[hash].js",

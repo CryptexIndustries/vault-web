@@ -58,9 +58,9 @@ Important properties:
   comes from the top-frame content script; claims come from extension iframes in
   subframes and are bound by tab id plus iframe kind.
 
-`RegisterAutofillFrame` and `ClaimAutofillFrame` are handled before
-`ensureOffscreenDocument()` in `background.ts` because iframe bootstrap does not
-need WebRTC/offscreen setup.
+`RegisterAutofillFrame` and `ClaimAutofillFrame` are handled before the main
+vault message switch in `background.ts` because iframe bootstrap does not need
+vault unlock state.
 
 Client helpers live in `extension/src/utils/autofill-frame-bootstrap.ts`.
 

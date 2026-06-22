@@ -51,8 +51,6 @@ import {
 } from "./background/session-dek-store";
 import { etldPlus1 } from "./utils/etld";
 
-const OFFSCREEN_URL = chrome.runtime.getURL("/offscreen.html");
-
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
 const ACTIVE_VAULT_DB_INDEX_KEY = "AVI";
@@ -97,7 +95,6 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.OnlineServicesEnsureFresh,
         MessageType.OnlineServicesForceReauthenticate,
     ]),
-    offscreen: new Set<MessageType>(),
     worker: new Set<MessageType>(),
     "autofill-cs": new Set<MessageType>([
         MessageType.GetState,
@@ -362,8 +359,6 @@ async function processMessage(
         if (type === MessageType.ClaimAutofillFrame) {
             return claimAutofillFrameBootstrap(payload, sender);
         }
-
-        await ensureOffscreenDocument();
 
         switch (type) {
             case MessageType.Unlock: {
@@ -904,7 +899,7 @@ async function rotateKeyPair(): Promise<void> {
             `[SW] Rotated ECDH key pair. New key ID: ${newKeyPair.keyId}`,
         );
 
-        // TODO: Broadcast KEY_ROTATED to all connected clients (popup, offscreen)
+        // TODO: Broadcast KEY_ROTATED to all connected clients (popup)
         // For now, clients will discover rotation on next request via STALE_KEY error
     } catch (error) {
         console.error("[SW] Failed to rotate key pair:", error);
@@ -969,25 +964,6 @@ async function ensureActiveKeyPair(): Promise<void> {
         console.error("[SW] Failed to ensure active key pair:", error);
         throw error;
     }
-}
-
-async function ensureOffscreenDocument(): Promise<void> {
-    if (!chrome.offscreen) return;
-
-    const existingContexts = await chrome.runtime.getContexts?.({
-        contextTypes: ["OFFSCREEN_DOCUMENT"],
-        documentUrls: [OFFSCREEN_URL],
-    });
-
-    if (existingContexts && existingContexts.length > 0) {
-        return;
-    }
-
-    await chrome.offscreen.createDocument({
-        url: OFFSCREEN_URL,
-        reasons: [chrome.offscreen.Reason.WEB_RTC],
-        justification: "Secure vault data synchronization.",
-    });
 }
 
 async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null> {

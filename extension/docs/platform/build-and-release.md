@@ -6,10 +6,10 @@
 pnpm run clean && vite build --config vite.config.ts && vite build --config vite.config.content.ts
 ```
 
-| Build                              | Output                       | Entries                                                          |
-| ---------------------------------- | ---------------------------- | ---------------------------------------------------------------- |
-| Main (`vite.config.ts`)            | `dist/`                      | popup, background SW, offscreen, logs, link, autofill HTML pages |
-| Content (`vite.config.content.ts`) | `dist/assets/autofill-cs.js` | Single IIFE, `inlineDynamicImports: true`                        |
+| Build                              | Output                       | Entries                                               |
+| ---------------------------------- | ---------------------------- | ----------------------------------------------------- |
+| Main (`vite.config.ts`)            | `dist/`                      | popup, background SW, logs, link, autofill HTML pages |
+| Content (`vite.config.content.ts`) | `dist/assets/autofill-cs.js` | Single IIFE, `inlineDynamicImports: true`             |
 
 `emptyOutDir: false` on both — `clean` script wipes `dist/` once before the sequence.
 

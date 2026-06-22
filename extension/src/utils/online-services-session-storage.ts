@@ -1,7 +1,7 @@
 /**
  * Service-worker owned storage for the Online Services session token.
  *
- * The popup, link, and offscreen contexts deliberately do NOT touch this -
+ * The popup and link contexts deliberately do NOT touch this -
  * they call back into the SW (via {@link MessageType.ProxyFetch} or the
  * dedicated establish/clear messages) so we have a single owner of the
  * Authorization header lifecycle.

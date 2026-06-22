@@ -1,6 +1,6 @@
 /**
  * Generic "send an encrypted envelope to the SW and decrypt the reply"
- * client used by popup/link/offscreen contexts.
+ * client used by popup/link contexts.
  *
  * Centralising this avoids duplicating the public-key bootstrap, the
  * STALE_KEY retry, and the response decryption between the tRPC proxy
@@ -55,7 +55,6 @@ export function detectEnvelopeOrigin(): EnvelopeOrigin {
     const pathname = window.location.pathname;
     if (pathname.endsWith("/popup.html")) return "popup";
     if (pathname.endsWith("/link.html")) return "link";
-    if (pathname.endsWith("/offscreen.html")) return "offscreen";
     if (pathname.endsWith("/autofill-icon.html")) return "autofill-icon";
     if (pathname.endsWith("/autofill-menu.html")) return "autofill-menu";
     if (pathname.endsWith("/autofill-generator.html")) {

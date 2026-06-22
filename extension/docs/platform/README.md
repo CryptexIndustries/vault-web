@@ -11,13 +11,13 @@ build hardening.
 
 ## Manifest attack surface
 
-| Surface            | Dev                                                      | Production                  |
-| ------------------ | -------------------------------------------------------- | --------------------------- |
-| `host_permissions` | `https://*/*`, `http://*/*`                              | API host + Pusher host only |
-| `permissions`      | `storage`, `idle`, `offscreen`, `activeTab`, `scripting` | Same                        |
-| CSP                | `script-src 'self' 'wasm-unsafe-eval'`                   | Same                        |
-| Content scripts    | `autofill-cs.js` on all http/https, top frame            | Same                        |
-| WAR                | `autofill-*.html`, `assets/*` on all http/https          | Same                        |
+| Surface            | Dev                                             | Production                  |
+| ------------------ | ----------------------------------------------- | --------------------------- |
+| `host_permissions` | `https://*/*`, `http://*/*`                     | API host + Pusher host only |
+| `permissions`      | `storage`, `idle`, `activeTab`, `scripting`     | Same                        |
+| CSP                | `script-src 'self' 'wasm-unsafe-eval'`          | Same                        |
+| Content scripts    | `autofill-cs.js` on all http/https, top frame   | Same                        |
+| WAR                | `autofill-*.html`, `assets/*` on all http/https | Same                        |
 
 `activeTab` and `scripting` are declared but unused in extension source.
 
@@ -32,7 +32,7 @@ Host pages can load:
   `autofill-save.html`
 - Any hashed bundle under `assets/`
 
-Extension pages (`popup.html`, `link.html`, `logs.html`, `offscreen.html`) are
+Extension pages (`popup.html`, `link.html`, `logs.html`) are
 **not** web-accessible.
 
 WAR enables extension-origin iframes in host DOM but exposes bundle fingerprints
@@ -81,12 +81,6 @@ Production Terser drops `console.log/info/debug` but retains `warn`/`error`.
 
 `chrome.idle.setDetectionInterval(30 min)` locks on **system** idle, not
 extension inactivity. Closing popup alone does not lock.
-
-## Offscreen stub
-
-`ensureOffscreenDocument()` creates `offscreen.html` with `WEB_RTC` reason before
-most SW messages. `offscreen.ts` is entirely commented out; `offscreen` origin
-allowlist is empty.
 
 ## File map
 

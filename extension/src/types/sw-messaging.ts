@@ -120,7 +120,6 @@ export enum MessageType {
  */
 export type EnvelopeOrigin =
     | "popup"
-    | "offscreen"
     | "worker"
     | "link"
     | "autofill-cs"

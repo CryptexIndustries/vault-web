@@ -13,7 +13,8 @@ export const openCustomerPortal = async () => {
     const customerPortalURL =
         await trpc.v1.payment.customerPortal.query(undefined);
 
-    if (customerPortalURL) window.open(customerPortalURL, "_blank");
+    if (customerPortalURL)
+        window.open(customerPortalURL, "_blank", "noopener,noreferrer");
 };
 
 export const navigateToCheckout = async (): Promise<void> => {
@@ -24,7 +25,7 @@ export const navigateToCheckout = async (): Promise<void> => {
     }
 
     // Navigate to the checkout session URL
-    window.open(checkoutSessionURL, "_blank");
+    window.open(checkoutSessionURL, "_blank", "noopener,noreferrer");
 };
 //#endregion Subscription
 

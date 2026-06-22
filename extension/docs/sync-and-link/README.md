@@ -34,9 +34,7 @@ encrypted SW messages:
    dropped.
 
 **Lifecycle constraint:** sync runs only while popup is open and vault unlocked.
-Closing popup tears down `GlobalSyncConnectionController`. Offscreen document is
-provisioned (`WEB_RTC` reason) but `offscreen.ts` is a stub — no background sync
-yet.
+Closing popup tears down `GlobalSyncConnectionController`.
 
 ### Extension `VaultOperations` bridge
 

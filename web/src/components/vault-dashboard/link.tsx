@@ -130,6 +130,7 @@ import {
     EyeOff,
     FileText,
     ChevronDown,
+    ChevronRight,
     Loader2,
     Plus,
     QrCode,
@@ -439,7 +440,12 @@ function ProgressLog({ entries }: { entries: ProgressLogType[] }) {
                         key={`${entry.message}-${index}`}
                         className="flex gap-2 text-xs"
                     >
-                        <span className={cn("mt-0.5", colors[entry.type])}>
+                        <span
+                            className={cn(
+                                "mt-0.5 w-10 shrink-0",
+                                colors[entry.type],
+                            )}
+                        >
                             {entry.type === "done" ? "ok" : entry.type}
                         </span>
                         <span className="text-foreground">{entry.message}</span>
@@ -1792,13 +1798,13 @@ export function SendLinkRequestDialog({
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
                 className={cn(
-                    "max-h-[92vh] overflow-y-auto sm:max-w-xl",
+                    "vault-settings-dialog grid max-h-[min(88vh,100dvh)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl",
                     stage === "linking" &&
                         linkingView === "success" &&
                         "border-emerald-500/50",
                 )}
             >
-                <DialogHeader>
+                <DialogHeader className="vault-settings-header border-b px-4 py-4 sm:px-6">
                     <DialogTitle>{dialogTitle}</DialogTitle>
                     <DialogDescription className="sr-only">
                         Name the device, choose a transfer method, then start
@@ -1806,193 +1812,225 @@ export function SendLinkRequestDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                {stage === "configure" ? (
-                    <div className="space-y-5">
-                        <div className="space-y-2">
-                            <Label htmlFor="link-device-name">
-                                Device name
-                            </Label>
-                            <Input
-                                id="link-device-name"
-                                value={deviceName}
-                                onChange={(event) =>
-                                    setDeviceName(event.target.value)
-                                }
-                                placeholder="Maya's laptop"
-                                autoFocus
-                            />
-                        </div>
+                <div className="min-h-0 overflow-y-auto overscroll-contain">
+                    <div className="space-y-5 p-4 sm:p-6">
+                        {stage === "configure" ? (
+                            <>
+                                <div className="space-y-2">
+                                    <Label htmlFor="link-device-name">
+                                        Device name
+                                    </Label>
+                                    <Input
+                                        id="link-device-name"
+                                        value={deviceName}
+                                        onChange={(event) =>
+                                            setDeviceName(event.target.value)
+                                        }
+                                        placeholder="Maya's laptop"
+                                        autoFocus
+                                    />
+                                </div>
 
-                        <div className="space-y-2">
-                            <Label>Transfer method</Label>
-                            <SendLinkMethodPicker
-                                value={selectedLinkMethod}
-                                onChange={selectLinkMethod}
-                            />
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>Transfer method</Label>
+                                    <SendLinkMethodPicker
+                                        value={selectedLinkMethod}
+                                        onChange={selectLinkMethod}
+                                    />
+                                </div>
 
-                        <Accordion
-                            type="single"
-                            collapsible
-                            value={advancedAccordion}
-                            onValueChange={setAdvancedAccordion}
-                        >
-                            <AccordionItem
-                                value="advanced"
-                                className="border-none"
-                            >
-                                <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:no-underline">
-                                    Advanced connection
-                                </AccordionTrigger>
-                                <AccordionContent className="space-y-4">
-                                    <div className="grid gap-3 sm:grid-cols-3">
-                                        <ServerSelect
-                                            label="Signaling"
-                                            value={signalingServerID}
-                                            onChange={(value) =>
-                                                updateConnectionPreferences({
-                                                    signalingServerID: value,
-                                                })
-                                            }
-                                            servers={
-                                                unlockedVault.LinkedDevices
-                                                    .SignalingServers
-                                            }
-                                        />
-                                        <ServerMultiSelect
-                                            label="STUN"
-                                            value={stunServerIDs}
-                                            onChange={(value) =>
-                                                updateConnectionPreferences({
-                                                    stunServerIDs: value,
-                                                })
-                                            }
-                                            servers={
-                                                unlockedVault.LinkedDevices
-                                                    .STUNServers
-                                            }
-                                        />
-                                        <ServerMultiSelect
-                                            label="TURN"
-                                            value={turnServerIDs}
-                                            onChange={(value) =>
-                                                updateConnectionPreferences({
-                                                    turnServerIDs: value,
-                                                })
-                                            }
-                                            servers={
-                                                unlockedVault.LinkedDevices
-                                                    .TURNServers
-                                            }
-                                        />
-                                    </div>
+                                <Accordion
+                                    type="single"
+                                    collapsible
+                                    value={advancedAccordion}
+                                    onValueChange={setAdvancedAccordion}
+                                >
+                                    <AccordionItem
+                                        value="advanced"
+                                        className="border-none"
+                                    >
+                                        <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:no-underline">
+                                            Advanced connection
+                                        </AccordionTrigger>
+                                        <AccordionContent className="space-y-4">
+                                            <div className="grid gap-3 sm:grid-cols-3">
+                                                <ServerSelect
+                                                    label="Signaling"
+                                                    value={signalingServerID}
+                                                    onChange={(value) =>
+                                                        updateConnectionPreferences(
+                                                            {
+                                                                signalingServerID:
+                                                                    value,
+                                                            },
+                                                        )
+                                                    }
+                                                    servers={
+                                                        unlockedVault
+                                                            .LinkedDevices
+                                                            .SignalingServers
+                                                    }
+                                                />
+                                                <ServerMultiSelect
+                                                    label="STUN"
+                                                    value={stunServerIDs}
+                                                    onChange={(value) =>
+                                                        updateConnectionPreferences(
+                                                            {
+                                                                stunServerIDs:
+                                                                    value,
+                                                            },
+                                                        )
+                                                    }
+                                                    servers={
+                                                        unlockedVault
+                                                            .LinkedDevices
+                                                            .STUNServers
+                                                    }
+                                                />
+                                                <ServerMultiSelect
+                                                    label="TURN"
+                                                    value={turnServerIDs}
+                                                    onChange={(value) =>
+                                                        updateConnectionPreferences(
+                                                            {
+                                                                turnServerIDs:
+                                                                    value,
+                                                            },
+                                                        )
+                                                    }
+                                                    servers={
+                                                        unlockedVault
+                                                            .LinkedDevices
+                                                            .TURNServers
+                                                    }
+                                                />
+                                            </div>
 
-                                    <label className="flex items-start gap-3 rounded-lg border p-3">
-                                        <Checkbox
-                                            checked={rootDevice}
-                                            onCheckedChange={(checked) =>
-                                                updateConnectionPreferences({
-                                                    rootDevice:
-                                                        checked === true,
-                                                })
-                                            }
-                                            disabled={
-                                                !usesOnlineServicesSelection
-                                            }
-                                        />
-                                        <span className="text-sm font-medium">
-                                            Make linked device root
-                                        </span>
-                                    </label>
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
+                                            <label className="flex items-start gap-3 rounded-lg border p-3">
+                                                <Checkbox
+                                                    checked={rootDevice}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        updateConnectionPreferences(
+                                                            {
+                                                                rootDevice:
+                                                                    checked ===
+                                                                    true,
+                                                            },
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        !usesOnlineServicesSelection
+                                                    }
+                                                />
+                                                <span className="text-sm font-medium">
+                                                    Make linked device root
+                                                </span>
+                                            </label>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
 
-                        {onlineServicesIssue ? (
-                            <Alert variant="destructive">
-                                <ShieldCheck className="h-4 w-4" />
-                                <AlertTitle>Cryptex Online Services</AlertTitle>
-                                <AlertDescription className="space-y-3">
-                                    <p>
-                                        Selected Online Services entry needs
-                                        account access and paid-tier linking.
+                                {onlineServicesIssue ? (
+                                    <Alert variant="destructive">
+                                        <ShieldCheck className="h-4 w-4" />
+                                        <AlertTitle>
+                                            Cryptex Online Services
+                                        </AlertTitle>
+                                        <AlertDescription className="space-y-3">
+                                            <p>
+                                                Selected Online Services entry
+                                                needs account access and
+                                                paid-tier linking.
+                                            </p>
+                                            {onlineServicesIssue ===
+                                            "signin" ? (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        handleOpenChange(false);
+                                                        onRequireOnlineServicesSignIn?.();
+                                                    }}
+                                                >
+                                                    Sign in
+                                                </Button>
+                                            ) : null}
+                                            {onlineServicesIssue ===
+                                            "upgrade" ? (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        void navigateToCheckout();
+                                                    }}
+                                                >
+                                                    Upgrade
+                                                </Button>
+                                            ) : null}
+                                        </AlertDescription>
+                                    </Alert>
+                                ) : null}
+
+                                {formError ? (
+                                    <p
+                                        className="text-sm text-destructive"
+                                        role="alert"
+                                    >
+                                        {formError}
                                     </p>
-                                    {onlineServicesIssue === "signin" ? (
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => {
-                                                handleOpenChange(false);
-                                                onRequireOnlineServicesSignIn?.();
-                                            }}
-                                        >
-                                            Sign in
-                                        </Button>
-                                    ) : null}
-                                    {onlineServicesIssue === "upgrade" ? (
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => {
-                                                void navigateToCheckout();
-                                            }}
-                                        >
-                                            Upgrade
-                                        </Button>
-                                    ) : null}
-                                </AlertDescription>
-                            </Alert>
-                        ) : null}
-
-                        {formError ? (
-                            <p
-                                className="text-sm text-destructive"
-                                role="alert"
-                            >
-                                {formError}
-                            </p>
-                        ) : null}
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {linkingView === "active" ? (
-                            <SendLinkActiveLinkingPanel
-                                statusMessage={linkingStatusMessage}
-                                linkMethod={selectedLinkMethod}
-                                linkingPackageBase64={linkingPackageBase64}
-                                linkingPackageBinary={linkingPackageBinary}
-                                mnemonic={mnemonic}
-                                mnemonicOpen={mnemonicOpen}
-                                onToggleMnemonic={() =>
-                                    setMnemonicOpen((open) => !open)
-                                }
-                                onDownloadAgain={() =>
-                                    downloadLinkingPackage(linkingPackageBinary)
-                                }
-                                progressLog={progressLog}
-                                showLogDetails={showLogDetails}
-                                onToggleLogDetails={() =>
-                                    setShowLogDetails((open) => !open)
-                                }
-                            />
+                                ) : null}
+                            </>
                         ) : (
-                            <SendLinkTerminalPanel
-                                variant={linkingView}
-                                linkedDeviceName={linkedDeviceName}
-                                errorMessage={getLatestLinkingErrorMessage(
-                                    progressLog,
+                            <>
+                                {linkingView === "active" ? (
+                                    <SendLinkActiveLinkingPanel
+                                        statusMessage={linkingStatusMessage}
+                                        linkMethod={selectedLinkMethod}
+                                        linkingPackageBase64={
+                                            linkingPackageBase64
+                                        }
+                                        linkingPackageBinary={
+                                            linkingPackageBinary
+                                        }
+                                        mnemonic={mnemonic}
+                                        mnemonicOpen={mnemonicOpen}
+                                        onToggleMnemonic={() =>
+                                            setMnemonicOpen((open) => !open)
+                                        }
+                                        onDownloadAgain={() =>
+                                            downloadLinkingPackage(
+                                                linkingPackageBinary,
+                                            )
+                                        }
+                                        progressLog={progressLog}
+                                        showLogDetails={showLogDetails}
+                                        onToggleLogDetails={() =>
+                                            setShowLogDetails((open) => !open)
+                                        }
+                                    />
+                                ) : (
+                                    <SendLinkTerminalPanel
+                                        variant={linkingView}
+                                        linkedDeviceName={linkedDeviceName}
+                                        errorMessage={getLatestLinkingErrorMessage(
+                                            progressLog,
+                                        )}
+                                        progressLog={progressLog}
+                                        showLogDetails={showLogDetails}
+                                        onToggleLogDetails={() =>
+                                            setShowLogDetails((open) => !open)
+                                        }
+                                    />
                                 )}
-                                progressLog={progressLog}
-                                showLogDetails={showLogDetails}
-                                onToggleLogDetails={() =>
-                                    setShowLogDetails((open) => !open)
-                                }
-                            />
+                            </>
                         )}
                     </div>
-                )}
+                </div>
 
-                <DialogFooter>
+                <DialogFooter className="vault-settings-footer border-t px-4 py-4 sm:px-6">
                     {stage === "configure" ? (
                         <>
                             <Button
@@ -2174,43 +2212,295 @@ function parseReceivedVault(data: Uint8Array) {
     return receivedVault;
 }
 
-function ReceiveStepList({ steps }: { steps: ReceiveLinkStep[] }) {
-    const iconFor = (status: LinkingProcessState) => {
-        if (status === LinkingProcessState.Completed) {
-            return (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            );
-        }
-        if (status === LinkingProcessState.Active) {
-            return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
-        }
-        if (status === LinkingProcessState.Error) {
-            return <AlertCircle className="h-4 w-4 text-destructive" />;
-        }
-        if (status === LinkingProcessState.Warning) {
-            return <AlertCircle className="h-4 w-4 text-amber-500" />;
-        }
-        return <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />;
-    };
+type ReceiveInputStep = "package" | "mnemonic";
+type ReceiveLinkPhase = "connect" | "receive" | "merge";
+
+const receiveLinkPhaseByStep: Record<LinkingProcessStep, ReceiveLinkPhase> = {
+    [LinkingProcessStep.Signaling]: "connect",
+    [LinkingProcessStep.SignalingWaitingOtherDevice]: "connect",
+    [LinkingProcessStep.DirectConnection]: "connect",
+    [LinkingProcessStep.SyncKeyExchange]: "receive",
+    [LinkingProcessStep.SignalingCleanup]: "receive",
+    [LinkingProcessStep.VaultTransfer]: "receive",
+    [LinkingProcessStep.VaultSave]: "merge",
+    [LinkingProcessStep.DirectConnectionCleanup]: "merge",
+};
+
+const receiveLinkPhaseDefaultMessage: Record<ReceiveLinkPhase, string> = {
+    connect: "Connecting to sending device...",
+    receive: "Receiving encrypted vault...",
+    merge: "Adding new items to your vault...",
+};
+
+const receiveLinkPhaseProgress: Record<ReceiveLinkPhase, number> = {
+    connect: 33,
+    receive: 66,
+    merge: 100,
+};
+
+const getReceiveLinkPhase = (steps: ReceiveLinkStep[]): ReceiveLinkPhase => {
+    const active = steps.find(
+        (step) => step.status === LinkingProcessState.Active,
+    );
+    if (active) return receiveLinkPhaseByStep[active.id];
+
+    const latestCompleted = [...steps]
+        .reverse()
+        .find((step) => step.status === LinkingProcessState.Completed);
+    if (latestCompleted) return receiveLinkPhaseByStep[latestCompleted.id];
+
+    return "connect";
+};
+
+const getReceiveLinkStatusMessage = (
+    steps: ReceiveLinkStep[],
+    progressLog: ProgressLogType[],
+): string => {
+    const latest = progressLog[0];
+    if (latest && latest.type !== "error") return latest.message;
+
+    return receiveLinkPhaseDefaultMessage[getReceiveLinkPhase(steps)];
+};
+
+const getLatestReceiveErrorMessage = (
+    progressLog: ProgressLogType[],
+): string => {
+    const latest = progressLog.find((entry) => entry.type === "error");
+    return latest?.message ?? "Linking failed.";
+};
+
+const getReceiveLinkDialogTitle = (stage: ReceiveLinkStage): string => {
+    if (stage === "done") return "Vault data merged";
+    if (stage === "aborted") return "Linking aborted";
+    if (stage === "failed") return "Linking failed";
+    if (stage === "linking") return "Receiving vault data";
+    return "Receive vault data";
+};
+
+const hasReceiveLinkPackage = (
+    method: ReceiveLinkMethod,
+    qrCodeData: string,
+    linkFile: File | null,
+) => (method === "file" ? !!linkFile : !!qrCodeData.trim());
+
+const RECEIVE_LINK_PACKAGE_PARSE_SUMMARY =
+    "This link package could not be read.";
+const RECEIVE_LINK_PACKAGE_UNLOCK_SUMMARY =
+    "The mnemonic does not unlock this link package.";
+
+const receiveLinkErrorDetail = (error: unknown): string => {
+    if (error == null) return "";
+    if (typeof error === "string") return error.trim();
+    if (error instanceof Error) return error.message.trim();
+    return String(error).trim();
+};
+
+const formatReceiveLinkPackageError = (
+    phase: "parse" | "unlock",
+    error: unknown,
+): string => {
+    const summary =
+        phase === "parse"
+            ? RECEIVE_LINK_PACKAGE_PARSE_SUMMARY
+            : RECEIVE_LINK_PACKAGE_UNLOCK_SUMMARY;
+    const detail = receiveLinkErrorDetail(error);
+    return detail ? `${summary} Details: ${detail}` : summary;
+};
+
+class ReceiveLinkPackageError extends Error {
+    readonly phase: "parse" | "unlock";
+
+    constructor(phase: "parse" | "unlock", cause: unknown) {
+        super(formatReceiveLinkPackageError(phase, cause), { cause });
+        this.name = "ReceiveLinkPackageError";
+        this.phase = phase;
+    }
+}
+
+function ReceiveInputStepIndicator({ step }: { step: ReceiveInputStep }) {
+    const items: { id: ReceiveInputStep; label: string }[] = [
+        { id: "package", label: "Link package" },
+        { id: "mnemonic", label: "Mnemonic" },
+    ];
 
     return (
-        <div className="space-y-3">
-            {steps.map((step) => (
-                <div key={step.id} className="flex gap-3 rounded-lg border p-3">
-                    <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-                        {iconFor(step.status)}
-                    </span>
-                    <span className="min-w-0">
-                        <span className="block text-sm font-medium">
-                            {step.title}
+        <div className="flex items-center gap-2 text-xs">
+            {items.map((item, index) => {
+                const isActive = item.id === step;
+                const isComplete = step === "mnemonic" && item.id === "package";
+
+                return (
+                    <div key={item.id} className="flex items-center gap-2">
+                        {index > 0 ? (
+                            <ChevronRight
+                                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                                aria-hidden
+                            />
+                        ) : null}
+                        <span
+                            className={cn(
+                                "flex items-center gap-1.5 rounded-full border px-2.5 py-1",
+                                isActive && "border-primary bg-primary/10",
+                                isComplete &&
+                                    "border-emerald-500/50 bg-emerald-500/10",
+                            )}
+                        >
+                            {isComplete ? (
+                                <CheckCircle2
+                                    className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                                    aria-hidden
+                                />
+                            ) : (
+                                <span
+                                    className={cn(
+                                        "flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-medium",
+                                        isActive
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-muted text-muted-foreground",
+                                    )}
+                                >
+                                    {index + 1}
+                                </span>
+                            )}
+                            <span
+                                className={cn(
+                                    "font-medium",
+                                    isActive
+                                        ? "text-foreground"
+                                        : "text-muted-foreground",
+                                )}
+                            >
+                                {item.label}
+                            </span>
                         </span>
-                        <span className="block text-xs text-muted-foreground">
-                            {step.description}
-                        </span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function ReceiveLinkTerminalPanel({
+    variant,
+    mergeSummary,
+    errorMessage,
+    progressLog,
+    showLogDetails,
+    onToggleLogDetails,
+}: {
+    variant: "success" | "aborted" | "failed";
+    mergeSummary: ReceiveMergeSummary | null;
+    errorMessage?: string;
+    progressLog: ProgressLogType[];
+    showLogDetails: boolean;
+    onToggleLogDetails: () => void;
+}) {
+    const isSuccess = variant === "success";
+    const isError = variant === "failed";
+
+    return (
+        <>
+            <div
+                className={cn(
+                    "flex flex-col items-center justify-center gap-4 rounded-xl border bg-card p-8 text-center shadow-sm",
+                    isSuccess
+                        ? "min-h-48 border-emerald-500/50"
+                        : isError
+                          ? "min-h-40 border-destructive/40"
+                          : "min-h-40",
+                )}
+            >
+                {isSuccess ? (
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                ) : isError ? (
+                    <AlertCircle className="h-10 w-10 text-destructive" />
+                ) : (
+                    <AlertCircle className="h-10 w-10 text-amber-500" />
+                )}
+                <div className="space-y-1">
+                    <p className="text-lg font-semibold text-foreground">
+                        {isSuccess
+                            ? "Vault data merged"
+                            : isError
+                              ? "Linking failed"
+                              : "Linking aborted"}
+                    </p>
+                    {isSuccess && mergeSummary ? (
+                        <>
+                            <p className="text-sm text-muted-foreground">
+                                {mergeSummary.credentialsAdded} credential
+                                {mergeSummary.credentialsAdded === 1
+                                    ? ""
+                                    : "s"}{" "}
+                                added.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {mergeSummary.credentialsSkipped} existing
+                                credentials unchanged.
+                            </p>
+                        </>
+                    ) : isError ? (
+                        <>
+                            <p className="text-sm text-destructive">
+                                {errorMessage}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Try again with a fresh link package and
+                                mnemonic.
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">
+                            Linking was cancelled before vault data arrived.
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            <SendLinkLogToggle
+                open={showLogDetails}
+                onToggle={onToggleLogDetails}
+                openLabel={isSuccess ? "Hide what happened" : "Hide details"}
+                closedLabel={isSuccess ? "What happened?" : "Show details"}
+                entries={progressLog}
+            />
+        </>
+    );
+}
+
+function ReceiveLinkActiveLinkingPanel({
+    statusMessage,
+    phaseProgress,
+    progressLog,
+    showLogDetails,
+    onToggleLogDetails,
+}: {
+    statusMessage: string;
+    phaseProgress: number;
+    progressLog: ProgressLogType[];
+    showLogDetails: boolean;
+    onToggleLogDetails: () => void;
+}) {
+    return (
+        <>
+            <div className="space-y-3 rounded-xl border bg-muted/10 p-4">
+                <div className="flex items-center gap-2 text-sm">
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                        {statusMessage}
                     </span>
                 </div>
-            ))}
-        </div>
+                <Progress value={phaseProgress} />
+            </div>
+
+            <SendLinkLogToggle
+                open={showLogDetails}
+                onToggle={onToggleLogDetails}
+                openLabel="Hide details"
+                closedLabel="Show details"
+                entries={progressLog}
+            />
+        </>
     );
 }
 
@@ -2224,9 +2514,12 @@ export function ReceiveLinkRequestDialog({
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
 
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
+    const [inputStep, setInputStep] = useState<ReceiveInputStep>("package");
     const [method, setMethod] = useState<ReceiveLinkMethod>("qr");
     const [secret, setSecret] = useState("");
     const [showSecret, setShowSecret] = useState(false);
+    const [showPasteQR, setShowPasteQR] = useState(false);
+    const [showLogDetails, setShowLogDetails] = useState(false);
     const [qrCodeData, setQRCodeData] = useState("");
     const [linkFile, setLinkFile] = useState<File | null>(null);
     const [isScanning, setIsScanning] = useState(false);
@@ -2266,9 +2559,12 @@ export function ReceiveLinkRequestDialog({
 
     const reset = () => {
         setStage("input");
+        setInputStep("package");
         setMethod("qr");
         setSecret("");
         setShowSecret(false);
+        setShowPasteQR(false);
+        setShowLogDetails(false);
         setQRCodeData("");
         setLinkFile(null);
         setIsScanning(false);
@@ -2315,16 +2611,21 @@ export function ReceiveLinkRequestDialog({
         });
     };
 
-    const getLinkingPackage = async () => {
-        if (method === "file") {
-            return LinkingPackage.fromBinary(await readLinkFile());
-        }
+    const getLinkingPackage = async (): Promise<LinkingPackage> => {
+        try {
+            if (method === "file") {
+                return LinkingPackage.fromBinary(await readLinkFile());
+            }
 
-        const parsed = LinkingPackage.fromBase64(qrCodeData.trim());
-        if (parsed.isErr()) {
-            throw new Error("QR code data is not a valid link package.");
+            const parsed = LinkingPackage.fromBase64(qrCodeData.trim());
+            if (parsed.isErr()) {
+                throw new ReceiveLinkPackageError("parse", parsed.error);
+            }
+            return parsed.value;
+        } catch (error) {
+            if (error instanceof ReceiveLinkPackageError) throw error;
+            throw new ReceiveLinkPackageError("parse", error);
         }
-        return parsed.value;
     };
 
     const confirmOnlineServicesOverwrite = (
@@ -2526,26 +2827,27 @@ export function ReceiveLinkRequestDialog({
             return;
         }
 
-        setStage("linking");
-        setSteps(createReceiveLinkSteps());
-        setProgressLog([]);
-        progressLogRef.current = [];
-        completedRef.current = false;
-        failedRef.current = false;
-        abortedRef.current = false;
-        controllerRef.current = null;
-
         let receiveUsesOnlineServices = false;
         let receivedOnlineServicesDeviceId: string | null = null;
+        let linkingStarted = false;
 
         try {
             const linkingPackage = await getLinkingPackage();
-            const decryptedPackage = await linkingPackage.decryptPackage(
-                secret.trim(),
-            );
+            let decryptedPackage;
+            try {
+                decryptedPackage = await linkingPackage.decryptPackage(
+                    secret.trim(),
+                );
+            } catch (error) {
+                if (error instanceof ReceiveLinkPackageError) throw error;
+                throw new ReceiveLinkPackageError("unlock", error);
+            }
 
             if (decryptedPackage.isErr()) {
-                throw new Error("Mnemonic does not unlock this link package.");
+                throw new ReceiveLinkPackageError(
+                    "unlock",
+                    decryptedPackage.error,
+                );
             }
 
             const linkingBlob = decryptedPackage.value;
@@ -2582,12 +2884,21 @@ export function ReceiveLinkRequestDialog({
                 if (!confirmed) {
                     const message = "Online Services overwrite cancelled.";
                     setFormError(message);
-                    setStage("input");
-                    addReceiveLog(message, "warn");
                     toast.info(message);
                     return;
                 }
             }
+
+            linkingStarted = true;
+            setStage("linking");
+            setShowLogDetails(false);
+            setSteps(createReceiveLinkSteps());
+            setProgressLog([]);
+            progressLogRef.current = [];
+            completedRef.current = false;
+            failedRef.current = false;
+            abortedRef.current = false;
+            controllerRef.current = null;
 
             if (linkingBlob.OnlineServices) {
                 setOnlineServicesData({
@@ -2644,11 +2955,24 @@ export function ReceiveLinkRequestDialog({
                         status.State === LinkingProcessState.Completed &&
                         status.VaultBinaryData
                     ) {
-                        await mergeReceivedVault(
-                            status.VaultBinaryData,
-                            onlineServicesOverwrite,
-                            senderKeyBundle,
-                        );
+                        try {
+                            await mergeReceivedVault(
+                                status.VaultBinaryData,
+                                onlineServicesOverwrite,
+                                senderKeyBundle,
+                            );
+                        } catch (error) {
+                            if (!failedRef.current) {
+                                failedRef.current = true;
+                                setStage("failed");
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Failed to merge received vault.";
+                                addReceiveLog(message, "error");
+                                toast.error(message);
+                            }
+                        }
                     }
 
                     if (
@@ -2682,7 +3006,10 @@ export function ReceiveLinkRequestDialog({
                     onlineServicesDeviceId: receivedOnlineServicesDeviceId,
                     hasLinkFile: !!linkFile,
                     hasQRCodeData: !!qrCodeData.trim(),
-                    error,
+                    error:
+                        error instanceof ReceiveLinkPackageError
+                            ? (error.cause ?? error)
+                            : error,
                 },
             );
             const message =
@@ -2690,364 +3017,510 @@ export function ReceiveLinkRequestDialog({
                     ? error.message
                     : "Failed to receive link request.";
             setFormError(message);
-            addReceiveLog(message, "error");
+            if (linkingStarted) {
+                addReceiveLog(message, "error");
+            }
             setStage("input");
+            setInputStep(
+                error instanceof ReceiveLinkPackageError &&
+                    error.phase === "parse"
+                    ? "package"
+                    : "mnemonic",
+            );
             toast.error(message);
         }
     };
 
+    const hasLinkPackage = hasReceiveLinkPackage(method, qrCodeData, linkFile);
+    const linkingStatusMessage = getReceiveLinkStatusMessage(
+        steps,
+        progressLog,
+    );
+    const linkingPhaseProgress =
+        receiveLinkPhaseProgress[getReceiveLinkPhase(steps)];
+    const dialogTitle = getReceiveLinkDialogTitle(stage);
+
+    const proceedToMnemonicStep = () => {
+        setFormError("");
+        if (!hasLinkPackage) {
+            setFormError(
+                method === "file"
+                    ? "Choose the link file from the sending device."
+                    : "Scan or paste the QR code data first.",
+            );
+            return;
+        }
+        setInputStep("mnemonic");
+    };
+
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Receive vault data</DialogTitle>
-                    <DialogDescription>
-                        Scan or import the link package, enter the mnemonic,
-                        then merge missing credentials and linked devices into
-                        this vault.
-                    </DialogDescription>
+            <DialogContent className="vault-settings-dialog grid max-h-[min(88vh,100dvh)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-lg">
+                <DialogHeader className="vault-settings-header border-b px-4 py-4 sm:px-6">
+                    <DialogTitle>{dialogTitle}</DialogTitle>
+                    {stage === "input" ? (
+                        <DialogDescription>
+                            Import a link package from the sending device.
+                            Existing items stay; only missing data is added.
+                        </DialogDescription>
+                    ) : stage === "linking" ? (
+                        <DialogDescription>
+                            Keep this dialog open until linking completes.
+                        </DialogDescription>
+                    ) : null}
                 </DialogHeader>
 
-                {stage === "input" ? (
-                    <div className="space-y-5">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <button
-                                type="button"
-                                onClick={() => setMethod("qr")}
-                                className={cn(
-                                    "rounded-xl border p-4 text-left transition",
-                                    method === "qr" &&
-                                        "border-primary bg-primary/10",
-                                )}
-                            >
-                                <QrCode className="mb-3 h-5 w-5" />
-                                <span className="block text-sm font-medium">
-                                    Scan QR
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    Fastest when both devices are nearby.
-                                </span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setMethod("file")}
-                                className={cn(
-                                    "rounded-xl border p-4 text-left transition",
-                                    method === "file" &&
-                                        "border-primary bg-primary/10",
-                                )}
-                            >
-                                <FileText className="mb-3 h-5 w-5" />
-                                <span className="block text-sm font-medium">
-                                    Import file
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    Use a .{LINK_FILE_EXTENSION} file from the
-                                    sender.
-                                </span>
-                            </button>
-                        </div>
+                <div className="min-h-0 overflow-y-auto overscroll-contain">
+                    <div className="space-y-5 p-4 sm:p-6">
+                        {stage === "input" ? (
+                            <div className="space-y-5">
+                                <ReceiveInputStepIndicator step={inputStep} />
 
-                        {method === "qr" ? (
-                            <div className="space-y-3">
-                                <div className="overflow-hidden rounded-xl border bg-muted/20">
-                                    {isScanning && !qrCodeData ? (
-                                        <BarcodeScanner
-                                            onUpdate={(_, result) => {
-                                                if (result) {
-                                                    setQRCodeData(
-                                                        result.getText(),
-                                                    );
-                                                    setQrChunkProgress(null);
-                                                    setIsScanning(false);
-                                                }
-                                            }}
-                                            onChunkProgress={setQrChunkProgress}
-                                            onError={(error) => {
-                                                uiLog.warn("QR scanner error", {
-                                                    error,
-                                                });
-                                                setQrChunkProgress(null);
-                                                setCameraError(
-                                                    "Camera unavailable. Paste QR data instead.",
-                                                );
-                                                setIsScanning(false);
-                                            }}
-                                        />
-                                    ) : (
-                                        <div className="flex min-h-40 flex-col items-center justify-center gap-3 p-6 text-center">
-                                            <QrCode className="h-10 w-10 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-sm font-medium">
-                                                    Scan sender QR code
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Camera scan fills package
-                                                    data automatically.
-                                                </p>
-                                            </div>
-                                            <Button
+                                {inputStep === "package" ? (
+                                    <>
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <button
                                                 type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setCameraError("");
-                                                    setQRCodeData("");
-                                                    setQrChunkProgress(null);
-                                                    setIsScanning(true);
+                                                onClick={() => setMethod("qr")}
+                                                className={cn(
+                                                    "rounded-xl border p-4 text-left transition",
+                                                    method === "qr" &&
+                                                        "border-primary bg-primary/10",
+                                                )}
+                                            >
+                                                <QrCode className="mb-3 h-5 w-5" />
+                                                <span className="block text-sm font-medium">
+                                                    Scan QR
+                                                </span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    Fastest when both devices
+                                                    are nearby.
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setMethod("file")
+                                                }
+                                                className={cn(
+                                                    "rounded-xl border p-4 text-left transition",
+                                                    method === "file" &&
+                                                        "border-primary bg-primary/10",
+                                                )}
+                                            >
+                                                <FileText className="mb-3 h-5 w-5" />
+                                                <span className="block text-sm font-medium">
+                                                    Import file
+                                                </span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    Use a .{LINK_FILE_EXTENSION}{" "}
+                                                    file from the sender.
+                                                </span>
+                                            </button>
+                                        </div>
+
+                                        {method === "qr" ? (
+                                            <div className="space-y-3">
+                                                <div className="overflow-hidden rounded-xl border bg-muted/20">
+                                                    {isScanning &&
+                                                    !qrCodeData ? (
+                                                        <BarcodeScanner
+                                                            onUpdate={(
+                                                                _,
+                                                                result,
+                                                            ) => {
+                                                                if (result) {
+                                                                    setQRCodeData(
+                                                                        result.getText(),
+                                                                    );
+                                                                    setQrChunkProgress(
+                                                                        null,
+                                                                    );
+                                                                    setIsScanning(
+                                                                        false,
+                                                                    );
+                                                                }
+                                                            }}
+                                                            onChunkProgress={
+                                                                setQrChunkProgress
+                                                            }
+                                                            onError={(
+                                                                error,
+                                                            ) => {
+                                                                uiLog.warn(
+                                                                    "QR scanner error",
+                                                                    { error },
+                                                                );
+                                                                setQrChunkProgress(
+                                                                    null,
+                                                                );
+                                                                setCameraError(
+                                                                    "Camera unavailable. Paste QR data instead.",
+                                                                );
+                                                                setShowPasteQR(
+                                                                    true,
+                                                                );
+                                                                setIsScanning(
+                                                                    false,
+                                                                );
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex min-h-40 flex-col items-center justify-center gap-3 p-6 text-center">
+                                                            {hasLinkPackage ? (
+                                                                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                                                            ) : (
+                                                                <QrCode className="h-10 w-10 text-muted-foreground" />
+                                                            )}
+                                                            <div>
+                                                                <p className="text-sm font-medium">
+                                                                    {hasLinkPackage
+                                                                        ? "Link package ready"
+                                                                        : "Scan sender QR code"}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {hasLinkPackage
+                                                                        ? "Continue to enter the mnemonic."
+                                                                        : "Camera scan fills package data automatically."}
+                                                                </p>
+                                                            </div>
+                                                            {!hasLinkPackage ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setCameraError(
+                                                                            "",
+                                                                        );
+                                                                        setQRCodeData(
+                                                                            "",
+                                                                        );
+                                                                        setQrChunkProgress(
+                                                                            null,
+                                                                        );
+                                                                        setIsScanning(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Camera className="mr-2 h-4 w-4" />
+                                                                    Start camera
+                                                                </Button>
+                                                            ) : (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setQRCodeData(
+                                                                            "",
+                                                                        );
+                                                                        setQrChunkProgress(
+                                                                            null,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <X className="mr-2 h-4 w-4" />
+                                                                    Clear and
+                                                                    rescan
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {qrChunkProgress ? (
+                                                    <div className="space-y-1.5">
+                                                        <Progress
+                                                            value={
+                                                                (qrChunkProgress.received /
+                                                                    qrChunkProgress.total) *
+                                                                100
+                                                            }
+                                                        />
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Scanned{" "}
+                                                            {
+                                                                qrChunkProgress.received
+                                                            }{" "}
+                                                            of{" "}
+                                                            {
+                                                                qrChunkProgress.total
+                                                            }{" "}
+                                                            QR parts. Keep
+                                                            camera pointed at
+                                                            sender.
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                                {!showPasteQR &&
+                                                !hasLinkPackage ? (
+                                                    <Button
+                                                        type="button"
+                                                        variant="link"
+                                                        size="sm"
+                                                        className="h-auto px-0"
+                                                        onClick={() =>
+                                                            setShowPasteQR(true)
+                                                        }
+                                                    >
+                                                        Can&apos;t scan? Paste
+                                                        instead
+                                                    </Button>
+                                                ) : null}
+                                                {showPasteQR ||
+                                                hasLinkPackage ? (
+                                                    <div className="space-y-2">
+                                                        <Textarea
+                                                            value={qrCodeData}
+                                                            onChange={(event) =>
+                                                                setQRCodeData(
+                                                                    event.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            placeholder="Paste QR code data here"
+                                                            rows={3}
+                                                        />
+                                                        {qrCodeData ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setQRCodeData(
+                                                                        "",
+                                                                    );
+                                                                    setQrChunkProgress(
+                                                                        null,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <X className="mr-2 h-4 w-4" />
+                                                                Clear QR data
+                                                            </Button>
+                                                        ) : null}
+                                                    </div>
+                                                ) : null}
+                                                {cameraError ? (
+                                                    <p className="text-sm text-destructive">
+                                                        {cameraError}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className={cn(
+                                                    "relative rounded-xl border border-dashed p-6 text-center transition",
+                                                    linkFile
+                                                        ? "border-emerald-500 bg-emerald-500/10"
+                                                        : "bg-muted/20 hover:bg-muted/40",
+                                                )}
+                                                onDragOver={(event) =>
+                                                    event.preventDefault()
+                                                }
+                                                onDrop={(event) => {
+                                                    event.preventDefault();
+                                                    const file = Array.from(
+                                                        event.dataTransfer
+                                                            .files,
+                                                    ).find((item) =>
+                                                        item.name.endsWith(
+                                                            `.${LINK_FILE_EXTENSION}`,
+                                                        ),
+                                                    );
+                                                    if (file) setLinkFile(file);
                                                 }}
                                             >
-                                                <Camera className="mr-2 h-4 w-4" />
-                                                Start camera
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                                {qrChunkProgress ? (
-                                    <div className="space-y-1.5">
-                                        <Progress
-                                            value={
-                                                (qrChunkProgress.received /
-                                                    qrChunkProgress.total) *
-                                                100
-                                            }
-                                        />
-                                        <p className="text-sm text-muted-foreground">
-                                            Scanned {qrChunkProgress.received}{" "}
-                                            of {qrChunkProgress.total} QR parts.
-                                            Keep camera pointed at sender.
-                                        </p>
-                                    </div>
-                                ) : null}
-                                <Textarea
-                                    value={qrCodeData}
-                                    onChange={(event) =>
-                                        setQRCodeData(event.target.value)
-                                    }
-                                    placeholder="Or paste QR code data here"
-                                    rows={4}
-                                />
-                                {qrCodeData ? (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                            setQRCodeData("");
-                                            setQrChunkProgress(null);
-                                        }}
-                                    >
-                                        <X className="mr-2 h-4 w-4" />
-                                        Clear QR data
-                                    </Button>
-                                ) : null}
-                                {cameraError ? (
-                                    <p className="text-sm text-destructive">
-                                        {cameraError}
-                                    </p>
-                                ) : null}
-                            </div>
-                        ) : (
-                            <div
-                                className={cn(
-                                    "relative rounded-xl border border-dashed p-6 text-center transition",
-                                    linkFile
-                                        ? "border-emerald-500 bg-emerald-500/10"
-                                        : "bg-muted/20 hover:bg-muted/40",
-                                )}
-                                onDragOver={(event) => event.preventDefault()}
-                                onDrop={(event) => {
-                                    event.preventDefault();
-                                    const file = Array.from(
-                                        event.dataTransfer.files,
-                                    ).find((item) =>
-                                        item.name.endsWith(
-                                            `.${LINK_FILE_EXTENSION}`,
-                                        ),
-                                    );
-                                    if (file) setLinkFile(file);
-                                }}
-                            >
-                                <input
-                                    type="file"
-                                    accept={`.${LINK_FILE_EXTENSION}`}
-                                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                    onChange={(event) =>
-                                        setLinkFile(
-                                            event.target.files?.[0] ?? null,
-                                        )
-                                    }
-                                />
-                                <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                                <p className="text-sm font-medium">
-                                    {linkFile
-                                        ? linkFile.name
-                                        : `Drop .${LINK_FILE_EXTENSION} file here`}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {linkFile
-                                        ? "Click or drop another file to replace it."
-                                        : "Click to browse if drag and drop is not available."}
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="space-y-2">
-                            <Label htmlFor="receive-link-secret">
-                                Mnemonic
-                            </Label>
-                            <div className="relative">
-                                <Input
-                                    id="receive-link-secret"
-                                    type={showSecret ? "text" : "password"}
-                                    value={secret}
-                                    onChange={(event) =>
-                                        setSecret(event.target.value)
-                                    }
-                                    placeholder="Words shown on sending device"
-                                    onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
-                                            void startReceiving();
-                                        }
-                                    }}
-                                    className="pr-10"
-                                />
-                                <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        setShowSecret(
-                                                            !showSecret,
+                                                <input
+                                                    type="file"
+                                                    accept={`.${LINK_FILE_EXTENSION}`}
+                                                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                                    onChange={(event) =>
+                                                        setLinkFile(
+                                                            event.target
+                                                                .files?.[0] ??
+                                                                null,
                                                         )
                                                     }
-                                                    className="h-7 w-7"
-                                                    aria-label={
-                                                        showSecret
-                                                            ? "Hide mnemonic"
-                                                            : "Show mnemonic"
+                                                />
+                                                <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                                                <p className="text-sm font-medium">
+                                                    {linkFile
+                                                        ? linkFile.name
+                                                        : `Drop .${LINK_FILE_EXTENSION} file here`}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {linkFile
+                                                        ? "Click or drop another file to replace it."
+                                                        : "Click to browse if drag and drop is not available."}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            Enter the mnemonic shown on the
+                                            sending device to unlock the link
+                                            package.
+                                        </p>
+                                        <Label htmlFor="receive-link-secret">
+                                            Mnemonic
+                                        </Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="receive-link-secret"
+                                                type={
+                                                    showSecret
+                                                        ? "text"
+                                                        : "password"
+                                                }
+                                                value={secret}
+                                                onChange={(event) =>
+                                                    setSecret(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Words shown on sending device"
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter") {
+                                                        void startReceiving();
                                                     }
-                                                >
-                                                    {showSecret ? (
-                                                        <EyeOff className="h-3.5 w-3.5" />
-                                                    ) : (
-                                                        <Eye className="h-3.5 w-3.5" />
-                                                    )}
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                {showSecret ? "Hide" : "Show"}
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                </div>
-                            </div>
-                        </div>
-
-                        {formError ? (
-                            <p
-                                className="text-sm text-destructive"
-                                role="alert"
-                            >
-                                {formError}
-                            </p>
-                        ) : null}
-                    </div>
-                ) : (
-                    <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-                        <div className="space-y-4">
-                            <div className="rounded-xl border bg-muted/20 p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-medium">
-                                            {stage === "done"
-                                                ? "Vault data merged"
-                                                : stage === "aborted"
-                                                  ? "Linking aborted"
-                                                  : stage === "failed"
-                                                    ? "Linking failed"
-                                                    : "Receiving vault data"}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Current credentials stay untouched.
-                                            Missing data is added only.
-                                        </p>
+                                                }}
+                                                className="pr-10"
+                                                autoFocus
+                                            />
+                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    setShowSecret(
+                                                                        !showSecret,
+                                                                    )
+                                                                }
+                                                                className="h-7 w-7"
+                                                                aria-label={
+                                                                    showSecret
+                                                                        ? "Hide mnemonic"
+                                                                        : "Show mnemonic"
+                                                                }
+                                                            >
+                                                                {showSecret ? (
+                                                                    <EyeOff className="h-3.5 w-3.5" />
+                                                                ) : (
+                                                                    <Eye className="h-3.5 w-3.5" />
+                                                                )}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {showSecret
+                                                                ? "Hide"
+                                                                : "Show"}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
                                     </div>
-                                    {stage === "done" ? (
-                                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                                    ) : stage === "aborted" ? (
-                                        <AlertCircle className="h-5 w-5 text-amber-500" />
-                                    ) : stage === "failed" ? (
-                                        <AlertCircle className="h-5 w-5 text-destructive" />
-                                    ) : (
-                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                    )}
-                                </div>
-                            </div>
-                            <ReceiveStepList steps={steps} />
-                        </div>
-                        <div className="space-y-4">
-                            {mergeSummary ? (
-                                <div className="rounded-xl border p-4">
-                                    <p className="text-sm font-medium">
-                                        Merge summary
+                                )}
+
+                                {formError ? (
+                                    <p
+                                        className="text-sm text-destructive"
+                                        role="alert"
+                                    >
+                                        {formError}
                                     </p>
-                                    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-                                        <p>
-                                            {mergeSummary.credentialsAdded}{" "}
-                                            credentials added
-                                        </p>
-                                        <p>
-                                            {mergeSummary.credentialsSkipped}{" "}
-                                            existing credentials skipped
-                                        </p>
-                                        <p>
-                                            {mergeSummary.devicesAdded} linked
-                                            devices added
-                                        </p>
-                                    </div>
-                                </div>
-                            ) : null}
-                            <ProgressLog entries={progressLog} />
-                        </div>
+                                ) : null}
+                            </div>
+                        ) : stage === "linking" ? (
+                            <ReceiveLinkActiveLinkingPanel
+                                statusMessage={linkingStatusMessage}
+                                phaseProgress={linkingPhaseProgress}
+                                progressLog={progressLog}
+                                showLogDetails={showLogDetails}
+                                onToggleLogDetails={() =>
+                                    setShowLogDetails((value) => !value)
+                                }
+                            />
+                        ) : (
+                            <ReceiveLinkTerminalPanel
+                                variant={
+                                    stage === "done"
+                                        ? "success"
+                                        : stage === "failed"
+                                          ? "failed"
+                                          : "aborted"
+                                }
+                                mergeSummary={mergeSummary}
+                                errorMessage={getLatestReceiveErrorMessage(
+                                    progressLog,
+                                )}
+                                progressLog={progressLog}
+                                showLogDetails={showLogDetails}
+                                onToggleLogDetails={() =>
+                                    setShowLogDetails((value) => !value)
+                                }
+                            />
+                        )}
                     </div>
-                )}
+                </div>
 
-                <DialogFooter>
+                <DialogFooter className="vault-settings-footer border-t px-4 py-4 sm:px-6">
                     {stage === "input" ? (
-                        <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleOpenChange(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="button"
-                                onClick={() => void startReceiving()}
-                            >
-                                Receive vault data
-                            </Button>
-                        </>
+                        inputStep === "package" ? (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleOpenChange(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="button"
+                                    disabled={!hasLinkPackage}
+                                    onClick={proceedToMnemonicStep}
+                                >
+                                    Next
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setFormError("");
+                                        setInputStep("package");
+                                    }}
+                                >
+                                    Back
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => void startReceiving()}
+                                >
+                                    Receive vault data
+                                </Button>
+                            </>
+                        )
                     ) : stage === "linking" ? (
-                        <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={!canAbortWaitingForDevice}
-                                onClick={abortWaitingForDevice}
-                            >
-                                Cancel linking
-                            </Button>
-                            <Button type="button" disabled>
-                                Close
-                            </Button>
-                        </>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={!canAbortWaitingForDevice}
+                            onClick={abortWaitingForDevice}
+                            className="w-full sm:w-auto"
+                        >
+                            Cancel linking
+                        </Button>
                     ) : (
                         <>
                             <Button

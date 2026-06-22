@@ -11,8 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -124,6 +129,7 @@ import {
     Eye,
     EyeOff,
     FileText,
+    ChevronDown,
     Loader2,
     Plus,
     QrCode,
@@ -131,7 +137,6 @@ import {
     Sun,
     Trash2,
     Upload,
-    Volume2,
     X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -147,8 +152,14 @@ export type SendLinkRequestDialogProps = {
     onRequireOnlineServicesSignIn?: () => void;
 };
 
-type LinkMethod = "qr" | "file" | "sound";
+type SendLinkMethod = "qr" | "file";
 type LinkStage = "configure" | "linking";
+type SendLinkOutcome =
+    | "idle"
+    | "in_progress"
+    | "success"
+    | "error"
+    | "cancelled";
 type ProgressLogType = {
     message: string;
     type: "done" | "info" | "warn" | "error";
@@ -179,8 +190,79 @@ const requireLocalSyncKeyBundle = (
     );
 };
 
-const linkMethodCopy: Record<
-    LinkMethod,
+const SEND_LINK_PREFERENCES_KEY = "cryptex-send-link-preferences";
+
+type SendLinkPreferences = {
+    linkMethod: SendLinkMethod;
+    signalingServerID: string;
+    stunServerIDs: string[];
+    turnServerIDs: string[];
+    rootDevice: boolean;
+};
+
+const defaultSendLinkPreferences = (): SendLinkPreferences => ({
+    linkMethod: "qr",
+    signalingServerID: ONLINE_SERVICES_SELECTION_ID,
+    stunServerIDs: [ONLINE_SERVICES_SELECTION_ID],
+    turnServerIDs: [ONLINE_SERVICES_SELECTION_ID],
+    rootDevice: false,
+});
+
+const loadSendLinkPreferences = (): SendLinkPreferences => {
+    if (typeof window === "undefined") {
+        return defaultSendLinkPreferences();
+    }
+
+    try {
+        const raw = localStorage.getItem(SEND_LINK_PREFERENCES_KEY);
+        if (!raw) return defaultSendLinkPreferences();
+
+        const parsed = JSON.parse(raw) as Partial<SendLinkPreferences>;
+        return {
+            ...defaultSendLinkPreferences(),
+            ...parsed,
+            linkMethod: parsed.linkMethod === "file" ? "file" : "qr",
+            stunServerIDs:
+                Array.isArray(parsed.stunServerIDs) &&
+                parsed.stunServerIDs.length > 0
+                    ? parsed.stunServerIDs
+                    : [ONLINE_SERVICES_SELECTION_ID],
+            turnServerIDs:
+                Array.isArray(parsed.turnServerIDs) &&
+                parsed.turnServerIDs.length > 0
+                    ? parsed.turnServerIDs
+                    : [ONLINE_SERVICES_SELECTION_ID],
+        };
+    } catch {
+        return defaultSendLinkPreferences();
+    }
+};
+
+const saveSendLinkPreferences = (preferences: SendLinkPreferences) => {
+    try {
+        localStorage.setItem(
+            SEND_LINK_PREFERENCES_KEY,
+            JSON.stringify(preferences),
+        );
+    } catch {
+        // Ignore quota or privacy-mode storage errors.
+    }
+};
+
+const hasCustomConnectionSettings = (
+    preferences: SendLinkPreferences,
+): boolean =>
+    preferences.signalingServerID !== ONLINE_SERVICES_SELECTION_ID ||
+    preferences.stunServerIDs.some(
+        (id) => id !== ONLINE_SERVICES_SELECTION_ID,
+    ) ||
+    preferences.turnServerIDs.some(
+        (id) => id !== ONLINE_SERVICES_SELECTION_ID,
+    ) ||
+    preferences.rootDevice;
+
+const sendLinkMethodCopy: Record<
+    SendLinkMethod,
     { title: string; description: string; icon: typeof QrCode }
 > = {
     qr: {
@@ -193,11 +275,6 @@ const linkMethodCopy: Record<
         description:
             "Download a link file and move it to the receiving device.",
         icon: FileText,
-    },
-    sound: {
-        title: "Sound",
-        description: "Coming soon.",
-        icon: Volume2,
     },
 };
 
@@ -281,14 +358,60 @@ function LinkingQRCode({
                     Part {activeFrameIndex + 1} of {frames.length}
                 </span>
             ) : null}
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <Sun className="h-3.5 w-3.5" />
-                Increase your display brightness for reliable scanning.
-            </span>
-            <span className="text-xs text-muted-foreground">
-                {copied ? "Copied" : "Click QR to copy payload"}
-            </span>
+            <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Sun className="h-3.5 w-3.5" />
+                            {copied ? "Copied" : "Click QR to copy payload"}
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        Increase display brightness for reliable scanning.
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         </button>
+    );
+}
+
+function SendLinkMethodPicker({
+    value,
+    onChange,
+}: {
+    value: SendLinkMethod;
+    onChange: (method: SendLinkMethod) => void;
+}) {
+    return (
+        <div className="grid gap-2 sm:grid-cols-2">
+            {(Object.keys(sendLinkMethodCopy) as SendLinkMethod[]).map(
+                (method) => {
+                    const copy = sendLinkMethodCopy[method];
+                    const Icon = copy.icon;
+                    const active = value === method;
+
+                    return (
+                        <button
+                            key={method}
+                            type="button"
+                            onClick={() => onChange(method)}
+                            className={cn(
+                                "rounded-lg border p-3 text-left transition",
+                                active && "border-primary bg-primary/10",
+                            )}
+                        >
+                            <Icon className="mb-2 h-4 w-4" />
+                            <span className="block text-sm font-medium">
+                                {copy.title}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                                {copy.description}
+                            </span>
+                        </button>
+                    );
+                },
+            )}
+        </div>
     );
 }
 
@@ -451,6 +574,276 @@ function ServerMultiSelect({
     );
 }
 
+type SendLinkLinkingView = "active" | "success" | "cancelled" | "error";
+
+const getSendLinkLinkingView = (
+    outcome: SendLinkOutcome,
+): SendLinkLinkingView => {
+    if (outcome === "success") return "success";
+    if (outcome === "cancelled") return "cancelled";
+    if (outcome === "error") return "error";
+    return "active";
+};
+
+const getSendLinkDialogTitle = (
+    stage: LinkStage,
+    outcome: SendLinkOutcome,
+): string => {
+    if (stage !== "linking") return "Link new device";
+    if (outcome === "success") return "Device linked";
+    if (outcome === "cancelled") return "Linking cancelled";
+    if (outcome === "error") return "Linking failed";
+    return "Link new device";
+};
+
+const getLatestLinkingErrorMessage = (
+    progressLog: ProgressLogType[],
+): string => {
+    const latest = progressLog.find((entry) => entry.type === "error");
+    return latest?.message ?? "Linking failed.";
+};
+
+const getSendLinkStatusMessage = (
+    progressLog: ProgressLogType[],
+    readyForOtherDevice: boolean,
+    linkMethod: SendLinkMethod,
+): string => {
+    if (progressLog[0]?.message) return progressLog[0].message;
+
+    if (!readyForOtherDevice) return "Preparing private connection...";
+
+    return linkMethod === "qr"
+        ? "Scan the QR code on the receiving device."
+        : "Import the link file on the receiving device, then enter the mnemonic.";
+};
+
+function SendLinkLogToggle({
+    open,
+    onToggle,
+    openLabel,
+    closedLabel,
+    entries,
+}: {
+    open: boolean;
+    onToggle: () => void;
+    openLabel: string;
+    closedLabel: string;
+    entries: ProgressLogType[];
+}) {
+    if (!entries.length) return null;
+
+    return (
+        <div className="space-y-2">
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={onToggle}
+            >
+                {open ? openLabel : closedLabel}
+            </Button>
+            {open ? <ProgressLog entries={entries} /> : null}
+        </div>
+    );
+}
+
+function SendLinkTerminalPanel({
+    variant,
+    linkedDeviceName,
+    errorMessage,
+    progressLog,
+    showLogDetails,
+    onToggleLogDetails,
+}: {
+    variant: "success" | "cancelled" | "error";
+    linkedDeviceName: string;
+    errorMessage?: string;
+    progressLog: ProgressLogType[];
+    showLogDetails: boolean;
+    onToggleLogDetails: () => void;
+}) {
+    const isSuccess = variant === "success";
+    const isError = variant === "error";
+
+    return (
+        <>
+            <div
+                className={cn(
+                    "flex flex-col items-center justify-center gap-4 rounded-xl border bg-card p-8 text-center shadow-sm",
+                    isSuccess
+                        ? "min-h-56 border-emerald-500/50"
+                        : isError
+                          ? "min-h-40 border-destructive/40"
+                          : "min-h-40",
+                )}
+            >
+                {isSuccess ? (
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                ) : isError ? (
+                    <AlertCircle className="h-10 w-10 text-destructive" />
+                ) : (
+                    <X className="h-10 w-10 text-muted-foreground" />
+                )}
+                <div className="space-y-1">
+                    <p className="text-lg font-semibold text-foreground">
+                        {isSuccess
+                            ? "Device linked successfully"
+                            : isError
+                              ? "Linking failed"
+                              : "Linking cancelled"}
+                    </p>
+                    {isSuccess ? (
+                        <>
+                            <p className="text-sm text-muted-foreground">
+                                <span className="font-medium text-foreground">
+                                    {linkedDeviceName}
+                                </span>{" "}
+                                was added to linked devices.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                It will appear in the device sidebar.
+                            </p>
+                        </>
+                    ) : isError ? (
+                        <>
+                            <p className="text-sm text-destructive">
+                                {errorMessage}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                QR code, link file, and mnemonic were cleared.
+                                Start over to try again.
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">
+                            QR code, link file, and mnemonic were cleared. Start
+                            over to create a new link request.
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            <SendLinkLogToggle
+                open={showLogDetails}
+                onToggle={onToggleLogDetails}
+                openLabel={isSuccess ? "Hide what happened" : "Hide details"}
+                closedLabel={isSuccess ? "What happened?" : "Show details"}
+                entries={progressLog}
+            />
+        </>
+    );
+}
+
+function SendLinkActiveLinkingPanel({
+    statusMessage,
+    linkMethod,
+    linkingPackageBase64,
+    linkingPackageBinary,
+    mnemonic,
+    mnemonicOpen,
+    onToggleMnemonic,
+    onDownloadAgain,
+    progressLog,
+    showLogDetails,
+    onToggleLogDetails,
+}: {
+    statusMessage: string;
+    linkMethod: SendLinkMethod;
+    linkingPackageBase64: string;
+    linkingPackageBinary: Uint8Array | null;
+    mnemonic: string;
+    mnemonicOpen: boolean;
+    onToggleMnemonic: () => void;
+    onDownloadAgain: () => void;
+    progressLog: ProgressLogType[];
+    showLogDetails: boolean;
+    onToggleLogDetails: () => void;
+}) {
+    return (
+        <>
+            <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground">{statusMessage}</span>
+            </div>
+
+            <div className="flex items-center justify-center rounded-xl border bg-muted/10 p-4">
+                {linkMethod === "qr" ? (
+                    linkingPackageBase64 ? (
+                        <LinkingQRCode
+                            value={linkingPackageBase64}
+                            cycleMs={SEND_LINK_QR_CYCLE_MS}
+                        />
+                    ) : (
+                        <div className="text-sm text-muted-foreground">
+                            QR code preparing...
+                        </div>
+                    )
+                ) : (
+                    <div className="space-y-3 text-center">
+                        <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
+                        <p className="text-sm font-medium">
+                            Link file downloaded
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Import it on the receiving device, then enter the
+                            mnemonic below.
+                        </p>
+                        {linkingPackageBinary ? (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={onDownloadAgain}
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download again
+                            </Button>
+                        ) : null}
+                    </div>
+                )}
+            </div>
+
+            <div className="rounded-xl border">
+                <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                    onClick={onToggleMnemonic}
+                >
+                    <span className="text-sm font-medium">Mnemonic</span>
+                    <ChevronDown
+                        className={cn(
+                            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                            mnemonicOpen && "rotate-180",
+                        )}
+                    />
+                </button>
+                {mnemonicOpen ? (
+                    <div className="border-t px-4 py-2">
+                        {mnemonic ? (
+                            <p className="select-all rounded-lg bg-muted p-3 text-xs leading-relaxed">
+                                {mnemonic}
+                            </p>
+                        ) : (
+                            <p className="text-xs text-muted-foreground">
+                                Generated after link package is ready.
+                            </p>
+                        )}
+                    </div>
+                ) : null}
+            </div>
+
+            <SendLinkLogToggle
+                open={showLogDetails}
+                onToggle={onToggleLogDetails}
+                openLabel="Hide details"
+                closedLabel="Show details"
+                entries={progressLog}
+            />
+        </>
+    );
+}
+
 export function SendLinkRequestDialog({
     open,
     onOpenChange,
@@ -481,12 +874,15 @@ export function SendLinkRequestDialog({
     ]);
     const [rootDevice, setRootDevice] = useState(false);
     const [selectedLinkMethod, setSelectedLinkMethod] =
-        useState<LinkMethod>("qr");
-    const [isOperationInProgress, setIsOperationInProgress] = useState(false);
+        useState<SendLinkMethod>("qr");
+    const [advancedAccordion, setAdvancedAccordion] = useState("");
+    const [showLogDetails, setShowLogDetails] = useState(false);
+    const [mnemonicOpen, setMnemonicOpen] = useState(false);
+    const [linkingOutcome, setLinkingOutcome] =
+        useState<SendLinkOutcome>("idle");
+    const [linkedDeviceName, setLinkedDeviceName] = useState("");
     const [readyForOtherDevice, setReadyForOtherDevice] = useState(false);
     const [progressLog, setProgressLog] = useState<ProgressLogType[]>([]);
-    const [syncKeyExchangeStatus, setSyncKeyExchangeStatus] =
-        useState<LinkingProcessState>(LinkingProcessState.Pending);
     const [mnemonic, setMnemonic] = useState("");
     const [linkingPackageBase64, setLinkingPackageBase64] = useState("");
     const [linkingPackageBinary, setLinkingPackageBinary] =
@@ -494,8 +890,9 @@ export function SendLinkRequestDialog({
     const [formError, setFormError] = useState("");
 
     const progressLogRef = useRef<ProgressLogType[]>([]);
-    const selectedLinkMethodRef = useRef<LinkMethod>("qr");
+    const selectedLinkMethodRef = useRef<SendLinkMethod>("qr");
     const vaultTransferSentRef = useRef(false);
+    const onlineServicesRollbackAttemptedRef = useRef(false);
     const cancelFnRef = useRef<() => Promise<void> | void>(() => {
         // No active linking attempt.
     });
@@ -519,6 +916,9 @@ export function SendLinkRequestDialog({
         deviceName.trim().length > 0 &&
         deviceName.trim().length <= 150 &&
         onlineServicesIssue == null;
+    const isLinkingActive = linkingOutcome === "in_progress";
+    const linkingView = getSendLinkLinkingView(linkingOutcome);
+    const dialogTitle = getSendLinkDialogTitle(stage, linkingOutcome);
 
     const addToProgressLog = (
         message: string,
@@ -529,33 +929,126 @@ export function SendLinkRequestDialog({
         setProgressLog(newProgressLog);
     };
 
-    const resetDialog = () => {
-        setStage("configure");
-        setDeviceName("My Device");
-        setSignalingServerID(ONLINE_SERVICES_SELECTION_ID);
-        setSTUNServerIDs([ONLINE_SERVICES_SELECTION_ID]);
-        setTURNServerIDs([ONLINE_SERVICES_SELECTION_ID]);
-        setRootDevice(false);
-        setSelectedLinkMethod("qr");
-        selectedLinkMethodRef.current = "qr";
-        setIsOperationInProgress(false);
-        setReadyForOtherDevice(false);
+    const rollbackRegisteredOnlineServicesDevice = async (
+        deviceId: string | null | undefined,
+    ) => {
+        if (
+            !deviceId ||
+            vaultTransferSentRef.current ||
+            onlineServicesRollbackAttemptedRef.current
+        ) {
+            return;
+        }
+
+        onlineServicesRollbackAttemptedRef.current = true;
+        addToProgressLog("Rollback - cleaning registration...", "info");
+
+        try {
+            await removeDevice.mutateAsync({ id: deviceId });
+            addToProgressLog("Rollback complete.", "info");
+        } catch (error) {
+            onlineServicesLog.error(
+                "Failed to remove linked device during rollback",
+                {
+                    deviceId,
+                    error,
+                },
+            );
+            addToProgressLog(
+                "Rollback failed. Remove device manually.",
+                "error",
+            );
+        }
+    };
+
+    const resetLinkingProgress = () => {
         setProgressLog([]);
         progressLogRef.current = [];
+        setShowLogDetails(false);
+        setMnemonicOpen(false);
         vaultTransferSentRef.current = false;
-        setSyncKeyExchangeStatus(LinkingProcessState.Pending);
-        setMnemonic("");
-        setLinkingPackageBase64("");
-        setLinkingPackageBinary(null);
+        onlineServicesRollbackAttemptedRef.current = false;
         setFormError("");
         cancelFnRef.current = () => {
             // No active linking attempt.
         };
     };
 
+    const clearLinkTransferSecrets = () => {
+        setMnemonic("");
+        setLinkingPackageBase64("");
+        setLinkingPackageBinary(null);
+        setMnemonicOpen(false);
+    };
+
+    const applyLinkingOutcome = (
+        outcome: SendLinkOutcome,
+        options?: { linkedName?: string },
+    ) => {
+        setLinkingOutcome((current) => {
+            if (
+                (current === "success" || current === "cancelled") &&
+                outcome === "error"
+            ) {
+                return current;
+            }
+            return outcome;
+        });
+
+        if (options?.linkedName !== undefined) {
+            setLinkedDeviceName(options.linkedName);
+        }
+
+        switch (outcome) {
+            case "success":
+            case "cancelled":
+            case "error":
+                clearLinkTransferSecrets();
+                setShowLogDetails(false);
+                setReadyForOtherDevice(false);
+                break;
+            case "in_progress":
+                setLinkedDeviceName("");
+                setReadyForOtherDevice(false);
+                break;
+            case "idle":
+                setLinkedDeviceName("");
+                setReadyForOtherDevice(false);
+                break;
+        }
+    };
+
+    const resetDialog = () => {
+        const preferences = loadSendLinkPreferences();
+        setStage("configure");
+        setDeviceName("My Device");
+        setSignalingServerID(preferences.signalingServerID);
+        setSTUNServerIDs(preferences.stunServerIDs);
+        setTURNServerIDs(preferences.turnServerIDs);
+        setRootDevice(preferences.rootDevice);
+        setSelectedLinkMethod(preferences.linkMethod);
+        selectedLinkMethodRef.current = preferences.linkMethod;
+        setAdvancedAccordion(
+            hasCustomConnectionSettings(preferences) ? "advanced" : "",
+        );
+        setShowLogDetails(false);
+        setMnemonicOpen(false);
+        setLinkingOutcome("idle");
+        setLinkedDeviceName("");
+        clearLinkTransferSecrets();
+        resetLinkingProgress();
+    };
+
     useEffect(() => {
         if (open) resetDialog();
     }, [open]);
+
+    const returnToConfigure = () => {
+        setStage("configure");
+        setLinkingOutcome("idle");
+        setLinkedDeviceName("");
+        resetLinkingProgress();
+    };
 
     const downloadLinkingPackage = (
         packageBinary: Uint8Array | null,
@@ -578,14 +1071,26 @@ export function SendLinkRequestDialog({
         URL.revokeObjectURL(link.href);
     };
 
-    const selectLinkMethod = (method: LinkMethod) => {
-        if (method === "sound") return;
+    const persistSendLinkPreferences = () => {
+        saveSendLinkPreferences({
+            linkMethod: selectedLinkMethodRef.current,
+            signalingServerID,
+            stunServerIDs,
+            turnServerIDs,
+            rootDevice,
+        });
+    };
 
+    const selectLinkMethod = (method: SendLinkMethod) => {
         selectedLinkMethodRef.current = method;
         setSelectedLinkMethod(method);
-        if (method === "file") {
-            downloadLinkingPackage(linkingPackageBinary);
-        }
+        saveSendLinkPreferences({
+            linkMethod: method,
+            signalingServerID,
+            stunServerIDs,
+            turnServerIDs,
+            rootDevice,
+        });
     };
 
     const prepareConnectionPackage = async (
@@ -700,6 +1205,11 @@ export function SendLinkRequestDialog({
                 linkedPeerOnlineServices,
             };
         } catch (error) {
+            if (linkedPeerOnlineServices) {
+                await rollbackRegisteredOnlineServicesDevice(
+                    linkedPeerOnlineServices.DeviceId,
+                );
+            }
             addToProgressLog(
                 errorMessage(error, "Failed to create link package."),
                 "error",
@@ -731,44 +1241,65 @@ export function SendLinkRequestDialog({
         );
         const channelName = constructLinkPresenceChannelName(syncID);
         const wsChannel = signalingServerConnection.subscribe(channelName);
+        let signalingFailureReported = false;
+        const signalingChannelReadyRef = { current: false };
+        let signalingSetupTimeout: number | undefined;
 
-        const stopLinking = () => {
-            webRTCDataChannel.close();
-            webRTConnection.close();
-            signalingServerConnection.disconnect();
-            setIsOperationInProgress(false);
-            setReadyForOtherDevice(false);
+        const clearSignalingSetupTimeout = () => {
+            if (signalingSetupTimeout !== undefined) {
+                window.clearTimeout(signalingSetupTimeout);
+                signalingSetupTimeout = undefined;
+            }
         };
 
-        cancelFnRef.current = async () => {
-            signalingServerConnection.disconnect();
+        const teardownLinkingConnections = () => {
+            clearSignalingSetupTimeout();
             webRTCDataChannel.close();
             webRTConnection.close();
-            setIsOperationInProgress(false);
-            setReadyForOtherDevice(false);
+            signalingServerConnection.disconnect();
+        };
 
-            if (onlineServicesDeviceID) {
-                addToProgressLog("Rollback - cleaning registration...", "info");
-                try {
-                    await removeDevice.mutateAsync({
-                        id: onlineServicesDeviceID,
-                    });
-                    addToProgressLog("Rollback complete.", "info");
-                } catch (error) {
-                    onlineServicesLog.error(
-                        "Failed to remove linked device during rollback",
-                        {
-                            deviceId: onlineServicesDeviceID,
-                            error,
-                        },
-                    );
-                    addToProgressLog(
-                        "Rollback failed. Remove device manually.",
-                        "error",
-                    );
-                }
+        const failActiveLinking = async () => {
+            teardownLinkingConnections();
+            await rollbackRegisteredOnlineServicesDevice(
+                onlineServicesDeviceID,
+            );
+            applyLinkingOutcome("error");
+        };
+
+        const reportSignalingFailure = (message: string) => {
+            if (
+                signalingFailureReported ||
+                vaultTransferSentRef.current ||
+                webRTConnection.connectionState === "connected"
+            ) {
+                return;
             }
 
+            signalingFailureReported = true;
+            clearSignalingSetupTimeout();
+            addToProgressLog(message, "error");
+            toast.error(message);
+            void failActiveLinking();
+        };
+
+        signalingSetupTimeout = window.setTimeout(() => {
+            if (
+                !signalingFailureReported &&
+                !signalingChannelReadyRef.current
+            ) {
+                reportSignalingFailure(
+                    "Timed out connecting to the signaling server.",
+                );
+            }
+        }, 30_000);
+
+        cancelFnRef.current = async () => {
+            teardownLinkingConnections();
+            await rollbackRegisteredOnlineServicesDevice(
+                onlineServicesDeviceID,
+            );
+            applyLinkingOutcome("cancelled");
             addToProgressLog("Linking cancelled.", "error");
             toast.error("Linking cancelled.");
         };
@@ -785,7 +1316,9 @@ export function SendLinkRequestDialog({
                 webRTConnection.connectionState === "disconnected" ||
                 webRTConnection.connectionState === "failed"
             ) {
-                setIsOperationInProgress(false);
+                if (!vaultTransferSentRef.current) {
+                    void failActiveLinking();
+                }
             }
         };
 
@@ -834,16 +1367,14 @@ export function SendLinkRequestDialog({
 
             if (!vaultMetadata || !unlockedVault) {
                 addToProgressLog("Vault metadata is unavailable.", "error");
-                setSyncKeyExchangeStatus(LinkingProcessState.Error);
-                stopLinking();
+                void failActiveLinking();
                 return;
             }
 
             const vaultSecret = getVaultDEKFromSession();
             if (vaultSecret.isErr()) {
                 addToProgressLog(MISSING_VAULT_SECRET_ERROR, "error");
-                setIsOperationInProgress(false);
-                setSyncKeyExchangeStatus(LinkingProcessState.Error);
+                void failActiveLinking();
                 return;
             }
 
@@ -859,12 +1390,10 @@ export function SendLinkRequestDialog({
                 );
                 addToProgressLog(message, "error");
                 toast.error(message);
-                setSyncKeyExchangeStatus(LinkingProcessState.Error);
-                stopLinking();
+                void failActiveLinking();
                 return;
             }
 
-            setSyncKeyExchangeStatus(LinkingProcessState.Active);
             addToProgressLog(
                 "Exchanging authenticated post-quantum sync keys...",
                 "info",
@@ -901,11 +1430,9 @@ export function SendLinkRequestDialog({
                     "Timed out waiting for authenticated remote sync keys.",
                     "error",
                 );
-                setSyncKeyExchangeStatus(LinkingProcessState.Error);
-                stopLinking();
+                void failActiveLinking();
                 return;
             }
-            setSyncKeyExchangeStatus(LinkingProcessState.Completed);
             addToProgressLog("Quantum-safe sync keys exchanged.", "done");
 
             addToProgressLog("Preparing vault package...", "info");
@@ -972,7 +1499,7 @@ export function SendLinkRequestDialog({
 
             toast.success("Device linked.");
             addToProgressLog("Done. Safe to close this dialog.", "info");
-            setIsOperationInProgress(false);
+            applyLinkingOutcome("success", { linkedName: cleanDeviceName });
         };
 
         webRTCDataChannel.onerror = () => {
@@ -980,26 +1507,15 @@ export function SendLinkRequestDialog({
                 return;
             }
             addToProgressLog("Failed to send vault data.", "error");
-            setSyncKeyExchangeStatus((current) =>
-                current === LinkingProcessState.Completed
-                    ? current
-                    : LinkingProcessState.Error,
-            );
-            stopLinking();
+            void failActiveLinking();
         };
         webRTCDataChannel.onclose = () => {
             if (vaultTransferSentRef.current) {
-                setIsOperationInProgress(false);
                 webRTConnection.close();
                 return;
             }
-            setSyncKeyExchangeStatus((current) =>
-                current === LinkingProcessState.Completed
-                    ? current
-                    : LinkingProcessState.Error,
-            );
             webRTConnection.close();
-            setIsOperationInProgress(false);
+            void failActiveLinking();
         };
 
         webRTConnection.onicecandidate = (event) => {
@@ -1013,14 +1529,52 @@ export function SendLinkRequestDialog({
 
             if (iceCandidatesGenerated === 0 && !event.candidate) {
                 addToProgressLog("Failed to generate ICE candidates.", "error");
-                stopLinking();
+                void failActiveLinking();
             }
         };
 
         signalingServerConnection.connection.bind(
-            "pusher:connection_established",
-            () => {
-                addToProgressLog("Connected to signaling server.", "info");
+            "state_change",
+            (state: {
+                current:
+                    | "initialized"
+                    | "connecting"
+                    | "connected"
+                    | "unavailable"
+                    | "disconnected"
+                    | "failed";
+            }) => {
+                switch (state.current) {
+                    case "connecting":
+                        addToProgressLog(
+                            "Connecting to signaling server...",
+                            "info",
+                        );
+                        break;
+                    case "connected":
+                        addToProgressLog(
+                            "Connected to signaling server.",
+                            "info",
+                        );
+                        break;
+                    case "failed":
+                    case "unavailable":
+                        reportSignalingFailure(
+                            "Could not connect to the signaling server. Check your connection settings.",
+                        );
+                        break;
+                    case "disconnected":
+                        if (
+                            webRTConnection.connectionState === "connected" ||
+                            vaultTransferSentRef.current
+                        ) {
+                            break;
+                        }
+                        reportSignalingFailure(
+                            "Lost connection to the signaling server before pairing completed.",
+                        );
+                        break;
+                }
             },
         );
 
@@ -1030,14 +1584,25 @@ export function SendLinkRequestDialog({
                 syncId: syncID,
                 error,
             });
-            addToProgressLog(
+            reportSignalingFailure(
                 "Error while setting up private connection.",
-                "error",
             );
-            setIsOperationInProgress(false);
+        });
+
+        wsChannel.bind("pusher:subscription_error", (status: unknown) => {
+            signalingLog.error("Signaling channel subscription failed", {
+                channelName,
+                syncId: syncID,
+                status,
+            });
+            reportSignalingFailure(
+                "Failed to join the signaling channel. Check server credentials and network access.",
+            );
         });
 
         wsChannel.bind("pusher:subscription_succeeded", () => {
+            signalingChannelReadyRef.current = true;
+            clearSignalingSetupTimeout();
             setReadyForOtherDevice(true);
             addToProgressLog("Waiting for other device...", "info");
         });
@@ -1109,14 +1674,19 @@ export function SendLinkRequestDialog({
             turnServerIDs.includes(ONLINE_SERVICES_SELECTION_ID);
 
         setStage("linking");
-        setIsOperationInProgress(true);
-        setProgressLog([]);
-        progressLogRef.current = [];
-        vaultTransferSentRef.current = false;
-        setSyncKeyExchangeStatus(LinkingProcessState.Pending);
+        applyLinkingOutcome("in_progress");
+        setMnemonicOpen(selectedLinkMethodRef.current === "file");
+        setShowLogDetails(false);
+        persistSendLinkPreferences();
+        resetLinkingProgress();
+        clearLinkTransferSecrets();
+
+        let connectionPackage:
+            | Awaited<ReturnType<typeof prepareConnectionPackage>>
+            | undefined;
 
         try {
-            const connectionPackage = await prepareConnectionPackage(
+            connectionPackage = await prepareConnectionPackage(
                 usesOnlineServices,
                 rootDevice,
                 stunServers,
@@ -1163,25 +1733,76 @@ export function SendLinkRequestDialog({
             setFormError(message);
             addToProgressLog(message, "error");
             toast.error(message);
-            setIsOperationInProgress(false);
+            await rollbackRegisteredOnlineServicesDevice(
+                connectionPackage?.linkedPeerOnlineServices?.DeviceId,
+            );
+            applyLinkingOutcome("error");
         }
     };
 
     const handleOpenChange = (nextOpen: boolean) => {
-        if (!nextOpen && isOperationInProgress) {
+        if (!nextOpen && isLinkingActive) {
             void cancelFnRef.current();
         }
         onOpenChange(nextOpen);
     };
 
+    const linkingStatusMessage = getSendLinkStatusMessage(
+        progressLog,
+        readyForOtherDevice,
+        selectedLinkMethod,
+    );
+
+    const updateConnectionPreferences = (
+        next: Partial<
+            Pick<
+                SendLinkPreferences,
+                | "signalingServerID"
+                | "stunServerIDs"
+                | "turnServerIDs"
+                | "rootDevice"
+            >
+        >,
+    ) => {
+        const nextPreferences: SendLinkPreferences = {
+            linkMethod: selectedLinkMethodRef.current,
+            signalingServerID: next.signalingServerID ?? signalingServerID,
+            stunServerIDs: next.stunServerIDs ?? stunServerIDs,
+            turnServerIDs: next.turnServerIDs ?? turnServerIDs,
+            rootDevice: next.rootDevice ?? rootDevice,
+        };
+
+        if (next.signalingServerID !== undefined) {
+            setSignalingServerID(next.signalingServerID);
+        }
+        if (next.stunServerIDs !== undefined) {
+            setSTUNServerIDs(next.stunServerIDs);
+        }
+        if (next.turnServerIDs !== undefined) {
+            setTURNServerIDs(next.turnServerIDs);
+        }
+        if (next.rootDevice !== undefined) {
+            setRootDevice(next.rootDevice);
+        }
+
+        saveSendLinkPreferences(nextPreferences);
+    };
+
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+            <DialogContent
+                className={cn(
+                    "max-h-[92vh] overflow-y-auto sm:max-w-xl",
+                    stage === "linking" &&
+                        linkingView === "success" &&
+                        "border-emerald-500/50",
+                )}
+            >
                 <DialogHeader>
-                    <DialogTitle>Link new device</DialogTitle>
-                    <DialogDescription>
-                        Configure connection first. After confirmation, choose
-                        QR or file transfer while linking runs.
+                    <DialogTitle>{dialogTitle}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Name the device, choose a transfer method, then start
+                        linking.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -1200,46 +1821,95 @@ export function SendLinkRequestDialog({
                                 placeholder="Maya's laptop"
                                 autoFocus
                             />
-                            <p className="text-xs text-muted-foreground">
-                                Name shown in linked devices after pairing.
-                            </p>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-3">
-                            <ServerSelect
-                                label="Signaling"
-                                value={signalingServerID}
-                                onChange={setSignalingServerID}
-                                servers={
-                                    unlockedVault.LinkedDevices.SignalingServers
-                                }
-                            />
-                            <ServerMultiSelect
-                                label="STUN"
-                                value={stunServerIDs}
-                                onChange={setSTUNServerIDs}
-                                servers={
-                                    unlockedVault.LinkedDevices.STUNServers
-                                }
-                            />
-                            <ServerMultiSelect
-                                label="TURN"
-                                value={turnServerIDs}
-                                onChange={setTURNServerIDs}
-                                servers={
-                                    unlockedVault.LinkedDevices.TURNServers
-                                }
+                        <div className="space-y-2">
+                            <Label>Transfer method</Label>
+                            <SendLinkMethodPicker
+                                value={selectedLinkMethod}
+                                onChange={selectLinkMethod}
                             />
                         </div>
 
-                        {usesOnlineServicesSelection ? (
-                            <Alert
-                                variant={
-                                    onlineServicesIssue
-                                        ? "destructive"
-                                        : "default"
-                                }
+                        <Accordion
+                            type="single"
+                            collapsible
+                            value={advancedAccordion}
+                            onValueChange={setAdvancedAccordion}
+                        >
+                            <AccordionItem
+                                value="advanced"
+                                className="border-none"
                             >
+                                <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:no-underline">
+                                    Advanced connection
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4">
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                        <ServerSelect
+                                            label="Signaling"
+                                            value={signalingServerID}
+                                            onChange={(value) =>
+                                                updateConnectionPreferences({
+                                                    signalingServerID: value,
+                                                })
+                                            }
+                                            servers={
+                                                unlockedVault.LinkedDevices
+                                                    .SignalingServers
+                                            }
+                                        />
+                                        <ServerMultiSelect
+                                            label="STUN"
+                                            value={stunServerIDs}
+                                            onChange={(value) =>
+                                                updateConnectionPreferences({
+                                                    stunServerIDs: value,
+                                                })
+                                            }
+                                            servers={
+                                                unlockedVault.LinkedDevices
+                                                    .STUNServers
+                                            }
+                                        />
+                                        <ServerMultiSelect
+                                            label="TURN"
+                                            value={turnServerIDs}
+                                            onChange={(value) =>
+                                                updateConnectionPreferences({
+                                                    turnServerIDs: value,
+                                                })
+                                            }
+                                            servers={
+                                                unlockedVault.LinkedDevices
+                                                    .TURNServers
+                                            }
+                                        />
+                                    </div>
+
+                                    <label className="flex items-start gap-3 rounded-lg border p-3">
+                                        <Checkbox
+                                            checked={rootDevice}
+                                            onCheckedChange={(checked) =>
+                                                updateConnectionPreferences({
+                                                    rootDevice:
+                                                        checked === true,
+                                                })
+                                            }
+                                            disabled={
+                                                !usesOnlineServicesSelection
+                                            }
+                                        />
+                                        <span className="text-sm font-medium">
+                                            Make linked device root
+                                        </span>
+                                    </label>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+
+                        {onlineServicesIssue ? (
+                            <Alert variant="destructive">
                                 <ShieldCheck className="h-4 w-4" />
                                 <AlertTitle>Cryptex Online Services</AlertTitle>
                                 <AlertDescription className="space-y-3">
@@ -1270,33 +1940,9 @@ export function SendLinkRequestDialog({
                                             Upgrade
                                         </Button>
                                     ) : null}
-                                    {!onlineServicesIssue ? (
-                                        <Badge variant="secondary">
-                                            Online Services available
-                                        </Badge>
-                                    ) : null}
                                 </AlertDescription>
                             </Alert>
                         ) : null}
-
-                        <label className="flex items-start gap-3 rounded-lg border p-3">
-                            <Checkbox
-                                checked={rootDevice}
-                                onCheckedChange={(checked) =>
-                                    setRootDevice(checked === true)
-                                }
-                                disabled={!usesOnlineServicesSelection}
-                            />
-                            <span className="space-y-1">
-                                <span className="block text-sm font-medium">
-                                    Make linked device root
-                                </span>
-                                <span className="block text-xs text-muted-foreground">
-                                    Available when Online Services handles
-                                    device registration.
-                                </span>
-                            </span>
-                        </label>
 
                         {formError ? (
                             <p
@@ -1308,145 +1954,41 @@ export function SendLinkRequestDialog({
                         ) : null}
                     </div>
                 ) : (
-                    <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-                        <div className="space-y-4">
-                            <div className="rounded-xl border bg-muted/20 p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-medium">
-                                            {isOperationInProgress
-                                                ? "Waiting for other device"
-                                                : "Linking finished"}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {readyForOtherDevice
-                                                ? "Open receive link on other device and use selected method."
-                                                : "Preparing private connection..."}
-                                        </p>
-                                    </div>
-                                    {isOperationInProgress ? (
-                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                    ) : (
-                                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-3 rounded-xl border p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-medium">
-                                            Transfer method
-                                        </p>
-                                        {/*<p className="text-xs text-muted-foreground">
-                                            Pick linking method.
-                                        </p>*/}
-                                    </div>
-                                    {selectedLinkMethod === "file" &&
-                                    linkingPackageBinary ? (
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() =>
-                                                downloadLinkingPackage(
-                                                    linkingPackageBinary,
-                                                )
-                                            }
-                                        >
-                                            <Download className="mr-2 h-4 w-4" />
-                                            Download again
-                                        </Button>
-                                    ) : null}
-                                </div>
-
-                                <div className="grid gap-2 sm:grid-cols-3">
-                                    {(
-                                        Object.keys(
-                                            linkMethodCopy,
-                                        ) as LinkMethod[]
-                                    ).map((method) => {
-                                        const copy = linkMethodCopy[method];
-                                        const Icon = copy.icon;
-                                        const disabled = method === "sound";
-                                        const active =
-                                            selectedLinkMethod === method;
-
-                                        return (
-                                            <button
-                                                key={method}
-                                                type="button"
-                                                disabled={disabled}
-                                                onClick={() =>
-                                                    selectLinkMethod(method)
-                                                }
-                                                className={cn(
-                                                    "rounded-lg border p-3 text-left transition",
-                                                    active &&
-                                                        "border-primary bg-primary/10",
-                                                    disabled &&
-                                                        "cursor-not-allowed opacity-50",
-                                                )}
-                                            >
-                                                <Icon className="mb-2 h-4 w-4" />
-                                                <span className="block text-sm font-medium">
-                                                    {copy.title}
-                                                </span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {copy.description}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div className="flex min-h-72 items-center justify-center rounded-xl border bg-muted/10 p-4">
-                                {selectedLinkMethod === "qr" ? (
-                                    linkingPackageBase64 ? (
-                                        <LinkingQRCode
-                                            value={linkingPackageBase64}
-                                            cycleMs={SEND_LINK_QR_CYCLE_MS}
-                                        />
-                                    ) : (
-                                        <div className="text-sm text-muted-foreground">
-                                            QR code preparing...
-                                        </div>
-                                    )
-                                ) : selectedLinkMethod === "file" ? (
-                                    <div className="space-y-3 text-center">
-                                        <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
-                                        <p className="text-sm font-medium">
-                                            Link file downloaded
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Import it on receiving device, then
-                                            enter mnemonic.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="text-sm text-muted-foreground">
-                                        Sound transfer coming soon.
-                                    </div>
+                    <div className="space-y-4">
+                        {linkingView === "active" ? (
+                            <SendLinkActiveLinkingPanel
+                                statusMessage={linkingStatusMessage}
+                                linkMethod={selectedLinkMethod}
+                                linkingPackageBase64={linkingPackageBase64}
+                                linkingPackageBinary={linkingPackageBinary}
+                                mnemonic={mnemonic}
+                                mnemonicOpen={mnemonicOpen}
+                                onToggleMnemonic={() =>
+                                    setMnemonicOpen((open) => !open)
+                                }
+                                onDownloadAgain={() =>
+                                    downloadLinkingPackage(linkingPackageBinary)
+                                }
+                                progressLog={progressLog}
+                                showLogDetails={showLogDetails}
+                                onToggleLogDetails={() =>
+                                    setShowLogDetails((open) => !open)
+                                }
+                            />
+                        ) : (
+                            <SendLinkTerminalPanel
+                                variant={linkingView}
+                                linkedDeviceName={linkedDeviceName}
+                                errorMessage={getLatestLinkingErrorMessage(
+                                    progressLog,
                                 )}
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="rounded-xl border p-4">
-                                <p className="text-sm font-medium">Mnemonic</p>
-                                {mnemonic ? (
-                                    <p className="mt-2 select-all rounded-lg bg-muted p-3 text-xs leading-relaxed">
-                                        {mnemonic}
-                                    </p>
-                                ) : (
-                                    <p className="mt-2 text-xs text-muted-foreground">
-                                        Generated after link package is ready.
-                                    </p>
-                                )}
-                            </div>
-                            <ProgressLog entries={progressLog} />
-                        </div>
+                                progressLog={progressLog}
+                                showLogDetails={showLogDetails}
+                                onToggleLogDetails={() =>
+                                    setShowLogDetails((open) => !open)
+                                }
+                            />
+                        )}
                     </div>
                 )}
 
@@ -1465,7 +2007,33 @@ export function SendLinkRequestDialog({
                                 disabled={!canStart}
                                 onClick={() => void startLinking()}
                             >
-                                Confirm and start linking
+                                Start linking
+                            </Button>
+                        </>
+                    ) : linkingView === "success" ? (
+                        <Button
+                            type="button"
+                            autoFocus
+                            onClick={() => handleOpenChange(false)}
+                        >
+                            Close
+                        </Button>
+                    ) : linkingView === "cancelled" ||
+                      linkingView === "error" ? (
+                        <>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={returnToConfigure}
+                            >
+                                Start over
+                            </Button>
+                            <Button
+                                type="button"
+                                autoFocus
+                                onClick={() => handleOpenChange(false)}
+                            >
+                                Close
                             </Button>
                         </>
                     ) : (
@@ -1473,14 +2041,14 @@ export function SendLinkRequestDialog({
                             <Button
                                 type="button"
                                 variant="outline"
-                                disabled={!isOperationInProgress}
+                                disabled={!isLinkingActive}
                                 onClick={() => void cancelFnRef.current()}
                             >
                                 Cancel linking
                             </Button>
                             <Button
                                 type="button"
-                                disabled={isOperationInProgress}
+                                disabled={isLinkingActive}
                                 onClick={() => handleOpenChange(false)}
                             >
                                 Close

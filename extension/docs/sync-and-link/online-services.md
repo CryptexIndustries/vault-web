@@ -25,20 +25,42 @@ Cleared on lock, 30-minute system idle, link flow without OS package, or
 | Unlock bootstrap | Vault has `OnlineServices` creds | Internal after `Unlock`                  |
 | Link receive     | Package includes OS creds        | `OnlineServicesEstablish` from link page |
 
-Establish flow (`auth-session-ext.ts`):
+Establish flow uses shared `online-services-session/protocol.ts` (challenge →
+sign → verify) with platform-specific storage:
 
-1. `v1.auth.challenge` with `deviceId`
-2. Sign challenge with device passkey private key
-3. `v1.auth.verify` → store JWT + creds in `OS_SESSION`
+- **Web:** `auth-session.ts` → Jotai `onlineServicesDataAtom`
+- **Extension SW:** `auth-session-ext.ts` → `OS_SESSION`
 
-Auth bootstrap procedures (`v1.auth.*`) use `globalThis.fetch` directly in SW
-to avoid proxy recursion.
+Auth bootstrap procedures (`v1.auth.*`) use direct tRPC/fetch in each platform
+layer (web relative `/api/trpc`; SW `globalThis.fetch`) to avoid proxy recursion.
 
 ## Refresh and re-auth
 
 - Refresh: `v1.auth.refresh` with 60 s lead time before expiry.
 - Re-auth fallbacks: stored `deviceId`/`privateKeyJWK`, then unlocked vault
   `UV.OnlineServices`.
+- Shared helpers: `createRefreshInFlightRunner`, `createForcedReauthGate`.
+
+## Session port (shared sync/link code)
+
+Shared `web/src/app_lib/synchronization.ts` imports
+`onlineServicesSessionPort` for refresh/re-auth retries before protected API
+calls (TURN credentials, Pusher channel auth). It does **not** read JWTs
+directly.
+
+| Runtime   | Binding                                                           |
+| --------- | ----------------------------------------------------------------- |
+| Web       | `online-services-session/web.ts` → Jotai `auth-session.ts`        |
+| Extension | `online-services-session/extension.ts` → SW envelopes (see below) |
+
+Extension UI messages for the port adapter:
+
+| Message                             | Purpose                        |
+| ----------------------------------- | ------------------------------ |
+| `OnlineServicesEnsureFresh`         | Refresh / establish in SW      |
+| `OnlineServicesForceReauthenticate` | Full passkey re-auth after 401 |
+
+Allowed from **popup** and **link** origins.
 
 ## tRPC proxy chain
 
@@ -62,28 +84,30 @@ Rules (`trpc-auth-url.ts`):
 
 ## Per-origin access
 
-| Origin     | OS messages                                                    |
-| ---------- | -------------------------------------------------------------- |
-| `popup`    | Via unlock bootstrap + ProxyFetch (indirect)                   |
-| `link`     | `OnlineServicesEstablish`, `OnlineServicesClear`, `ProxyFetch` |
-| All others | No direct OS establish                                         |
+| Origin     | OS messages                                                                           |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `popup`    | Unlock bootstrap + `ProxyFetch` + `OnlineServicesEnsureFresh` / `ForceReauthenticate` |
+| `link`     | `OnlineServicesEstablish`, `OnlineServicesClear`, `ProxyFetch`, port messages         |
+| All others | No direct OS establish                                                                |
 
 ## Extension vs web auth-session split
 
-The web app uses Jotai atoms (`auth-session.ts`) for UI-side JWT awareness.
-The extension routes tRPC through SW but does not alias `auth-session.ts`.
-After `establishOnlineServicesSessionViaSW`, SW holds the JWT while UI atoms
-may be empty. Shared sync code paths that gate on `createBareAuthHeader()` can
-fail for Online Services TURN bootstrap even when SW has a valid session. See
-threat model residual risks.
+The web app keeps JWT awareness in Jotai (`auth-session.ts`). The extension
+stores JWTs in the SW (`auth-session-ext.ts` + `OS_SESSION`) and injects them in
+`ProxyFetch`. Shared sync/link code uses `onlineServicesSessionPort` plus tRPC
+transport auth — not Jotai atoms or `createBareAuthHeader()`.
 
 ## File map
 
-| Path                                           | Role                          |
-| ---------------------------------------------- | ----------------------------- |
-| `src/app_lib/auth-session-ext.ts`              | SW JWT lifecycle              |
-| `src/utils/online-services-session-storage.ts` | `OS_SESSION` read/write/clear |
-| `src/utils/online-services-session-client.ts`  | UI wrappers                   |
-| `src/background/request-auth-interceptor.ts`   | ProxyFetch + auth injection   |
-| `src/utils/trpc-auth-url.ts`                   | tRPC URL parsing              |
-| `src/trpc-ext.ts`                              | Extension tRPC client         |
+| Path                                                  | Role                             |
+| ----------------------------------------------------- | -------------------------------- |
+| `web/src/app_lib/online-services-session/port.ts`     | Session port interface           |
+| `web/src/app_lib/online-services-session/protocol.ts` | Shared challenge/refresh helpers |
+| `web/src/app_lib/online-services-session/web.ts`      | Web port adapter                 |
+| `src/app_lib/online-services-session/extension.ts`    | Extension port adapter           |
+| `src/app_lib/auth-session-ext.ts`                     | SW JWT lifecycle                 |
+| `src/utils/online-services-session-storage.ts`        | `OS_SESSION` read/write/clear    |
+| `src/utils/online-services-session-client.ts`         | UI → SW session envelopes        |
+| `src/background/request-auth-interceptor.ts`          | ProxyFetch + auth injection      |
+| `src/utils/trpc-auth-url.ts`                          | tRPC URL parsing                 |
+| `src/trpc-ext.ts`                                     | Extension tRPC client            |

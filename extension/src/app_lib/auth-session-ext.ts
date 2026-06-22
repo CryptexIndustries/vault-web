@@ -23,9 +23,12 @@ import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 
 import {
-    parseJwkFromString,
-    signChallenge,
-} from "@/app_lib/vault-utils/passkey";
+    createForcedReauthGate,
+    createRefreshInFlightRunner,
+    performOnlineServicesPasskeyAuth,
+    refreshOnlineServicesSessionTokens,
+    shouldRefreshOnlineServicesSession,
+} from "@/app_lib/online-services-session/protocol";
 
 import { env } from "../env";
 import {
@@ -35,11 +38,8 @@ import {
     type OnlineServicesSessionRecord,
 } from "../utils/online-services-session-storage";
 
-/**
- * Refresh the JWT this many ms before it actually expires so concurrent
- * in-flight requests don't observe a `UNAUTHORIZED`. Matches the web app.
- */
-const SESSION_REFRESH_LEAD_MS = 60_000;
+const sessionRefreshRunner = createRefreshInFlightRunner();
+const forcedReauthGate = createForcedReauthGate();
 
 /**
  * SW-internal tRPC client. It MUST NOT use the proxy fetch - the proxy
@@ -70,9 +70,6 @@ const authTrpcClient = createTRPCClient<any>({
     ],
 }) as any;
 
-/** Singleton in-flight promise so concurrent callers don't pile up refreshes. */
-let refreshInFlight: Promise<boolean> | null = null;
-
 /**
  * Returns `Authorization: Bearer <token>` for a valid session, or `null`
  * when there is no usable token. Caller is expected to have already
@@ -100,8 +97,20 @@ export async function getOnlineServicesStateSnapshot(): Promise<{
 }
 
 function shouldRefreshSession(expiresAtMs: number): boolean {
-    return expiresAtMs - Date.now() <= SESSION_REFRESH_LEAD_MS;
+    return shouldRefreshOnlineServicesSession(expiresAtMs);
 }
+
+const swOnlineServicesAuthApi = {
+    challenge: (deviceId: string) =>
+        authTrpcClient.v1.auth.challenge.mutate({ deviceId }),
+    verify: (input: {
+        challengeId: string;
+        signature: string;
+        deviceId: string;
+    }) => authTrpcClient.v1.auth.verify.mutate(input),
+    refresh: (sessionToken: string) =>
+        authTrpcClient.v1.auth.refresh.mutate({ sessionToken }),
+};
 
 /**
  * Trades the current session token for a fresh one via `v1.auth.refresh`.
@@ -111,19 +120,20 @@ async function refreshOnlineServicesSession(): Promise<boolean> {
     const record = await getOnlineServicesSession();
     if (!record.sessionToken) return false;
 
-    try {
-        const res = await authTrpcClient.v1.auth.refresh.mutate({
-            sessionToken: record.sessionToken,
-        });
-        await setOnlineServicesSession({
-            sessionToken: res.sessionToken,
-            sessionExpiresAt: res.expiresAt,
-        });
-        return true;
-    } catch (error) {
-        console.warn("[SW] OS session refresh failed", error);
+    const refreshed = await refreshOnlineServicesSessionTokens(
+        swOnlineServicesAuthApi,
+        record.sessionToken,
+    );
+    if (!refreshed) {
+        console.warn("[SW] OS session refresh failed");
         return false;
     }
+
+    await setOnlineServicesSession({
+        sessionToken: refreshed.sessionToken,
+        sessionExpiresAt: refreshed.expiresAt,
+    });
+    return true;
 }
 
 /**
@@ -140,25 +150,10 @@ export async function establishOnlineServicesSession(args: {
     privateKeyJWK: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
-        const challenge = await authTrpcClient.v1.auth.challenge.mutate({
-            deviceId: args.deviceId,
-        });
-
-        // Server-issued challenge is base64-encoded random bytes; the
-        // verify step expects the IEEE P1363 signature over those raw
-        // bytes (matches what `passkey.signChallenge` produces).
-        const challengeBytes = Uint8Array.fromBase64(challenge.challenge);
-
-        const signature = await signChallenge(
-            parseJwkFromString(args.privateKeyJWK),
-            challengeBytes,
+        const verified = await performOnlineServicesPasskeyAuth(
+            swOnlineServicesAuthApi,
+            args,
         );
-
-        const verified = await authTrpcClient.v1.auth.verify.mutate({
-            challengeId: challenge.challengeId,
-            signature,
-            deviceId: args.deviceId,
-        });
 
         await setOnlineServicesSession({
             sessionToken: verified.sessionToken,
@@ -219,13 +214,9 @@ async function establishOnlineServicesSessionFromUnlockedVault(): Promise<boolea
  * key layout.
  */
 export async function ensureOnlineServicesSessionFromUnlockedVault(): Promise<boolean> {
-    if (refreshInFlight) return refreshInFlight;
-    refreshInFlight = establishOnlineServicesSessionFromUnlockedVault().finally(
-        () => {
-            refreshInFlight = null;
-        },
+    return sessionRefreshRunner.run(
+        establishOnlineServicesSessionFromUnlockedVault,
     );
-    return refreshInFlight;
 }
 
 /**
@@ -238,17 +229,9 @@ export async function ensureOnlineServicesSessionFromUnlockedVault(): Promise<bo
 export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
     const record = await getOnlineServicesSession();
 
-    // No prior session at all: if we still hold the credentials (popup
-    // closed but vault was unlocked earlier in the browser session) try
-    // a passkey re-auth. As a last resort, pull credentials straight
-    // from the unlocked vault - this covers the "user just unlocked and
-    // immediately made a request" race where the eager bootstrap in the
-    // Unlock handler hasn't completed yet.
     if (!record.sessionToken) {
-        if (refreshInFlight) return refreshInFlight;
-
         const hasStoredCreds = !!record.deviceId && !!record.privateKeyJWK;
-        refreshInFlight = (async () => {
+        return sessionRefreshRunner.run(async () => {
             if (
                 hasStoredCreds &&
                 (await reauthenticateFromStoredCredentials())
@@ -256,14 +239,9 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
                 return true;
             }
             return establishOnlineServicesSessionFromUnlockedVault();
-        })().finally(() => {
-            refreshInFlight = null;
         });
-
-        return refreshInFlight;
     }
 
-    // Existing session has comfortable headroom - no work to do.
     if (
         typeof record.sessionExpiresAt === "number" &&
         !shouldRefreshSession(record.sessionExpiresAt)
@@ -271,23 +249,28 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
         return true;
     }
 
-    if (refreshInFlight) return refreshInFlight;
-
-    refreshInFlight = (async () => {
+    return sessionRefreshRunner.run(async () => {
         const refreshed = await refreshOnlineServicesSession();
         if (refreshed) return true;
 
-        // Refresh tokens sometimes fail (server-side eviction, expired
-        // beyond what /refresh accepts, etc). Fall back to a full passkey
-        // re-auth using the stored credentials, then to the unlocked
-        // vault as a final source.
         if (await reauthenticateFromStoredCredentials()) return true;
         return establishOnlineServicesSessionFromUnlockedVault();
-    })().finally(() => {
-        refreshInFlight = null;
     });
+}
 
-    return refreshInFlight;
+/**
+ * Forces a full passkey re-auth, bypassing refresh. Used when a protected
+ * API call fails with UNAUTHORIZED. Mirrors `auth-session.ts` cooldown.
+ */
+export async function forceOnlineServicesSessionReauthentication(): Promise<boolean> {
+    return sessionRefreshRunner.run(async () => {
+        if (!forcedReauthGate.tryEnter()) {
+            return false;
+        }
+
+        if (await reauthenticateFromStoredCredentials()) return true;
+        return establishOnlineServicesSessionFromUnlockedVault();
+    });
 }
 
 /**

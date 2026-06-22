@@ -188,11 +188,11 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 
 **Goals:** N/A — integrity failure.
 
-| Technique                             | Control                         | Residual risk                                   |
-| ------------------------------------- | ------------------------------- | ----------------------------------------------- |
-| Dev wildcard host_permissions shipped | Prod manifest rewrite           | Low if checklist followed                       |
-| Debug logging of decrypted payloads   | Terser drops log/debug in prod  | Medium in dev builds                            |
-| Incomplete VaultOperations            | Missing KEM/signing key getters | **High for sync** — encrypted sync cannot start |
+| Technique                             | Control                         | Residual risk                                        |
+| ------------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| Dev wildcard host_permissions shipped | Prod manifest rewrite           | Low if checklist followed                            |
+| Debug logging of decrypted payloads   | Terser drops log/debug in prod  | Medium in dev builds                                 |
+| Incomplete VaultOperations            | Missing KEM/signing key getters | **Mitigated** — full bridge in `vault-operations.ts` |
 
 ## Controls matrix
 
@@ -216,11 +216,11 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | -------- | --------------------------------------------------- | ----------------- | --------------------------------------------- |
 | P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window       |
 | P1       | Phishing on exact-host saved credentials            | Partial           | User education; no eTLD+1 fuzzy release       |
-| P1       | Extension sync `VaultOperations` incomplete         | Open              | KEM/signing public key getters missing        |
+| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`   |
 | P2       | `window.open` without `noopener` on credential URLs | Open              | Reverse tabnabbing from stored URLs           |
 | P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required       |
 | P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock              |
-| P2       | Web/SW auth-session split for signaling/TURN        | Open              | UI atoms empty after SW establish             |
+| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy   |
 | P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact          |
 | P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                  |
 | P3       | Logs persist metadata locally                       | Accepted          | User can clear                                |
@@ -288,16 +288,13 @@ sequenceDiagram
 
 Ordered by threat-model priority:
 
-1. Complete extension `VaultOperations` (KEM + signing public keys) so encrypted
-   sync can run from popup.
-2. Bridge web `auth-session` and SW `OS_SESSION` for signaling/TURN bootstrap.
-3. Add `noopener,noreferrer` (or `window.open` with feature string) for
+1. Add `noopener,noreferrer` (or `window.open` with feature string) for
    credential URL opens in `vault-view.tsx`.
-4. Implement response envelope validation (`TODOvalidateResponseEnvelope`).
-5. Broadcast `KEY_ROTATED` on ECDH rotation.
-6. Wire or remove offscreen document; align justification with actual behavior.
-7. Schema validation on `SyncUpdateCredentials` inbound credentials.
-8. Document contributor policy: never log credential fields to `extLogs`.
+2. Implement response envelope validation (`TODOvalidateResponseEnvelope`).
+3. Broadcast `KEY_ROTATED` on ECDH rotation.
+4. Wire or remove offscreen document; align justification with actual behavior.
+5. Schema validation on `SyncUpdateCredentials` inbound credentials.
+6. Document contributor policy: never log credential fields to `extLogs`.
 
 ## Related documentation
 

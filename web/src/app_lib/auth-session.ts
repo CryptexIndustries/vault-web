@@ -12,18 +12,18 @@ import {
     unlockedVaultMetadataAtom,
     vaultStore,
 } from "@/utils/atoms";
-import {
-    parseJwkFromString,
-    signChallenge,
-} from "@/app_lib/vault-utils/passkey";
 import { Vault } from "@/app_lib/vault-utils/vault";
 import type { VersionedRouter } from "@/server/trpc";
+import {
+    createForcedReauthGate,
+    createRefreshInFlightRunner,
+    performOnlineServicesPasskeyAuth,
+    refreshOnlineServicesSessionTokens,
+    shouldRefreshOnlineServicesSession,
+} from "./online-services-session/protocol";
 
-const SESSION_REFRESH_LEAD_MS = 60_000;
-const FORCED_REAUTH_COOLDOWN_MS = 30_000;
-
-let refreshInFlight: Promise<boolean> | null = null;
-let nextForcedReauthAtMs = 0;
+const sessionRefreshRunner = createRefreshInFlightRunner();
+const forcedReauthGate = createForcedReauthGate();
 
 export function createBareAuthHeader() {
     const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
@@ -49,30 +49,43 @@ const authSessionClient = createTRPCClient<VersionedRouter>({
 });
 
 function shouldRefreshSession(expiresAtMs: number) {
-    return expiresAtMs - Date.now() <= SESSION_REFRESH_LEAD_MS;
+    return shouldRefreshOnlineServicesSession(expiresAtMs);
 }
+
+const webOnlineServicesAuthApi = {
+    challenge: (deviceId: string) =>
+        authSessionClient.v1.auth.challenge.mutate({ deviceId }),
+    verify: (input: {
+        challengeId: string;
+        signature: string;
+        deviceId: string;
+    }) => authSessionClient.v1.auth.verify.mutate(input),
+    refresh: (sessionToken: string) =>
+        authSessionClient.v1.auth.refresh.mutate({ sessionToken }),
+};
 
 export async function refreshOnlineServicesSession(): Promise<boolean> {
     const data = onlineServicesStore.get(onlineServicesDataAtom);
     if (!data?.sessionToken) return false;
 
-    try {
-        const res = await authSessionClient.v1.auth.refresh.mutate({
-            sessionToken: data.sessionToken,
-        });
-        const latest = onlineServicesStore.get(onlineServicesDataAtom);
-        if (!latest) {
-            return false;
-        }
-        setOnlineServicesData({
-            ...latest,
-            sessionToken: res.sessionToken,
-            sessionExpiresAt: res.expiresAt,
-        });
-        return true;
-    } catch {
+    const refreshed = await refreshOnlineServicesSessionTokens(
+        webOnlineServicesAuthApi,
+        data.sessionToken,
+    );
+    if (!refreshed) {
         return false;
     }
+
+    const latest = onlineServicesStore.get(onlineServicesDataAtom);
+    if (!latest) {
+        return false;
+    }
+    setOnlineServicesData({
+        ...latest,
+        sessionToken: refreshed.sessionToken,
+        sessionExpiresAt: refreshed.expiresAt,
+    });
+    return true;
 }
 
 async function reauthenticateOnlineServicesSession(): Promise<boolean> {
@@ -96,29 +109,17 @@ async function reauthenticateOnlineServicesSession(): Promise<boolean> {
 function runOnlineServicesSessionRefresh(
     refresh: () => Promise<boolean>,
 ): Promise<boolean> {
-    if (refreshInFlight) {
-        return refreshInFlight;
-    }
-
-    refreshInFlight = refresh().finally(() => {
-        refreshInFlight = null;
-    });
-
-    return refreshInFlight;
+    return sessionRefreshRunner.run(refresh);
 }
 
 export async function forceOnlineServicesSessionReauthentication(): Promise<boolean> {
-    if (refreshInFlight) {
-        return refreshInFlight;
-    }
+    return sessionRefreshRunner.run(async () => {
+        if (!forcedReauthGate.tryEnter()) {
+            return false;
+        }
 
-    const now = Date.now();
-    if (now < nextForcedReauthAtMs) {
-        return false;
-    }
-
-    nextForcedReauthAtMs = now + FORCED_REAUTH_COOLDOWN_MS;
-    return runOnlineServicesSessionRefresh(reauthenticateOnlineServicesSession);
+        return reauthenticateOnlineServicesSession();
+    });
 }
 
 export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
@@ -181,22 +182,10 @@ export async function establishPremiumSession(options: {
     );
 
     try {
-        const ch = await authSessionClient.v1.auth.challenge.mutate({
-            deviceId: options.deviceId,
-        });
-
-        const challengeBytes = Uint8Array.fromBase64(ch.challenge);
-
-        const signature = await signChallenge(
-            parseJwkFromString(options.privateKeyJWK),
-            challengeBytes,
+        const verified = await performOnlineServicesPasskeyAuth(
+            webOnlineServicesAuthApi,
+            options,
         );
-
-        const verified = await authSessionClient.v1.auth.verify.mutate({
-            challengeId: ch.challengeId,
-            signature,
-            deviceId: options.deviceId,
-        });
 
         const prev = onlineServicesStore.get(onlineServicesDataAtom);
         const next: OnlineServicesData = {

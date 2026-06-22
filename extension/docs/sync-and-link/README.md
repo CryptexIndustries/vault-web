@@ -38,19 +38,22 @@ Closing popup tears down `GlobalSyncConnectionController`. Offscreen document is
 provisioned (`WEB_RTC` reason) but `offscreen.ts` is a stub — no background sync
 yet.
 
-### Extension `VaultOperations` gap
+### Extension `VaultOperations` bridge
 
-`createVaultOperations` in `vault-view.tsx` implements a subset of the shared
-`VaultOperations` interface. Missing methods:
+`createVaultOperations` in `src/vault-operations.ts` implements the full shared
+`VaultOperations` interface. Sync key getters read `LinkedDevices` from the SW via
+`SyncGetConfiguration`, coalesced through `createCachedSyncConfigLoader` so one `SyncGetConfiguration`
+fetch serves the full encrypted sync handshake for that popup session.
 
-- `getSyncSigningPublicKey`
-- `getSyncKemPublicKey`
-- `getSyncKemPrivateKey`
-- `getRemoteSyncKemPublicKey`
-
-`SyncConnectionController.getLocalKeyMaterial()` requires the signing and KEM
-public keys. Without them, encrypted sync sessions cannot start from the
-extension popup. This is a known integration gap, not a wire-protocol weakness.
+| Method                                                 | SW / local source                              |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| `getSynchronizationConfig`                             | `SyncGetConfiguration` → `vault.LinkedDevices` |
+| `getSyncSigningPublicKey` / `getSyncSigningPrivateKey` | cached `LinkedDevices`                         |
+| `getSyncKemPublicKey` / `getSyncKemPrivateKey`         | cached `LinkedDevices`                         |
+| `getRemoteSyncPublicKey` / `getRemoteSyncKemPublicKey` | cached device entry                            |
+| `getItemVersionVectors`                                | `SyncGetItemVersionVectors`                    |
+| `getItemCredentials`                                   | `SyncGetItemCredentials`                       |
+| `updateCredentials`                                    | `SyncUpdateCredentials`                        |
 
 ## Link-receive architecture
 
@@ -96,14 +99,17 @@ credentials from SW.
 
 ## File map
 
-| Path                                          | Role                                |
-| --------------------------------------------- | ----------------------------------- |
-| `src/vault-view.tsx`                          | Sync host, `VaultOperations` bridge |
-| `src/components/popup-receive-link.tsx`       | Link-receive UI                     |
-| `src/link.tsx`, `link.html`                   | Link tab entry                      |
-| `src/utils/linked-vault-envelope.ts`          | Post-link vault sealing             |
-| `src/utils/online-services-session-client.ts` | Link → SW OS establish/clear        |
-| `src/trpc-ext.ts`                             | Extension tRPC client (proxy only)  |
-| `src/utils/sw-proxy-fetch.ts`                 | fetch shim → ProxyFetch             |
-| `web/src/app_lib/synchronization.ts`          | Sync wire protocol                  |
-| `web/src/app_lib/vault-utils/linking.ts`      | Link package + process controller   |
+| Path                                               | Role                                    |
+| -------------------------------------------------- | --------------------------------------- |
+| `src/vault-view.tsx`                               | Sync host UI                            |
+| `src/vault-operations.ts`                          | `VaultOperations` bridge + config cache |
+| `src/components/popup-receive-link.tsx`            | Link-receive UI                         |
+| `src/link.tsx`, `link.html`                        | Link tab entry                          |
+| `src/utils/linked-vault-envelope.ts`               | Post-link vault sealing                 |
+| `src/utils/online-services-session-client.ts`      | Link/popup → SW OS session              |
+| `src/app_lib/online-services-session/extension.ts` | Extension session port adapter          |
+| `src/trpc-ext.ts`                                  | Extension tRPC client (proxy only)      |
+| `src/utils/sw-proxy-fetch.ts`                      | fetch shim → ProxyFetch                 |
+| `web/src/app_lib/online-services-session/`         | Shared session port + auth protocol     |
+| `web/src/app_lib/synchronization.ts`               | Sync wire protocol                      |
+| `web/src/app_lib/vault-utils/linking.ts`           | Link package + process controller       |

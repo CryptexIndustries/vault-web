@@ -72,6 +72,7 @@ import {
     useSyncConnectionController,
 } from "./sync-controller";
 import { VaultSettingsDialog } from "./vault-settings-dialog";
+import { VaultMigrationNoticeDialog } from "./vault-migration-notice-dialog";
 import {
     type SCCEvent,
     type SignalingEventData,
@@ -1283,6 +1284,8 @@ export function VaultDashboard() {
             />
             <LogInspectorDialog showDialogFnRef={showLogInspectorDialogRef} />
             <WarningDialog showFnRef={showWarningDialogFnRef} />
+            {/* TODO: Remove VaultMigrationNoticeDialog after December 31, 2026. */}
+            <VaultMigrationNoticeDialog />
             <KeyboardShortcutsDialog
                 open={isKeyboardShortcutsOpen}
                 onOpenChange={setIsKeyboardShortcutsOpen}

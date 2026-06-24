@@ -8,7 +8,13 @@ import {
 } from "@jest/globals";
 
 const customerPortalQueryMock = jest.fn();
-const checkoutURLQueryMock = jest.fn();
+const toastErrorMock = jest.fn();
+
+jest.mock("sonner", () => ({
+    toast: {
+        error: (...args: unknown[]) => toastErrorMock(...args),
+    },
+}));
 
 jest.mock("../../src/utils/trpc", () => ({
     trpc: {
@@ -18,10 +24,6 @@ jest.mock("../../src/utils/trpc", () => ({
                     query: (...args: unknown[]) =>
                         customerPortalQueryMock(...(args as [])),
                 },
-                checkoutURL: {
-                    query: (...args: unknown[]) =>
-                        checkoutURLQueryMock(...(args as [])),
-                },
             },
         },
     },
@@ -29,7 +31,6 @@ jest.mock("../../src/utils/trpc", () => ({
 
 import {
     constructLinkPresenceChannelName,
-    navigateToCheckout,
     openCustomerPortal,
 } from "../../src/app_lib/online-services";
 
@@ -67,6 +68,7 @@ describe("online-services", () => {
             expect(openSpy).toHaveBeenCalledWith(
                 "https://billing.example.com/portal",
                 "_blank",
+                "noopener,noreferrer",
             );
         });
 
@@ -74,40 +76,28 @@ describe("online-services", () => {
             customerPortalQueryMock.mockResolvedValueOnce(null as never);
             await openCustomerPortal();
             expect(openSpy).not.toHaveBeenCalled();
+            expect(toastErrorMock).toHaveBeenCalledWith(
+                "Billing portal is not available yet.",
+            );
         });
 
         it("does not open window when URL is an empty string", async () => {
             customerPortalQueryMock.mockResolvedValueOnce("" as never);
             await openCustomerPortal();
             expect(openSpy).not.toHaveBeenCalled();
-        });
-    });
-
-    describe("navigateToCheckout", () => {
-        it("throws when the returned URL is empty", async () => {
-            checkoutURLQueryMock.mockResolvedValueOnce("" as never);
-            await expect(navigateToCheckout()).rejects.toThrow(
-                "Failed to fetch checkout session URL.",
+            expect(toastErrorMock).toHaveBeenCalledWith(
+                "Billing portal is not available yet.",
             );
+        });
+
+        it("shows an error toast when the portal request fails", async () => {
+            customerPortalQueryMock.mockRejectedValueOnce(
+                new Error("stripe outage") as never,
+            );
+            await openCustomerPortal();
             expect(openSpy).not.toHaveBeenCalled();
-        });
-
-        it("throws when the returned URL is undefined", async () => {
-            checkoutURLQueryMock.mockResolvedValueOnce(undefined as never);
-            await expect(navigateToCheckout()).rejects.toThrow(
-                "Failed to fetch checkout session URL.",
-            );
-            expect(openSpy).not.toHaveBeenCalled();
-        });
-
-        it("opens window on the success path", async () => {
-            checkoutURLQueryMock.mockResolvedValueOnce(
-                "https://checkout.example.com/sess" as never,
-            );
-            await navigateToCheckout();
-            expect(openSpy).toHaveBeenCalledWith(
-                "https://checkout.example.com/sess",
-                "_blank",
+            expect(toastErrorMock).toHaveBeenCalledWith(
+                "Could not open billing portal.",
             );
         });
     });

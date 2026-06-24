@@ -775,6 +775,8 @@ Route handlers then use these to enforce permissions such as:
 - only root devices may delete the user
 - device-management and billing routes can rely on current subscription/device state
 
+Premium upgrades use **embedded Stripe Checkout** on the web client (`v1.payment.checkoutSession` returns a client secret). Post-payment tier activation is driven by Stripe webhooks and client-side polling — see [Payment API (`v1.payment`)](./authentication-api.md#71-payment-api-v1payment) in the server API reference.
+
 ## Error And Failure Modes
 
 ### Missing Bearer Token

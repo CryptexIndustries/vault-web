@@ -84,9 +84,14 @@ import { ensureSyncSigningKeypair } from "@/app_lib/vault-utils/sync-signing";
 import * as Synchronization from "@/app_lib/synchronization";
 import {
     constructLinkPresenceChannelName,
-    navigateToCheckout,
+    finalizeCheckoutCompletion,
+    refreshCheckoutTrpcCaches,
+    type CheckoutTier,
 } from "@/app_lib/online-services";
-import { establishPremiumSession } from "@/app_lib/auth-session";
+import {
+    establishPremiumSession,
+    syncOnlineServicesRemoteConfiguration,
+} from "@/app_lib/auth-session";
 import {
     getVaultDEKFromSession,
     MISSING_VAULT_SECRET_ERROR,
@@ -145,6 +150,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulidx";
 import BarcodeScanner from "@/components/general/qr-scanner";
+import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
 import type { WarningDialogShowFn } from "@/components/dialog/warning";
 
 export type SendLinkRequestDialogProps = {
@@ -167,6 +173,13 @@ type ProgressLogType = {
 };
 
 const DynamicQRCode = dynamic(() => import("react-qr-code"), { ssr: false });
+const EmbeddedCheckoutDialog = dynamic(
+    () =>
+        import("@/components/vault-dashboard/embedded-checkout-dialog").then(
+            (mod) => mod.EmbeddedCheckoutDialog,
+        ),
+    { ssr: false },
+);
 const MISSING_SYNC_SIGNING_KEY_ERROR =
     "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
 const SEND_LINK_QR_CYCLE_MS = DEFAULT_CHUNKED_QR_CYCLE_MS;
@@ -863,6 +876,7 @@ export function SendLinkRequestDialog({
     const setLinkedDevices = useSetAtom(linkedDevicesAtom);
     const { mutateAsync: linkNewDevice } =
         trpcReact.v1.device.link.useMutation();
+    const trpcUtils = trpcReact.useUtils();
     const { mutateAsync: setLinkedDeviceRoot } =
         trpcReact.v1.device.setRoot.useMutation();
     const removeDevice = trpcReact.v1.device.remove.useMutation();
@@ -894,6 +908,18 @@ export function SendLinkRequestDialog({
     const [linkingPackageBinary, setLinkingPackageBinary] =
         useState<Uint8Array | null>(null);
     const [formError, setFormError] = useState("");
+    const [checkoutOpen, setCheckoutOpen] = useState(false);
+    const [checkoutTier, setCheckoutTier] =
+        useState<CheckoutTier>("premiumMonthly");
+    const [planSyncPending, setPlanSyncPending] = useState(false);
+    const checkoutFinalizeAbortRef = useRef<AbortController | null>(null);
+
+    useEffect(() => {
+        if (!open) {
+            checkoutFinalizeAbortRef.current?.abort();
+            checkoutFinalizeAbortRef.current = null;
+        }
+    }, [open]);
 
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const selectedLinkMethodRef = useRef<SendLinkMethod>("qr");
@@ -904,6 +930,10 @@ export function SendLinkRequestDialog({
     });
 
     const isSignedIn = Vault.isOnlineServicesBound(unlockedVault);
+    const { data: subscription } = trpcReact.v1.payment.subscription.useQuery(
+        undefined,
+        { enabled: open && isSignedIn },
+    );
     const tierAllowsLinkingWithOnlineServices =
         isSignedIn && !!onlineServicesData?.remoteData?.canLink;
     const usesOnlineServicesSelection =
@@ -915,9 +945,14 @@ export function SendLinkRequestDialog({
         usesOnlineServicesSelection && !isSignedIn
             ? "signin"
             : usesOnlineServicesSelection &&
-                !tierAllowsLinkingWithOnlineServices
-              ? "upgrade"
-              : null;
+                !tierAllowsLinkingWithOnlineServices &&
+                subscription?.nonFree
+              ? "plan-sync"
+              : usesOnlineServicesSelection &&
+                  !tierAllowsLinkingWithOnlineServices &&
+                  !subscription?.nonFree
+                ? "upgrade"
+                : null;
     const canStart =
         deviceName.trim().length > 0 &&
         deviceName.trim().length <= 150 &&
@@ -1663,6 +1698,12 @@ export function SendLinkRequestDialog({
             setFormError("Upgrade to use Cryptex Online Services for linking.");
             return;
         }
+        if (onlineServicesIssue === "plan-sync") {
+            setFormError(
+                "Your premium plan is still syncing. Refresh plan status and try again.",
+            );
+            return;
+        }
 
         const signalingServer =
             unlockedVault.LinkedDevices.SignalingServers.find(
@@ -1794,278 +1835,326 @@ export function SendLinkRequestDialog({
         saveSendLinkPreferences(nextPreferences);
     };
 
-    return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent
-                className={cn(
-                    "vault-settings-dialog grid max-h-[min(88vh,100dvh)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl",
-                    stage === "linking" &&
-                        linkingView === "success" &&
-                        "border-emerald-500/50",
-                )}
-            >
-                <DialogHeader className="vault-settings-header border-b px-4 py-4 sm:px-6">
-                    <DialogTitle>{dialogTitle}</DialogTitle>
-                    <DialogDescription className="sr-only">
-                        Name the device, choose a transfer method, then start
-                        linking.
-                    </DialogDescription>
-                </DialogHeader>
+    const handleRefreshPlanAccess = async () => {
+        setPlanSyncPending(true);
+        try {
+            await syncOnlineServicesRemoteConfiguration();
+            await refreshCheckoutTrpcCaches(trpcUtils);
+            toast.success("Plan status refreshed.");
+        } catch (error) {
+            onlineServicesLog.error(
+                "Failed to refresh plan access after checkout",
+                {
+                    error,
+                },
+            );
+            toast.error("Could not refresh plan status.");
+        } finally {
+            setPlanSyncPending(false);
+        }
+    };
 
-                <div className="min-h-0 overflow-y-auto overscroll-contain">
-                    <div className="space-y-5 p-4 sm:p-6">
+    return (
+        <>
+            <Dialog open={open} onOpenChange={handleOpenChange}>
+                <DialogContent
+                    className={cn(
+                        "vault-settings-dialog grid max-h-[min(88vh,100dvh)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl",
+                        stage === "linking" &&
+                            linkingView === "success" &&
+                            "border-emerald-500/50",
+                    )}
+                >
+                    <DialogHeader className="vault-settings-header border-b px-4 py-4 sm:px-6">
+                        <DialogTitle>{dialogTitle}</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Name the device, choose a transfer method, then
+                            start linking.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="min-h-0 overflow-y-auto overscroll-contain">
+                        <div className="space-y-5 p-4 sm:p-6">
+                            {stage === "configure" ? (
+                                <>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="link-device-name">
+                                            Device name
+                                        </Label>
+                                        <Input
+                                            id="link-device-name"
+                                            value={deviceName}
+                                            onChange={(event) =>
+                                                setDeviceName(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Maya's laptop"
+                                            autoFocus
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Transfer method</Label>
+                                        <SendLinkMethodPicker
+                                            value={selectedLinkMethod}
+                                            onChange={selectLinkMethod}
+                                        />
+                                    </div>
+
+                                    <Accordion
+                                        type="single"
+                                        collapsible
+                                        value={advancedAccordion}
+                                        onValueChange={setAdvancedAccordion}
+                                    >
+                                        <AccordionItem
+                                            value="advanced"
+                                            className="border-none"
+                                        >
+                                            <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:no-underline">
+                                                Advanced connection
+                                            </AccordionTrigger>
+                                            <AccordionContent className="space-y-4">
+                                                <div className="grid gap-3 sm:grid-cols-3">
+                                                    <ServerSelect
+                                                        label="Signaling"
+                                                        value={
+                                                            signalingServerID
+                                                        }
+                                                        onChange={(value) =>
+                                                            updateConnectionPreferences(
+                                                                {
+                                                                    signalingServerID:
+                                                                        value,
+                                                                },
+                                                            )
+                                                        }
+                                                        servers={
+                                                            unlockedVault
+                                                                .LinkedDevices
+                                                                .SignalingServers
+                                                        }
+                                                    />
+                                                    <ServerMultiSelect
+                                                        label="STUN"
+                                                        value={stunServerIDs}
+                                                        onChange={(value) =>
+                                                            updateConnectionPreferences(
+                                                                {
+                                                                    stunServerIDs:
+                                                                        value,
+                                                                },
+                                                            )
+                                                        }
+                                                        servers={
+                                                            unlockedVault
+                                                                .LinkedDevices
+                                                                .STUNServers
+                                                        }
+                                                    />
+                                                    <ServerMultiSelect
+                                                        label="TURN"
+                                                        value={turnServerIDs}
+                                                        onChange={(value) =>
+                                                            updateConnectionPreferences(
+                                                                {
+                                                                    turnServerIDs:
+                                                                        value,
+                                                                },
+                                                            )
+                                                        }
+                                                        servers={
+                                                            unlockedVault
+                                                                .LinkedDevices
+                                                                .TURNServers
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <label className="flex items-start gap-3 rounded-lg border p-3">
+                                                    <Checkbox
+                                                        checked={rootDevice}
+                                                        onCheckedChange={(
+                                                            checked,
+                                                        ) =>
+                                                            updateConnectionPreferences(
+                                                                {
+                                                                    rootDevice:
+                                                                        checked ===
+                                                                        true,
+                                                                },
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            !usesOnlineServicesSelection
+                                                        }
+                                                    />
+                                                    <span className="text-sm font-medium">
+                                                        Make linked device root
+                                                    </span>
+                                                </label>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+
+                                    {onlineServicesIssue ? (
+                                        <Alert variant="destructive">
+                                            <ShieldCheck className="h-4 w-4" />
+                                            <AlertTitle>
+                                                Cryptex Online Services
+                                            </AlertTitle>
+                                            <AlertDescription className="space-y-3">
+                                                <p>
+                                                    Selected Online Services
+                                                    entry needs account access
+                                                    and paid-tier linking.
+                                                </p>
+                                                {onlineServicesIssue ===
+                                                "signin" ? (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            handleOpenChange(
+                                                                false,
+                                                            );
+                                                            onRequireOnlineServicesSignIn?.();
+                                                        }}
+                                                    >
+                                                        Sign in
+                                                    </Button>
+                                                ) : null}
+                                                {onlineServicesIssue ===
+                                                "upgrade" ? (
+                                                    <div className="space-y-3">
+                                                        <CheckoutTierPicker
+                                                            value={checkoutTier}
+                                                            onChange={
+                                                                setCheckoutTier
+                                                            }
+                                                            disabled={
+                                                                checkoutOpen
+                                                            }
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setCheckoutOpen(
+                                                                    true,
+                                                                );
+                                                            }}
+                                                            disabled={
+                                                                checkoutOpen ||
+                                                                !!subscription?.nonFree
+                                                            }
+                                                        >
+                                                            Upgrade
+                                                        </Button>
+                                                    </div>
+                                                ) : null}
+                                                {onlineServicesIssue ===
+                                                "plan-sync" ? (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={
+                                                            planSyncPending
+                                                        }
+                                                        onClick={() =>
+                                                            void handleRefreshPlanAccess()
+                                                        }
+                                                    >
+                                                        {planSyncPending
+                                                            ? "Refreshing…"
+                                                            : "Refresh plan status"}
+                                                    </Button>
+                                                ) : null}
+                                            </AlertDescription>
+                                        </Alert>
+                                    ) : null}
+
+                                    {formError ? (
+                                        <p
+                                            className="text-sm text-destructive"
+                                            role="alert"
+                                        >
+                                            {formError}
+                                        </p>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <>
+                                    {linkingView === "active" ? (
+                                        <SendLinkActiveLinkingPanel
+                                            statusMessage={linkingStatusMessage}
+                                            linkMethod={selectedLinkMethod}
+                                            linkingPackageBase64={
+                                                linkingPackageBase64
+                                            }
+                                            linkingPackageBinary={
+                                                linkingPackageBinary
+                                            }
+                                            mnemonic={mnemonic}
+                                            mnemonicOpen={mnemonicOpen}
+                                            onToggleMnemonic={() =>
+                                                setMnemonicOpen((open) => !open)
+                                            }
+                                            onDownloadAgain={() =>
+                                                downloadLinkingPackage(
+                                                    linkingPackageBinary,
+                                                )
+                                            }
+                                            progressLog={progressLog}
+                                            showLogDetails={showLogDetails}
+                                            onToggleLogDetails={() =>
+                                                setShowLogDetails(
+                                                    (open) => !open,
+                                                )
+                                            }
+                                        />
+                                    ) : (
+                                        <SendLinkTerminalPanel
+                                            variant={linkingView}
+                                            linkedDeviceName={linkedDeviceName}
+                                            errorMessage={getLatestLinkingErrorMessage(
+                                                progressLog,
+                                            )}
+                                            progressLog={progressLog}
+                                            showLogDetails={showLogDetails}
+                                            onToggleLogDetails={() =>
+                                                setShowLogDetails(
+                                                    (open) => !open,
+                                                )
+                                            }
+                                        />
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    <DialogFooter className="vault-settings-footer border-t px-4 py-4 sm:px-6">
                         {stage === "configure" ? (
                             <>
-                                <div className="space-y-2">
-                                    <Label htmlFor="link-device-name">
-                                        Device name
-                                    </Label>
-                                    <Input
-                                        id="link-device-name"
-                                        value={deviceName}
-                                        onChange={(event) =>
-                                            setDeviceName(event.target.value)
-                                        }
-                                        placeholder="Maya's laptop"
-                                        autoFocus
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Transfer method</Label>
-                                    <SendLinkMethodPicker
-                                        value={selectedLinkMethod}
-                                        onChange={selectLinkMethod}
-                                    />
-                                </div>
-
-                                <Accordion
-                                    type="single"
-                                    collapsible
-                                    value={advancedAccordion}
-                                    onValueChange={setAdvancedAccordion}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleOpenChange(false)}
                                 >
-                                    <AccordionItem
-                                        value="advanced"
-                                        className="border-none"
-                                    >
-                                        <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:no-underline">
-                                            Advanced connection
-                                        </AccordionTrigger>
-                                        <AccordionContent className="space-y-4">
-                                            <div className="grid gap-3 sm:grid-cols-3">
-                                                <ServerSelect
-                                                    label="Signaling"
-                                                    value={signalingServerID}
-                                                    onChange={(value) =>
-                                                        updateConnectionPreferences(
-                                                            {
-                                                                signalingServerID:
-                                                                    value,
-                                                            },
-                                                        )
-                                                    }
-                                                    servers={
-                                                        unlockedVault
-                                                            .LinkedDevices
-                                                            .SignalingServers
-                                                    }
-                                                />
-                                                <ServerMultiSelect
-                                                    label="STUN"
-                                                    value={stunServerIDs}
-                                                    onChange={(value) =>
-                                                        updateConnectionPreferences(
-                                                            {
-                                                                stunServerIDs:
-                                                                    value,
-                                                            },
-                                                        )
-                                                    }
-                                                    servers={
-                                                        unlockedVault
-                                                            .LinkedDevices
-                                                            .STUNServers
-                                                    }
-                                                />
-                                                <ServerMultiSelect
-                                                    label="TURN"
-                                                    value={turnServerIDs}
-                                                    onChange={(value) =>
-                                                        updateConnectionPreferences(
-                                                            {
-                                                                turnServerIDs:
-                                                                    value,
-                                                            },
-                                                        )
-                                                    }
-                                                    servers={
-                                                        unlockedVault
-                                                            .LinkedDevices
-                                                            .TURNServers
-                                                    }
-                                                />
-                                            </div>
-
-                                            <label className="flex items-start gap-3 rounded-lg border p-3">
-                                                <Checkbox
-                                                    checked={rootDevice}
-                                                    onCheckedChange={(
-                                                        checked,
-                                                    ) =>
-                                                        updateConnectionPreferences(
-                                                            {
-                                                                rootDevice:
-                                                                    checked ===
-                                                                    true,
-                                                            },
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        !usesOnlineServicesSelection
-                                                    }
-                                                />
-                                                <span className="text-sm font-medium">
-                                                    Make linked device root
-                                                </span>
-                                            </label>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
-
-                                {onlineServicesIssue ? (
-                                    <Alert variant="destructive">
-                                        <ShieldCheck className="h-4 w-4" />
-                                        <AlertTitle>
-                                            Cryptex Online Services
-                                        </AlertTitle>
-                                        <AlertDescription className="space-y-3">
-                                            <p>
-                                                Selected Online Services entry
-                                                needs account access and
-                                                paid-tier linking.
-                                            </p>
-                                            {onlineServicesIssue ===
-                                            "signin" ? (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        handleOpenChange(false);
-                                                        onRequireOnlineServicesSignIn?.();
-                                                    }}
-                                                >
-                                                    Sign in
-                                                </Button>
-                                            ) : null}
-                                            {onlineServicesIssue ===
-                                            "upgrade" ? (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        void navigateToCheckout();
-                                                    }}
-                                                >
-                                                    Upgrade
-                                                </Button>
-                                            ) : null}
-                                        </AlertDescription>
-                                    </Alert>
-                                ) : null}
-
-                                {formError ? (
-                                    <p
-                                        className="text-sm text-destructive"
-                                        role="alert"
-                                    >
-                                        {formError}
-                                    </p>
-                                ) : null}
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="button"
+                                    disabled={!canStart}
+                                    onClick={() => void startLinking()}
+                                >
+                                    Start linking
+                                </Button>
                             </>
-                        ) : (
-                            <>
-                                {linkingView === "active" ? (
-                                    <SendLinkActiveLinkingPanel
-                                        statusMessage={linkingStatusMessage}
-                                        linkMethod={selectedLinkMethod}
-                                        linkingPackageBase64={
-                                            linkingPackageBase64
-                                        }
-                                        linkingPackageBinary={
-                                            linkingPackageBinary
-                                        }
-                                        mnemonic={mnemonic}
-                                        mnemonicOpen={mnemonicOpen}
-                                        onToggleMnemonic={() =>
-                                            setMnemonicOpen((open) => !open)
-                                        }
-                                        onDownloadAgain={() =>
-                                            downloadLinkingPackage(
-                                                linkingPackageBinary,
-                                            )
-                                        }
-                                        progressLog={progressLog}
-                                        showLogDetails={showLogDetails}
-                                        onToggleLogDetails={() =>
-                                            setShowLogDetails((open) => !open)
-                                        }
-                                    />
-                                ) : (
-                                    <SendLinkTerminalPanel
-                                        variant={linkingView}
-                                        linkedDeviceName={linkedDeviceName}
-                                        errorMessage={getLatestLinkingErrorMessage(
-                                            progressLog,
-                                        )}
-                                        progressLog={progressLog}
-                                        showLogDetails={showLogDetails}
-                                        onToggleLogDetails={() =>
-                                            setShowLogDetails((open) => !open)
-                                        }
-                                    />
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                <DialogFooter className="vault-settings-footer border-t px-4 py-4 sm:px-6">
-                    {stage === "configure" ? (
-                        <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleOpenChange(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="button"
-                                disabled={!canStart}
-                                onClick={() => void startLinking()}
-                            >
-                                Start linking
-                            </Button>
-                        </>
-                    ) : linkingView === "success" ? (
-                        <Button
-                            type="button"
-                            autoFocus
-                            onClick={() => handleOpenChange(false)}
-                        >
-                            Close
-                        </Button>
-                    ) : linkingView === "cancelled" ||
-                      linkingView === "error" ? (
-                        <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={returnToConfigure}
-                            >
-                                Start over
-                            </Button>
+                        ) : linkingView === "success" ? (
                             <Button
                                 type="button"
                                 autoFocus
@@ -2073,29 +2162,65 @@ export function SendLinkRequestDialog({
                             >
                                 Close
                             </Button>
-                        </>
-                    ) : (
-                        <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={!isLinkingActive}
-                                onClick={() => void cancelFnRef.current()}
-                            >
-                                Cancel linking
-                            </Button>
-                            <Button
-                                type="button"
-                                disabled={isLinkingActive}
-                                onClick={() => handleOpenChange(false)}
-                            >
-                                Close
-                            </Button>
-                        </>
-                    )}
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                        ) : linkingView === "cancelled" ||
+                          linkingView === "error" ? (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={returnToConfigure}
+                                >
+                                    Start over
+                                </Button>
+                                <Button
+                                    type="button"
+                                    autoFocus
+                                    onClick={() => handleOpenChange(false)}
+                                >
+                                    Close
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={!isLinkingActive}
+                                    onClick={() => void cancelFnRef.current()}
+                                >
+                                    Cancel linking
+                                </Button>
+                                <Button
+                                    type="button"
+                                    disabled={isLinkingActive}
+                                    onClick={() => handleOpenChange(false)}
+                                >
+                                    Close
+                                </Button>
+                            </>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <EmbeddedCheckoutDialog
+                open={checkoutOpen}
+                onOpenChange={setCheckoutOpen}
+                tier={checkoutTier}
+                onComplete={() => {
+                    checkoutFinalizeAbortRef.current?.abort();
+                    const controller = new AbortController();
+                    checkoutFinalizeAbortRef.current = controller;
+
+                    void finalizeCheckoutCompletion({
+                        signal: controller.signal,
+                        onSynced: async () => {
+                            await refreshCheckoutTrpcCaches(trpcUtils);
+                        },
+                    });
+                }}
+            />
+        </>
     );
 }
 

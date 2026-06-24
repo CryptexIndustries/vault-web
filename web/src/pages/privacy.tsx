@@ -45,13 +45,22 @@ const PrivacyPolicy: NextPage = () => {
                                 1.3. Payment Information
                             </h3>
                             <p className="pt-2 text-justify">
-                                We rely on third parties to process credit card,
-                                debit card, and other payment information. We do
-                                not store or collect your payment card number or
-                                security code. That information is provided
-                                directly to our third-party payment processors
+                                We rely on Stripe to process credit card, debit
+                                card, and other payment information for Premium
+                                subscriptions. We do not store or collect your
+                                payment card number or security code. That
+                                information is provided directly to Stripe,
                                 whose use of your personal information is
-                                governed by their Privacy Policy.
+                                governed by the{" "}
+                                <a
+                                    href="https://stripe.com/privacy"
+                                    className="font-bold underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Stripe Privacy Policy
+                                </a>
+                                .
                             </p>
                         </div>
                     </div>

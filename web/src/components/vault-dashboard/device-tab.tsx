@@ -41,7 +41,7 @@ import {
     buildDeviceRelationshipMap,
     formatRelativeAccountDate,
     formatSyncId,
-} from "./account-dialog";
+} from "./account-dialog/device-topology";
 
 type RelationshipMap = ReturnType<typeof buildDeviceRelationshipMap>;
 type DeviceNode = RelationshipMap["nodes"][number];

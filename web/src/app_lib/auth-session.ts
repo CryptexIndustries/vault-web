@@ -1,5 +1,6 @@
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
+import type { VersionedRouter } from "@cryptex-industries/api-contract";
 import type { OnlineServicesData } from "@/utils/atoms";
 import {
     getUnlockedVault,
@@ -13,7 +14,7 @@ import {
     vaultStore,
 } from "@/utils/atoms";
 import { Vault } from "@/app_lib/vault-utils/vault";
-import type { VersionedRouter } from "@/server/trpc";
+import { getOnlineServicesTrpcUrl } from "@/utils/online-services-api-url";
 import {
     createForcedReauthGate,
     createRefreshInFlightRunner,
@@ -41,7 +42,7 @@ export function createBareAuthHeader() {
 const authSessionClient = createTRPCClient<VersionedRouter>({
     links: [
         httpBatchLink({
-            url: "/api/trpc",
+            url: getOnlineServicesTrpcUrl() || "/api/trpc",
             headers: createBareAuthHeader,
             transformer: superjson,
         }),

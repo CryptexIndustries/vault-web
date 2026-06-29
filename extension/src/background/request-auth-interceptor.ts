@@ -21,11 +21,11 @@ import {
     ensureFreshOnlineServicesSession,
     getOnlineServicesAuthorizationHeader,
 } from "../app_lib/auth-session-ext";
-import { env } from "../env";
 import type {
     ProxyFetchRequestPayload,
     ProxyFetchResponsePayload,
 } from "../types/sw-messaging";
+import { getExtensionOnlineServicesApiBaseUrl } from "../utils/online-services-api-url";
 import {
     isTrpcApiRequest,
     trpcBatchRequiresAuth,
@@ -103,8 +103,8 @@ export async function handleProxyFetch(
         );
     }
 
-    const appUrl = env.NEXT_PUBLIC_APP_URL;
-    const isTrpc = isTrpcApiRequest(payload.url, appUrl);
+    const apiBaseUrl = getExtensionOnlineServicesApiBaseUrl();
+    const isTrpc = isTrpcApiRequest(payload.url, apiBaseUrl);
     if (!isTrpc) {
         return proxyFetchError(
             "Proxy fetch destination not allowed",
@@ -145,7 +145,7 @@ export async function handleProxyFetch(
             method,
             headers,
             body: method === "POST" ? (payload.body ?? undefined) : undefined,
-            // The popup talks to the API over the extension origin -
+            // The popup talks to the API from the extension origin -
             // `omit` makes sure we never leak cookies for the API host
             // (the JWT we just injected is the only credential we want).
             credentials: "omit",

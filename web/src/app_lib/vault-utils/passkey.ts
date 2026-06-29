@@ -39,8 +39,8 @@ export function parseJwkFromString(s: string): JsonWebKey {
 
 /**
  * Sign challenge bytes with ECDSA (SHA-256). Returns base64url-encoded signature.
- * Web Crypto uses IEEE P1363 fixed-length encoding (not DER); the server verifies with
- * the same encoding (`verifyPasskeySignature` in `server/auth/challenge.ts`).
+ * Web Crypto uses IEEE P1363 fixed-length encoding (not DER); server-side
+ * verification uses the same encoding (see cloud `auth/challenge.ts`).
  */
 export async function signChallenge(
     privateKeyJwk: JsonWebKey | string,

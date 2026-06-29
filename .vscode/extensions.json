@@ -1,6 +1,5 @@
 {
     "recommendations": [
-        "prisma.prisma",
         "bradlc.vscode-tailwindcss",
         "usernamehw.errorlens",
         "yoavbls.pretty-ts-errors",

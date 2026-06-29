@@ -110,6 +110,7 @@ import {
     LINK_FILE_EXTENSION,
     ONLINE_SERVICES_SELECTION_ID,
 } from "@/utils/consts";
+import { hasValidServerSelections } from "./send-link-server-validation";
 import {
     onlineServicesLog,
     signalingLog,
@@ -117,6 +118,7 @@ import {
     vaultLog,
 } from "@/utils/logging";
 import { trpcReact } from "@/utils/trpc";
+import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { cn } from "@/lib/utils";
 import {
     createChunkedQRCodeFrames,
@@ -214,13 +216,16 @@ type SendLinkPreferences = {
     rootDevice: boolean;
 };
 
-const defaultSendLinkPreferences = (): SendLinkPreferences => ({
-    linkMethod: "qr",
-    signalingServerID: ONLINE_SERVICES_SELECTION_ID,
-    stunServerIDs: [ONLINE_SERVICES_SELECTION_ID],
-    turnServerIDs: [ONLINE_SERVICES_SELECTION_ID],
-    rootDevice: false,
-});
+const defaultSendLinkPreferences = (): SendLinkPreferences => {
+    const cloudEnabled = isCloudServicesEnabled();
+    return {
+        linkMethod: "qr",
+        signalingServerID: cloudEnabled ? ONLINE_SERVICES_SELECTION_ID : "",
+        stunServerIDs: cloudEnabled ? [ONLINE_SERVICES_SELECTION_ID] : [],
+        turnServerIDs: cloudEnabled ? [ONLINE_SERVICES_SELECTION_ID] : [],
+        rootDevice: false,
+    };
+};
 
 const loadSendLinkPreferences = (): SendLinkPreferences => {
     if (typeof window === "undefined") {
@@ -232,6 +237,7 @@ const loadSendLinkPreferences = (): SendLinkPreferences => {
         if (!raw) return defaultSendLinkPreferences();
 
         const parsed = JSON.parse(raw) as Partial<SendLinkPreferences>;
+        const cloudEnabled = isCloudServicesEnabled();
         return {
             ...defaultSendLinkPreferences(),
             ...parsed,
@@ -239,13 +245,25 @@ const loadSendLinkPreferences = (): SendLinkPreferences => {
             stunServerIDs:
                 Array.isArray(parsed.stunServerIDs) &&
                 parsed.stunServerIDs.length > 0
-                    ? parsed.stunServerIDs
-                    : [ONLINE_SERVICES_SELECTION_ID],
+                    ? parsed.stunServerIDs.filter(
+                          (id) =>
+                              cloudEnabled ||
+                              id !== ONLINE_SERVICES_SELECTION_ID,
+                      )
+                    : cloudEnabled
+                      ? [ONLINE_SERVICES_SELECTION_ID]
+                      : [],
             turnServerIDs:
                 Array.isArray(parsed.turnServerIDs) &&
                 parsed.turnServerIDs.length > 0
-                    ? parsed.turnServerIDs
-                    : [ONLINE_SERVICES_SELECTION_ID],
+                    ? parsed.turnServerIDs.filter(
+                          (id) =>
+                              cloudEnabled ||
+                              id !== ONLINE_SERVICES_SELECTION_ID,
+                      )
+                    : cloudEnabled
+                      ? [ONLINE_SERVICES_SELECTION_ID]
+                      : [],
         };
     } catch {
         return defaultSendLinkPreferences();
@@ -265,15 +283,24 @@ const saveSendLinkPreferences = (preferences: SendLinkPreferences) => {
 
 const hasCustomConnectionSettings = (
     preferences: SendLinkPreferences,
-): boolean =>
-    preferences.signalingServerID !== ONLINE_SERVICES_SELECTION_ID ||
-    preferences.stunServerIDs.some(
-        (id) => id !== ONLINE_SERVICES_SELECTION_ID,
-    ) ||
-    preferences.turnServerIDs.some(
-        (id) => id !== ONLINE_SERVICES_SELECTION_ID,
-    ) ||
-    preferences.rootDevice;
+): boolean => {
+    const cloudEnabled = isCloudServicesEnabled();
+    const signalingCustom = cloudEnabled
+        ? preferences.signalingServerID !== ONLINE_SERVICES_SELECTION_ID
+        : preferences.signalingServerID !== "";
+    const stunCustom = preferences.stunServerIDs.some(
+        (id) => id !== (cloudEnabled ? ONLINE_SERVICES_SELECTION_ID : ""),
+    );
+    const turnCustom = preferences.turnServerIDs.some(
+        (id) => id !== (cloudEnabled ? ONLINE_SERVICES_SELECTION_ID : ""),
+    );
+    return (
+        signalingCustom || stunCustom || turnCustom || preferences.rootDevice
+    );
+};
+
+// hasValidServerSelections is imported from ./send-link-server-validation so it
+// can be unit-tested in isolation from the React component.
 
 const sendLinkMethodCopy: Record<
     SendLinkMethod,
@@ -480,22 +507,43 @@ function ServerSelect({
     onChange: (value: string) => void;
     servers: { ID: string; Name: string; Host?: string }[];
 }) {
+    const cloudServicesEnabled = isCloudServicesEnabled();
+    const displayValue =
+        value === ONLINE_SERVICES_SELECTION_ID && !cloudServicesEnabled
+            ? "no-servers"
+            : value;
     return (
         <div className="space-y-1.5">
             <Label>{label}</Label>
-            <Select value={value} onValueChange={onChange}>
+            <Select value={displayValue} onValueChange={onChange}>
                 <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue
+                        placeholder={
+                            cloudServicesEnabled &&
+                            value === ONLINE_SERVICES_SELECTION_ID
+                                ? "Cryptex Online Services"
+                                : servers.length > 0
+                                  ? undefined
+                                  : "No servers configured"
+                        }
+                    />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value={ONLINE_SERVICES_SELECTION_ID}>
-                        Cryptex Online Services
-                    </SelectItem>
+                    {cloudServicesEnabled ? (
+                        <SelectItem value={ONLINE_SERVICES_SELECTION_ID}>
+                            Cryptex Online Services
+                        </SelectItem>
+                    ) : null}
                     {servers.map((server) => (
                         <SelectItem key={server.ID} value={server.ID}>
                             {server.Name || server.Host || "Unnamed server"}
                         </SelectItem>
                     ))}
+                    {servers.length === 0 && !cloudServicesEnabled ? (
+                        <SelectItem value="no-servers" disabled>
+                            No servers configured
+                        </SelectItem>
+                    ) : null}
                 </SelectContent>
             </Select>
         </div>
@@ -513,10 +561,12 @@ function ServerMultiSelect({
     onChange: (value: string[]) => void;
     servers: { ID: string; Name: string; Host?: string }[];
 }) {
+    const cloudServicesEnabled = isCloudServicesEnabled();
     const selectedServers = servers.filter((server) =>
         value.includes(server.ID),
     );
-    const usesOnlineServices = value.includes(ONLINE_SERVICES_SELECTION_ID);
+    const usesOnlineServices =
+        cloudServicesEnabled && value.includes(ONLINE_SERVICES_SELECTION_ID);
     const selectedLabel = usesOnlineServices
         ? "Cryptex Online Services"
         : selectedServers.length === 1
@@ -525,7 +575,11 @@ function ServerMultiSelect({
             "Unnamed server"
           : selectedServers.length > 1
             ? `${selectedServers.length} servers selected`
-            : "Cryptex Online Services";
+            : cloudServicesEnabled
+              ? "Cryptex Online Services"
+              : selectedServers.length === 0
+                ? "Select servers"
+                : "Unnamed server";
 
     const toggleServer = (serverID: string, checked: boolean) => {
         if (serverID === ONLINE_SERVICES_SELECTION_ID) {
@@ -545,7 +599,9 @@ function ServerMultiSelect({
         onChange(
             selected.size > 0
                 ? Array.from(selected)
-                : [ONLINE_SERVICES_SELECTION_ID],
+                : cloudServicesEnabled
+                  ? [ONLINE_SERVICES_SELECTION_ID]
+                  : [],
         );
     };
 
@@ -563,18 +619,20 @@ function ServerMultiSelect({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-64">
-                    <DropdownMenuCheckboxItem
-                        checked={usesOnlineServices}
-                        onCheckedChange={(checked) =>
-                            toggleServer(
-                                ONLINE_SERVICES_SELECTION_ID,
-                                checked === true,
-                            )
-                        }
-                        onSelect={(event) => event.preventDefault()}
-                    >
-                        Cryptex Online Services
-                    </DropdownMenuCheckboxItem>
+                    {cloudServicesEnabled ? (
+                        <DropdownMenuCheckboxItem
+                            checked={usesOnlineServices}
+                            onCheckedChange={(checked) =>
+                                toggleServer(
+                                    ONLINE_SERVICES_SELECTION_ID,
+                                    checked === true,
+                                )
+                            }
+                            onSelect={(event) => event.preventDefault()}
+                        >
+                            Cryptex Online Services
+                        </DropdownMenuCheckboxItem>
+                    ) : null}
                     {servers.map((server) => (
                         <DropdownMenuCheckboxItem
                             key={server.ID}
@@ -587,6 +645,11 @@ function ServerMultiSelect({
                             {server.Name || server.Host || "Unnamed server"}
                         </DropdownMenuCheckboxItem>
                     ))}
+                    {servers.length === 0 && !cloudServicesEnabled ? (
+                        <DropdownMenuCheckboxItem disabled>
+                            No servers configured
+                        </DropdownMenuCheckboxItem>
+                    ) : null}
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
@@ -930,16 +993,20 @@ export function SendLinkRequestDialog({
     });
 
     const isSignedIn = Vault.isOnlineServicesBound(unlockedVault);
+    const cloudServicesEnabled = isCloudServicesEnabled();
     const { data: subscription } = trpcReact.v1.payment.subscription.useQuery(
         undefined,
-        { enabled: open && isSignedIn },
+        { enabled: open && cloudServicesEnabled && isSignedIn },
     );
     const tierAllowsLinkingWithOnlineServices =
-        isSignedIn && !!onlineServicesData?.remoteData?.canLink;
+        cloudServicesEnabled &&
+        isSignedIn &&
+        !!onlineServicesData?.remoteData?.canLink;
     const usesOnlineServicesSelection =
-        signalingServerID === ONLINE_SERVICES_SELECTION_ID ||
-        stunServerIDs.includes(ONLINE_SERVICES_SELECTION_ID) ||
-        turnServerIDs.includes(ONLINE_SERVICES_SELECTION_ID);
+        cloudServicesEnabled &&
+        (signalingServerID === ONLINE_SERVICES_SELECTION_ID ||
+            stunServerIDs.includes(ONLINE_SERVICES_SELECTION_ID) ||
+            turnServerIDs.includes(ONLINE_SERVICES_SELECTION_ID));
 
     const onlineServicesIssue =
         usesOnlineServicesSelection && !isSignedIn
@@ -953,10 +1020,22 @@ export function SendLinkRequestDialog({
                   !subscription?.nonFree
                 ? "upgrade"
                 : null;
+
+    const hasValidServerSelectionsLocal = hasValidServerSelections(
+        cloudServicesEnabled,
+        signalingServerID,
+        stunServerIDs,
+        turnServerIDs,
+        unlockedVault.LinkedDevices.SignalingServers,
+        unlockedVault.LinkedDevices.STUNServers,
+        unlockedVault.LinkedDevices.TURNServers,
+    );
+
     const canStart =
         deviceName.trim().length > 0 &&
         deviceName.trim().length <= 150 &&
-        onlineServicesIssue == null;
+        onlineServicesIssue == null &&
+        hasValidServerSelectionsLocal;
     const isLinkingActive = linkingOutcome === "in_progress";
     const linkingView = getSendLinkLinkingView(linkingOutcome);
     const dialogTitle = getSendLinkDialogTitle(stage, linkingOutcome);
@@ -1716,9 +1795,10 @@ export function SendLinkRequestDialog({
             (server) => turnServerIDs.includes(server.ID),
         );
         const usesOnlineServices =
-            signalingServerID === ONLINE_SERVICES_SELECTION_ID ||
-            stunServerIDs.includes(ONLINE_SERVICES_SELECTION_ID) ||
-            turnServerIDs.includes(ONLINE_SERVICES_SELECTION_ID);
+            cloudServicesEnabled &&
+            (signalingServerID === ONLINE_SERVICES_SELECTION_ID ||
+                stunServerIDs.includes(ONLINE_SERVICES_SELECTION_ID) ||
+                turnServerIDs.includes(ONLINE_SERVICES_SELECTION_ID));
 
         setStage("linking");
         applyLinkingOutcome("in_progress");
@@ -2976,10 +3056,15 @@ export function ReceiveLinkRequestDialog({
             }
 
             const linkingBlob = decryptedPackage.value;
+            // A link uses Online Services when the sender registered a peer
+            // device with Online Services (OnlineServices field set) or when no
+            // custom signaling server was encoded (online signaling selected).
+            // The STUN/TURN server lists must NOT be part of this heuristic: a
+            // TURN-only custom link legitimately has an empty STUN list (a TURN
+            // server also fulfills the STUN role per RFC 8656).
             const usesOnlineServices =
-                linkingBlob.SignalingServer == null ||
-                !linkingBlob.STUNServers.length ||
-                !linkingBlob.TURNServers.length;
+                linkingBlob.OnlineServices != null ||
+                linkingBlob.SignalingServer == null;
             if (
                 !linkingBlob.SenderKeyBundle?.SyncSigningPublicKey ||
                 !linkingBlob.SenderKeyBundle.SyncKemPublicKey

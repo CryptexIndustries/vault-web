@@ -16,6 +16,7 @@
         "fmt-check": "oxfmt --check"
     },
     "dependencies": {
+        "@cryptex-industries/api-contract": "workspace:*",
         "@cryptex-industries/shared-ui": "workspace:*",
         "@hookform/resolvers": "3.10.0",
         "@scure/bip39": "2.2.0",

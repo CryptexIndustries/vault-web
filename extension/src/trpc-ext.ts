@@ -23,11 +23,12 @@
 
 import { createTRPCClient, httpBatchLink, loggerLink } from "@trpc/client";
 import superjson from "superjson";
+import type { VersionedRouter } from "@cryptex-industries/api-contract";
 
-import { env } from "./env";
 import { swProxyFetch } from "./utils/sw-proxy-fetch";
+import { getExtensionOnlineServicesTrpcUrl } from "./utils/online-services-api-url";
 
-export const trpc = createTRPCClient<any>({
+export const trpc = createTRPCClient<VersionedRouter>({
     links: [
         loggerLink({
             enabled: (opts) =>
@@ -35,7 +36,7 @@ export const trpc = createTRPCClient<any>({
                 (opts.direction === "down" && opts.result instanceof Error),
         }),
         httpBatchLink({
-            url: `${env.NEXT_PUBLIC_APP_URL}/api/trpc`,
+            url: getExtensionOnlineServicesTrpcUrl(),
             transformer: superjson,
             // No `headers` callback here on purpose. The SW will set
             // Authorization (or deliberately leave it off for the

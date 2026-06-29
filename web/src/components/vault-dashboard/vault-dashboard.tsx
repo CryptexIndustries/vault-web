@@ -51,6 +51,7 @@ import {
     type VaultAutoLockReason,
 } from "@/utils/vault-auto-lock";
 import { lockUnlockedVault } from "@/utils/vault-lock";
+import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -379,6 +380,7 @@ export function VaultDashboard() {
     const unlockedVaultDescription = unlockedVaultMetadata?.Description?.trim();
 
     const credentials = vaultCredentials.filter((c) => !c.Deleted);
+    const cloudServicesEnabled = isCloudServicesEnabled();
     // const devices = linkedDevices;
     const vaultSignalingConfig: VaultSignalingConfig = {
         stunServers: unlockedVault.LinkedDevices.STUNServers,
@@ -779,10 +781,12 @@ export function VaultDashboard() {
     const hasOnlineAuth = !!onlineServicesData?.sessionToken?.length;
     const remoteOnlineServicesData = onlineServicesData?.remoteData;
     const isFreeOnlineServicesTier =
+        cloudServicesEnabled &&
         hasOnlineAuth &&
         !!remoteOnlineServicesData &&
         !remoteOnlineServicesData.canLink;
-    const showSubscriptionCta = !hasOnlineAuth || isFreeOnlineServicesTier;
+    const showSubscriptionCta =
+        cloudServicesEnabled && (!hasOnlineAuth || isFreeOnlineServicesTier);
     const subscriptionCtaVariant = isFreeOnlineServicesTier
         ? "upgrade"
         : passkeyBound
@@ -851,10 +855,13 @@ export function VaultDashboard() {
     }, [unlockedVault.OnlineServices]);
 
     useEffect(() => {
+        if (!cloudServicesEnabled) {
+            return;
+        }
         void (async () => {
             await ensureSession();
         })();
-    }, [ensureSession]);
+    }, [ensureSession, cloudServicesEnabled]);
 
     const handleOpenPasswordGenerator = useCallback(() => {
         setIsPasswordGeneratorOpen(true);
@@ -1278,10 +1285,12 @@ export function VaultDashboard() {
                 onOpenChange={setIsVaultSettingsOpen}
                 onOpenLogInspector={() => showLogInspectorDialogRef.current?.()}
             />
-            <AccountDialog
-                open={isAccountDialogOpen}
-                onOpenChange={setIsAccountDialogOpen}
-            />
+            {cloudServicesEnabled ? (
+                <AccountDialog
+                    open={isAccountDialogOpen}
+                    onOpenChange={setIsAccountDialogOpen}
+                />
+            ) : null}
             <LogInspectorDialog showDialogFnRef={showLogInspectorDialogRef} />
             <WarningDialog showFnRef={showWarningDialogFnRef} />
             {/* TODO: Remove VaultMigrationNoticeDialog after December 31, 2026. */}

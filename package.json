@@ -25,6 +25,11 @@
         "fmt-check:web": "pnpm --filter web fmt-check",
         "fmt-check:ext": "pnpm --filter extension fmt-check",
         "fmt-check": "pnpm fmt-check:web && pnpm fmt-check:ext",
+        "generate:api-contract": "node scripts/generate-api-contract-stubs.mjs",
+        "docker:client": "docker compose -f compose.client.yaml --profile local --env-file web/.env.client up --build",
+        "docker:client:cloud-ui": "docker compose -f compose.client.yaml --profile cloud-ui --env-file web/.env.client.cloud-ui up --build",
+        "docker:dev": "docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build",
+        "docker:dev:cloud-ui": "docker compose -f compose.dev.yaml --profile cloud-ui --env-file web/.env.client.cloud-ui up --build",
         "prepare": "node scripts/install-lefthook.mjs",
         "test": "pnpm jest",
         "coverage": "pnpm jest --coverage"

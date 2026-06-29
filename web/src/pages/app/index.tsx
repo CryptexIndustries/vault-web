@@ -36,6 +36,7 @@ import {
     syncOnlineServicesRemoteConfiguration,
 } from "src/app_lib/auth-session";
 import { onlineServicesLog } from "src/utils/logging";
+import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 
 dayjs.extend(RelativeTime);
 
@@ -94,7 +95,11 @@ const AppIndex: React.FC = () => {
         const { vault, dek, revealSecrets } = vaultRes.value;
 
         try {
-            if (vault && Vault.Vault.isOnlineServicesBound(vault)) {
+            if (
+                vault &&
+                Vault.Vault.isOnlineServicesBound(vault) &&
+                isCloudServicesEnabled()
+            ) {
                 setOnlineServicesData({
                     deviceId: vault.OnlineServices.DeviceId,
                     sessionToken: null,

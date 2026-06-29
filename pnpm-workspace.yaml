@@ -2,6 +2,7 @@ packages:
   - web
   - extension
   - packages/shared-ui
+  - packages/api-contract
 
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
@@ -16,12 +17,9 @@ strictDepBuilds: true
 savePrefix: ""
 
 allowBuilds:
-  '@prisma/client': true
-  '@prisma/engines': true
   argon2: true
   esbuild: true
   lefthook: true
-  prisma: true
   sharp: true
   unrs-resolver: true
 

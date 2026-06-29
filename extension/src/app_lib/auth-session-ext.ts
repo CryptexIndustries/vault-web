@@ -30,13 +30,13 @@ import {
     shouldRefreshOnlineServicesSession,
 } from "@/app_lib/online-services-session/protocol";
 
-import { env } from "../env";
 import {
     clearOnlineServicesSession as clearStoredSession,
     getOnlineServicesSession,
     setOnlineServicesSession,
     type OnlineServicesSessionRecord,
 } from "../utils/online-services-session-storage";
+import { getExtensionOnlineServicesTrpcUrl } from "../utils/online-services-api-url";
 
 const sessionRefreshRunner = createRefreshInFlightRunner();
 const forcedReauthGate = createForcedReauthGate();
@@ -62,7 +62,7 @@ const forcedReauthGate = createForcedReauthGate();
 const authTrpcClient = createTRPCClient<any>({
     links: [
         httpBatchLink({
-            url: `${env.NEXT_PUBLIC_APP_URL}/api/trpc`,
+            url: getExtensionOnlineServicesTrpcUrl(),
             transformer: superjson,
             fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
                 globalThis.fetch(input, init)) as typeof fetch as never,

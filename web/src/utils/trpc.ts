@@ -7,7 +7,11 @@ import {
 } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
-import type { VersionedRouter } from "../server/trpc";
+import type { VersionedRouter } from "@cryptex-industries/api-contract";
+import {
+    getOnlineServicesTrpcUrl,
+    isCloudServicesEnabled,
+} from "./online-services-api-url";
 import {
     createBareAuthHeader,
     ensureFreshOnlineServicesSession,
@@ -30,7 +34,9 @@ export const reactQueryClientConfig = (baseUrl: string) => {
      * If you want to use SSR, you need to use the server's full URL
      * @link https://trpc.io/docs/ssr
      */
-    const url = `${baseUrl}/api/trpc`;
+    const url = isCloudServicesEnabled()
+        ? getOnlineServicesTrpcUrl()
+        : `${baseUrl}/api/trpc`;
 
     return {
         links: [
@@ -64,7 +70,9 @@ export const trpc = createTRPCClient<VersionedRouter>({
                 (opts.direction === "down" && opts.result instanceof Error),
         }),
         httpBatchLink({
-            url: "/api/trpc",
+            url: isCloudServicesEnabled()
+                ? getOnlineServicesTrpcUrl()
+                : "/api/trpc",
             headers: async ({ opList }) =>
                 createHeadersWithFreshSession(opList),
             transformer: superjson,

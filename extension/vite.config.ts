@@ -50,6 +50,7 @@ export default defineConfig(({ mode }) => {
         };
 
         add(env.VITE_APP_URL);
+        add(env.VITE_ONLINE_SERVICES_API_URL);
 
         if (env.VITE_PUSHER_APP_HOST) {
             const scheme =

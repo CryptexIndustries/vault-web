@@ -4,14 +4,6 @@
 import { describe, it, expect, beforeAll, jest } from "@jest/globals";
 import { webcrypto } from "crypto";
 
-jest.mock("../../../src/server/cache/redis", () => ({
-    getRedis: () => ({
-        setex: jest.fn(),
-        eval: jest.fn(),
-    }),
-}));
-
-import { verifyPasskeySignature } from "../../../src/server/auth/challenge";
 import {
     base64UrlToUint8Array,
     generateKeyPair,
@@ -20,6 +12,7 @@ import {
     publicKeyJwkToString,
     signChallenge,
 } from "../../../src/app_lib/vault-utils/passkey";
+import { verifyPasskeySignature } from "../../utils/verify-passkey";
 
 beforeAll(() => {
     if (!globalThis.crypto?.subtle) {
@@ -125,7 +118,7 @@ describe("passkey.ts", () => {
         }
     });
 
-    describe("integration with server verifyPasskeySignature", () => {
+    describe("verifyPasskeySignature", () => {
         it("signChallenge output verifies with verifyPasskeySignature on same challenge bytes", async () => {
             const { publicKey, privateKey } = await generateKeyPair();
             const challengeBytes = Buffer.from(

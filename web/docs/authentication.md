@@ -108,20 +108,9 @@ The server also uses Redis for:
 - `web/src/components/vault-dashboard/account-dialog.tsx`
   Handles registration, recovery, account management, and post-auth configuration refresh.
 
-### Backend
+### Backend (Cryptex Cloud — `cryptex-vault-cloud`)
 
-- `web/src/server/trpc/routes/v1/auth.router.ts`
-  Defines `register`, `challenge`, `verify`, `refresh`, and `recover`.
-- `web/src/server/trpc/trpc.ts`
-  Defines `protectedProcedure` middleware that validates bearer JWTs and derives request auth context.
-- `web/src/server/auth/challenge.ts`
-  Creates and consumes one-time challenges and verifies signatures.
-- `web/src/server/auth/jwt.ts`
-  Signs and verifies session JWTs.
-- `web/src/server/auth/session-cache.ts`
-  Caches subscription-derived session data in Redis.
-- `web/src/server/trpc/routes/v1/user.router.ts`
-  Exposes protected account configuration and recovery-token operations.
+Server API reference: [`authentication-api.md`](./authentication-api.md) (canonical doc in cloud repo).
 
 ## End-To-End Model
 
@@ -1006,9 +995,3 @@ sequenceDiagram
 - Frontend tRPC auth headers: `web/src/utils/trpc.ts`
 - Auto sign-in on vault open: `web/src/components/vault-dashboard/vault-dashboard.tsx`
 - Registration and recovery UI: `web/src/components/vault-dashboard/account-dialog.tsx`
-- Auth routes: `web/src/server/trpc/routes/v1/auth.router.ts`
-- Protected middleware: `web/src/server/trpc/trpc.ts`
-- User configuration and recovery-token routes: `web/src/server/trpc/routes/v1/user.router.ts`
-- JWT signing and verification: `web/src/server/auth/jwt.ts`
-- Challenge generation and verification: `web/src/server/auth/challenge.ts`
-- Session cache: `web/src/server/auth/session-cache.ts`

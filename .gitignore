@@ -11,9 +11,6 @@ node_modules
 web/coverage/
 
 # database
-web/prisma/db.sqlite
-web/prisma/db.sqlite-journal
-
 # next.js
 .next/
 web/out/
@@ -35,6 +32,8 @@ yarn-error.log*
 # local env files
 .env
 .env*.local
+.env.client
+web/.env.client.cloud-ui
 
 # vercel
 .vercel

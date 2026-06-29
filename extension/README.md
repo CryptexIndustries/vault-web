@@ -41,7 +41,8 @@ Values are loaded by Vite from per-mode env files:
 
 - [`extension/.env.development`](.env.development) — used by `pnpm dev` and
   `vite build --mode development`. Points at `http://localhost:3000` by
-  default.
+  default. Optional: `VITE_ONLINE_SERVICES_API_URL` (cloud tRPC origin),
+  `VITE_CLOUD_ENABLED=false` (local-only vault, no sign-in/sync UI).
 - [`extension/.env.production`](.env.production) — used by `vite build`
   (default mode). Ships with `REPLACE_ME` placeholders that fail the build
   until they are replaced.

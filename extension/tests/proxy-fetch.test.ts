@@ -11,6 +11,8 @@ const mockGetOnlineServicesAuthorizationHeader = jest.fn(
 jest.mock("../src/env", () => ({
     env: {
         NEXT_PUBLIC_APP_URL: "https://app.example.test/base",
+        NEXT_PUBLIC_ONLINE_SERVICES_API_URL: "https://api.example.test/cloud",
+        NEXT_PUBLIC_CLOUD_ENABLED: true,
     },
 }));
 
@@ -62,9 +64,21 @@ describe("handleProxyFetch", () => {
         expect(mockGetOnlineServicesAuthorizationHeader).not.toHaveBeenCalled();
     });
 
-    it("proxies configured tRPC requests with SW-owned authorization", async () => {
+    it("rejects app-origin tRPC requests when a split API origin is configured", async () => {
         const response = await handleProxyFetch({
             url: "https://app.example.test/base/api/trpc/v1.device.turnCredentials?batch=1",
+            method: "POST",
+            headers: {},
+            body: "{}",
+        });
+
+        expect(response.error).toBe("PROXY_FETCH_DESTINATION_NOT_ALLOWED");
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it("proxies configured tRPC requests with SW-owned authorization", async () => {
+        const response = await handleProxyFetch({
+            url: "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
             method: "POST",
             headers: {
                 Authorization: "Bearer caller-token",
@@ -80,7 +94,7 @@ describe("handleProxyFetch", () => {
             body: "ok",
         });
         expect(globalThis.fetch).toHaveBeenCalledWith(
-            "https://app.example.test/base/api/trpc/v1.device.turnCredentials?batch=1",
+            "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
             {
                 method: "POST",
                 headers: {
@@ -99,7 +113,7 @@ describe("handleProxyFetch", () => {
 
     it("rejects non-GET/POST methods before fetch", async () => {
         const response = await handleProxyFetch({
-            url: "https://app.example.test/base/api/trpc/v1.device.turnCredentials?batch=1",
+            url: "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
             method: "PUT",
             headers: {},
             body: "{}",
@@ -111,13 +125,13 @@ describe("handleProxyFetch", () => {
 
     it("rejects malformed headers and bodies before fetch", async () => {
         const malformedHeaders = await handleProxyFetch({
-            url: "https://app.example.test/base/api/trpc/v1.device.turnCredentials?batch=1",
+            url: "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
             method: "POST",
             headers: { "x-valid": 1 },
             body: "{}",
         } as never);
         const malformedBody = await handleProxyFetch({
-            url: "https://app.example.test/base/api/trpc/v1.device.turnCredentials?batch=1",
+            url: "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
             method: "POST",
             headers: {},
             body: { nested: true },
@@ -135,6 +149,12 @@ describe("tRPC proxy URL helpers", () => {
             isTrpcApiRequest(
                 "https://app.example.test/base/api/trpc/v1.vault.list?batch=1",
                 "https://app.example.test/base",
+            ),
+        ).toBe(true);
+        expect(
+            isTrpcApiRequest(
+                "https://api.example.test/cloud/api/trpc/v1.vault.list?batch=1",
+                "https://api.example.test/cloud",
             ),
         ).toBe(true);
         expect(

@@ -4,7 +4,7 @@
  *
  * `httpBatchLink` encodes batched operation paths into the URL path itself:
  *
- *     {APP_URL}/api/trpc/v1.auth.challenge,v1.foo.bar?batch=1&input=...
+ *     {API_BASE_URL}/api/trpc/v1.auth.challenge,v1.foo.bar?batch=1&input=...
  *
  * The leading "/api/trpc/" segment is constant and the trailing segment is a
  * comma-separated list of procedure paths. Single (non-batched) calls have
@@ -16,10 +16,10 @@
 const TRPC_PATH_PREFIX = "/api/trpc/";
 
 /** True iff `url` targets the configured tRPC HTTP endpoint. */
-export function isTrpcApiRequest(url: string, appUrl: string): boolean {
+export function isTrpcApiRequest(url: string, apiBaseUrl: string): boolean {
     try {
         const requestUrl = new URL(url);
-        const appBaseUrl = new URL(appUrl);
+        const configuredApiUrl = new URL(apiBaseUrl);
         if (
             requestUrl.protocol !== "http:" &&
             requestUrl.protocol !== "https:"
@@ -27,15 +27,15 @@ export function isTrpcApiRequest(url: string, appUrl: string): boolean {
             return false;
         }
         if (
-            appBaseUrl.protocol !== "http:" &&
-            appBaseUrl.protocol !== "https:"
+            configuredApiUrl.protocol !== "http:" &&
+            configuredApiUrl.protocol !== "https:"
         ) {
             return false;
         }
-        if (requestUrl.origin !== appBaseUrl.origin) return false;
+        if (requestUrl.origin !== configuredApiUrl.origin) return false;
 
-        const appPath = appBaseUrl.pathname.replace(/\/+$/, "");
-        return requestUrl.pathname.startsWith(`${appPath}${TRPC_PATH_PREFIX}`);
+        const apiPath = configuredApiUrl.pathname.replace(/\/+$/, "");
+        return requestUrl.pathname.startsWith(`${apiPath}${TRPC_PATH_PREFIX}`);
     } catch {
         return false;
     }

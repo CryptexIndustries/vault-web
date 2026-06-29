@@ -1,0 +1,14 @@
+**/.git
+**/.next
+**/node_modules
+**/.env
+**/.env.*
+!web/.env.client.default
+!web/.env.client.cloud-ui.example
+**/coverage
+**/*.md
+!web/docs/**
+extension
+cryptex-vault-cloud
+pending_work.html
+**/.cursor

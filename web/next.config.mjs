@@ -12,6 +12,36 @@ function defineNextConfig(config) {
     return config;
 }
 
+const onlineServicesApiOrigin = (() => {
+    if (process.env.NEXT_PUBLIC_CLOUD_ENABLED === "false") {
+        return null;
+    }
+
+    const rawApiUrl =
+        process.env.NEXT_PUBLIC_ONLINE_SERVICES_API_URL ||
+        process.env.NEXT_PUBLIC_APP_URL;
+    if (!rawApiUrl) {
+        return null;
+    }
+
+    try {
+        const apiOrigin = new URL(rawApiUrl).origin;
+        const appOrigin = process.env.NEXT_PUBLIC_APP_URL
+            ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
+            : null;
+        return apiOrigin === appOrigin ? null : apiOrigin;
+    } catch {
+        return null;
+    }
+})();
+
+const connectSrc = [
+    "connect-src 'self' ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
+    onlineServicesApiOrigin,
+]
+    .filter(Boolean)
+    .join(" ");
+
 const contentSecurityPolicy = [
     "default-src 'self'",
     "base-uri 'self'",
@@ -20,7 +50,7 @@ const contentSecurityPolicy = [
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
-    "connect-src 'self' ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
+    connectSrc,
     "frame-src https://challenges.cloudflare.com https://js.stripe.com",
     "frame-ancestors 'none'",
     "form-action 'self'",

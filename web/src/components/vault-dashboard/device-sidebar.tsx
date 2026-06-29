@@ -63,6 +63,7 @@ import { useSetAtom } from "jotai";
 import { linkedDevicesAtom } from "src/utils/atoms";
 import { toast } from "sonner";
 import { trpcReact } from "src/utils/trpc";
+import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { onlineServicesLog } from "src/utils/logging";
 
 // TODO: Remove this type
@@ -763,6 +764,7 @@ export function DeviceSidebar({
     const [deviceConfigOpen, setDeviceConfigOpen] = useState(false);
 
     const setLinkedDevices = useSetAtom(linkedDevicesAtom);
+    const cloudServicesEnabled = isCloudServicesEnabled();
     const { mutateAsync: breakLink } =
         trpcReact.v1.device.breakLink.useMutation();
 
@@ -805,7 +807,10 @@ export function DeviceSidebar({
             setLinkedDevices(newList);
             toast.success("Device unlinked successfully.");
 
-            if (LinkedDevices.isUsingOnlineServices(device)) {
+            if (
+                cloudServicesEnabled &&
+                LinkedDevices.isUsingOnlineServices(device)
+            ) {
                 try {
                     await breakLink({ syncId: device.SyncID });
                 } catch (error) {
@@ -970,14 +975,16 @@ export function DeviceSidebar({
             </div>
 
             <div className="border-sidebar-border border-t p-2">
-                <SubscriptionCtaPopover
-                    enabled={showSubscriptionCta}
-                    variant={subscriptionCtaVariant}
-                    isMobile={isMobile}
-                    buttonLabel={accountButtonLabel}
-                    buttonClassName={accountButtonClassName}
-                    onAccountAction={handleAccountAction}
-                />
+                {cloudServicesEnabled && (
+                    <SubscriptionCtaPopover
+                        enabled={showSubscriptionCta}
+                        variant={subscriptionCtaVariant}
+                        isMobile={isMobile}
+                        buttonLabel={accountButtonLabel}
+                        buttonClassName={accountButtonClassName}
+                        onAccountAction={handleAccountAction}
+                    />
+                )}
                 <Button
                     variant="ghost"
                     className="hover:bg-sidebar-accent/70 mb-1 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground"

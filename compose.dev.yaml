@@ -1,0 +1,72 @@
+# Client-only dev compose with hot reload. No Postgres/Redis/API.
+# Mirrors only the `app` service pattern from cryptex-vault-cloud/compose.dev.yaml.
+# ./web and ./packages are bind-mounted over /app sources so edits apply without rebuild.
+#
+# Local-only vault (default):
+#   docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build
+#
+# Self-hosted UI + external Cryptex Cloud API:
+#   cp web/.env.client.cloud-ui.default web/.env.client.cloud-ui
+#   # set NEXT_PUBLIC_ONLINE_SERVICES_API_URL and cloud client keys in that file
+#   docker compose -f compose.dev.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build
+#
+# Profiles are mutually exclusive; both bind 127.0.0.1:${CLIENT_WEB_PORT:-3000}.
+
+name: cryptex-vault-client
+
+x-dev-volumes: &dev-volumes
+  - ./package.json:/app/package.json:ro
+  - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+  - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+  - ./web:/app/web
+  - ./packages:/app/packages
+  - cryptex_dev_node_modules:/app/web/node_modules
+
+x-dev-env: &dev-env
+  NODE_ENV: development
+  HOSTNAME: "0.0.0.0"
+  PORT: "3000"
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
+  NEXT_PUBLIC_PUSHER_APP_ID: ${NEXT_PUBLIC_PUSHER_APP_ID:-local-disabled}
+  NEXT_PUBLIC_PUSHER_APP_KEY: ${NEXT_PUBLIC_PUSHER_APP_KEY:-local-disabled}
+  NEXT_PUBLIC_PUSHER_APP_HOST: ${NEXT_PUBLIC_PUSHER_APP_HOST:-localhost}
+  NEXT_PUBLIC_PUSHER_APP_PORT: ${NEXT_PUBLIC_PUSHER_APP_PORT:-6004}
+  NEXT_PUBLIC_PUSHER_APP_TLS: ${NEXT_PUBLIC_PUSHER_APP_TLS:-false}
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-pk_test_local}
+  NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:-prod_local000000000000}
+  NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:-price_local0000000000}
+  NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:-price_local0000000001}
+
+services:
+  web-dev:
+    profiles: ["local"]
+    container_name: cryptex-vault-client-web-dev
+    build:
+      context: .
+      dockerfile: web/dev.Dockerfile
+    volumes: *dev-volumes
+    ports:
+      - "127.0.0.1:${CLIENT_WEB_PORT:-3000}:3000"
+    environment:
+      <<: *dev-env
+      NEXT_PUBLIC_CLOUD_ENABLED: "false"
+    restart: unless-stopped
+
+  web-dev-cloud:
+    profiles: ["cloud"]
+    container_name: cryptex-vault-client-web-dev-cloud
+    build:
+      context: .
+      dockerfile: web/dev.Dockerfile
+    volumes: *dev-volumes
+    ports:
+      - "127.0.0.1:${CLIENT_WEB_PORT:-3000}:3000"
+    environment:
+      <<: *dev-env
+      NEXT_PUBLIC_CLOUD_ENABLED: "true"
+      NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+    restart: unless-stopped
+
+volumes:
+  cryptex_dev_node_modules:

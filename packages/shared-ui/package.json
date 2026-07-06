@@ -2,6 +2,7 @@
     "name": "@cryptex-industries/shared-ui",
     "private": true,
     "version": "0.1.0",
+    "license": "AGPL-3.0-only",
     "main": "src/index.ts",
     "types": "src/index.d.ts",
     "packageManager": "pnpm@11.8.0",

@@ -3,36 +3,88 @@ import Dexie from "dexie";
 import * as VaultUtilTypes from "../proto/vault";
 import {
     DecryptDataBlob,
-    EncryptDataBlob,
     EncryptedBlob,
     hashSecret,
+    KeyDerivationConfig_Argon2ID,
 } from "./encryption";
+import { ENVELOPE_VERSION, isEnvelopeBlob } from "./envelope-encryption";
+import {
+    createEnvelopeEncryptedBlob,
+    migrateLegacyBlobToEnvelope,
+    openEnvelopeBlob,
+    reconfigurePrimaryFactor,
+    reencryptVaultBytesWithDEK,
+    rotateRecoveryCode,
+} from "./vault-envelope-ops";
+import {
+    enrollSecondFactor,
+    makeWebAuthnUnlockFromSlot,
+    resolveSecondFactorForUnlock,
+    type SecondFactorEnrollmentResult,
+    type SecondFactorSource,
+} from "./second-factor";
+import { clearDeviceSecondFactor } from "./vault-key-store";
+import { setDeviceSecondFactorKey } from "./vault-key-store";
+import type {
+    VaultCreateSecondFactorOptions,
+    VaultDecryptSuccess,
+    VaultRevealSecrets,
+    VaultUnlockParams,
+} from "./vault-unlock-types";
 import {
     EncryptionFormGroupSchemaType,
     NewVaultFormSchemaType,
     VaultEncryptionConfigurationsFormElementType,
 } from "./form-schemas";
+import { ensureSyncKemKeypair } from "./post-quantum-kem";
+import { ensureSyncSigningKeypair } from "./sync-signing";
 import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
-import { err, ok } from "neverthrow";
-import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
+import { err, ok, Result } from "neverthrow";
+import { ulid } from "ulidx";
+
+export type {
+    VaultCreateSecondFactorOptions,
+    VaultDecryptSuccess,
+    VaultRevealSecrets,
+    VaultUnlockParams,
+} from "./vault-unlock-types";
 
 export interface VaultMetadataInterface {
     id?: number;
     data: Uint8Array;
 }
 
+export interface KeyPairInterface {
+    keyId: string;
+    createdAt: string;
+    status: "active" | "decommission";
+    privateKey: CryptoKey;
+    publicKeyJwk: JsonWebKey;
+}
+
 export class VaultMetadataDatabase extends Dexie {
     public vaults!: Dexie.Table<VaultMetadataInterface, number>;
+    public keyPairs!: Dexie.Table<KeyPairInterface, string>;
 
     constructor() {
         super("vaultDB");
-        this.version(1).stores({
+        this.version(2).stores({
             vaults: "++id, data",
+            keyPairs: "keyId, createdAt, status",
         });
     }
 }
 
 export const db = new VaultMetadataDatabase();
+
+function isSessionDekKey(value: CryptoKey | Uint8Array): value is CryptoKey {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "type" in value &&
+        (value as CryptoKey).type === "secret"
+    );
+}
 
 /**
  * Saves the vault metadata to the database.
@@ -42,39 +94,19 @@ export const db = new VaultMetadataDatabase();
 export async function saveVault(
     index: number | undefined,
     data: Uint8Array,
-): Promise<void> {
+): Promise<number> {
     if (index != null) {
         await db.vaults.update(index, {
             data: data,
         } as VaultMetadataInterface);
-    } else {
-        await db.vaults.add({
-            data: data,
-        } as VaultMetadataInterface);
+        return index;
     }
-
+    const id = await db.vaults.add({
+        data: data,
+    } as VaultMetadataInterface);
     console.debug("Successfully saved the vault metadata to the database");
+    return id;
 }
-
-// export async function loadVault(
-//     vaultId: number
-// ): Promise<VaultMetadata | null> {
-//     const vaultMetadata = await db.vaults.get(vaultId);
-
-//     if (vaultMetadata === undefined) {
-//         return null;
-//     }
-
-//     const vault = new VaultMetadata();
-
-//     vault.Name = vaultMetadata.name;
-//     vault.Description = vaultMetadata.description;
-//     vault.CreatedAt = vaultMetadata.created_at;
-//     vault.LastUsed = vaultMetadata.last_used;
-//     vault.Blob = vaultMetadata.blob;
-
-//     return vault;/
-// }
 
 export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     public Version: number;
@@ -112,93 +144,387 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         encryptionFormData: EncryptionFormGroupSchemaType,
         seedVault = false,
         seedCount = 0,
-    ): Promise<VaultMetadata> {
+        options?: VaultCreateSecondFactorOptions,
+    ): Promise<{
+        metadata: VaultMetadata;
+        revealSecrets: VaultRevealSecrets;
+        dek: CryptoKey;
+        vault: Vault;
+        enrolledFactor: SecondFactorEnrollmentResult;
+    }> {
         const vaultMetadata = new VaultMetadata();
+        const vaultId = ulid();
 
         vaultMetadata.Name = formData.Name;
         vaultMetadata.Description = formData.Description;
         vaultMetadata.CreatedAt = new Date().toISOString();
         vaultMetadata.LastUsed = undefined;
 
-        // Instantiate a new vault to encrypt
         const freshVault = new Vault(seedVault, seedCount);
-
-        // Serialize the vault instance
+        await ensureSyncSigningKeypair(freshVault.LinkedDevices);
+        await ensureSyncKemKeypair(freshVault.LinkedDevices);
         const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
 
-        // Encrypt the vault - producing an encrypted blob
-        vaultMetadata.Blob = await EncryptDataBlob(
+        const secondFactorSource: SecondFactorSource =
+            options?.secondFactor ?? {
+                kind: VaultUtilTypes.SecondFactorKind.NONE,
+            };
+
+        const primaryFactor: SecondFactorEnrollmentResult =
+            secondFactorSource.kind === VaultUtilTypes.SecondFactorKind.NONE
+                ? {
+                      kind: VaultUtilTypes.SecondFactorKind.NONE,
+                      hkdfBaseKey: null,
+                  }
+                : await enrollSecondFactor(secondFactorSource, vaultId);
+
+        const envelopeResult = await createEnvelopeEncryptedBlob(
             _vaultBytes,
-            await hashSecret(encryptionFormData.Secret),
-            encryptionFormData.Encryption,
-            encryptionFormData.EncryptionKeyDerivationFunction,
-            encryptionFormData.EncryptionConfig, // TODO: Get this TF out of here
-            encryptionFormData.EncryptionConfig, // TODO: Move this too
+            encryptionFormData.Secret,
+            vaultId,
+            primaryFactor,
+            new KeyDerivationConfig_Argon2ID(
+                encryptionFormData.EncryptionConfig.memLimit,
+                encryptionFormData.EncryptionConfig.opsLimit,
+            ),
         );
 
-        return vaultMetadata;
+        vaultMetadata.Blob = envelopeResult.blob;
+
+        const revealSecrets: VaultRevealSecrets = {
+            recoveryCode: envelopeResult.recoveryCode,
+            secondFactorPassphrase: envelopeResult.secondFactorDisplaySecret,
+            secondFactorKind: secondFactorSource.kind,
+        };
+
+        const dek = await openEnvelopeBlob(envelopeResult.blob, vaultId, {
+            masterPassword: encryptionFormData.Secret,
+            secondFactorHkdfBase: primaryFactor.hkdfBaseKey,
+        });
+        if (dek.isErr()) {
+            throw new Error(`Post-create unlock failed: ${dek.error}`);
+        }
+
+        return {
+            metadata: vaultMetadata,
+            revealSecrets,
+            dek: dek.value.dek,
+            vault: freshVault,
+            enrolledFactor: primaryFactor,
+        };
     }
 
     /**
      * Saves the vault manifest to the database.
      * If the vault instance is not null, encrypt it, add it to the blob and save it to the database.
      * If the vault instance is null, just save the existing blob to the database.
+     * FIXME: Remove the reliance on the vault instance
      * @param vaultInstance The fresh vault instance to save to the database
-     * @param secret The secret to encrypt the vault with
-     * @param encryptionConfigFormSchema The encryption configuration form schema (in case we're modifying the encryption configuration)
+     * @param dek The DEK to encrypt the vault with
      */
     public async save(
-        vaultInstance: Vault | null,
-        secret: Uint8Array,
-        encryptionConfigFormSchema?: EncryptionFormGroupSchemaType,
+        vaultInstance: VaultUtilTypes.Vault | null,
+        dek: CryptoKey | Uint8Array,
     ): Promise<void> {
         if (this.Blob == null) {
             throw new Error("Cannot save, vault blob is null");
         }
 
-        // If the vault instance is not null, encrypt it and save it to the blob
-        // Otherwise, just save the blob as is
         if (vaultInstance != null) {
-            // Update the last used date only if we're actually updating the vault
             this.LastUsed = new Date().toISOString();
-
-            let _secret = secret;
-
-            // If the encryption configuration form schema is provided, hash the secret and set it as the new secret
-            if (encryptionConfigFormSchema) {
-                _secret = await hashSecret(
-                    encryptionConfigFormSchema.Secret,
-                );
-            }
-
-            // Serialize the vault instance
             const _vaultBytes =
                 VaultUtilTypes.Vault.encode(vaultInstance).finish();
 
-            // Encrypt the vault using the configured encryption
-            this.Blob = await EncryptDataBlob(
-                _vaultBytes,
-                _secret,
-                encryptionConfigFormSchema?.Encryption ?? this.Blob.Algorithm,
-                encryptionConfigFormSchema?.EncryptionKeyDerivationFunction ??
-                    this.Blob.KeyDerivationFunc,
-                (encryptionConfigFormSchema?.EncryptionConfig ??
-                    this.Blob
-                        .KDFConfigArgon2ID) as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-                (encryptionConfigFormSchema?.EncryptionConfig ??
-                    this.Blob
-                        .KDFConfigPBKDF2) as VaultUtilTypes.KeyDerivationConfigPBKDF2,
-            );
+            if (
+                !isSessionDekKey(dek) ||
+                !this.Blob.Envelope ||
+                !isEnvelopeBlob(this.Blob)
+            ) {
+                throw new Error("Invalid encryption key type for save");
+            }
 
-            // Rewrite the secret to random bytes
-            crypto.getRandomValues(_secret);
+            const kdfConfig = new KeyDerivationConfig_Argon2ID(
+                this.Blob.KDFConfigArgon2ID?.memLimit ??
+                    KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+                this.Blob.KDFConfigArgon2ID?.opsLimit ??
+                    KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+            );
+            this.Blob = await reencryptVaultBytesWithDEK(
+                _vaultBytes,
+                dek,
+                this.Blob,
+                this.Blob.Envelope,
+                kdfConfig,
+            );
         }
 
-        // Serialize the vault metadata and save it to the database
-        await saveVault(
+        const id = await saveVault(
             this.DBIndex,
             VaultUtilTypes.VaultMetadata.encode(this).finish(),
         );
+        this.DBIndex = id;
+    }
+
+    /** Persist device-bound 2FA after metadata has a DB index. */
+    public async persistSecondFactorEnrollment(
+        enrollment: SecondFactorEnrollmentResult,
+    ): Promise<void> {
+        if (
+            this.DBIndex == null ||
+            enrollment.kind === VaultUtilTypes.SecondFactorKind.NONE
+        ) {
+            return;
+        }
+
+        if (enrollment.kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF) {
+            // WebAuthn PRF metadata (credId + PRF salt) lives in the synced
+            // envelope primary slot, so there is nothing device-local to
+            // persist. The PRF-derived key is never stored. Validate that the
+            // enrollment carried the metadata that createEnvelopeEncryptedBlob
+            // should have written into the slot.
+            if (
+                !enrollment.webauthnCredentialId ||
+                !enrollment.webauthnPrfSalt
+            ) {
+                throw new Error("WEBAUTHN_ENROLLMENT_METADATA_MISSING");
+            }
+            return;
+        }
+
+        if (enrollment.hkdfBaseKey) {
+            await setDeviceSecondFactorKey(
+                this.DBIndex,
+                enrollment.hkdfBaseKey,
+                enrollment.kind,
+            );
+        }
+    }
+
+    private requireVaultID(): string {
+        if (!this.Blob || !this.Blob.Envelope) {
+            throw new Error("Vault blob or envelope is null");
+        }
+
+        if (!this.Blob.Envelope.VaultID) {
+            throw new Error("Vault ID is missing");
+        }
+
+        return this.Blob.Envelope.VaultID;
+    }
+
+    private backfillVaultID(): void {
+        if (!this.Blob?.Envelope) return;
+        if (!this.Blob.Envelope.VaultID) {
+            this.Blob.Envelope.VaultID = ulid();
+        }
+    }
+
+    private getPrimarySlot(): VaultUtilTypes.KeySlot | undefined {
+        return this.Blob?.Envelope?.Slots.find(
+            (s) => s.Kind === VaultUtilTypes.KeySlotKind.PRIMARY,
+        );
+    }
+
+    private slotKdfConfig(
+        slot: VaultUtilTypes.KeySlot | undefined,
+    ): KeyDerivationConfig_Argon2ID {
+        return new KeyDerivationConfig_Argon2ID(
+            slot?.KDFConfigArgon2ID?.memLimit ??
+                KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+            slot?.KDFConfigArgon2ID?.opsLimit ??
+                KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+        );
+    }
+
+    private async resolveCurrentSecondFactor(
+        passphrase?: string,
+    ): Promise<CryptoKey | null> {
+        if (!this.Blob?.Envelope) return null;
+
+        const kind = this.Blob.Envelope.PrimaryFactorKind;
+
+        // If the primary factor is none, return null
+        if (kind === VaultUtilTypes.SecondFactorKind.NONE) return null;
+
+        const primarySlot = this.getPrimarySlot();
+
+        // If the primary factor is a WebAuthn PRF, we need to resolve the WebAuthn unlock callback
+        let resolvedWebAuthnUnlock: (() => Promise<CryptoKey>) | undefined;
+        if (
+            kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF &&
+            primarySlot?.WebauthnCredentialId &&
+            primarySlot?.WebauthnPrfSalt
+        )
+            resolvedWebAuthnUnlock = makeWebAuthnUnlockFromSlot(
+                primarySlot.WebauthnCredentialId,
+                primarySlot.WebauthnPrfSalt,
+            );
+
+        return resolveSecondFactorForUnlock(this.DBIndex, kind, {
+            passphrase: passphrase?.trim() || undefined,
+            passphraseSaltB64: primarySlot?.SecondFactorSalt,
+            passphraseKdfConfig: this.slotKdfConfig(primarySlot),
+            webAuthnUnlock: resolvedWebAuthnUnlock,
+        });
+    }
+
+    private envelopeKdfConfig(): KeyDerivationConfig_Argon2ID {
+        return new KeyDerivationConfig_Argon2ID(
+            this.Blob?.KDFConfigArgon2ID?.memLimit ??
+                KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+            this.Blob?.KDFConfigArgon2ID?.opsLimit ??
+                KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+        );
+    }
+
+    /**
+     * Re-keys an envelope vault: change master password and/or second factor.
+     * The DEK is unchanged, so the current session DEK stays valid and no vault
+     * re-encryption happens. The caller must supply the current master password
+     * (proof of ownership) used to unwrap the DEK before re-wrapping it.
+     *
+     * @returns A reveal payload when a new device-bound secret was generated
+     * (passphrase 2FA), otherwise null.
+     */
+    public async reconfigureSecurity(params: {
+        currentMasterPassword: string;
+        currentSecondFactorPassphrase?: string;
+        newMasterPassword?: string;
+        secondFactor: SecondFactorSource;
+        kdfConfig?: KeyDerivationConfig_Argon2ID;
+    }): Promise<Result<VaultRevealSecrets | null, string>> {
+        if (
+            this.Blob == null ||
+            !this.Blob.Envelope ||
+            !isEnvelopeBlob(this.Blob)
+        ) {
+            return err("NOT_ENVELOPE_BLOB");
+        }
+        if (this.DBIndex == null) {
+            return err("VAULT_DB_INDEX_MISSING");
+        }
+
+        const kdfConfig = params.kdfConfig ?? this.envelopeKdfConfig();
+        const vaultId = this.requireVaultID();
+
+        let currentSecondFactor: CryptoKey | null;
+        try {
+            currentSecondFactor = await this.resolveCurrentSecondFactor(
+                params.currentSecondFactorPassphrase,
+            );
+        } catch {
+            return err("CURRENT_SECOND_FACTOR_FAILED");
+        }
+
+        let enrolled: SecondFactorEnrollmentResult;
+        try {
+            enrolled =
+                params.secondFactor.kind ===
+                VaultUtilTypes.SecondFactorKind.NONE
+                    ? {
+                          kind: VaultUtilTypes.SecondFactorKind.NONE,
+                          hkdfBaseKey: null,
+                      }
+                    : await enrollSecondFactor(
+                          params.secondFactor,
+                          vaultId,
+                          undefined,
+                          kdfConfig,
+                      );
+        } catch {
+            return err("SECOND_FACTOR_ENROLL_FAILED");
+        }
+
+        const newPassword =
+            params.newMasterPassword && params.newMasterPassword.length > 0
+                ? params.newMasterPassword
+                : params.currentMasterPassword;
+
+        const blobRes = await reconfigurePrimaryFactor(
+            this.Blob,
+            vaultId,
+            {
+                masterPassword: params.currentMasterPassword,
+                secondFactorHkdfBase: currentSecondFactor,
+            },
+            { masterPassword: newPassword, primaryFactor: enrolled },
+            kdfConfig,
+        );
+        if (blobRes.isErr()) return err(blobRes.error);
+
+        this.Blob = blobRes.value;
+        await this.save(null, new Uint8Array(0));
+        await clearDeviceSecondFactor(this.DBIndex);
+        await this.persistSecondFactorEnrollment(enrolled);
+
+        if (enrolled.displaySecret) {
+            return ok({
+                recoveryCode: "",
+                secondFactorPassphrase: enrolled.displaySecret,
+                secondFactorKind: enrolled.kind,
+            });
+        }
+        if (enrolled.kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF) {
+            return ok({ recoveryCode: "", secondFactorKind: enrolled.kind });
+        }
+        return ok(null);
+    }
+
+    /**
+     * Generates a new recovery code and re-wraps the DEK into the recovery slot.
+     * The previous recovery code is invalidated. Requires the current master
+     * password (or the current recovery code) to unwrap the DEK first.
+     */
+    public async resetRecoveryCode(params: {
+        currentMasterPassword: string;
+        currentRecoveryCode?: string;
+        currentSecondFactorPassphrase?: string;
+    }): Promise<Result<{ recoveryCode: string }, string>> {
+        if (
+            this.Blob == null ||
+            !this.Blob.Envelope ||
+            !isEnvelopeBlob(this.Blob)
+        ) {
+            return err("NOT_ENVELOPE_BLOB");
+        }
+        if (this.DBIndex == null) {
+            return err("VAULT_DB_INDEX_MISSING");
+        }
+
+        const kdfConfig = this.envelopeKdfConfig();
+        const vaultId = this.requireVaultID();
+        const useRecovery =
+            !!params.currentRecoveryCode &&
+            params.currentRecoveryCode.length > 0;
+
+        let currentSecondFactor: CryptoKey | null = null;
+        if (!useRecovery) {
+            try {
+                currentSecondFactor = await this.resolveCurrentSecondFactor(
+                    params.currentSecondFactorPassphrase,
+                );
+            } catch {
+                return err("CURRENT_SECOND_FACTOR_FAILED");
+            }
+        }
+
+        const res = await rotateRecoveryCode(
+            this.Blob,
+            vaultId,
+            {
+                masterPassword: params.currentMasterPassword,
+                secondFactorHkdfBase: currentSecondFactor,
+                useRecovery,
+                recoveryCode: params.currentRecoveryCode,
+            },
+            kdfConfig,
+        );
+        if (res.isErr()) return err(res.error);
+
+        this.Blob = res.value.blob;
+        await this.save(null, new Uint8Array(0));
+
+        return ok({ recoveryCode: res.value.recoveryCode });
     }
 
     /**
@@ -212,43 +538,130 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         encryptionAlgorithm: VaultUtilTypes.EncryptionAlgorithm,
         keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
         keyDerivationFuncConfig: VaultEncryptionConfigurationsFormElementType,
-    ) {
+        unlockParams?: VaultUnlockParams,
+        webAuthnUnlock?: () => Promise<CryptoKey>,
+    ): Promise<Result<VaultDecryptSuccess, string>> {
         if (this.Blob == null) {
             return err("VAULT_BLOB_NULL");
         }
 
         const blobUpgradeResult = this.Blob.upgrade();
+        let revealSecrets: VaultRevealSecrets | undefined;
+        let dek: CryptoKey;
+        let plaintext: Uint8Array;
 
-        // Hash the secret
-        const hashedSecret = await hashSecret(secret);
+        const masterPassword = unlockParams?.masterPassword ?? secret;
+        const useRecovery = unlockParams?.useRecovery ?? false;
+        const recoveryCode = unlockParams?.recoveryCode;
 
-        const decryptedVaultStringRes = await DecryptDataBlob(
-            this.Blob,
-            hashedSecret,
-            encryptionAlgorithm,
-            keyDerivationFunc,
-            keyDerivationFuncConfig,
-        );
+        if (this.Blob.Envelope && isEnvelopeBlob(this.Blob)) {
+            const vaultId = this.requireVaultID();
+            const primarySlot = this.getPrimarySlot();
+            // Prefer WebAuthn metadata stored in the (synced) primary slot; fall
+            // back to any caller-provided callback (legacy device-local path).
+            let resolvedWebAuthnUnlock = webAuthnUnlock;
+            if (
+                !resolvedWebAuthnUnlock &&
+                this.Blob.Envelope.PrimaryFactorKind ===
+                    VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF
+            ) {
+                if (
+                    primarySlot?.WebauthnCredentialId &&
+                    primarySlot?.WebauthnPrfSalt
+                ) {
+                    resolvedWebAuthnUnlock = makeWebAuthnUnlockFromSlot(
+                        primarySlot.WebauthnCredentialId,
+                        primarySlot.WebauthnPrfSalt,
+                    );
+                }
+            }
 
-        if (decryptedVaultStringRes.isErr())
-            return err(decryptedVaultStringRes.error);
+            let sfKey: CryptoKey | null = null;
+            if (!useRecovery) {
+                try {
+                    sfKey = await resolveSecondFactorForUnlock(
+                        this.DBIndex,
+                        this.Blob.Envelope.PrimaryFactorKind,
+                        {
+                            passphrase:
+                                unlockParams?.secondFactorPassphrase?.trim() ||
+                                undefined,
+                            passphraseSaltB64: primarySlot?.SecondFactorSalt,
+                            passphraseKdfConfig:
+                                this.slotKdfConfig(primarySlot),
+                            webAuthnUnlock: resolvedWebAuthnUnlock,
+                        },
+                    );
+                } catch (error) {
+                    return err(
+                        error instanceof Error
+                            ? error.message
+                            : "SECOND_FACTOR_RESOLVE_FAILED",
+                    );
+                }
+            }
 
-        const vaultRawParsed = VaultUtilTypes.Vault.decode(
-            decryptedVaultStringRes.value,
-        );
+            const opened = await openEnvelopeBlob(this.Blob, vaultId, {
+                masterPassword,
+                useRecovery,
+                recoveryCode,
+                secondFactorHkdfBase: sfKey,
+            });
+            if (opened.isErr()) return err(opened.error);
+            dek = opened.value.dek;
+            plaintext = opened.value.plaintext;
+        } else {
+            // NOTE: This is the legacy path for non-envelope vaults
+            // TODO: Remove this after December 31st 2026. We'll provide a separate tool for migrating old backup files to the new format.
 
-        // Set the decryptionSecret in the session storage
-        // Which is then used to encrypt the vault when saving
-        const vaultObject: Vault = Object.assign(
-            new Vault(),
-            vaultRawParsed,
-        );
+            const hashedSecret = await hashSecret(secret);
+            const decryptedVaultStringRes = await DecryptDataBlob(
+                this.Blob,
+                hashedSecret,
+                encryptionAlgorithm,
+                keyDerivationFunc,
+                keyDerivationFuncConfig,
+            );
+            if (decryptedVaultStringRes.isErr()) {
+                return err(decryptedVaultStringRes.error);
+            }
+            plaintext = decryptedVaultStringRes.value;
+
+            if (this.Blob.Version < ENVELOPE_VERSION) {
+                const vaultId = ulid();
+                const migrated = await migrateLegacyBlobToEnvelope(
+                    plaintext,
+                    masterPassword,
+                    vaultId,
+                    {
+                        kind: VaultUtilTypes.SecondFactorKind.NONE,
+                        hkdfBaseKey: null,
+                    },
+                );
+                this.Blob = migrated.blob;
+                revealSecrets = {
+                    recoveryCode: migrated.recoveryCode,
+                };
+
+                const reopened = await openEnvelopeBlob(this.Blob, vaultId, {
+                    masterPassword,
+                });
+                if (reopened.isErr()) return err(reopened.error);
+                dek = reopened.value.dek;
+                plaintext = reopened.value.plaintext;
+                blobUpgradeResult.requiresSave = true;
+            } else {
+                return err("INVALID_VAULT_VERSION");
+            }
+        }
+
+        const vaultRawParsed = VaultUtilTypes.Vault.decode(plaintext);
+        const vaultObject: Vault = Object.assign(new Vault(), vaultRawParsed);
 
         vaultObject.LinkedDevices = LinkedDevices.fromGeneric(
             vaultObject.LinkedDevices,
         );
 
-        // Go through each credential and assign it to a new object
         vaultObject.Credentials = vaultObject.Credentials.map(
             (credential: VaultCredential) => {
                 if (credential.TOTP) {
@@ -261,70 +674,36 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             },
         );
 
-        // There is no instantiable class for the Diff object so this is commented out for now
-        // vaultObject.Diffs = vaultObject.Diffs.map(
-        //     (diff: VaultUtilTypes.Diff) => {
-        //         // return Object.assign(new VaultUtilTypes.Diff(), diff);
-        //         return diff;
-        //     }
-        // );
-
-        // TODO: Check if I broke something by making the only class method static :|
-        //vaultObject.Configuration = Object.assign(
-        //    new Configuration(),
-        //    vaultObject.Configuration,
-        //);
-
-        // Upgrade the vault object if necessary
         vaultObject.upgrade();
 
-        // Take care of the encrypted blob upgrade
-        if (blobUpgradeResult.requiresSave) {
-            this.save(vaultObject, hashedSecret);
+        const generatedSyncKeys = await ensureSyncSigningKeypair(
+            vaultObject.LinkedDevices,
+        );
+        const generatedSyncKemKeys = await ensureSyncKemKeypair(
+            vaultObject.LinkedDevices,
+        );
+        if (generatedSyncKeys || generatedSyncKemKeys) {
+            blobUpgradeResult.requiresSave = true;
         }
 
-        // Assign the deserialized data to the Vault object
-        return ok({ vault: vaultObject, encryptionData: hashedSecret });
+        if (blobUpgradeResult.requiresSave && this.DBIndex != null) {
+            await this.save(vaultObject, dek);
+        }
+
+        return ok({
+            vault: vaultObject,
+            dek,
+            revealSecrets,
+        });
     }
 
     /**
-     * Prepares the vault for linking by cleaning up the metadata and re-encrypting the blob.
-     * @param cleanVaultInstance The cleaned up vault instance to encrypt and inject into the metadata
-     * @param secret The secret to encrypt the vault with
-     * @returns A new VaultMetadata object ready to be saved for linking
+     * Serializes a cleaned vault instance for device linking.
+     * @param cleanVaultInstance The cleaned up vault instance to send to the other device
+     * @returns Serialized vault bytes (not encrypted)
      */
-    public async exportForLinking(
-        cleanVaultInstance: Vault,
-        secret: Uint8Array,
-    ): Promise<Uint8Array> {
-        if (this.Blob == null) {
-            throw new Error(
-                "Cannot export metadata for linking without an encrypted blob.",
-            );
-        }
-
-        const newMetadata = Object.assign(new VaultMetadata(), this);
-
-        // Reset the DBIndex to undefined because we cannot know what it will be on the other device
-        newMetadata.DBIndex = undefined;
-
-        // Serialize the vault instance
-        const _vaultBytes =
-            VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
-
-        // Encrypt the vault using the configured encryption
-        newMetadata.Blob = await EncryptDataBlob(
-            _vaultBytes,
-            secret,
-            this.Blob.Algorithm,
-            this.Blob.KeyDerivationFunc,
-            this.Blob
-                .KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-            this.Blob
-                .KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
-        );
-
-        return VaultUtilTypes.VaultMetadata.encode(newMetadata).finish();
+    public exportForLinking(cleanVaultInstance: Vault): Uint8Array {
+        return VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
     }
 
     public static deserializeMetadataBinary(
@@ -343,11 +722,16 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
         // Make sure that the Blob object is not a vanilla object
         if (vaultMetadata.Blob != null) {
-            vaultMetadata.Blob = Object.assign(
+            const restored = Object.assign(
                 EncryptedBlob.CreateDefault(),
                 vaultMetadata.Blob,
             );
+            if (rawData.Blob?.Envelope) {
+                restored.Envelope = rawData.Blob.Envelope;
+            }
+            vaultMetadata.Blob = restored;
         }
+        vaultMetadata.backfillVaultID();
 
         return vaultMetadata;
     }
@@ -357,14 +741,14 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
  * Serializes the vault instance and returns the raw binary data for creating a backup.
  * TODO: Merge this with the save method on the vault object.
  * @param vaultInstance The vault instance to serialize
- * @param encryptionConfigFormSchema The current encryption configuration
- * @param secret The secret to encrypt the vault with
+ * @param existingEncryptedBlob The current encrypted vault blob
+ * @param dek The DEK to encrypt the vault with
  * @returns The raw binary data of the serialized vault
  */
 export const serializeVault = async (
     vaultInstance: Vault,
     existingEncryptedBlob: EncryptedBlob,
-    secret: Uint8Array,
+    dek: CryptoKey,
 ) => {
     // Clone the vault instance
     const cleanVault = Object.assign(new Vault(), vaultInstance);
@@ -375,17 +759,30 @@ export const serializeVault = async (
     // Serialize the vault instance
     const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();
 
-    // Encrypt the vault using the configured encryption
-    const encryptedBlob = await EncryptDataBlob(
+    if (
+        !existingEncryptedBlob.Envelope ||
+        !isEnvelopeBlob(existingEncryptedBlob)
+    ) {
+        throw new Error("Invalid key for serializeVault");
+    }
+
+    const kdfConfig = new KeyDerivationConfig_Argon2ID(
+        existingEncryptedBlob.KDFConfigArgon2ID?.memLimit ??
+            KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+        existingEncryptedBlob.KDFConfigArgon2ID?.opsLimit ??
+            KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+    );
+    const encryptedBlob = await reencryptVaultBytesWithDEK(
         _vaultBytes,
-        secret,
-        existingEncryptedBlob.Algorithm,
-        existingEncryptedBlob.KeyDerivationFunc,
-        existingEncryptedBlob.KDFConfigArgon2ID as VaultUtilTypes.KeyDerivationConfigArgon2ID,
-        existingEncryptedBlob.KDFConfigPBKDF2 as VaultUtilTypes.KeyDerivationConfigPBKDF2,
+        dek,
+        existingEncryptedBlob,
+        existingEncryptedBlob.Envelope,
+        kdfConfig,
     );
 
-    const rawData = VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish();
+    const rawData = new Uint8Array(
+        VaultUtilTypes.EncryptedBlob.encode(encryptedBlob).finish(),
+    );
 
     return rawData;
 };

@@ -1,0 +1,19 @@
+{
+    "name": "@cryptex-industries/api-contract",
+    "private": true,
+    "version": "0.1.0",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "packageManager": "pnpm@11.8.0",
+    "scripts": {
+        "lint-tsc": "tsgo --noEmit --strict"
+    },
+    "dependencies": {
+        "@trpc/server": "11.17.0",
+        "superjson": "2.2.2",
+        "zod": "3.25.76"
+    },
+    "devDependencies": {
+        "typescript": "5.8.3"
+    }
+}

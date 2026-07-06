@@ -1,5 +1,4 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import {
     Card,
     CardContent,
@@ -22,10 +21,18 @@ import {
 import { Err, Ok } from "neverthrow";
 import * as Storage from "../../app_lib/vault-utils/storage";
 import CreateVaultTab from "./create";
-import LinkTab from "./link";
+import { VaultRevealSecretsDialog } from "./vault-reveal-secrets-dialog";
+import type {
+    VaultCreateSecondFactorOptions,
+    VaultPendingUnlock,
+    VaultRevealSecrets,
+    VaultUnlockFlowResult,
+} from "@/app_lib/vault-utils/vault-unlock-types";
 import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
+import * as Vault from "../../app_lib/vault-utils/vault";
+import { clearDeviceSecondFactor } from "@/app_lib/vault-utils/vault-key-store";
 
 type OperationStatus = {
     status: "idle" | "loading" | "success" | "error";
@@ -36,33 +43,45 @@ const VaultManager: React.FC<{
     tryDecryptVaultCallback: (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
-    ) => Promise<
-        | Err<
-              never,
-              | "VAULT_BLOB_NULL"
-              | "VAULT_BLOB_INVALID_TYPE"
-              | "KEY_DERIVATION_FN_CONFIG_UNDEFINED"
-              | "KEY_DERIVATION_FN_INVALID"
-              | "DECRYPTION_FAILED"
-              | "ENCRYPTION_ALGORITHM_INVALID"
-          >
-        | Ok<void, never>
-    >;
+        unlockExtras?: {
+            useRecovery?: boolean;
+            recoveryCode?: string;
+            secondFactorPassphrase?: string;
+        },
+    ) => Promise<Err<never, string> | Ok<VaultUnlockFlowResult, never>>;
     tryCreateVaultCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-    ) => Promise<boolean>;
+        secondFactorOptions?: VaultCreateSecondFactorOptions,
+    ) => Promise<
+        | false
+        | {
+              ok: true;
+              revealSecrets: VaultRevealSecrets;
+              pendingUnlock: VaultPendingUnlock;
+          }
+    >;
+    finalizeVaultUnlockCallback: (
+        metadata: Storage.VaultMetadata,
+        vault: Vault.Vault,
+        dek: CryptoKey,
+    ) => void;
     tryRestoreVaultCallback: (
         formData: VaultRestoreFormSchema,
     ) => Promise<boolean>;
 }> = ({
     tryDecryptVaultCallback,
     tryCreateVaultCallback,
+    finalizeVaultUnlockCallback,
     tryRestoreVaultCallback,
 }) => {
     const [activeTab, setActiveTab] = useState("loading");
     const [operationStatus, setOperationStatus] = useState<OperationStatus>({
         status: "idle",
     });
+    const [pendingReveal, setPendingReveal] =
+        useState<VaultRevealSecrets | null>(null);
+    const [pendingUnlock, setPendingUnlock] =
+        useState<VaultPendingUnlock | null>(null);
 
     const resetForm = () => {
         setOperationStatus({ status: "idle" });
@@ -85,7 +104,6 @@ const VaultManager: React.FC<{
             ),
         );
 
-        console.debug("[VaultManager] Encrypted Vaults found:", encVaults);
         return encVaults;
     }, [_encryptedVaults]);
     const isLoading = encryptedVaults == null;
@@ -93,13 +111,30 @@ const VaultManager: React.FC<{
     const unlockCallback = async (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
+        unlockExtras?: {
+            useRecovery?: boolean;
+            recoveryCode?: string;
+            secondFactorPassphrase?: string;
+        },
     ) => {
-        const success = await tryDecryptVaultCallback(metadata, formData);
+        const success = await tryDecryptVaultCallback(
+            metadata,
+            formData,
+            unlockExtras,
+        );
         if (success.isOk()) {
-            setOperationStatus({
-                status: "success",
-                message: "Vault unlocked successfully",
-            });
+            const reveal = success.value.revealSecrets;
+            if (reveal) {
+                setPendingReveal(reveal);
+                if (success.value.pendingUnlock) {
+                    setPendingUnlock(success.value.pendingUnlock);
+                }
+            } else {
+                setOperationStatus({
+                    status: "success",
+                    message: "Vault unlocked successfully",
+                });
+            }
         } else {
             setOperationStatus({
                 status: "error",
@@ -112,15 +147,16 @@ const VaultManager: React.FC<{
 
     const createVaultCallback = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
+        secondFactorOptions?: VaultCreateSecondFactorOptions,
     ) => {
-        const success = await tryCreateVaultCallback(formData);
+        const success = await tryCreateVaultCallback(
+            formData,
+            secondFactorOptions,
+        );
 
-        if (success) {
-            setActiveTab("unlock");
-            setOperationStatus({
-                status: "success",
-                message: "Vault created successfully",
-            });
+        if (typeof success === "object" && success.ok) {
+            setPendingReveal(success.revealSecrets);
+            setPendingUnlock(success.pendingUnlock);
         } else {
             setOperationStatus({
                 status: "error",
@@ -152,6 +188,7 @@ const VaultManager: React.FC<{
 
     const deleteVaultCallback = async (dbIndex: number) => {
         await Storage.db.vaults.delete(dbIndex);
+        await clearDeviceSecondFactor(dbIndex);
 
         const newVaultCount = await Storage.db.vaults.count();
 
@@ -174,13 +211,13 @@ const VaultManager: React.FC<{
                 setActiveTab("create");
             }
         }
-    }, [isLoading]);
+    }, [encryptedVaults?.length, isLoading]);
 
     return (
         <Card className="rounded-none border-none shadow-none sm:rounded-md sm:border-solid sm:shadow-xl">
             <CardHeader>
                 <div className="flex items-center space-x-2">
-                    <Shield className="text-primary h-6 w-6" />
+                    <Shield className="h-6 w-6 text-primary" />
                     <CardTitle>Vault Manager</CardTitle>
                 </div>
                 <CardDescription>
@@ -193,7 +230,7 @@ const VaultManager: React.FC<{
                     onValueChange={handleTabChange}
                     className="w-full max-w-sm sm:w-96"
                 >
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-3">
                         {isLoading ? (
                             <TabsTrigger
                                 value="loading"
@@ -214,7 +251,7 @@ const VaultManager: React.FC<{
                                 <TabsTrigger value="restore">
                                     Restore
                                 </TabsTrigger>
-                                <TabsTrigger value="link">Link</TabsTrigger>
+                                {/* <TabsTrigger value="link">Link</TabsTrigger> */}
                             </>
                         )}
                     </TabsList>
@@ -223,14 +260,14 @@ const VaultManager: React.FC<{
                     <TabsContent value="loading">
                         <div className="flex flex-col items-center justify-center space-y-4 py-12">
                             <div className="relative h-16 w-16">
-                                <LoaderCircle className="text-primary h-16 w-16 animate-spin" />
-                                <Shield className="text-background absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 transform" />
+                                <LoaderCircle className="h-16 w-16 animate-spin text-primary" />
+                                <Shield className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 transform text-background" />
                             </div>
                             <div className="space-y-2 text-center">
                                 <h3 className="text-lg font-medium">
                                     Loading Vaults
                                 </h3>
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-sm text-muted-foreground">
                                     Loading encrypted vaults from memory...
                                 </p>
                             </div>
@@ -257,7 +294,7 @@ const VaultManager: React.FC<{
                     </TabsContent>
 
                     {/* Link Vault Tab */}
-                    <TabsContent value="link">
+                    {/* <TabsContent value="link">
                         <LinkTab
                             onLinkingSuccess={() => {
                                 setOperationStatus({
@@ -267,7 +304,7 @@ const VaultManager: React.FC<{
                                 setActiveTab("unlock");
                             }}
                         />
-                    </TabsContent>
+                    </TabsContent> */}
                 </Tabs>
 
                 {/* Operation Status */}
@@ -300,6 +337,27 @@ const VaultManager: React.FC<{
                     </div>
                 )}
             </CardContent>
+
+            <VaultRevealSecretsDialog
+                open={pendingReveal != null}
+                secrets={pendingReveal}
+                onAcknowledge={() => {
+                    if (pendingUnlock) {
+                        finalizeVaultUnlockCallback(
+                            pendingUnlock.metadata,
+                            pendingUnlock.vault,
+                            pendingUnlock.dek,
+                        );
+                        setPendingUnlock(null);
+                    }
+                    setPendingReveal(null);
+                    setOperationStatus({
+                        status: "success",
+                        message: "Vault ready",
+                    });
+                }}
+            />
+
             <CardFooter className="flex justify-start border-t pt-4">
                 <ChangelogDialog />
             </CardFooter>

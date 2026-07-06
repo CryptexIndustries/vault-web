@@ -28,7 +28,9 @@ This software and its source code (“the Software”) are provided under the fo
     > “Powered by Cryptex Vault – Created by Cryptex Industries”
 
 5. **Security Review**
-   The Software’s source code is made available in part to allow independent security review and personal assurance of its operation.
+   The **client** source code (extension, web vault UI, vault cryptography, and `packages/api-contract` API shapes) is published to allow independent security review of local vault behavior.
+
+   The **Cryptex Cloud** hosted backend is proprietary and not included in this repository. See [THREAT_MODEL.md](THREAT_MODEL.md).
 
 6. **Reservation of Rights**
    The Licensor reserves all rights not expressly granted in this license, including without limitation the rights to:

@@ -1,4 +1,3 @@
-import { err, ok, type Result } from "neverthrow";
 import PusherAuth from "pusher";
 import Pusher, { type Channel } from "pusher-js";
 import { ulid } from "ulidx";
@@ -6,14 +5,15 @@ import { ulid } from "ulidx";
 import { env } from "../env/client.mjs";
 import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
 import { syncLog, signalingLog, webrtcLog } from "../utils/logging";
-import { createAuthHeader, trpc } from "../utils/trpc";
+import { trpc } from "../utils/trpc";
+import { onlineServicesSessionPort } from "@/app_lib/online-services-session";
 import * as VaultUtilTypes from "./proto/vault";
 import {
+    // ManualConflictResolutionDialogData,
     SignalingServerMessageType,
     SignalingStatus,
     SyncConnectionControllerEventType,
-    VaultData,
-    VaultItemSynchronizationMessage,
+    SynchronizationEnvelope,
     WebRTCMessageEventType,
     WebRTCStatus,
     isRTCSessionDescriptionInit,
@@ -22,75 +22,130 @@ import {
     type SignalingServerMessage,
 } from "./synchronization-utils";
 import {
-    applyDiffs,
-    calculateMockedVaultHash,
-    credentialsAsDiffs,
-    getDiffsSinceHash,
-    hashCredentials,
-    type Vault,
-} from "./vault-utils/vault";
+    decapsulateSyncKem,
+    encapsulateSyncKem,
+} from "./vault-utils/post-quantum-kem";
+import { signSyncBytes, verifySyncBytes } from "./vault-utils/sync-signing";
+import {
+    buildSyncKeyBundle,
+    createSessionId,
+    deriveAeadKey,
+    hashTranscript,
+    openAead,
+    sealAead,
+    syncMessageAad,
+    syncSessionAcceptTranscript,
+    syncSessionInitTranscript,
+    SYNC_PROTOCOL_VERSION,
+} from "./vault-utils/sync-crypto";
 
 /**
  * Interface for vault operations that the VaultItemSynchronization class needs
  */
 export interface VaultOperations {
-    getVault(): Vault;
-    getCredentials(): VaultUtilTypes.Credential[];
-    updateCredentials(credentials: VaultUtilTypes.Credential[]): void;
-    updateDiffs(diffs: VaultUtilTypes.Diff[]): void;
-    saveVault(vault: Vault): Promise<void>;
-    getSynchronizationConfig(): VaultUtilTypes.LinkedDevices;
+    getItemVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getItemCredentials(itemIDs: string[]): Promise<VaultUtilTypes.Credential[]>;
+    updateCredentials(credentials: VaultUtilTypes.Credential[]): Promise<void>;
+    getSynchronizationConfig(): Promise<VaultUtilTypes.LinkedDevices>;
+    getSyncSigningPublicKey(): Promise<string | null>;
+    getSyncSigningPrivateKey(): Promise<string | null>;
+    getSyncKemPublicKey(): Promise<string | null>;
+    getSyncKemPrivateKey(): Promise<string | null>;
+    getRemoteSyncPublicKey(linkedDeviceId: string): Promise<string | null>;
+    getRemoteSyncKemPublicKey(linkedDeviceId: string): Promise<string | null>;
 }
 
-const onlineServicesSTUN = [
-    // {
-    //     urls: "stun:localhost:5349",
-    // },
-    {
-        urls: "stun:rtc.cryptex-vault.com:5349",
-    },
-    {
-        urls: "stun:stun.l.google.com:19302",
-    },
-    {
-        urls: "stun:stun1.l.google.com:19302",
-    },
-    {
-        urls: "stun:stun2.l.google.com:19302",
-    },
-];
+export type InitWebRTCOptions = {
+    /** Required when using Cryptex Online Services TURN (no custom TURN servers). */
+    syncId?: string;
+};
 
-const onlineServicesTURN = [
-    {
-        urls: "turn:rtc.cryptex-vault.com:5349",
-        username: "cryx",
-        credential: "cryx",
-    },
-];
+const constructSyncChannelName = (syncID: string): string => {
+    return `presence-sync-${syncID}`;
+};
 
-const constructSyncChannelName = (
-    ourCreationTimestamp: number,
-    ourID: string,
-    otherDeviceID: string,
-    linkedAtTimestamp: number,
-): string => {
-    // The senior device is the one that was created first
-    const thisSenior = ourCreationTimestamp < linkedAtTimestamp;
+const MAX_PENDING_SYNC_DATA_REQUESTS_PER_DEVICE = 32;
+const PENDING_SYNC_DATA_REQUEST_TTL_MS = 2 * 60 * 1000;
+const SYNC_SESSION_ACCEPT_TIMEOUT_MS = 15_000;
 
-    // If we're the senior device, we fill the senior device slot
-    const seniorDevice = thisSenior ? ourID : otherDeviceID;
+function createReadySignal(): {
+    promise: Promise<void>;
+    resolve: () => void;
+} {
+    let resolveReady: (() => void) | undefined;
+    const promise = new Promise<void>((resolve) => {
+        resolveReady = resolve;
+    });
 
-    // If we're the senior device, the other device is the junior device
-    const juniorDevice = thisSenior ? otherDeviceID : ourID;
+    if (!resolveReady) {
+        throw new Error("Failed to initialize readiness signal.");
+    }
 
-    return `presence-sync-${seniorDevice}_${juniorDevice}`;
+    return {
+        promise,
+        resolve: resolveReady,
+    };
+}
+
+export const initWebRTC = async (
+    stunServers: VaultUtilTypes.STUNServerConfiguration[],
+    turnServers: VaultUtilTypes.TURNServerConfiguration[],
+    options?: InitWebRTCOptions,
+): Promise<RTCPeerConnection> => {
+    const _stunServers =
+        stunServers.length === 0
+            ? []
+            : stunServers.map((stunServer) => ({
+                  urls: `stun:${stunServer.Host}`,
+              }));
+
+    let _turnServers: RTCIceServer[];
+    if (turnServers.length === 0) {
+        if (!options?.syncId) {
+            throw new Error(
+                "syncId is required to fetch Online Services TURN credentials",
+            );
+        }
+
+        await onlineServicesSessionPort.ensureFresh();
+
+        const syncId = options.syncId;
+        const fetchTurnCredentials = () =>
+            trpc.v1.device.turnCredentials.mutate({
+                syncId,
+            });
+        let turnCredentials: Awaited<ReturnType<typeof fetchTurnCredentials>>;
+        try {
+            turnCredentials = await fetchTurnCredentials();
+        } catch (error) {
+            const reauthenticated =
+                await onlineServicesSessionPort.forceReauthenticate();
+            if (!reauthenticated) {
+                throw error;
+            }
+
+            turnCredentials = await fetchTurnCredentials();
+        }
+        _turnServers = turnCredentials.iceServers;
+    } else {
+        _turnServers = turnServers.map((turnServer) => ({
+            urls: `turn:${turnServer.Host}`,
+            username: turnServer.Username,
+            credential: turnServer.Password,
+        }));
+    }
+
+    return new RTCPeerConnection({
+        iceServers: [..._stunServers, ..._turnServers],
+    });
 };
 
 /**
  * Should not be used directly. Use the initPusherInstance function instead
+ * @param syncID - The sync ID to use when connecting to the Online Services signaling server
  * @returns A new Pusher instance
  */
-const onlineServicesPusherInstance = (): Pusher => {
+const onlineServicesPusherInstance = (_syncID: string): Pusher => {
     return new Pusher(env.NEXT_PUBLIC_PUSHER_APP_KEY, {
         wsHost: env.NEXT_PUBLIC_PUSHER_APP_HOST,
         wsPort: parseInt(env.NEXT_PUBLIC_PUSHER_APP_PORT) ?? 6001,
@@ -103,8 +158,7 @@ const onlineServicesPusherInstance = (): Pusher => {
         userAuthentication: {
             transport: "ajax",
             endpoint: "",
-            headersProvider: createAuthHeader,
-            customHandler: (req, next) => {
+            customHandler: (req, _next) => {
                 signalingLog.debug("Pusher auth request", { request: req });
                 // return next(req);
             },
@@ -112,22 +166,36 @@ const onlineServicesPusherInstance = (): Pusher => {
         channelAuthorization: {
             transport: "ajax",
             endpoint: "",
-            headersProvider: createAuthHeader,
             customHandler: async (req, next) => {
-                // console.debug("Pusher auth channel request", req, next);
+                const authorizeChannel = () =>
+                    trpc.v1.device.signalingAuthChannel.mutate({
+                        channel_name: req.channelName,
+                        socket_id: req.socketId,
+                    });
 
                 try {
-                    const data =
-                        await trpc.v1.device.signalingAuthChannel.query({
-                            channel_name: req.channelName,
-                            socket_id: req.socketId,
-                        });
+                    const data = await authorizeChannel();
 
                     return next(null, data);
                 } catch (e) {
+                    const reauthenticated =
+                        await onlineServicesSessionPort.forceReauthenticate();
+                    if (reauthenticated) {
+                        try {
+                            const data = await authorizeChannel();
+                            return next(null, data);
+                        } catch (retryError) {
+                            signalingLog.warn(
+                                "Failed to authorize Pusher channel after Online Services reauthentication",
+                                { error: retryError },
+                            );
+                            return next(retryError as Error, null);
+                        }
+                    }
+
                     signalingLog.warn(
                         "Failed to authorize Pusher channel with Online Services",
-                        { error: e }
+                        { error: e },
                     );
                     return next(e as Error, null);
                 }
@@ -136,48 +204,24 @@ const onlineServicesPusherInstance = (): Pusher => {
     });
 };
 
-export const initWebRTC = (
-    stunServers: VaultUtilTypes.STUNServerConfiguration[],
-    turnServers: VaultUtilTypes.TURNServerConfiguration[],
-): RTCPeerConnection => {
-    // In case there are no STUN servers selected, use the default (Cryptex Vault Online Services) ones
-    const _stunServers =
-        stunServers.length == 0
-            ? onlineServicesSTUN
-            : stunServers.map((stunServer) => ({
-                  urls: `stun:${stunServer.Host}`,
-              }));
-
-    // In case there are no TURN servers selected, use the default (Cryptex Vault Online Services) ones
-    const _turnServers =
-        turnServers.length == 0
-            ? onlineServicesTURN
-            : turnServers.map((turnServer) => ({
-                  urls: `turn:${turnServer.Host}`,
-                  username: turnServer.Username,
-                  credential: turnServer.Password,
-              }));
-
-    // Return the initialized RTCPeerConnection
-    return new RTCPeerConnection({
-        iceServers: [..._stunServers, ..._turnServers],
-    });
-};
-
 /**
  * Initializes a Pusher instance.
  * @param signalingServer - The signaling server configuration to use. If null, the default (Cryptex Vault Online Services) will be used.
- * @param deviceID - The ID of the device to connect to the signaling server for
+ * @param syncID - The sync ID to use when connecting to the signaling server
  * @returns A Pusher instance
  */
 export const initPusherInstance = (
     signalingServer: VaultUtilTypes.SignalingServerConfiguration | null,
-    deviceID: string,
+    syncID: string,
 ): Pusher => {
     // In case the signaling server is not defined, we'll use the default (Cryptex Vault Online Services) one
     if (!signalingServer) {
-        return onlineServicesPusherInstance();
+        return onlineServicesPusherInstance(syncID);
     }
+
+    // TODO: Remove this workaround. Each device should have a unique user_id
+    // The user should be able to choose their own user_id
+    const user_id = ulid();
 
     const usingTLS = parseInt(signalingServer.SecureServicePort) != 0;
 
@@ -196,7 +240,10 @@ export const initPusherInstance = (
             endpoint: "",
             // headersProvider: createAuthHeader,
             customHandler: async (req, next) => {
-                signalingLog.debug("Custom signaling server channel auth request", { channelName: req.channelName });
+                signalingLog.debug(
+                    "Custom signaling server channel auth request",
+                    { channelName: req.channelName },
+                );
 
                 // Craft the authorization data
                 const pusherAuth = new PusherAuth({
@@ -211,9 +258,9 @@ export const initPusherInstance = (
                 });
 
                 const userData = {
-                    user_id: deviceID,
+                    user_id: user_id,
                     user_info: {
-                        id: deviceID,
+                        id: user_id,
                     },
                 };
 
@@ -269,7 +316,10 @@ export class SyncConnectionController {
 
     constructor(vaultOperations: VaultOperations) {
         this._vaultOperations = vaultOperations;
-        this._vaultItemSynchronization = new VaultItemSynchronization(vaultOperations, this);
+        this._vaultItemSynchronization = new VaultItemSynchronization(
+            vaultOperations,
+            this,
+        );
 
         this._signalingServers = new Map();
         this._signalingServerConnectionStatus = new Map();
@@ -311,9 +361,16 @@ export class SyncConnectionController {
             this.removeSyncWebRTCHandler(id);
         });
         this._syncWebRTCEventHandlers.clear();
+
+        syncLog.info("SyncConnectionController torn down");
     }
 
     private _teardownSignalingConnection(id: string, instance: Pusher) {
+        signalingLog.info(
+            `Tearing down signaling connection for server ${id}`,
+            { serverId: id },
+        );
+
         instance.connection.unbind();
         instance.disconnect();
         instance.unbind_global();
@@ -329,6 +386,10 @@ export class SyncConnectionController {
             dataChannel: RTCDataChannel | null;
         },
     ) {
+        webrtcLog.info(`Tearing down WebRTC connection for device ${id}`, {
+            deviceId: id,
+        });
+
         // if (
         //     instance.dataChannel &&
         //     instance.dataChannel.readyState !== "closed"
@@ -340,6 +401,7 @@ export class SyncConnectionController {
 
         this._webRTConnections.delete(id);
         this._webRTCStatus.delete(id);
+        this._vaultItemSynchronization.clearPendingSyncDataRequests(id);
     }
 
     public getSignalingStatus(serverID: string): SignalingStatus {
@@ -355,23 +417,30 @@ export class SyncConnectionController {
 
     /**
      * Connects to the signaling server.
-     * @param deviceID - The ID of the device to connect to the signaling server for
+     * @param syncID - The device synchronization relationship identifier
      * @param server - The signaling server configuration to use. If null, the default (Cryptex Vault Online Services) will be used.
      * @returns A Pusher instance
      */
     private _connectSignalingServer(
-        deviceID: string,
+        syncID: string,
         server: VaultUtilTypes.SignalingServerConfiguration | null,
     ) {
         const id = server?.ID ?? ONLINE_SERVICES_SELECTION_ID;
 
         if (server)
             signalingLog.info(
-                `Connecting to signaling server - ID: ${server.ID} | Name: ${server.Name}`,
-                { serverId: server.ID, serverName: server.Name }
+                `Connecting to signaling server - ID: ${server.ID} | Name: ${server.Name} | Sync ID: ${syncID}`,
+                {
+                    serverId: server.ID,
+                    serverName: server.Name,
+                    syncId: syncID,
+                },
             );
         else
-            signalingLog.info("Connecting to Online Services signaling server");
+            signalingLog.info(
+                `Connecting to Online Services signaling server with sync ID: ${syncID}`,
+                { syncId: syncID },
+            );
 
         this._signalingServerConnectionStatus.set(
             id,
@@ -380,7 +449,7 @@ export class SyncConnectionController {
 
         this.broadcastSignalingServerEvent(id, SignalingStatus.Disconnected);
 
-        const signalingServerConn = initPusherInstance(server, deviceID);
+        const signalingServerConn = initPusherInstance(server, syncID);
 
         this._bindSignalingServerConnectionEvents(signalingServerConn, id);
 
@@ -429,7 +498,11 @@ export class SyncConnectionController {
 
                 signalingLog.debug(
                     `Connection state changed: ${state.previous} -> ${state.current}`,
-                    { previous: state.previous, current: state.current, serverId: serverID }
+                    {
+                        previous: state.previous,
+                        current: state.current,
+                        serverId: serverID,
+                    },
                 );
 
                 this._signalingServerConnectionStatus.set(
@@ -449,6 +522,7 @@ export class SyncConnectionController {
         signalingServerConn: Pusher,
         device: VaultUtilTypes.LinkedDevice,
         channelName: string,
+        webRTCReady?: Promise<void>,
     ) {
         //console.debug(channelName, signalingServerConn.allChannels());
         // Check if we're already subscribed to this channel
@@ -457,8 +531,8 @@ export class SyncConnectionController {
             .find((c) => c.name === channelName);
         if (existing) {
             signalingLog.debug(
-                `Already subscribed to channel, resubscribing`,
-                { channelName }
+                `Already subscribed to channel, cleaning up and resubscribing`,
+                { channelName },
             );
 
             // Remove the old channel subscription
@@ -471,39 +545,52 @@ export class SyncConnectionController {
         channel.bind(
             "pusher:subscription_succeeded",
             async (context: { count: number }) => {
-                signalingLog.info(
-                    `Channel subscription succeeded`,
-                    { channelName, memberCount: context.count }
-                );
+                signalingLog.info(`Channel subscription succeeded`, {
+                    channelName,
+                    memberCount: context.count,
+                });
             },
         );
 
         channel.bind(
             this._signalingEventName,
             async (data: SignalingServerMessage) => {
-                signalingLog.debug(
-                    `Received signaling event: ${data.type}`,
-                    { type: data.type, deviceId: device.ID }
-                );
+                signalingLog.debug(`Received signaling event: ${data.type}`, {
+                    type: data.type,
+                    deviceId: device.ID,
+                });
 
                 this._processSignalingData(channel, device, data);
             },
         );
 
         channel.bind("pusher:member_added", async (data: { id: string }) => {
-            signalingLog.info(
-                `Member joined channel`,
-                { memberId: data.id }
-            );
+            signalingLog.info(`Member joined channel`, {
+                memberId: data.id,
+                channelName,
+            });
+
+            await webRTCReady;
+            if (!this._webRTConnections.has(device.ID)) {
+                signalingLog.warn(
+                    "Skipping WebRTC offer because connection setup is unavailable",
+                    { memberId: data.id, channelName },
+                );
+                return;
+            }
 
             // Create a WebRTC offer and send it to the new device to initiate the connection
-            const offer = await this._craftWebRTCOffer(data.id);
+            const offer = await this._craftWebRTCOffer(device.ID);
+            if (!offer) return;
+
             channel.trigger(this._signalingEventName, {
                 type: SignalingServerMessageType.Offer,
                 data: offer,
             });
 
-            signalingLog.debug("Sent WebRTC offer to new member", { memberId: data.id });
+            signalingLog.debug("Sent WebRTC offer to new member", {
+                memberId: data.id,
+            });
         });
         return channel;
     }
@@ -514,9 +601,9 @@ export class SyncConnectionController {
 
         // If there is no WebRTC connection, we can't do anything
         if (!webRTC) {
-            webrtcLog.error(
+            signalingLog.error(
                 `No initialized WebRTC connection found for device while crafting offer`,
-                { deviceId: deviceID }
+                { deviceId: deviceID },
             );
 
             return;
@@ -524,6 +611,11 @@ export class SyncConnectionController {
 
         const offer = await webRTC.connection.createOffer();
         await webRTC.connection.setLocalDescription(offer);
+
+        signalingLog.debug(`Crafted WebRTC offer for device ${deviceID}`, {
+            deviceId: deviceID,
+            offer: offer,
+        });
 
         return offer;
     }
@@ -540,7 +632,7 @@ export class SyncConnectionController {
         if (!webRTC) {
             signalingLog.error(
                 `No initialized WebRTC connection found for device while processing signaling data`,
-                { deviceId: device.ID, deviceName: device.Name }
+                { deviceId: device.ID, deviceName: device.Name },
             );
 
             // Not sure if this needs to be broadcast, so leave it alone ATM
@@ -552,10 +644,13 @@ export class SyncConnectionController {
         // Configure the WebRTC connection
         if (data.type === SignalingServerMessageType.ICECandidate) {
             if (!data.data) {
+                signalingLog.error(
+                    `Received an ICE candidate with no data. Failed to exchange ICE candidates.`,
+                    { deviceId: device.ID, deviceName: device.Name },
+                );
                 this.broadcastWebRTCConnectionEvent(
                     device.ID,
                     WebRTCStatus.Failed,
-                    "Received an ICE candidate with no data. Failed to exchange ICE candidates.",
                 );
                 return;
             }
@@ -584,25 +679,23 @@ export class SyncConnectionController {
                     data: answer,
                 });
 
-                signalingLog.debug(
-                    "Sent WebRTC answer",
-                    { deviceId: device.ID }
-                );
+                signalingLog.debug("Sent WebRTC answer", {
+                    deviceId: device.ID,
+                });
             }
         } else if (data.type === SignalingServerMessageType.ICECompleted) {
-            signalingLog.debug(
-                "Received ICE completed event from peer",
-                { deviceId: device.ID }
-            );
+            signalingLog.debug("Received ICE completed event from peer", {
+                deviceId: device.ID,
+            });
         } else {
-            signalingLog.error(
-                "Received unknown signaling message type",
-                { type: data.type, deviceId: device.ID }
-            );
+            signalingLog.error("Received unknown signaling message type", {
+                type: data.type,
+                deviceId: device.ID,
+            });
         }
     }
 
-    private _setupWebRTCConnection(
+    private async _setupWebRTCConnection(
         linkedDevices: VaultUtilTypes.LinkedDevices,
         signalingChannel: Channel,
         device: VaultUtilTypes.LinkedDevice,
@@ -614,15 +707,11 @@ export class SyncConnectionController {
             device.TURNServerIDs.includes(server.ID),
         );
 
-        // Instantiate the WebRTC object
-        const webRTC = initWebRTC(stun, turn);
+        const webRTC = await initWebRTC(stun, turn, {
+            syncId: device.SyncID,
+        });
 
         webRTC.onconnectionstatechange = () => {
-            webrtcLog.info(
-                `Connection state changed: ${webRTC.connectionState}`,
-                { deviceId: device.ID, deviceName: device.Name, state: webRTC.connectionState }
-            );
-
             let newWebRTCStatus: WebRTCStatus;
             if (webRTC.connectionState === "connected") {
                 signalingChannel.unsubscribe();
@@ -633,27 +722,51 @@ export class SyncConnectionController {
                 newWebRTCStatus = WebRTCStatus.Connecting;
             } else if (webRTC.connectionState === "disconnected") {
                 newWebRTCStatus = WebRTCStatus.Disconnected;
+                this._vaultItemSynchronization.clearPendingSyncDataRequests(
+                    device.ID,
+                );
             } else if (webRTC.connectionState === "failed") {
                 newWebRTCStatus = WebRTCStatus.Failed;
-            } else {
-                webrtcLog.warn(
-                    `Received unknown connection state`,
-                    { state: webRTC.connectionState, deviceId: device.ID, deviceName: device.Name }
+                this._vaultItemSynchronization.clearPendingSyncDataRequests(
+                    device.ID,
                 );
+            } else {
+                webrtcLog.warn(`Received unknown connection state`, {
+                    state: webRTC.connectionState,
+                    deviceId: device.ID,
+                    deviceName: device.Name,
+                });
                 newWebRTCStatus = WebRTCStatus.Failed;
             }
 
             this._webRTCStatus.set(device.ID, newWebRTCStatus);
+            if (
+                newWebRTCStatus === WebRTCStatus.Disconnected ||
+                newWebRTCStatus === WebRTCStatus.Failed
+            ) {
+                this._vaultItemSynchronization.clearPendingSyncDataRequests(
+                    device.ID,
+                );
+            }
+            webrtcLog.info(
+                `Connection state changed ${WebRTCStatus[newWebRTCStatus]}`,
+                {
+                    deviceId: device.ID,
+                    deviceName: device.Name,
+                    state: webRTC.connectionState,
+                },
+            );
             this.broadcastWebRTCConnectionEvent(device.ID, newWebRTCStatus);
         };
 
         let iceCandidatesWeGenerated = 0;
         webRTC.onicecandidate = async (event) => {
             if (event && event.candidate) {
-                webrtcLog.debug(
-                    `Sending ICE candidate`,
-                    { deviceId: device.ID, deviceName: device.Name, candidateType: event.candidate.type }
-                );
+                signalingLog.debug(`Sending ICE candidate`, {
+                    deviceId: device.ID,
+                    deviceName: device.Name,
+                    candidateType: event.candidate.type,
+                });
 
                 signalingChannel.trigger(this._signalingEventName, {
                     type: SignalingServerMessageType.ICECandidate,
@@ -666,9 +779,13 @@ export class SyncConnectionController {
             // When the event.candidate object is null - we're done
             // NOTE: Might be helpful to send that to the other device so that we can show a notification
             if (event?.candidate == null) {
-                webrtcLog.debug(
+                signalingLog.debug(
                     `ICE gathering complete, sending ICE completed event`,
-                    { deviceId: device.ID, deviceName: device.Name, candidatesGenerated: iceCandidatesWeGenerated }
+                    {
+                        deviceId: device.ID,
+                        deviceName: device.Name,
+                        candidatesGenerated: iceCandidatesWeGenerated,
+                    },
                 );
 
                 signalingChannel.trigger(this._signalingEventName, {
@@ -676,13 +793,8 @@ export class SyncConnectionController {
                 });
             }
 
-            // If we havent generated any ICE candidates, and this event was triggered without a candidate, we're done
+            // If we haven't generated any ICE candidates, and this event was triggered without a candidate, we're done
             if (iceCandidatesWeGenerated === 0 && !event.candidate) {
-                webrtcLog.error(
-                    `Failed to generate any ICE candidates`,
-                    { deviceId: device.ID, deviceName: device.Name }
-                );
-
                 signalingChannel.trigger(this._signalingEventName, {
                     type: SignalingServerMessageType.ICECandidate,
                     data: null,
@@ -690,6 +802,13 @@ export class SyncConnectionController {
 
                 // Update the status, and clean up the connection
                 this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
+                this._vaultItemSynchronization.clearPendingSyncDataRequests(
+                    device.ID,
+                );
+                signalingLog.error(`Failed to generate any ICE candidates`, {
+                    deviceId: device.ID,
+                    deviceName: device.Name,
+                });
                 this.broadcastWebRTCConnectionEvent(
                     device.ID,
                     WebRTCStatus.Failed,
@@ -698,11 +817,12 @@ export class SyncConnectionController {
         };
 
         const dataChannelOnOpen =
-            (dataChannel: RTCDataChannel) => (event: Event) => {
-                webrtcLog.info(
-                    `Data channel opened`,
-                    { deviceId: device.ID, deviceName: device.Name, channelLabel: dataChannel.label }
-                );
+            (dataChannel: RTCDataChannel) => (_event: Event) => {
+                webrtcLog.info(`Data channel opened`, {
+                    deviceId: device.ID,
+                    deviceName: device.Name,
+                    channelLabel: dataChannel.label,
+                });
 
                 // Save the data channel in the WebRTC connections map
                 const currentConnection = this._webRTConnections.get(device.ID);
@@ -712,41 +832,56 @@ export class SyncConnectionController {
                 }
             };
 
-        const dataChannelOnClose = () => (event: Event) => {
-            webrtcLog.info(
-                `Data channel closed`,
-                { deviceId: device.ID, deviceName: device.Name }
-            );
+        const dataChannelOnClose = () => (_event: Event) => {
+            webrtcLog.info(`Data channel closed`, {
+                deviceId: device.ID,
+                deviceName: device.Name,
+            });
 
             // Broadcast the disconnection - we treat this as a general disconnect event
             // NOTE: Even though we could probably recover from this state by  opening a new data channel?
             // Should investigate possible connection recovery procedures
             this._webRTCStatus.set(device.ID, WebRTCStatus.Disconnected);
+            this._vaultItemSynchronization.clearPendingSyncDataRequests(
+                device.ID,
+            );
+            webrtcLog.info(`Data channel closed`, {
+                deviceId: device.ID,
+                deviceName: device.Name,
+            });
             this.broadcastWebRTCConnectionEvent(
                 device.ID,
                 WebRTCStatus.Disconnected,
             );
         };
 
-        const dataChannelOnError = () => (event: Event) => {
-            webrtcLog.error(
-                `Data channel error`,
-                { deviceId: device.ID, deviceName: device.Name }
-            );
+        const dataChannelOnError = () => (_event: Event) => {
+            webrtcLog.error(`Data channel error`, {
+                deviceId: device.ID,
+                deviceName: device.Name,
+            });
 
             // Broadcast the failure - we treat this as a general WebRTC failure
-            // NOTE: Even though we could probably recover from this state by  opening a new data channel?
+            // NOTE: Even though we could probably recover from this state by opening a new data channel?
             // Should investigate possible connection recovery procedures
             this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
+            this._vaultItemSynchronization.clearPendingSyncDataRequests(
+                device.ID,
+            );
+            webrtcLog.error(`Data channel error`, {
+                deviceId: device.ID,
+                deviceName: device.Name,
+            });
             this.broadcastWebRTCConnectionEvent(device.ID, WebRTCStatus.Failed);
         };
 
         const dataChannelOnMessage =
             (dataChannel: RTCDataChannel) => (event: MessageEvent) => {
-                webrtcLog.debug(
-                    `Received data channel message`,
-                    { deviceId: device.ID, deviceName: device.Name, dataSize: event.data?.length ?? 0 }
-                );
+                webrtcLog.debug(`Received data channel message`, {
+                    deviceId: device.ID,
+                    deviceName: device.Name,
+                    dataSize: event.data?.length ?? 0,
+                });
 
                 this._vaultItemSynchronization.onDataChannelMessage(
                     device.ID,
@@ -759,10 +894,11 @@ export class SyncConnectionController {
         // Meaning, this is used when the remote device creates a data channel, and we connect to it
         webRTC.ondatachannel = (event) => {
             const dataChannel = event.channel;
-            webrtcLog.info(
-                `Remote data channel received`,
-                { deviceId: device.ID, deviceName: device.Name, channelLabel: dataChannel.label }
-            );
+            webrtcLog.info(`Remote data channel received`, {
+                deviceId: device.ID,
+                deviceName: device.Name,
+                channelLabel: dataChannel.label,
+            });
 
             dataChannel.onopen = dataChannelOnOpen(dataChannel);
             dataChannel.onclose = dataChannelOnClose();
@@ -788,14 +924,25 @@ export class SyncConnectionController {
      * Connects to the given device.
      * Initiates the signaling server connection if necessary (if the connection hasn't been established yet).
      * Also sets up the WebRTC connection object that will be used when the signaling server connection is established.
-     * @param device - The device to connect to
+     * @param deviceID - The ID of the device to connect to
      * @returns A boolean indicating whether the connection was successful or not
      */
-    public connectDevice(device: VaultUtilTypes.LinkedDevice) {
-        syncLog.info(
-            `Initiating device connection`,
-            { deviceId: device.ID, deviceName: device.Name }
+    public async connectDevice(deviceID: string) {
+        const linkedDevicesConfig =
+            await this._vaultOperations.getSynchronizationConfig();
+        const device = linkedDevicesConfig.Devices.find(
+            (i) => i.ID === deviceID,
         );
+
+        if (!device) {
+            syncLog.error("Device not found", { deviceId: deviceID });
+            return false;
+        }
+
+        syncLog.info("Initiating device connection", {
+            deviceId: deviceID,
+            deviceName: device.Name,
+        });
 
         // Check if we have a signaling server for the current device
         let signalingServerConn = this._signalingServers.get(
@@ -808,7 +955,6 @@ export class SyncConnectionController {
             (signalingServerConn.connection.state !== "connecting" &&
                 signalingServerConn.connection.state !== "connected")
         ) {
-            const linkedDevicesConfig = this._vaultOperations.getSynchronizationConfig();
             const signalingServerConfig =
                 linkedDevicesConfig.SignalingServers.find(
                     (i) => i.ID === device.SignalingServerID,
@@ -819,23 +965,25 @@ export class SyncConnectionController {
                 device.SignalingServerID !== ONLINE_SERVICES_SELECTION_ID
             ) {
                 signalingLog.error(
-                    `Device configured to use unknown signaling server`,
-                    { deviceId: device.ID, signalingServerId: device.SignalingServerID }
+                    "Device configured to use unknown signaling server",
+                    {
+                        deviceId: device.ID,
+                        signalingServerId: device.SignalingServerID,
+                    },
                 );
                 return false;
             }
 
             signalingServerConn = this._connectSignalingServer(
-                linkedDevicesConfig.ID,
+                device.SyncID,
                 signalingServerConfig ?? null, // If this comes out to null - it's an Online Services server
             );
         }
 
         if (!signalingServerConn) {
-            signalingLog.error(
-                `Signaling connection instantiation failed`,
-                { deviceId: device.ID }
-            );
+            signalingLog.error("Signaling connection instantiation failed", {
+                deviceId: device.ID,
+            });
             return false;
         }
 
@@ -846,10 +994,10 @@ export class SyncConnectionController {
             (existingWebRTC.connection.connectionState === "connected" ||
                 existingWebRTC.connection.connectionState === "connecting")
         ) {
-            webrtcLog.debug(
-                `Existing connection found, skipping`,
-                { deviceId: device.ID, state: existingWebRTC.connection.connectionState }
-            );
+            webrtcLog.debug(`Existing connection found, skipping`, {
+                deviceId: device.ID,
+                state: existingWebRTC.connection.connectionState,
+            });
             return false;
         }
 
@@ -858,42 +1006,50 @@ export class SyncConnectionController {
             this._teardownWebRTCConnection(device.ID, existingWebRTC);
         }
 
-        const linkedDevicesConfig = this._vaultOperations.getSynchronizationConfig();
-
-        const channelName = constructSyncChannelName(
-            linkedDevicesConfig.CreationTimestamp,
-            linkedDevicesConfig.ID,
-            device.ID,
-            device.LinkedAtTimestamp,
-        );
+        const channelName = constructSyncChannelName(device.SyncID);
+        const webRTCReady = createReadySignal();
 
         const channel = this._setupSignalingSubscriptions(
             signalingServerConn,
             device,
             channelName,
+            webRTCReady.promise,
         );
 
-        // Trigger the WebRTC connection setup
-        const webRTC = this._setupWebRTCConnection(
-            linkedDevicesConfig,
-            channel,
-            device,
-        );
+        let webRTC: RTCPeerConnection;
+        try {
+            webRTC = await this._setupWebRTCConnection(
+                linkedDevicesConfig,
+                channel,
+                device,
+            );
+        } catch (error) {
+            webRTCReady.resolve();
+            channel.unsubscribe();
+            channel.unbind();
+            webrtcLog.error("Failed to initialize WebRTC connection", {
+                deviceId: device.ID,
+                error,
+            });
+            this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
+            this.broadcastWebRTCConnectionEvent(device.ID, WebRTCStatus.Failed);
+            return false;
+        }
 
-        // Add the WebRTC connection to the list of WebRTC connections
         this._webRTConnections.set(device.ID, {
             connection: webRTC,
             dataChannel: null,
         });
+        webRTCReady.resolve();
 
         return true;
     }
 
-    public disconnectDevice(device: VaultUtilTypes.LinkedDevice) {
-        syncLog.info(
-            `Disconnecting device`,
-            { deviceId: device.ID, deviceName: device.Name }
-        );
+    public async disconnectDevice(device: VaultUtilTypes.LinkedDevice) {
+        syncLog.info(`Disconnecting device`, {
+            deviceId: device.ID,
+            deviceName: device.Name,
+        });
 
         const signalingServer = this._signalingServers.get(
             device.SignalingServerID,
@@ -901,7 +1057,8 @@ export class SyncConnectionController {
 
         // Check if the signaling server is used for anything, if not - tear the connection down
         if (signalingServer) {
-            const linkedDevicesConfig = this._vaultOperations.getSynchronizationConfig();
+            const linkedDevicesConfig =
+                await this._vaultOperations.getSynchronizationConfig();
 
             // Get all devices specifying the same Signaling server
             const linkedDevicesUsingSS = linkedDevicesConfig.Devices.filter(
@@ -927,10 +1084,9 @@ export class SyncConnectionController {
         const webRTC = this._webRTConnections.get(device.ID);
 
         if (!webRTC) {
-            webrtcLog.debug(
-                `No WebRTC handle found for disconnection`,
-                { deviceId: device.ID }
-            );
+            webrtcLog.debug(`No WebRTC handle found for disconnection`, {
+                deviceId: device.ID,
+            });
             return false;
         }
 
@@ -1026,7 +1182,7 @@ export class SyncConnectionController {
 
         signalingLog.debug(
             `Broadcasting signaling status: ${SignalingStatus[connectionState]}`,
-            { serverId: serverID, status: SignalingStatus[connectionState] }
+            { serverId: serverID, status: SignalingStatus[connectionState] },
         );
 
         deviceEventHandlers.forEach((handler) => {
@@ -1042,7 +1198,6 @@ export class SyncConnectionController {
     private broadcastWebRTCConnectionEvent(
         deviceID: string,
         connectionState: WebRTCStatus,
-        additionalData?: string,
     ) {
         if (!this._webRTCStatus.has(deviceID)) return;
 
@@ -1054,24 +1209,22 @@ export class SyncConnectionController {
 
         webrtcLog.debug(
             `Broadcasting WebRTC status: ${WebRTCStatus[connectionState]}`,
-            { deviceId: deviceID, status: WebRTCStatus[connectionState] }
+            { deviceId: deviceID, status: WebRTCStatus[connectionState] },
         );
 
+        // deviceEventHandler({
+        //     type: SyncConnectionControllerEventType.ConnectionStatus,
+        //     data: {
+        //         connectionState: connectionState,
+        //     },
+        // });
         deviceEventHandler({
             type: SyncConnectionControllerEventType.ConnectionStatus,
-            data: {
-                connectionState: connectionState,
-                additionalData,
-            },
+            connectionState,
         });
     }
 
-    public broadcastWebRTCMessageEvent(
-        deviceID: string,
-        eventType: WebRTCMessageEventType,
-        messageData: VaultUtilTypes.VaultItemSynchronizationMessage,
-        additionalData?: string,
-    ) {
+    public broadcastWebRTCSyncErrorEvent(deviceID: string) {
         if (!this._webRTCStatus.has(deviceID)) return;
 
         // Get the WebRTC status event handlers for the device ID
@@ -1080,18 +1233,9 @@ export class SyncConnectionController {
         // In case there is no event handler for the device, we can just return
         if (!deviceEventHandler) return;
 
-        webrtcLog.debug(
-            `Broadcasting WebRTC message event: ${WebRTCMessageEventType[eventType]}`,
-            { deviceId: deviceID, eventType: WebRTCMessageEventType[eventType] }
-        );
-
         deviceEventHandler({
             type: SyncConnectionControllerEventType.SynchronizationMessage,
-            data: {
-                event: eventType,
-                message: messageData,
-                additionalData,
-            },
+            event: WebRTCMessageEventType.Error,
         });
     }
 
@@ -1104,51 +1248,23 @@ export class SyncConnectionController {
         // In case there is no event handler for the device, we can just return
         if (!deviceEventHandler) return;
 
-        syncLog.info(
-            `Synchronization completed`,
-            { deviceId: deviceID }
-        );
+        syncLog.info(`Synchronization completed`, { deviceId: deviceID });
 
         deviceEventHandler({
             type: SyncConnectionControllerEventType.SynchronizationMessage,
-            data: {
-                event: WebRTCMessageEventType.Synchronized,
-            },
+            event: WebRTCMessageEventType.Synchronized,
         });
     }
 
-    public broadcastVaultDataUpdate(deviceID: string, vaultData: VaultData) {
-        if (!this._webRTCStatus.has(deviceID)) return;
-
-        // Get the WebRTC status event handlers for the device ID
-        const deviceEventHandler = this._syncWebRTCEventHandlers.get(deviceID);
-
-        // In case there is no event handler for the device, we can just return
-        if (!deviceEventHandler) return;
-
-        syncLog.info(
-            `Broadcasting vault data update`,
-            { deviceId: deviceID, credentialsCount: vaultData.credentials.length, diffsCount: vaultData.diffs.length }
-        );
-
-        deviceEventHandler({
-            type: SyncConnectionControllerEventType.VaultDataUpdate,
-            data: {
-                vaultData,
-            },
-        });
-    }
-
-    public transmitSyncRequest(deviceID: string) {
+    public transmitSyncHello(deviceID: string) {
         // Get the WebRTC connection for the device
         const webRTC = this._webRTConnections.get(deviceID);
 
         // If there is no WebRTC connection, we can't do anything
         if (!webRTC) {
-            webrtcLog.warn(
-                `No WebRTC connection for sync request`,
-                { deviceId: deviceID }
-            );
+            webrtcLog.warn(`No WebRTC connection for sync hello`, {
+                deviceId: deviceID,
+            });
 
             return;
         }
@@ -1156,53 +1272,33 @@ export class SyncConnectionController {
         // Get the WebRTC data channel
         const dataChannel = webRTC.dataChannel;
         if (!dataChannel) {
-            webrtcLog.warn(
-                `No data channel available for sync request`,
-                { deviceId: deviceID }
-            );
+            webrtcLog.warn(`No data channel available for sync hello`, {
+                deviceId: deviceID,
+            });
 
             return;
         }
 
-        this._vaultItemSynchronization.transmitSyncRequest(deviceID, dataChannel);
-    }
-
-    public async applyManualSynchronization(diffs: VaultUtilTypes.Diff[]) {
-        return await this._vaultItemSynchronization.applyDiffsToVault(diffs);
-    }
-
-    public transmitManualSyncSolve(
-        deviceID: string,
-        preparedDiffs: VaultUtilTypes.Diff[],
-    ) {
-        const webRTC = this._webRTConnections.get(deviceID);
-
-        // If there is no WebRTC connection, we can't do anything
-        if (!webRTC) {
-            webrtcLog.warn(
-                `No WebRTC connection for manual sync solve`,
-                { deviceId: deviceID }
-            );
-
-            return;
-        }
-
-        const dataChannel = webRTC.dataChannel;
-        if (!dataChannel) {
-            webrtcLog.warn(
-                `No data channel available for manual sync solve`,
-                { deviceId: deviceID }
-            );
-
-            return;
-        }
-
-        this._vaultItemSynchronization.transmitManualSyncSolve(
-            dataChannel,
-            preparedDiffs,
-        );
+        this._vaultItemSynchronization.transmitSyncHello(deviceID, dataChannel);
     }
 }
+
+type SyncSessionState = {
+    sessionID: string;
+    key: CryptoKey;
+    sendSequence: number;
+    receiveSequence: number;
+    ready: boolean;
+    initiatorBundle: VaultUtilTypes.SyncKeyBundle;
+    responderBundle: VaultUtilTypes.SyncKeyBundle;
+    localBundle: VaultUtilTypes.SyncKeyBundle;
+    remoteBundle: VaultUtilTypes.SyncKeyBundle;
+    kemCiphertext: Uint8Array;
+    transcriptHash: Uint8Array;
+    readyPromise?: Promise<void>;
+    resolveReady?: () => void;
+    rejectReady?: (error: Error) => void;
+};
 
 /**
  * Handles vault item synchronization operations using callbacks instead of global state
@@ -1210,19 +1306,471 @@ export class SyncConnectionController {
 class VaultItemSynchronization {
     private readonly vaultOps: VaultOperations;
     private readonly context: SyncConnectionController;
+    private readonly pendingSyncDataRequests = new Map<
+        string,
+        Map<string, number>
+    >();
+    private readonly syncSessions = new Map<string, SyncSessionState>();
 
-    constructor(vaultOperations: VaultOperations, context: SyncConnectionController) {
+    constructor(
+        vaultOperations: VaultOperations,
+        context: SyncConnectionController,
+    ) {
         this.vaultOps = vaultOperations;
         this.context = context;
     }
 
-    private getVaultCredentials(): VaultUtilTypes.Credential[] {
-        return this.vaultOps.getCredentials();
+    public clearPendingSyncDataRequests(linkedDeviceId: string): void {
+        this.pendingSyncDataRequests.delete(linkedDeviceId);
     }
 
-    private async getLatestVaultHash(): Promise<string> {
-        const creds = this.getVaultCredentials();
-        return await hashCredentials(creds);
+    private prunePendingSyncDataRequests(
+        linkedDeviceId: string,
+        now = Date.now(),
+    ): Map<string, number> | undefined {
+        const pending = this.pendingSyncDataRequests.get(linkedDeviceId);
+        if (!pending) {
+            return undefined;
+        }
+
+        for (const [envelopeId, createdAt] of pending) {
+            if (now - createdAt > PENDING_SYNC_DATA_REQUEST_TTL_MS) {
+                pending.delete(envelopeId);
+            }
+        }
+
+        while (pending.size > MAX_PENDING_SYNC_DATA_REQUESTS_PER_DEVICE) {
+            const oldestEnvelopeId = pending.keys().next().value;
+            if (!oldestEnvelopeId) {
+                break;
+            }
+            pending.delete(oldestEnvelopeId);
+        }
+
+        if (pending.size === 0) {
+            this.pendingSyncDataRequests.delete(linkedDeviceId);
+            return undefined;
+        }
+
+        return pending;
+    }
+
+    private trackPendingSyncDataRequest(
+        linkedDeviceId: string,
+        envelopeId: string,
+    ): void {
+        let pending = this.prunePendingSyncDataRequests(linkedDeviceId);
+        if (!pending) {
+            pending = new Map();
+            this.pendingSyncDataRequests.set(linkedDeviceId, pending);
+        }
+        pending.set(envelopeId, Date.now());
+        this.prunePendingSyncDataRequests(linkedDeviceId);
+    }
+
+    private consumePendingSyncDataRequest(
+        linkedDeviceId: string,
+        envelopeId: string,
+    ): boolean {
+        const pending = this.prunePendingSyncDataRequests(linkedDeviceId);
+        if (!pending?.has(envelopeId)) {
+            return false;
+        }
+        pending.delete(envelopeId);
+        if (pending.size === 0) {
+            this.pendingSyncDataRequests.delete(linkedDeviceId);
+        }
+        return true;
+    }
+
+    private async getLocalKeyMaterial(): Promise<{
+        signingPublicKey: string;
+        signingPrivateKey: string;
+        kemPublicKey: string;
+        kemPrivateKey: string;
+    } | null> {
+        const [
+            signingPublicKey,
+            signingPrivateKey,
+            kemPublicKey,
+            kemPrivateKey,
+        ] = await Promise.all([
+            this.vaultOps.getSyncSigningPublicKey(),
+            this.vaultOps.getSyncSigningPrivateKey(),
+            this.vaultOps.getSyncKemPublicKey(),
+            this.vaultOps.getSyncKemPrivateKey(),
+        ]);
+
+        if (
+            !signingPublicKey ||
+            !signingPrivateKey ||
+            !kemPublicKey ||
+            !kemPrivateKey
+        ) {
+            return null;
+        }
+
+        return {
+            signingPublicKey,
+            signingPrivateKey,
+            kemPublicKey,
+            kemPrivateKey,
+        };
+    }
+
+    private async getRemoteKeyBundle(
+        linkedDeviceId: string,
+    ): Promise<VaultUtilTypes.SyncKeyBundle | null> {
+        const [signingPublicKey, kemPublicKey] = await Promise.all([
+            this.vaultOps.getRemoteSyncPublicKey(linkedDeviceId),
+            this.vaultOps.getRemoteSyncKemPublicKey(linkedDeviceId),
+        ]);
+        if (!signingPublicKey || !kemPublicKey) {
+            return null;
+        }
+        return buildSyncKeyBundle(signingPublicKey, kemPublicKey);
+    }
+
+    private async ensureOutboundSession(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+    ): Promise<SyncSessionState | null> {
+        const current = this.syncSessions.get(remoteDeviceID);
+        if (current?.ready) {
+            return current;
+        }
+        if (current?.readyPromise) {
+            await current.readyPromise;
+            return current;
+        }
+
+        const localKeys = await this.getLocalKeyMaterial();
+        const remoteBundle = await this.getRemoteKeyBundle(remoteDeviceID);
+        if (!localKeys || !remoteBundle) {
+            syncLog.info(
+                "Cannot start encrypted sync session - sync keys are unavailable",
+                {
+                    deviceId: remoteDeviceID,
+                    localKeysAvailable: !!localKeys,
+                    remoteBundleAvailable: !!remoteBundle,
+                },
+            );
+            return null;
+        }
+
+        const initiatorBundle = buildSyncKeyBundle(
+            localKeys.signingPublicKey,
+            localKeys.kemPublicKey,
+        );
+        const sessionID = createSessionId();
+        const { kemCiphertext, sharedSecret } = encapsulateSyncKem(
+            remoteBundle.SyncKemPublicKey,
+        );
+        const initTranscript = syncSessionInitTranscript(
+            sessionID,
+            initiatorBundle,
+            remoteBundle,
+            kemCiphertext,
+        );
+        const initTranscriptHash = await hashTranscript(initTranscript);
+        const handshakeSignature = await signSyncBytes(
+            localKeys.signingPrivateKey,
+            initTranscript,
+        );
+        const key = await deriveAeadKey(sharedSecret, initTranscript);
+
+        let resolveReady: (() => void) | undefined;
+        let rejectReady: ((error: Error) => void) | undefined;
+        const readyPromise = new Promise<void>((resolve, reject) => {
+            resolveReady = resolve;
+            rejectReady = reject;
+        });
+        const session: SyncSessionState = {
+            sessionID,
+            key,
+            sendSequence: 0,
+            receiveSequence: 0,
+            ready: false,
+            initiatorBundle,
+            responderBundle: remoteBundle,
+            localBundle: initiatorBundle,
+            remoteBundle,
+            kemCiphertext,
+            transcriptHash: initTranscriptHash,
+            readyPromise,
+            resolveReady,
+            rejectReady,
+        };
+        this.syncSessions.set(remoteDeviceID, session);
+
+        const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: sessionID,
+            Command: VaultUtilTypes.SyncWireMessageCommand.SyncSessionInit,
+            ProtocolVersion: SYNC_PROTOCOL_VERSION,
+            SessionID: sessionID,
+            Sequence: 0,
+            Nonce: new Uint8Array(),
+            Ciphertext: new Uint8Array(),
+            KemCiphertext: kemCiphertext,
+            HandshakeSignature: handshakeSignature,
+        }).finish();
+        dataChannel.send(this.toArrayBuffer(envelope));
+
+        await Promise.race([
+            readyPromise,
+            new Promise<never>((_, reject) =>
+                globalThis.setTimeout(
+                    () => reject(new Error("SYNC_SESSION_ACCEPT_TIMEOUT")),
+                    SYNC_SESSION_ACCEPT_TIMEOUT_MS,
+                ),
+            ),
+        ]);
+
+        return session;
+    }
+
+    private async sendEncryptedPlaintextMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
+        plaintext: Uint8Array,
+    ): Promise<boolean> {
+        let session: SyncSessionState | null;
+        try {
+            session = await this.ensureOutboundSession(
+                remoteDeviceID,
+                dataChannel,
+            );
+        } catch (error) {
+            this.syncSessions.delete(remoteDeviceID);
+            syncLog.info("Encrypted sync session setup failed", {
+                deviceId: remoteDeviceID,
+                error,
+            });
+            return false;
+        }
+        if (!session?.ready) {
+            return false;
+        }
+
+        session.sendSequence += 1;
+        const sealed = await sealAead(
+            session.key,
+            plaintext,
+            syncMessageAad(
+                session.sessionID,
+                envelopeID,
+                session.sendSequence,
+                session.localBundle.SyncSigningPublicKey,
+                session.remoteBundle.SyncSigningPublicKey,
+                session.transcriptHash,
+            ),
+        );
+        const envelope = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: envelopeID,
+            Command: VaultUtilTypes.SyncWireMessageCommand.SyncEncryptedMessage,
+            ProtocolVersion: SYNC_PROTOCOL_VERSION,
+            SessionID: session.sessionID,
+            Sequence: session.sendSequence,
+            Nonce: sealed.nonce,
+            Ciphertext: sealed.ciphertext,
+            KemCiphertext: new Uint8Array(),
+            HandshakeSignature: new Uint8Array(),
+        }).finish();
+        dataChannel.send(this.toArrayBuffer(envelope));
+        return true;
+    }
+
+    private async handleSessionInit(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelope: VaultUtilTypes.SynchronizationEnvelope,
+    ): Promise<void> {
+        const localKeys = await this.getLocalKeyMaterial();
+        const remoteBundle = await this.getRemoteKeyBundle(remoteDeviceID);
+        if (!localKeys || !remoteBundle) {
+            syncLog.info(
+                "Dropped sync session init - sync keys are unavailable",
+                {
+                    deviceId: remoteDeviceID,
+                    localKeysAvailable: !!localKeys,
+                    remoteBundleAvailable: !!remoteBundle,
+                },
+            );
+            return;
+        }
+
+        const localBundle = buildSyncKeyBundle(
+            localKeys.signingPublicKey,
+            localKeys.kemPublicKey,
+        );
+        const initTranscript = syncSessionInitTranscript(
+            envelope.SessionID,
+            remoteBundle,
+            localBundle,
+            envelope.KemCiphertext,
+        );
+        const initTranscriptHash = await hashTranscript(initTranscript);
+        const valid = await verifySyncBytes(
+            remoteBundle.SyncSigningPublicKey,
+            envelope.HandshakeSignature,
+            initTranscript,
+        );
+        if (!valid) {
+            syncLog.info("Dropped sync session init - invalid signature", {
+                deviceId: remoteDeviceID,
+            });
+            return;
+        }
+
+        const sharedSecret = decapsulateSyncKem(
+            envelope.KemCiphertext,
+            localKeys.kemPrivateKey,
+        );
+        const key = await deriveAeadKey(sharedSecret, initTranscript);
+        const session: SyncSessionState = {
+            sessionID: envelope.SessionID,
+            key,
+            sendSequence: 0,
+            receiveSequence: 0,
+            ready: true,
+            initiatorBundle: remoteBundle,
+            responderBundle: localBundle,
+            localBundle,
+            remoteBundle,
+            kemCiphertext: envelope.KemCiphertext,
+            transcriptHash: initTranscriptHash,
+        };
+        this.syncSessions.set(remoteDeviceID, session);
+
+        const acceptTranscript = syncSessionAcceptTranscript(
+            envelope.SessionID,
+            remoteBundle,
+            localBundle,
+            envelope.KemCiphertext,
+        );
+        const signature = await signSyncBytes(
+            localKeys.signingPrivateKey,
+            acceptTranscript,
+        );
+        const accept = VaultUtilTypes.SynchronizationEnvelope.encode({
+            ID: envelope.SessionID,
+            Command: VaultUtilTypes.SyncWireMessageCommand.SyncSessionAccept,
+            ProtocolVersion: SYNC_PROTOCOL_VERSION,
+            SessionID: envelope.SessionID,
+            Sequence: 0,
+            Nonce: new Uint8Array(),
+            Ciphertext: new Uint8Array(),
+            KemCiphertext: envelope.KemCiphertext,
+            HandshakeSignature: signature,
+        }).finish();
+        dataChannel.send(this.toArrayBuffer(accept));
+
+        syncLog.debug("Sent sync session accept", {
+            deviceId: remoteDeviceID,
+            sessionId: envelope.SessionID,
+        });
+    }
+
+    private async handleSessionAccept(
+        remoteDeviceID: string,
+        envelope: VaultUtilTypes.SynchronizationEnvelope,
+    ): Promise<void> {
+        const session = this.syncSessions.get(remoteDeviceID);
+        if (!session || session.sessionID !== envelope.SessionID) {
+            syncLog.info("Dropped sync session accept - no pending session", {
+                deviceId: remoteDeviceID,
+                sessionId: envelope.SessionID,
+            });
+            return;
+        }
+
+        const transcript = syncSessionAcceptTranscript(
+            session.sessionID,
+            session.initiatorBundle,
+            session.responderBundle,
+            session.kemCiphertext,
+        );
+        const valid = await verifySyncBytes(
+            session.responderBundle.SyncSigningPublicKey,
+            envelope.HandshakeSignature,
+            transcript,
+        );
+        if (!valid) {
+            session.rejectReady?.(new Error("SYNC_SESSION_ACCEPT_INVALID"));
+            this.syncSessions.delete(remoteDeviceID);
+
+            syncLog.info("Dropped sync session accept - invalid signature", {
+                deviceId: remoteDeviceID,
+            });
+            return;
+        }
+
+        session.ready = true;
+        session.readyPromise = undefined;
+        session.resolveReady?.();
+
+        syncLog.debug("Accepted sync session", {
+            deviceId: remoteDeviceID,
+            sessionId: envelope.SessionID,
+        });
+    }
+
+    private async openEncryptedMessage(
+        remoteDeviceID: string,
+        envelope: VaultUtilTypes.SynchronizationEnvelope,
+    ): Promise<Uint8Array | null> {
+        const session = this.syncSessions.get(remoteDeviceID);
+        if (!session?.ready || session.sessionID !== envelope.SessionID) {
+            syncLog.info("Dropped encrypted sync message - no active session", {
+                deviceId: remoteDeviceID,
+                sessionId: envelope.SessionID,
+            });
+            return null;
+        }
+        if (envelope.Sequence !== session.receiveSequence + 1) {
+            syncLog.info("Dropped encrypted sync message - invalid sequence", {
+                deviceId: remoteDeviceID,
+                sessionId: envelope.SessionID,
+                sequence: envelope.Sequence,
+            });
+            return null;
+        }
+
+        try {
+            const plaintext = await openAead(
+                session.key,
+                { nonce: envelope.Nonce, ciphertext: envelope.Ciphertext },
+                syncMessageAad(
+                    envelope.SessionID,
+                    envelope.ID,
+                    envelope.Sequence,
+                    session.remoteBundle.SyncSigningPublicKey,
+                    session.localBundle.SyncSigningPublicKey,
+                    session.transcriptHash,
+                ),
+            );
+            session.receiveSequence = envelope.Sequence;
+            return plaintext;
+        } catch (error) {
+            syncLog.info(
+                "Dropped encrypted sync message - authentication failed",
+                {
+                    deviceId: remoteDeviceID,
+                    sessionId: envelope.SessionID,
+                    error,
+                },
+            );
+            return null;
+        }
+    }
+
+    private toArrayBuffer(data: Uint8Array): ArrayBuffer {
+        return data.buffer.slice(
+            data.byteOffset,
+            data.byteOffset + data.byteLength,
+        ) as ArrayBuffer;
     }
 
     private updateLastSync(deviceID: string): void {
@@ -1230,530 +1778,488 @@ class VaultItemSynchronization {
         this.context.broadcastWebRTCSynchronizedEvent(deviceID);
     }
 
-    private updateCredentialsList(
+    public async transmitSyncHello(
         deviceID: string,
-        credentials: VaultUtilTypes.Credential[],
-        diffs: VaultUtilTypes.Diff[],
-    ): void {
-        this.context.broadcastVaultDataUpdate(deviceID, {
-            credentials,
-            diffs,
-        });
-    }
-
-    public async applyDiffsToVault(diffs: VaultUtilTypes.Diff[]): Promise<Result<{credentials: VaultUtilTypes.Credential[], diffs: VaultUtilTypes.Diff[]}, string>> {
-        const currVault = this.vaultOps.getVault();
-        const res = await applyDiffs(currVault.Credentials, diffs);
-        if (res.isErr()) return err(res.error);
-
-        // Update the vault through callbacks
-        this.vaultOps.updateCredentials([...res.value.credentials]);
-        this.vaultOps.updateDiffs([...currVault.Diffs, ...res.value.diffs]);
-
-        return ok({
-            credentials: res.value.credentials,
-            diffs: res.value.diffs,
-        });
-    }
-
-    public async transmitSyncRequest(deviceID: string, dataChannel: RTCDataChannel): Promise<void> {
-        // Serialize the message and send it to the remote device
-        const message = new VaultItemSynchronizationMessage(
-            null,
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncRequest,
-            await this.getLatestVaultHash(),
-            [],
-            [],
-        );
-
-        dataChannel.send(message.serialize());
-
-        syncLog.debug(
-            `Sent a sync request message`,
-            { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-        );
-    }
-
-    public async transmitManualSyncSolve(
         dataChannel: RTCDataChannel,
-        preparedDiffs: VaultUtilTypes.Diff[],
     ): Promise<void> {
-        const message = new VaultItemSynchronizationMessage(
-            null,
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand.ManualSyncSolve,
-            await this.getLatestVaultHash(),
-            preparedDiffs,
-        );
+        const { envelopeID, data } =
+            await SynchronizationEnvelope.createSyncHelloMessage(
+                await this.vaultOps.getItemVersionVectors(),
+            );
 
-        dataChannel.send(message.serialize());
+        const sent = await this.sendEncryptedPlaintextMessage(
+            deviceID,
+            dataChannel,
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
+            data,
+        );
+        if (!sent) {
+            syncLog.warn(
+                "Failed to send sync hello - encrypted session unavailable",
+                {
+                    deviceId: deviceID,
+                },
+            );
+            return;
+        }
+
+        syncLog.debug("Sent a sync hello message to remote device", {
+            messageId: envelopeID,
+            deviceId: deviceID,
+        });
     }
 
     public async onDataChannelMessage(
-        deviceID: string,
+        remoteDeviceID: string,
         dataChannel: RTCDataChannel,
         event: MessageEvent,
     ): Promise<void> {
-        // TODO: Proper err handling here for the deserialization step
-        const deserializedMessage = VaultItemSynchronizationMessage.deserialize(
-            event.data,
-        );
-
-        // If the command is not a valid enum value, log an error and return
-        if (
-            !VaultUtilTypes.VaultItemSynchronizationMessageCommand[
-                deserializedMessage.Command
-            ]
-        ) {
-            syncLog.error(
-                "Received an invalid sync message command",
-                { messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, message: deserializedMessage }
+        let envelope: VaultUtilTypes.SynchronizationEnvelope;
+        try {
+            envelope = VaultUtilTypes.SynchronizationEnvelope.decode(
+                new Uint8Array(event.data),
             );
+        } catch {
+            syncLog.info(
+                "Dropped sync message - plaintext or malformed envelope",
+                { deviceId: remoteDeviceID },
+            );
+            this.context.broadcastWebRTCSyncErrorEvent(remoteDeviceID);
             return;
         }
 
-        const command = deserializedMessage.Command;
-        const commandString = VaultUtilTypes.VaultItemSynchronizationMessageCommand[command];
-
-        syncLog.debug(
-            `Received a valid sync message: '${commandString}'`,
-            { messageId: deserializedMessage.ID, command: command, deviceId: deviceID }
-        );
-
-        const currentVaultHash = await this.getLatestVaultHash();
-
-        if (
-            command ===
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                    .SyncRequest &&
-            deserializedMessage.Hash != null // NOTE: Maybe pull this check out
-        ) {
-            // Sync case 1
-            if (deserializedMessage.Hash === currentVaultHash) {
-                const message = new VaultItemSynchronizationMessage(
-                    deserializedMessage.ID,
-                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                    currentVaultHash,
-                );
-
-                dataChannel.send(message.serialize());
-                this.updateLastSync(deviceID);
-
-                syncLog.debug(
-                    "[Case 1] Sent a sync response message",
-                    { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                );
-
-                return;
-            }
-
-            // Sync case 3 - we're behind
-            if (deserializedMessage.Diffs.length) {
-                const mockedVault = await calculateMockedVaultHash(
-                    this.getVaultCredentials(),
-                    deserializedMessage.Diffs,
-                );
-
-                if (mockedVault.isErr()) {
-                    this.context.broadcastWebRTCMessageEvent(
-                        deviceID,
-                        WebRTCMessageEventType.Error,
-                        deserializedMessage,
-                        mockedVault.error,
-                    );
-
-                    syncLog.error(
-                        "[Case 3] Sync request - test apply failed, mocked vault hash calculation failed",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            message: deserializedMessage, error: mockedVault.error
-                        }
-                    );
-
-                    return;
-                }
-
-                if (mockedVault.value === deserializedMessage.Hash) {
-                    syncLog.info(
-                        "[Case 3] Sync request - test apply passed, applying diffs",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            diffsCount: deserializedMessage.Diffs.length
-                        }
-                    );
-
-                    const applyRes = await this.applyDiffsToVault(
-                        deserializedMessage.Diffs,
-                    );
-                    if (applyRes.isErr()) {
-                        syncLog.error(
-                            "[Case 3] Failed to apply diffs to vault",
-                            { 
-                                messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                                message: deserializedMessage, error: applyRes.error
-                            }
-                        );
-                        this.context.broadcastWebRTCMessageEvent(
-                            deviceID,
-                            WebRTCMessageEventType.Error,
-                            deserializedMessage,
-                            `[3] Failed while applying diffs to vault. Additional information: ${applyRes.error}`,
-                        );
-                        return;
-                    }
-                    syncLog.info(
-                        "[Case 3] Successfully applied diffs, updating credentials",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID,
-                            credentialsCount: applyRes.value.credentials.length
-                        }
-                    );
-                    this.updateCredentialsList(
-                        deviceID,
-                        applyRes.value.credentials,
-                        applyRes.value.diffs,
-                    );
-                    this.updateLastSync(deviceID);
-
-                    // Send a SyncRequest message to the other device so that it updates the last sync date
-                    await this.transmitSyncRequest(deviceID, dataChannel);
-                } else {
-                    syncLog.warn(
-                        "[Case 3] Sync request - test apply failed, hash mismatch",
-                        { 
-                           messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID,
-                           expectedHash: deserializedMessage.Hash, calculatedHash: mockedVault.value, message: deserializedMessage
-                        }
-                    );
-
-                    this.context.broadcastWebRTCMessageEvent(
-                        deviceID,
-                        WebRTCMessageEventType.Error,
-                        deserializedMessage,
-                        "[3] Could not apply the synchronization request. Please try again.",
-                    );
-                }
-                return;
-            }
-
-            // Sync case 2 - we're ahead - try to find the differences
-            const differences = getDiffsSinceHash(
-                deserializedMessage.Hash,
-                this.vaultOps.getVault().Diffs,
-            );
-            // Sync case 2 - If we find any differences, we're ahead
-            if (differences.length > 0) {
-                const message = new VaultItemSynchronizationMessage(
-                    deserializedMessage.ID,
-                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                    currentVaultHash,
-                    differences,
-                );
-
-                dataChannel.send(message.serialize());
-
-                syncLog.debug("[Case 2] Sent a sync response message with differences", 
-                    { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                );
-            } else {
-                // Sync case 3, 4 - we don't know about this hash - we're out of sync
-                const message = new VaultItemSynchronizationMessage(
-                    deserializedMessage.ID,
-                    VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                    currentVaultHash,
-                );
-                dataChannel.send(message.serialize());
-
-                syncLog.debug("[Case 3/4] Sent a sync response message without differences", 
-                    { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                );
-            }
-        }
-
-        // Sync case 4 - got here from ManualSyncDataRequest
-        if (
-            command ===
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                    .SyncResponse &&
-            deserializedMessage.Hash == null &&
-            deserializedMessage.Diffs?.length
-        ) {
+        if (envelope.ProtocolVersion !== SYNC_PROTOCOL_VERSION) {
             syncLog.info(
-                "[Case 4] Received ManualSyncDataRequest response - manual sync required",
-                { 
-                    messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                    diffsCount: deserializedMessage.Diffs.length, message: deserializedMessage 
-                }
+                "Dropped sync message - unsupported protocol version",
+                {
+                    deviceId: remoteDeviceID,
+                    protocolVersion: envelope.ProtocolVersion,
+                },
             );
-
-            this.context.broadcastWebRTCMessageEvent(
-                deviceID,
-                WebRTCMessageEventType.ManualSyncNecessary,
-                deserializedMessage,
-            );
-
+            this.context.broadcastWebRTCSyncErrorEvent(remoteDeviceID);
             return;
         }
 
         if (
-            command ===
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                    .SyncResponse &&
-            deserializedMessage.Hash != null // NOTE: Maybe pull this check out
+            envelope.Command ===
+            VaultUtilTypes.SyncWireMessageCommand.SyncSessionInit
         ) {
-            // Sync case 1
-            if (deserializedMessage.Hash === currentVaultHash) {
-                // We're in sync
-                syncLog.info(
-                    "[Case 1] Received sync response - vaults are in sync",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        hash: currentVaultHash
-                    }
+            await this.handleSessionInit(remoteDeviceID, dataChannel, envelope);
+            return;
+        }
+        if (
+            envelope.Command ===
+            VaultUtilTypes.SyncWireMessageCommand.SyncSessionAccept
+        ) {
+            await this.handleSessionAccept(remoteDeviceID, envelope);
+            return;
+        }
+        if (
+            envelope.Command !==
+            VaultUtilTypes.SyncWireMessageCommand.SyncEncryptedMessage
+        ) {
+            syncLog.info("Dropped sync message - invalid wire command", {
+                deviceId: remoteDeviceID,
+                command: envelope.Command,
+            });
+            return;
+        }
+
+        const plaintext = await this.openEncryptedMessage(
+            remoteDeviceID,
+            envelope,
+        );
+        if (!plaintext) return;
+
+        const deserializedMessageResult =
+            await SynchronizationEnvelope.deserialize(
+                this.toArrayBuffer(plaintext),
+            );
+
+        if (deserializedMessageResult.isErr()) {
+            const error = deserializedMessageResult.error;
+            syncLog.error("Failed to deserialize sync message", {
+                error: error,
+                dataSize: plaintext.byteLength,
+                deviceId: remoteDeviceID,
+            });
+
+            this.context.broadcastWebRTCSyncErrorEvent(remoteDeviceID);
+            return;
+        }
+
+        const deserializedMessage = deserializedMessageResult.value;
+
+        const command = deserializedMessage.command;
+        const commandString =
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand[command];
+
+        syncLog.debug(`Received a valid sync message: '${commandString}'`, {
+            messageId: deserializedMessage.id,
+            command: commandString,
+            deviceId: remoteDeviceID,
+        });
+
+        switch (command) {
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncHello:
+                // Send the SyncHello back
+                const envelope =
+                    await SynchronizationEnvelope.createSyncHelloEchoMessage(
+                        await this.vaultOps.getItemVersionVectors(),
+                    );
+                await this.sendEncryptedPlaintextMessage(
+                    remoteDeviceID,
+                    dataChannel,
+                    envelope.envelopeID,
+                    VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                        .SyncHelloEcho,
+                    envelope.data,
+                );
+                syncLog.debug(
+                    `Sent a sync hello echo message to the remote device`,
+                    {
+                        messageId: envelope.envelopeID,
+                        deviceId: remoteDeviceID,
+                    },
                 );
 
-                // Update the last sync date
-                this.updateLastSync(deviceID);
+                await this.handleSyncHelloMessage(
+                    remoteDeviceID,
+                    dataChannel,
+                    deserializedMessage.id,
+                    deserializedMessage.data,
+                );
+                break;
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncDataRequest:
+                await this.handleSyncDataRequestMessage(
+                    remoteDeviceID,
+                    dataChannel,
+                    deserializedMessage.id,
+                    deserializedMessage.data,
+                );
+                break;
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncDataResponse:
+                await this.handleSyncDataResponseMessage(
+                    remoteDeviceID,
+                    dataChannel,
+                    deserializedMessage.id,
+                    deserializedMessage.data,
+                );
+                break;
+
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncHelloEcho:
+                // NOTE: This is a response to our SyncHello message, treat it as a regular SyncHello message, but without sending a response back
+                await this.handleSyncHelloMessage(
+                    remoteDeviceID,
+                    dataChannel,
+                    deserializedMessage.id,
+                    deserializedMessage.data,
+                );
+                break;
+
+            // NOTE: Envelope deserialization will handle the invalid command case, but have this here for completeness
+            default:
+                syncLog.error(
+                    "Received an invalid sync message command after envelope deserialization. A sync message handler is not implemented for this command.",
+                    {
+                        command: commandString,
+                        deviceId: remoteDeviceID,
+                        message: deserializedMessage,
+                    },
+                );
                 return;
-            }
+        }
+    }
+
+    private async handleSyncHelloMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        message: VaultUtilTypes.SyncHelloMessage,
+    ) {
+        const versionVectors = message.VersionVectors;
+
+        syncLog.info(`Received a sync hello message from the remote device`, {
+            envelopeId: envelopeID,
+            versionVectors: versionVectors,
+            deviceId: remoteDeviceID,
+        });
+
+        // Compare the version vectors with the local version vectors so that we can determine if we need to send a sync data request message
+        const localVersionVectors = await this.vaultOps.getItemVersionVectors();
+
+        const versionVectorsMatchingIDs = versionVectors.filter((vector) =>
+            localVersionVectors.some(
+                (localVector) => localVector.ID === vector.ID,
+            ),
+        );
+        const versionVectorsNotMatchingLocalVersionVectors =
+            versionVectors.filter(
+                (vector) =>
+                    !localVersionVectors.some(
+                        (localVector) => localVector.ID === vector.ID,
+                    ),
+            );
+        // const ourVersionVectorsNotMatchingRemoteVersionVectors = localVersionVectors.filter(vector => !versionVectors.some(remoteVector => remoteVector.ID === vector.ID));
+
+        syncLog.debug("Version vectors matching IDs", {
+            envelopeId: envelopeID,
+            versionVectorsMatchingIDsCount: versionVectorsMatchingIDs.length,
+            versionVectorsMatchingIDs,
+            deviceId: remoteDeviceID,
+        });
+        syncLog.debug("Version vectors not matching local version vectors", {
+            envelopeId: envelopeID,
+            versionVectorsNotMatchingLocalVersionVectorsCount:
+                versionVectorsNotMatchingLocalVersionVectors.length,
+            versionVectorsNotMatchingLocalVersionVectors,
+            deviceId: remoteDeviceID,
+        });
+        // syncLog.debug(
+        //     `Version vectors not matching remote version vectors: ${ourVersionVectorsNotMatchingRemoteVersionVectors.length}`,
+        //     { envelopeId: envelopeID, ourVersionVectorsNotMatchingRemoteVersionVectorsCount: ourVersionVectorsNotMatchingRemoteVersionVectors.length, deviceId: deviceID }
+        // );
+
+        const idsToRequest: string[] = [];
+
+        // Add the version vectors that are not matching IDs to the IDs to request
+        // NOTE: This is a list of IDs that we don't have locally, but the remote device does
+        if (versionVectorsNotMatchingLocalVersionVectors.length > 0) {
+            idsToRequest.push(
+                ...versionVectorsNotMatchingLocalVersionVectors.map(
+                    (vector) => vector.ID,
+                ),
+            );
+            syncLog.debug("IDs to request", {
+                envelopeId: envelopeID,
+                idsToRequestCount: idsToRequest.length,
+                idsToRequest,
+                deviceId: remoteDeviceID,
+            });
+        }
+
+        // NOTE: We're not sending any credentials to the remote device in this message.
+
+        // Compare the versions of the version vectors that are matching IDs
+        const versionsLargerThanLocal = versionVectorsMatchingIDs.filter(
+            (vector) => {
+                const localVector = localVersionVectors.find(
+                    (localVector) => localVector.ID === vector.ID,
+                );
+                return (
+                    localVector !== undefined &&
+                    localVector.Version < vector.Version
+                );
+            },
+        );
+        if (versionsLargerThanLocal.length > 0) {
+            idsToRequest.push(
+                ...versionsLargerThanLocal.map((vector) => vector.ID),
+            );
+            syncLog.debug(
+                "Version vectors matching IDs but with local version lower than remote version",
+                {
+                    envelopeId: envelopeID,
+                    versionsLargerThanLocalCount:
+                        versionsLargerThanLocal.length,
+                    versionsLargerThanLocal,
+                    deviceId: remoteDeviceID,
+                },
+            );
+        }
+
+        // Compare the hashes of the version vectors that are matching IDs and have the same version
+        const hashesNotMatching = versionVectorsMatchingIDs.filter(
+            (vector) =>
+                localVersionVectors.find(
+                    (localVector) => localVector.ID === vector.ID,
+                )?.Version === vector.Version &&
+                localVersionVectors.find(
+                    (localVector) => localVector.ID === vector.ID,
+                )?.Hash !== vector.Hash,
+        );
+        if (hashesNotMatching.length > 0) {
+            // Pseudo code:
+            // if remote.datemodifiedtimestamp > local.datemodifiedtimestamp, then we need to request the item
+            // else if remote.datemodifiedtimestamp < local.datemodifiedtimestamp, then we need to ignore it and the remote will request it from us
+            // else, sort the hashes lexicographically and request the item from the lowest hash
+
+            const tiebreakItems: string[] = [];
+
+            const itemsToRequest = hashesNotMatching.filter((vector) => {
+                const remoteVector = versionVectors.find(
+                    (v) => v.ID === vector.ID,
+                );
+                const localVector = localVersionVectors.find(
+                    (v) => v.ID === vector.ID,
+                );
+                if (
+                    remoteVector?.DateModifiedTimestamp == null ||
+                    localVector?.DateModifiedTimestamp == null
+                ) {
+                    return false;
+                }
+
+                if (
+                    remoteVector.DateModifiedTimestamp >
+                    localVector.DateModifiedTimestamp
+                )
+                    return true;
+                else if (
+                    remoteVector.DateModifiedTimestamp <
+                    localVector.DateModifiedTimestamp
+                )
+                    return false;
+                else {
+                    if (remoteVector.Hash < localVector.Hash)
+                        tiebreakItems.push(vector.ID);
+                    return remoteVector.Hash < localVector.Hash;
+                }
+            });
+
+            syncLog.debug(
+                "Version vectors matching IDs, have the same version, but with different hashes. Items to request",
+                {
+                    envelopeId: envelopeID,
+                    itemsToRequestCount: itemsToRequest.length,
+                    itemsToRequest,
+                    deviceId: remoteDeviceID,
+                    tiebreakItemsCount: tiebreakItems.length,
+                    tiebreakItems,
+                },
+            );
+
+            idsToRequest.push(...itemsToRequest.map((vector) => vector.ID));
+        }
+
+        if (idsToRequest.length > 0) {
+            const { envelopeID: syncDataRequestEnvelopeID, data } =
+                await SynchronizationEnvelope.createSyncDataRequestMessage(
+                    idsToRequest,
+                );
+
+            await this.sendEncryptedPlaintextMessage(
+                remoteDeviceID,
+                dataChannel,
+                syncDataRequestEnvelopeID,
+                VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                    .SyncDataRequest,
+                data,
+            );
+
+            this.trackPendingSyncDataRequest(
+                remoteDeviceID,
+                syncDataRequestEnvelopeID,
+            );
 
             syncLog.info(
-                "[Case 2/3/4] Received sync response - vaults are out of sync",
-                { 
-                    messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                    localHash: currentVaultHash, remoteHash: deserializedMessage.Hash, hasDiffs: deserializedMessage.Diffs.length > 0 
-                }
+                "Sent a sync data request message to the remote device",
+                {
+                    envelopeId: envelopeID,
+                    syncDataRequestEnvelopeID,
+                    idsToRequest: idsToRequest,
+                    deviceId: remoteDeviceID,
+                },
             );
-
-            // Sync case 3, 4 - we only got a hash and no diffs
-            if (!deserializedMessage.Diffs.length) {
-                const differences = getDiffsSinceHash(
-                    deserializedMessage.Hash,
-                    this.vaultOps.getVault().Diffs,
-                );
-
-                if (differences.length) {
-                    // Sync case 3 - We have differences - send them
-                    const message = new VaultItemSynchronizationMessage(
-                        deserializedMessage.ID,
-                        VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncRequest,
-                        currentVaultHash,
-                        differences,
-                    );
-                    dataChannel.send(message.serialize());
-
-                    syncLog.debug("[Case 3] Sent a sync request message with differences", 
-                        { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-                    );
-                } else {
-                    // Sync case 4 - we've diverged and need to trigger manual synchronization
-                    const message = new VaultItemSynchronizationMessage(
-                        deserializedMessage.ID,
-                        VaultUtilTypes.VaultItemSynchronizationMessageCommand.ManualSyncDataRequest,
-                    );
-                    dataChannel.send(message.serialize());
-
-                    syncLog.debug("[Case 4] Sent a manual sync data request message since we could not find a common hash", 
-                        { messageId: message.ID, command: message.Command, deviceId: deviceID }
-                    );
-                }
-
-                return;
-            }
-
-            // Sync case 2 - our hashes don't match, got diffs - we're out of sync
-            const mockedVault = await calculateMockedVaultHash(
-                this.getVaultCredentials(),
-                deserializedMessage.Diffs,
+        } else {
+            syncLog.info(
+                "No IDs to request, skipping sync data request message",
+                { envelopeId: envelopeID, deviceId: remoteDeviceID },
             );
-
-            if (mockedVault.isErr()) {
-                this.context.broadcastWebRTCMessageEvent(
-                    deviceID,
-                    WebRTCMessageEventType.Error,
-                    deserializedMessage,
-                    `[2] ${mockedVault.error}`,
-                );
-
-                syncLog.error(
-                    "[Case 2] Sync response - mocked vault hash calculation failed",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        message: deserializedMessage, error: mockedVault.error 
-                    }
-                );
-                return;
-            }
-
-            if (mockedVault.value === deserializedMessage.Hash) {
-                syncLog.debug(
-                    "[Case 2] Sync response - mocked vault hash calculation passed, applying diffs",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        diffsCount: deserializedMessage.Diffs.length
-                    }
-                );
-
-                const applyRes = await this.applyDiffsToVault(
-                    deserializedMessage.Diffs,
-                );
-                if (applyRes.isErr()) {
-                    syncLog.error(
-                        "[Case 2] Failed to apply diffs to vault",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            message: deserializedMessage, error: applyRes.error 
-                        }
-                    );
-                    this.context.broadcastWebRTCMessageEvent(
-                        deviceID,
-                        WebRTCMessageEventType.Error,
-                        deserializedMessage,
-                        `[2] Failed while applying diffs to vault. Additional information: ${applyRes.error}`,
-                    );
-                    return;
-                }
-                syncLog.info(
-                    "[Case 2] Successfully applied diffs, updating credentials",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        credentialsCount: applyRes.value.credentials.length 
-                    }
-                );
-                this.updateCredentialsList(
-                    deviceID,
-                    applyRes.value.credentials,
-                    applyRes.value.diffs,
-                );
-                this.updateLastSync(deviceID);
-
-                // Send a SyncRequest message to the other device so that it updates the last sync date
-                await this.transmitSyncRequest(deviceID, dataChannel);
-            } else {
-                syncLog.error(
-                    "[Case 2] Sync response - test apply failed, hash mismatch",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        expectedHash: deserializedMessage.Hash, calculatedHash: mockedVault.value, message: deserializedMessage 
-                    }
-                );
-
-                this.context.broadcastWebRTCMessageEvent(
-                    deviceID,
-                    WebRTCMessageEventType.Error,
-                    deserializedMessage,
-                    "[2] Could not apply the synchronization request. Please try again.",
-                );
-            }
+            this.updateLastSync(remoteDeviceID);
         }
 
-        if (
-            command ===
+        return {
+            versionVectorsMatchingIDs,
+            versionVectorsNotMatchingLocalVersionVectors,
+            versionsLargerThanLocal,
+            hashesNotMatching,
+            idsToRequest,
+        };
+    }
+
+    private async handleSyncDataRequestMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        message: VaultUtilTypes.SyncDataRequestMessage,
+    ) {
+        const itemIDs = message.ItemIDs;
+
+        syncLog.info(
+            "Received a sync data request message from the remote device",
+            {
+                envelopeId: envelopeID,
+                itemIDsCount: itemIDs.length,
+                itemIDs,
+                deviceId: remoteDeviceID,
+            },
+        );
+
+        const credentials = await this.vaultOps.getItemCredentials(itemIDs);
+
+        const envelope =
+            await SynchronizationEnvelope.createSyncDataResponseMessage(
+                envelopeID,
+                credentials,
+            );
+
+        await this.sendEncryptedPlaintextMessage(
+            remoteDeviceID,
+            dataChannel,
+            envelopeID,
             VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                .ManualSyncDataRequest
-        ) {
-            // Sync case 4 - Send the vault content (diff format), no hash - SyncResponse
-            const message = new VaultItemSynchronizationMessage(
-                deserializedMessage.ID,
-                VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncResponse,
-                undefined,
-                await credentialsAsDiffs(this.getVaultCredentials()),
-            );
-            dataChannel.send(message.serialize());
+                .SyncDataResponse,
+            envelope,
+        );
 
-            syncLog.debug("[Case 4] Sent a manual sync data request message", 
-                { messageId: message.ID, command: message.Command, deviceId: deviceID, message: message }
-            );
+        syncLog.info("Sent a sync data response message to the remote device", {
+            envelopeId: envelopeID,
+            itemIDsCount: itemIDs.length,
+            itemIDs,
+            deviceId: remoteDeviceID,
+        });
+    }
+
+    private async handleSyncDataResponseMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        message: VaultUtilTypes.SyncDataResponseMessage,
+    ) {
+        if (!this.consumePendingSyncDataRequest(remoteDeviceID, envelopeID)) {
+            syncLog.info("Dropped unsolicited sync data response", {
+                envelopeId: envelopeID,
+                deviceId: remoteDeviceID,
+            });
+            return;
         }
 
-        if (
-            command ===
-            VaultUtilTypes.VaultItemSynchronizationMessageCommand
-                .ManualSyncSolve
-        ) {
-            // Duplicated sync case 2. solution @ SyncResponse
-            const mockedVault = await calculateMockedVaultHash(
-                this.getVaultCredentials(),
-                deserializedMessage.Diffs,
-            );
+        const credentials = message.Credentials;
 
-            if (mockedVault.isErr()) {
-                this.context.broadcastWebRTCMessageEvent(
-                    deviceID,
-                    WebRTCMessageEventType.Error,
-                    deserializedMessage,
-                    `[2m] ${mockedVault.error}`,
-                );
+        syncLog.info(
+            "Received a sync data response message from the remote device",
+            {
+                envelopeId: envelopeID,
+                credentialsCount: credentials.length,
+                credentialIds: credentials.map((c) => c.ID),
+                deviceId: remoteDeviceID,
+            },
+        );
 
-                syncLog.error(
-                    "[Manual Sync] Manual sync solve - mocked vault hash calculation failed",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        message: deserializedMessage, error: mockedVault.error
-                    }
-                );
-                return;
-            }
+        await this.vaultOps.updateCredentials(credentials);
 
-            if (mockedVault.value === deserializedMessage.Hash) {
-                syncLog.debug(
-                    "[Manual Sync] Manual sync solve - test apply passed, applying diffs",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        diffsCount: deserializedMessage.Diffs.length 
-                    }
-                );
-
-                const applyRes = await this.applyDiffsToVault(
-                    deserializedMessage.Diffs,
-                );
-                if (applyRes.isErr()) {
-                    syncLog.error(
-                        "[Manual Sync] Failed to apply diffs to vault",
-                        { 
-                            messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                            message: deserializedMessage, error: applyRes.error 
-                        }
-                    );
-                    this.context.broadcastWebRTCMessageEvent(
-                        deviceID,
-                        WebRTCMessageEventType.Error,
-                        deserializedMessage,
-                        `[2m] Failed while applying diffs to vault. Additional information: ${applyRes.error}`,
-                    );
-                    return;
-                }
-                syncLog.info(
-                    "[Manual Sync] Successfully applied diffs, updating credentials",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        credentialsCount: applyRes.value.credentials.length 
-                    }
-                );
-                this.updateCredentialsList(
-                    deviceID,
-                    applyRes.value.credentials,
-                    applyRes.value.diffs,
-                );
-                this.updateLastSync(deviceID);
-
-                // Send a SyncRequest message to the other device so that it updates the last sync date
-                await this.transmitSyncRequest(deviceID, dataChannel);
-            } else {
-                syncLog.error(
-                    "[Manual Sync] Manual sync solve - test apply failed, hash mismatch",
-                    { 
-                        messageId: deserializedMessage.ID, command: deserializedMessage.Command, deviceId: deviceID, 
-                        expectedHash: deserializedMessage.Hash, calculatedHash: mockedVault.value, message: deserializedMessage 
-                    }
-                );
-
-                this.context.broadcastWebRTCMessageEvent(
-                    deviceID,
-                    WebRTCMessageEventType.Error,
-                    deserializedMessage,
-                    "[2m] Could not apply the synchronization request. Please try again.",
-                );
-            }
-        }
+        syncLog.info("Updated credentials in the vault", {
+            envelopeId: envelopeID,
+            credentialsCount: credentials.length,
+            credentialIds: credentials.map((c) => c.ID),
+            deviceId: remoteDeviceID,
+        });
+        this.updateLastSync(remoteDeviceID);
     }
 }

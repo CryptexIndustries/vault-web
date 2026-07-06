@@ -1,5 +1,6 @@
 import { ulid } from "ulidx";
 import * as VaultUtilTypes from "./proto/vault";
+import { err, ok } from "neverthrow";
 
 /**
  * WebSocket signaling server connection status.
@@ -58,7 +59,6 @@ export const isRTCSessionDescriptionInit = (
 export enum SyncConnectionControllerEventType {
     ConnectionStatus,
     SynchronizationMessage,
-    VaultDataUpdate,
 }
 
 /**
@@ -74,30 +74,30 @@ export interface SignalingEventData {
  */
 export enum WebRTCMessageEventType {
     Synchronized,
-    ManualSyncNecessary,
     Error,
-}
-
-export interface VaultData {
-    credentials: VaultUtilTypes.Credential[];
-    diffs: VaultUtilTypes.Diff[];
 }
 
 /**
  * <code>SyncConnectionController</code> emitted event payload data type for WebRTC connection events.
  */
-export interface WebRTCEventData {
-    connectionState?: WebRTCStatus; // Present in SyncConnectionControllerEventType.ConnectionStatus
-    event?: WebRTCMessageEventType; // Present in SyncConnectionControllerEventType.SynchronizationMessage
-    message?: VaultUtilTypes.VaultItemSynchronizationMessage; // Present in SyncConnectionControllerEventType.SynchronizationMessage
-    additionalData?: string; // Can be present in all but SyncConnectionControllerEventType.VaultDataUpdate
-    vaultData?: VaultData; // Present in SyncConnectionControllerEventType.VaultDataUpdate
-}
+export type WebRTCEventDataPayload =
+    | {
+          type: SyncConnectionControllerEventType.ConnectionStatus;
+          connectionState: WebRTCStatus;
+      }
+    | {
+          type: SyncConnectionControllerEventType.SynchronizationMessage;
+          event: WebRTCMessageEventType.Error;
+      }
+    | {
+          type: SyncConnectionControllerEventType.SynchronizationMessage;
+          event: WebRTCMessageEventType.Synchronized;
+      };
 
 /**
  * <code>SyncConnectionController</code> emits events using this interface.
  */
-export interface SCCEvent<T extends SignalingEventData | WebRTCEventData> {
+export interface SCCEvent<T extends SignalingEventData> {
     type: SyncConnectionControllerEventType;
     data: T;
 }
@@ -112,55 +112,247 @@ export type SCCSignalingEventHandler = (
 /**
  * Type of the function that handles <code>SyncConnectionController</code> WebRTC connection events.
  */
-export type SCCWebRTCEventHandler = (event: SCCEvent<WebRTCEventData>) => void;
+export type SCCWebRTCEventHandler = (event: WebRTCEventDataPayload) => void;
 //#endregion SyncConnectionController Event
 
 /**
  * A class that represents a synchronization message.
  * A serialized version of this class is sent over a data channel to the remote device.
  */
-export class VaultItemSynchronizationMessage
-    implements VaultUtilTypes.VaultItemSynchronizationMessage
+export class SynchronizationEnvelope
+    implements VaultUtilTypes.SynchronizationEnvelope
 {
     ID: string;
-    Command: VaultUtilTypes.VaultItemSynchronizationMessageCommand;
-    Hash?: string;
-    Diffs: VaultUtilTypes.Diff[];
-    LinkedDevices: VaultUtilTypes.LinkedDevice[];
+    Command: VaultUtilTypes.SyncWireMessageCommand;
+    ProtocolVersion: number;
+    SessionID: string;
+    Sequence: number;
+    Nonce: Uint8Array;
+    Ciphertext: Uint8Array;
+    KemCiphertext: Uint8Array;
+    HandshakeSignature: Uint8Array;
 
-    constructor(
-        id: null | string,
-        command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
-        hash?: string,
-        diffs?: VaultUtilTypes.Diff[],
-        linkedDevices?: VaultUtilTypes.LinkedDevice[],
+    private constructor(
+        id: string,
+        command: VaultUtilTypes.SyncWireMessageCommand,
+        protocolVersion: number,
+        sessionID: string,
+        sequence: number,
+        nonce: Uint8Array,
+        ciphertext: Uint8Array,
+        kemCiphertext: Uint8Array = new Uint8Array(),
+        handshakeSignature: Uint8Array = new Uint8Array(),
     ) {
         this.ID = id ?? ulid();
         this.Command = command;
-        this.Hash = hash;
-        this.Diffs = diffs ?? [];
-        this.LinkedDevices = linkedDevices ?? [];
+        this.ProtocolVersion = protocolVersion;
+        this.SessionID = sessionID;
+        this.Sequence = sequence;
+        this.Nonce = nonce;
+        this.Ciphertext = ciphertext;
+        this.KemCiphertext = kemCiphertext;
+        this.HandshakeSignature = handshakeSignature;
     }
 
-    public static deserialize(
-        data: ArrayBuffer,
-    ): VaultItemSynchronizationMessage {
-        const decoded = VaultUtilTypes.VaultItemSynchronizationMessage.decode(
-            new Uint8Array(data),
+    public static async deserialize(data: ArrayBuffer) {
+        let decoded: VaultUtilTypes.SyncPlaintextMessage;
+        try {
+            decoded = VaultUtilTypes.SyncPlaintextMessage.decode(
+                new Uint8Array(data),
+            );
+        } catch {
+            return err("SYNC_ENVELOPE_DESERIALIZATION_FAILED");
+        }
+
+        const message: VaultUtilTypes.SyncPlaintextMessage = {
+            ID: decoded.ID,
+            Command: decoded.Command,
+            Payload: decoded.Payload,
+        };
+
+        // Based on the command, deserialize the payload
+        switch (message.Command) {
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncHello:
+                try {
+                    const syncHelloMessage =
+                        VaultUtilTypes.SyncHelloMessage.decode(message.Payload);
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncHelloMessage,
+                    });
+                } catch {
+                    return err("SYNC_HELLO_DESERIALIZATION_FAILED");
+                }
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncHelloEcho:
+                try {
+                    const syncHelloEchoMessage =
+                        VaultUtilTypes.SyncHelloEchoMessage.decode(
+                            message.Payload,
+                        );
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncHelloEchoMessage,
+                    });
+                } catch {
+                    return err("SYNC_HELLO_ECHO_DESERIALIZATION_FAILED");
+                }
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncDataRequest:
+                try {
+                    const syncDataRequestMessage =
+                        VaultUtilTypes.SyncDataRequestMessage.decode(
+                            message.Payload,
+                        );
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncDataRequestMessage,
+                    });
+                } catch {
+                    return err("SYNC_DATA_REQUEST_DESERIALIZATION_FAILED");
+                }
+            case VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncDataResponse:
+                try {
+                    const syncDataResponseMessage =
+                        VaultUtilTypes.SyncDataResponseMessage.decode(
+                            message.Payload,
+                        );
+                    return ok({
+                        id: message.ID,
+                        command: message.Command,
+                        data: syncDataResponseMessage,
+                    });
+                } catch {
+                    return err("SYNC_DATA_RESPONSE_DESERIALIZATION_FAILED");
+                }
+            default:
+                return err("SYNC_INVALID_COMMAND");
+        }
+    }
+
+    public static serialize(instance: SynchronizationEnvelope): Uint8Array {
+        return VaultUtilTypes.SynchronizationEnvelope.encode(instance).finish();
+    }
+
+    private static async encodeEnvelope(
+        envelopeID: string,
+        command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
+        payload: Uint8Array,
+    ): Promise<Uint8Array> {
+        return new Uint8Array(
+            VaultUtilTypes.SyncPlaintextMessage.encode({
+                ID: envelopeID,
+                Command: command,
+                Payload: payload,
+            }).finish(),
+        );
+    }
+
+    public static async createSyncHelloMessage(
+        versionVectors: VaultUtilTypes.VersionVector[],
+    ) {
+        const envelopeID = ulid();
+        const payload = VaultUtilTypes.SyncHelloMessage.encode({
+            VersionVectors: versionVectors,
+        }).finish();
+        const data = await SynchronizationEnvelope.encodeEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHello,
+            payload,
         );
 
-        return new VaultItemSynchronizationMessage(
-            decoded.ID,
-            decoded.Command,
-            decoded.Hash,
-            decoded.Diffs,
-            decoded.LinkedDevices,
-        );
+        return {
+            envelopeID,
+            data,
+        };
     }
 
-    public serialize(): Uint8Array {
-        return VaultUtilTypes.VaultItemSynchronizationMessage.encode(
-            this,
-        ).finish();
+    public static async createSyncHelloEchoMessage(
+        versionVectors: VaultUtilTypes.VersionVector[],
+    ) {
+        const envelopeID = ulid();
+        const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
+            VersionVectors: versionVectors,
+        }).finish();
+        const data = await SynchronizationEnvelope.encodeEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand.SyncHelloEcho,
+            payload,
+        );
+
+        return {
+            envelopeID,
+            data,
+        };
     }
+
+    public static async createSyncDataRequestMessage(itemIDs: string[]) {
+        const envelopeID = ulid();
+        const payload = VaultUtilTypes.SyncDataRequestMessage.encode({
+            ItemIDs: itemIDs,
+        }).finish();
+        const data = await SynchronizationEnvelope.encodeEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncDataRequest,
+            payload,
+        );
+
+        return {
+            envelopeID,
+            data,
+        };
+    }
+
+    public static async createSyncDataResponseMessage(
+        envelopeID: string,
+        credentials: VaultUtilTypes.Credential[],
+    ) {
+        const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
+            Credentials: credentials,
+        }).finish();
+
+        return SynchronizationEnvelope.encodeEnvelope(
+            envelopeID,
+            VaultUtilTypes.VaultItemSynchronizationMessageCommand
+                .SyncDataResponse,
+            payload,
+        );
+    }
+}
+
+/**
+ * Options for manual synchronization item selection.
+ * Used to determine the action to take when resolving a manual synchronization conflict.
+ */
+export enum ManualSyncItemOption {
+    KeepOurs,
+    KeepTheirs,
+    KeepBoth,
+    Remove,
+    Keep,
+}
+
+/**
+ * Data that is used by the manual conflict resolution dialog for initial display.
+ */
+export interface ManualConflictResolutionDialogData {
+    ourCredentials: VaultUtilTypes.Credential[];
+    theirCredentials: VaultUtilTypes.Credential[];
+    dialogList: Map<string, ManualSyncItemOption>;
+}
+
+/**
+ * Data that is used by the manual conflict resolution function to apply
+ * the differences to the vault, and send the differences to the remote device.
+ */
+export interface ManualConflictResolutionData {
+    ourCredentials: VaultUtilTypes.Credential[];
+    theirCredentials: VaultUtilTypes.Credential[];
+    userChoices: Map<string, ManualSyncItemOption>;
 }

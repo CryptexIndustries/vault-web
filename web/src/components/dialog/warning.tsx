@@ -1,7 +1,17 @@
 import React from "react";
-import { Body, Footer, GenericModal } from "../general/modal";
 import { ExclamationTriangleIcon } from "@heroicons/react/20/solid";
-import { ButtonFlat, ButtonType } from "../general/buttons";
+import { Loader2 } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "../ui/dialog";
+import { Button } from "../ui/button";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { Badge } from "../ui/badge";
 
 export type WarningDialogShowFn = (
     description: string,
@@ -123,53 +133,73 @@ export const WarningDialog: React.FC<{
         setIsLoadingState(false);
     };
 
+    const confirmLabel =
+        countdown !== null
+            ? `${confirmationButtonText ?? "Confirm"} (${countdown}s)`
+            : (confirmationButtonText ?? "Confirm");
+
     return (
-        <GenericModal
-            key="warning-modal"
-            visibleState={[dialogVisible, setDialogVisible]}
+        <Dialog
+            open={dialogVisible}
+            onOpenChange={(open) => !open && hideModal()}
         >
-            <Body>
-                <div className="flex flex-col items-center text-center">
-                    <ExclamationTriangleIcon
-                        className="h-10 w-10 text-orange-500"
-                        aria-hidden="true"
-                    />
-                    <p className="text-2xl font-bold text-slate-900">Warning</p>
-
-                    <br />
-
-                    <p className="mt-2 text-center text-base text-slate-600">
-                        {descriptionRef.current}
-                        {descriptionRef && descriptionRef.current && <br />}
-                    </p>
-                    <p className="mt-2 text-center text-base text-slate-600">
-                        {descriptionSecondPart ??
-                            "Are you sure you want to continue?"}
-                    </p>
+            <DialogContent className="w-[92vw] max-w-md">
+                <DialogHeader className="space-y-2 text-left">
+                    <div className="flex items-center gap-2">
+                        <ExclamationTriangleIcon
+                            className="h-5 w-5 text-amber-500"
+                            aria-hidden="true"
+                        />
+                        <DialogTitle>Warning</DialogTitle>
+                    </div>
+                    <DialogDescription>
+                        Please confirm before continuing.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                    <Alert className="border-amber-500/40 bg-amber-50 text-amber-900">
+                        <ExclamationTriangleIcon className="h-4 w-4" />
+                        <AlertTitle>Action required</AlertTitle>
+                        <AlertDescription>
+                            <p>{descriptionRef.current}</p>
+                            {/* <p>
+                                {descriptionSecondPart ??
+                                    "Are you sure you want to continue?"}
+                            </p> */}
+                        </AlertDescription>
+                    </Alert>
+                    {countdown !== null && (
+                        <Badge variant="secondary">
+                            Auto-confirm in {countdown}s
+                        </Badge>
+                    )}
                 </div>
-            </Body>
-
-            <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                {onConfirmFnRef && onConfirmFnRef.current && (
-                    <ButtonFlat
-                        text={
-                            countdown !== null
-                                ? `${confirmationButtonText ?? "Confirm"} (${countdown}s)`
-                                : (confirmationButtonText ?? "Confirm")
-                        }
-                        className="sm:ml-2"
-                        onClick={onConfirm}
+                <DialogFooter className="gap-2 sm:gap-3">
+                    <Button
+                        variant="secondary"
+                        onClick={hideModal}
                         disabled={isLoadingState}
-                        loading={isLoadingState}
-                    />
-                )}
-                <ButtonFlat
-                    text={onDismissFnRef ? "Cancel" : "Close"}
-                    type={ButtonType.Secondary}
-                    onClick={() => hideModal()}
-                    disabled={isLoadingState}
-                />
-            </Footer>
-        </GenericModal>
+                    >
+                        {onDismissFnRef ? "Cancel" : "Close"}
+                    </Button>
+                    {onConfirmFnRef && onConfirmFnRef.current && (
+                        <Button
+                            onClick={onConfirm}
+                            disabled={isLoadingState}
+                            className="sm:min-w-[140px]"
+                        >
+                            {isLoadingState ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Working...
+                                </>
+                            ) : (
+                                confirmLabel
+                            )}
+                        </Button>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 };

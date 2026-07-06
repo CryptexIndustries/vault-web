@@ -11,11 +11,64 @@
 function defineNextConfig(config) {
     return config;
 }
+
+const onlineServicesApiOrigin = (() => {
+    if (process.env.NEXT_PUBLIC_CLOUD_ENABLED === "false") {
+        return null;
+    }
+
+    const rawApiUrl =
+        process.env.NEXT_PUBLIC_ONLINE_SERVICES_API_URL ||
+        process.env.NEXT_PUBLIC_APP_URL;
+    if (!rawApiUrl) {
+        return null;
+    }
+
+    try {
+        const apiOrigin = new URL(rawApiUrl).origin;
+        const appOrigin = process.env.NEXT_PUBLIC_APP_URL
+            ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
+            : null;
+        return apiOrigin === appOrigin ? null : apiOrigin;
+    } catch {
+        return null;
+    }
+})();
+
+const connectSrc = [
+    "connect-src 'self' ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
+    onlineServicesApiOrigin,
+]
+    .filter(Boolean)
+    .join(" ");
+
+const contentSecurityPolicy = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://js.stripe.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    connectSrc,
+    "frame-src https://challenges.cloudflare.com https://js.stripe.com",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+].join("; ");
+
 const headers = () => {
     return [
         {
             source: "/(.*)",
             headers: [
+                {
+                    key: "Content-Security-Policy",
+                    value: contentSecurityPolicy,
+                },
+                {
+                    key: "Strict-Transport-Security",
+                    value: "max-age=63072000; includeSubDomains; preload",
+                },
                 {
                     key: "X-DNS-Prefetch-Control",
                     value: "on",
@@ -59,12 +112,6 @@ const nextConfig = {
     images: {
         domains: [],
     },
-    typescript: {
-        ignoreBuildErrors: true,
-    },
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
     headers,
     compiler: {
         removeConsole: rmConsoleFromBuild,
@@ -73,10 +120,6 @@ const nextConfig = {
         "@heroicons/react/20/solid": {
             transform: "@heroicons/react/20/solid/{{member}}",
         },
-    },
-    i18n: {
-        locales: ["en"],
-        defaultLocale: "en",
     },
 };
 

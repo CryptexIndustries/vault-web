@@ -1,12 +1,46 @@
 packages:
   - web
   - extension
-  - packages/*
+  - packages/shared-ui
+  - packages/api-contract
 
-onlyBuiltDependencies:
-  - '@prisma/client'
-  - '@prisma/engines'
-  - argon2
-  - prisma
-  - sharp
-  - unrs-resolver
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200
+blockExoticSubdeps: true
+engineStrict: true
+nodeVersion: 24.16.0
+pmOnFail: error
+verifyDepsBeforeRun: error
+strictDepBuilds: true
+savePrefix: ""
+
+allowBuilds:
+  argon2: true
+  esbuild: true
+  lefthook: true
+  sharp: true
+  unrs-resolver: true
+
+overrides:
+  "@babel/core@<=7.29.0": "7.29.7"
+  "@tootallnate/once@<2.0.1": "2.0.1"
+  "brace-expansion@<1.1.13": "1.1.13"
+  "brace-expansion@>=2.0.0 <2.0.3": "2.0.3"
+  "diff@>=4.0.0 <4.0.4": "4.0.4"
+  "form-data@>=4.0.0 <4.0.6": "4.0.6"
+  "glob@>=10.2.0 <10.5.0": "10.5.0"
+  "js-yaml@<4.1.2": "4.2.0"
+  "minimatch@<3.1.4": "3.1.4"
+  "minimatch@>=5.0.0 <5.1.8": "5.1.8"
+  "minimatch@>=9.0.0 <9.0.7": "9.0.7"
+  "picomatch@<2.3.2": "2.3.2"
+  "postcss@<8.5.10": "8.5.15"
+  "rollup@>=4.0.0 <4.59.0": "4.60.4"
+  "svgo@4.0.0": "4.0.1"
+  "ws@>=7.0.0 <7.5.11": "7.5.11"
+  "ws@>=8.0.0 <8.20.1": "8.21.0"
+  "yaml@>=2.0.0 <2.8.3": "2.8.3"
+minimumReleaseAgeExclude:
+  - postcss@8.5.10

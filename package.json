@@ -1,38 +1,55 @@
 {
-    "name": "cryptex-vault-web",
-    "version": "1.1.0",
-    "private": true,
-    "packageManager": "pnpm@10.13.1",
-    "workspaces": [
-        "web/*",
-        "extension/*",
-        "packages/*"
-    ],
-    "scripts": {
-        "dev:web": "pnpm --filter web dev",
-        "dev:ext": "pnpm --filter extension dev",
-        "build:web": "pnpm --filter web build",
-        "build:ext": "pnpm --filter extension build",
-        "build": "pnpm build:web && pnpm build:ext",
-        "lint:web": "pnpm --filter web lint-next",
-        "lint:ext": "pnpm --filter extension lint",
-        "lint": "pnpm lint:web && pnpm lint:ext",
-        "lint-tsc:web": "pnpm --filter web lint-tsc",
-        "test": "pnpm jest",
-        "coverage": "pnpm jest --coverage"
-    },
-    "devDependencies": {
-        "@eslint/eslintrc": "^3",
-        "@jest/globals": "^29.7.0",
-        "@types/node": "^20",
-        "eslint": "^9",
-        "eslint-config-next": "15.3.1",
-        "jest": "^29.7.0",
-        "jest-environment-jsdom": "^29.7.0",
-        "prettier": "^3.4.2",
-        "prettier-plugin-tailwindcss": "^0.6.11",
-        "ts-jest": "^29.3.2",
-        "ts-node": "^10.9.2",
-        "typescript": "^5"
-    }
+  "name": "cryptex-vault-web",
+  "version": "1.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "workspaces": [
+    "web/*",
+    "extension/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:ext": "pnpm --filter extension dev",
+    "build:web": "pnpm --filter web build",
+    "build:ext": "pnpm --filter extension build",
+    "build": "pnpm build:web && pnpm build:ext",
+    "lint:web": "pnpm --filter web lint",
+    "lint-tsc:web": "pnpm --filter web lint-tsc",
+    "lint-next:web": "pnpm --filter web lint-next",
+    "lint:ext": "pnpm --filter extension lint",
+    "lint": "pnpm lint:web && pnpm lint:ext",
+    "fmt:web": "pnpm --filter web fmt",
+    "fmt:ext": "pnpm --filter extension fmt",
+    "fmt": "pnpm fmt:web && pnpm fmt:ext",
+    "fmt-check:web": "pnpm --filter web fmt-check",
+    "fmt-check:ext": "pnpm --filter extension fmt-check",
+    "fmt-check": "pnpm fmt-check:web && pnpm fmt-check:ext",
+    "generate:api-contract": "node scripts/generate-api-contract-stubs.mjs",
+    "docker:client": "docker compose -f compose.prod.yaml --profile local --env-file web/.env.client up --build",
+    "docker:client:cloud-ui": "docker compose -f compose.prod.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build",
+    "docker:dev": "docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build",
+    "docker:dev:cloud-ui": "docker compose -f compose.dev.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build",
+    "prepare": "node scripts/install-lefthook.mjs",
+    "test": "pnpm jest",
+    "coverage": "pnpm jest --coverage"
+  },
+  "devDependencies": {
+    "@jest/globals": "29.7.0",
+    "@types/node": "20.19.9",
+    "@typescript/native-preview": "7.0.0-dev.20260404.1",
+    "jest": "29.7.0",
+    "jest-environment-jsdom": "29.7.0",
+    "lefthook": "2.1.9",
+    "oxfmt": "0.43.0",
+    "oxlint": "1.58.0",
+    "oxlint-tsgolint": "0.19.0",
+    "pnpm": "11.8.0",
+    "ts-jest": "29.4.0",
+    "ts-node": "10.9.2"
+  },
+  "engines": {
+    "node": ">=24.16.0",
+    "pnpm": ">=11.8.0"
+  }
 }

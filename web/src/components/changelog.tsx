@@ -24,6 +24,62 @@ interface ChangelogRelease {
 
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.4.0",
+        date: "2026-07-06",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "Payments now stay inside Cryptex Vault with embedded checkout, billing management, and clearer subscription flows.",
+            },
+            {
+                type: "added",
+                description:
+                    "The browser extension can now help fill, save, and manage credentials from the extension UI.",
+            },
+            {
+                type: "added",
+                description:
+                    "Passwords now show strength guidance, with warnings for weak vault protection settings.",
+            },
+            {
+                type: "added",
+                description:
+                    "Vaults can now use additional optional unlock protection, including recovery passphrases and second-factor credentials alongside the vault secret.",
+            },
+            {
+                type: "added",
+                description:
+                    "New vault setup guidance, recovery phrase peek controls, and clearer account recovery information.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Linking and synchronization are now encrypted end-to-end and more reliable when scanning QR codes.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Vault, account, recovery, and connected-device screens have been refined for clearer feedback.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Browser extension autofill, messaging, and credential access have been hardened around the current website origin.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Vault auto-lock, copied-secret warnings, unsafe URL blocking, and secure sync logging improve day-to-day safety.",
+            },
+            {
+                type: "fix",
+                description:
+                    "QR linking, TURN connectivity, sidebar layout, connected account status, and payment edge cases are more stable.",
+            },
+        ],
+    },
+    {
         version: "v1.3.0",
         date: "2026-01-06",
         changes: [
@@ -54,7 +110,8 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             },
             {
                 type: "changed",
-                description: "The `web` package version has been bumped to `v1.3.0`.",
+                description:
+                    "The `web` package version has been bumped to `v1.3.0`.",
             },
             {
                 type: "changed",
@@ -84,7 +141,8 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
         changes: [
             {
                 type: "added",
-                description: "QR code data can be copied in the in-vault linking dialog.",
+                description:
+                    "QR code data can be copied in the in-vault linking dialog.",
             },
             {
                 type: "added",
@@ -92,19 +150,23 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             },
             {
                 type: "added",
-                description: "Implemented a new vault metadata editor in the Vault Manager.",
+                description:
+                    "Implemented a new vault metadata editor in the Vault Manager.",
             },
             {
                 type: "added",
-                description: "Implemented a credential generator dialog on every password input field.",
+                description:
+                    "Implemented a credential generator dialog on every password input field.",
             },
             {
                 type: "changed",
-                description: "Strip the linking configuration and devices from the generated backup.",
+                description:
+                    "Strip the linking configuration and devices from the generated backup.",
             },
             {
                 type: "changed",
-                description: "The `web` package version has been bumped to `v1.2.0`.",
+                description:
+                    "The `web` package version has been bumped to `v1.2.0`.",
             },
             {
                 type: "fix",
@@ -238,37 +300,6 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             },
         ],
     },
-    {
-        version: "unreleased",
-        date: "-",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Release the Cryptex Vault Browser Extension v1.0.0",
-            },
-            {
-                type: "added",
-                description: "Private credentials sharing",
-            },
-            {
-                type: "added",
-                description: "Automatic encrypted backups",
-            },
-            {
-                type: "added",
-                description: "Layered quantum-resistant encryption",
-            },
-            {
-                type: "changed",
-                description: "Redesign the in-vault UI",
-            },
-            {
-                type: "changed",
-                description: "Complete test coverage",
-            },
-        ],
-    },
 ];
 
 export const ChangelogDialog: React.FC = ({}) => {
@@ -280,7 +311,10 @@ export const ChangelogDialog: React.FC = ({}) => {
 
     useEffect(() => {
         try {
-            const lastSeen = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+            const lastSeen =
+                typeof window !== "undefined"
+                    ? localStorage.getItem(storageKey)
+                    : null;
             setHasUnseen(!!currentVersion && lastSeen !== currentVersion);
         } catch (_) {
             // ignore storage errors
@@ -307,14 +341,14 @@ export const ChangelogDialog: React.FC = ({}) => {
                 <Button
                     variant="ghost"
                     // size="xs"
-                    className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+                    className="text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <span className="relative inline-block">
                         {currentVersion}
                         {hasUnseen && (
                             <span
                                 aria-label="New changelog"
-                                className="absolute -top-1 -right-1 inline-block h-2 w-2 rounded-full ring-2 ring-background bg-red-500 animate-pulse"
+                                className="absolute -right-1 -top-1 inline-block h-2 w-2 animate-pulse rounded-full bg-red-500 ring-2 ring-background"
                             />
                         )}
                     </span>
@@ -330,6 +364,9 @@ export const ChangelogDialog: React.FC = ({}) => {
                         Track updates, improvements, and new features in Cryptex
                         Vault.
                         <br />
+                        Detailed release notes are published in the repository
+                        changelog.
+                        <br />
                         Source URL:{" "}
                         <a
                             href="https://github.com/CryptexIndustries/vault-web"
@@ -344,7 +381,7 @@ export const ChangelogDialog: React.FC = ({}) => {
                     <div className="space-y-6">
                         {CHANGELOG_DATA.map((release) => (
                             <div key={release.version} className="space-y-4">
-                                <div className="flex items-center justify-between">
+                                <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background py-2">
                                     <div className="flex items-center gap-3">
                                         <Badge
                                             variant={
@@ -366,7 +403,7 @@ export const ChangelogDialog: React.FC = ({}) => {
                                             </Badge>
                                         )}
                                     </div>
-                                    <div className="text-muted-foreground flex items-center gap-1 text-sm">
+                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                         <Calendar className="h-3 w-3" />
                                         <span>{release.date}</span>
                                     </div>

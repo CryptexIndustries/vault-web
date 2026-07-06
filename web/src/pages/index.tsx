@@ -8,11 +8,11 @@ import HTMLMain from "@/components/html-main";
 
 import { CryptexVaultLogo } from "@/components/brand-image";
 import { Body, Footer, GenericModal } from "@/components/general/modal";
-import NotificationContainer from "@/components/general/notification-container";
 import Spinner from "@/components/general/spinner";
 import ContactUsForm from "@/components/index/contact-us-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import {
     ArrowRight,
     Code,
@@ -29,11 +29,15 @@ import {
     Zap,
 } from "lucide-react";
 
-const Index: NextPage = ({}) => {
+const Index: NextPage = () => {
     const contactUsModalVisibility = useState(false);
     const contactUsModalSubmitting = useState(false);
+    const cloudServicesEnabled = isCloudServicesEnabled();
 
-    const showContactUsModal = () => contactUsModalVisibility[1](true);
+    const showContactUsModal = () => {
+        if (!cloudServicesEnabled) return;
+        contactUsModalVisibility[1](true);
+    };
     const hideContactUsModal = () => contactUsModalVisibility[1](false);
     const contactUsSubmitBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -64,9 +68,15 @@ const Index: NextPage = ({}) => {
                             <Button
                                 variant="secondary"
                                 onClick={showContactUsModal}
+                                disabled={!cloudServicesEnabled}
                             >
                                 Contact us
                             </Button>
+                            {!cloudServicesEnabled && (
+                                <p className="text-sm text-slate-400">
+                                    Contact form unavailable in local-only mode.
+                                </p>
+                            )}
                             <div>
                                 <p className="text-slate-300">
                                     We care about the protection of your data.
@@ -84,59 +94,62 @@ const Index: NextPage = ({}) => {
                     </div>
                 </PageFooter>
             </HTMLMain>
-            <GenericModal
-                key="contact-us-modal"
-                visibleState={contactUsModalVisibility}
-            >
-                <Body>
-                    <div className="flex flex-col items-center text-center">
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            Contact us
-                        </h1>
+            {cloudServicesEnabled && (
+                <GenericModal
+                    key="contact-us-modal"
+                    visibleState={contactUsModalVisibility}
+                >
+                    <Body>
+                        <div className="flex flex-col items-center text-center">
+                            <h1 className="text-2xl font-bold text-gray-900">
+                                Contact us
+                            </h1>
 
-                        <p className="mt-2 text-slate-700">
-                            Feel free to contact us for any questions or to
-                            learn more about our service.
-                        </p>
-                        <Suspense fallback={<Spinner />}>
-                            <ContactUsForm
-                                hideModalFn={hideContactUsModal}
-                                submitButtonRef={contactUsSubmitBtnRef}
-                                submittingState={contactUsModalSubmitting}
-                            />
-                        </Suspense>
-                    </div>
-                </Body>
+                            <p className="mt-2 text-slate-700">
+                                Feel free to contact us for any questions or to
+                                learn more about our service.
+                            </p>
+                            <Suspense fallback={<Spinner />}>
+                                <ContactUsForm
+                                    hideModalFn={hideContactUsModal}
+                                    submitButtonRef={contactUsSubmitBtnRef}
+                                    submittingState={contactUsModalSubmitting}
+                                />
+                            </Suspense>
+                        </div>
+                    </Body>
 
-                <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                    <Button
-                        className="sm:ml-2"
-                        onClick={() => contactUsSubmitBtnRef.current?.click()}
-                        disabled={contactUsModalSubmitting[0]}
-                        type="submit"
-                    >
-                        {contactUsModalSubmitting[0] && (
-                            <Loader2 className="animate-spin" />
-                        )}
-                        Send
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        onClick={hideContactUsModal}
-                        type="button"
-                    >
-                        Close
-                    </Button>
-                </Footer>
-            </GenericModal>
-            <NotificationContainer />
+                    <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
+                        <Button
+                            className="sm:ml-2"
+                            onClick={() =>
+                                contactUsSubmitBtnRef.current?.click()
+                            }
+                            disabled={contactUsModalSubmitting[0]}
+                            type="submit"
+                        >
+                            {contactUsModalSubmitting[0] && (
+                                <Loader2 className="animate-spin" />
+                            )}
+                            Send
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={hideContactUsModal}
+                            type="button"
+                        >
+                            Close
+                        </Button>
+                    </Footer>
+                </GenericModal>
+            )}
         </>
     );
 };
 
 const FrontPage: React.FC = () => {
     return (
-        <div className="relative min-h-screen overflow-x-hidden bg-primary text-[#F5F7FA]">
+        <div className="relative min-h-screen overflow-x-hidden bg-background">
             <BackgroundEffects />
 
             <div className="z-50 overflow-hidden backdrop-blur-sm">
@@ -144,7 +157,7 @@ const FrontPage: React.FC = () => {
                     <div className="flex flex-grow flex-col justify-center text-center">
                         <CryptexVaultLogo />
 
-                        <div className="mt-12">
+                        <div className="mt-12 text-foreground">
                             <p>Decentralized Password Management</p>
                             <div className="flex w-full flex-row items-center justify-center gap-3">
                                 <p>Your Data.</p>
@@ -357,17 +370,17 @@ export const WhyWhatHowSection = () => {
                     <div className="space-y-8">
                         <div className="mb-8 flex items-center space-x-4">
                             <div className="rounded-full bg-zinc-800 p-2">
-                                <HelpCircle className="color-brand-primary h-6 w-6" />
+                                <HelpCircle className="h-6 w-6 text-primary" />
                             </div>
                             <h2 className="text-3xl font-bold">Why?</h2>
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2">
                             <Card className="overflow-hidden border-0 bg-zinc-800/50 shadow-xl">
-                                <div className="h-1 bg-[#ff5668]"></div>
+                                <div className="h-1 bg-primary"></div>
                                 <CardContent className="pt-6">
                                     <h3 className="mb-3 flex items-center text-xl font-semibold">
-                                        <Lock className="color-brand-primary mr-2 h-5 w-5" />
+                                        <Lock className="mr-2 h-5 w-5 text-primary" />
                                         Security-First Approach
                                     </h3>
                                     <p className="text-zinc-300">
@@ -382,10 +395,10 @@ export const WhyWhatHowSection = () => {
                             </Card>
 
                             <Card className="overflow-hidden border-0 bg-zinc-800/50 shadow-xl">
-                                <div className="h-1 bg-[#ff5668]"></div>
+                                <div className="h-1 bg-primary"></div>
                                 <CardContent className="pt-6">
                                     <h3 className="mb-3 flex items-center text-xl font-semibold">
-                                        <Shield className="color-brand-primary mr-2 h-5 w-5" />
+                                        <Shield className="mr-2 h-5 w-5 text-primary" />
                                         Uncompromised Independence
                                     </h3>
                                     <p className="text-zinc-300">
@@ -405,7 +418,7 @@ export const WhyWhatHowSection = () => {
                     <div className="space-y-8">
                         <div className="mb-8 flex items-center space-x-4">
                             <div className="rounded-full bg-zinc-800 p-2">
-                                <Zap className="color-brand-primary h-6 w-6" />
+                                <Zap className="h-6 w-6 text-primary" />
                             </div>
                             <h2 className="text-3xl font-bold">What?</h2>
                         </div>
@@ -414,7 +427,7 @@ export const WhyWhatHowSection = () => {
                             {[
                                 {
                                     icon: (
-                                        <Lock className="color-brand-primary h-5 w-5" />
+                                        <Lock className="h-5 w-5 text-primary" />
                                     ),
                                     title: "Zero-Knowledge Architecture",
                                     description:
@@ -422,7 +435,7 @@ export const WhyWhatHowSection = () => {
                                 },
                                 {
                                     icon: (
-                                        <Wifi className="color-brand-primary h-5 w-5" />
+                                        <Wifi className="h-5 w-5 text-primary" />
                                     ),
                                     title: "WebRTC P2P Sync",
                                     description:
@@ -430,7 +443,7 @@ export const WhyWhatHowSection = () => {
                                 },
                                 {
                                     icon: (
-                                        <Server className="color-brand-primary h-5 w-5" />
+                                        <Server className="h-5 w-5 text-primary" />
                                     ),
                                     title: "Transparent Relay",
                                     description:
@@ -438,7 +451,7 @@ export const WhyWhatHowSection = () => {
                                 },
                                 {
                                     icon: (
-                                        <Database className="color-brand-primary h-5 w-5" />
+                                        <Database className="h-5 w-5 text-primary" />
                                     ),
                                     title: "Optional Signaling",
                                     description:
@@ -467,7 +480,7 @@ export const WhyWhatHowSection = () => {
                     <div className="space-y-8">
                         <div className="mb-8 flex items-center space-x-4">
                             <div className="rounded-full bg-zinc-800 p-2">
-                                <Code className="color-brand-primary h-6 w-6" />
+                                <Code className="h-6 w-6 text-primary" />
                             </div>
                             <h2 className="text-3xl font-bold">How?</h2>
                         </div>
@@ -482,7 +495,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "The code behind Cryptex Vault is available for anyone to read (source-available). Verify the security, run it locally, contribute to the project.",
                                         icon: (
-                                            <GitFork className="color-brand-primary h-5 w-5" />
+                                            <GitFork className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -491,7 +504,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "You initialize your encrypted vault on your device; a strong master password derives the encryption key locally.",
                                         icon: (
-                                            <Lock className="color-brand-primary h-5 w-5" />
+                                            <Lock className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -500,7 +513,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "Devices exchange connection info via STUN/TURN to negotiate a direct WebRTC link; signaling only facilitates connection setup, not data exchange.",
                                         icon: (
-                                            <Wifi className="color-brand-primary h-5 w-5" />
+                                            <Wifi className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -509,7 +522,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "Once peers are connected, vault changes replicate over an encrypted P2P channel, ensuring data never touches third-party servers.",
                                         icon: (
-                                            <Shield className="color-brand-primary h-5 w-5" />
+                                            <Shield className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -518,7 +531,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "If a direct link can't form, we seamlessly switch to TURN relays so your devices stay in sync, even across restrictive networks.",
                                         icon: (
-                                            <Server className="color-brand-primary h-5 w-5" />
+                                            <Server className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                     {
@@ -527,7 +540,7 @@ export const WhyWhatHowSection = () => {
                                         description:
                                             "No matter our company's status, your existing devices will continue syncing peer-to-peer without interruption.",
                                         icon: (
-                                            <Users className="color-brand-primary h-5 w-5" />
+                                            <Users className="h-5 w-5 text-primary" />
                                         ),
                                     },
                                 ].map((step, index) => (
@@ -540,7 +553,7 @@ export const WhyWhatHowSection = () => {
                                         </div>
                                         <div>
                                             <div className="flex items-center">
-                                                <div className="color-brand-primary mr-3 font-mono text-sm">
+                                                <div className="mr-3 font-mono text-sm text-primary">
                                                     {step.step}
                                                 </div>
                                                 <h3 className="text-xl font-semibold">
@@ -550,9 +563,9 @@ export const WhyWhatHowSection = () => {
                                                     <a
                                                         href={step.url}
                                                         target="_blank"
-                                                        rel="noreferrer"
+                                                        rel="noopener noreferrer"
                                                     >
-                                                        <LinkIcon className="color-brand-primary ml-2 h-5 w-5" />
+                                                        <LinkIcon className="ml-2 h-5 w-5 text-primary" />
                                                     </a>
                                                 )}
                                             </div>

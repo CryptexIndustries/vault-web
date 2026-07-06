@@ -20,6 +20,47 @@ enum KeyDerivationFunction {
     PBKDF2 = 0;
     Argon2ID = 1;
 }
+
+enum SecondFactorKind {
+    NONE = 0;
+    PASSPHRASE_128 = 1;
+    PASSPHRASE_256 = 2;
+    WEBAUTHN_PRF = 3;
+}
+
+enum KeySlotKind {
+    PRIMARY = 0;
+    RECOVERY = 1;
+}
+
+message KeySlot {
+    KeySlotKind Kind = 1;
+    bytes WrappedDEK = 2;
+    string WrapAlgo = 3;
+    string Salt = 4;
+    KeyDerivationConfig_Argon2ID KDFConfigArgon2ID = 5;
+    string HKDFSalt = 6;
+    string HKDFInfo = 7;
+    SecondFactorKind FactorKind = 8;
+
+    // WebAuthn PRF factor metadata (non-secret). Stored in the synced envelope
+    // so the factor does not depend on device-local IndexedDB state.
+    // Base64 credential id, needed for the assertion allowCredentials list.
+    string WebauthnCredentialId = 9;
+    // Base64 PRF eval salt, needed to reproduce the PRF output on unlock.
+    string WebauthnPrfSalt = 10;
+    // Base64 salt used to derive reproducible passphrase second-factor material.
+    string SecondFactorSalt = 11;
+}
+
+message KeyEnvelope {
+    int32 Version = 1;
+    string DEKAlgo = 2;
+    repeated KeySlot Slots = 3;
+    SecondFactorKind PrimaryFactorKind = 4;
+    // Stable vault identifier used for KEK context.
+    string VaultID = 5;
+}
 //#endregion Encryption
 
 //#region Vault Metadata
@@ -50,6 +91,7 @@ message EncryptedBlob {
     bytes Blob = 5;
     string Salt = 6;
     string HeaderIV = 7;
+    optional KeyEnvelope Envelope = 10;
 }
 //#endregion Vault Metadata
 
@@ -86,18 +128,29 @@ message Vault {
     int32 Version = 1;
     // The current version of the vault, which chages when the vault is upgraded
     int32 CurrentVersion = 8;
-    // This was where the Secret was stored in the previous version of the vault, but it is no longer used
-    reserved 2;
-    Configuration Configuration = 3;
+
+    reserved 2; reserved "Secret";
+
+    reserved 3; reserved "Configuration";
+
     LinkedDevices LinkedDevices = 4;
     repeated Group Groups = 5;
     repeated Credential Credentials = 6;
-    repeated Diff Diffs = 7;
+
+    reserved 7; reserved "Diffs";
+
+    // Cryptex Vault Online Services - server auth (passkey material); separate from device sync
+    optional OnlineServices OnlineServices = 9;
 }
 
-message Configuration {
-    int32 MaxDiffCount = 1;
+//#region OnlineServices
+message OnlineServices {
+    string DeviceId = 1;
+    string UserID = 2;
+    string PrivateKeyJWK = 3;
+    string PublicKeyJWK = 4;
 }
+//#endregion OnlineServices
 
 //#region LinkedDevices
 message STUNServerConfiguration {
@@ -129,26 +182,41 @@ message SignalingServerConfiguration {
 }
 
 message LinkedDevices {
-    string ID = 1;
-    optional string APIKey = 2;
-    int64 CreationTimestamp = 3;
+    reserved 1; reserved "ID";
+    reserved 2; reserved "APIKey";
+    reserved 3; reserved "CreationTimestamp";
 
     reserved 4;
     repeated LinkedDevice Devices = 5;
     repeated STUNServerConfiguration STUNServers = 6;
     repeated TURNServerConfiguration TURNServers = 7;
     repeated SignalingServerConfiguration SignalingServers = 8;
+
+    /** ML-DSA-65 keypair for signing sync envelopes (one per vault installation). */
+    string SyncSigningPublicKey = 9;
+    string SyncSigningPrivateKey = 10;
+
+    /** ML-KEM-768 keypair for encrypting sync/link sessions (one per vault installation). */
+    string SyncKemPublicKey = 11;
+    string SyncKemPrivateKey = 12;
 }
 
 message LinkedDevice {
     string ID = 1;
     string Name = 2;
     optional string LastSync = 3;
-    bool IsRoot = 4;
+    reserved 4; reserved "IsRoot";
     int64 LinkedAtTimestamp = 5;
     bool AutoConnect = 6;
     bool SyncTimeout = 7;
     int32 SyncTimeoutPeriod = 8;
+
+    /**
+     * Both devices use this ID when exchanging messages during the sync process.
+     * It is server-minted when the devices use Online Services.
+     * It is client-minted when the devices use third-party signaling servers.
+     */
+    string SyncID = 12;
 
     /**
       * The ID of the STUN server to use for this device.
@@ -165,10 +233,24 @@ message LinkedDevice {
       * @default "OnlineServices" - The Cryptex Vault Online Service Signaling server will be used.
       */
     string SignalingServerID = 11;
+
+    /** Remote peer sync-signing public key, exchanged during linking. */
+    string RemoteSyncPublicKey = 13;
+
+    /** Remote peer ML-KEM public key, exchanged during linking. */
+    string RemoteSyncKemPublicKey = 14;
 }
 //#endregion LinkedDevices
 
 //#region Credentials
+message VersionVector {
+    string ID = 1;
+    string Hash = 2;
+    int32 Version = 3;
+    int64 DateModifiedTimestamp = 4;
+    bool Deleted = 5;
+}
+
 message Credential {
     string ID = 1;
     ItemType Type = 2;
@@ -180,47 +262,21 @@ message Credential {
     optional string Tags = 8;
     string URL = 9;
     string Notes = 10;
-    string DateCreated = 11;
-    optional string DateModified = 12;
-    optional string DatePasswordChanged = 13;
-    repeated CustomField CustomFields = 14;
-    // NOTE: This property is not synchronized across devices ATM (meaning, it isn't present in the PartialCredential object)
-    optional string Hash = 15;
-}
 
-// All optional version of the Credential object
-message PartialCredential {
-    optional string ID = 1;
-    optional ItemType Type = 2;
-    optional string GroupID = 3;
-    optional string Name = 4;
-    optional string Username = 5;
-    optional string Password = 6;
-    optional TOTP TOTP = 7;
-    optional string Tags = 8;
-    optional string URL = 9;
-    optional string Notes = 10;
-    optional string DateCreated = 11;
-    optional string DateModified = 12;
-    optional string DatePasswordChanged = 13;
-    repeated CustomField CustomFields = 14;
-    optional PartialCredentialChanges ChangeFlags = 15;
-}
+    // NOTE: These fields are deprecated and can be removed after August 2026
+    string DateCreated = 11 [deprecated = true];
+    optional string DateModified = 12 [deprecated = true];
+    optional string DatePasswordChanged = 13 [deprecated = true];
 
-message PartialCredentialChanges {
-    bool TypeHasChanged = 1;
-    bool GroupIDHasChanged = 2;
-    bool NameHasChanged = 3;
-    bool UsernameHasChanged = 4;
-    bool PasswordHasChanged = 5;
-    bool TOTPHasChanged = 6;
-    bool TagsHasChanged = 7;
-    bool URLHasChanged = 8;
-    bool NotesHasChanged = 9;
-    bool DateCreatedHasChanged = 10;
-    bool DateModifiedHasChanged = 11;
-    bool DatePasswordChangedHasChanged = 12;
-    bool CustomFieldsHasChanged = 13;
+    repeated CustomField CustomFields = 14;
+    string Hash = 15;
+    int32 Version = 16;
+
+    int64 DateCreatedTimestamp = 17;
+    int64 DateModifiedTimestamp = 18;
+    int64 DatePasswordChangedTimestamp = 19;
+
+    bool Deleted = 20;
 }
 
 message TOTP {
@@ -238,54 +294,87 @@ enum TOTPAlgorithm {
 }
 //#endregion Credentials
 
-//#region Diff
-message Diff {
-    // The hash of the vault after the change
-    string Hash = 1;
-    // The changes that were made
-    optional DiffChange Changes = 2;
-}
-
-message DiffChange {
-    // The type of change
-    DiffType Type = 1;
-    // The ID of the item that was changed
-    string ID = 2;
-    // The new value(s) of the item
-    optional PartialCredential Props = 3;
-}
-
-enum DiffType {
-    Add = 0;
-    Delete = 1;
-    Update = 2;
-}
-//#endregion Diff
-
 //#region Synchronization Message
-enum VaultItemSynchronizationMessageCommand {
-    SyncRequest = 0;
-    SyncResponse = 1;
-    ManualSyncDataRequest = 2;
-    ManualSyncSolve = 3;
+message SyncKeyBundle {
+    string SyncSigningPublicKey = 1;
+    string SyncKemPublicKey = 2;
 }
 
-message VaultItemSynchronizationMessage {
+enum VaultItemSynchronizationMessageCommand {
+    SyncHello = 0;
+    SyncHelloEcho = 1;
+    SyncDataRequest = 2;
+    SyncDataResponse = 3;
+}
+
+enum SyncWireMessageCommand {
+    SyncSessionInit = 0;
+    SyncSessionAccept = 1;
+    SyncEncryptedMessage = 2;
+}
+
+message SyncPlaintextMessage {
     string ID = 1;
     VaultItemSynchronizationMessageCommand Command = 2;
-    optional string Hash = 3;
-    repeated Diff Diffs = 4;
-    repeated LinkedDevice LinkedDevices = 5;
+    bytes Payload = 3;
+}
+
+message SynchronizationEnvelope {
+    string ID = 1;
+    SyncWireMessageCommand Command = 2;
+    int32 ProtocolVersion = 3;
+    string SessionID = 4;
+    int64 Sequence = 5;
+    bytes Nonce = 6;
+    bytes Ciphertext = 7;
+    bytes KemCiphertext = 8;
+    bytes HandshakeSignature = 9;
+}
+
+message SyncHelloMessage {
+    repeated VersionVector VersionVectors = 1;
+}
+
+message SyncHelloEchoMessage {
+    repeated VersionVector VersionVectors = 1;
+}
+
+message SyncDataRequestMessage {
+    repeated string ItemIDs = 1;
+}
+
+message SyncDataResponseMessage {
+    repeated Credential Credentials = 1;
 }
 //#endregion Synchronization Message
 
 //#region Linking
 message LinkingPackageBlob {
-    string ID = 1;
-    optional string APIKey = 2; // In case the device is registered with the Cryptex Vault Online Services
+    string SyncID = 1;
+    OnlineServices OnlineServices = 2;
     repeated STUNServerConfiguration STUNServers = 3;
     repeated TURNServerConfiguration TURNServers = 4;
     SignalingServerConfiguration SignalingServer = 5;
+
+    /** Sender vault installation sync authentication/encryption public keys. */
+    SyncKeyBundle SenderKeyBundle = 6;
+}
+
+message LinkSenderHello {
+    bytes Nonce = 1;
+    bytes Mac = 2;
+}
+
+message LinkReceiverKeyBundle {
+    SyncKeyBundle ReceiverKeyBundle = 1;
+    bytes Nonce = 2;
+    bytes Mac = 3;
+}
+
+message LinkVaultTransfer {
+    bytes KemCiphertext = 1;
+    bytes Nonce = 2;
+    bytes Ciphertext = 3;
 }
 
 message LinkingPackage {

@@ -1,0 +1,33 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "plugins": [
+        "typescript",
+        "unicorn",
+        "oxc",
+        "react",
+        "react-perf",
+        "nextjs",
+        "jest"
+    ],
+    "categories": {
+        "correctness": "error"
+    },
+    "rules": {
+        "eslint/no-unused-vars": "warn",
+        "typescript/no-floating-promises": "off",
+    },
+    "options": {
+    },
+    "env": {
+        "builtin": true
+    },
+    "ignorePatterns": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/out/**",
+        "**/coverage/**",
+        "**/.next/**",
+        "**/*.d.ts",
+    ]
+}

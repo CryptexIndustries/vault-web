@@ -2,16 +2,15 @@
 
 # dependencies
 node_modules
+/.pnpm-store/
 /.pnp
 .pnp.js
 
 # testing
 /coverage
+web/coverage/
 
 # database
-web/prisma/db.sqlite
-web/prisma/db.sqlite-journal
-
 # next.js
 .next/
 web/out/
@@ -33,6 +32,8 @@ yarn-error.log*
 # local env files
 .env
 .env*.local
+.env.client
+web/.env.client.cloud-ui
 
 # vercel
 .vercel
@@ -40,5 +41,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# extension
-extension/dist
+# build output
+dist/

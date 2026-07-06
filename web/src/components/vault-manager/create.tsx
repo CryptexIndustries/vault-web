@@ -1,4 +1,4 @@
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import {
     encryptionFormGroupSchema,
     EncryptionFormGroupSchemaType,
@@ -17,14 +17,6 @@ import {
     AccordionTrigger,
 } from "../ui/accordion";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../ui/select";
-import { enumToRecord } from "@/utils/consts";
-import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
 } from "@/app_lib/proto/vault";
@@ -34,19 +26,46 @@ import {
 } from "@/app_lib/vault-utils/encryption";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
+import {
+    SecondFactorOptions,
+    type SecondFactorChoice,
+    choiceToSource,
+} from "./second-factor-options";
+import type {
+    VaultCreateSecondFactorOptions,
+    VaultPendingUnlock,
+    VaultRevealSecrets,
+} from "@/app_lib/vault-utils/vault-unlock-types";
+import { useEffect, useState } from "react";
+import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
+import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
+import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
 
 const CreateVaultTab: React.FC<{
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-    ) => Promise<boolean>;
+        secondFactorOptions?: VaultCreateSecondFactorOptions,
+    ) => Promise<
+        | false
+        | {
+              ok: true;
+              revealSecrets: VaultRevealSecrets;
+              pendingUnlock: VaultPendingUnlock;
+          }
+    >;
 }> = ({ executeCallback }) => {
+    const [secondFactorChoice, setSecondFactorChoice] =
+        useState<SecondFactorChoice>("none");
+    const [secondFactorSource, setSecondFactorSource] = useState(
+        choiceToSource("none"),
+    );
+    const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
     const {
         handleSubmit,
-        control,
         register,
         setValue,
-        formState: { errors, isSubmitting },
         watch,
+        formState: { errors, isSubmitting },
     } = useForm<NewVaultFormSchemaType & EncryptionFormGroupSchemaType>({
         resolver: zodResolver(
             newVaultFormSchema.merge(encryptionFormGroupSchema),
@@ -65,276 +84,183 @@ const CreateVaultTab: React.FC<{
         },
     });
 
+    const secret = watch("Secret");
+    const memLimit = watch("EncryptionConfig.memLimit");
+    const opsLimit = watch("EncryptionConfig.opsLimit");
+
+    useEffect(() => {
+        setKdfRiskAcknowledged(false);
+    }, [memLimit, opsLimit]);
+
+    const belowRecommendedKdf = isBelowOwaspRecommendedArgon2id(
+        Number(memLimit),
+        Number(opsLimit),
+    );
+    const submitBlockedByKdf = belowRecommendedKdf && !kdfRiskAcknowledged;
+
     const tryCreateVault = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
     ) => {
-        await executeCallback(formData);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await executeCallback(formData, {
+            secondFactor: secondFactorSource,
+        });
     };
 
     return (
-        <div className="space-y-4 pt-4">
-            <div className="space-y-2">
-                <Label htmlFor="new-vault-name">New Vault Name *</Label>
-                <FormInput
-                    id="new-vault-name"
-                    type="text"
-                    placeholder="Enter your new vault name"
-                    className="pr-10"
-                    {...register("Name")}
-                />
-                {errors.Name && (
-                    <p className="text-destructive-foreground">
-                        {errors.Name.message}
-                    </p>
-                )}
-            </div>
+        <div>
+            <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                    <FormInput
+                        id="new-vault-name"
+                        type="text"
+                        placeholder="Enter your new vault name"
+                        className="pr-10"
+                        {...register("Name")}
+                    />
+                    {errors.Name && (
+                        <p className="text-destructive-foreground">
+                            {errors.Name.message}
+                        </p>
+                    )}
+                </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="new-vault-description">
-                    New Vault Description
-                </Label>
-                <Textarea
-                    id="new-vault-description"
-                    placeholder="Enter a description for your new vault"
-                    className="max-h-20 pr-10"
-                    {...register("Description")}
-                />
-                {errors.Description && (
-                    <p className="text-destructive-foreground">
-                        {errors.Description.message}
-                    </p>
-                )}
-            </div>
+                <div className="space-y-2">
+                    <Textarea
+                        id="new-vault-description"
+                        placeholder="Enter a description for your new vault"
+                        className="max-h-20 pr-10"
+                        {...register("Description")}
+                    />
+                    {errors.Description && (
+                        <p className="text-destructive-foreground">
+                            {errors.Description.message}
+                        </p>
+                    )}
+                </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="secret-key">Secret Key *</Label>
-                <FormInput
-                    id="secret-key"
-                    type="password"
-                    placeholder="Enter your secret key"
-                    className="pr-10"
-                    showPasswordGenerator={true}
-                    {...register("Secret")}
-                    setValue={(value) => setValue("Secret", value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                            handleSubmit(tryCreateVault)();
-                        }
-                    }}
-                />
-                {errors.Secret && (
-                    <p className="text-destructive-foreground">
-                        {errors.Secret.message}
-                    </p>
-                )}
-            </div>
+                <div className="space-y-2">
+                    <FormInput
+                        id="secret-key"
+                        type="password"
+                        placeholder="Enter your secret key"
+                        className="pr-10"
+                        showPasswordGenerator={true}
+                        {...register("Secret")}
+                        setValue={(value) => setValue("Secret", value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                handleSubmit(tryCreateVault)();
+                            }
+                        }}
+                    />
+                    {errors.Secret && (
+                        <p className="text-destructive-foreground">
+                            {errors.Secret.message}
+                        </p>
+                    )}
+                    <PasswordStrengthMeter password={secret} />
+                </div>
 
-            <div className="space-y-2">
-                <Accordion
-                    type="single"
-                    collapsible
-                    className="w-full rounded-md border"
+                <div className="space-y-2">
+                    <SecondFactorOptions
+                        value={secondFactorChoice}
+                        onChange={(choice, source) => {
+                            setSecondFactorChoice(choice);
+                            setSecondFactorSource(source);
+                        }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        A second factor adds a separate key on top of your
+                        secret key, so an attacker who learns or guesses your
+                        secret still cannot open the vault. Recommended if your
+                        vault holds high-value credentials.
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <Accordion
+                        type="single"
+                        collapsible
+                        className="w-full rounded-md border"
+                    >
+                        <AccordionItem value="encryption-config">
+                            <AccordionTrigger className="px-4">
+                                Encryption Configuration
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4 px-4 pb-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="memory-limit">
+                                            Memory Limit (MiB)
+                                        </Label>
+                                        <Input
+                                            id="memory-limit"
+                                            type="number"
+                                            min={
+                                                KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
+                                            }
+                                            {...register(
+                                                "EncryptionConfig.memLimit",
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="operations-limit">
+                                            Operations Limit
+                                        </Label>
+                                        <Input
+                                            id="operations-limit"
+                                            type="number"
+                                            min={
+                                                KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
+                                            }
+                                            max={
+                                                KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
+                                            }
+                                            {...register(
+                                                "EncryptionConfig.opsLimit",
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+                                <KdfBelowRecommendedAck
+                                    memLimit={Number(memLimit)}
+                                    opsLimit={Number(opsLimit)}
+                                    acknowledged={kdfRiskAcknowledged}
+                                    onAcknowledgedChange={
+                                        setKdfRiskAcknowledged
+                                    }
+                                />
+                                {errors.EncryptionConfig && (
+                                    <p className="text-destructive-foreground">
+                                        {errors.EncryptionConfig.message}
+                                    </p>
+                                )}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </div>
+            </div>
+            <div className="mt-6">
+                <Button
+                    className="w-full"
+                    onClick={handleSubmit(tryCreateVault)}
+                    disabled={isSubmitting || submitBlockedByKdf}
                 >
-                    <AccordionItem value="encryption-config">
-                        <AccordionTrigger className="px-4">
-                            Encryption Configuration
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 px-4 pb-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="encryption-algorithm">
-                                    Encryption Algorithm
-                                </Label>
-                                <Controller
-                                    name="Encryption"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select
-                                            value={field.value.toString()}
-                                            onValueChange={(value) => {
-                                                field.onChange(Number(value));
-                                            }}
-                                        >
-                                            <SelectTrigger id="encryption-algorithm">
-                                                <SelectValue placeholder="Select algorithm" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(
-                                                    enumToRecord(
-                                                        EncryptionAlgorithm,
-                                                    ),
-                                                ).map(([value, label]) => (
-                                                    <SelectItem
-                                                        key={label}
-                                                        value={String(value)}
-                                                    >
-                                                        {label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.Encryption && (
-                                    <p className="text-destructive-foreground">
-                                        {errors.Encryption.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="key-derivation-function">
-                                    Key Derivation Function
-                                </Label>
-                                <Controller
-                                    name="EncryptionKeyDerivationFunction"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select
-                                            value={field.value.toString()}
-                                            onValueChange={(value) => {
-                                                field.onChange(Number(value));
-                                            }}
-                                        >
-                                            <SelectTrigger id="key-derivation-function">
-                                                <SelectValue placeholder="Select function" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(
-                                                    enumToRecord(
-                                                        KeyDerivationFunction,
-                                                    ),
-                                                ).map(([value, label]) => (
-                                                    <SelectItem
-                                                        key={label}
-                                                        value={String(value)}
-                                                    >
-                                                        {label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.EncryptionKeyDerivationFunction && (
-                                    <p className="text-destructive-foreground">
-                                        {
-                                            errors
-                                                .EncryptionKeyDerivationFunction
-                                                .message
-                                        }
-                                    </p>
-                                )}
-                            </div>
-
-                            {watch(
-                                "EncryptionKeyDerivationFunction",
-                            ).toString() ===
-                                KeyDerivationFunction.Argon2ID.toString() && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="memory-limit">
-                                                Memory Limit (MiB)
-                                            </Label>
-                                            <Input
-                                                id="memory-limit"
-                                                type="number"
-                                                min={
-                                                    KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
-                                                }
-                                                {...register(
-                                                    "EncryptionConfig.memLimit",
-                                                )}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="operations-limit">
-                                                Operations Limit
-                                            </Label>
-                                            <Input
-                                                id="operations-limit"
-                                                type="number"
-                                                min={
-                                                    KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT
-                                                }
-                                                max={
-                                                    KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
-                                                }
-                                                {...register(
-                                                    "EncryptionConfig.opsLimit",
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {watch(
-                                "EncryptionKeyDerivationFunction",
-                            ).toString() ===
-                                KeyDerivationFunction.PBKDF2.toString() && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="memory-limit">
-                                                Iterations
-                                            </Label>
-                                            <Input
-                                                id="pkdf-iterations"
-                                                type="number"
-                                                min={2}
-                                                {...register(
-                                                    "EncryptionConfig.iterations",
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                            {errors.EncryptionConfig && (
-                                <p className="text-destructive-foreground">
-                                    {errors.EncryptionConfig.message}
-                                </p>
-                            )}
-
-                            {/* <div className="space-y-2"> */}
-                            {/*     <Label htmlFor="additional-config"> */}
-                            {/*         Additional Configuration (JSON) */}
-                            {/*     </Label> */}
-                            {/*     <Textarea */}
-                            {/*         id="additional-config" */}
-                            {/*         value={decryptionConfig} */}
-                            {/*         onChange={(e) => */}
-                            {/*             setDecryptionConfig(e.target.value) */}
-                            {/*         } */}
-                            {/*         placeholder="Enter additional configuration as JSON" */}
-                            {/*         rows={3} */}
-                            {/*     /> */}
-                            {/* </div> */}
-                            {/* --------------------- */}
-                        </AccordionContent>
-                    </AccordionItem>
-                </Accordion>
+                    {isSubmitting ? (
+                        <span className="flex items-center">
+                            <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin text-white" />
+                            Creating Vault...
+                        </span>
+                    ) : (
+                        <span className="flex items-center">
+                            <Lock className="mr-2 h-4 w-4" />
+                            Create Vault
+                        </span>
+                    )}
+                </Button>
             </div>
-
-            <Button
-                className="w-full"
-                variant="link"
-                onClick={handleSubmit(tryCreateVault)}
-                disabled={isSubmitting}
-            >
-                {isSubmitting ? (
-                    <span className="flex items-center">
-                        <LoaderCircle className="-ml-1 mr-2 h-4 w-4 animate-spin text-white" />
-                        Creating Vault...
-                    </span>
-                ) : (
-                    <span className="flex items-center">
-                        <Lock className="mr-2 h-4 w-4" />
-                        Create Vault
-                    </span>
-                )}
-            </Button>
         </div>
     );
 };

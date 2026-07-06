@@ -41,6 +41,7 @@ import { ensureSyncSigningKeypair } from "./sync-signing";
 import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
 import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
+import { applyImportToVault, type ImportResult } from "./import-export";
 
 export type {
     VaultCreateSecondFactorOptions,
@@ -145,6 +146,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         seedVault = false,
         seedCount = 0,
         options?: VaultCreateSecondFactorOptions,
+        initialImport?: ImportResult,
     ): Promise<{
         metadata: VaultMetadata;
         revealSecrets: VaultRevealSecrets;
@@ -163,7 +165,11 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const freshVault = new Vault(seedVault, seedCount);
         await ensureSyncSigningKeypair(freshVault.LinkedDevices);
         await ensureSyncKemKeypair(freshVault.LinkedDevices);
-        const _vaultBytes = VaultUtilTypes.Vault.encode(freshVault).finish();
+        const vaultToEncrypt = initialImport
+            ? (await applyImportToVault(freshVault, initialImport)).vault
+            : freshVault;
+        const _vaultBytes =
+            VaultUtilTypes.Vault.encode(vaultToEncrypt).finish();
 
         const secondFactorSource: SecondFactorSource =
             options?.secondFactor ?? {
@@ -209,7 +215,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             metadata: vaultMetadata,
             revealSecrets,
             dek: dek.value.dek,
-            vault: freshVault,
+            vault: vaultToEncrypt,
             enrolledFactor: primaryFactor,
         };
     }

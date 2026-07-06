@@ -30,6 +30,7 @@ import type {
     VaultPendingUnlock,
     VaultRevealSecrets,
 } from "@/app_lib/vault-utils/vault-unlock-types";
+import type { ImportResult } from "@/app_lib/vault-utils/import-export";
 import { SecondFactorKind } from "@/app_lib/proto/vault";
 import {
     establishPremiumSession,
@@ -137,6 +138,7 @@ const AppIndex: React.FC = () => {
         formData: FormSchemas.NewVaultFormSchemaType &
             FormSchemas.EncryptionFormGroupSchemaType,
         secondFactorOptions?: VaultCreateSecondFactorOptions,
+        initialImport?: ImportResult,
     ): Promise<
         | false
         | {
@@ -152,6 +154,7 @@ const AppIndex: React.FC = () => {
                 false,
                 0,
                 secondFactorOptions,
+                initialImport,
             );
 
             await created.metadata.save(null, created.dek);

@@ -28,6 +28,7 @@ import type {
     VaultRevealSecrets,
     VaultUnlockFlowResult,
 } from "@/app_lib/vault-utils/vault-unlock-types";
+import type { ImportResult } from "@/app_lib/vault-utils/import-export";
 import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
@@ -52,6 +53,7 @@ const VaultManager: React.FC<{
     tryCreateVaultCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         secondFactorOptions?: VaultCreateSecondFactorOptions,
+        initialImport?: ImportResult,
     ) => Promise<
         | false
         | {
@@ -148,10 +150,12 @@ const VaultManager: React.FC<{
     const createVaultCallback = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         secondFactorOptions?: VaultCreateSecondFactorOptions,
+        initialImport?: ImportResult,
     ) => {
         const success = await tryCreateVaultCallback(
             formData,
             secondFactorOptions,
+            initialImport,
         );
 
         if (typeof success === "object" && success.ok) {

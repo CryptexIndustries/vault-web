@@ -1,14 +1,9 @@
 import { Download, FileJson, ShieldCheck, Upload } from "lucide-react";
 import { useAtomValue, useSetAtom } from "jotai/react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import * as ImportExport from "@/app_lib/vault-utils/import-export";
 import * as Storage from "@/app_lib/vault-utils/storage";
-import {
-    assimilateImportedCredential,
-    upsertGroup,
-    Vault as VaultInstance,
-} from "@/app_lib/vault-utils/vault";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -29,12 +24,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { VaultSecurityDialog } from "@/components/vault-dashboard/vault-security-dialog";
+import { ImportWizard } from "@/components/vault-import/import-wizard";
 import {
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
     unlockedVaultWriteOnlyAtom,
 } from "@/utils/atoms";
-import { importLog, vaultLog, vaultLogger } from "@/utils/logging";
+import { vaultLog, vaultLogger } from "@/utils/logging";
 import {
     MISSING_VAULT_SECRET_ERROR,
     getVaultDEKFromSession,
@@ -48,45 +44,6 @@ type VaultSettingsDialogProps = {
     onOpenLogInspector: () => void;
 };
 
-function buildCsvMapping(columns: string[]): ImportExport.FieldsSchemaType {
-    const lookup = new Map(
-        columns.map((column) => [column.toLowerCase().trim(), column]),
-    );
-    const pick = (...aliases: string[]) => {
-        for (const alias of aliases) {
-            const found = lookup.get(alias.toLowerCase());
-            if (found) return found;
-        }
-        return null;
-    };
-
-    return {
-        Name: pick("name", "title", "site", "service"),
-        Username: pick("username", "user", "email", "login"),
-        Password: pick("password", "pass"),
-        TOTP: pick("totp", "2fa", "otp", "authenticator"),
-        Tags: pick("tags", "tag", "folder"),
-        URL: pick("url", "website", "uri", "login_uri"),
-        Notes: pick("notes", "note"),
-        DateCreatedTimestamp: pick(
-            "datecreatedtimestamp",
-            "createdat",
-            "created",
-        ) as unknown as number | null,
-        DateModifiedTimestamp: pick(
-            "datemodifiedtimestamp",
-            "updatedat",
-            "updated",
-        ) as unknown as number | null,
-        DatePasswordChangedTimestamp: pick(
-            "datepasswordchangedtimestamp",
-            "passwordchangedat",
-        ) as unknown as number | null,
-        TagDelimiter: ",",
-        Deleted: pick("deleted"),
-    };
-}
-
 export function VaultSettingsDialog({
     open,
     onOpenChange,
@@ -97,8 +54,7 @@ export function VaultSettingsDialog({
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const [isLoading, setIsLoading] = useState(false);
     const [isSecurityDialogOpen, setIsSecurityDialogOpen] = useState(false);
-    const bitwardenInputRef = useRef<HTMLInputElement>(null);
-    const csvInputRef = useRef<HTMLInputElement>(null);
+    const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
 
     const logCount = Object.values(vaultLogger.getLogCounts()).reduce(
         (count, value) => count + value,
@@ -106,7 +62,7 @@ export function VaultSettingsDialog({
     );
 
     const ensureDEK = async () => {
-        const dekRes = await getVaultDEKFromSession();
+        const dekRes = getVaultDEKFromSession();
         if (dekRes.isErr()) {
             toast.error(MISSING_VAULT_SECRET_ERROR);
             return null;
@@ -114,14 +70,7 @@ export function VaultSettingsDialog({
         return dekRes.value;
     };
 
-    const importCredentials = async (
-        credentials: Awaited<
-            ReturnType<typeof ImportExport.BitwardenJSON>
-        >["credentials"],
-        groups: Awaited<
-            ReturnType<typeof ImportExport.BitwardenJSON>
-        >["groups"] = [],
-    ) => {
+    const importCredentials = async (result: ImportExport.ImportResult) => {
         if (!vaultMetadata) {
             toast.error("Vault metadata is unavailable.");
             return;
@@ -130,30 +79,29 @@ export function VaultSettingsDialog({
         const sessionDek = await ensureDEK();
         if (!sessionDek) return;
 
-        const vaultCopy = Object.assign(new VaultInstance(), unlockedVault);
+        const applied = await ImportExport.applyImportToVault(
+            unlockedVault,
+            result,
+        );
 
-        for (const group of groups) {
-            const existing =
-                vaultCopy.Groups.find((item) => item.ID === group.ID) ?? null;
-            const merged = upsertGroup(existing, group);
-            if (!existing) {
-                vaultCopy.Groups.push(merged);
-            }
-        }
-
-        for (const credential of credentials) {
-            const assimilated = await assimilateImportedCredential(credential);
-            vaultCopy.Credentials.push(assimilated);
-        }
-
-        const saveRes = await saveVaultWithSessionDEK(vaultMetadata, vaultCopy);
+        const saveRes = await saveVaultWithSessionDEK(
+            vaultMetadata,
+            applied.vault,
+        );
         if (saveRes.isErr()) {
             if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
                 return;
             }
             throw new Error("VAULT_SAVE_FAILED");
         }
-        await setUnlockedVault(async () => vaultCopy);
+        await setUnlockedVault(async () => applied.vault);
+        toast.success(
+            `Imported ${applied.importedCredentials} items${
+                applied.importedGroups
+                    ? ` and ${applied.importedGroups} groups`
+                    : ""
+            }.`,
+        );
     };
 
     const handleManualBackup = async () => {
@@ -198,86 +146,6 @@ export function VaultSettingsDialog({
         } catch (error) {
             vaultLog.error("Failed to export vault JSON", { error });
             toast.error("Failed to export vault data.");
-        }
-    };
-
-    const handleBitwardenImport: React.ChangeEventHandler<
-        HTMLInputElement
-    > = async (event) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-
-        setIsLoading(true);
-        try {
-            const { credentials, groups } =
-                await ImportExport.BitwardenJSON(file);
-            if (!credentials.length) {
-                toast.warning("Bitwarden export has no credentials.");
-                return;
-            }
-            await importCredentials(credentials, groups);
-            toast.success(`Imported ${credentials.length} credentials.`);
-        } catch (error) {
-            importLog.error("Bitwarden import failed", {
-                fileName: file.name,
-                fileSize: file.size,
-                error,
-            });
-            toast.error("Failed to import Bitwarden export.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleCsvImport: React.ChangeEventHandler<HTMLInputElement> = async (
-        event,
-    ) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-
-        setIsLoading(true);
-        try {
-            const columns = await new Promise<string[]>((resolve, reject) => {
-                ImportExport.CSVGetColNames(file, resolve, reject);
-            });
-
-            if (!columns.length) {
-                toast.warning("CSV file has no headers.");
-                return;
-            }
-
-            const fieldMapping = buildCsvMapping(columns);
-
-            await new Promise<void>((resolve, reject) => {
-                ImportExport.CSV(
-                    file,
-                    fieldMapping,
-                    async (credentials) => {
-                        if (!credentials.length) {
-                            toast.warning("CSV file has no credentials.");
-                            resolve();
-                            return;
-                        }
-                        await importCredentials(credentials);
-                        toast.success(
-                            `Imported ${credentials.length} credentials.`,
-                        );
-                        resolve();
-                    },
-                    reject,
-                );
-            });
-        } catch (error) {
-            importLog.error("CSV import failed", {
-                fileName: file.name,
-                fileSize: file.size,
-                error,
-            });
-            toast.error("Failed to import CSV file.");
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -363,8 +231,8 @@ export function VaultSettingsDialog({
                                         Import
                                     </CardTitle>
                                     <CardDescription>
-                                        Import from Bitwarden JSON or generic
-                                        CSV.
+                                        Import from password managers and
+                                        browsers.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-2">
@@ -372,38 +240,13 @@ export function VaultSettingsDialog({
                                         variant="outline"
                                         className={actionButtonClassName}
                                         onClick={() =>
-                                            bitwardenInputRef.current?.click()
+                                            setIsImportWizardOpen(true)
                                         }
                                         disabled={isLoading}
                                     >
                                         <Upload className="h-4 w-4" />
-                                        Import Bitwarden JSON
+                                        Import Passwords
                                     </Button>
-                                    <Button
-                                        variant="outline"
-                                        className={actionButtonClassName}
-                                        onClick={() =>
-                                            csvInputRef.current?.click()
-                                        }
-                                        disabled={isLoading}
-                                    >
-                                        <Upload className="h-4 w-4" />
-                                        Import Generic CSV
-                                    </Button>
-                                    <input
-                                        ref={bitwardenInputRef}
-                                        type="file"
-                                        accept=".json"
-                                        className="hidden"
-                                        onChange={handleBitwardenImport}
-                                    />
-                                    <input
-                                        ref={csvInputRef}
-                                        type="file"
-                                        accept=".csv"
-                                        className="hidden"
-                                        onChange={handleCsvImport}
-                                    />
                                 </CardContent>
                             </Card>
 
@@ -504,6 +347,11 @@ export function VaultSettingsDialog({
             <VaultSecurityDialog
                 open={isSecurityDialogOpen}
                 onOpenChange={setIsSecurityDialogOpen}
+            />
+            <ImportWizard
+                open={isImportWizardOpen}
+                onOpenChange={setIsImportWizardOpen}
+                onConfirm={importCredentials}
             />
         </>
     );

@@ -6,7 +6,7 @@ import {
     NewVaultFormSchemaType,
 } from "../../app_lib/vault-utils/form-schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LoaderCircle, Lock } from "lucide-react";
+import { FileUp, LoaderCircle, Lock, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { FormInput } from "../general/input-fields";
@@ -40,11 +40,14 @@ import { useEffect, useState } from "react";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
 import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
+import { ImportWizard } from "@/components/vault-import/import-wizard";
+import type { ImportResult } from "@/app_lib/vault-utils/import-export";
 
 const CreateVaultTab: React.FC<{
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         secondFactorOptions?: VaultCreateSecondFactorOptions,
+        initialImport?: ImportResult,
     ) => Promise<
         | false
         | {
@@ -60,6 +63,10 @@ const CreateVaultTab: React.FC<{
         choiceToSource("none"),
     );
     const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
+    const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
+    const [initialImport, setInitialImport] = useState<ImportResult | null>(
+        null,
+    );
     const {
         handleSubmit,
         register,
@@ -102,9 +109,13 @@ const CreateVaultTab: React.FC<{
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
     ) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
-        await executeCallback(formData, {
-            secondFactor: secondFactorSource,
-        });
+        await executeCallback(
+            formData,
+            {
+                secondFactor: secondFactorSource,
+            },
+            initialImport ?? undefined,
+        );
     };
 
     return (
@@ -176,6 +187,52 @@ const CreateVaultTab: React.FC<{
                         secret still cannot open the vault. Recommended if your
                         vault holds high-value credentials.
                     </p>
+                </div>
+
+                <div className="space-y-2 rounded-md border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-medium">
+                                Import existing passwords
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Optional. Add exported passwords to this vault
+                                before it is encrypted.
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsImportWizardOpen(true)}
+                            disabled={isSubmitting}
+                        >
+                            <FileUp className="mr-2 h-4 w-4" />
+                            {initialImport ? "Change" : "Import"}
+                        </Button>
+                    </div>
+
+                    {initialImport ? (
+                        <div className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-xs">
+                            <span>
+                                {initialImport.credentials.length} items,{" "}
+                                {initialImport.groups.length} groups
+                                {initialImport.warnings.length
+                                    ? `, ${initialImport.warnings.length} warnings`
+                                    : ""}
+                            </span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => setInitialImport(null)}
+                                aria-label="Remove import"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -261,6 +318,13 @@ const CreateVaultTab: React.FC<{
                     )}
                 </Button>
             </div>
+            <ImportWizard
+                open={isImportWizardOpen}
+                onOpenChange={setIsImportWizardOpen}
+                onConfirm={(result) => {
+                    setInitialImport(result);
+                }}
+            />
         </div>
     );
 };

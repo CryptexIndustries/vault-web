@@ -53,6 +53,11 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
                     "New vault setup guidance, recovery phrase peek controls, and clearer account recovery information.",
             },
             {
+                type: "added",
+                description:
+                    "You can now import passwords from Cryptex Vault exports, Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox, including during new vault setup.",
+            },
+            {
                 type: "changed",
                 description:
                     "Linking and synchronization are now encrypted end-to-end and more reliable when scanning QR codes.",
@@ -302,7 +307,7 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
     },
 ];
 
-export const ChangelogDialog: React.FC = ({}) => {
+export const ChangelogDialog: React.FC = () => {
     const currentVersion = CHANGELOG_DATA[0]?.version ?? "";
     const storageKey = "changelog:lastSeenVersion";
 
@@ -316,7 +321,7 @@ export const ChangelogDialog: React.FC = ({}) => {
                     ? localStorage.getItem(storageKey)
                     : null;
             setHasUnseen(!!currentVersion && lastSeen !== currentVersion);
-        } catch (_) {
+        } catch {
             // ignore storage errors
         }
     }, [currentVersion]);
@@ -328,7 +333,7 @@ export const ChangelogDialog: React.FC = ({}) => {
                 if (typeof window !== "undefined") {
                     localStorage.setItem(storageKey, currentVersion);
                 }
-            } catch (_) {
+            } catch {
                 // ignore storage errors
             }
             setHasUnseen(false);

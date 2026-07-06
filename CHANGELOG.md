@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared API contracts package and API contract stub generator.
 - Seed-tiers Docker Compose service for product tier setup after migrations.
 - Pre-production Docker Compose configuration and refreshed development environment examples.
+- Refreshed vault import flow with support for Cryptex Vault JSON exports, Bitwarden JSON, 1Password CSV/1PUX, KeePass CSV/XML, LastPass CSV, Chrome CSV, and Firefox CSV.
+- Optional import step during vault creation, so existing password exports can be added before the first encrypted vault save.
 
 ### Changed
 
@@ -41,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web type checking now uses bundler module resolution and stricter validation.
 - Runtime and deployment tooling now target Node 24.16.0 and pnpm 11.8.0, with pinned Docker base images and PostgreSQL 18+ compose paths.
 - Docker Compose naming, profiles, port bindings, environment variables, and package mounts were cleaned up for local and production workflows.
+- Vault settings import now uses a guided preview flow with source selection, plaintext export warnings, import counts, skipped-item counts, and non-fatal warnings before applying changes.
 
 ### Fixed
 
@@ -54,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Password strength warnings now respect disabled suggestion settings.
 - Vault second factor data is cleared on delete.
 - Unused dev mock routes and offscreen stubs were removed.
+- Imported TOTP URLs are parsed with the existing OTP library before saving, and imported custom fields receive unique IDs to avoid duplicate-key rendering issues.
+- Imported credentials are always added as new items, with imported group references remapped safely when matching groups already exist.
 
 ### Security
 
@@ -67,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Marketing external links now use `noopener`.
 - Clipboard secret-copy warnings were added.
 - pnpm audit findings were resolved and pnpm was bumped for security.
+- CSV import parsing stays on the main thread to avoid relaxing Content Security Policy for blob workers while handling plaintext password exports.
 
 ### Chore
 

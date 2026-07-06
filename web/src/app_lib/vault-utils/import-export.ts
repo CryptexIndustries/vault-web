@@ -1,9 +1,24 @@
 import Papa from "papaparse";
+import JSZip from "jszip";
+import * as OTPAuth from "otpauth";
 import { z } from "zod";
 
 import { CredentialConstants } from "../../utils/consts";
-import { Credential, ItemType } from "../proto/vault";
-import { CustomField, Group, TOTP, Vault } from "./vault";
+import {
+    Credential,
+    CustomFieldType,
+    ItemType,
+    TOTPAlgorithm,
+} from "../proto/vault";
+import {
+    assimilateImportedCredential,
+    CustomField,
+    Group,
+    TOTP,
+    upsertGroup,
+    Vault,
+    VaultCredential,
+} from "./vault";
 
 export const vaultToJSON = (vaultInstance: Vault) => {
     // Make sure to remove all unnecessary properties from the vault by manually creating a new object
@@ -28,11 +43,50 @@ export const vaultToJSON = (vaultInstance: Vault) => {
     URL.revokeObjectURL(url);
 };
 
-export enum Type {
-    GenericCSV = 0,
-    Bitwarden = 1,
-    KeePass2 = 2,
-}
+export const ImportSources = [
+    "cryptex-json",
+    "bitwarden-json",
+    "onepassword-csv",
+    "onepassword-1pux",
+    "keepass-xml",
+    "keepass-csv",
+    "lastpass-csv",
+    "chrome-csv",
+    "firefox-csv",
+] as const;
+export type ImportSource = (typeof ImportSources)[number];
+
+export type ImportWarning = {
+    code: string;
+    message: string;
+    itemName?: string;
+};
+
+export type ImportResult = {
+    source: ImportSource;
+    credentials: Credential[];
+    groups: Group[];
+    warnings: ImportWarning[];
+    skipped: number;
+};
+
+export type ApplyImportResult = {
+    vault: Vault;
+    importedCredentials: number;
+    importedGroups: number;
+};
+
+export const ImportSourceLabels: Record<ImportSource, string> = {
+    "cryptex-json": "Cryptex Vault JSON",
+    "bitwarden-json": "Bitwarden JSON",
+    "onepassword-csv": "1Password CSV",
+    "onepassword-1pux": "1Password 1PUX",
+    "keepass-xml": "KeePass XML",
+    "keepass-csv": "KeePass CSV",
+    "lastpass-csv": "LastPass CSV",
+    "chrome-csv": "Chrome CSV",
+    "firefox-csv": "Firefox CSV",
+};
 
 export type Fields =
     | "Name"
@@ -122,18 +176,242 @@ interface BitwardenItem {
 }
 
 interface BitwardenJSON {
+    encrypted?: boolean;
     folders: BitwardenFolder[];
     items: BitwardenItem[];
 }
 //#endregion Bitwarden
+
+const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                resolve(reader.result);
+                return;
+            }
+            if (reader.result instanceof ArrayBuffer) {
+                resolve(new TextDecoder().decode(reader.result));
+                return;
+            }
+            resolve("");
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+    });
+
+const parseCsvRows = <T = Record<string, unknown>>(file: File): Promise<T[]> =>
+    new Promise((resolve, reject) => {
+        Papa.parse<T>(file, {
+            header: true,
+            skipEmptyLines: true,
+            download: false,
+            // Keep parsing on the main thread: blob workers require relaxing CSP for plaintext secret imports.
+            worker: false,
+            complete: (results) => resolve(results.data),
+            error: reject,
+        });
+    });
+
+const asString = (value: unknown): string => {
+    if (value == null) return "";
+    if (typeof value === "string") return value.trim();
+    if (
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        typeof value === "bigint"
+    ) {
+        return value.toString().trim();
+    }
+    return JSON.stringify(value);
+};
+
+const firstValue = (
+    row: Record<string, unknown>,
+    ...names: string[]
+): string => {
+    const lookup = new Map(
+        Object.keys(row).map((key) => [key.toLowerCase().trim(), key]),
+    );
+    for (const name of names) {
+        const found = lookup.get(name.toLowerCase().trim());
+        if (found) return asString(row[found]);
+    }
+    return "";
+};
+
+const parseTimestamp = (
+    value: unknown,
+    fallback: number = Date.now(),
+): number => {
+    if (value == null || value === "") return fallback;
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value < 10_000_000_000 ? value * 1000 : value;
+    }
+
+    const raw = asString(value);
+    if (!raw) return fallback;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) {
+        return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+    }
+
+    const parsed = new Date(raw).getTime();
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const joinTags = (values: Array<string | undefined>): string | undefined => {
+    const tags = values
+        .flatMap((value) => (value ?? "").split(/[;,]/g))
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+    return tags.length
+        ? Array.from(new Set(tags)).join(CredentialConstants.TAG_SEPARATOR)
+        : undefined;
+};
+
+const makeCustomField = (
+    name: string,
+    value: unknown,
+    type: CustomFieldType = CustomFieldType.Text,
+): CustomField | null => {
+    const stringValue = asString(value);
+    if (!name.trim() || !stringValue) return null;
+
+    const field = new CustomField();
+    field.ID = `import-${name}-${Math.random().toString(36).slice(2)}`;
+    field.Name = name.trim();
+    field.Value = stringValue;
+    field.Type = type;
+    return field;
+};
+
+const addCustomField = (
+    credential: Credential,
+    name: string,
+    value: unknown,
+    type?: CustomFieldType,
+) => {
+    const field = makeCustomField(name, value, type);
+    if (field) credential.CustomFields.push(field);
+};
+
+const ensureUniqueCustomFieldIDs = (credential: Credential): Credential => {
+    const seen = new Set<string>();
+    credential.CustomFields = credential.CustomFields.map((field, index) => {
+        const candidate = field.ID?.trim();
+        if (candidate && candidate !== "-1" && !seen.has(candidate)) {
+            seen.add(candidate);
+            return field;
+        }
+
+        const nextID = `import-field-${credential.Name}-${index + 1}`;
+        seen.add(nextID);
+        return {
+            ...field,
+            ID: nextID,
+        };
+    });
+    return credential;
+};
+
+const makeGroup = (id: string, name: string): Group => ({
+    ID: id || name,
+    Name: name || "Imported",
+    Icon: "",
+    Color: "",
+});
+
+const makeCredential = (data: {
+    type?: ItemType;
+    groupId?: string;
+    name?: string;
+    username?: string;
+    password?: string;
+    url?: string;
+    notes?: string;
+    tags?: string;
+    createdAt?: number;
+    modifiedAt?: number;
+    passwordChangedAt?: number;
+}): Credential => {
+    const now = Date.now();
+    const createdAt = data.createdAt ?? now;
+    return {
+        ID: "",
+        Version: 0,
+        Type: data.type ?? ItemType.Credentials,
+        GroupID: data.groupId ?? "",
+        Name: data.name?.trim() || "Unnamed item",
+        Username: data.username ?? "",
+        Password: data.password ?? "",
+        Tags: data.tags,
+        URL: data.url ?? "",
+        Notes: data.notes ?? "",
+        CustomFields: [],
+
+        // TODO: Remove these fields after August 2026
+        DateCreated: "",
+        DateModified: undefined,
+        DatePasswordChanged: undefined,
+
+        DateCreatedTimestamp: createdAt,
+        DateModifiedTimestamp: data.modifiedAt ?? createdAt,
+        DatePasswordChangedTimestamp: data.passwordChangedAt ?? createdAt,
+        Deleted: false,
+        Hash: "",
+    };
+};
+
+const mapTotpAlgorithm = (algorithm: string): TOTPAlgorithm => {
+    const normalized = algorithm.toUpperCase();
+    if (normalized in TOTPAlgorithm) {
+        return TOTPAlgorithm[normalized as keyof typeof TOTPAlgorithm];
+    }
+    return TOTPAlgorithm.SHA1;
+};
+
+const normalizeTotp = (raw: unknown): TOTP | undefined => {
+    const value = asString(raw);
+    if (!value) return undefined;
+
+    const totp = new TOTP();
+    if (!value.toLowerCase().startsWith("otpauth://")) {
+        totp.Secret = value;
+        return totp;
+    }
+
+    try {
+        const parsed = OTPAuth.URI.parse(value);
+        if (!(parsed instanceof OTPAuth.TOTP)) {
+            return undefined;
+        }
+
+        totp.Secret = parsed.secret.base32;
+        totp.Label = parsed.issuer
+            ? `${parsed.issuer}:${parsed.label}`
+            : parsed.label;
+        totp.Period = parsed.period;
+        totp.Digits = parsed.digits;
+        totp.Algorithm = mapTotpAlgorithm(parsed.algorithm);
+    } catch {
+        totp.Secret = value;
+    }
+
+    return totp;
+};
+
+const appendNotes = (...parts: Array<string | undefined>): string =>
+    parts
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join("\n\n");
 
 export const CSVGetColNames = (
     file: File,
     onSuccess: (columnNames: string[]) => void,
     onFailure: (error: Error) => void,
 ): void => {
-    // const Papa = dynamic(() => import("papaparse"));
-
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
@@ -165,7 +443,8 @@ export const CSV = async (
         header: true,
         skipEmptyLines: true,
         download: false,
-        worker: true,
+        // Keep parsing on the main thread: blob workers require relaxing CSP for plaintext secret imports.
+        worker: false,
         complete: async function (results: Papa.ParseResult<unknown> | null) {
             if (!results) return;
 
@@ -291,15 +570,6 @@ export const BitwardenJSON = (
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
-        const parseTimestamp = (
-            value: string | undefined,
-            fallback: number,
-        ): number => {
-            if (!value) return fallback;
-            const parsed = new Date(value).getTime();
-            return Number.isFinite(parsed) ? parsed : fallback;
-        };
-
         const mapBitwardenItemType = (type: number): ItemType => {
             // Bitwarden: 1=login, 2=secure note, 3=card, 4=identity
             // Cryptex: SSHKey=0, Credentials=1, Note=2, Identity=3
@@ -323,6 +593,14 @@ export const BitwardenJSON = (
             try {
                 const json = reader.result as string;
                 const parsed = JSON.parse(json) as BitwardenJSON;
+                if (parsed.encrypted) {
+                    throw new Error(
+                        "Encrypted Bitwarden exports are unsupported",
+                    );
+                }
+                if (!Array.isArray(parsed.items)) {
+                    throw new Error("Bitwarden export is missing items");
+                }
 
                 for (const item of parsed.items) {
                     const now = Date.now();
@@ -364,10 +642,7 @@ export const BitwardenJSON = (
                         Hash: "",
                     };
 
-                    if (item.login?.totp) {
-                        credential.TOTP = new TOTP();
-                        credential.TOTP.Secret = item.login.totp;
-                    }
+                    credential.TOTP = normalizeTotp(item.login?.totp);
 
                     // Set custom fields
                     item.fields?.forEach((field) => {
@@ -383,7 +658,22 @@ export const BitwardenJSON = (
                         }
                     });
 
-                    credentials.push(credential);
+                    item.login?.uris?.slice(1).forEach((uri, index) => {
+                        addCustomField(
+                            credential,
+                            `Bitwarden URI ${index + 2}`,
+                            uri.uri,
+                        );
+                    });
+                    addCustomField(credential, "Bitwarden item ID", item.id);
+                    addCustomField(
+                        credential,
+                        "Bitwarden favorite",
+                        (item as { favorite?: boolean }).favorite,
+                        CustomFieldType.Boolean,
+                    );
+
+                    credentials.push(ensureUniqueCustomFieldIDs(credential));
                 }
 
                 if (parsed.folders) {
@@ -412,4 +702,585 @@ export const BitwardenJSON = (
 
         reader.readAsText(file);
     });
+};
+
+const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
+    const parsed = await BitwardenJSON(file);
+    const warnings: ImportWarning[] = [];
+    const text = await readFileAsText(file);
+    const raw = JSON.parse(text) as {
+        items?: Array<
+            BitwardenItem & {
+                attachments?: unknown[];
+                fido2Credentials?: unknown[];
+                favorite?: boolean;
+                collectionIds?: unknown[];
+                organizationId?: string;
+                reprompt?: number;
+                secureNote?: unknown;
+                identity?: Record<string, unknown>;
+                card?: Record<string, unknown>;
+                sshKey?: Record<string, unknown>;
+            }
+        >;
+    };
+
+    raw.items?.forEach((item, index) => {
+        const credential = parsed.credentials[index];
+        if (!credential) return;
+
+        if (item.type === 3 && item.card) {
+            credential.Type = ItemType.Credentials;
+            credential.Notes = appendNotes(
+                credential.Notes,
+                "Imported from Bitwarden card item.",
+            );
+            addCustomField(
+                credential,
+                "Cardholder name",
+                item.card.cardholderName,
+            );
+            addCustomField(credential, "Card brand", item.card.brand);
+            addCustomField(
+                credential,
+                "Card number",
+                item.card.number,
+                CustomFieldType.MaskedText,
+            );
+            addCustomField(credential, "Card expiry month", item.card.expMonth);
+            addCustomField(credential, "Card expiry year", item.card.expYear);
+            addCustomField(
+                credential,
+                "Card security code",
+                item.card.code,
+                CustomFieldType.MaskedText,
+            );
+        }
+
+        if (item.type === 4 && item.identity) {
+            credential.Type = ItemType.Identity;
+            for (const [key, value] of Object.entries(item.identity)) {
+                addCustomField(credential, `Identity ${key}`, value);
+            }
+        }
+
+        if (item.sshKey) {
+            credential.Type = ItemType.SSHKey;
+            for (const [key, value] of Object.entries(item.sshKey)) {
+                addCustomField(
+                    credential,
+                    `SSH ${key}`,
+                    value,
+                    key.toLowerCase().includes("private")
+                        ? CustomFieldType.MaskedText
+                        : CustomFieldType.Text,
+                );
+            }
+        }
+
+        if (item.passwordHistory?.length) {
+            item.passwordHistory.forEach((entry, historyIndex) => {
+                addCustomField(
+                    credential,
+                    `Password history ${historyIndex + 1}`,
+                    entry.password,
+                    CustomFieldType.MaskedText,
+                );
+                addCustomField(
+                    credential,
+                    `Password history ${historyIndex + 1} date`,
+                    entry.lastUsedDate,
+                );
+            });
+        }
+
+        addCustomField(credential, "Bitwarden reprompt", item.reprompt);
+        addCustomField(
+            credential,
+            "Bitwarden organization",
+            item.organizationId,
+        );
+        addCustomField(
+            credential,
+            "Bitwarden collections",
+            Array.isArray(item.collectionIds)
+                ? item.collectionIds.join(", ")
+                : undefined,
+        );
+
+        if (item.attachments?.length) {
+            warnings.push({
+                code: "BITWARDEN_ATTACHMENTS_UNSUPPORTED",
+                itemName: item.name,
+                message: `Attachments on "${item.name}" were not imported.`,
+            });
+        }
+        if (item.fido2Credentials?.length) {
+            warnings.push({
+                code: "BITWARDEN_PASSKEYS_UNSUPPORTED",
+                itemName: item.name,
+                message: `Passkeys on "${item.name}" were not imported.`,
+            });
+        }
+    });
+
+    return {
+        source: "bitwarden-json",
+        credentials: parsed.credentials,
+        groups: parsed.groups,
+        warnings,
+        skipped: 0,
+    };
+};
+
+const parseGenericCsv = async (
+    file: File,
+    source: ImportSource,
+): Promise<ImportResult> => {
+    const rows = await parseCsvRows<Record<string, unknown>>(file);
+    const groups = new Map<string, Group>();
+    const credentials: Credential[] = [];
+    const warnings: ImportWarning[] = [];
+
+    for (const row of rows) {
+        const name =
+            firstValue(row, "name", "title", "site", "account", "service") ||
+            firstValue(row, "url", "website", "uri", "web site") ||
+            "Imported item";
+        const groupName = firstValue(
+            row,
+            "grouping",
+            "group",
+            "folder",
+            "tags",
+        );
+        const groupId = groupName ? `import-group:${groupName}` : "";
+        if (groupName && !groups.has(groupId)) {
+            groups.set(groupId, makeGroup(groupId, groupName));
+        }
+
+        const credential = makeCredential({
+            name,
+            groupId,
+            username: firstValue(row, "username", "user", "login", "email"),
+            password: firstValue(row, "password", "pass"),
+            url: firstValue(row, "url", "website", "uri", "web site"),
+            notes: firstValue(row, "notes", "note", "extra", "comments"),
+            tags: joinTags([
+                firstValue(row, "tags", "tag"),
+                source === "lastpass-csv" ? firstValue(row, "fav") : "",
+            ]),
+            createdAt: parseTimestamp(
+                firstValue(
+                    row,
+                    "datecreatedtimestamp",
+                    "created",
+                    "timeCreated",
+                ),
+            ),
+            modifiedAt: parseTimestamp(
+                firstValue(
+                    row,
+                    "datemodifiedtimestamp",
+                    "updated",
+                    "timeLastUsed",
+                ),
+            ),
+            passwordChangedAt: parseTimestamp(
+                firstValue(
+                    row,
+                    "datepasswordchangedtimestamp",
+                    "passwordchangedat",
+                    "timePasswordChanged",
+                ),
+            ),
+        });
+
+        const totp = normalizeTotp(
+            firstValue(
+                row,
+                "totp",
+                "2fa",
+                "otp",
+                "otpauth",
+                "one-time password",
+                "one-time password",
+                "authenticator",
+            ),
+        );
+        if (totp) credential.TOTP = totp;
+
+        if (source === "firefox-csv" && !firstValue(row, "name", "title")) {
+            try {
+                credential.Name =
+                    new URL(credential.URL).hostname || credential.Name;
+            } catch {
+                addCustomField(
+                    credential,
+                    "Firefox form action origin",
+                    firstValue(row, "formActionOrigin"),
+                );
+            }
+        }
+
+        addCustomField(credential, "Source import", ImportSourceLabels[source]);
+        credentials.push(credential);
+    }
+
+    if (!credentials.length) {
+        warnings.push({
+            code: "EMPTY_IMPORT",
+            message: "File did not contain importable credentials.",
+        });
+    }
+
+    return {
+        source,
+        credentials,
+        groups: Array.from(groups.values()),
+        warnings,
+        skipped: 0,
+    };
+};
+
+const getDirectChildText = (element: Element, tag: string): string => {
+    for (const child of Array.from(element.children)) {
+        if (child.tagName.toLowerCase() === tag.toLowerCase()) {
+            return child.textContent?.trim() ?? "";
+        }
+    }
+    return "";
+};
+
+const parseKeePassXML = async (file: File): Promise<ImportResult> => {
+    const text = await readFileAsText(file);
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    const parserError = doc.querySelector("parsererror");
+    if (parserError) throw new Error("Invalid KeePass XML");
+
+    const groups: Group[] = [];
+    const credentials: Credential[] = [];
+    const warnings: ImportWarning[] = [];
+
+    const readEntryStrings = (entry: Element) => {
+        const values: Record<string, string> = {};
+        entry.querySelectorAll(":scope > String").forEach((stringElement) => {
+            const key = getDirectChildText(stringElement, "Key");
+            const value = getDirectChildText(stringElement, "Value");
+            if (key) values[key] = value;
+        });
+        return values;
+    };
+
+    const walkGroup = (groupElement: Element, parentPath = "") => {
+        const name = getDirectChildText(groupElement, "Name") || "KeePass";
+        const uuid = getDirectChildText(groupElement, "UUID");
+        const path = parentPath ? `${parentPath}/${name}` : name;
+        const groupId = uuid || `keepass:${path}`;
+        groups.push(makeGroup(groupId, path));
+
+        groupElement.querySelectorAll(":scope > Entry").forEach((entry) => {
+            const values = readEntryStrings(entry);
+            const times = entry.querySelector(":scope > Times");
+            const credential = makeCredential({
+                groupId,
+                name: values.Title,
+                username: values.UserName,
+                password: values.Password,
+                url: values.URL,
+                notes: values.Notes,
+                tags: values.Tags,
+                createdAt: parseTimestamp(
+                    times?.querySelector("CreationTime")?.textContent,
+                ),
+                modifiedAt: parseTimestamp(
+                    times?.querySelector("LastModificationTime")?.textContent,
+                ),
+            });
+
+            const totpValue =
+                values["otp"] ??
+                values["TOTP Seed"] ??
+                values["TimeOtp-Secret-Base32"];
+            const totp = normalizeTotp(totpValue);
+            if (totp) credential.TOTP = totp;
+
+            for (const [key, value] of Object.entries(values)) {
+                if (
+                    [
+                        "Title",
+                        "UserName",
+                        "Password",
+                        "URL",
+                        "Notes",
+                        "Tags",
+                    ].includes(key) ||
+                    key.toLowerCase().includes("otp")
+                ) {
+                    continue;
+                }
+                addCustomField(credential, key, value);
+            }
+
+            credentials.push(credential);
+        });
+
+        groupElement
+            .querySelectorAll(":scope > Group")
+            .forEach((child) => walkGroup(child, path));
+    };
+
+    const rootGroup = doc.querySelector("KeePassFile > Root > Group");
+    if (!rootGroup) {
+        warnings.push({
+            code: "KEEPASS_NO_ROOT_GROUP",
+            message: "KeePass XML did not include a root group.",
+        });
+    } else {
+        walkGroup(rootGroup);
+    }
+
+    return {
+        source: "keepass-xml",
+        credentials,
+        groups,
+        warnings,
+        skipped: 0,
+    };
+};
+
+const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const exportData = zip.file("export.data");
+    if (!exportData) throw new Error("1PUX archive missing export.data");
+
+    const data = JSON.parse(await exportData.async("string")) as {
+        accounts?: Array<{
+            vaults?: Array<{
+                attrs?: { name?: string; uuid?: string };
+                items?: Array<{
+                    uuid?: string;
+                    title?: string;
+                    createdAt?: number;
+                    updatedAt?: number;
+                    state?: string;
+                    tags?: string[];
+                    overview?: { urls?: Array<{ url?: string }>; url?: string };
+                    details?: {
+                        notesPlain?: string;
+                        notes?: string;
+                        loginFields?: Array<{
+                            designation?: string;
+                            name?: string;
+                            value?: string;
+                        }>;
+                        fields?: Array<{
+                            title?: string;
+                            id?: string;
+                            value?: { concealed?: string; string?: string };
+                            type?: string;
+                        }>;
+                    };
+                }>;
+            }>;
+        }>;
+    };
+
+    const groups: Group[] = [];
+    const credentials: Credential[] = [];
+    const warnings: ImportWarning[] = [];
+    let skipped = 0;
+
+    for (const account of data.accounts ?? []) {
+        for (const vault of account.vaults ?? []) {
+            const groupId = vault.attrs?.uuid || `1pux:${vault.attrs?.name}`;
+            groups.push(makeGroup(groupId, vault.attrs?.name || "1Password"));
+
+            for (const item of vault.items ?? []) {
+                if (item.state === "archived" || item.state === "deleted") {
+                    skipped += 1;
+                    continue;
+                }
+                const loginFields = item.details?.loginFields ?? [];
+                const username =
+                    loginFields.find((f) => f.designation === "username")
+                        ?.value ?? "";
+                const password =
+                    loginFields.find((f) => f.designation === "password")
+                        ?.value ?? "";
+                const url =
+                    item.overview?.url ??
+                    item.overview?.urls?.find((entry) => entry.url)?.url ??
+                    "";
+                const credential = makeCredential({
+                    groupId,
+                    name: item.title,
+                    username,
+                    password,
+                    url,
+                    notes:
+                        item.details?.notesPlain ?? item.details?.notes ?? "",
+                    tags: joinTags(item.tags ?? []),
+                    createdAt: parseTimestamp(item.createdAt),
+                    modifiedAt: parseTimestamp(item.updatedAt),
+                });
+
+                for (const field of item.details?.fields ?? []) {
+                    const value = field.value?.concealed ?? field.value?.string;
+                    const type =
+                        field.value?.concealed != null
+                            ? CustomFieldType.MaskedText
+                            : CustomFieldType.Text;
+                    addCustomField(
+                        credential,
+                        field.title || field.id || "1Password field",
+                        value,
+                        type,
+                    );
+                    if (
+                        (field.title ?? field.id ?? "")
+                            .toLowerCase()
+                            .includes("one-time password")
+                    ) {
+                        const totp = normalizeTotp(value);
+                        if (totp) credential.TOTP = totp;
+                    }
+                }
+
+                addCustomField(credential, "1Password item ID", item.uuid);
+                credentials.push(credential);
+            }
+        }
+    }
+
+    if (zip.folder("files")) {
+        warnings.push({
+            code: "ONEPASSWORD_ATTACHMENTS_UNSUPPORTED",
+            message: "1Password attachments/documents were not imported.",
+        });
+    }
+
+    return {
+        source: "onepassword-1pux",
+        credentials,
+        groups,
+        warnings,
+        skipped,
+    };
+};
+
+const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
+    const parsed = JSON.parse(await readFileAsText(file)) as {
+        Groups?: Group[];
+        Credentials?: Credential[];
+    };
+
+    if (!Array.isArray(parsed.Groups) || !Array.isArray(parsed.Credentials)) {
+        throw new Error("Invalid Cryptex Vault export");
+    }
+
+    const warnings: ImportWarning[] = [];
+    let skipped = 0;
+    const credentials = parsed.Credentials.flatMap((rawCredential) => {
+        if (rawCredential.Deleted) {
+            skipped += 1;
+            return [];
+        }
+
+        const credential = Object.assign(new VaultCredential(), rawCredential);
+        if (rawCredential.TOTP) {
+            credential.TOTP =
+                typeof rawCredential.TOTP.Secret === "string" &&
+                rawCredential.TOTP.Secret.toLowerCase().startsWith("otpauth://")
+                    ? normalizeTotp(rawCredential.TOTP.Secret)
+                    : Object.assign(new TOTP(), rawCredential.TOTP);
+        }
+        credential.CustomFields = rawCredential.CustomFields ?? [];
+        return [ensureUniqueCustomFieldIDs(credential)];
+    });
+
+    if (skipped) {
+        warnings.push({
+            code: "CRYPTEX_DELETED_ITEMS_SKIPPED",
+            message: `${skipped} deleted Cryptex item(s) were skipped.`,
+        });
+    }
+
+    return {
+        source: "cryptex-json",
+        credentials,
+        groups: parsed.Groups,
+        warnings,
+        skipped,
+    };
+};
+
+export const parseImportFile = async (
+    source: ImportSource,
+    file: File,
+): Promise<ImportResult> => {
+    switch (source) {
+        case "cryptex-json":
+            return parseCryptexJSON(file);
+        case "bitwarden-json":
+            return parseBitwardenJSON(file);
+        case "onepassword-1pux":
+            return parseOnePassword1Pux(file);
+        case "keepass-xml":
+            return parseKeePassXML(file);
+        case "onepassword-csv":
+        case "keepass-csv":
+        case "lastpass-csv":
+        case "chrome-csv":
+        case "firefox-csv":
+            return parseGenericCsv(file, source);
+        default:
+            throw new Error("Unsupported import source");
+    }
+};
+
+export const applyImportToVault = async (
+    vault: Vault,
+    result: Pick<ImportResult, "credentials" | "groups">,
+): Promise<ApplyImportResult> => {
+    const vaultCopy = Object.assign(new Vault(), vault);
+    vaultCopy.Groups = [...(vault.Groups ?? [])];
+    vaultCopy.Credentials = [...(vault.Credentials ?? [])];
+
+    let importedGroups = 0;
+    const groupIdMap = new Map<string, string>();
+    for (const group of result.groups) {
+        const existing =
+            vaultCopy.Groups.find(
+                (item) => item.ID === group.ID || item.Name === group.Name,
+            ) ?? null;
+        const merged = upsertGroup(existing, group);
+        if (!existing) {
+            vaultCopy.Groups.push(merged);
+            importedGroups += 1;
+        }
+        groupIdMap.set(group.ID, merged.ID);
+    }
+
+    for (const credential of result.credentials) {
+        const groupID = groupIdMap.get(credential.GroupID);
+        const credentialToImport = groupID
+            ? {
+                  ...credential,
+                  GroupID: groupID,
+              }
+            : credential;
+        const assimilated = await assimilateImportedCredential(
+            ensureUniqueCustomFieldIDs(credentialToImport),
+        );
+        vaultCopy.Credentials.push(
+            Object.assign(new VaultCredential(), assimilated),
+        );
+    }
+
+    return {
+        vault: vaultCopy,
+        importedCredentials: result.credentials.length,
+        importedGroups,
+    };
 };

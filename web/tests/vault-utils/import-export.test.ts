@@ -20,6 +20,23 @@ import { CredentialConstants } from "../../src/utils/consts";
 import { ItemType } from "../../src/app_lib/proto/vault";
 jest.mock("../../src/app_lib/vault-utils/vault", () => ({
     __esModule: true,
+    assimilateImportedCredential: jest.fn(async (credential: any) => ({
+        ...credential,
+        ID: `assimilated-${credential.Name}`,
+        Hash: `hash-${credential.Name}`,
+    })),
+    upsertGroup: jest.fn((existing: any, form: any) =>
+        existing ? Object.assign(existing, form) : { ...form },
+    ),
+    Vault: class {
+        Groups: any[] = [];
+        Credentials: any[] = [];
+    },
+    VaultCredential: class {
+        ID = "";
+        Name = "";
+        Hash = "";
+    },
     TOTP: class {
         Label = "";
         Secret = "";
@@ -46,9 +63,11 @@ import {
     CSVGetColNames,
     FieldsSchema,
     PossibleFields,
-    Type,
+    applyImportToVault,
+    parseImportFile,
     vaultToJSON,
     type FieldsSchemaType,
+    type ImportResult,
 } from "../../src/app_lib/vault-utils/import-export";
 
 describe("vault-utils/import-export", () => {
@@ -78,7 +97,9 @@ describe("vault-utils/import-export", () => {
             const blobPayloads: string[] = [];
             class MockBlob {
                 constructor(parts: BlobPart[], _options?: BlobPropertyBag) {
-                    blobPayloads.push(String(parts[0] ?? ""));
+                    blobPayloads.push(
+                        typeof parts[0] === "string" ? parts[0] : "",
+                    );
                 }
             }
             Object.defineProperty(globalThis, "Blob", {
@@ -419,14 +440,6 @@ describe("vault-utils/import-export", () => {
     });
 
     describe("BitwardenJSON", () => {
-        type FileReaderErrorLike = {
-            onload: null | (() => void);
-            onerror: null | (() => void);
-            result: string | ArrayBuffer | null;
-            error: Error | null;
-            readAsText: (file: File) => void;
-        };
-
         class MockFileReader {
             static nextResult = "";
 
@@ -697,15 +710,313 @@ describe("vault-utils/import-export", () => {
             const output = await BitwardenJSON({} as File);
             expect(output.credentials[0]?.Type).toBe(ItemType.Credentials);
         });
+
+        it("parses Bitwarden otpauth TOTP URLs into usable TOTP settings", async () => {
+            MockFileReader.nextResult = JSON.stringify({
+                items: [
+                    {
+                        id: "totp-url",
+                        type: 1,
+                        name: "TOTP URL",
+                        login: {
+                            username: "alice",
+                            password: "pw",
+                            totp: "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=60&digits=8&algorithm=SHA256",
+                            uris: [],
+                        },
+                    },
+                ],
+            });
+
+            const output = await BitwardenJSON({} as File);
+
+            expect(output.credentials[0]?.TOTP).toMatchObject({
+                Label: "Example:alice",
+                Secret: "JBSWY3DPEHPK3PXP",
+                Period: 60,
+                Digits: 8,
+                Algorithm: 1,
+            });
+        });
+
+        it("parseImportFile preserves Bitwarden extras as custom fields and warnings", async () => {
+            MockFileReader.nextResult = JSON.stringify({
+                folders: [{ id: "cards", name: "Cards" }],
+                items: [
+                    {
+                        id: "card-1",
+                        folderId: "cards",
+                        type: 3,
+                        name: "Visa",
+                        card: {
+                            cardholderName: "Alice Example",
+                            brand: "Visa",
+                            number: "4111111111111111",
+                            expMonth: 12,
+                            expYear: 2030,
+                            code: "123",
+                        },
+                        fido2Credentials: [{ credentialId: "passkey" }],
+                    },
+                    {
+                        id: "login-1",
+                        type: 1,
+                        name: "Multi URL",
+                        login: {
+                            username: "alice",
+                            password: "pw",
+                            totp: "",
+                            uris: [
+                                { uri: "https://primary.example", match: null },
+                                {
+                                    uri: "https://secondary.example",
+                                    match: null,
+                                },
+                            ],
+                        },
+                    },
+                ],
+            });
+
+            const output = await parseImportFile("bitwarden-json", {} as File);
+            const [card, login] = output.credentials;
+
+            expect(output.groups).toHaveLength(1);
+            expect(output.warnings).toEqual([
+                expect.objectContaining({
+                    code: "BITWARDEN_PASSKEYS_UNSUPPORTED",
+                }),
+            ]);
+            expect(card?.CustomFields).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        Name: "Card number",
+                        Value: "4111111111111111",
+                    }),
+                    expect.objectContaining({
+                        Name: "Card security code",
+                        Value: "123",
+                    }),
+                ]),
+            );
+            expect(
+                new Set(card?.CustomFields.map((field) => field.ID)).size,
+            ).toBe(card?.CustomFields.length);
+            expect(card?.CustomFields.map((field) => field.ID)).not.toContain(
+                "-1",
+            );
+            expect(login?.URL).toBe("https://primary.example");
+            expect(login?.CustomFields).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        Name: "Bitwarden URI 2",
+                        Value: "https://secondary.example",
+                    }),
+                ]),
+            );
+        });
+    });
+
+    describe("parseImportFile", () => {
+        it("imports Cryptex Vault JSON exports and skips deleted tombstones", async () => {
+            const file = new File(
+                [
+                    JSON.stringify({
+                        Groups: [
+                            {
+                                ID: "source-group",
+                                Name: "Cryptex Group",
+                                Icon: "",
+                                Color: "",
+                            },
+                        ],
+                        Credentials: [
+                            {
+                                ID: "source-credential",
+                                Version: 0,
+                                Type: ItemType.Credentials,
+                                GroupID: "source-group",
+                                Name: "Cryptex Login",
+                                Username: "alice",
+                                Password: "pw",
+                                URL: "https://cryptex.example.test",
+                                Notes: "from export",
+                                CustomFields: [
+                                    {
+                                        ID: "-1",
+                                        Name: "Imported Field",
+                                        Type: 0,
+                                        Value: "value",
+                                    },
+                                ],
+                                DateCreated: "",
+                                DateCreatedTimestamp: 100,
+                                DateModifiedTimestamp: 200,
+                                DatePasswordChangedTimestamp: 300,
+                                Deleted: false,
+                                Hash: "old-hash",
+                            },
+                            {
+                                ID: "deleted",
+                                Version: 0,
+                                Type: ItemType.Credentials,
+                                GroupID: "source-group",
+                                Name: "Deleted Login",
+                                Username: "",
+                                Password: "",
+                                URL: "",
+                                Notes: "",
+                                CustomFields: [],
+                                DateCreated: "",
+                                DateCreatedTimestamp: 100,
+                                DateModifiedTimestamp: 100,
+                                DatePasswordChangedTimestamp: 100,
+                                Deleted: true,
+                                Hash: "",
+                            },
+                        ],
+                    }),
+                ],
+                "cryptexvault-export.json",
+                { type: "application/json" },
+            );
+
+            const output = await parseImportFile("cryptex-json", file);
+
+            expect(output.source).toBe("cryptex-json");
+            expect(output.groups).toHaveLength(1);
+            expect(output.credentials).toHaveLength(1);
+            expect(output.skipped).toBe(1);
+            expect(output.warnings).toEqual([
+                expect.objectContaining({
+                    code: "CRYPTEX_DELETED_ITEMS_SKIPPED",
+                }),
+            ]);
+            expect(output.credentials[0]).toMatchObject({
+                GroupID: "source-group",
+                Name: "Cryptex Login",
+                Username: "alice",
+                Password: "pw",
+            });
+            expect(output.credentials[0]?.CustomFields[0]?.ID).not.toBe("-1");
+        });
+
+        it("maps LastPass CSV into credentials and groups", async () => {
+            mockPapaParse.mockImplementation((_file, options) => {
+                const parseOptions = options as ParseOptions;
+                parseOptions.complete?.({
+                    data: [
+                        {
+                            url: "https://example.com",
+                            username: "alice",
+                            password: "pw",
+                            extra: "note body",
+                            name: "Example",
+                            grouping: "Work",
+                            fav: "1",
+                        },
+                    ],
+                    errors: [],
+                    meta: {},
+                });
+            });
+
+            const output = await parseImportFile("lastpass-csv", {} as File);
+
+            expect(output.groups).toEqual([
+                {
+                    ID: "import-group:Work",
+                    Name: "Work",
+                    Icon: "",
+                    Color: "",
+                },
+            ]);
+            expect(output.credentials[0]).toMatchObject({
+                GroupID: "import-group:Work",
+                Name: "Example",
+                Username: "alice",
+                Password: "pw",
+                URL: "https://example.com",
+                Notes: "note body",
+            });
+        });
+    });
+
+    describe("applyImportToVault", () => {
+        it("imports every credential as a new item and does not mutate input vault", async () => {
+            const vault = {
+                Groups: [{ ID: "existing", Name: "Existing" }],
+                Credentials: [{ ID: "old", Name: "Existing Login" }],
+            } as any;
+            const importResult = {
+                source: "cryptex-json",
+                groups: [{ ID: "g1", Name: "Imported", Icon: "", Color: "" }],
+                credentials: [
+                    { ID: "source-1", Name: "Existing Login" },
+                    { ID: "source-2", Name: "New Login" },
+                ],
+                warnings: [],
+                skipped: 0,
+            } as unknown as ImportResult;
+
+            const output = await applyImportToVault(vault, importResult);
+
+            expect(vault.Credentials).toHaveLength(1);
+            expect(output.vault).not.toBe(vault);
+            expect(output.vault.Groups).toHaveLength(2);
+            expect(output.vault.Credentials).toHaveLength(3);
+            expect(output.vault.Credentials.slice(1)).toEqual([
+                expect.objectContaining({
+                    ID: "assimilated-Existing Login",
+                    Name: "Existing Login",
+                }),
+                expect.objectContaining({
+                    ID: "assimilated-New Login",
+                    Name: "New Login",
+                }),
+            ]);
+        });
+
+        it("remaps imported credential groups to existing matching group names", async () => {
+            const vault = {
+                Groups: [{ ID: "target-group", Name: "Imported" }],
+                Credentials: [],
+            } as any;
+            const importResult = {
+                source: "cryptex-json",
+                groups: [
+                    {
+                        ID: "source-group",
+                        Name: "Imported",
+                        Icon: "",
+                        Color: "",
+                    },
+                ],
+                credentials: [
+                    {
+                        ID: "source-1",
+                        GroupID: "source-group",
+                        Name: "Grouped Login",
+                        CustomFields: [],
+                    },
+                ],
+                warnings: [],
+                skipped: 0,
+            } as unknown as ImportResult;
+
+            const output = await applyImportToVault(vault, importResult);
+
+            expect(output.vault.Groups).toHaveLength(1);
+            expect(output.vault.Credentials[0]).toEqual(
+                expect.objectContaining({
+                    GroupID: "target-group",
+                    Name: "Grouped Login",
+                }),
+            );
+        });
     });
 
     describe("Type enum and FieldsSchema", () => {
-        it("exposes stable numeric Type enum values", () => {
-            expect(Type.GenericCSV).toBe(0);
-            expect(Type.Bitwarden).toBe(1);
-            expect(Type.KeePass2).toBe(2);
-        });
-
         it("PossibleFields covers each importable Fields key", () => {
             const fieldNames = PossibleFields.map((f) => f.field).sort();
             expect(fieldNames).toEqual(
@@ -780,7 +1091,7 @@ describe("vault-utils/import-export", () => {
                     TagDelimiter: ",",
                     Deleted: "Deleted",
                 }),
-            ).toThrow();
+            ).toThrow("Expected number");
         });
     });
 

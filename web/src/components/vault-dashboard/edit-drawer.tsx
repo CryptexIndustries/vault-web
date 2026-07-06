@@ -715,9 +715,6 @@ export function EditDrawer({
                                             const fieldType = watch(
                                                 `CustomFields.${index}.Type`,
                                             );
-                                            const fieldValue = watch(
-                                                `CustomFields.${index}.Value`,
-                                            );
                                             return (
                                                 <div
                                                     key={field.id}
@@ -792,16 +789,6 @@ export function EditDrawer({
                                                                 )}
                                                             />
                                                         </div>
-                                                        {fieldType ===
-                                                            CustomFieldType.MaskedText &&
-                                                        fieldValue.length >
-                                                            0 ? (
-                                                            <PasswordStrengthMeter
-                                                                password={
-                                                                    fieldValue
-                                                                }
-                                                            />
-                                                        ) : null}
                                                     </div>
                                                     <Button
                                                         type="button"

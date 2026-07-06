@@ -59,6 +59,7 @@ function CopyableField({
     value,
     icon: Icon,
     isPassword = false,
+    showStrengthMeter = false,
     onOpenUrl = null,
     isCopied,
     onCopy,
@@ -67,6 +68,7 @@ function CopyableField({
     value: string;
     icon: React.ElementType;
     isPassword?: boolean;
+    showStrengthMeter?: boolean;
     onOpenUrl?: (() => void) | null;
     isCopied: boolean;
     onCopy: () => void;
@@ -155,7 +157,7 @@ function CopyableField({
                     </TooltipProvider>
                 </div>
             </div>
-            {isPassword && value.length > 0 ? (
+            {showStrengthMeter && value.length > 0 ? (
                 <PasswordStrengthMeter
                     password={value}
                     showSuggestions={false}
@@ -461,6 +463,7 @@ export function CredentialDetail({
                         value={credential.Password}
                         icon={Key}
                         isPassword
+                        showStrengthMeter
                         isCopied={copiedField === "password"}
                         onCopy={() =>
                             handleCopy("password", credential.Password)

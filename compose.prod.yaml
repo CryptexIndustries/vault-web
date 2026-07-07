@@ -38,6 +38,12 @@ services:
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://0.0.0.0:3000 || exit 1",
+        ]
 
   web-cloud:
     profiles: ["cloud"]
@@ -53,3 +59,9 @@ services:
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://0.0.0.0:3000 || exit 1",
+        ]

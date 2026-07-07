@@ -34,8 +34,6 @@ services:
       dockerfile: web/prod.Dockerfile
       args:
         <<: *client-build-args
-    ports:
-      - "${CLIENT_WEB_PORT:-3000}:3000"
     environment:
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
@@ -51,8 +49,6 @@ services:
         <<: *client-build-args
         NEXT_PUBLIC_CLOUD_ENABLED: "true"
         NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
-    ports:
-      - "${CLIENT_WEB_PORT:-3000}:3000"
     environment:
       HOSTNAME: "0.0.0.0"
       PORT: "3000"

@@ -21,10 +21,12 @@ import {
     performOnlineServicesPasskeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
+    type OnlineServicesSessionTokens,
 } from "./online-services-session/protocol";
 
 const sessionRefreshRunner = createRefreshInFlightRunner();
 const forcedReauthGate = createForcedReauthGate();
+let sessionGeneration = 0;
 
 export function createBareAuthHeader() {
     const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
@@ -53,6 +55,19 @@ function shouldRefreshSession(expiresAtMs: number) {
     return shouldRefreshOnlineServicesSession(expiresAtMs);
 }
 
+function applySessionTokens(
+    base: OnlineServicesData,
+    tokens: OnlineServicesSessionTokens,
+): OnlineServicesData {
+    return {
+        ...base,
+        sessionToken: tokens.sessionToken,
+        sessionExpiresAt: tokens.expiresAt,
+        refreshToken: tokens.refreshToken,
+        refreshExpiresAt: tokens.refreshExpiresAt,
+    };
+}
+
 const webOnlineServicesAuthApi = {
     challenge: (deviceId: string) =>
         authSessionClient.v1.auth.challenge.mutate({ deviceId }),
@@ -61,31 +76,33 @@ const webOnlineServicesAuthApi = {
         signature: string;
         deviceId: string;
     }) => authSessionClient.v1.auth.verify.mutate(input),
-    refresh: (sessionToken: string) =>
-        authSessionClient.v1.auth.refresh.mutate({ sessionToken }),
+    refresh: (refreshToken: string) =>
+        authSessionClient.v1.auth.refresh.mutate({ refreshToken }),
 };
 
 export async function refreshOnlineServicesSession(): Promise<boolean> {
     const data = onlineServicesStore.get(onlineServicesDataAtom);
-    if (!data?.sessionToken) return false;
+    if (!data?.refreshToken) return false;
+    const refreshToken = data.refreshToken;
+    const generation = sessionGeneration;
 
     const refreshed = await refreshOnlineServicesSessionTokens(
         webOnlineServicesAuthApi,
-        data.sessionToken,
+        refreshToken,
     );
     if (!refreshed) {
         return false;
     }
 
     const latest = onlineServicesStore.get(onlineServicesDataAtom);
-    if (!latest) {
+    if (
+        generation !== sessionGeneration ||
+        !latest ||
+        latest.refreshToken !== refreshToken
+    ) {
         return false;
     }
-    setOnlineServicesData({
-        ...latest,
-        sessionToken: refreshed.sessionToken,
-        sessionExpiresAt: refreshed.expiresAt,
-    });
+    setOnlineServicesData(applySessionTokens(latest, refreshed));
     return true;
 }
 
@@ -119,6 +136,11 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
             return false;
         }
 
+        // Revoked access JWTs may still be within expiry — rotate via refresh first.
+        if (await refreshOnlineServicesSession()) {
+            return true;
+        }
+
         return reauthenticateOnlineServicesSession();
     });
 }
@@ -131,6 +153,16 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
         : null;
 
     if (!data?.sessionToken?.length) {
+        if (data?.refreshToken) {
+            return runOnlineServicesSessionRefresh(async () => {
+                if (await refreshOnlineServicesSession()) {
+                    return true;
+                }
+                if (!vaultOnlineServices) return false;
+                return reauthenticateOnlineServicesSession();
+            });
+        }
+
         if (!vaultOnlineServices) return false;
 
         return runOnlineServicesSessionRefresh(
@@ -139,20 +171,24 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
     }
 
     if (vaultOnlineServices && data.deviceId !== vaultOnlineServices.DeviceId) {
-        setOnlineServicesData(null);
+        await logoutOnlineServicesSession();
         return runOnlineServicesSessionRefresh(
             reauthenticateOnlineServicesSession,
         );
     }
 
-    if (
+    const sessionNeedsRefresh =
         typeof data.sessionExpiresAt !== "number" ||
-        !shouldRefreshSession(data.sessionExpiresAt)
-    ) {
-        if (typeof data.sessionExpiresAt === "number") {
-            return false;
-        }
+        shouldRefreshSession(data.sessionExpiresAt);
+    const refreshNeedsRotation =
+        typeof data.refreshExpiresAt === "number" &&
+        shouldRefreshSession(data.refreshExpiresAt);
 
+    if (!sessionNeedsRefresh && !refreshNeedsRotation) {
+        return false;
+    }
+
+    if (!data.refreshToken) {
         if (!vaultOnlineServices) return false;
 
         return runOnlineServicesSessionRefresh(
@@ -168,6 +204,31 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
 
         return reauthenticateOnlineServicesSession();
     });
+}
+
+/**
+ * Revokes the current server session (JWT jti + refresh token) then clears
+ * local state. Best-effort when the network call fails.
+ */
+export async function logoutOnlineServicesSession(): Promise<void> {
+    const data = onlineServicesStore.get(onlineServicesDataAtom);
+    sessionGeneration += 1;
+
+    if (data?.sessionToken) {
+        try {
+            await authSessionClient.v1.auth.logout.mutate({
+                refreshToken: data.refreshToken ?? undefined,
+            });
+        } catch {
+            // Local clear still proceeds when revocation fails offline.
+        }
+    }
+
+    setOnlineServicesData(null);
+    onlineServicesStore.set(
+        onlineServicesAuthConnectionStatusAtom,
+        onlineServicesAuthenticationStatus.disconnected(),
+    );
 }
 
 /**
@@ -189,23 +250,19 @@ export async function establishPremiumSession(options: {
         );
 
         const prev = onlineServicesStore.get(onlineServicesDataAtom);
-        const next: OnlineServicesData = {
-            deviceId: options.deviceId,
-            sessionToken: verified.sessionToken,
-            sessionExpiresAt: verified.expiresAt,
-            remoteData: prev?.remoteData ?? null,
-        };
+        const next: OnlineServicesData = applySessionTokens(
+            {
+                deviceId: options.deviceId,
+                remoteData: prev?.remoteData ?? null,
+            },
+            verified,
+        );
         setOnlineServicesData(next);
 
         onlineServicesStore.set(
             onlineServicesAuthConnectionStatusAtom,
             onlineServicesAuthenticationStatus.connected(),
         );
-
-        // return {
-        //     sessionToken: verified.sessionToken,
-        //     expiresAt: verified.expiresAt,
-        // };
     } catch (e) {
         onlineServicesStore.set(
             onlineServicesAuthConnectionStatusAtom,

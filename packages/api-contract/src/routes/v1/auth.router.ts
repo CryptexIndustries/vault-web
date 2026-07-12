@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import { publicProcedure } from "../../trpc";
+import { protectedProcedure, publicProcedure } from "../../trpc";
 
 const deviceIdSchema = z.string().min(1).max(128);
-const sessionTokenSchema = z.string().min(1).max(4096);
+const refreshTokenSchema = z.string().min(1).max(256);
 
 export const authRouterRegister = publicProcedure
     .input(
@@ -46,7 +46,9 @@ export const authRouterVerify = publicProcedure
     .output(
         z.object({
             sessionToken: z.string(),
+            refreshToken: z.string(),
             expiresAt: z.number(),
+            refreshExpiresAt: z.number(),
         }),
     )
     .mutation(() => {
@@ -54,13 +56,26 @@ export const authRouterVerify = publicProcedure
     })
 ;
 export const authRouterRefresh = publicProcedure
-    .input(z.object({ sessionToken: sessionTokenSchema }))
+    .input(z.object({ refreshToken: refreshTokenSchema }))
     .output(
         z.object({
             sessionToken: z.string(),
+            refreshToken: z.string(),
             expiresAt: z.number(),
+            refreshExpiresAt: z.number(),
         }),
     )
+    .mutation(() => {
+        throw new Error("api-contract stub");
+    })
+;
+export const authRouterLogout = protectedProcedure
+    .input(
+        z.object({
+            refreshToken: refreshTokenSchema.optional(),
+        }),
+    )
+    .output(z.object({ success: z.literal(true) }))
     .mutation(() => {
         throw new Error("api-contract stub");
     })

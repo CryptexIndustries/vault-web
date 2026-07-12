@@ -28,6 +28,7 @@ import {
     performOnlineServicesPasskeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
+    type OnlineServicesSessionTokens,
 } from "@/app_lib/online-services-session/protocol";
 
 import {
@@ -40,6 +41,33 @@ import { getExtensionOnlineServicesTrpcUrl } from "../utils/online-services-api-
 
 const sessionRefreshRunner = createRefreshInFlightRunner();
 const forcedReauthGate = createForcedReauthGate();
+let sessionGeneration = 0;
+
+function applySessionTokens(
+    tokens: OnlineServicesSessionTokens,
+    patch: Partial<OnlineServicesSessionRecord> = {},
+): Partial<OnlineServicesSessionRecord> {
+    return {
+        ...patch,
+        sessionToken: tokens.sessionToken,
+        sessionExpiresAt: tokens.expiresAt,
+        refreshToken: tokens.refreshToken,
+        refreshExpiresAt: tokens.refreshExpiresAt,
+    };
+}
+
+async function createBareAuthHeader(): Promise<Record<string, string>> {
+    const record = await getOnlineServicesSession();
+    const headers: Record<string, string> = {
+        Authorization: "",
+    };
+
+    if (record.sessionToken) {
+        headers.Authorization = `Bearer ${record.sessionToken}`;
+    }
+
+    return headers;
+}
 
 /**
  * SW-internal tRPC client. It MUST NOT use the proxy fetch - the proxy
@@ -64,6 +92,7 @@ const authTrpcClient = createTRPCClient<any>({
         httpBatchLink({
             url: getExtensionOnlineServicesTrpcUrl(),
             transformer: superjson,
+            headers: createBareAuthHeader,
             fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
                 globalThis.fetch(input, init)) as typeof fetch as never,
         }),
@@ -108,31 +137,38 @@ const swOnlineServicesAuthApi = {
         signature: string;
         deviceId: string;
     }) => authTrpcClient.v1.auth.verify.mutate(input),
-    refresh: (sessionToken: string) =>
-        authTrpcClient.v1.auth.refresh.mutate({ sessionToken }),
+    refresh: (refreshToken: string) =>
+        authTrpcClient.v1.auth.refresh.mutate({ refreshToken }),
 };
 
 /**
- * Trades the current session token for a fresh one via `v1.auth.refresh`.
- * Returns `false` if there is no current session or the refresh failed.
+ * Trades the current refresh token for a fresh session pair via `v1.auth.refresh`.
+ * Returns `false` if there is no refresh token or the refresh failed.
  */
 async function refreshOnlineServicesSession(): Promise<boolean> {
     const record = await getOnlineServicesSession();
-    if (!record.sessionToken) return false;
+    if (!record.refreshToken) return false;
+    const refreshToken = record.refreshToken;
+    const generation = sessionGeneration;
 
     const refreshed = await refreshOnlineServicesSessionTokens(
         swOnlineServicesAuthApi,
-        record.sessionToken,
+        refreshToken,
     );
     if (!refreshed) {
         console.warn("[SW] OS session refresh failed");
         return false;
     }
 
-    await setOnlineServicesSession({
-        sessionToken: refreshed.sessionToken,
-        sessionExpiresAt: refreshed.expiresAt,
-    });
+    const latest = await getOnlineServicesSession();
+    if (
+        generation !== sessionGeneration ||
+        latest.refreshToken !== refreshToken
+    ) {
+        return false;
+    }
+
+    await setOnlineServicesSession(applySessionTokens(refreshed));
     return true;
 }
 
@@ -155,12 +191,12 @@ export async function establishOnlineServicesSession(args: {
             args,
         );
 
-        await setOnlineServicesSession({
-            sessionToken: verified.sessionToken,
-            sessionExpiresAt: verified.expiresAt,
-            deviceId: args.deviceId,
-            privateKeyJWK: args.privateKeyJWK,
-        });
+        await setOnlineServicesSession(
+            applySessionTokens(verified, {
+                deviceId: args.deviceId,
+                privateKeyJWK: args.privateKeyJWK,
+            }),
+        );
 
         return { ok: true };
     } catch (error) {
@@ -230,6 +266,20 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
     const record = await getOnlineServicesSession();
 
     if (!record.sessionToken) {
+        if (record.refreshToken) {
+            return sessionRefreshRunner.run(async () => {
+                if (await refreshOnlineServicesSession()) return true;
+                if (
+                    record.deviceId &&
+                    record.privateKeyJWK &&
+                    (await reauthenticateFromStoredCredentials())
+                ) {
+                    return true;
+                }
+                return establishOnlineServicesSessionFromUnlockedVault();
+            });
+        }
+
         const hasStoredCreds = !!record.deviceId && !!record.privateKeyJWK;
         return sessionRefreshRunner.run(async () => {
             if (
@@ -242,11 +292,22 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
         });
     }
 
-    if (
-        typeof record.sessionExpiresAt === "number" &&
-        !shouldRefreshSession(record.sessionExpiresAt)
-    ) {
+    const sessionNeedsRefresh =
+        typeof record.sessionExpiresAt !== "number" ||
+        shouldRefreshSession(record.sessionExpiresAt);
+    const refreshNeedsRotation =
+        typeof record.refreshExpiresAt === "number" &&
+        shouldRefreshSession(record.refreshExpiresAt);
+
+    if (!sessionNeedsRefresh && !refreshNeedsRotation) {
         return true;
+    }
+
+    if (!record.refreshToken) {
+        return sessionRefreshRunner.run(async () => {
+            if (await reauthenticateFromStoredCredentials()) return true;
+            return establishOnlineServicesSessionFromUnlockedVault();
+        });
     }
 
     return sessionRefreshRunner.run(async () => {
@@ -268,9 +329,33 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
             return false;
         }
 
+        if (await refreshOnlineServicesSession()) {
+            return true;
+        }
+
         if (await reauthenticateFromStoredCredentials()) return true;
         return establishOnlineServicesSessionFromUnlockedVault();
     });
+}
+
+/**
+ * Revokes the current server session then drops local credentials.
+ */
+export async function logoutOnlineServicesSession(): Promise<void> {
+    const record = await getOnlineServicesSession();
+    sessionGeneration += 1;
+
+    if (record.sessionToken) {
+        try {
+            await authTrpcClient.v1.auth.logout.mutate({
+                refreshToken: record.refreshToken ?? undefined,
+            });
+        } catch {
+            // Local clear still proceeds when revocation fails offline.
+        }
+    }
+
+    await clearStoredSession();
 }
 
 /**
@@ -278,7 +363,7 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
  * the linked device, or the link receive flow signals "no online services".
  */
 export async function clearOnlineServicesSession(): Promise<void> {
-    await clearStoredSession();
+    await logoutOnlineServicesSession();
 }
 
 export type { OnlineServicesSessionRecord };

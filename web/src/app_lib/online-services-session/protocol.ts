@@ -8,7 +8,9 @@ export const FORCED_REAUTH_COOLDOWN_MS = 30_000;
 
 export type OnlineServicesSessionTokens = {
     sessionToken: string;
+    refreshToken: string;
     expiresAt: number;
+    refreshExpiresAt: number;
 };
 
 export type OnlineServicesAuthApi = {
@@ -21,7 +23,7 @@ export type OnlineServicesAuthApi = {
         signature: string;
         deviceId: string;
     }): Promise<OnlineServicesSessionTokens>;
-    refresh(sessionToken: string): Promise<OnlineServicesSessionTokens>;
+    refresh(refreshToken: string): Promise<OnlineServicesSessionTokens>;
 };
 
 export function shouldRefreshOnlineServicesSession(
@@ -51,10 +53,10 @@ export async function performOnlineServicesPasskeyAuth(
 
 export async function refreshOnlineServicesSessionTokens(
     api: OnlineServicesAuthApi,
-    sessionToken: string,
+    refreshToken: string,
 ): Promise<OnlineServicesSessionTokens | null> {
     try {
-        return await api.refresh(sessionToken);
+        return await api.refresh(refreshToken);
     } catch {
         return null;
     }

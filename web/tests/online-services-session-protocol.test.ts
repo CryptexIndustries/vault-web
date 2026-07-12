@@ -22,6 +22,7 @@ import {
     performOnlineServicesPasskeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
+    type OnlineServicesAuthApi,
 } from "../src/app_lib/online-services-session/protocol";
 
 describe("online-services-session protocol", () => {
@@ -40,23 +41,34 @@ describe("online-services-session protocol", () => {
     });
 
     it("performOnlineServicesPasskeyAuth runs challenge, sign, verify", async () => {
-        const challenge = jest.fn(async () => ({
+        const challenge: jest.MockedFunction<
+            OnlineServicesAuthApi["challenge"]
+        > = jest.fn(async () => ({
             challengeId: "ch_1",
             challenge: Buffer.from("abc").toString("base64"),
         }));
-        const verify = jest.fn(async () => ({
-            sessionToken: "token_1",
-            expiresAt: 2_000_000,
-        }));
+        const verify: jest.MockedFunction<OnlineServicesAuthApi["verify"]> =
+            jest.fn(async () => ({
+                sessionToken: "token_1",
+                refreshToken: "refresh_1",
+                expiresAt: 2_000_000,
+                refreshExpiresAt: 9_000_000,
+            }));
 
         const tokens = await performOnlineServicesPasskeyAuth(
-            { challenge, verify, refresh: jest.fn() },
+            {
+                challenge,
+                verify,
+                refresh: jest.fn<OnlineServicesAuthApi["refresh"]>(),
+            },
             { deviceId: "dev_1", privateKeyJWK: "{}" },
         );
 
         expect(tokens).toEqual({
             sessionToken: "token_1",
+            refreshToken: "refresh_1",
             expiresAt: 2_000_000,
+            refreshExpiresAt: 9_000_000,
         });
         expect(challenge).toHaveBeenCalledWith("dev_1");
         expect(verify).toHaveBeenCalledWith({
@@ -70,8 +82,8 @@ describe("online-services-session protocol", () => {
         await expect(
             refreshOnlineServicesSessionTokens(
                 {
-                    challenge: jest.fn(),
-                    verify: jest.fn(),
+                    challenge: jest.fn<OnlineServicesAuthApi["challenge"]>(),
+                    verify: jest.fn<OnlineServicesAuthApi["verify"]>(),
                     refresh: jest.fn(async () => {
                         throw new Error("expired");
                     }),

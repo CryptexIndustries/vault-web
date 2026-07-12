@@ -18,7 +18,10 @@ import {
 } from "../app_lib/auth-session";
 
 function shouldEnsureFreshSession(opList: Operation[]) {
-    return opList.some((op) => !op.path.startsWith("v1.auth."));
+    return opList.some((op) => {
+        if (op.path === "v1.auth.logout") return true;
+        return !op.path.startsWith("v1.auth.");
+    });
 }
 
 async function createHeadersWithFreshSession(opList: Operation[]) {

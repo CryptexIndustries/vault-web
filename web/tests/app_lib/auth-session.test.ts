@@ -11,8 +11,13 @@ if (
     });
 }
 
-type RefreshInput = { sessionToken: string };
-type RefreshResult = { sessionToken: string; expiresAt: number };
+type RefreshInput = { refreshToken: string };
+type RefreshResult = {
+    sessionToken: string;
+    refreshToken: string;
+    expiresAt: number;
+    refreshExpiresAt: number;
+};
 type ChallengeInput = { deviceId: string };
 type ChallengeResult = {
     challengeId: string;
@@ -24,8 +29,16 @@ type VerifyInput = {
     signature: string;
     deviceId: string;
 };
-type VerifyResult = { sessionToken: string; expiresAt: number };
+type VerifyResult = {
+    sessionToken: string;
+    refreshToken: string;
+    expiresAt: number;
+    refreshExpiresAt: number;
+};
 
+const logoutMutate = jest.fn() as jest.MockedFunction<
+    (input: { refreshToken?: string }) => Promise<{ success: true }>
+>;
 const refreshMutate = jest.fn() as jest.MockedFunction<
     (input: RefreshInput) => Promise<RefreshResult>
 >;
@@ -45,6 +58,9 @@ jest.mock("@trpc/client", () => ({
             auth: {
                 refresh: {
                     mutate: refreshMutate,
+                },
+                logout: {
+                    mutate: logoutMutate,
                 },
                 challenge: {
                     mutate: challengeMutate,
@@ -113,6 +129,7 @@ const mockSignChallenge = signChallenge as jest.MockedFunction<
 describe("auth-session freshness checks", () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        logoutMutate.mockResolvedValue({ success: true as const });
         setOnlineServicesData(null);
         vaultStore.set(unlockedVaultAtom, new Vault());
     });
@@ -148,7 +165,9 @@ describe("auth-session freshness checks", () => {
         });
         verifyMutate.mockResolvedValue({
             sessionToken: "token_2",
+            refreshToken: "refresh_2",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
         mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
         mockSignChallenge.mockResolvedValue("signature_1");
@@ -208,7 +227,9 @@ describe("auth-session freshness checks", () => {
         });
         verifyMutate.mockResolvedValue({
             sessionToken: "token_for_device_2",
+            refreshToken: "refresh_for_device_2",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
         mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
         mockSignChallenge.mockResolvedValue("signature_2");
@@ -254,7 +275,9 @@ describe("auth-session freshness checks", () => {
         });
         verifyMutate.mockResolvedValue({
             sessionToken: "forced_token",
+            refreshToken: "forced_refresh",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
         mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
         mockSignChallenge.mockResolvedValue("forced_signature");
@@ -307,6 +330,8 @@ describe("auth-session freshness checks", () => {
             deviceId: "device_1",
             sessionToken: "token_1",
             sessionExpiresAt: Date.now() + 10_000,
+            refreshToken: "refresh_1",
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             remoteData: null,
         });
 
@@ -335,13 +360,17 @@ describe("auth-session freshness checks", () => {
     it("refreshes the session when expiry is near and keeps existing state", async () => {
         refreshMutate.mockResolvedValue({
             sessionToken: "token_2",
+            refreshToken: "refresh_2",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
 
         setOnlineServicesData({
             deviceId: "device_1",
             sessionToken: "token_1",
             sessionExpiresAt: Date.now() + 30_000,
+            refreshToken: "refresh_1",
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             remoteData: {
                 deviceId: "device_1",
                 root: true,
@@ -358,11 +387,12 @@ describe("auth-session freshness checks", () => {
 
         expect(refreshed).toBe(true);
         expect(refreshMutate).toHaveBeenCalledWith({
-            sessionToken: "token_1",
+            refreshToken: "refresh_1",
         });
         expect(session).toMatchObject({
             deviceId: "device_1",
             sessionToken: "token_2",
+            refreshToken: "refresh_2",
             remoteData: {
                 root: true,
                 canLink: true,
@@ -376,17 +406,17 @@ describe("auth-session freshness checks", () => {
 
         refreshMutate.mockImplementation(
             () =>
-                new Promise<{ sessionToken: string; expiresAt: number }>(
-                    (resolve) => {
-                        resolveRefresh = resolve;
-                    },
-                ),
+                new Promise<RefreshResult>((resolve) => {
+                    resolveRefresh = resolve;
+                }),
         );
 
         setOnlineServicesData({
             deviceId: "device_1",
             sessionToken: "token_1",
             sessionExpiresAt: Date.now() + 10_000,
+            refreshToken: "refresh_1",
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             remoteData: null,
         });
 
@@ -397,7 +427,9 @@ describe("auth-session freshness checks", () => {
 
         resolveRefresh({
             sessionToken: "token_2",
+            refreshToken: "refresh_2",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
 
         await expect(Promise.all([first, second])).resolves.toEqual([
@@ -416,7 +448,9 @@ describe("auth-session freshness checks", () => {
         });
         verifyMutate.mockResolvedValue({
             sessionToken: "token_2",
+            refreshToken: "refresh_2",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
         mockParseJwkFromString.mockReturnValue({ kty: "EC" } as JsonWebKey);
         mockSignChallenge.mockResolvedValue("signature_1");
@@ -432,6 +466,8 @@ describe("auth-session freshness checks", () => {
             deviceId: "device_1",
             sessionToken: "token_1",
             sessionExpiresAt: Date.now() + 10_000,
+            refreshToken: "refresh_1",
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             remoteData: null,
         });
 
@@ -440,7 +476,7 @@ describe("auth-session freshness checks", () => {
 
         expect(refreshed).toBe(true);
         expect(refreshMutate).toHaveBeenCalledWith({
-            sessionToken: "token_1",
+            refreshToken: "refresh_1",
         });
         expect(challengeMutate).toHaveBeenCalledWith({
             deviceId: "device_1",
@@ -471,6 +507,8 @@ describe("auth-session freshness checks", () => {
             deviceId: "device_1",
             sessionToken: "token_1",
             sessionExpiresAt: Date.now() + 10_000,
+            refreshToken: "refresh_1",
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             remoteData: null,
         });
 
@@ -517,6 +555,8 @@ describe("refreshOnlineServicesSession", () => {
             deviceId: "device_1",
             sessionToken: "token_1",
             sessionExpiresAt: Date.now() + 30_000,
+            refreshToken: "refresh_1",
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             remoteData: null,
         });
 
@@ -524,7 +564,9 @@ describe("refreshOnlineServicesSession", () => {
             setOnlineServicesData(null);
             return {
                 sessionToken: "token_2",
+                refreshToken: "refresh_2",
                 expiresAt: Date.now() + 15 * 60_000,
+                refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
             };
         });
 
@@ -566,7 +608,9 @@ describe("establishPremiumSession", () => {
         });
         verifyMutate.mockResolvedValue({
             sessionToken: "new_token",
+            refreshToken: "new_refresh",
             expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
         });
 
         await establishPremiumSession({

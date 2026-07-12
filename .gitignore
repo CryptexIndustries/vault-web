@@ -13,6 +13,7 @@ web/coverage/
 # database
 # next.js
 .next/
+web/next-env.d.ts
 web/out/
 
 # production

@@ -22,8 +22,11 @@ const STORAGE_KEY = "OS_SESSION";
 export interface OnlineServicesSessionRecord {
     /** Bearer JWT signed by the auth router. `null` when never established. */
     sessionToken: string | null;
-    /** Unix epoch (seconds) — matches `signSessionToken`'s `expiresAt`. */
+    /** Unix epoch (ms) — matches `signSessionToken`'s `expiresAt`. */
     sessionExpiresAt: number | null;
+    /** Opaque refresh credential rotated by `auth.refresh`. */
+    refreshToken: string | null;
+    refreshExpiresAt: number | null;
     /** Device id that owns the passkey signing the challenge. */
     deviceId: string | null;
     /**
@@ -37,6 +40,8 @@ export interface OnlineServicesSessionRecord {
 const EMPTY: OnlineServicesSessionRecord = {
     sessionToken: null,
     sessionExpiresAt: null,
+    refreshToken: null,
+    refreshExpiresAt: null,
     deviceId: null,
     privateKeyJWK: null,
 };
@@ -53,6 +58,12 @@ export async function getOnlineServicesSession(): Promise<OnlineServicesSessionR
         sessionExpiresAt:
             typeof raw.sessionExpiresAt === "number"
                 ? raw.sessionExpiresAt
+                : null,
+        refreshToken:
+            typeof raw.refreshToken === "string" ? raw.refreshToken : null,
+        refreshExpiresAt:
+            typeof raw.refreshExpiresAt === "number"
+                ? raw.refreshExpiresAt
                 : null,
         deviceId: typeof raw.deviceId === "string" ? raw.deviceId : null,
         privateKeyJWK:

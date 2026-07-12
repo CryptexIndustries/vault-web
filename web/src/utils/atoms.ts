@@ -8,6 +8,9 @@ export type OnlineServicesData = {
     /** Passkey session JWT (`Authorization: Bearer`). */
     sessionToken?: string | null;
     sessionExpiresAt?: number | null;
+    /** Opaque refresh credential rotated by `auth.refresh`. */
+    refreshToken?: string | null;
+    refreshExpiresAt?: number | null;
     deviceId?: string;
     remoteData: {
         deviceId?: string;

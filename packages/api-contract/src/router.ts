@@ -3,11 +3,13 @@ import { router } from "./trpc";
 import {
     userRouterClearRecoveryToken,
     userRouterDelete,
+    userRouterDeleteChallenge,
     userRouterGenerateRecoveryToken,
     userRouterConfiguration,
 } from "./routes/v1/user.router";
 import {
     authRouterChallenge,
+    authRouterLogout,
     authRouterRecover,
     authRouterRefresh,
     authRouterRegister as authRouterRegisterPasskey,
@@ -24,11 +26,6 @@ import {
     deviceRouterBreakLink,
 } from "./routes/v1/device.router";
 import {
-    feedbackRouterContact,
-    feedbackRouterGiveFeedback,
-    feedbackRouterNotifyMe,
-} from "./routes/v1/feedback.router";
-import {
     featureVotingRouterGetRounds,
     featureVotingRouterOpenRoundExists,
     featureVotingRouterPlaceVote,
@@ -41,22 +38,19 @@ import {
 
 const _versionedRouter = router({
     v1: router({
-        feedback: router({
-            notifyMe: feedbackRouterNotifyMe,
-            contact: feedbackRouterContact,
-            feedback: feedbackRouterGiveFeedback,
-        }),
         auth: router({
             register: authRouterRegisterPasskey,
             challenge: authRouterChallenge,
             verify: authRouterVerify,
             refresh: authRouterRefresh,
             recover: authRouterRecover,
+            logout: authRouterLogout,
         }),
         user: router({
             generateRecoveryToken: userRouterGenerateRecoveryToken,
             clearRecoveryToken: userRouterClearRecoveryToken,
             configuration: userRouterConfiguration,
+            deleteChallenge: userRouterDeleteChallenge,
             delete: userRouterDelete,
         }),
         device: router({

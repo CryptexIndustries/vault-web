@@ -1,18 +1,14 @@
 import { NextPage } from "next";
 import Link from "next/link";
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import PageFooter from "@/components/general/footer";
 import HTMLHeader from "@/components/html-header";
 import HTMLMain from "@/components/html-main";
 
 import { CryptexVaultLogo } from "@/components/brand-image";
-import { Body, Footer, GenericModal } from "@/components/general/modal";
-import Spinner from "@/components/general/spinner";
-import ContactUsForm from "@/components/index/contact-us-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import {
     ArrowRight,
     Code,
@@ -20,7 +16,6 @@ import {
     GitFork,
     HelpCircle,
     LinkIcon,
-    Loader2,
     Lock,
     Server,
     Shield,
@@ -30,17 +25,6 @@ import {
 } from "lucide-react";
 
 const Index: NextPage = () => {
-    const contactUsModalVisibility = useState(false);
-    const contactUsModalSubmitting = useState(false);
-    const cloudServicesEnabled = isCloudServicesEnabled();
-
-    const showContactUsModal = () => {
-        if (!cloudServicesEnabled) return;
-        contactUsModalVisibility[1](true);
-    };
-    const hideContactUsModal = () => contactUsModalVisibility[1](false);
-    const contactUsSubmitBtnRef = useRef<HTMLButtonElement>(null);
-
     return (
         <>
             <HTMLHeader
@@ -55,94 +39,22 @@ const Index: NextPage = () => {
                         id="section-contact"
                         className="mb-4 flex w-full flex-col justify-around pt-10 sm:flex-row"
                     >
-                        <div>
-                            <h1 className="text-4xl font-bold text-slate-200">
-                                Get in touch
-                            </h1>
-                            <p className="mt-1 text-slate-300">
-                                Feel free to contact us for any questions or to
-                                learn more about our service.
+                        <div className="text-center sm:text-left">
+                            <p className="text-slate-300">
+                                We care about the protection of your data.
+                                <br /> Read our {""}
+                                <Link
+                                    href="/privacy"
+                                    className="font-bold underline"
+                                >
+                                    Privacy Policy
+                                </Link>
+                                .
                             </p>
-                        </div>
-                        <div className="mt-4 flex flex-col justify-center gap-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                            <Button
-                                variant="secondary"
-                                onClick={showContactUsModal}
-                                disabled={!cloudServicesEnabled}
-                            >
-                                Contact us
-                            </Button>
-                            {!cloudServicesEnabled && (
-                                <p className="text-sm text-slate-400">
-                                    Contact form unavailable in local-only mode.
-                                </p>
-                            )}
-                            <div>
-                                <p className="text-slate-300">
-                                    We care about the protection of your data.
-                                    <br /> Read our {""}
-                                    <Link
-                                        href="/privacy"
-                                        className="font-bold underline"
-                                    >
-                                        Privacy Policy
-                                    </Link>
-                                    .
-                                </p>
-                            </div>
                         </div>
                     </div>
                 </PageFooter>
             </HTMLMain>
-            {cloudServicesEnabled && (
-                <GenericModal
-                    key="contact-us-modal"
-                    visibleState={contactUsModalVisibility}
-                >
-                    <Body>
-                        <div className="flex flex-col items-center text-center">
-                            <h1 className="text-2xl font-bold text-gray-900">
-                                Contact us
-                            </h1>
-
-                            <p className="mt-2 text-slate-700">
-                                Feel free to contact us for any questions or to
-                                learn more about our service.
-                            </p>
-                            <Suspense fallback={<Spinner />}>
-                                <ContactUsForm
-                                    hideModalFn={hideContactUsModal}
-                                    submitButtonRef={contactUsSubmitBtnRef}
-                                    submittingState={contactUsModalSubmitting}
-                                />
-                            </Suspense>
-                        </div>
-                    </Body>
-
-                    <Footer className="space-y-3 sm:space-x-5 sm:space-y-0">
-                        <Button
-                            className="sm:ml-2"
-                            onClick={() =>
-                                contactUsSubmitBtnRef.current?.click()
-                            }
-                            disabled={contactUsModalSubmitting[0]}
-                            type="submit"
-                        >
-                            {contactUsModalSubmitting[0] && (
-                                <Loader2 className="animate-spin" />
-                            )}
-                            Send
-                        </Button>
-                        <Button
-                            variant="secondary"
-                            onClick={hideContactUsModal}
-                            type="button"
-                        >
-                            Close
-                        </Button>
-                    </Footer>
-                </GenericModal>
-            )}
         </>
     );
 };

@@ -1,12 +1,7 @@
 import type { SyncConnectionController } from "@/app_lib/synchronization";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { Vault } from "@/app_lib/vault-utils/vault";
-import {
-    clearOnlineServicesSession,
-    onlineServicesAuthConnectionStatusAtom,
-    onlineServicesAuthenticationStatus,
-    onlineServicesStore,
-} from "@/utils/atoms";
+import { logoutOnlineServicesSession } from "@/app_lib/auth-session";
 import { vaultLog, vaultLogger } from "@/utils/logging";
 import {
     clearVaultDEKFromSession,
@@ -57,11 +52,7 @@ export async function lockUnlockedVault({
         syncConnectionController?.teardown();
         clearVaultDEKFromSession();
 
-        onlineServicesStore.set(
-            onlineServicesAuthConnectionStatusAtom,
-            onlineServicesAuthenticationStatus.disconnected(),
-        );
-        clearOnlineServicesSession();
+        await logoutOnlineServicesSession();
         setUnlockedVaultMetadata(null);
         await setUnlockedVault(async () => new Vault());
         vaultLogger.clearAll();

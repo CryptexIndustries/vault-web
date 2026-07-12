@@ -24,6 +24,16 @@ import {
 } from "../../src/utils/vault-session";
 import { lockUnlockedVault } from "../../src/utils/vault-lock";
 
+jest.mock("../../src/app_lib/auth-session", () => ({
+    logoutOnlineServicesSession: jest.fn(async () => {
+        setOnlineServicesData(null);
+        onlineServicesStore.set(
+            onlineServicesAuthConnectionStatusAtom,
+            onlineServicesAuthenticationStatus.disconnected(),
+        );
+    }),
+}));
+
 describe("lockUnlockedVault", () => {
     beforeEach(() => {
         jest.clearAllMocks();

@@ -7,6 +7,7 @@ import { User } from "lucide-react";
 
 import {
     establishPremiumSession,
+    logoutOnlineServicesSession,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
@@ -15,8 +16,10 @@ import {
 } from "@/app_lib/online-services";
 import {
     generateKeyPair,
+    parseJwkFromString,
     privateKeyJwkToString,
     publicKeyJwkToString,
+    signChallenge,
 } from "@/app_lib/vault-utils/passkey";
 import { OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
 import {
@@ -103,6 +106,8 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const registerMut = trpcReact.v1.auth.register.useMutation();
     const recoverMut = trpcReact.v1.auth.recover.useMutation();
     const deleteUserMut = trpcReact.v1.user.delete.useMutation();
+    const deleteChallengeMut =
+        trpcReact.v1.user.deleteChallenge.useMutation();
     const genRecoveryMut =
         trpcReact.v1.user.generateRecoveryToken.useMutation();
     const clearRecoveryMut = trpcReact.v1.user.clearRecoveryToken.useMutation();
@@ -315,11 +320,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const handleRemoveLocalBinding = async () => {
         setRemoveLocalBindingPending(true);
         try {
-            onlineServicesStore.set(onlineServicesDataAtom, null);
-            onlineServicesStore.set(
-                onlineServicesAuthConnectionStatusAtom,
-                onlineServicesAuthenticationStatus.disconnected(),
-            );
+            await logoutOnlineServicesSession();
 
             const next = Object.assign(new Vault(), vault);
             Vault.unbindOnlineServices(next);
@@ -353,13 +354,33 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
             toast.error("Only the root device can delete the account.");
             return;
         }
+        if (!Vault.isOnlineServicesBound(vault)) {
+            toast.error("Online Services binding required.");
+            return;
+        }
+
         setDeleteAccountPending(true);
         try {
-            await deleteUserMut.mutateAsync();
+            const challenge = await deleteChallengeMut.mutateAsync();
+            const challengeBytes = Uint8Array.fromBase64(challenge.challenge);
+            const signature = await signChallenge(
+                parseJwkFromString(vault.OnlineServices.PrivateKeyJWK),
+                challengeBytes,
+            );
+
+            await deleteUserMut.mutateAsync({
+                challengeId: challenge.challengeId,
+                signature,
+            });
+
             const next = Object.assign(new Vault(), vault);
             Vault.unbindOnlineServices(next);
             if (await saveVault(next)) {
                 onlineServicesStore.set(onlineServicesDataAtom, null);
+                onlineServicesStore.set(
+                    onlineServicesAuthConnectionStatusAtom,
+                    onlineServicesAuthenticationStatus.disconnected(),
+                );
                 toast.success("Account deleted.");
                 setDeleteAccountOpen(false);
                 onOpenChange(false);
@@ -404,6 +425,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         registerMut.isPending ||
         recoverMut.isPending ||
         deleteUserMut.isPending ||
+        deleteChallengeMut.isPending ||
         removeLocalBindingPending;
 
     const tierName =

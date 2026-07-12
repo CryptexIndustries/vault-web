@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../../trpc";
 
-
 export const userRouterGenerateRecoveryToken = protectedProcedure
     .output(
         z.object({
@@ -38,7 +37,25 @@ export const userRouterConfiguration = protectedProcedure
         throw new Error("api-contract stub");
     })
 ;
+export const userRouterDeleteChallenge = protectedProcedure
+    .output(
+        z.object({
+            challengeId: z.string(),
+            challenge: z.string(),
+            expiresAt: z.number(),
+        }),
+    )
+    .mutation(() => {
+        throw new Error("api-contract stub");
+    })
+;
 export const userRouterDelete = protectedProcedure
+    .input(
+        z.object({
+            challengeId: z.string().min(1).max(64),
+            signature: z.string().min(1).max(128),
+        }),
+    )
     .output(z.boolean())
     .mutation(() => {
         throw new Error("api-contract stub");

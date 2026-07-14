@@ -150,13 +150,9 @@ function isElementInViewPort(el: HTMLElement): boolean {
         rect.top >= 0 &&
         rect.left >= 0 &&
         rect.bottom <=
-            (window.innerHeight ||
-                document.documentElement
-                    .clientHeight) &&
+            (window.innerHeight || document.documentElement.clientHeight) &&
         rect.right <=
-            (window.innerWidth ||
-                document.documentElement
-                    .clientWidth);
+            (window.innerWidth || document.documentElement.clientWidth);
 
     return visible;
 }
@@ -168,13 +164,15 @@ function isElementInViewPort(el: HTMLElement): boolean {
  */
 function visibilityRejectionReason(el: HTMLElement): string | null {
     if (el.hidden) return "hidden attribute";
-    if (!isElementInViewPort) return "field out of viewport";
+    if (!isElementInViewPort(el)) return "field out of viewport";
 
     // Check for various visibility properties
-    const visible = el.checkVisibility({
-        visibilityProperty: true,
-    });
-    if (!visible) return "field not visible in viewport";
+    if (
+        typeof el.checkVisibility === "function" &&
+        !el.checkVisibility({ visibilityProperty: true })
+    ) {
+        return "field not visible in viewport";
+    }
 
     if (el.getAttribute("aria-hidden") === "true") return "aria-hidden=true";
     if ((el as HTMLInputElement).disabled) return "disabled";
@@ -290,7 +288,7 @@ function containerSignal(container: Element): string {
 
 /**
  * Treat a username field as a possible multi-step login even when
- * the password input has not been rendered yet and require an 
+ * the password input has not been rendered yet and require an
  * explicit browser hint or login context so ordinary email and
  * newsletter fields do not receive credential buttons.
  */

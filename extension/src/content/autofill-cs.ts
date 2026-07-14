@@ -1078,8 +1078,11 @@ function bootstrap(): void {
 
     reconcile();
 
-    const debounceReconcile = debounce(reconcile, MUTATION_DEBOUNCE_MS);
-    const observer = new MutationObserver(() => debounceReconcile());
+    const refresh = debounce(() => {
+        reconcile();
+        repositionAllIcons();
+    }, MUTATION_DEBOUNCE_MS);
+    const observer = new MutationObserver(refresh);
     observer.observe(document.documentElement, {
         childList: true,
         subtree: true,

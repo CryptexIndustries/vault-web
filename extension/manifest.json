@@ -21,7 +21,7 @@
         "service_worker": "/background.js",
         "type": "module"
     },
-    "permissions": ["storage", "idle", "activeTab", "scripting"],
+    "permissions": ["storage", "idle", "activeTab"],
     "content_security_policy": {
         "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
     },

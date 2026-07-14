@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
     const isProduction = mode === "production";
 
     return {
+        define: {
+            "globalThis.__CRYTEX_FIELD_DIAGNOSTICS__":
+                JSON.stringify(!isProduction),
+        },
         resolve: {
             alias: {
                 "@/env/client.mjs": path.resolve(__dirname, "src/env.ts"),

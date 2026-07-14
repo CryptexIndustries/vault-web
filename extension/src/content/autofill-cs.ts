@@ -4,8 +4,8 @@
  * Runs in the isolated world of every top-level http(s) frame and is
  * responsible for:
  *   - detecting login/signup/OTP fields in the host page
- *   - attaching a Cryptex shield iframe over the anchor field
- *   - opening an inline credential picker iframe on icon click
+ *   - attaching picker or generator shields to each qualified field
+ *   - opening the matching inline panel beside the clicked field
  *   - filling selected credentials and wiping local references
  *   - prompting the user to save new credentials on form submit
  *
@@ -42,7 +42,11 @@ import {
 } from "../utils/autofill-frame-bootstrap";
 import {
     detectGroups,
+    getInlineFieldMode,
     isVisible,
+    selectGeneratedPasswordFields,
+    selectInlineMenuField,
+    selectOtpField,
     setInputValue,
     type FieldGroup,
     type FieldKind,
@@ -121,6 +125,7 @@ const lastFilledByGroup = new Map<
 let menuIframe: HTMLIFrameElement | null = null;
 let menuPort: MessagePort | null = null;
 let menuActiveGroup: FieldGroup | null = null;
+let menuActiveIcon: IconHandle | null = null;
 let generatorIframe: HTMLIFrameElement | null = null;
 let generatorPort: MessagePort | null = null;
 let generatorActiveIcon: IconHandle | null = null;
@@ -179,7 +184,13 @@ function mountIconForField(
 ): IconHandle | null {
     const existing = iconsByField.get(field);
     if (existing) {
-        if (existing.mode === mode) return existing;
+        if (existing.mode === mode) {
+            const kindChanged = existing.fieldKind !== fieldKind;
+            existing.fieldKind = fieldKind;
+            existing.groupId = group.groupId;
+            if (kindChanged && menuActiveIcon === existing) closeMenu();
+            return existing;
+        }
         existing.cleanup();
         iconsByField.delete(field);
     }
@@ -289,6 +300,7 @@ function closeMenu(): void {
         menuIframe = null;
     }
     menuActiveGroup = null;
+    menuActiveIcon = null;
     document.removeEventListener("mousedown", onDocumentMouseDown, true);
     document.removeEventListener("keydown", onDocumentKeyDown, true);
 }
@@ -475,9 +487,7 @@ function fillGeneratedPassword(
     password: string,
 ): void {
     const liveFields = group.fields.filter((f) => f.el.isConnected);
-    const passwordFields = liveFields.filter(
-        (f) => f.kind === "newPassword" || f.kind === "password",
-    );
+    const passwordFields = selectGeneratedPasswordFields(liveFields);
 
     for (const field of passwordFields) {
         setInputValue(field.el, password);
@@ -486,7 +496,10 @@ function fillGeneratedPassword(
     anchorField.focus();
 }
 
-async function openMenuForGroup(group: FieldGroup): Promise<void> {
+async function openMenuForIcon(
+    icon: IconHandle,
+    group: FieldGroup,
+): Promise<void> {
     closeMenu();
     closeGenerator();
     const token = menuMountToken;
@@ -494,11 +507,21 @@ async function openMenuForGroup(group: FieldGroup): Promise<void> {
     const origin = getEffectiveOrigin();
     if (!origin) return;
 
+    const menuField = selectInlineMenuField(group.fields, icon.field);
+    if (!menuField) return;
+
     const lockedRes = await fetchVaultLocked();
     if (lockedRes === null) return;
 
     const bootstrap = await createAutofillFrameBootstrap("autofill-menu");
-    if (!bootstrap || token !== menuMountToken) return;
+    if (
+        !bootstrap ||
+        token !== menuMountToken ||
+        iconsByField.get(icon.field) !== icon ||
+        !icon.field.isConnected
+    ) {
+        return;
+    }
 
     const iframe = document.createElement("iframe");
     iframe.src = withAutofillFrameMount(MENU_URL, bootstrap.mountId);
@@ -514,14 +537,15 @@ async function openMenuForGroup(group: FieldGroup): Promise<void> {
         "box-shadow: 0 12px 32px rgba(0,0,0,0.4)",
     ].join(";");
     document.documentElement.appendChild(iframe);
-    positionMenuNearField(iframe, group.anchor.el);
+    positionMenuNearField(iframe, menuField.el);
     menuIframe = iframe;
     menuActiveGroup = group;
+    menuActiveIcon = icon;
 
     const init = {
         host: origin.host,
         etldPlus1: origin.etldPlus1,
-        fieldKind: group.anchor.kind,
+        fieldKind: menuField.kind,
         locked: lockedRes,
     } as const;
 
@@ -537,7 +561,7 @@ async function openMenuForGroup(group: FieldGroup): Promise<void> {
         const channel = new MessageChannel();
         menuPort = channel.port1;
         channel.port1.onmessage = (ev) => {
-            void handleMenuMessage(ev.data, group);
+            void handleMenuMessage(ev.data, group, menuField.el);
         };
         channel.port1.start();
         postBootstrapInit(iframe, bootstrap, channel.port2);
@@ -775,14 +799,14 @@ async function handleIconClick(icon: IconHandle): Promise<void> {
         await openGeneratorForField(icon);
         return;
     }
-    if (menuIframe && menuActiveGroup?.groupId === icon.groupId) {
+    if (menuIframe && menuActiveIcon?.field === icon.field) {
         closeMenu();
         return;
     }
     const group = trackedGroups.get(icon.groupId);
     if (!group) return;
     closeGenerator();
-    await openMenuForGroup(group);
+    await openMenuForIcon(icon, group);
 }
 
 async function fetchVaultLocked(): Promise<boolean | null> {
@@ -800,6 +824,7 @@ async function fetchVaultLocked(): Promise<boolean | null> {
 async function handleMenuMessage(
     raw: unknown,
     group: FieldGroup,
+    targetField: HTMLInputElement,
 ): Promise<void> {
     const data = raw as
         | { kind: "unlock-request" }
@@ -820,7 +845,12 @@ async function handleMenuMessage(
     }
 
     if (data.kind === "pick") {
-        await fillFromCredential(data.credentialId, data.useTotpOnly, group);
+        await fillFromCredential(
+            data.credentialId,
+            data.useTotpOnly,
+            group,
+            targetField,
+        );
         closeMenu();
     }
 }
@@ -856,6 +886,7 @@ async function fillFromCredential(
     credentialId: string,
     useTotpOnly: boolean,
     group: FieldGroup,
+    targetField?: HTMLInputElement,
 ): Promise<void> {
     // Re-check the page origin to make sure the user hasn't navigated.
     const originAtFill = getEffectiveOrigin();
@@ -873,7 +904,7 @@ async function fillFromCredential(
         );
         if (!res.ok || !res.payload?.ok || !res.payload.code) return;
         let code: string | null = res.payload.code;
-        const otpField = liveFields.find((f) => f.kind === "otp");
+        const otpField = selectOtpField(liveFields, targetField);
         if (otpField) setInputValue(otpField.el, code);
         code = null;
         return;
@@ -923,24 +954,15 @@ function reconcile(): void {
         seenGroupIds.add(group.groupId);
         trackedGroups.set(group.groupId, group);
 
-        if (group.isSignup) {
-            for (const field of group.fields) {
-                if (field.kind !== "password" && field.kind !== "newPassword") {
-                    continue;
-                }
-                mountIconForField(group, field.el, field.kind, "generator");
-                seenFields.add(field.el);
-            }
-            continue;
+        // Each qualified login or
+        // OTP input receives a picker button. This is important for split
+        // username/password pages where only one field exists at a time.
+        for (const field of group.fields) {
+            const mode = getInlineFieldMode(group, field);
+            if (!mode) continue;
+            mountIconForField(group, field.el, field.kind, mode);
+            seenFields.add(field.el);
         }
-
-        mountIconForField(
-            group,
-            group.anchor.el,
-            group.anchor.kind,
-            "autofill",
-        );
-        seenFields.add(group.anchor.el);
     }
 
     // Drop icons for fields that vanished from the DOM.
@@ -948,6 +970,9 @@ function reconcile(): void {
         if (!seenFields.has(field) || !field.isConnected) {
             handle.cleanup();
             iconsByField.delete(field);
+            if (menuActiveIcon?.field === field) {
+                closeMenu();
+            }
             if (generatorActiveIcon?.field === field) {
                 closeGenerator();
             }
@@ -973,8 +998,8 @@ function repositionAllIcons(): void {
         }
         positionIconOverField(handle.iframe, handle.field);
     }
-    if (menuIframe && menuActiveGroup?.anchor.el.isConnected) {
-        positionMenuNearField(menuIframe, menuActiveGroup.anchor.el);
+    if (menuIframe && menuActiveIcon?.field.isConnected) {
+        positionMenuNearField(menuIframe, menuActiveIcon.field);
     }
     if (generatorIframe && generatorActiveIcon?.field.isConnected) {
         positionGeneratorNearField(generatorIframe, generatorActiveIcon.field);

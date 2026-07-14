@@ -94,7 +94,15 @@ jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
 
 import sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import {
+    EncryptedBlob,
+    EncryptDataBlob,
+    hashSecret,
+    KeyDerivationConfig_Argon2ID,
+    KeyDerivationConfig_PBKDF2,
+} from "../../src/app_lib/vault-utils/encryption";
 import { VaultMetadata, db } from "../../src/app_lib/vault-utils/storage";
+import { Vault } from "../../src/app_lib/vault-utils/vault";
 import type {
     EncryptionFormGroupSchemaType,
     VaultEncryptionConfigurationsFormElementType,
@@ -317,5 +325,57 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
 
         // Silence unused-var lint for the throwaway vault.
         expect(metadata.DBIndex).toBe(1);
+    });
+});
+
+describe("legacy V2 backup restore", () => {
+    beforeAll(async () => {
+        await sodium.ready;
+    });
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockDeviceFactors.clear();
+        db.vaults = {
+            update: jest.fn(async () => 1),
+            add: jest.fn(async () => 1),
+        } as never;
+    });
+
+    it("unlocks after restore when backup blob is pre-envelope Version 2", async () => {
+        const vaultBytes = VaultUtilTypes.Vault.encode(new Vault()).finish();
+        const legacyEncrypted = await EncryptDataBlob(
+            vaultBytes,
+            await hashSecret("restore-password"),
+            VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+            VaultUtilTypes.KeyDerivationFunction.Argon2ID,
+            new KeyDerivationConfig_Argon2ID(8, 1),
+            new KeyDerivationConfig_PBKDF2(),
+        );
+        legacyEncrypted.Version = 2;
+        legacyEncrypted.CurrentVersion = 2;
+
+        const backupBytes =
+            VaultUtilTypes.EncryptedBlob.encode(legacyEncrypted).finish();
+        const restoredBlob = EncryptedBlob.fromBinary(backupBytes);
+
+        expect(restoredBlob.Version).toBe(2);
+        expect(restoredBlob.Envelope).toBeUndefined();
+
+        const metadata = new VaultMetadata();
+        metadata.Blob = restoredBlob;
+        metadata.DBIndex = 1;
+
+        const result = await metadata.decryptVault(
+            "restore-password",
+            VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+            VaultUtilTypes.KeyDerivationFunction.Argon2ID,
+            KDF_CONFIG,
+        );
+
+        expect(result.isOk()).toBe(true);
+        if (result.isOk()) {
+            expect(result.value.revealSecrets?.recoveryCode).toBeDefined();
+        }
     });
 });

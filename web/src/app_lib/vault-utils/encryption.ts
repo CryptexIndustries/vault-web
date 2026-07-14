@@ -210,6 +210,8 @@ export class EncryptedBlob implements VaultUtilTypes.EncryptedBlob {
             obj.Salt,
             obj.HeaderIV,
         );
+        instance.Version = obj.Version;
+        instance.CurrentVersion = obj.CurrentVersion;
         instance.Envelope = obj.Envelope;
         if (obj.Envelope) {
             instance.Version = Math.max(instance.Version, 3);

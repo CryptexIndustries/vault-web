@@ -728,4 +728,25 @@ describe("vault-utils/encryption", () => {
         );
         expect(deserialized.Envelope?.VaultID).toBe("vault-1");
     });
+
+    it("preserves legacy Version and CurrentVersion when deserializing from binary", async () => {
+        const payload = new Uint8Array([1, 2, 3]);
+        const encrypted = await EncryptDataBlob(
+            payload,
+            await hashSecret("pw"),
+            VaultUtilTypes.EncryptionAlgorithm.XChaCha20Poly1305,
+            VaultUtilTypes.KeyDerivationFunction.Argon2ID,
+            new KeyDerivationConfig_Argon2ID(),
+            new KeyDerivationConfig_PBKDF2(),
+        );
+        encrypted.Version = 2;
+        encrypted.CurrentVersion = 2;
+
+        const binary = VaultUtilTypes.EncryptedBlob.encode(encrypted).finish();
+        const deserialized = EncryptedBlob.fromBinary(binary);
+
+        expect(deserialized.Version).toBe(2);
+        expect(deserialized.CurrentVersion).toBe(2);
+        expect(deserialized.Envelope).toBeUndefined();
+    });
 });

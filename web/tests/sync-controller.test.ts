@@ -94,25 +94,50 @@ import {
 } from "../src/app_lib/synchronization-utils";
 
 type VaultOps = {
-    getItemVersionVectors: jest.MockedFunction<
+    getCredentialVersionVectors: jest.MockedFunction<
         () => Promise<VaultUtilTypes.VersionVector[]>
     >;
-    getItemCredentials: jest.MockedFunction<
-        (ids: string[]) => Promise<VaultUtilTypes.Credential[]>
+    getDirectoryVersionVectors: jest.MockedFunction<
+        () => Promise<VaultUtilTypes.VersionVector[]>
     >;
-    updateCredentials: jest.MockedFunction<
-        (cs: VaultUtilTypes.Credential[]) => Promise<void>
+    getItems: jest.MockedFunction<
+        (
+            items: VaultUtilTypes.SyncItemReference[],
+        ) => Promise<VaultUtilTypes.SyncDataResponseMessage>
+    >;
+    updateItems: jest.MockedFunction<
+        (
+            directories: VaultUtilTypes.Directory[],
+            credentials: VaultUtilTypes.Credential[],
+        ) => Promise<void>
     >;
     getSynchronizationConfig: jest.MockedFunction<
         () => Promise<VaultUtilTypes.LinkedDevices>
+    >;
+    getSyncSigningPublicKey: jest.MockedFunction<() => Promise<string | null>>;
+    getSyncSigningPrivateKey: jest.MockedFunction<() => Promise<string | null>>;
+    getSyncKemPublicKey: jest.MockedFunction<() => Promise<string | null>>;
+    getSyncKemPrivateKey: jest.MockedFunction<() => Promise<string | null>>;
+    getRemoteSyncPublicKey: jest.MockedFunction<
+        (id: string) => Promise<string | null>
+    >;
+    getRemoteSyncKemPublicKey: jest.MockedFunction<
+        (id: string) => Promise<string | null>
     >;
 };
 
 function buildVaultOps(): VaultOps {
     return {
-        getItemVersionVectors: jest.fn(async () => []),
-        getItemCredentials: jest.fn(async () => []),
-        updateCredentials: jest.fn(async () => undefined),
+        getCredentialVersionVectors: jest.fn(async () => []),
+        getDirectoryVersionVectors: jest.fn(async () => []),
+        getItems: jest.fn(async () => ({ Credentials: [], Directories: [] })),
+        updateItems: jest.fn(async () => undefined),
+        getSyncSigningPublicKey: jest.fn(async () => null),
+        getSyncSigningPrivateKey: jest.fn(async () => null),
+        getSyncKemPublicKey: jest.fn(async () => null),
+        getSyncKemPrivateKey: jest.fn(async () => null),
+        getRemoteSyncPublicKey: jest.fn(async () => null),
+        getRemoteSyncKemPublicKey: jest.fn(async () => null),
         getSynchronizationConfig: jest.fn(
             async () =>
                 ({

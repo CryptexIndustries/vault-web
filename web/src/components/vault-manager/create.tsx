@@ -216,7 +216,7 @@ const CreateVaultTab: React.FC<{
                         <div className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-xs">
                             <span>
                                 {initialImport.credentials.length} items,{" "}
-                                {initialImport.groups.length} groups
+                                {initialImport.directories.length} directories
                                 {initialImport.warnings.length
                                     ? `, ${initialImport.warnings.length} warnings`
                                     : ""}

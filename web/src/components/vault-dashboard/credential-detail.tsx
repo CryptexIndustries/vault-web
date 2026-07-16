@@ -35,13 +35,10 @@ import { PasswordStrengthMeter } from "@/components/vault-security/password-stre
 interface CredentialDetailProps {
     credential: VaultCredential | null;
     onEdit: (credential: VaultCredential) => void;
-    onClose: () => void;
     isMobile?: boolean;
-    onCopyUsername: (credential: VaultCredential) => void;
-    onCopyPassword: (credential: VaultCredential) => void;
-    onCopyTOTP: (credential: VaultCredential) => void;
     onOpenUrl: (credential: VaultCredential) => void;
     onDeleteCredential: (credential: VaultCredential) => void;
+    directoryName: string;
 }
 
 function parseTags(tags?: string): string[] {
@@ -294,13 +291,10 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
 export function CredentialDetail({
     credential,
     onEdit,
-    onClose,
     isMobile,
-    onCopyUsername,
-    onCopyPassword,
-    onCopyTOTP,
     onOpenUrl,
     onDeleteCredential,
+    directoryName,
 }: CredentialDetailProps) {
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const allTags = parseTags(credential?.Tags);
@@ -354,6 +348,9 @@ export function CredentialDetail({
                             <h3 className="line-clamp-2 font-semibold text-foreground">
                                 {credential.Name}
                             </h3>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                Directory: {directoryName}
+                            </p>
                             <div className="mt-1 flex flex-wrap gap-1.5">
                                 {visibleTags.map((tag) => (
                                     <Badge

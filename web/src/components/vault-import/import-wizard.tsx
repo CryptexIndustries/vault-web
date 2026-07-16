@@ -196,10 +196,10 @@ export function ImportWizard({
                                 </div>
                                 <div>
                                     <p className="text-muted-foreground">
-                                        Groups
+                                        Directories
                                     </p>
                                     <p className="font-semibold">
-                                        {result.groups.length}
+                                        {result.directories.length}
                                     </p>
                                 </div>
                                 <div>

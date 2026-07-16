@@ -97,8 +97,8 @@ export function VaultSettingsDialog({
         await setUnlockedVault(async () => applied.vault);
         toast.success(
             `Imported ${applied.importedCredentials} items${
-                applied.importedGroups
-                    ? ` and ${applied.importedGroups} groups`
+                applied.importedDirectories
+                    ? ` and ${applied.importedDirectories} directories`
                     : ""
             }.`,
         );

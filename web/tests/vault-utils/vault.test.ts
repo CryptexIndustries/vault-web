@@ -44,7 +44,7 @@ jest.mock(
 import {
     CredentialFormSchema,
     CustomField,
-    Group,
+    Directory,
     LinkedDevice,
     LinkedDevices,
     OnlineServices,
@@ -57,12 +57,13 @@ import {
     assimilateImportedCredential,
     calculateTOTP,
     createCredential,
+    createDirectory,
     deleteCredential,
     hashCredential,
     hashCredentials,
     packageForLinking,
     updateCredentialFromForm,
-    upsertGroup,
+    updateDirectory,
     type CredentialFormSchemaType,
 } from "../../src/app_lib/vault-utils/vault";
 import { ONLINE_SERVICES_SELECTION_ID } from "../../src/utils/consts";
@@ -78,7 +79,7 @@ const buildForm = (
 ): CredentialFormSchemaType => ({
     ID: overrides.ID ?? null,
     Type: overrides.Type ?? ItemType.Credentials,
-    GroupID: overrides.GroupID ?? "group-1",
+    DirectoryID: overrides.DirectoryID ?? "directory-1",
     Name: overrides.Name ?? "Credential name",
     Username: overrides.Username ?? "alice",
     Password: overrides.Password ?? "s3cret",
@@ -432,26 +433,21 @@ describe("vault-utils/vault", () => {
         jest.spyOn(Date, "now").mockReturnValue(1234);
         const result = await deleteCredential(list, credential.ID);
 
-        expect(result.isOk()).toBe(true);
-        if (result.isOk()) {
-            expect(result.value).toHaveLength(1);
-            expect(result.value[0]).toMatchObject({
-                ID: credential.ID,
-                Deleted: true,
-                Version: 6,
-                Name: "Unnamed item",
-                Password: "",
-                DateModifiedTimestamp: 1234,
-            });
-        }
+        const value = result._unsafeUnwrap();
+        expect(value).toHaveLength(1);
+        expect(value[0]).toMatchObject({
+            ID: credential.ID,
+            Deleted: true,
+            Version: 6,
+            Name: "Unnamed item",
+            Password: "",
+            DateModifiedTimestamp: 1234,
+        });
     });
 
     it("returns an error when deleting a missing credential", async () => {
         const result = await deleteCredential([], "missing-id");
-        expect(result.isErr()).toBe(true);
-        if (result.isErr()) {
-            expect(result.error).toBe("Credential not found");
-        }
+        expect(result._unsafeUnwrapErr()).toBe("Credential not found");
     });
 
     it("produces stable credential hash independent of array order", async () => {
@@ -498,10 +494,9 @@ describe("vault-utils/vault", () => {
         );
 
         const hashA = await hashCredential(credential);
-        credential.TOTP = {
-            ...credential.TOTP!,
+        credential.TOTP = Object.assign(new TOTP(), credential.TOTP, {
             Secret: "KRUGS4ZANFZSAYJA",
-        };
+        });
         const hashB = await hashCredential(credential);
 
         expect(hashA).not.toBe(hashB);
@@ -567,33 +562,27 @@ describe("vault-utils/vault", () => {
         expect(hashB).toBe(hashA);
     });
 
-    it("upserts groups for both create and update paths", () => {
-        const created = upsertGroup(null, {
-            ID: "group-id",
+    it("creates and updates versioned directories", async () => {
+        const directories: Directory[] = [];
+        const created = await createDirectory(directories, {
+            ID: "directory-id",
             Name: "Personal",
-            Icon: "home",
-            Color: "red",
         });
-        expect(created).toBeInstanceOf(Group);
-        expect(created.ID).toBe("group-id");
+        expect(created).toBeInstanceOf(Directory);
+        expect(created.ID).toBe("directory-id");
 
-        const updated = upsertGroup(created, {
-            ID: created.ID,
+        const updated = await updateDirectory(directories, created.ID, {
             Name: "Updated",
-            Icon: "star",
-            Color: "blue",
         });
         expect(updated).toBe(created);
         expect(updated.Name).toBe("Updated");
-        expect(updated.Icon).toBe("star");
-        expect(updated.Color).toBe("blue");
     });
 
     it("assimilates imported credential by generating a new ID and hash", async () => {
         const imported: VaultUtilCredential = {
             ID: "imported-id",
             Type: ItemType.Credentials,
-            GroupID: "group-1",
+            DirectoryID: "directory-1",
             Name: "Imported",
             Username: "user",
             Password: "pw",
@@ -866,7 +855,7 @@ describe("CredentialFormSchema zod parsing", () => {
         const result = CredentialFormSchema.safeParse({
             ID: null,
             Type: ItemType.Credentials,
-            GroupID: "group-1",
+            DirectoryID: "directory-1",
             Name: "Login",
             Username: "u",
             Password: "p",
@@ -888,7 +877,7 @@ describe("CredentialFormSchema zod parsing", () => {
         const result = CredentialFormSchema.safeParse({
             ID: null,
             Type: ItemType.Credentials,
-            GroupID: "g",
+            DirectoryID: "d",
             Name: "",
             Username: "u",
             Password: "p",
@@ -903,7 +892,7 @@ describe("CredentialFormSchema zod parsing", () => {
         const result = CredentialFormSchema.safeParse({
             ID: null,
             Type: ItemType.Credentials,
-            GroupID: "g",
+            DirectoryID: "d",
             Name: "x".repeat(256),
             Username: "u",
             Password: "p",
@@ -918,7 +907,7 @@ describe("CredentialFormSchema zod parsing", () => {
         const result = CredentialFormSchema.safeParse({
             ID: null,
             Type: 9999,
-            GroupID: "g",
+            DirectoryID: "d",
             Name: "n",
             Username: "u",
             Password: "p",

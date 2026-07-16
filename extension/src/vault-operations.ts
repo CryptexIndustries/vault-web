@@ -39,13 +39,13 @@ export function createCachedSyncConfigLoader(
     };
 }
 
-const getCredentials = async (
+const getItems = async (
     serverPublicKey: ServerPublicKey,
-    itemIDs: string[],
-): Promise<VaultUtilTypes.Credential[]> => {
+    items: VaultUtilTypes.SyncItemReference[],
+): Promise<VaultUtilTypes.SyncDataResponseMessage> => {
     const envelope = await createEncryptedEnvelope(
-        MessageType.SyncGetItemCredentials,
-        { itemIDs },
+        MessageType.SyncGetItems,
+        { items },
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
         "popup",
@@ -56,14 +56,18 @@ const getCredentials = async (
     if (isEncryptedEnvelope(res)) {
         const decryptedPayload = await decryptResponseEnvelope<
             | { ok: false; error: string }
-            | { ok: true; credentials: VaultUtilTypes.Credential[] }
+            | {
+                  ok: true;
+                  credentials: VaultUtilTypes.Credential[];
+                  directories: VaultUtilTypes.Directory[];
+              }
         >(res);
         if (!decryptedPayload.ok) {
             console.error(
                 "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):",
                 decryptedPayload.error,
             );
-            return [];
+            return { Credentials: [], Directories: [] };
         }
 
         if (!decryptedPayload.payload.ok) {
@@ -71,24 +75,30 @@ const getCredentials = async (
                 "[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):",
                 decryptedPayload.payload.error,
             );
-            return [];
+            return { Credentials: [], Directories: [] };
         }
 
-        return decryptedPayload.payload.credentials;
+        return {
+            Credentials: decryptedPayload.payload.credentials,
+            Directories: decryptedPayload.payload.directories,
+        };
     }
 
     console.error(
         "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):",
         res.payload,
     );
-    return [];
+    return { Credentials: [], Directories: [] };
 };
 
-const getItemVersionVectors = async (
+const getVersionVectors = async (
     serverPublicKey: ServerPublicKey,
-): Promise<VaultUtilTypes.VersionVector[]> => {
+): Promise<{
+    credentialVersionVectors: VaultUtilTypes.VersionVector[];
+    directoryVersionVectors: VaultUtilTypes.VersionVector[];
+}> => {
     const envelope = await createEncryptedEnvelope(
-        MessageType.SyncGetItemVersionVectors,
+        MessageType.SyncGetVersionVectors,
         null,
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
@@ -100,14 +110,21 @@ const getItemVersionVectors = async (
     if (isEncryptedEnvelope(res)) {
         const decryptedPayload = await decryptResponseEnvelope<
             | { ok: false; error: string }
-            | { ok: true; versionVectors: VaultUtilTypes.VersionVector[] }
+            | {
+                  ok: true;
+                  credentialVersionVectors: VaultUtilTypes.VersionVector[];
+                  directoryVersionVectors: VaultUtilTypes.VersionVector[];
+              }
         >(res);
         if (!decryptedPayload.ok) {
             console.error(
                 "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemVersionVectors):",
                 decryptedPayload.error,
             );
-            return [];
+            return {
+                credentialVersionVectors: [],
+                directoryVersionVectors: [],
+            };
         }
 
         if (!decryptedPayload.payload.ok) {
@@ -115,17 +132,20 @@ const getItemVersionVectors = async (
                 "[SYNCHRONIZATION-POPUP] Failed to get item version vectors (SyncGetItemVersionVectors):",
                 decryptedPayload.payload.error,
             );
-            return [];
+            return {
+                credentialVersionVectors: [],
+                directoryVersionVectors: [],
+            };
         }
 
-        return decryptedPayload.payload.versionVectors;
+        return decryptedPayload.payload;
     }
 
     console.error(
         "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors):",
         res.payload,
     );
-    return [];
+    return { credentialVersionVectors: [], directoryVersionVectors: [] };
 };
 
 export const getSynchronizationConfig = async (
@@ -172,13 +192,14 @@ export const getSynchronizationConfig = async (
     return null as unknown as VaultUtilTypes.LinkedDevices;
 };
 
-const updateCredentials = async (
+const updateItems = async (
     serverPublicKey: ServerPublicKey,
+    directories: VaultUtilTypes.Directory[],
     credentials: VaultUtilTypes.Credential[],
 ) => {
     const envelope = await createEncryptedEnvelope(
-        MessageType.SyncUpdateCredentials,
-        { credentials },
+        MessageType.SyncUpdateItems,
+        { directories, credentials },
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
         "popup",
@@ -219,14 +240,19 @@ export const createVaultOperations = (
     );
 
     return {
-        getItemVersionVectors: async () => {
-            return await getItemVersionVectors(serverPublicKey);
+        getCredentialVersionVectors: async () => {
+            return (await getVersionVectors(serverPublicKey))
+                .credentialVersionVectors;
         },
-        getItemCredentials: async (itemIDs: string[]) => {
-            return await getCredentials(serverPublicKey, itemIDs);
+        getDirectoryVersionVectors: async () => {
+            return (await getVersionVectors(serverPublicKey))
+                .directoryVersionVectors;
         },
-        updateCredentials: async (credentials: VaultUtilTypes.Credential[]) => {
-            await updateCredentials(serverPublicKey, credentials);
+        getItems: async (items: VaultUtilTypes.SyncItemReference[]) => {
+            return await getItems(serverPublicKey, items);
+        },
+        updateItems: async (directories, credentials) => {
+            await updateItems(serverPublicKey, directories, credentials);
             await onCredentialsUpdated?.();
         },
         getSynchronizationConfig: loadConfig,

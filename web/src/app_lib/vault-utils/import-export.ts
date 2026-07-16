@@ -13,9 +13,9 @@ import {
 import {
     assimilateImportedCredential,
     CustomField,
-    Group,
+    Directory,
     TOTP,
-    upsertGroup,
+    createDirectory,
     Vault,
     VaultCredential,
 } from "./vault";
@@ -23,7 +23,7 @@ import {
 export const vaultToJSON = (vaultInstance: Vault) => {
     // Make sure to remove all unnecessary properties from the vault by manually creating a new object
     const sanitizedVault = {
-        Groups: vaultInstance.Groups,
+        Directories: vaultInstance.Directories.filter((item) => !item.Deleted),
         Credentials: vaultInstance.Credentials,
     };
 
@@ -65,7 +65,7 @@ export type ImportWarning = {
 export type ImportResult = {
     source: ImportSource;
     credentials: Credential[];
-    groups: Group[];
+    directories: Directory[];
     warnings: ImportWarning[];
     skipped: number;
 };
@@ -73,7 +73,7 @@ export type ImportResult = {
 export type ApplyImportResult = {
     vault: Vault;
     importedCredentials: number;
-    importedGroups: number;
+    importedDirectories: number;
 };
 
 export const ImportSourceLabels: Record<ImportSource, string> = {
@@ -183,22 +183,24 @@ interface BitwardenJSON {
 //#endregion Bitwarden
 
 const readFileAsText = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === "string") {
-                resolve(reader.result);
-                return;
-            }
-            if (reader.result instanceof ArrayBuffer) {
-                resolve(new TextDecoder().decode(reader.result));
-                return;
-            }
-            resolve("");
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-    });
+    typeof file.text === "function"
+        ? file.text()
+        : new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                  if (typeof reader.result === "string") {
+                      resolve(reader.result);
+                      return;
+                  }
+                  if (reader.result instanceof ArrayBuffer) {
+                      resolve(new TextDecoder().decode(reader.result));
+                      return;
+                  }
+                  resolve("");
+              };
+              reader.onerror = () => reject(reader.error);
+              reader.readAsText(file);
+          });
 
 const parseCsvRows = <T = Record<string, unknown>>(file: File): Promise<T[]> =>
     new Promise((resolve, reject) => {
@@ -298,33 +300,37 @@ const addCustomField = (
 
 const ensureUniqueCustomFieldIDs = (credential: Credential): Credential => {
     const seen = new Set<string>();
-    credential.CustomFields = credential.CustomFields.map((field, index) => {
-        const candidate = field.ID?.trim();
-        if (candidate && candidate !== "-1" && !seen.has(candidate)) {
-            seen.add(candidate);
-            return field;
-        }
+    credential.CustomFields = (credential.CustomFields ?? []).map(
+        (field, index) => {
+            const candidate = field.ID?.trim();
+            if (candidate && candidate !== "-1" && !seen.has(candidate)) {
+                seen.add(candidate);
+                return field;
+            }
 
-        const nextID = `import-field-${credential.Name}-${index + 1}`;
-        seen.add(nextID);
-        return {
-            ...field,
-            ID: nextID,
-        };
-    });
+            const nextID = `import-field-${credential.Name}-${index + 1}`;
+            seen.add(nextID);
+            return {
+                ...field,
+                ID: nextID,
+            };
+        },
+    );
     return credential;
 };
 
-const makeGroup = (id: string, name: string): Group => ({
+const makeDirectory = (id: string, name: string): Directory => ({
     ID: id || name,
     Name: name || "Imported",
-    Icon: "",
-    Color: "",
+    Version: 0,
+    Hash: "",
+    DateModifiedTimestamp: Date.now(),
+    Deleted: false,
 });
 
 const makeCredential = (data: {
     type?: ItemType;
-    groupId?: string;
+    directoryId?: string;
     name?: string;
     username?: string;
     password?: string;
@@ -341,7 +347,7 @@ const makeCredential = (data: {
         ID: "",
         Version: 0,
         Type: data.type ?? ItemType.Credentials,
-        GroupID: data.groupId ?? "",
+        DirectoryID: data.directoryId ?? "",
         Name: data.name?.trim() || "Unnamed item",
         Username: data.username ?? "",
         Password: data.password ?? "",
@@ -487,7 +493,7 @@ export const CSV = async (
                         Version: 0,
 
                         Type: ItemType.Credentials,
-                        GroupID: "",
+                        DirectoryID: "",
                         Name:
                             extractValue(row, "Name", "Import") ??
                             "Unnamed item",
@@ -565,7 +571,7 @@ export const BitwardenJSON = (
     file: File,
 ): Promise<{
     credentials: Credential[];
-    groups: Group[];
+    directories: Directory[];
 }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -587,7 +593,7 @@ export const BitwardenJSON = (
 
         reader.onload = () => {
             const credentials: Credential[] = [];
-            const groups: Group[] = [];
+            const directories: Directory[] = [];
 
             // NOTE: The whole thing is wrapped in a try-catch block because we need to reject the promise if something goes wrong
             try {
@@ -622,7 +628,7 @@ export const BitwardenJSON = (
                         ID: "",
                         Version: 0,
                         Type: mapBitwardenItemType(item.type),
-                        GroupID: item.folderId ?? "",
+                        DirectoryID: item.folderId ?? "",
                         Name: item.name ?? "Import",
                         Username: item.login?.username ?? "",
                         Password: item.login?.password ?? "",
@@ -678,12 +684,7 @@ export const BitwardenJSON = (
 
                 if (parsed.folders) {
                     parsed.folders.forEach((folder) => {
-                        groups.push({
-                            ID: folder.id,
-                            Name: folder.name,
-                            Icon: "",
-                            Color: "",
-                        });
+                        directories.push(makeDirectory(folder.id, folder.name));
                     });
                 }
             } catch (error) {
@@ -692,7 +693,7 @@ export const BitwardenJSON = (
 
             resolve({
                 credentials,
-                groups,
+                directories,
             });
         };
 
@@ -827,7 +828,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
     return {
         source: "bitwarden-json",
         credentials: parsed.credentials,
-        groups: parsed.groups,
+        directories: parsed.directories,
         warnings,
         skipped: 0,
     };
@@ -838,7 +839,7 @@ const parseGenericCsv = async (
     source: ImportSource,
 ): Promise<ImportResult> => {
     const rows = await parseCsvRows<Record<string, unknown>>(file);
-    const groups = new Map<string, Group>();
+    const directories = new Map<string, Directory>();
     const credentials: Credential[] = [];
     const warnings: ImportWarning[] = [];
 
@@ -854,14 +855,14 @@ const parseGenericCsv = async (
             "folder",
             "tags",
         );
-        const groupId = groupName ? `import-group:${groupName}` : "";
-        if (groupName && !groups.has(groupId)) {
-            groups.set(groupId, makeGroup(groupId, groupName));
+        const directoryId = groupName ? `import-directory:${groupName}` : "";
+        if (groupName && !directories.has(directoryId)) {
+            directories.set(directoryId, makeDirectory(directoryId, groupName));
         }
 
         const credential = makeCredential({
             name,
-            groupId,
+            directoryId,
             username: firstValue(row, "username", "user", "login", "email"),
             password: firstValue(row, "password", "pass"),
             url: firstValue(row, "url", "website", "uri", "web site"),
@@ -937,7 +938,7 @@ const parseGenericCsv = async (
     return {
         source,
         credentials,
-        groups: Array.from(groups.values()),
+        directories: Array.from(directories.values()),
         warnings,
         skipped: 0,
     };
@@ -958,7 +959,7 @@ const parseKeePassXML = async (file: File): Promise<ImportResult> => {
     const parserError = doc.querySelector("parsererror");
     if (parserError) throw new Error("Invalid KeePass XML");
 
-    const groups: Group[] = [];
+    const directories: Directory[] = [];
     const credentials: Credential[] = [];
     const warnings: ImportWarning[] = [];
 
@@ -976,14 +977,14 @@ const parseKeePassXML = async (file: File): Promise<ImportResult> => {
         const name = getDirectChildText(groupElement, "Name") || "KeePass";
         const uuid = getDirectChildText(groupElement, "UUID");
         const path = parentPath ? `${parentPath}/${name}` : name;
-        const groupId = uuid || `keepass:${path}`;
-        groups.push(makeGroup(groupId, path));
+        const directoryId = uuid || `keepass:${path}`;
+        directories.push(makeDirectory(directoryId, path));
 
         groupElement.querySelectorAll(":scope > Entry").forEach((entry) => {
             const values = readEntryStrings(entry);
             const times = entry.querySelector(":scope > Times");
             const credential = makeCredential({
-                groupId,
+                directoryId,
                 name: values.Title,
                 username: values.UserName,
                 password: values.Password,
@@ -1043,7 +1044,7 @@ const parseKeePassXML = async (file: File): Promise<ImportResult> => {
     return {
         source: "keepass-xml",
         credentials,
-        groups,
+        directories,
         warnings,
         skipped: 0,
     };
@@ -1086,15 +1087,18 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
         }>;
     };
 
-    const groups: Group[] = [];
+    const directories: Directory[] = [];
     const credentials: Credential[] = [];
     const warnings: ImportWarning[] = [];
     let skipped = 0;
 
     for (const account of data.accounts ?? []) {
         for (const vault of account.vaults ?? []) {
-            const groupId = vault.attrs?.uuid || `1pux:${vault.attrs?.name}`;
-            groups.push(makeGroup(groupId, vault.attrs?.name || "1Password"));
+            const directoryId =
+                vault.attrs?.uuid || `1pux:${vault.attrs?.name}`;
+            directories.push(
+                makeDirectory(directoryId, vault.attrs?.name || "1Password"),
+            );
 
             for (const item of vault.items ?? []) {
                 if (item.state === "archived" || item.state === "deleted") {
@@ -1113,7 +1117,7 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
                     item.overview?.urls?.find((entry) => entry.url)?.url ??
                     "";
                 const credential = makeCredential({
-                    groupId,
+                    directoryId,
                     name: item.title,
                     username,
                     password,
@@ -1163,7 +1167,7 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
     return {
         source: "onepassword-1pux",
         credentials,
-        groups,
+        directories,
         warnings,
         skipped,
     };
@@ -1171,11 +1175,14 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
 
 const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
     const parsed = JSON.parse(await readFileAsText(file)) as {
-        Groups?: Group[];
+        Directories?: Directory[];
         Credentials?: Credential[];
     };
 
-    if (!Array.isArray(parsed.Groups) || !Array.isArray(parsed.Credentials)) {
+    if (
+        !Array.isArray(parsed.Directories) ||
+        !Array.isArray(parsed.Credentials)
+    ) {
         throw new Error("Invalid Cryptex Vault export");
     }
 
@@ -1209,7 +1216,7 @@ const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
     return {
         source: "cryptex-json",
         credentials,
-        groups: parsed.Groups,
+        directories: parsed.Directories,
         warnings,
         skipped,
     };
@@ -1241,35 +1248,44 @@ export const parseImportFile = async (
 
 export const applyImportToVault = async (
     vault: Vault,
-    result: Pick<ImportResult, "credentials" | "groups">,
+    result: Pick<ImportResult, "credentials" | "directories">,
 ): Promise<ApplyImportResult> => {
     const vaultCopy = Object.assign(new Vault(), vault);
-    vaultCopy.Groups = [...(vault.Groups ?? [])];
+    vaultCopy.Directories = [...(vault.Directories ?? [])];
     vaultCopy.Credentials = [...(vault.Credentials ?? [])];
 
-    let importedGroups = 0;
-    const groupIdMap = new Map<string, string>();
-    for (const group of result.groups) {
+    let importedDirectories = 0;
+    const directoryIdMap = new Map<string, string>();
+    for (const directory of result.directories) {
         const existing =
-            vaultCopy.Groups.find(
-                (item) => item.ID === group.ID || item.Name === group.Name,
+            vaultCopy.Directories.find(
+                (item) =>
+                    !item.Deleted &&
+                    (item.ID === directory.ID ||
+                        item.Name.localeCompare(directory.Name, undefined, {
+                            sensitivity: "base",
+                        }) === 0),
             ) ?? null;
-        const merged = upsertGroup(existing, group);
+        const merged =
+            existing ??
+            (await createDirectory(vaultCopy.Directories, {
+                ID: null,
+                Name: directory.Name,
+            }));
         if (!existing) {
-            vaultCopy.Groups.push(merged);
-            importedGroups += 1;
+            importedDirectories += 1;
         }
-        groupIdMap.set(group.ID, merged.ID);
+        directoryIdMap.set(directory.ID, merged.ID);
     }
 
     for (const credential of result.credentials) {
-        const groupID = groupIdMap.get(credential.GroupID);
-        const credentialToImport = groupID
+        const directoryID = directoryIdMap.get(credential.DirectoryID);
+        const credentialToImport = directoryID
             ? {
                   ...credential,
-                  GroupID: groupID,
+                  DirectoryID: directoryID,
               }
-            : credential;
+            : { ...credential, DirectoryID: "" };
         const assimilated = await assimilateImportedCredential(
             ensureUniqueCustomFieldIDs(credentialToImport),
         );
@@ -1281,6 +1297,6 @@ export const applyImportToVault = async (
     return {
         vault: vaultCopy,
         importedCredentials: result.credentials.length,
-        importedGroups,
+        importedDirectories,
     };
 };

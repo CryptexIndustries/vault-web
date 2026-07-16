@@ -21,7 +21,7 @@ import {
     REQUIRED_FIELD_ERROR,
 } from "../../src/utils/consts";
 import {
-    GroupSchema,
+    DirectorySchema,
     SynchronizationSTUNUpsertSchema,
     SynchronizationSignalingUpsertSchema,
     SynchronizationTURNUpsertSchema,
@@ -236,50 +236,41 @@ describe("vault-utils/form-schemas", () => {
         ).toThrow("Service Port is required");
     });
 
-    describe("GroupSchema", () => {
-        it("parses a fully populated group", () => {
-            const parsed = GroupSchema.parse({
+    describe("DirectorySchema", () => {
+        it("parses a fully populated directory", () => {
+            const parsed = DirectorySchema.parse({
                 ID: "g1",
                 Name: "Work",
-                Icon: "briefcase",
-                Color: "#ff0000",
             });
             expect(parsed).toEqual({
                 ID: "g1",
                 Name: "Work",
-                Icon: "briefcase",
-                Color: "#ff0000",
             });
         });
 
-        it("allows null ID (new unsaved groups)", () => {
-            const parsed = GroupSchema.parse({
+        it("allows null ID for a new unsaved directory", () => {
+            const parsed = DirectorySchema.parse({
                 ID: null,
                 Name: "Unsaved",
-                Icon: "",
-                Color: "",
             });
             expect(parsed.ID).toBeNull();
         });
 
         it("rejects non-string Name", () => {
             expect(() =>
-                GroupSchema.parse({
+                DirectorySchema.parse({
                     ID: "g1",
                     Name: 42,
-                    Icon: "",
-                    Color: "",
                 }),
-            ).toThrow();
+            ).toThrow(Error);
         });
 
         it("rejects missing fields", () => {
             expect(() =>
-                GroupSchema.parse({
+                DirectorySchema.parse({
                     ID: "g1",
-                    Name: "x",
                 }),
-            ).toThrow();
+            ).toThrow(Error);
         });
     });
 

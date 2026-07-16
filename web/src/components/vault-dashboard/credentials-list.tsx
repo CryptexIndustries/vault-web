@@ -11,10 +11,33 @@ import {
     MoreHorizontal,
     Copy,
     Trash2,
+    ChevronDown,
+    Folder,
+    FolderRoot,
+    LayoutList,
+    Pencil,
+    Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import {
     DropdownMenu,
@@ -23,7 +46,11 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { VaultCredential } from "@/app_lib/vault-utils/vault";
+import {
+    Directory,
+    sortDirectories,
+    VaultCredential,
+} from "@/app_lib/vault-utils/vault";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
 import { normalizeCredentialUrl } from "@/utils/credential-url";
@@ -40,6 +67,20 @@ interface CredentialsListProps {
     onDeleteCredential: (credential: VaultCredential) => void;
     onFilteredCredentialsChange?: (credentials: VaultCredential[]) => void;
     searchFocusRequestToken?: number;
+    directories: Directory[];
+    credentialCounts: Record<string, number>;
+    selectedDirectoryID: string;
+    onSelectDirectory: (directoryID: string) => void;
+    onCreateDirectory: (name: string) => Promise<void> | void;
+    onRenameDirectory: (
+        directoryID: string,
+        name: string,
+    ) => Promise<void> | void;
+    onDeleteDirectory: (directoryID: string) => Promise<void> | void;
+    onMoveCredentials: (
+        credentialIDs: string[],
+        directoryID: string,
+    ) => Promise<void> | void;
 }
 
 const MAX_VISIBLE_TAGS = 2;
@@ -52,13 +93,11 @@ function VaultEmptyState() {
                     <Inbox className="h-7 w-7" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
-                    Your vault is empty
+                    There are no credentials in this directory.
                 </p>
                 <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
-                    Add your first encrypted credential with the{" "}
-                    <span className="font-medium text-foreground">
-                        + Add New
-                    </span>{" "}
+                    You can add a new credential by clicking the{" "}
+                    <span className="font-medium text-foreground">+ Add New</span>{" "}
                     button.
                 </p>
             </div>
@@ -166,10 +205,28 @@ export function CredentialsList({
     onDeleteCredential,
     onFilteredCredentialsChange,
     searchFocusRequestToken = 0,
+    directories,
+    credentialCounts,
+    selectedDirectoryID,
+    onSelectDirectory,
+    onCreateDirectory,
+    onRenameDirectory,
+    onDeleteDirectory,
+    onMoveCredentials,
 }: CredentialsListProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<"list" | "grid">("list");
     const [isMobile, setIsMobile] = useState(false);
+    const [selectedIDs, setSelectedIDs] = useState<Set<string>>(new Set());
+    const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
+    const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
+    const [editingDirectory, setEditingDirectory] = useState<Directory | null>(
+        null,
+    );
+    const [directoryName, setDirectoryName] = useState("");
+    const [directoryError, setDirectoryError] = useState("");
+    const [directoryManagerError, setDirectoryManagerError] = useState("");
+    const [isSavingDirectory, setIsSavingDirectory] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -250,12 +307,167 @@ export function CredentialsList({
         input.select();
     }, [searchFocusRequestToken]);
 
+    useEffect(() => {
+        setSelectedIDs(new Set());
+    }, [selectedDirectoryID]);
+
+    const sortedDirectories = sortDirectories(directories);
+    const selectedDirectory = directories.find(
+        (directory) => directory.ID === selectedDirectoryID,
+    );
+    const selectedDirectoryLabel =
+        selectedDirectoryID === "all"
+            ? "All credentials"
+            : selectedDirectoryID === ""
+              ? "Root"
+              : (selectedDirectory?.Name ?? "All credentials");
+    const selectedDirectoryCount =
+        selectedDirectoryID === "all"
+            ? (credentialCounts.all ?? 0)
+            : selectedDirectoryID === ""
+              ? (credentialCounts.root ?? 0)
+              : (credentialCounts[selectedDirectoryID] ?? 0);
+
+    const openDirectoryEditor = (directory: Directory | null) => {
+        setEditingDirectory(directory);
+        setDirectoryName(directory?.Name ?? "");
+        setDirectoryError("");
+        setDirectoryEditorOpen(true);
+    };
+
+    const saveDirectory = async () => {
+        setDirectoryError("");
+        setIsSavingDirectory(true);
+        try {
+            if (editingDirectory) {
+                await onRenameDirectory(editingDirectory.ID, directoryName);
+            } else {
+                await onCreateDirectory(directoryName);
+            }
+            setDirectoryEditorOpen(false);
+        } catch (error: unknown) {
+            setDirectoryError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to save directory",
+            );
+        } finally {
+            setIsSavingDirectory(false);
+        }
+    };
+
     return (
         <div className="flex min-w-0 flex-1 flex-col bg-background">
             {/* Header */}
             <div className="border-b border-border p-2 sm:p-3">
                 {/* Search */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full justify-between gap-2 bg-card sm:w-52"
+                                aria-label="Browse directories"
+                            >
+                                <span className="flex min-w-0 items-center gap-2">
+                                    {selectedDirectoryID === "all" ? (
+                                        <LayoutList className="h-4 w-4 shrink-0" />
+                                    ) : selectedDirectoryID === "" ? (
+                                        <FolderRoot className="h-4 w-4 shrink-0" />
+                                    ) : (
+                                        <Folder className="h-4 w-4 shrink-0" />
+                                    )}
+                                    <span className="truncate">
+                                        {selectedDirectoryLabel}
+                                    </span>
+                                </span>
+                                <span className="ml-auto flex shrink-0 items-center gap-1.5 text-muted-foreground">
+                                    <span className="text-xs">
+                                        {selectedDirectoryCount}
+                                    </span>
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                </span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="start"
+                            className="w-64"
+                            onCloseAutoFocus={(event) => event.preventDefault()}
+                        >
+                            <DropdownMenuItem
+                                className={cn(
+                                    selectedDirectoryID === "all" &&
+                                        "bg-accent",
+                                )}
+                                onSelect={() => onSelectDirectory("all")}
+                            >
+                                <LayoutList className="mr-2 h-4 w-4" />
+                                <span className="flex-1">All credentials</span>
+                                <span className="text-xs text-muted-foreground">
+                                    {credentialCounts.all ?? 0}
+                                </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                className={cn(
+                                    selectedDirectoryID === "" && "bg-accent",
+                                )}
+                                onSelect={() => onSelectDirectory("")}
+                            >
+                                <FolderRoot className="mr-2 h-4 w-4" />
+                                <span className="flex-1">Root</span>
+                                <span className="text-xs text-muted-foreground">
+                                    {credentialCounts.root ?? 0}
+                                </span>
+                            </DropdownMenuItem>
+                            {sortedDirectories.length > 0 ? (
+                                <DropdownMenuSeparator />
+                            ) : null}
+                            {sortedDirectories.map((directory) => (
+                                <DropdownMenuItem
+                                    key={directory.ID}
+                                    className={cn(
+                                        selectedDirectoryID === directory.ID &&
+                                            "bg-accent",
+                                    )}
+                                    onSelect={() =>
+                                        onSelectDirectory(directory.ID)
+                                    }
+                                >
+                                    <Folder className="mr-2 h-4 w-4" />
+                                    <span className="flex-1 truncate">
+                                        {directory.Name}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {credentialCounts[directory.ID] ?? 0}
+                                    </span>
+                                </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onSelect={() =>
+                                    setTimeout(
+                                        () => openDirectoryEditor(null),
+                                        0,
+                                    )
+                                }
+                            >
+                                <Plus className="mr-2 h-4 w-4" />
+                                New directory
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() =>
+                                    setTimeout(() => {
+                                        setDirectoryManagerError("");
+                                        setDirectoryManagerOpen(true);
+                                    }, 0)
+                                }
+                            >
+                                <Settings2 className="mr-2 h-4 w-4" />
+                                Manage directories
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                         onClick={onAddNew}
                         className="inline-flex w-full gap-2 sm:w-auto"
@@ -326,6 +538,41 @@ export function CredentialsList({
                         {filteredCredentials.length} rows
                     </p>
                 </div>
+                {selectedIDs.size > 0 ? (
+                    <div className="mt-2 flex items-center gap-2 rounded-md bg-muted p-2">
+                        <span className="text-sm text-foreground">
+                            {selectedIDs.size} selected
+                        </span>
+                        <Select
+                            onValueChange={(value) => {
+                                void Promise.resolve(
+                                    onMoveCredentials(
+                                        Array.from(selectedIDs),
+                                        value === "root" ? "" : value,
+                                    ),
+                                ).then(() => setSelectedIDs(new Set()));
+                            }}
+                        >
+                            <SelectTrigger
+                                className="ml-auto w-48"
+                                aria-label="Move to directory"
+                            >
+                                <SelectValue placeholder="Move to directory" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="root">Root</SelectItem>
+                                {sortedDirectories.map((directory) => (
+                                    <SelectItem
+                                        key={directory.ID}
+                                        value={directory.ID}
+                                    >
+                                        {directory.Name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ) : null}
             </div>
 
             {/* Credentials list */}
@@ -377,6 +624,35 @@ export function CredentialsList({
                                                     : "bg-card border-border",
                                             )}
                                         >
+                                            <Checkbox
+                                                checked={selectedIDs.has(
+                                                    credential.ID,
+                                                )}
+                                                aria-label={`Select ${credential.Name}`}
+                                                onClick={(event) =>
+                                                    event.stopPropagation()
+                                                }
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedIDs(
+                                                        (previous) => {
+                                                            const next =
+                                                                new Set(
+                                                                    previous,
+                                                                );
+                                                            if (checked) {
+                                                                next.add(
+                                                                    credential.ID,
+                                                                );
+                                                            } else {
+                                                                next.delete(
+                                                                    credential.ID,
+                                                                );
+                                                            }
+                                                            return next;
+                                                        },
+                                                    );
+                                                }}
+                                            />
                                             {/* Favicon */}
                                             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted sm:h-10 sm:w-10">
                                                 <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
@@ -651,6 +927,177 @@ export function CredentialsList({
                     )}
                 </div>
             )}
+
+            <Dialog
+                open={directoryEditorOpen}
+                onOpenChange={setDirectoryEditorOpen}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {editingDirectory
+                                ? "Rename directory"
+                                : "Create directory"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Directory names must be unique and 1–100 characters.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="credential-list-directory-name">
+                            Name
+                        </Label>
+                        <Input
+                            id="credential-list-directory-name"
+                            value={directoryName}
+                            maxLength={100}
+                            autoFocus
+                            disabled={isSavingDirectory}
+                            onChange={(event) => {
+                                setDirectoryName(event.target.value);
+                                setDirectoryError("");
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void saveDirectory();
+                                }
+                            }}
+                        />
+                        {directoryError ? (
+                            <p
+                                className="text-sm text-destructive"
+                                role="alert"
+                            >
+                                {directoryError}
+                            </p>
+                        ) : null}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            disabled={isSavingDirectory}
+                            onClick={() => setDirectoryEditorOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            disabled={isSavingDirectory}
+                            onClick={() => void saveDirectory()}
+                        >
+                            {isSavingDirectory ? "Saving..." : "Save"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={directoryManagerOpen}
+                onOpenChange={setDirectoryManagerOpen}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Manage directories</DialogTitle>
+                        <DialogDescription>
+                            Rename or delete directories. Root is always
+                            available and cannot be changed.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <FolderRoot className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate text-sm font-medium">
+                                Root
+                            </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                            {credentialCounts.root ?? 0}
+                        </span>
+                    </div>
+                    <div className="max-h-72 space-y-2 overflow-y-auto">
+                        {sortedDirectories.length === 0 ? (
+                            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                                No directories yet.
+                            </div>
+                        ) : (
+                            sortedDirectories.map((directory) => (
+                                <div
+                                    key={directory.ID}
+                                    className="flex items-center gap-3 rounded-md border p-3"
+                                >
+                                    <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                        {directory.Name}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {credentialCounts[directory.ID] ?? 0}
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        aria-label={`Rename ${directory.Name}`}
+                                        onClick={() => {
+                                            setDirectoryManagerOpen(false);
+                                            setTimeout(
+                                                () =>
+                                                    openDirectoryEditor(
+                                                        directory,
+                                                    ),
+                                                0,
+                                            );
+                                        }}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                        aria-label={`Delete ${directory.Name}`}
+                                        onClick={() => {
+                                            setDirectoryManagerError("");
+                                            void Promise.resolve(
+                                                onDeleteDirectory(directory.ID),
+                                            ).catch((error: unknown) =>
+                                                setDirectoryManagerError(
+                                                    error instanceof Error
+                                                        ? error.message
+                                                        : "Failed to delete directory",
+                                                ),
+                                            );
+                                        }}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    {directoryManagerError ? (
+                        <p className="text-sm text-destructive" role="alert">
+                            {directoryManagerError}
+                        </p>
+                    ) : null}
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDirectoryManagerOpen(false)}
+                        >
+                            Close
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                setDirectoryManagerOpen(false);
+                                setTimeout(() => openDirectoryEditor(null), 0);
+                            }}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            New directory
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

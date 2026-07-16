@@ -1,7 +1,7 @@
 import { ulid } from "ulidx";
 import * as VaultUtilTypes from "../proto/vault";
 
-export const SYNC_PROTOCOL_VERSION = 1;
+export const SYNC_PROTOCOL_VERSION = 2;
 export const AES_GCM_NONCE_BYTES = 12;
 
 export type AeadSealed = {

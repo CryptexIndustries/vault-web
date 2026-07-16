@@ -79,7 +79,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
             form: {
                 ID: null,
                 Type: ItemType.Credentials,
-                GroupID: "",
+                DirectoryID: "",
                 Name: name.trim() || prompt.host,
                 Username: username,
                 Password: password,

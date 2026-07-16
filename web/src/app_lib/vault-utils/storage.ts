@@ -38,7 +38,13 @@ import {
 } from "./form-schemas";
 import { ensureSyncKemKeypair } from "./post-quantum-kem";
 import { ensureSyncSigningKeypair } from "./sync-signing";
-import { LinkedDevices, TOTP, Vault, VaultCredential } from "./vault";
+import {
+    Directory,
+    LinkedDevices,
+    TOTP,
+    Vault,
+    VaultCredential,
+} from "./vault";
 import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
 import { applyImportToVault, type ImportResult } from "./import-export";
@@ -679,8 +685,16 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                 return Object.assign(new VaultCredential(), credential);
             },
         );
+        vaultObject.Directories = vaultObject.Directories.map((directory) =>
+            Object.assign(new Directory(), directory),
+        );
 
-        vaultObject.upgrade();
+        const vaultNeedsUpgrade =
+            vaultObject.CurrentVersion < 4 && vaultObject.Version < 4;
+        await vaultObject.upgrade();
+        if (vaultNeedsUpgrade) {
+            blobUpgradeResult.requiresSave = true;
+        }
 
         const generatedSyncKeys = await ensureSyncSigningKeypair(
             vaultObject.LinkedDevices,

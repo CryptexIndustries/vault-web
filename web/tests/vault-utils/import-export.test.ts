@@ -25,11 +25,21 @@ jest.mock("../../src/app_lib/vault-utils/vault", () => ({
         ID: `assimilated-${credential.Name}`,
         Hash: `hash-${credential.Name}`,
     })),
-    upsertGroup: jest.fn((existing: any, form: any) =>
-        existing ? Object.assign(existing, form) : { ...form },
-    ),
+    createDirectory: jest.fn(async (directories: any[], form: any) => {
+        const directory = {
+            ...form,
+            ID: form.ID ?? `directory-${form.Name}`,
+            Version: 0,
+            Hash: `hash-${form.Name}`,
+            DateModifiedTimestamp: 1,
+            Deleted: false,
+        };
+        directories.push(directory);
+        return directory;
+    }),
+    Directory: class {},
     Vault: class {
-        Groups: any[] = [];
+        Directories: any[] = [];
         Credentials: any[] = [];
     },
     VaultCredential: class {
@@ -49,12 +59,6 @@ jest.mock("../../src/app_lib/vault-utils/vault", () => ({
         Name = "";
         Type = 0;
         Value = "";
-    },
-    Group: class {
-        ID = "";
-        Name = "";
-        Icon = "";
-        Color = "";
     },
 }));
 import {
@@ -92,7 +96,7 @@ describe("vault-utils/import-export", () => {
     });
 
     describe("vaultToJSON", () => {
-        it("exports only groups and credentials and triggers download", async () => {
+        it("exports only directories and credentials and triggers download", async () => {
             const originalBlob = Blob;
             const blobPayloads: string[] = [];
             class MockBlob {
@@ -132,7 +136,13 @@ describe("vault-utils/import-export", () => {
                 } as unknown as HTMLAnchorElement);
 
             const vault = {
-                Groups: [{ ID: "g1", Name: "Group 1", Icon: "x", Color: "y" }],
+                Directories: [
+                    {
+                        ID: "d1",
+                        Name: "Directory 1",
+                        Deleted: false,
+                    },
+                ],
                 Credentials: [{ ID: "c1", Name: "Credential 1" }],
                 LinkedDevices: { ID: "should-not-export" },
             } as any;
@@ -152,7 +162,7 @@ describe("vault-utils/import-export", () => {
                 const parsed = JSON.parse(payload);
 
                 expect(parsed).toEqual({
-                    Groups: vault.Groups,
+                    Directories: vault.Directories,
                     Credentials: vault.Credentials,
                 });
                 expect(parsed.LinkedDevices).toBeUndefined();
@@ -186,7 +196,7 @@ describe("vault-utils/import-export", () => {
                 anchor as unknown as HTMLAnchorElement,
             );
 
-            vaultToJSON({ Groups: [], Credentials: [] } as any);
+            vaultToJSON({ Directories: [], Credentials: [] } as any);
 
             expect(anchor.download).toBe(
                 "cryptexvault-export-1701234567890.json",
@@ -332,7 +342,7 @@ describe("vault-utils/import-export", () => {
 
             expect(first).toMatchObject({
                 Type: ItemType.Credentials,
-                GroupID: "",
+                DirectoryID: "",
                 Name: "Mail",
                 Username: "alice",
                 Password: "s3cret",
@@ -543,13 +553,11 @@ describe("vault-utils/import-export", () => {
             const output = await BitwardenJSON({} as File);
             const [first, second, third, fourth] = output.credentials;
 
-            expect(output.groups).toEqual([
-                {
+            expect(output.directories).toEqual([
+                expect.objectContaining({
                     ID: "folder-1",
                     Name: "Personal",
-                    Icon: "",
-                    Color: "",
-                },
+                }),
             ]);
 
             expect(output.credentials).toHaveLength(4);
@@ -560,7 +568,7 @@ describe("vault-utils/import-export", () => {
 
             expect(first).toMatchObject({
                 Type: ItemType.Credentials,
-                GroupID: "folder-1",
+                DirectoryID: "folder-1",
                 Name: "Email account",
                 Username: "alice",
                 Password: "pw",
@@ -569,7 +577,7 @@ describe("vault-utils/import-export", () => {
                 Deleted: false,
             });
             expect(first?.TOTP?.Secret).toBe("TOTPSECRET");
-            expect(first?.CustomFields).toHaveLength(3);
+            expect(first?.CustomFields).toHaveLength(4);
             expect(first?.DateCreatedTimestamp).toBe(
                 new Date("2024-01-01T00:00:00.000Z").getTime(),
             );
@@ -631,7 +639,7 @@ describe("vault-utils/import-export", () => {
             const output = await BitwardenJSON({} as File);
             const first = output.credentials[0];
 
-            expect(output.groups).toEqual([]);
+            expect(output.directories).toEqual([]);
             expect(output.credentials).toHaveLength(1);
             expect(first).toBeDefined();
             expect(first?.DateCreatedTimestamp).toBe(
@@ -691,7 +699,7 @@ describe("vault-utils/import-export", () => {
 
             const output = await BitwardenJSON({} as File);
             const fields = output.credentials[0]?.CustomFields ?? [];
-            expect(fields).toHaveLength(1);
+            expect(fields).toHaveLength(2);
             expect(fields[0]?.Name).toBe("text");
             expect(fields[0]?.Type).toBe(0);
         });
@@ -781,7 +789,7 @@ describe("vault-utils/import-export", () => {
             const output = await parseImportFile("bitwarden-json", {} as File);
             const [card, login] = output.credentials;
 
-            expect(output.groups).toHaveLength(1);
+            expect(output.directories).toHaveLength(1);
             expect(output.warnings).toEqual([
                 expect.objectContaining({
                     code: "BITWARDEN_PASSKEYS_UNSUPPORTED",
@@ -819,72 +827,71 @@ describe("vault-utils/import-export", () => {
 
     describe("parseImportFile", () => {
         it("imports Cryptex Vault JSON exports and skips deleted tombstones", async () => {
-            const file = new File(
-                [
-                    JSON.stringify({
-                        Groups: [
-                            {
-                                ID: "source-group",
-                                Name: "Cryptex Group",
-                                Icon: "",
-                                Color: "",
-                            },
-                        ],
-                        Credentials: [
-                            {
-                                ID: "source-credential",
-                                Version: 0,
-                                Type: ItemType.Credentials,
-                                GroupID: "source-group",
-                                Name: "Cryptex Login",
-                                Username: "alice",
-                                Password: "pw",
-                                URL: "https://cryptex.example.test",
-                                Notes: "from export",
-                                CustomFields: [
-                                    {
-                                        ID: "-1",
-                                        Name: "Imported Field",
-                                        Type: 0,
-                                        Value: "value",
-                                    },
-                                ],
-                                DateCreated: "",
-                                DateCreatedTimestamp: 100,
-                                DateModifiedTimestamp: 200,
-                                DatePasswordChangedTimestamp: 300,
-                                Deleted: false,
-                                Hash: "old-hash",
-                            },
-                            {
-                                ID: "deleted",
-                                Version: 0,
-                                Type: ItemType.Credentials,
-                                GroupID: "source-group",
-                                Name: "Deleted Login",
-                                Username: "",
-                                Password: "",
-                                URL: "",
-                                Notes: "",
-                                CustomFields: [],
-                                DateCreated: "",
-                                DateCreatedTimestamp: 100,
-                                DateModifiedTimestamp: 100,
-                                DatePasswordChangedTimestamp: 100,
-                                Deleted: true,
-                                Hash: "",
-                            },
-                        ],
-                    }),
+            const fileContents = JSON.stringify({
+                Directories: [
+                    {
+                        ID: "source-group",
+                        Name: "Cryptex Group",
+                        Version: 0,
+                        Hash: "",
+                        DateModifiedTimestamp: 1,
+                        Deleted: false,
+                    },
                 ],
-                "cryptexvault-export.json",
-                { type: "application/json" },
-            );
+                Credentials: [
+                    {
+                        ID: "source-credential",
+                        Version: 0,
+                        Type: ItemType.Credentials,
+                        DirectoryID: "source-group",
+                        Name: "Cryptex Login",
+                        Username: "alice",
+                        Password: "pw",
+                        URL: "https://cryptex.example.test",
+                        Notes: "from export",
+                        CustomFields: [
+                            {
+                                ID: "-1",
+                                Name: "Imported Field",
+                                Type: 0,
+                                Value: "value",
+                            },
+                        ],
+                        DateCreated: "",
+                        DateCreatedTimestamp: 100,
+                        DateModifiedTimestamp: 200,
+                        DatePasswordChangedTimestamp: 300,
+                        Deleted: false,
+                        Hash: "old-hash",
+                    },
+                    {
+                        ID: "deleted",
+                        Version: 0,
+                        Type: ItemType.Credentials,
+                        DirectoryID: "source-group",
+                        Name: "Deleted Login",
+                        Username: "",
+                        Password: "",
+                        URL: "",
+                        Notes: "",
+                        CustomFields: [],
+                        DateCreated: "",
+                        DateCreatedTimestamp: 100,
+                        DateModifiedTimestamp: 100,
+                        DatePasswordChangedTimestamp: 100,
+                        Deleted: true,
+                        Hash: "",
+                    },
+                ],
+            });
+            const file = {
+                text: async () => fileContents,
+            } as File;
 
             const output = await parseImportFile("cryptex-json", file);
 
             expect(output.source).toBe("cryptex-json");
-            expect(output.groups).toHaveLength(1);
+            expect(output.directories).toHaveLength(1);
             expect(output.credentials).toHaveLength(1);
             expect(output.skipped).toBe(1);
             expect(output.warnings).toEqual([
@@ -893,7 +900,7 @@ describe("vault-utils/import-export", () => {
                 }),
             ]);
             expect(output.credentials[0]).toMatchObject({
-                GroupID: "source-group",
+                DirectoryID: "source-group",
                 Name: "Cryptex Login",
                 Username: "alice",
                 Password: "pw",
@@ -901,7 +908,7 @@ describe("vault-utils/import-export", () => {
             expect(output.credentials[0]?.CustomFields[0]?.ID).not.toBe("-1");
         });
 
-        it("maps LastPass CSV into credentials and groups", async () => {
+        it("maps LastPass CSV into credentials and directories", async () => {
             mockPapaParse.mockImplementation((_file, options) => {
                 const parseOptions = options as ParseOptions;
                 parseOptions.complete?.({
@@ -923,16 +930,14 @@ describe("vault-utils/import-export", () => {
 
             const output = await parseImportFile("lastpass-csv", {} as File);
 
-            expect(output.groups).toEqual([
-                {
-                    ID: "import-group:Work",
+            expect(output.directories).toEqual([
+                expect.objectContaining({
+                    ID: "import-directory:Work",
                     Name: "Work",
-                    Icon: "",
-                    Color: "",
-                },
+                }),
             ]);
             expect(output.credentials[0]).toMatchObject({
-                GroupID: "import-group:Work",
+                DirectoryID: "import-directory:Work",
                 Name: "Example",
                 Username: "alice",
                 Password: "pw",
@@ -945,12 +950,12 @@ describe("vault-utils/import-export", () => {
     describe("applyImportToVault", () => {
         it("imports every credential as a new item and does not mutate input vault", async () => {
             const vault = {
-                Groups: [{ ID: "existing", Name: "Existing" }],
+                Directories: [{ ID: "existing", Name: "Existing" }],
                 Credentials: [{ ID: "old", Name: "Existing Login" }],
             } as any;
             const importResult = {
                 source: "cryptex-json",
-                groups: [{ ID: "g1", Name: "Imported", Icon: "", Color: "" }],
+                directories: [{ ID: "d1", Name: "Imported" }],
                 credentials: [
                     { ID: "source-1", Name: "Existing Login" },
                     { ID: "source-2", Name: "New Login" },
@@ -963,7 +968,7 @@ describe("vault-utils/import-export", () => {
 
             expect(vault.Credentials).toHaveLength(1);
             expect(output.vault).not.toBe(vault);
-            expect(output.vault.Groups).toHaveLength(2);
+            expect(output.vault.Directories).toHaveLength(2);
             expect(output.vault.Credentials).toHaveLength(3);
             expect(output.vault.Credentials.slice(1)).toEqual([
                 expect.objectContaining({
@@ -977,25 +982,23 @@ describe("vault-utils/import-export", () => {
             ]);
         });
 
-        it("remaps imported credential groups to existing matching group names", async () => {
+        it("remaps imported credential directories by matching names", async () => {
             const vault = {
-                Groups: [{ ID: "target-group", Name: "Imported" }],
+                Directories: [{ ID: "target-directory", Name: "Imported" }],
                 Credentials: [],
             } as any;
             const importResult = {
                 source: "cryptex-json",
-                groups: [
+                directories: [
                     {
-                        ID: "source-group",
+                        ID: "source-directory",
                         Name: "Imported",
-                        Icon: "",
-                        Color: "",
                     },
                 ],
                 credentials: [
                     {
                         ID: "source-1",
-                        GroupID: "source-group",
+                        DirectoryID: "source-directory",
                         Name: "Grouped Login",
                         CustomFields: [],
                     },
@@ -1006,10 +1009,10 @@ describe("vault-utils/import-export", () => {
 
             const output = await applyImportToVault(vault, importResult);
 
-            expect(output.vault.Groups).toHaveLength(1);
+            expect(output.vault.Directories).toHaveLength(1);
             expect(output.vault.Credentials[0]).toEqual(
                 expect.objectContaining({
-                    GroupID: "target-group",
+                    DirectoryID: "target-directory",
                     Name: "Grouped Login",
                 }),
             );

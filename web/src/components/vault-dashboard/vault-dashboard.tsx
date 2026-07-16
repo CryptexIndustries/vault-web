@@ -11,7 +11,12 @@ import {
     Vault,
     VaultCredential,
     calculateTOTP,
+    createDirectory,
+    Directory,
+    deleteDirectory,
     deleteCredential,
+    moveCredentialsToDirectory,
+    updateDirectory,
 } from "@/app_lib/vault-utils/vault";
 import { LogInspectorDialog } from "@/components/dialog/log-inspector";
 import {
@@ -379,7 +384,7 @@ export function VaultDashboard() {
     const unlockedVaultName = unlockedVaultMetadata?.Name?.trim() || "Vault";
     const unlockedVaultDescription = unlockedVaultMetadata?.Description?.trim();
 
-    const credentials = vaultCredentials.filter((c) => !c.Deleted);
+    const allCredentials = vaultCredentials.filter((c) => !c.Deleted);
     const cloudServicesEnabled = isCloudServicesEnabled();
     // const devices = linkedDevices;
     const vaultSignalingConfig: VaultSignalingConfig = {
@@ -390,6 +395,8 @@ export function VaultDashboard() {
 
     const [selectedCredential, setSelectedCredential] =
         useState<VaultCredential | null>(null);
+    const [selectedDirectoryID, setSelectedDirectoryID] =
+        useState<string>("all");
     const [editingCredential, setEditingCredential] =
         useState<VaultCredential | null>(null);
     const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
@@ -403,7 +410,7 @@ export function VaultDashboard() {
         useState(false);
     const [searchFocusRequestToken, setSearchFocusRequestToken] = useState(0);
     const [filteredCredentials, setFilteredCredentials] =
-        useState<VaultCredential[]>(credentials);
+        useState<VaultCredential[]>(allCredentials);
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
     const showLogInspectorDialogRef = useRef<(() => void) | null>(null);
     const pendingKeySequenceRef = useRef<string | null>(null);
@@ -411,6 +418,20 @@ export function VaultDashboard() {
     const syncConnectionController = useSyncConnectionController(
         setUnlockedVault,
         unlockedVaultMetadata,
+    );
+    const credentials = allCredentials.filter(
+        (credential) =>
+            selectedDirectoryID === "all" ||
+            credential.DirectoryID === selectedDirectoryID,
+    );
+    const credentialCounts = allCredentials.reduce<Record<string, number>>(
+        (counts, credential) => {
+            counts.all = (counts.all ?? 0) + 1;
+            const key = credential.DirectoryID || "root";
+            counts[key] = (counts[key] ?? 0) + 1;
+            return counts;
+        },
+        { all: 0, root: 0 },
     );
 
     const deviceConnectionStatuses = useDeviceConnectionLifecycle(
@@ -519,6 +540,121 @@ export function VaultDashboard() {
             vaultCredentials,
             unlockedVaultMetadata,
         ],
+    );
+
+    const saveDirectoryChange = useCallback(
+        async (updatedVault: Vault, successMessage: string) => {
+            if (!unlockedVaultMetadata) {
+                throw new Error("Vault metadata is unavailable");
+            }
+            const saveRes = await saveVaultWithSessionDEK(
+                unlockedVaultMetadata,
+                updatedVault,
+            );
+            if (saveRes.isErr()) {
+                throw new Error("Failed to save directory changes");
+            }
+            setVaultCredentials(updatedVault.Credentials);
+            setUnlockedVault(updatedVault);
+            toast.success(successMessage);
+        },
+        [setUnlockedVault, setVaultCredentials, unlockedVaultMetadata],
+    );
+
+    const handleCreateDirectory = useCallback(
+        async (name: string) => {
+            const updatedVault = Object.assign(new Vault(), unlockedVault, {
+                Directories: [...unlockedVault.Directories],
+            });
+            const directory = await createDirectory(updatedVault.Directories, {
+                ID: null,
+                Name: name,
+            });
+            await saveDirectoryChange(updatedVault, "Directory created.");
+            setSelectedDirectoryID(directory.ID);
+        },
+        [saveDirectoryChange, unlockedVault],
+    );
+
+    const handleRenameDirectory = useCallback(
+        async (directoryID: string, name: string) => {
+            const updatedVault = Object.assign(new Vault(), unlockedVault, {
+                Directories: unlockedVault.Directories.map((directory) =>
+                    Object.assign(new Directory(), directory),
+                ),
+            });
+            await updateDirectory(updatedVault.Directories, directoryID, {
+                Name: name,
+            });
+            await saveDirectoryChange(updatedVault, "Directory renamed.");
+        },
+        [saveDirectoryChange, unlockedVault],
+    );
+
+    const handleDeleteDirectory = useCallback(
+        async (directoryID: string) => {
+            const directory = unlockedVault.Directories.find(
+                (entry) => entry.ID === directoryID && !entry.Deleted,
+            );
+            if (!directory) return;
+            const count = allCredentials.filter(
+                (credential) => credential.DirectoryID === directoryID,
+            ).length;
+            showWarningDialogFnRef.current?.(
+                `Delete “${directory.Name}” and ${count} credential${count === 1 ? "" : "s"}?`,
+                async () => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        unlockedVault,
+                        {
+                            Directories: unlockedVault.Directories.map(
+                                (entry) =>
+                                    Object.assign(new Directory(), entry),
+                            ),
+                            Credentials: unlockedVault.Credentials.map(
+                                (credential) =>
+                                    Object.assign(
+                                        new VaultCredential(),
+                                        credential,
+                                    ),
+                            ),
+                        },
+                    );
+                    await deleteDirectory(
+                        updatedVault.Directories,
+                        updatedVault.Credentials,
+                        directoryID,
+                    );
+                    await saveDirectoryChange(
+                        updatedVault,
+                        "Directory and credentials deleted.",
+                    );
+                    setSelectedDirectoryID("all");
+                },
+                () => undefined,
+                "Delete directory",
+                "This permanently deletes every credential in the directory.",
+            );
+        },
+        [allCredentials, saveDirectoryChange, unlockedVault],
+    );
+
+    const handleMoveCredentials = useCallback(
+        async (credentialIDs: string[], directoryID: string) => {
+            const updatedVault = Object.assign(new Vault(), unlockedVault, {
+                Credentials: unlockedVault.Credentials.map((credential) =>
+                    Object.assign(new VaultCredential(), credential),
+                ),
+            });
+            await moveCredentialsToDirectory(
+                updatedVault.Credentials,
+                credentialIDs,
+                directoryID,
+                updatedVault.Directories,
+            );
+            await saveDirectoryChange(updatedVault, "Credentials moved.");
+        },
+        [saveDirectoryChange, unlockedVault],
     );
 
     // const handleSyncDevice = useCallback(
@@ -1220,6 +1356,14 @@ export function VaultDashboard() {
                     onCopyTOTP={handleCopyTOTP}
                     onOpenUrl={handleOpenCredentialUrl}
                     onDeleteCredential={handleDeleteCredential}
+                    directories={unlockedVault.Directories}
+                    credentialCounts={credentialCounts}
+                    selectedDirectoryID={selectedDirectoryID}
+                    onSelectDirectory={setSelectedDirectoryID}
+                    onCreateDirectory={handleCreateDirectory}
+                    onRenameDirectory={handleRenameDirectory}
+                    onDeleteDirectory={handleDeleteDirectory}
+                    onMoveCredentials={handleMoveCredentials}
                     onFilteredCredentialsChange={
                         handleFilteredCredentialsChange
                     }
@@ -1231,12 +1375,15 @@ export function VaultDashboard() {
                     <CredentialDetail
                         credential={selectedCredential}
                         onEdit={handleEditCredential}
-                        onClose={handleCloseDetail}
-                        onCopyUsername={handleCopyUsername}
-                        onCopyPassword={handleCopyPassword}
-                        onCopyTOTP={handleCopyTOTP}
                         onOpenUrl={handleOpenCredentialUrl}
                         onDeleteCredential={handleDeleteCredential}
+                        directoryName={
+                            unlockedVault.Directories.find(
+                                (directory) =>
+                                    directory.ID ===
+                                    selectedCredential?.DirectoryID,
+                            )?.Name ?? "Root"
+                        }
                     />
                 </div>
 
@@ -1255,13 +1402,16 @@ export function VaultDashboard() {
                             <CredentialDetail
                                 credential={selectedCredential}
                                 onEdit={handleEditCredential}
-                                onClose={handleCloseDetail}
                                 isMobile
-                                onCopyUsername={handleCopyUsername}
-                                onCopyPassword={handleCopyPassword}
-                                onCopyTOTP={handleCopyTOTP}
                                 onOpenUrl={handleOpenCredentialUrl}
                                 onDeleteCredential={handleDeleteCredential}
+                                directoryName={
+                                    unlockedVault.Directories.find(
+                                        (directory) =>
+                                            directory.ID ===
+                                            selectedCredential?.DirectoryID,
+                                    )?.Name ?? "Root"
+                                }
                             />
                         </SheetContent>
                     </Sheet>
@@ -1274,6 +1424,10 @@ export function VaultDashboard() {
                 isOpen={isEditDrawerOpen}
                 onClose={() => setIsEditDrawerOpen(false)}
                 onSave={handleSaveCredential}
+                directories={unlockedVault.Directories}
+                initialDirectoryID={
+                    selectedDirectoryID === "all" ? "" : selectedDirectoryID
+                }
             />
             <div className="fixed bottom-4 left-4 right-4 z-50 lg:left-3 lg:right-auto"></div>
             <PasswordGeneratorDialog

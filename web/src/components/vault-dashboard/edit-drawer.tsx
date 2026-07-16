@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import {
@@ -48,8 +48,8 @@ import {
     createCredential,
     CredentialFormSchema,
     CredentialFormSchemaType,
-    CustomField,
     updateCredentialFromForm,
+    Directory,
     VaultCredential,
 } from "@/app_lib/vault-utils/vault";
 import {
@@ -71,6 +71,8 @@ interface EditDrawerProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (credential: VaultCredential) => void;
+    directories: Directory[];
+    initialDirectoryID?: string;
 }
 
 function TagControl({
@@ -165,6 +167,8 @@ export function EditDrawer({
     isOpen,
     onClose,
     onSave,
+    directories,
+    initialDirectoryID = "",
 }: EditDrawerProps) {
     const isNew = !credential;
 
@@ -172,19 +176,22 @@ export function EditDrawer({
     const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] =
         useState(false);
 
-    const buildDefaultValues = (): CredentialFormSchemaType => ({
-        ID: null,
-        Type: ItemType.Credentials,
-        GroupID: "",
-        Name: "",
-        Username: "",
-        Password: "",
-        TOTP: null,
-        Tags: "",
-        URL: "",
-        Notes: "",
-        CustomFields: [],
-    });
+    const buildDefaultValues = useCallback(
+        (): CredentialFormSchemaType => ({
+            ID: null,
+            Type: ItemType.Credentials,
+            DirectoryID: initialDirectoryID,
+            Name: "",
+            Username: "",
+            Password: "",
+            TOTP: null,
+            Tags: "",
+            URL: "",
+            Notes: "",
+            CustomFields: [],
+        }),
+        [initialDirectoryID],
+    );
 
     const {
         register,
@@ -217,7 +224,7 @@ export function EditDrawer({
             reset({
                 ID: credential.ID,
                 Type: credential.Type,
-                GroupID: credential.GroupID,
+                DirectoryID: credential.DirectoryID,
                 Name: credential.Name,
                 Username: credential.Username,
                 Password: credential.Password,
@@ -232,7 +239,7 @@ export function EditDrawer({
         }
 
         setShowPassword(false);
-    }, [credential, isOpen, reset]);
+    }, [buildDefaultValues, credential, isOpen, reset]);
 
     const handleAddCustomField = () => {
         append({
@@ -366,6 +373,64 @@ export function EditDrawer({
                                             {errors.Name.message}
                                         </p>
                                     )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">
+                                        Directory
+                                    </Label>
+                                    <Controller
+                                        control={control}
+                                        name="DirectoryID"
+                                        render={({ field }) => (
+                                            <Select
+                                                value={field.value || "root"}
+                                                onValueChange={(value) =>
+                                                    field.onChange(
+                                                        value === "root"
+                                                            ? ""
+                                                            : value,
+                                                    )
+                                                }
+                                            >
+                                                <SelectTrigger aria-label="Directory">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="root">
+                                                        Root
+                                                    </SelectItem>
+                                                    {directories
+                                                        .filter(
+                                                            (directory) =>
+                                                                !directory.Deleted,
+                                                        )
+                                                        .sort((a, b) =>
+                                                            a.Name.localeCompare(
+                                                                b.Name,
+                                                                undefined,
+                                                                {
+                                                                    sensitivity:
+                                                                        "base",
+                                                                },
+                                                            ),
+                                                        )
+                                                        .map((directory) => (
+                                                            <SelectItem
+                                                                key={
+                                                                    directory.ID
+                                                                }
+                                                                value={
+                                                                    directory.ID
+                                                                }
+                                                            >
+                                                                {directory.Name}
+                                                            </SelectItem>
+                                                        ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">

@@ -99,13 +99,15 @@ export const vaultRestoreFormSchema = z.object({
 });
 export type VaultRestoreFormSchema = z.infer<typeof vaultRestoreFormSchema>;
 
-export const GroupSchema = z.object({
+export const DirectorySchema = z.object({
     ID: z.string().nullable(),
-    Name: z.string(),
-    Icon: z.string(),
-    Color: z.string(),
+    Name: z
+        .string()
+        .trim()
+        .min(1, "Directory name is required")
+        .max(100, "Directory name cannot exceed 100 characters"),
 });
-export type GroupSchemaType = z.infer<typeof GroupSchema>;
+export type DirectorySchemaType = z.infer<typeof DirectorySchema>;
 
 export const TOTPFormSchema = z.object({
     Label: z.string().max(255, "Label is too long"),

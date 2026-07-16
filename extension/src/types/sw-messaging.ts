@@ -16,10 +16,10 @@ export enum MessageType {
     GetLinkedDevices = 9,
     GetPublicKey = 10,
 
-    SyncGetItemCredentials = 11,
-    SyncGetItemVersionVectors = 12,
+    SyncGetItems = 11,
+    SyncGetVersionVectors = 12,
     SyncGetConfiguration = 13,
-    SyncUpdateCredentials = 14,
+    SyncUpdateItems = 14,
 
     /**
      * Proxied tRPC fetch from a UI context (popup/link page) to the SW.
@@ -100,6 +100,7 @@ export enum MessageType {
      * call this extension-only message to learn the secret nonce.
      */
     ClaimAutofillFrame = 27,
+    GetDirectories = 29,
 }
 
 /**
@@ -185,6 +186,7 @@ export type LiteCredential = {
     username: string;
     url: string;
     hasTOTP?: boolean;
+    directoryId: string;
 };
 
 /** Payload for `MessageType.GetCredentialsForOrigin`. */

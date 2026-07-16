@@ -34,9 +34,10 @@ const versionVector = (id: string): VaultUtilTypes.VersionVector => ({
 describe("SynchronizationEnvelope inner messages", () => {
     it("round-trips a SyncHello plaintext message", async () => {
         const { data, envelopeID } =
-            await SynchronizationEnvelope.createSyncHelloMessage([
-                versionVector("a"),
-            ]);
+            await SynchronizationEnvelope.createSyncHelloMessage(
+                [versionVector("a")],
+                [versionVector("directory")],
+            );
 
         const decoded = await SynchronizationEnvelope.deserialize(
             asArrayBuffer(data),
@@ -50,8 +51,12 @@ describe("SynchronizationEnvelope inner messages", () => {
         );
         expect(
             (decoded.value.data as VaultUtilTypes.SyncHelloMessage)
-                .VersionVectors,
+                .CredentialVersionVectors,
         ).toEqual([versionVector("a")]);
+        expect(
+            (decoded.value.data as VaultUtilTypes.SyncHelloMessage)
+                .DirectoryVersionVectors,
+        ).toEqual([versionVector("directory")]);
     });
 
     it("rejects malformed inner payloads", async () => {

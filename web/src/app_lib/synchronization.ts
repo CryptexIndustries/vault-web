@@ -43,9 +43,15 @@ import {
  * Interface for vault operations that the VaultItemSynchronization class needs
  */
 export interface VaultOperations {
-    getItemVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
-    getItemCredentials(itemIDs: string[]): Promise<VaultUtilTypes.Credential[]>;
-    updateCredentials(credentials: VaultUtilTypes.Credential[]): Promise<void>;
+    getCredentialVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getDirectoryVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getItems(
+        items: VaultUtilTypes.SyncItemReference[],
+    ): Promise<VaultUtilTypes.SyncDataResponseMessage>;
+    updateItems(
+        directories: VaultUtilTypes.Directory[],
+        credentials: VaultUtilTypes.Credential[],
+    ): Promise<void>;
     getSynchronizationConfig(): Promise<VaultUtilTypes.LinkedDevices>;
     getSyncSigningPublicKey(): Promise<string | null>;
     getSyncSigningPrivateKey(): Promise<string | null>;
@@ -1778,13 +1784,22 @@ class VaultItemSynchronization {
         this.context.broadcastWebRTCSynchronizedEvent(deviceID);
     }
 
+    private getCredentialVersionVectors() {
+        return this.vaultOps.getCredentialVersionVectors();
+    }
+
+    private getDirectoryVersionVectors() {
+        return this.vaultOps.getDirectoryVersionVectors();
+    }
+
     public async transmitSyncHello(
         deviceID: string,
         dataChannel: RTCDataChannel,
     ): Promise<void> {
         const { envelopeID, data } =
             await SynchronizationEnvelope.createSyncHelloMessage(
-                await this.vaultOps.getItemVersionVectors(),
+                await this.getCredentialVersionVectors(),
+                await this.getDirectoryVersionVectors(),
             );
 
         const sent = await this.sendEncryptedPlaintextMessage(
@@ -1907,7 +1922,8 @@ class VaultItemSynchronization {
                 // Send the SyncHello back
                 const envelope =
                     await SynchronizationEnvelope.createSyncHelloEchoMessage(
-                        await this.vaultOps.getItemVersionVectors(),
+                        await this.getCredentialVersionVectors(),
+                        await this.getDirectoryVersionVectors(),
                     );
                 await this.sendEncryptedPlaintextMessage(
                     remoteDeviceID,
@@ -1982,7 +1998,16 @@ class VaultItemSynchronization {
         envelopeID: string,
         message: VaultUtilTypes.SyncHelloMessage,
     ) {
-        const versionVectors = message.VersionVectors;
+        const versionVectors = [
+            ...message.CredentialVersionVectors.map((vector) => ({
+                ...vector,
+                ID: `credential:${vector.ID}`,
+            })),
+            ...message.DirectoryVersionVectors.map((vector) => ({
+                ...vector,
+                ID: `directory:${vector.ID}`,
+            })),
+        ];
 
         syncLog.info(`Received a sync hello message from the remote device`, {
             envelopeId: envelopeID,
@@ -1991,7 +2016,16 @@ class VaultItemSynchronization {
         });
 
         // Compare the version vectors with the local version vectors so that we can determine if we need to send a sync data request message
-        const localVersionVectors = await this.vaultOps.getItemVersionVectors();
+        const localVersionVectors = [
+            ...(await this.getCredentialVersionVectors()).map((vector) => ({
+                ...vector,
+                ID: `credential:${vector.ID}`,
+            })),
+            ...(await this.getDirectoryVersionVectors()).map((vector) => ({
+                ...vector,
+                ID: `directory:${vector.ID}`,
+            })),
+        ];
 
         const versionVectorsMatchingIDs = versionVectors.filter((vector) =>
             localVersionVectors.some(
@@ -2140,7 +2174,17 @@ class VaultItemSynchronization {
         if (idsToRequest.length > 0) {
             const { envelopeID: syncDataRequestEnvelopeID, data } =
                 await SynchronizationEnvelope.createSyncDataRequestMessage(
-                    idsToRequest,
+                    idsToRequest.map((compositeID) => {
+                        const [kind, ...idParts] = compositeID.split(":");
+                        return {
+                            Type:
+                                kind === "directory"
+                                    ? VaultUtilTypes.SyncItemType.DirectoryItem
+                                    : VaultUtilTypes.SyncItemType
+                                          .CredentialItem,
+                            ID: idParts.join(":"),
+                        };
+                    }),
                 );
 
             await this.sendEncryptedPlaintextMessage(
@@ -2189,7 +2233,8 @@ class VaultItemSynchronization {
         envelopeID: string,
         message: VaultUtilTypes.SyncDataRequestMessage,
     ) {
-        const itemIDs = message.ItemIDs;
+        const items = message.Items;
+        const itemIDs = items.map((item) => item.ID);
 
         syncLog.info(
             "Received a sync data request message from the remote device",
@@ -2201,12 +2246,13 @@ class VaultItemSynchronization {
             },
         );
 
-        const credentials = await this.vaultOps.getItemCredentials(itemIDs);
+        const response = await this.vaultOps.getItems(items);
 
         const envelope =
             await SynchronizationEnvelope.createSyncDataResponseMessage(
                 envelopeID,
-                credentials,
+                response.Credentials,
+                response.Directories,
             );
 
         await this.sendEncryptedPlaintextMessage(
@@ -2241,6 +2287,7 @@ class VaultItemSynchronization {
         }
 
         const credentials = message.Credentials;
+        const directories = message.Directories;
 
         syncLog.info(
             "Received a sync data response message from the remote device",
@@ -2252,7 +2299,9 @@ class VaultItemSynchronization {
             },
         );
 
-        await this.vaultOps.updateCredentials(credentials);
+        // Directory state, especially tombstones, must be applied before
+        // credential assignments from the same response.
+        await this.vaultOps.updateItems(directories, credentials);
 
         syncLog.info("Updated credentials in the vault", {
             envelopeId: envelopeID,

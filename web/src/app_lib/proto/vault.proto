@@ -95,13 +95,6 @@ message EncryptedBlob {
 }
 //#endregion Vault Metadata
 
-message Group {
-    string ID = 1;
-    string Name = 2;
-    string Icon = 3;
-    string Color = 4;
-}
-
 enum ItemType {
     SSHKey = 0;
     Credentials = 1;
@@ -134,13 +127,14 @@ message Vault {
     reserved 3; reserved "Configuration";
 
     LinkedDevices LinkedDevices = 4;
-    repeated Group Groups = 5;
+    reserved 5; reserved "Groups";
     repeated Credential Credentials = 6;
 
     reserved 7; reserved "Diffs";
 
     // Cryptex Vault Online Services - server auth (passkey material); separate from device sync
     optional OnlineServices OnlineServices = 9;
+    repeated Directory Directories = 10;
 }
 
 //#region OnlineServices
@@ -251,10 +245,19 @@ message VersionVector {
     bool Deleted = 5;
 }
 
+message Directory {
+    string ID = 1;
+    string Name = 2;
+    int32 Version = 3;
+    string Hash = 4;
+    int64 DateModifiedTimestamp = 5;
+    bool Deleted = 6;
+}
+
 message Credential {
     string ID = 1;
     ItemType Type = 2;
-    string GroupID = 3;
+    reserved 3; reserved "GroupID";
     string Name = 4;
     string Username = 5;
     string Password = 6;
@@ -277,6 +280,7 @@ message Credential {
     int64 DatePasswordChangedTimestamp = 19;
 
     bool Deleted = 20;
+    string DirectoryID = 21;
 }
 
 message TOTP {
@@ -332,19 +336,32 @@ message SynchronizationEnvelope {
 }
 
 message SyncHelloMessage {
-    repeated VersionVector VersionVectors = 1;
+    repeated VersionVector CredentialVersionVectors = 1;
+    repeated VersionVector DirectoryVersionVectors = 2;
 }
 
 message SyncHelloEchoMessage {
-    repeated VersionVector VersionVectors = 1;
+    repeated VersionVector CredentialVersionVectors = 1;
+    repeated VersionVector DirectoryVersionVectors = 2;
+}
+
+enum SyncItemType {
+    CredentialItem = 0;
+    DirectoryItem = 1;
+}
+
+message SyncItemReference {
+    SyncItemType Type = 1;
+    string ID = 2;
 }
 
 message SyncDataRequestMessage {
-    repeated string ItemIDs = 1;
+    repeated SyncItemReference Items = 1;
 }
 
 message SyncDataResponseMessage {
     repeated Credential Credentials = 1;
+    repeated Directory Directories = 2;
 }
 //#endregion Synchronization Message
 

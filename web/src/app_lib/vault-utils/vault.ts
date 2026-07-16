@@ -10,7 +10,8 @@ import {
 } from "../../utils/consts";
 import * as VaultUtilTypes from "../proto/vault";
 import {
-    GroupSchemaType,
+    DirectorySchema,
+    DirectorySchemaType,
     TOTPFormSchema,
     TOTPFormSchemaType,
 } from "./form-schemas";
@@ -19,14 +20,14 @@ export class Vault implements VaultUtilTypes.Vault {
     /*
      * NOTE: This property is **not** serialized and saved in the vault
      */
-    private LATEST_VERSION = 3;
+    private LATEST_VERSION = 4;
 
     public Version: number;
     public CurrentVersion = 0;
     public LinkedDevices: LinkedDevices;
     /** Server auth material (passkey JWKs, user id) - separate from device sync */
     public OnlineServices?: OnlineServices;
-    public Groups: Group[] = [];
+    public Directories: Directory[] = [];
     public Credentials: VaultCredential[];
 
     constructor(seedData = false, seedCount = 0) {
@@ -40,7 +41,7 @@ export class Vault implements VaultUtilTypes.Vault {
      * Upgrades the vault to the latest version. Makes changes to the vault in place - if the vault is not in the latest version, it will be upgraded.
      * @param oldVersion - The version of the vault to upgrade from. Usually the value of the CurrentVersion property but from the clean-deserialized vault.
      */
-    public upgrade(): void {
+    public async upgrade(): Promise<void> {
         // NOTE: Only CurrentVersion changes during upgrades, Version stays the same as it was when the vault was created
         /**
          * Version 2
@@ -94,6 +95,28 @@ export class Vault implements VaultUtilTypes.Vault {
             this.CurrentVersion = 3;
 
             console.warn("Upgraded Vault object to version 3.");
+        }
+
+        /**
+         * Version 4
+         *  - Replaces the unused Group wire fields with flat, synchronized
+         *    directories. Existing group assignments intentionally become Root.
+         */
+        if (this.CurrentVersion < 4 && this.Version < 4) {
+            console.warn(
+                `Upgrading Vault object to version 4 (from version ${this.CurrentVersion})...`,
+            );
+
+            this.Directories = [];
+            await Promise.all(
+                this.Credentials.map(async (credential) => {
+                    credential.DirectoryID = "";
+                    credential.Hash = await hashCredential(credential);
+                }),
+            );
+            this.CurrentVersion = 4;
+
+            console.warn("Upgraded Vault object to version 4.");
         }
     }
 
@@ -357,17 +380,23 @@ export class OnlineServices implements VaultUtilTypes.OnlineServices {
     }
 }
 
-export class Group implements VaultUtilTypes.Group, GroupSchemaType {
+export class Directory
+    implements VaultUtilTypes.Directory, DirectorySchemaType
+{
     public ID: string;
     public Name: string;
-    public Icon: string;
-    public Color: string;
+    public Version: number;
+    public Hash: string;
+    public DateModifiedTimestamp: number;
+    public Deleted: boolean;
 
-    constructor(name = "", icon = "", color = "") {
-        this.ID = "-1";
-        this.Name = name;
-        this.Icon = icon;
-        this.Color = color;
+    constructor(name = "") {
+        this.ID = ulid();
+        this.Name = name.trim();
+        this.Version = 0;
+        this.Hash = "";
+        this.DateModifiedTimestamp = Date.now();
+        this.Deleted = false;
     }
 }
 
@@ -425,7 +454,7 @@ export class CustomField implements VaultUtilTypes.CustomField {
 export const CredentialFormSchema = z.object({
     ID: z.string().nullable(),
     Type: z.nativeEnum(VaultUtilTypes.ItemType),
-    GroupID: z.string(),
+    DirectoryID: z.string(),
     Name: z.string().min(1, REQUIRED_FIELD_ERROR).max(255, "Name is too long"),
     Username: z.string(),
     Password: z.string(),
@@ -451,7 +480,7 @@ export class VaultCredential
 {
     public ID: string;
     public Type: VaultUtilTypes.ItemType;
-    public GroupID: string;
+    public DirectoryID: string;
     public Name: string;
     public Username: string;
     public Password: string;
@@ -482,7 +511,9 @@ export class VaultCredential
         this.ID = form?.ID ? String(form.ID).trim() : ulid();
 
         this.Type = form?.Type ?? VaultUtilTypes.ItemType.Credentials;
-        this.GroupID = form?.GroupID ? String(form.GroupID).trim() : "";
+        this.DirectoryID = form?.DirectoryID
+            ? String(form.DirectoryID).trim()
+            : "";
 
         this.Name = form?.Name ? String(form.Name).trim() : "Unnamed item";
         this.Username = form?.Username ? String(form.Username).trim() : "";
@@ -542,7 +573,7 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
     const includedFields: (keyof VaultCredential)[] = [
         "ID",
         "Type",
-        "GroupID",
+        "DirectoryID",
         "Name",
         "Username",
         "Password",
@@ -688,7 +719,8 @@ export const updateCredentialFromForm = async (
     // this.ID = form.ID ?? this.ID;
 
     moddedCredential.Type = form.Type ?? existingCredential.Type;
-    moddedCredential.GroupID = form.GroupID ?? existingCredential.GroupID;
+    moddedCredential.DirectoryID =
+        form.DirectoryID ?? existingCredential.DirectoryID;
 
     moddedCredential.Name = form.Name ?? existingCredential.Name;
     moddedCredential.Username = form.Username ?? existingCredential.Username;
@@ -766,38 +798,208 @@ export const deleteCredential = async (
 };
 //#endregion Credential Methods
 
-//#region Group Methods
-export const upsertGroup = (
-    existingGroup: Group | null,
-    form: GroupSchemaType,
-) => {
-    if (existingGroup) {
-        // const originalGroup = Object.assign({}, existingGroup);
+//#region Directory Methods
+export const normalizeDirectoryName = (name: string): string =>
+    name.trim().toLowerCase();
 
-        if (form.Name) existingGroup.Name = form.Name;
-        if (form.Icon) existingGroup.Icon = form.Icon;
-        if (form.Color) existingGroup.Color = form.Color;
+const digestHex = async (value: string): Promise<string> => {
+    const hash = await crypto.subtle.digest(
+        "SHA-1",
+        new TextEncoder().encode(value),
+    );
+    return Array.from(new Uint8Array(hash))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+};
 
-        return existingGroup;
-    } else {
-        const newGroup = new Group(form.Name, form.Icon, form.Color);
+export const hashDirectory = async (
+    directory: Pick<Directory, "ID" | "Name" | "Deleted">,
+): Promise<string> =>
+    digestHex(
+        [
+            directory.ID,
+            directory.Name,
+            String(directory.Deleted),
+        ].join("\u0000"),
+    );
 
-        newGroup.ID = form?.ID ?? ulid();
+export const sortDirectories = (directories: Directory[]): Directory[] =>
+    [...directories]
+        .filter((directory) => !directory.Deleted)
+        .sort(
+            (a, b) =>
+                a.Name.localeCompare(b.Name, undefined, {
+                    sensitivity: "base",
+                }) || a.ID.localeCompare(b.ID),
+        );
 
-        if (form.ID) newGroup.ID = form.ID;
+export const shouldAcceptVersionedRecord = (
+    local:
+        | Pick<Directory, "Version" | "DateModifiedTimestamp" | "Hash">
+        | undefined,
+    incoming: Pick<Directory, "Version" | "DateModifiedTimestamp" | "Hash">,
+): boolean => {
+    if (!local) return true;
+    if (incoming.Version !== local.Version) {
+        return incoming.Version > local.Version;
+    }
+    if (incoming.DateModifiedTimestamp !== local.DateModifiedTimestamp) {
+        return incoming.DateModifiedTimestamp > local.DateModifiedTimestamp;
+    }
+    return incoming.Hash < local.Hash;
+};
 
-        return newGroup;
+export const validateDirectoryName = (
+    directories: Pick<Directory, "ID" | "Name" | "Deleted">[],
+    name: string,
+    excludeID?: string,
+): string => {
+    const parsed = DirectorySchema.shape.Name.parse(name);
+    const normalized = normalizeDirectoryName(parsed);
+    if (
+        directories.some(
+            (directory) =>
+                !directory.Deleted &&
+                directory.ID !== excludeID &&
+                normalizeDirectoryName(directory.Name) === normalized,
+        )
+    ) {
+        throw new Error("A directory with this name already exists");
+    }
+    return parsed;
+};
+
+export const createDirectory = async (
+    directories: Directory[],
+    form: Omit<DirectorySchemaType, "ID"> & { ID?: string | null },
+): Promise<Directory> => {
+    const name = validateDirectoryName(directories, form.Name);
+    const directory = new Directory(name);
+    directory.ID = form.ID || directory.ID;
+    directory.Hash = await hashDirectory(directory);
+    directories.push(directory);
+    return directory;
+};
+
+export const updateDirectory = async (
+    directories: Directory[],
+    directoryID: string,
+    form: Pick<DirectorySchemaType, "Name">,
+): Promise<Directory> => {
+    if (!directoryID) throw new Error("Root cannot be renamed");
+    const directory = directories.find(
+        (entry) => entry.ID === directoryID && !entry.Deleted,
+    );
+    if (!directory) throw new Error("Directory not found");
+
+    directory.Name = validateDirectoryName(
+        directories,
+        form.Name,
+        directory.ID,
+    );
+    directory.Version += 1;
+    directory.DateModifiedTimestamp = Date.now();
+    directory.Hash = await hashDirectory(directory);
+    return directory;
+};
+
+/** Deterministically suffix duplicate synchronized names by directory ID. */
+export const resolveDirectoryNameCollisions = async (
+    directories: Directory[],
+): Promise<void> => {
+    const claimed = new Set<string>();
+    const ordered = [...directories]
+        .filter((directory) => !directory.Deleted)
+        .sort((a, b) => a.ID.localeCompare(b.ID));
+
+    for (const directory of ordered) {
+        const base = directory.Name.trim();
+        let candidate = base;
+        let suffix = 2;
+        while (claimed.has(normalizeDirectoryName(candidate))) {
+            const suffixText = ` (${suffix++})`;
+            candidate = `${base.slice(0, 100 - suffixText.length)}${suffixText}`;
+        }
+        claimed.add(normalizeDirectoryName(candidate));
+        if (candidate !== directory.Name) {
+            directory.Name = candidate;
+            directory.Version += 1;
+            directory.Hash = await hashDirectory(directory);
+        }
     }
 };
 
-//export const deleteGroup = (id: string): void => {
-//    const index = this.Groups.findIndex((g) => g.ID === id);
+export const moveCredentialsToDirectory = async (
+    credentials: VaultCredential[],
+    credentialIDs: string[],
+    directoryID: string,
+    directories: Directory[],
+): Promise<VaultCredential[]> => {
+    if (
+        directoryID &&
+        !directories.some(
+            (directory) => directory.ID === directoryID && !directory.Deleted,
+        )
+    ) {
+        throw new Error("Directory not found");
+    }
 
-//    if (index >= 0) {
-//        this.Groups.splice(index, 1);
-//    }
-//};
-//#endregion Group Methods
+    const ids = new Set(credentialIDs);
+    const now = Date.now();
+    await Promise.all(
+        credentials.map(async (credential) => {
+            if (
+                ids.has(credential.ID) &&
+                !credential.Deleted &&
+                credential.DirectoryID !== directoryID
+            ) {
+                credential.DirectoryID = directoryID;
+                credential.Version += 1;
+                credential.DateModifiedTimestamp = now;
+                credential.Hash = await hashCredential(credential);
+            }
+        }),
+    );
+    return credentials;
+};
+
+export const deleteDirectory = async (
+    directories: Directory[],
+    credentials: VaultCredential[],
+    directoryID: string,
+): Promise<{ deletedCredentialCount: number }> => {
+    if (!directoryID) throw new Error("Root cannot be deleted");
+    const directory = directories.find(
+        (entry) => entry.ID === directoryID && !entry.Deleted,
+    );
+    if (!directory) throw new Error("Directory not found");
+
+    const now = Date.now();
+    directory.Name = "";
+    directory.Deleted = true;
+    directory.Version += 1;
+    directory.DateModifiedTimestamp = now;
+    directory.Hash = await hashDirectory(directory);
+
+    const containedCredentialIDs = credentials
+        .filter(
+            (credential) =>
+                !credential.Deleted && credential.DirectoryID === directoryID,
+        )
+        .map((credential) => credential.ID);
+
+    // deleteCredential replaces entries in the list, so delete sequentially to
+    // avoid concurrent splices using indexes captured before an earlier delete.
+    for (const credentialID of containedCredentialIDs) {
+        const result = await deleteCredential(credentials, credentialID);
+        if (result.isErr()) {
+            throw new Error(result.error);
+        }
+    }
+
+    return { deletedCredentialCount: containedCredentialIDs.length };
+};
+//#endregion Directory Methods
 
 /**
  * Packages the vault for linking to another device.

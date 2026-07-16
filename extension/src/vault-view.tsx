@@ -85,7 +85,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { err, ok, Result } from "neverthrow";
-import { validateEnvelope } from "./utils/security-utils";
 import {
     WarningDialog,
     WarningDialogShowFn,
@@ -113,6 +112,12 @@ const VaultView: React.FC<VaultViewProps> = ({
     onStaleKeyError,
 }) => {
     const [credentials, setCredentials] = useState<LiteCredential[]>([]);
+    const [directories, setDirectories] = useState<VaultUtilTypes.Directory[]>(
+        [],
+    );
+    const [selectedDirectoryID, setSelectedDirectoryID] = useState<
+        "all" | string
+    >("all");
     const [credentialFormMode, setCredentialFormMode] =
         useState<CredentialFormMode>(null);
     const [editingCredential, setEditingCredential] =
@@ -165,7 +170,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         defaultValues: {
             ID: null,
             Type: VaultUtilTypes.ItemType.Credentials,
-            GroupID: "",
+            DirectoryID: "",
             Name: "",
             Username: "",
             Password: "",
@@ -190,8 +195,12 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const filteredCredentials = credentials.filter(
         (cred) =>
-            cred.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            cred.username.toLowerCase().includes(searchQuery.toLowerCase()),
+            (selectedDirectoryID === "all" ||
+                cred.directoryId === selectedDirectoryID) &&
+            (cred.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                cred.username
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase())),
     );
 
     const copyToClipboard = async (text?: string) => {
@@ -828,6 +837,27 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
+    const refreshDirectories = useCallback(async () => {
+        if (!serverPublicKey) return;
+        const envelope = await createEncryptedEnvelope(
+            MessageType.GetDirectories,
+            null,
+            serverPublicKey.publicKeyJwk,
+            serverPublicKey.keyId,
+            "popup",
+        );
+        const response: EncryptedEnvelope | PlaintextEnvelope =
+            await chrome.runtime.sendMessage(envelope);
+        if (!isEncryptedEnvelope(response)) return;
+        const decrypted = await decryptResponseEnvelope<
+            | { ok: true; directories: VaultUtilTypes.Directory[] }
+            | { ok: false; error: string }
+        >(response);
+        if (decrypted.ok && decrypted.payload.ok) {
+            setDirectories(decrypted.payload.directories);
+        }
+    }, [serverPublicKey]);
+
     const _refreshCredentials = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
@@ -892,6 +922,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         const res = await _refreshCredentials();
         if (res.isOk()) {
             setCredentials(res.value);
+            await refreshDirectories();
             setIsRefreshing(false);
             return ok();
         }
@@ -914,6 +945,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 );
             } else {
                 setCredentials(resRetry.value);
+                await refreshDirectories();
                 setIsRefreshing(false);
                 return ok();
             }
@@ -924,13 +956,18 @@ const VaultView: React.FC<VaultViewProps> = ({
         setIsRefreshing(false);
 
         return err("FAILED_TO_REFRESH_CREDENTIALS");
-    }, [serverPublicKey, onStaleKeyError, _refreshCredentials]);
+    }, [
+        serverPublicKey,
+        onStaleKeyError,
+        _refreshCredentials,
+        refreshDirectories,
+    ]);
 
     useEffect(() => {
         refreshCredentialsRef.current = refreshCredentials;
     }, [refreshCredentials]);
 
-    const _getSyncConfig = async () => {
+    const _getSyncConfig = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
         const envelope = await createEncryptedEnvelope(
@@ -982,7 +1019,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
-    };
+    }, [serverPublicKey]);
 
     const loadFullCredential = async (
         id: string,
@@ -1102,7 +1139,8 @@ const VaultView: React.FC<VaultViewProps> = ({
         reset({
             ID: null,
             Type: VaultUtilTypes.ItemType.Credentials,
-            GroupID: "",
+            DirectoryID:
+                selectedDirectoryID === "all" ? "" : selectedDirectoryID,
             Name: "",
             Username: "",
             Password: "",
@@ -1124,7 +1162,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         reset({
             ID: credential.ID,
             Type: credential.Type,
-            GroupID: credential.GroupID,
+            DirectoryID: credential.DirectoryID,
             Name: credential.Name,
             Username: credential.Username,
             Password: credential.Password,
@@ -1245,7 +1283,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             if (GlobalSyncConnectionController)
                 GlobalSyncConnectionController.teardown();
         };
-    }, []);
+    }, [refreshCredentials]);
 
     useEffect(() => {
         // Clean up and close up the sync connection controller before we refresh it's instance w/ the new server public key
@@ -1402,7 +1440,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 }
             })();
         }
-    }, [serverPublicKey]);
+    }, [_getSyncConfig, serverPublicKey]);
 
     const handleCopyUsername = (cred: VaultCredential) => {
         copyToClipboard(cred.Username);
@@ -1462,6 +1500,38 @@ const VaultView: React.FC<VaultViewProps> = ({
                 {/* Left pane: search + list + add */}
                 <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
                     <div className="border-b border-border bg-background/50 px-3 py-2">
+                        <Select
+                            value={selectedDirectoryID || "root"}
+                            onValueChange={(value) =>
+                                setSelectedDirectoryID(
+                                    value === "root" ? "" : value,
+                                )
+                            }
+                        >
+                            <SelectTrigger
+                                className="mb-2 h-7 text-xs"
+                                aria-label="Browse directory"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="root">Root</SelectItem>
+                                {directories
+                                    .filter((directory) => !directory.Deleted)
+                                    .sort((a, b) =>
+                                        a.Name.localeCompare(b.Name),
+                                    )
+                                    .map((directory) => (
+                                        <SelectItem
+                                            key={directory.ID}
+                                            value={directory.ID}
+                                        >
+                                            {directory.Name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
                         <div className="relative">
                             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                             <Input
@@ -1646,12 +1716,15 @@ const VaultView: React.FC<VaultViewProps> = ({
                             credential={selectedCredential}
                             isMobile
                             onEdit={(c) => openEditForm(c)}
-                            onClose={() => setSelectedCredential(null)}
-                            onCopyUsername={handleCopyUsername}
-                            onCopyPassword={handleCopyPassword}
-                            onCopyTOTP={handleCopyTOTP}
                             onOpenUrl={handleOpenUrl}
                             onDeleteCredential={handleDeleteSelected}
+                            directoryName={
+                                directories.find(
+                                    (directory) =>
+                                        directory.ID ===
+                                        selectedCredential.DirectoryID,
+                                )?.Name ?? "Root"
+                            }
                         />
                     ) : (
                         <div className="flex h-full flex-col items-center justify-center p-8 text-center">
@@ -1775,6 +1848,68 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 {errors.Name.message}
                                             </p>
                                         )}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium">
+                                            Directory
+                                        </Label>
+                                        <Controller
+                                            control={control}
+                                            name="DirectoryID"
+                                            render={({ field }) => (
+                                                <Select
+                                                    value={
+                                                        field.value || "root"
+                                                    }
+                                                    onValueChange={(value) =>
+                                                        field.onChange(
+                                                            value === "root"
+                                                                ? ""
+                                                                : value,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger
+                                                        className="h-9 text-sm"
+                                                        aria-label="Directory"
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="root">
+                                                            Root
+                                                        </SelectItem>
+                                                        {directories
+                                                            .filter(
+                                                                (directory) =>
+                                                                    !directory.Deleted,
+                                                            )
+                                                            .sort((a, b) =>
+                                                                a.Name.localeCompare(
+                                                                    b.Name,
+                                                                ),
+                                                            )
+                                                            .map(
+                                                                (directory) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            directory.ID
+                                                                        }
+                                                                        value={
+                                                                            directory.ID
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            directory.Name
+                                                                        }
+                                                                    </SelectItem>
+                                                                ),
+                                                            )}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        />
                                     </div>
 
                                     {/* Username */}

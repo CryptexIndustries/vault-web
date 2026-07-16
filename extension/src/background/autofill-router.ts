@@ -40,6 +40,7 @@ function toLite(c: VaultUtilTypes.Credential): LiteCredential {
         username: c.Username,
         url: c.URL,
         hasTOTP: Boolean(c.TOTP && c.TOTP.Secret),
+        directoryId: c.DirectoryID,
     };
 }
 

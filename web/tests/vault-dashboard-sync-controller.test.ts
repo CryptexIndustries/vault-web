@@ -44,7 +44,7 @@ const sessionDEK = { type: "secret" } as CryptoKey;
 const credential = (id: string): VaultUtilTypes.Credential => ({
     ID: id,
     Type: VaultUtilTypes.ItemType.Credentials,
-    GroupID: "group-1",
+    DirectoryID: "",
     Name: `Credential ${id}`,
     Username: `user-${id}`,
     Password: "secret",
@@ -59,6 +59,15 @@ const credential = (id: string): VaultUtilTypes.Credential => ({
     DateCreatedTimestamp: 1,
     DateModifiedTimestamp: 1,
     DatePasswordChangedTimestamp: 1,
+    Deleted: false,
+});
+
+const directory = (id: string): VaultUtilTypes.Directory => ({
+    ID: id,
+    Name: `Directory ${id}`,
+    Hash: `hash-${id}`,
+    Version: 1,
+    DateModifiedTimestamp: 1,
     Deleted: false,
 });
 
@@ -140,7 +149,7 @@ describe("vault dashboard sync controller helpers", () => {
         );
         activeMetadata = vaultB;
 
-        await operations.updateCredentials([credential("from-sync")]);
+        await operations.updateItems?.([], [credential("from-sync")]);
 
         expect(vaultA.save).not.toHaveBeenCalled();
         expect(vaultB.save).toHaveBeenCalledTimes(1);
@@ -149,6 +158,35 @@ describe("vault dashboard sync controller helpers", () => {
                 Credentials: expect.arrayContaining([
                     expect.objectContaining({ ID: "from-sync" }),
                 ]),
+            }),
+            sessionDEK,
+        );
+    });
+
+    it("persists empty synchronized directories", async () => {
+        const activeMetadata = metadata(1, "vault-a");
+        const setUnlockedVault = jest.fn(
+            (next: Vault | ((prev: Vault) => Vault)) => {
+                const vault =
+                    typeof next === "function"
+                        ? next(vaultStore.get(unlockedVaultAtom))
+                        : next;
+                vaultStore.set(unlockedVaultAtom, vault);
+            },
+        );
+        const operations = createVaultOperations(
+            setUnlockedVault,
+            () => activeMetadata,
+        );
+
+        await operations.updateItems?.([directory("work")], []);
+
+        expect(vaultStore.get(unlockedVaultAtom).Directories).toEqual([
+            expect.objectContaining({ ID: "work", Name: "Directory work" }),
+        ]);
+        expect(activeMetadata.save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                Directories: [expect.objectContaining({ ID: "work" })],
             }),
             sessionDEK,
         );

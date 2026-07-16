@@ -254,11 +254,13 @@ export class SynchronizationEnvelope
     }
 
     public static async createSyncHelloMessage(
-        versionVectors: VaultUtilTypes.VersionVector[],
+        credentialVersionVectors: VaultUtilTypes.VersionVector[],
+        directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloMessage.encode({
-            VersionVectors: versionVectors,
+            CredentialVersionVectors: credentialVersionVectors,
+            DirectoryVersionVectors: directoryVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -273,11 +275,13 @@ export class SynchronizationEnvelope
     }
 
     public static async createSyncHelloEchoMessage(
-        versionVectors: VaultUtilTypes.VersionVector[],
+        credentialVersionVectors: VaultUtilTypes.VersionVector[],
+        directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
-            VersionVectors: versionVectors,
+            CredentialVersionVectors: credentialVersionVectors,
+            DirectoryVersionVectors: directoryVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -291,10 +295,12 @@ export class SynchronizationEnvelope
         };
     }
 
-    public static async createSyncDataRequestMessage(itemIDs: string[]) {
+    public static async createSyncDataRequestMessage(
+        items: VaultUtilTypes.SyncItemReference[],
+    ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncDataRequestMessage.encode({
-            ItemIDs: itemIDs,
+            Items: items,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -312,9 +318,11 @@ export class SynchronizationEnvelope
     public static async createSyncDataResponseMessage(
         envelopeID: string,
         credentials: VaultUtilTypes.Credential[],
+        directories: VaultUtilTypes.Directory[] = [],
     ) {
         const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
             Credentials: credentials,
+            Directories: directories,
         }).finish();
 
         return SynchronizationEnvelope.encodeEnvelope(

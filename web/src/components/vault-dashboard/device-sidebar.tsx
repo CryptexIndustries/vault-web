@@ -829,7 +829,13 @@ export function DeviceSidebar({
                 }
             }
         },
-        [devices, setLinkedDevices, confirmUnlinkDevice, breakLink],
+        [
+            breakLink,
+            cloudServicesEnabled,
+            confirmUnlinkDevice,
+            devices,
+            setLinkedDevices,
+        ],
     );
 
     return (

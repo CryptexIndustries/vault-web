@@ -104,9 +104,10 @@ function createOps(
     vectors: VaultUtilTypes.VersionVector[] = [],
 ): VaultOperations {
     return {
-        getItemVersionVectors: jest.fn(async () => vectors),
-        getItemCredentials: jest.fn(async () => []),
-        updateCredentials: jest.fn(async () => undefined),
+        getCredentialVersionVectors: jest.fn(async () => vectors),
+        getDirectoryVersionVectors: jest.fn(async () => []),
+        getItems: jest.fn(async () => ({ Credentials: [], Directories: [] })),
+        updateItems: jest.fn(async () => undefined),
         getSynchronizationConfig: jest.fn(async () => own),
         getSyncSigningPublicKey: jest.fn(async () => own.SyncSigningPublicKey),
         getSyncSigningPrivateKey: jest.fn(

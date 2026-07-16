@@ -72,10 +72,11 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.UpdateCredential,
     MessageType.DeleteCredential,
     MessageType.GetLinkedDevices,
-    MessageType.SyncGetItemCredentials,
-    MessageType.SyncGetItemVersionVectors,
+    MessageType.GetDirectories,
+    MessageType.SyncGetItems,
+    MessageType.SyncGetVersionVectors,
     MessageType.SyncGetConfiguration,
-    MessageType.SyncUpdateCredentials,
+    MessageType.SyncUpdateItems,
     MessageType.ProxyFetch,
     MessageType.OnlineServicesEnsureFresh,
     MessageType.OnlineServicesForceReauthenticate,
@@ -471,6 +472,7 @@ async function processMessage(
                         name: c.Name,
                         username: c.Username,
                         url: c.URL,
+                        directoryId: c.DirectoryID,
                     }));
                 return { ok: true, credentials: list };
             }
@@ -538,6 +540,7 @@ async function processMessage(
                     name: data.Name,
                     username: data.Username,
                     url: data.URL,
+                    directoryId: data.DirectoryID,
                 };
 
                 return { ok: true, credential: lightCredential };
@@ -651,40 +654,95 @@ async function processMessage(
                 return { ok: true, devices: vault.LinkedDevices.Devices };
             }
 
-            case MessageType.SyncGetItemCredentials: {
+            case MessageType.GetDirectories: {
+                const vault = await getVaultFromSessionStorage();
+                return vault
+                    ? {
+                          ok: true,
+                          directories: vault.Directories.filter(
+                              (directory) => !directory.Deleted,
+                          ),
+                      }
+                    : {
+                          ok: false,
+                          directories: [],
+                          error: "VAULT_NOT_UNLOCKED",
+                      };
+            }
+            case MessageType.SyncGetItems: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
                     return {
                         ok: false,
                         credentials: [],
+                        directories: [],
                         error: "VAULT_NOT_UNLOCKED",
                     };
                 }
 
-                const credentials = vault.Credentials.filter((c) =>
-                    payload.itemIDs.includes(c.ID),
+                const credentialIDs = new Set(
+                    payload.items
+                        .filter(
+                            (item: VaultUtilTypes.SyncItemReference) =>
+                                item.Type ===
+                                VaultUtilTypes.SyncItemType.CredentialItem,
+                        )
+                        .map(
+                            (item: VaultUtilTypes.SyncItemReference) => item.ID,
+                        ),
                 );
-                return { ok: true, credentials };
+                const directoryIDs = new Set(
+                    payload.items
+                        .filter(
+                            (item: VaultUtilTypes.SyncItemReference) =>
+                                item.Type ===
+                                VaultUtilTypes.SyncItemType.DirectoryItem,
+                        )
+                        .map(
+                            (item: VaultUtilTypes.SyncItemReference) => item.ID,
+                        ),
+                );
+                const credentials = vault.Credentials.filter((credential) =>
+                    credentialIDs.has(credential.ID),
+                );
+                const directories = vault.Directories.filter((directory) =>
+                    directoryIDs.has(directory.ID),
+                );
+                return { ok: true, credentials, directories };
             }
-            case MessageType.SyncGetItemVersionVectors: {
+            case MessageType.SyncGetVersionVectors: {
                 const vault = await getVaultFromSessionStorage();
                 if (!vault) {
                     return {
                         ok: false,
-                        versionVectors: [],
+                        credentialVersionVectors: [],
+                        directoryVersionVectors: [],
                         error: "VAULT_NOT_UNLOCKED",
                     };
                 }
 
-                const versionVectors = vault.Credentials.map((c) => ({
+                const credentialVersionVectors = vault.Credentials.map((c) => ({
                     ID: c.ID,
                     Hash: c.Hash ?? "",
                     Version: c.Version,
                     DateModifiedTimestamp: c.DateModifiedTimestamp,
                     Deleted: c.Deleted,
                 }));
+                const directoryVersionVectors = vault.Directories.map(
+                    (directory) => ({
+                        ID: directory.ID,
+                        Hash: directory.Hash ?? "",
+                        Version: directory.Version,
+                        DateModifiedTimestamp: directory.DateModifiedTimestamp,
+                        Deleted: directory.Deleted,
+                    }),
+                );
 
-                return { ok: true, versionVectors };
+                return {
+                    ok: true,
+                    credentialVersionVectors,
+                    directoryVersionVectors,
+                };
             }
             case MessageType.SyncGetConfiguration: {
                 const vault = await getVaultFromSessionStorage();
@@ -697,7 +755,7 @@ async function processMessage(
                 }
                 return { ok: true, config: vault.LinkedDevices };
             }
-            case MessageType.SyncUpdateCredentials: {
+            case MessageType.SyncUpdateItems: {
                 const vault = await getVaultFromSessionStorage();
                 const metadata = await getVaultMetadataFromSessionStorage();
                 const dek = await getVaultDEKFromSessionStorage();
@@ -706,11 +764,82 @@ async function processMessage(
                     return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 }
 
-                // Iterate through the credentials and update the existing ones, append the new ones
+                for (const directory of payload.directories) {
+                    const existingIndex = vault.Directories.findIndex(
+                        (entry) => entry.ID === directory.ID,
+                    );
+                    const existing = vault.Directories[existingIndex];
+                    if (
+                        !Vault.shouldAcceptVersionedRecord(existing, directory)
+                    ) {
+                        continue;
+                    }
+                    if (existingIndex === -1) vault.Directories.push(directory);
+                    else vault.Directories[existingIndex] = directory;
+                }
+
+                const deletedDirectoryIDs = new Set(
+                    vault.Directories.filter(
+                        (directory) => directory.Deleted,
+                    ).map((directory) => directory.ID),
+                );
+                for (const existing of vault.Credentials) {
+                    if (
+                        existing.Deleted ||
+                        !deletedDirectoryIDs.has(existing.DirectoryID)
+                    ) {
+                        continue;
+                    }
+                    existing.Deleted = true;
+                    existing.Name = "Unnamed item";
+                    existing.Username = "";
+                    existing.Password = "";
+                    existing.TOTP = undefined;
+                    existing.Tags = "";
+                    existing.URL = "";
+                    existing.Notes = "";
+                    existing.CustomFields = [];
+                    existing.Version += 1;
+                    existing.Hash = await Vault.hashCredential(
+                        Object.assign(new Vault.VaultCredential(), existing),
+                    );
+                }
+
                 for (const credential of payload.credentials) {
                     const existingIndex = vault.Credentials.findIndex(
-                        (c) => c.ID === credential.ID,
+                        (entry) => entry.ID === credential.ID,
                     );
+                    const existing = vault.Credentials[existingIndex];
+                    if (
+                        !Vault.shouldAcceptVersionedRecord(existing, credential)
+                    ) {
+                        continue;
+                    }
+                    const directory = credential.DirectoryID
+                        ? vault.Directories.find(
+                              (entry) => entry.ID === credential.DirectoryID,
+                          )
+                        : undefined;
+                    if (
+                        credential.DirectoryID &&
+                        (!directory || directory.Deleted)
+                    ) {
+                        credential.Deleted = true;
+                        credential.Name = "Unnamed item";
+                        credential.Username = "";
+                        credential.Password = "";
+                        credential.TOTP = undefined;
+                        credential.Tags = "";
+                        credential.URL = "";
+                        credential.Notes = "";
+                        credential.CustomFields = [];
+                        credential.Hash = await Vault.hashCredential(
+                            Object.assign(
+                                new Vault.VaultCredential(),
+                                credential,
+                            ),
+                        );
+                    }
                     if (existingIndex !== -1) {
                         vault.Credentials[existingIndex] = credential;
                     } else {

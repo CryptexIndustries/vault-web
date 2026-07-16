@@ -450,7 +450,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         if (onlineServicesRef.current) {
             vault.OnlineServices = onlineServicesRef.current;
         }
-        vault.upgrade();
+        await vault.upgrade();
 
         const metadata = new VaultMetadata();
         metadata.Name = "Linked vault";

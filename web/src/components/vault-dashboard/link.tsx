@@ -41,7 +41,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-    Group,
+    Directory,
     LinkedDevices,
     OnlineServices,
     SignalingServerConfiguration,
@@ -2402,17 +2402,17 @@ const cloneOnlineServices = (onlineServices: VaultUtilTypes.OnlineServices) =>
         onlineServices.PrivateKeyJWK,
     );
 
-function parseReceivedVault(data: Uint8Array) {
+async function parseReceivedVault(data: Uint8Array) {
     const rawVault = VaultUtilTypes.Vault.decode(data);
     const receivedVault = Object.assign(new Vault(), rawVault);
     receivedVault.LinkedDevices = LinkedDevices.fromGeneric(
         receivedVault.LinkedDevices,
     );
     receivedVault.Credentials = receivedVault.Credentials.map(cloneCredential);
-    receivedVault.Groups = receivedVault.Groups.map((group) =>
-        Object.assign(new Group(), group),
+    receivedVault.Directories = receivedVault.Directories.map((directory) =>
+        Object.assign(new Directory(), directory),
     );
-    receivedVault.upgrade();
+    await receivedVault.upgrade();
 
     return receivedVault;
 }
@@ -2497,7 +2497,11 @@ const receiveLinkErrorDetail = (error: unknown): string => {
     if (error == null) return "";
     if (typeof error === "string") return error.trim();
     if (error instanceof Error) return error.message.trim();
-    return String(error).trim();
+    try {
+        return JSON.stringify(error).trim();
+    } catch {
+        return "Unknown link error";
+    }
 };
 
 const formatReceiveLinkPackageError = (
@@ -2859,12 +2863,12 @@ export function ReceiveLinkRequestDialog({
             throw new Error(MISSING_VAULT_SECRET_ERROR);
         }
 
-        const receivedVault = parseReceivedVault(receivedVaultData);
+        const receivedVault = await parseReceivedVault(receivedVaultData);
         const mergedVault = Object.assign(new Vault(), unlockedVault);
         mergedVault.Credentials =
             unlockedVault.Credentials.map(cloneCredential);
-        mergedVault.Groups = unlockedVault.Groups.map((group) =>
-            Object.assign(new Group(), group),
+        mergedVault.Directories = unlockedVault.Directories.map((directory) =>
+            Object.assign(new Directory(), directory),
         );
         mergedVault.LinkedDevices = LinkedDevices.fromGeneric(
             unlockedVault.LinkedDevices,
@@ -2893,13 +2897,15 @@ export function ReceiveLinkRequestDialog({
             credentialsAdded++;
         }
 
-        const existingGroupIDs = new Set(
-            mergedVault.Groups.map((group) => group.ID),
+        const existingDirectoryIDs = new Set(
+            mergedVault.Directories.map((directory) => directory.ID),
         );
-        for (const group of receivedVault.Groups) {
-            if (existingGroupIDs.has(group.ID)) continue;
-            mergedVault.Groups.push(Object.assign(new Group(), group));
-            existingGroupIDs.add(group.ID);
+        for (const directory of receivedVault.Directories) {
+            if (existingDirectoryIDs.has(directory.ID)) continue;
+            mergedVault.Directories.push(
+                Object.assign(new Directory(), directory),
+            );
+            existingDirectoryIDs.add(directory.ID);
         }
 
         const addMissingByID = <T extends { ID: string }>(

@@ -24,6 +24,42 @@ interface ChangelogRelease {
 
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.4.1",
+        date: "2026-07-17",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "Organize credentials into directories, filter between them, and move multiple credentials at once from the vault dashboard.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Directories and their credentials now stay consistent across linked devices and are preserved when importing or exporting a vault.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Online Services sessions now refresh and sign out more reliably, including when locking a vault or removing an account connection.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Older v2 vault backups can be restored and unlocked again without an invalid-version error.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Browser extension autofill now recognizes more sign-in, sign-up, password-change, and verification forms while avoiding unrelated or hidden fields.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Autofill icons and open panels now remain aligned with their fields while pages scroll, resize, or update.",
+            },
+        ],
+    },
+    {
         version: "v1.4.0",
         date: "2026-07-06",
         changes: [

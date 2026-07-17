@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.1] - 2026-07-17
+
+### Added
+
+- Added first-class vault directories with versioned, hashed, and tombstoned records. Credentials now reference directories by `DirectoryID`, and the vault dashboard and extension support directory filtering, creation, renaming, deletion, per-credential assignment, and bulk moves.
+- Added directory-aware synchronization using separate credential and directory version vectors, typed sync item references, directory payloads, deterministic name-collision resolution, and cleanup for credentials whose directory was deleted remotely.
+- Added refresh-token storage and rotation to the web and extension Online Services clients, including single-flight refreshes, stale-session generation guards, server-side session revocation during logout and vault locking, and challenge-signed account deletion.
+- Added development-only browser extension field-detection diagnostics and expanded detector coverage for multi-step, sign-in, sign-up, password-change, OTP, and standalone username/email forms.
+- Added regression tests for directory lifecycle, import/export, synchronization, extension field detection, legacy vault restore, and Online Services session refresh/logout behavior.
+
+### Changed
+
+- Replaced the legacy `Group`/`GroupID` vault model with `Directory`/`DirectoryID`; older vaults move existing credentials to Root during the v4 schema upgrade, importers map source folders to directories, and JSON exports omit deleted directories.
+- Updated the synchronization protobuf so hello messages carry separate directory and credential vectors, data requests use typed item references, and responses can transfer both record types.
+- Updated web and extension authentication to use opaque rotating refresh tokens instead of refreshing with session tokens. Account unbinding and vault locking now revoke the remote session before clearing local state.
+- Hardened account deletion by requiring a freshly signed device challenge and root-device authorization.
+- Removed the public contact form and its feedback API contract, while retaining the static privacy-policy contact section.
+- Updated production Compose networking to rely on service discovery rather than explicit inter-service ports and added a basic web-service health check.
+- Bumped the `web` package version to `v1.4.1`.
+
+### Fixed
+
+- Preserved `Version` and `CurrentVersion` while deserializing encrypted blobs, allowing restored pre-envelope v2 vault backups to unlock instead of failing with `INVALID_VAULT_VERSION`.
+- Improved extension field classification to reject hidden, honeypot, search, and unrelated fields; recognize more real-world authentication forms; and compare visibility state correctly.
+- Reposition extension autofill controls after reconciliation and when the visual viewport changes, preventing icons and open panels from drifting away from their fields.
+- Corrected production Compose configuration and removed an invalid explicit application-port dependency.
 
 ## [1.4.0] - 2026-07-06
 

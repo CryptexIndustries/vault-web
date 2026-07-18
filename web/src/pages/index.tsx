@@ -40,14 +40,21 @@ const Index: NextPage = () => {
                         className="mb-4 flex w-full flex-col justify-around pt-10 sm:flex-row"
                     >
                         <div className="text-center sm:text-left">
-                            <p className="text-slate-300">
+                            <p className="text-center text-slate-300">
                                 We care about the protection of your data.
-                                <br /> Read our {""}
+                                <br /> Read our{" "}
                                 <Link
                                     href="/privacy"
                                     className="font-bold underline"
                                 >
                                     Privacy Policy
+                                </Link>
+                                . <br /> Found a security issue? See our{" "}
+                                <Link
+                                    href="/security"
+                                    className="font-bold underline"
+                                >
+                                    Vulnerability Disclosure
                                 </Link>
                                 .
                             </p>

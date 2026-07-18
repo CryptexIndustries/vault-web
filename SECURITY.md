@@ -1,9 +1,9 @@
 # Security Policy
 
-## Reporting
+Please report security vulnerabilities privately. Do not use public GitHub issues.
 
-Please do not report security vulnerabilities through public GitHub issues.
+**Vulnerability disclosure policy:** https://cryptex-vault.com/security
 
-If you believe you have found a security vulnerability, please report it via email to security@cryptexindustries.com.
+**Email:** security@cryptexindustries.com
 
-You should receive a response within 3 working days.
+You should receive a first response within 3 working days.

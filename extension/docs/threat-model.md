@@ -22,7 +22,7 @@ architecture docs under `extension/docs/`.
 | Decrypted vault               | `chrome.storage.session` `UV`                           | All passwords, TOTP secrets, notes           |
 | Credential secrets (autofill) | CS → SW → fill path; pending save in session            | Per-credential exposure                      |
 | Online Services JWT           | `chrome.storage.session` `OS_SESSION`                   | API access as device                         |
-| Device passkey JWK            | `OS_SESSION`, vault `OnlineServices`                    | Re-auth without user gesture                 |
+| Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                    | Re-auth without user gesture                 |
 | ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                  | Decrypt captured envelopes                   |
 | Mnemonic (link receive)       | Link page memory during flow                            | Decrypt link package                         |
 | Diagnostic logs               | `chrome.storage.local` `extLogs`                        | Metadata leakage (deviceId, vaultId, errors) |

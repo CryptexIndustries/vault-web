@@ -62,7 +62,7 @@ flowchart TB
    proxying flow through ECDH-encrypted envelopes validated by origin and message
    type. See [service-worker/messaging.md](../service-worker/messaging.md).
 
-2. **Online Services JWT** — Passkey-backed session token stored in
+2. **Online Services JWT** — Session token from device signing key auth, stored in
    `chrome.storage.session` (`OS_SESSION`). Established on unlock or link
    receive; cleared on lock or system idle. UI never holds the JWT directly.
    See [sync-and-link/online-services.md](../sync-and-link/online-services.md).

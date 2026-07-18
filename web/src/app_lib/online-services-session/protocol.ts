@@ -1,7 +1,7 @@
 import {
     parseJwkFromString,
     signChallenge,
-} from "@/app_lib/vault-utils/passkey";
+} from "@/app_lib/vault-utils/device-signing-key";
 
 export const SESSION_REFRESH_LEAD_MS = 60_000;
 export const FORCED_REAUTH_COOLDOWN_MS = 30_000;
@@ -33,7 +33,7 @@ export function shouldRefreshOnlineServicesSession(
     return expiresAtMs - nowMs <= SESSION_REFRESH_LEAD_MS;
 }
 
-export async function performOnlineServicesPasskeyAuth(
+export async function performOnlineServicesDeviceSigningKeyAuth(
     api: OnlineServicesAuthApi,
     args: { deviceId: string; privateKeyJWK: string },
 ): Promise<OnlineServicesSessionTokens> {

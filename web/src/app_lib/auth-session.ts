@@ -18,7 +18,7 @@ import { getOnlineServicesTrpcUrl } from "@/utils/online-services-api-url";
 import {
     createForcedReauthGate,
     createRefreshInFlightRunner,
-    performOnlineServicesPasskeyAuth,
+    performOnlineServicesDeviceSigningKeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
     type OnlineServicesSessionTokens,
@@ -232,7 +232,7 @@ export async function logoutOnlineServicesSession(): Promise<void> {
 }
 
 /**
- * Full passkey challenge-response: obtain JWT for premium APIs.
+ * Full device signing key challenge-response: obtain JWT for premium APIs.
  */
 export async function establishPremiumSession(options: {
     deviceId: string;
@@ -244,7 +244,7 @@ export async function establishPremiumSession(options: {
     );
 
     try {
-        const verified = await performOnlineServicesPasskeyAuth(
+        const verified = await performOnlineServicesDeviceSigningKeyAuth(
             webOnlineServicesAuthApi,
             options,
         );

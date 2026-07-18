@@ -19,7 +19,7 @@ This is an implementation document for the current codebase, not a product-level
 
 - `vault`: The locally unlocked Cryptex Vault object stored in the frontend.
 - `OnlineServices`: The section of the vault that stores server-account binding material.
-- `passkey binding`: In this codebase, this means the vault stores:
+- `device signing key binding`: In this codebase, this means the vault stores:
     - `DeviceId` (server-generated device id; equals **`UserDevice.id`**)
     - `UserID` (account id; equals **`User.id`**)
     - `PrivateKeyJWK`
@@ -84,7 +84,7 @@ The frontend keeps session state in `onlineServicesStore` / `onlineServicesDataA
 
 The server persists:
 
-- the user record (recovery hash only; **no** account-level passkey field)
+- the user record (recovery hash only; **no** account-level device signing key field)
 - user-device records with **`public_key` per device** (Prisma generates `UserDevice.id` via its `@default(cuid())`; `auth.recover` explicitly overrides with `ulid()`). `public_key` is `@unique` so the same JWK cannot register twice.
 - device relationships (`DeviceRelationship`) created by `device.link` between an existing root device and the newly minted linked device
 - subscription configuration
@@ -104,7 +104,7 @@ The server also uses Redis for:
 - `web/src/utils/trpc.ts`
   Attaches the bearer token and runs the shared preflight freshness hook before protected traffic.
 - `web/src/components/vault-dashboard/vault-dashboard.tsx`
-  Performs automatic sign-in when a vault with passkey binding is opened.
+  Performs automatic sign-in when a vault with device signing key binding is opened.
 - `web/src/components/vault-dashboard/account-dialog.tsx`
   Handles registration, recovery, account management, and post-auth configuration refresh.
 
@@ -116,8 +116,8 @@ Server API reference: [`authentication-api.md`](./authentication-api.md) (canoni
 
 At a high level:
 
-1. Registration creates a server user record and a **root `UserDevice`** row holding the passkey **public** key.
-2. The frontend stores the full passkey binding in the vault.
+1. Registration creates a server user record and a **root `UserDevice`** row holding the device signing key **public** key.
+2. The frontend stores the full device signing key binding in the vault.
 3. Sign-in uses challenge-response:
 
 - server issues challenge
@@ -128,7 +128,7 @@ At a high level:
 4. Protected tRPC procedures require that JWT in `Authorization: Bearer`.
 5. Before protected requests, the client checks whether the JWT is near expiry.
 6. If near expiry, the client first tries `auth.refresh`.
-7. If refresh fails, the client falls back to a full challenge-response re-authentication using the unlocked vault’s passkey material.
+7. If refresh fails, the client falls back to a full challenge-response re-authentication using the unlocked vault’s device signing key material.
 
 ## Authentication Lifecycle
 
@@ -143,10 +143,10 @@ sequenceDiagram
     participant protected_server as protectedProcedure
 
     user->>frontend: Unlock vault
-    frontend->>local_vault: Check for OnlineServices passkey binding
-    alt no passkey binding exists
+    frontend->>local_vault: Check for OnlineServices device signing key binding
+    alt no device signing key binding exists
         frontend-->>user: No online auth session is established
-    else passkey binding exists
+    else device signing key binding exists
         frontend->>auth_bootstrap: Establish premium session from vault binding
         auth_bootstrap-->>frontend: sessionToken and expiresAt
         frontend->>session_state: Store short-lived JWT session
@@ -401,7 +401,7 @@ Instead:
 
 - just before protected traffic, the client checks whether `sessionExpiresAt` is within a lead window
 - if yes, it tries to refresh
-- if refresh fails, it tries a full passkey-based re-authentication
+- if refresh fails, it tries a full device signing key re-authentication
 
 ### Lead Window
 
@@ -564,7 +564,7 @@ It is used when the user has:
 
 - a `userId`
 - a recovery phrase
-- no usable original passkey binding
+- no usable original device signing key binding
 
 ### Frontend Recovery Steps
 
@@ -685,7 +685,7 @@ Product meaning: several devices may hold root privileges at once (e.g. a laptop
 
 ### Linking a new device (Online Services)
 
-To add a device under the same account with a **distinct** passkey pair:
+To add a device under the same account with a **distinct** device signing key pair:
 
 1. The **sender** generates a new P-256 key pair locally.
 2. The sender calls **`device.link`** with **`publicKeyJWK`**; in a single `$transaction` the server creates a new non-root **`UserDevice`** row (with that `public_key`) and a **`DeviceRelationship`** row pairing the caller's `deviceId` to the new one. The mutation returns **`{ deviceId, syncId }`**, where `syncId` is the relationship row id used for sync correlation.
@@ -700,7 +700,7 @@ The **receiver** opens the encrypted blob, installs the embedded `OnlineServices
 When the vault dashboard loads, the app automatically tries to establish a session if:
 
 - the vault is unlocked
-- passkey binding exists in the vault
+- device signing key binding exists in the vault
 
 ### Current Behavior
 
@@ -719,7 +719,7 @@ Current practical sign-out behavior is local:
 
 - clear frontend session state
 - clear online-services connection status
-- optionally remove passkey binding from the vault
+- optionally remove device signing key binding from the vault
 
 ### Locking The Vault
 
@@ -788,7 +788,7 @@ Even with a valid JWT, requests fail if the referenced **`UserDevice`** row no l
 
 Protected requests and refresh fail if the user no longer has valid subscription configuration.
 
-### Missing Local Passkey Material
+### Missing Local Device Signing Key Material
 
 Automatic re-authentication cannot happen if the unlocked vault is missing:
 
@@ -803,7 +803,7 @@ Automatic re-authentication cannot happen if the unlocked vault is missing:
 
 ### Invalid Signature
 
-`auth.verify` rejects invalid passkey signatures.
+`auth.verify` rejects invalid device signing key signatures.
 
 ### Expired Challenge
 
@@ -823,7 +823,7 @@ Automatic re-authentication cannot happen if the unlocked vault is missing:
 ### Trade-Offs
 
 - The session token is stored in frontend state, not in an `httpOnly` cookie.
-- As long as the vault is unlocked and still contains passkey material, the frontend can re-establish a session automatically.
+- As long as the vault is unlocked and still contains device signing key material, the frontend can re-establish a session automatically.
 - There is no dedicated logout-revocation mechanism for already-issued JWTs beyond expiry and the device/user checks on use.
 
 ## Current Sequence Summaries
@@ -888,10 +888,10 @@ sequenceDiagram
     participant configuration_sync as syncOnlineServicesRemoteConfiguration
 
     user->>vault_dashboard: Unlock vault
-    vault_dashboard->>local_vault: Check OnlineServices passkey binding
-    alt no passkey binding
+    vault_dashboard->>local_vault: Check OnlineServices device signing key binding
+    alt no device signing key binding
         vault_dashboard-->>user: Skip online auth
-    else passkey binding exists
+    else device signing key binding exists
         vault_dashboard->>session_state: Read current session state
         alt session token exists and deviceId matches vault binding
             session_state-->>vault_dashboard: Reuse current session
@@ -945,7 +945,7 @@ sequenceDiagram
                 refresh_guard->>session_state: Store refreshed token and expiry
             else refresh fails
                 refresh_guard->>unlocked_vault: Read OnlineServices.DeviceId + PrivateKeyJWK
-                alt passkey binding available
+                alt device signing key binding available
                     refresh_guard->>auth_challenge: challenge(deviceId)
                     auth_challenge-->>refresh_guard: challengeId and challenge
                     refresh_guard->>refresh_guard: Sign challenge with private key
@@ -956,7 +956,7 @@ sequenceDiagram
                     else re-auth fails
                         refresh_guard-->>protected_client: Automatic recovery unavailable
                     end
-                else no passkey binding available
+                else no device signing key binding available
                     refresh_guard-->>protected_client: Automatic recovery unavailable
                 end
             end

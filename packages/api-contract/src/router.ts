@@ -12,7 +12,7 @@ import {
     authRouterLogout,
     authRouterRecover,
     authRouterRefresh,
-    authRouterRegister as authRouterRegisterPasskey,
+    authRouterRegister,
     authRouterVerify,
 } from "./routes/v1/auth.router";
 import {
@@ -39,7 +39,7 @@ import {
 const _versionedRouter = router({
     v1: router({
         auth: router({
-            register: authRouterRegisterPasskey,
+            register: authRouterRegister,
             challenge: authRouterChallenge,
             verify: authRouterVerify,
             refresh: authRouterRefresh,

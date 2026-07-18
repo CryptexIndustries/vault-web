@@ -27,10 +27,10 @@ export interface OnlineServicesSessionRecord {
     /** Opaque refresh credential rotated by `auth.refresh`. */
     refreshToken: string | null;
     refreshExpiresAt: number | null;
-    /** Device id that owns the passkey signing the challenge. */
+    /** Device id that owns the device signing key used to sign the challenge. */
     deviceId: string | null;
     /**
-     * Private key JWK (serialised string) for the device passkey, kept so we
+     * Private key JWK (serialised string) for that device signing key, kept so we
      * can re-establish a session without re-prompting the user when the SW
      * wakes up from a sleep or when the popup isn't open.
      */

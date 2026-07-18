@@ -20,7 +20,7 @@ import {
     privateKeyJwkToString,
     publicKeyJwkToString,
     signChallenge,
-} from "@/app_lib/vault-utils/passkey";
+} from "@/app_lib/vault-utils/device-signing-key";
 import { OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
 import {
     AlertDialog,
@@ -81,7 +81,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     });
     const saveVault = useSaveVault();
 
-    const passkeyBound = Vault.isOnlineServicesBound(vault);
+    const onlineServicesBound = Vault.isOnlineServicesBound(vault);
     const hasSession = !!onlineServicesData?.sessionToken?.length;
 
     const [accountTab, setAccountTab] = useState<AccountDialogTab>("account");
@@ -106,8 +106,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const registerMut = trpcReact.v1.auth.register.useMutation();
     const recoverMut = trpcReact.v1.auth.recover.useMutation();
     const deleteUserMut = trpcReact.v1.user.delete.useMutation();
-    const deleteChallengeMut =
-        trpcReact.v1.user.deleteChallenge.useMutation();
+    const deleteChallengeMut = trpcReact.v1.user.deleteChallenge.useMutation();
     const genRecoveryMut =
         trpcReact.v1.user.generateRecoveryToken.useMutation();
     const clearRecoveryMut = trpcReact.v1.user.clearRecoveryToken.useMutation();
@@ -451,7 +450,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         ],
     );
 
-    const isDevicesTab = passkeyBound && accountTab === "devices";
+    const isDevicesTab = onlineServicesBound && accountTab === "devices";
 
     const handleCheckoutComplete = async () => {
         checkoutFinalizeAbortRef.current?.abort();
@@ -481,14 +480,14 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                             Account
                         </DialogTitle>
                         <DialogDescription>
-                            {passkeyBound
+                            {onlineServicesBound
                                 ? "Manage your Online Services plan, devices, and security."
                                 : "Sign in to Online Services for sync and billing."}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="min-h-0 overflow-y-auto overscroll-contain px-6 py-4">
-                        {passkeyBound ? (
+                        {onlineServicesBound ? (
                             <Tabs
                                 value={accountTab}
                                 onValueChange={(value) =>
@@ -517,7 +516,9 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                         hasSession={hasSession}
                                         deviceId={currentServerDeviceId}
                                         userId={userId}
-                                        passkeyBound={passkeyBound}
+                                        onlineServicesBound={
+                                            onlineServicesBound
+                                        }
                                         isConnected={isConnected}
                                         onCheckoutComplete={() =>
                                             void handleCheckoutComplete()
@@ -552,7 +553,9 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                 <TabsContent value="security">
                                     <AccountSecurity
                                         isRoot={isRoot}
-                                        passkeyBound={passkeyBound}
+                                        onlineServicesBound={
+                                            onlineServicesBound
+                                        }
                                         busy={busy}
                                         recoveryPhraseAlreadyOnServer={
                                             recoveryPhraseAlreadyOnServer
@@ -655,9 +658,9 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                             Remove local account binding?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            This removes the passkey keys stored in this vault
-                            and clears your local session. It does not delete a
-                            server-side account.
+                            This removes the device signing keys stored in this
+                            vault and clears your local session. It does not
+                            delete a server-side account.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

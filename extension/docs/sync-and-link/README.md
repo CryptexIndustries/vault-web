@@ -64,7 +64,7 @@ fetch serves the full encrypted sync handshake for that popup session.
 2. **Package decrypt** — `LinkingPackage.decryptPackage(mnemonic)` → signaling
    config, STUN/TURN, sender key bundle, optional `OnlineServices` creds.
 3. **Online Services bootstrap** (if package includes OS creds):
-   `establishOnlineServicesSessionViaSW` → SW passkey challenge/verify → JWT in
+   `establishOnlineServicesSessionViaSW` → SW device signing key challenge/verify → JWT in
    `OS_SESSION`. On failure: warn and continue without OS.
 4. **Linking** — `LinkingProcessController` (`web/src/app_lib/vault-utils/linking.ts`):
    Pusher presence channel, WebRTC, sync key exchange, encrypted vault transfer

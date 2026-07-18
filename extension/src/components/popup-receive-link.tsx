@@ -571,7 +571,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     linkingBlob.OnlineServices.PrivateKeyJWK,
                 );
 
-                // The SW owns the JWT. It alone runs the passkey
+                // The SW owns the JWT. It alone runs the device signing key
                 // challenge/verify dance and stores the resulting token
                 // so subsequent tRPC requests (which proxy through the
                 // SW) can be authenticated without the popup or this

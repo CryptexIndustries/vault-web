@@ -14,7 +14,7 @@ import {
 
 type AccountSecurityProps = {
     isRoot: boolean;
-    passkeyBound: boolean;
+    onlineServicesBound: boolean;
     busy: boolean;
     recoveryPhraseAlreadyOnServer: boolean;
     genRecoveryPending: boolean;
@@ -27,7 +27,7 @@ type AccountSecurityProps = {
 
 export function AccountSecurity({
     isRoot,
-    passkeyBound,
+    onlineServicesBound,
     busy,
     recoveryPhraseAlreadyOnServer,
     genRecoveryPending,
@@ -100,8 +100,9 @@ export function AccountSecurity({
                 <CardHeader className="pb-3">
                     <CardTitle className="text-sm">This device</CardTitle>
                     <CardDescription>
-                        Clears passkey credentials stored in this vault and
-                        signs out locally. Does not delete the server account.
+                        Clears device signing key credentials stored in this
+                        vault and signs out locally. Does not delete the server
+                        account.
                     </CardDescription>
                 </CardHeader>
                 <CardFooter className="border-t pt-4">
@@ -109,7 +110,7 @@ export function AccountSecurity({
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={!passkeyBound || busy}
+                        disabled={!onlineServicesBound || busy}
                         onClick={onRemoveLocalBinding}
                     >
                         Remove local binding…

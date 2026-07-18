@@ -64,7 +64,7 @@ import {
     generateKeyPair,
     privateKeyJwkToString,
     publicKeyJwkToString,
-} from "@/app_lib/vault-utils/passkey";
+} from "@/app_lib/vault-utils/device-signing-key";
 import {
     encapsulateSyncKem,
     ensureSyncKemKeypair,

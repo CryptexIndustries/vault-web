@@ -913,7 +913,7 @@ export function VaultDashboard() {
         setIsAccountDialogOpen(true);
     }, []);
 
-    const passkeyBound = Vault.isOnlineServicesBound(unlockedVault);
+    const onlineServicesBound = Vault.isOnlineServicesBound(unlockedVault);
     const hasOnlineAuth = !!onlineServicesData?.sessionToken?.length;
     const remoteOnlineServicesData = onlineServicesData?.remoteData;
     const isFreeOnlineServicesTier =
@@ -925,12 +925,12 @@ export function VaultDashboard() {
         cloudServicesEnabled && (!hasOnlineAuth || isFreeOnlineServicesTier);
     const subscriptionCtaVariant = isFreeOnlineServicesTier
         ? "upgrade"
-        : passkeyBound
+        : onlineServicesBound
           ? "signin"
           : "signup";
 
     const accountButtonLabel = (() => {
-        if (!passkeyBound) return "Sign up";
+        if (!onlineServicesBound) return "Sign up";
         if (!hasOnlineAuth) return "Sign in";
         return "Signed In";
     })();
@@ -938,7 +938,7 @@ export function VaultDashboard() {
     const accountButtonClassName = cn(
         "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 mb-1 h-9 w-full justify-start gap-2 rounded-md text-xs transition-all",
         hasOnlineAuth &&
-            passkeyBound &&
+            onlineServicesBound &&
             "text-emerald-700 dark:text-emerald-400",
     );
 

@@ -79,7 +79,7 @@ jest.mock("@trpc/client", () => ({
     httpBatchLink: jest.fn(() => ({})),
 }));
 
-jest.mock("../../src/app_lib/vault-utils/passkey", () => ({
+jest.mock("../../src/app_lib/vault-utils/device-signing-key", () => ({
     parseJwkFromString: jest.fn(),
     signChallenge: jest.fn(),
 }));
@@ -95,7 +95,7 @@ import {
 import {
     parseJwkFromString,
     signChallenge,
-} from "../../src/app_lib/vault-utils/passkey";
+} from "../../src/app_lib/vault-utils/device-signing-key";
 import { OnlineServices, Vault } from "../../src/app_lib/vault-utils/vault";
 import {
     onlineServicesAuthConnectionStatusAtom,
@@ -439,7 +439,7 @@ describe("auth-session freshness checks", () => {
         expect(refreshMutate).toHaveBeenCalledTimes(1);
     });
 
-    it("re-authenticates with passkey material when refresh fails", async () => {
+    it("re-authenticates with device signing key material when refresh fails", async () => {
         refreshMutate.mockRejectedValue(new Error("expired"));
         challengeMutate.mockResolvedValue({
             challengeId: "challenge_1",
@@ -492,7 +492,7 @@ describe("auth-session freshness checks", () => {
         });
     });
 
-    it("returns false when passkey re-authentication fails after refresh failure", async () => {
+    it("returns false when device signing key re-authentication fails after refresh failure", async () => {
         refreshMutate.mockRejectedValue(new Error("expired"));
         challengeMutate.mockRejectedValue(new Error("challenge failed"));
 

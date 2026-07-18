@@ -7,8 +7,8 @@ function base64UrlToBuffer(b64url: string): Buffer {
     return Buffer.from(b64, "base64");
 }
 
-/** Node-only verifier mirroring Cryptex Cloud `verifyPasskeySignature`. */
-export function verifyPasskeySignature(
+/** Node-only verifier mirroring Cryptex Cloud `verifyDeviceSigningKeySignature`. */
+export function verifyDeviceSigningKeySignature(
     publicKeyJwkJson: string,
     challengeBytes: Buffer,
     signatureBase64Url: string,

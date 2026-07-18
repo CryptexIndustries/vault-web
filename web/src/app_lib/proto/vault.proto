@@ -132,7 +132,7 @@ message Vault {
 
     reserved 7; reserved "Diffs";
 
-    // Cryptex Vault Online Services - server auth (passkey material); separate from device sync
+    // Cryptex Vault Online Services - server auth (device signing key material); separate from device sync
     optional OnlineServices OnlineServices = 9;
     repeated Directory Directories = 10;
 }

@@ -1,5 +1,5 @@
 /**
- * ECDSA P-256 key pair for vault-stored "passkey" (not browser WebAuthn).
+ * ECDSA P-256 device signing key pair (software JWK in vault; not browser WebAuthn).
  * Private key is stored as JWK inside the encrypted vault.
  */
 

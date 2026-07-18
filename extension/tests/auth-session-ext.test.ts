@@ -52,7 +52,7 @@ jest.mock("../src/env", () => ({
     },
 }));
 
-jest.mock("@/app_lib/vault-utils/passkey", () => ({
+jest.mock("@/app_lib/vault-utils/device-signing-key", () => ({
     parseJwkFromString: jest.fn(() => ({ kty: "EC" })),
     signChallenge: jest.fn(async () => "signed-challenge"),
 }));
@@ -116,7 +116,7 @@ import {
 import {
     parseJwkFromString,
     signChallenge,
-} from "../../web/src/app_lib/vault-utils/passkey";
+} from "../../web/src/app_lib/vault-utils/device-signing-key";
 
 const mockParseJwkFromString = parseJwkFromString as jest.MockedFunction<
     typeof parseJwkFromString
@@ -351,7 +351,7 @@ describe("service-worker online-services auth lifecycle", () => {
         });
     });
 
-    it("falls back to stored passkey credentials when refresh is rejected", async () => {
+    it("falls back to stored device signing key credentials when refresh is rejected", async () => {
         await setOnlineServicesSession({
             sessionToken: "session_old",
             sessionExpiresAt: Date.now() + 10_000,

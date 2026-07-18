@@ -24,7 +24,7 @@ import superjson from "superjson";
 
 import {
     createForcedReauthGate,
-    performOnlineServicesPasskeyAuth,
+    performOnlineServicesDeviceSigningKeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
     type OnlineServicesSessionTokens,
@@ -226,7 +226,7 @@ async function refreshOnlineServicesSession(): Promise<boolean> {
 }
 
 /**
- * Performs the full passkey challenge/verify dance and stores the resulting
+ * Performs the full device signing key challenge/verify dance and stores the resulting
  * token (plus the credentials used to obtain it, so future refreshes /
  * re-auths don't need them passed in again).
  *
@@ -244,7 +244,7 @@ export async function establishOnlineServicesSession(args: {
     const generation = sessionGeneration;
 
     try {
-        const verified = await performOnlineServicesPasskeyAuth(
+        const verified = await performOnlineServicesDeviceSigningKeyAuth(
             swOnlineServicesAuthApi,
             args,
         );
@@ -429,7 +429,7 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
 
 /**
  * Forces credential rotation after a protected request fails: refresh first,
- * then full passkey re-auth. Mirrors `auth-session.ts` and its cooldown.
+ * then full device signing key re-auth. Mirrors `auth-session.ts` and its cooldown.
  */
 export async function forceOnlineServicesSessionReauthentication(): Promise<boolean> {
     if (sessionEstablishmentBlocked) return false;

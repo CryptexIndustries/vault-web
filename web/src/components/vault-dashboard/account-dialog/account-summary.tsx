@@ -63,7 +63,7 @@ type AccountSummaryProps = {
     hasSession: boolean;
     deviceId: string | null | undefined;
     userId: string | null | undefined;
-    passkeyBound: boolean;
+    onlineServicesBound: boolean;
     isConnected: boolean;
     onCheckoutComplete?: () => void | Promise<void>;
 };
@@ -153,7 +153,7 @@ export function AccountSummary({
     hasSession,
     deviceId,
     userId,
-    passkeyBound,
+    onlineServicesBound,
     isConnected,
     onCheckoutComplete,
 }: AccountSummaryProps) {
@@ -321,7 +321,7 @@ export function AccountSummary({
                                     Vault binding
                                 </span>
                                 <span className="font-medium">
-                                    {passkeyBound
+                                    {onlineServicesBound
                                         ? "Registered"
                                         : "Not registered"}
                                 </span>

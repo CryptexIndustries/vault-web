@@ -11,8 +11,8 @@ import {
     privateKeyJwkToString,
     publicKeyJwkToString,
     signChallenge,
-} from "../../../src/app_lib/vault-utils/passkey";
-import { verifyPasskeySignature } from "../../utils/verify-passkey";
+} from "../../../src/app_lib/vault-utils/device-signing-key";
+import { verifyDeviceSigningKeySignature } from "../../utils/verify-device-signing-key";
 
 beforeAll(() => {
     if (!globalThis.crypto?.subtle) {
@@ -23,7 +23,7 @@ beforeAll(() => {
     }
 });
 
-describe("passkey.ts", () => {
+describe("device-signing-key.ts", () => {
     it("generateKeyPair produces P-256 ECDSA JWKs with sign/verify material", async () => {
         const { publicKey, privateKey } = await generateKeyPair();
         expect(publicKey.kty).toBe("EC");
@@ -50,10 +50,18 @@ describe("passkey.ts", () => {
         expect(sig1).not.toBe(sig2);
         const buf = Buffer.from(challenge);
         expect(
-            verifyPasskeySignature(publicKeyJwkToString(publicKey), buf, sig1),
+            verifyDeviceSigningKeySignature(
+                publicKeyJwkToString(publicKey),
+                buf,
+                sig1,
+            ),
         ).toBe(true);
         expect(
-            verifyPasskeySignature(publicKeyJwkToString(publicKey), buf, sig2),
+            verifyDeviceSigningKeySignature(
+                publicKeyJwkToString(publicKey),
+                buf,
+                sig2,
+            ),
         ).toBe(true);
     });
 
@@ -118,8 +126,8 @@ describe("passkey.ts", () => {
         }
     });
 
-    describe("verifyPasskeySignature", () => {
-        it("signChallenge output verifies with verifyPasskeySignature on same challenge bytes", async () => {
+    describe("verifyDeviceSigningKeySignature", () => {
+        it("signChallenge output verifies with verifyDeviceSigningKeySignature on same challenge bytes", async () => {
             const { publicKey, privateKey } = await generateKeyPair();
             const challengeBytes = Buffer.from(
                 crypto.getRandomValues(new Uint8Array(32)),
@@ -131,7 +139,7 @@ describe("passkey.ts", () => {
                 challengeUint,
             );
 
-            const ok = verifyPasskeySignature(
+            const ok = verifyDeviceSigningKeySignature(
                 publicKeyJwkToString(publicKey),
                 challengeBytes,
                 signatureB64Url,
@@ -150,7 +158,7 @@ describe("passkey.ts", () => {
             );
 
             expect(
-                verifyPasskeySignature(
+                verifyDeviceSigningKeySignature(
                     publicKeyJwkToString(publicKey),
                     b,
                     signatureB64Url,
@@ -171,14 +179,14 @@ describe("passkey.ts", () => {
             );
 
             expect(
-                verifyPasskeySignature(
+                verifyDeviceSigningKeySignature(
                     publicKeyJwkToString(pk2),
                     challengeBytes,
                     signatureB64Url,
                 ),
             ).toBe(false);
             expect(
-                verifyPasskeySignature(
+                verifyDeviceSigningKeySignature(
                     publicKeyJwkToString(pk1),
                     challengeBytes,
                     signatureB64Url,

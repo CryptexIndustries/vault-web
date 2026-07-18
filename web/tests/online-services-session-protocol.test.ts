@@ -11,7 +11,7 @@ if (
     });
 }
 
-jest.mock("../src/app_lib/vault-utils/passkey", () => ({
+jest.mock("../src/app_lib/vault-utils/device-signing-key", () => ({
     parseJwkFromString: jest.fn(() => ({})),
     signChallenge: jest.fn(async () => "signed-challenge"),
 }));
@@ -19,7 +19,7 @@ jest.mock("../src/app_lib/vault-utils/passkey", () => ({
 import {
     createForcedReauthGate,
     createRefreshInFlightRunner,
-    performOnlineServicesPasskeyAuth,
+    performOnlineServicesDeviceSigningKeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
     type OnlineServicesAuthApi,
@@ -40,7 +40,7 @@ describe("online-services-session protocol", () => {
         );
     });
 
-    it("performOnlineServicesPasskeyAuth runs challenge, sign, verify", async () => {
+    it("performOnlineServicesDeviceSigningKeyAuth runs challenge, sign, verify", async () => {
         const challenge: jest.MockedFunction<
             OnlineServicesAuthApi["challenge"]
         > = jest.fn(async () => ({
@@ -55,7 +55,7 @@ describe("online-services-session protocol", () => {
                 refreshExpiresAt: 9_000_000,
             }));
 
-        const tokens = await performOnlineServicesPasskeyAuth(
+        const tokens = await performOnlineServicesDeviceSigningKeyAuth(
             {
                 challenge,
                 verify,

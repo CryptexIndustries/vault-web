@@ -6,7 +6,7 @@ The **hosted Cryptex Cloud backend** (auth, device linking, billing, signaling/T
 
 ## What you can verify here
 
-- Vault encryption, envelopes, passkeys, import/export (`web/src/app_lib/vault-utils/`)
+- Vault encryption, envelopes, device signing keys, import/export (`web/src/app_lib/vault-utils/`)
 - End-to-end sync crypto and linking (`sync-crypto.ts`, `linking.ts`)
 - Extension background/content scripts
 - Client behavior and API contract types (`packages/api-contract/`)

@@ -25,7 +25,7 @@ export class Vault implements VaultUtilTypes.Vault {
     public Version: number;
     public CurrentVersion = 0;
     public LinkedDevices: LinkedDevices;
-    /** Server auth material (passkey JWKs, user id) - separate from device sync */
+    /** Server auth material (device signing key JWKs, user id) - separate from device sync */
     public OnlineServices?: OnlineServices;
     public Directories: Directory[] = [];
     public Credentials: VaultCredential[];
@@ -816,11 +816,9 @@ export const hashDirectory = async (
     directory: Pick<Directory, "ID" | "Name" | "Deleted">,
 ): Promise<string> =>
     digestHex(
-        [
-            directory.ID,
-            directory.Name,
-            String(directory.Deleted),
-        ].join("\u0000"),
+        [directory.ID, directory.Name, String(directory.Deleted)].join(
+            "\u0000",
+        ),
     );
 
 export const sortDirectories = (directories: Directory[]): Directory[] =>

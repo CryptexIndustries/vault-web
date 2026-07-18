@@ -1,21 +1,21 @@
 # Online Services
 
 Online Services provides Cryptex-hosted signaling, TURN, and API authentication
-via a passkey-backed JWT. In the extension, the service worker owns the session;
+via a JWT from device signing key auth. In the extension, the service worker owns the session;
 UI pages establish or clear it through encrypted envelopes.
 
 ## Session storage
 
 Key: `OS_SESSION` in `chrome.storage.session`
 
-| Field              | Purpose                                       |
-| ------------------ | --------------------------------------------- |
-| `sessionToken`     | Bearer JWT for tRPC                           |
-| `sessionExpiresAt` | Expiry timestamp                              |
-| `refreshToken`     | Opaque, rotating refresh credential           |
-| `refreshExpiresAt` | Refresh credential expiry timestamp           |
-| `deviceId`         | Device identifier                             |
-| `privateKeyJWK`    | Passkey private key for re-auth without popup |
+| Field              | Purpose                                                  |
+| ------------------ | -------------------------------------------------------- |
+| `sessionToken`     | Bearer JWT for tRPC                                      |
+| `sessionExpiresAt` | Expiry timestamp                                         |
+| `refreshToken`     | Opaque, rotating refresh credential                      |
+| `refreshExpiresAt` | Refresh credential expiry timestamp                      |
+| `deviceId`         | Device identifier                                        |
+| `privateKeyJWK`    | Device signing key private key for re-auth without popup |
 
 Cleared on lock, 30-minute system idle, link flow without OS package, or
 `OnlineServicesClear`.
@@ -63,10 +63,10 @@ directly.
 
 Extension UI messages for the port adapter:
 
-| Message                             | Purpose                        |
-| ----------------------------------- | ------------------------------ |
-| `OnlineServicesEnsureFresh`         | Refresh / establish in SW      |
-| `OnlineServicesForceReauthenticate` | Full passkey re-auth after 401 |
+| Message                             | Purpose                                   |
+| ----------------------------------- | ----------------------------------------- |
+| `OnlineServicesEnsureFresh`         | Refresh / establish in SW                 |
+| `OnlineServicesForceReauthenticate` | Full device signing key re-auth after 401 |
 
 Allowed from **popup** and **link** origins.
 

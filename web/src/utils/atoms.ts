@@ -5,7 +5,7 @@ import { Vault } from "../app_lib/vault-utils/vault";
 import { type VaultMetadata } from "../app_lib/vault-utils/storage";
 
 export type OnlineServicesData = {
-    /** Passkey session JWT (`Authorization: Bearer`). */
+    /** Device signing key session JWT (`Authorization: Bearer`). */
     sessionToken?: string | null;
     sessionExpiresAt?: number | null;
     /** Opaque refresh credential rotated by `auth.refresh`. */

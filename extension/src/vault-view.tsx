@@ -48,7 +48,6 @@ import {
 // Shadcn UI Components
 import { SyncConnectionController } from "@/app_lib/synchronization";
 import { createVaultOperations } from "./vault-operations";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -90,6 +89,8 @@ import {
     WarningDialogShowFn,
 } from "@/components/dialog/warning";
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
+import { CredentialListIcon } from "./components/credential-list-icon";
+import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 
 type VaultViewProps = {
     name: string;
@@ -1388,11 +1389,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 setWebRTCStatus(event.connectionState);
 
                                 if (
-                                    event.connectionState ===
-                                        SynchronizationUtils.WebRTCStatus
-                                            .Disconnected ||
-                                    event.connectionState ===
-                                        SynchronizationUtils.WebRTCStatus.Failed
+                                    shouldAutoReconnectAfterWebRTCStatus(
+                                        event.connectionState,
+                                    )
                                 ) {
                                     // Trigger a reconnection attempt
                                     await GlobalSyncConnectionController?.connectDevice(
@@ -1590,14 +1589,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         >
                                             <div className="flex items-center justify-between p-2">
                                                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                                                    <Avatar className="h-8 w-8">
-                                                        <AvatarImage
-                                                            src={credential.url}
-                                                        />
-                                                        <AvatarFallback>
-                                                            <Globe className="h-4 w-4" />
-                                                        </AvatarFallback>
-                                                    </Avatar>
+                                                    <CredentialListIcon />
                                                     <div className="min-w-0 flex-1">
                                                         <div className="truncate text-xs font-medium leading-tight text-foreground">
                                                             {credential.name}

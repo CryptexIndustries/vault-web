@@ -3,7 +3,9 @@
  */
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 
-const mockEnsureFreshOnlineServicesSession = jest.fn(async () => undefined);
+const mockEnsureFreshOnlineServicesSession = jest.fn(
+    async (): Promise<boolean> => true,
+);
 const mockGetOnlineServicesAuthorizationHeader = jest.fn(
     async () => "Bearer sw-token",
 );
@@ -108,6 +110,56 @@ describe("handleProxyFetch", () => {
         expect(mockEnsureFreshOnlineServicesSession).toHaveBeenCalledTimes(1);
         expect(mockGetOnlineServicesAuthorizationHeader).toHaveBeenCalledTimes(
             1,
+        );
+    });
+
+    it("does not attach a stale authorization header when ensuring the session fails", async () => {
+        mockEnsureFreshOnlineServicesSession.mockResolvedValueOnce(false);
+
+        await handleProxyFetch({
+            url: "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
+            method: "POST",
+            headers: {
+                Authorization: "Bearer caller-token",
+                "x-client": "popup",
+            },
+            body: '{"0":{"json":{"syncId":"sync_1"}}}',
+        });
+
+        expect(mockEnsureFreshOnlineServicesSession).toHaveBeenCalledTimes(1);
+        expect(mockGetOnlineServicesAuthorizationHeader).not.toHaveBeenCalled();
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            "https://api.example.test/cloud/api/trpc/v1.device.turnCredentials?batch=1",
+            {
+                method: "POST",
+                headers: { "x-client": "popup" },
+                body: '{"0":{"json":{"syncId":"sync_1"}}}',
+                credentials: "omit",
+            },
+        );
+    });
+
+    it("does not ensure or attach auth for auth-only batches", async () => {
+        await handleProxyFetch({
+            url: "https://api.example.test/cloud/api/trpc/v1.auth.challenge,v1.auth.verify?batch=1",
+            method: "POST",
+            headers: {
+                Authorization: "Bearer caller-token",
+                "x-client": "popup",
+            },
+            body: "{}",
+        });
+
+        expect(mockEnsureFreshOnlineServicesSession).not.toHaveBeenCalled();
+        expect(mockGetOnlineServicesAuthorizationHeader).not.toHaveBeenCalled();
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            "https://api.example.test/cloud/api/trpc/v1.auth.challenge,v1.auth.verify?batch=1",
+            {
+                method: "POST",
+                headers: { "x-client": "popup" },
+                body: "{}",
+                credentials: "omit",
+            },
         );
     });
 

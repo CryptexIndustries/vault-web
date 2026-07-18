@@ -12,6 +12,8 @@ Key: `OS_SESSION` in `chrome.storage.session`
 | ------------------ | --------------------------------------------- |
 | `sessionToken`     | Bearer JWT for tRPC                           |
 | `sessionExpiresAt` | Expiry timestamp                              |
+| `refreshToken`     | Opaque, rotating refresh credential           |
+| `refreshExpiresAt` | Refresh credential expiry timestamp           |
 | `deviceId`         | Device identifier                             |
 | `privateKeyJWK`    | Passkey private key for re-auth without popup |
 
@@ -37,9 +39,15 @@ layer (web relative `/api/trpc`; SW `globalThis.fetch`) to avoid proxy recursion
 ## Refresh and re-auth
 
 - Refresh: `v1.auth.refresh` with 60 s lead time before expiry.
+- Refresh is lazy: it runs before protected traffic, not on a timer.
 - Re-auth fallbacks: stored `deviceId`/`privateKeyJWK`, then unlocked vault
   `UV.OnlineServices`.
-- Shared helpers: `createRefreshInFlightRunner`, `createForcedReauthGate`.
+- The extension deduplicates work per lifecycle generation so a lock, logout,
+  device change, or new unlock invalidates older refresh/verify results.
+- Failed freshness checks never attach a cached stale bearer token.
+- Lock and idle lock invalidate local auth immediately, revoke remotely with
+  the captured bearer, then clear the remaining vault session storage.
+- Shared helper: `createForcedReauthGate`.
 
 ## Session port (shared sync/link code)
 

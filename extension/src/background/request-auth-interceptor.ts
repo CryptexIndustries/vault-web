@@ -133,10 +133,12 @@ export async function handleProxyFetch(
         // Best-effort: if the session can't be refreshed we still send
         // the request, but without a token. The server will then return
         // its real `UNAUTHORIZED` error, which the UI knows how to handle.
-        await ensureFreshOnlineServicesSession();
-        const authHeader = await getOnlineServicesAuthorizationHeader();
-        if (authHeader) {
-            headers["Authorization"] = authHeader;
+        const hasFreshSession = await ensureFreshOnlineServicesSession();
+        if (hasFreshSession) {
+            const authHeader = await getOnlineServicesAuthorizationHeader();
+            if (authHeader) {
+                headers["Authorization"] = authHeader;
+            }
         }
     }
 

@@ -24,7 +24,6 @@ import superjson from "superjson";
 
 import {
     createForcedReauthGate,
-    createRefreshInFlightRunner,
     performOnlineServicesPasskeyAuth,
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
@@ -34,14 +33,50 @@ import {
 import {
     clearOnlineServicesSession as clearStoredSession,
     getOnlineServicesSession,
-    setOnlineServicesSession,
+    replaceOnlineServicesSession,
     type OnlineServicesSessionRecord,
 } from "../utils/online-services-session-storage";
 import { getExtensionOnlineServicesTrpcUrl } from "../utils/online-services-api-url";
 
-const sessionRefreshRunner = createRefreshInFlightRunner();
-const forcedReauthGate = createForcedReauthGate();
+let forcedReauthGate = createForcedReauthGate();
 let sessionGeneration = 0;
+let sessionEstablishmentBlocked = false;
+
+type SessionTask = {
+    generation: number;
+    promise: Promise<unknown>;
+};
+
+let sessionTaskInFlight: SessionTask | null = null;
+
+/** Deduplicates lifecycle work only within the current generation. */
+function runSessionTask<T>(task: () => Promise<T>): Promise<T> {
+    const generation = sessionGeneration;
+    if (sessionTaskInFlight?.generation === generation) {
+        return sessionTaskInFlight.promise as Promise<T>;
+    }
+
+    const promise = task().finally(() => {
+        if (sessionTaskInFlight?.promise === promise) {
+            sessionTaskInFlight = null;
+        }
+    });
+    sessionTaskInFlight = { generation, promise };
+    return promise;
+}
+
+/** Begins a new lifecycle in which challenge/verify and refresh may commit. */
+export function allowOnlineServicesSessionEstablishment(): void {
+    sessionGeneration += 1;
+    sessionEstablishmentBlocked = false;
+    forcedReauthGate = createForcedReauthGate();
+}
+
+/** Invalidates all in-flight work before logout performs its first await. */
+function blockOnlineServicesSessionEstablishment(): void {
+    sessionGeneration += 1;
+    sessionEstablishmentBlocked = true;
+}
 
 function applySessionTokens(
     tokens: OnlineServicesSessionTokens,
@@ -87,17 +122,29 @@ async function createBareAuthHeader(): Promise<Record<string, string>> {
 // The `fetch` cast bridges between native `fetch` and tRPC's
 // `FetchEsque` shape - both call signatures are structurally
 // compatible at runtime.
-const authTrpcClient = createTRPCClient<any>({
-    links: [
-        httpBatchLink({
-            url: getExtensionOnlineServicesTrpcUrl(),
-            transformer: superjson,
-            headers: createBareAuthHeader,
-            fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
-                globalThis.fetch(input, init)) as typeof fetch as never,
-        }),
-    ],
-}) as any;
+function createDirectAuthTrpcClient(
+    headers: () => Promise<Record<string, string>>,
+) {
+    return createTRPCClient<any>({
+        links: [
+            httpBatchLink({
+                url: getExtensionOnlineServicesTrpcUrl(),
+                transformer: superjson,
+                headers,
+                fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
+                    globalThis.fetch(input, init)) as typeof fetch as never,
+            }),
+        ],
+    }) as any;
+}
+
+const authTrpcClient = createDirectAuthTrpcClient(createBareAuthHeader);
+
+function createSessionBoundAuthTrpcClient(sessionToken: string) {
+    return createDirectAuthTrpcClient(async () => ({
+        Authorization: `Bearer ${sessionToken}`,
+    }));
+}
 
 /**
  * Returns `Authorization: Bearer <token>` for a valid session, or `null`
@@ -107,6 +154,7 @@ const authTrpcClient = createTRPCClient<any>({
 export async function getOnlineServicesAuthorizationHeader(): Promise<
     string | null
 > {
+    if (sessionEstablishmentBlocked) return null;
     const record = await getOnlineServicesSession();
     if (!record.sessionToken) return null;
     return `Bearer ${record.sessionToken}`;
@@ -119,7 +167,7 @@ export async function getOnlineServicesStateSnapshot(): Promise<{
 }> {
     const record = await getOnlineServicesSession();
     return {
-        hasSession: !!record.sessionToken,
+        hasSession: !sessionEstablishmentBlocked && !!record.sessionToken,
         sessionExpiresAt: record.sessionExpiresAt,
         deviceId: record.deviceId,
     };
@@ -146,6 +194,7 @@ const swOnlineServicesAuthApi = {
  * Returns `false` if there is no refresh token or the refresh failed.
  */
 async function refreshOnlineServicesSession(): Promise<boolean> {
+    if (sessionEstablishmentBlocked) return false;
     const record = await getOnlineServicesSession();
     if (!record.refreshToken) return false;
     const refreshToken = record.refreshToken;
@@ -162,13 +211,17 @@ async function refreshOnlineServicesSession(): Promise<boolean> {
 
     const latest = await getOnlineServicesSession();
     if (
+        sessionEstablishmentBlocked ||
         generation !== sessionGeneration ||
         latest.refreshToken !== refreshToken
     ) {
         return false;
     }
 
-    await setOnlineServicesSession(applySessionTokens(refreshed));
+    await replaceOnlineServicesSession({
+        ...latest,
+        ...applySessionTokens(refreshed),
+    });
     return true;
 }
 
@@ -185,18 +238,29 @@ export async function establishOnlineServicesSession(args: {
     deviceId: string;
     privateKeyJWK: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (sessionEstablishmentBlocked) {
+        return { ok: false, error: "SESSION_ESTABLISHMENT_BLOCKED" };
+    }
+    const generation = sessionGeneration;
+
     try {
         const verified = await performOnlineServicesPasskeyAuth(
             swOnlineServicesAuthApi,
             args,
         );
 
-        await setOnlineServicesSession(
-            applySessionTokens(verified, {
-                deviceId: args.deviceId,
-                privateKeyJWK: args.privateKeyJWK,
-            }),
-        );
+        if (sessionEstablishmentBlocked || generation !== sessionGeneration) {
+            return { ok: false, error: "SESSION_LIFECYCLE_CHANGED" };
+        }
+
+        await replaceOnlineServicesSession({
+            sessionToken: verified.sessionToken,
+            sessionExpiresAt: verified.expiresAt,
+            refreshToken: verified.refreshToken,
+            refreshExpiresAt: verified.refreshExpiresAt,
+            deviceId: args.deviceId,
+            privateKeyJWK: args.privateKeyJWK,
+        });
 
         return { ok: true };
     } catch (error) {
@@ -227,7 +291,10 @@ async function reauthenticateFromStoredCredentials(): Promise<boolean> {
  * unlock if the eager bootstrap hasn't completed, or after a `storage.session`
  * clear that left the vault key intact.
  */
-async function establishOnlineServicesSessionFromUnlockedVault(): Promise<boolean> {
+async function getUnlockedVaultOnlineServicesCredentials(): Promise<{
+    deviceId: string;
+    privateKeyJWK: string;
+} | null> {
     // Key kept in sync with `UNLOCKED_VAULT_KEY` in `background.ts`.
     const stored = await chrome.storage.session.get(["UV"]);
     const vault = stored["UV"] as
@@ -235,12 +302,19 @@ async function establishOnlineServicesSessionFromUnlockedVault(): Promise<boolea
         | null
         | undefined;
     const os = vault?.OnlineServices;
-    if (!os?.DeviceId || !os?.PrivateKeyJWK) return false;
+    if (!os?.DeviceId || !os?.PrivateKeyJWK) return null;
 
-    const result = await establishOnlineServicesSession({
+    return {
         deviceId: os.DeviceId,
         privateKeyJWK: os.PrivateKeyJWK,
-    });
+    };
+}
+
+async function establishOnlineServicesSessionFromUnlockedVault(): Promise<boolean> {
+    const credentials = await getUnlockedVaultOnlineServicesCredentials();
+    if (!credentials) return false;
+
+    const result = await establishOnlineServicesSession(credentials);
     return result.ok;
 }
 
@@ -250,9 +324,26 @@ async function establishOnlineServicesSessionFromUnlockedVault(): Promise<boolea
  * key layout.
  */
 export async function ensureOnlineServicesSessionFromUnlockedVault(): Promise<boolean> {
-    return sessionRefreshRunner.run(
-        establishOnlineServicesSessionFromUnlockedVault,
-    );
+    return runSessionTask(async () => {
+        const credentials = await getUnlockedVaultOnlineServicesCredentials();
+        const existing = await getOnlineServicesSession();
+
+        if (!credentials) {
+            if (existing.sessionToken || existing.refreshToken) {
+                await logoutOnlineServicesSession();
+            }
+            return false;
+        }
+
+        if (existing.deviceId && existing.deviceId !== credentials.deviceId) {
+            await logoutOnlineServicesSession();
+            allowOnlineServicesSessionEstablishment();
+        }
+
+        return establishOnlineServicesSession(credentials).then(
+            (result) => result.ok,
+        );
+    });
 }
 
 /**
@@ -263,11 +354,28 @@ export async function ensureOnlineServicesSessionFromUnlockedVault(): Promise<bo
  * clear `UNAUTHORIZED` instead of a stale token.
  */
 export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
+    if (sessionEstablishmentBlocked) return false;
     const record = await getOnlineServicesSession();
+
+    const unlockedCredentials =
+        await getUnlockedVaultOnlineServicesCredentials();
+    if (
+        unlockedCredentials &&
+        record.deviceId &&
+        record.deviceId !== unlockedCredentials.deviceId
+    ) {
+        await logoutOnlineServicesSession();
+        allowOnlineServicesSessionEstablishment();
+        return runSessionTask(() =>
+            establishOnlineServicesSession(unlockedCredentials).then(
+                (result) => result.ok,
+            ),
+        );
+    }
 
     if (!record.sessionToken) {
         if (record.refreshToken) {
-            return sessionRefreshRunner.run(async () => {
+            return runSessionTask(async () => {
                 if (await refreshOnlineServicesSession()) return true;
                 if (
                     record.deviceId &&
@@ -281,7 +389,7 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
         }
 
         const hasStoredCreds = !!record.deviceId && !!record.privateKeyJWK;
-        return sessionRefreshRunner.run(async () => {
+        return runSessionTask(async () => {
             if (
                 hasStoredCreds &&
                 (await reauthenticateFromStoredCredentials())
@@ -304,13 +412,13 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
     }
 
     if (!record.refreshToken) {
-        return sessionRefreshRunner.run(async () => {
+        return runSessionTask(async () => {
             if (await reauthenticateFromStoredCredentials()) return true;
             return establishOnlineServicesSessionFromUnlockedVault();
         });
     }
 
-    return sessionRefreshRunner.run(async () => {
+    return runSessionTask(async () => {
         const refreshed = await refreshOnlineServicesSession();
         if (refreshed) return true;
 
@@ -320,11 +428,12 @@ export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
 }
 
 /**
- * Forces a full passkey re-auth, bypassing refresh. Used when a protected
- * API call fails with UNAUTHORIZED. Mirrors `auth-session.ts` cooldown.
+ * Forces credential rotation after a protected request fails: refresh first,
+ * then full passkey re-auth. Mirrors `auth-session.ts` and its cooldown.
  */
 export async function forceOnlineServicesSessionReauthentication(): Promise<boolean> {
-    return sessionRefreshRunner.run(async () => {
+    if (sessionEstablishmentBlocked) return false;
+    return runSessionTask(async () => {
         if (!forcedReauthGate.tryEnter()) {
             return false;
         }
@@ -339,23 +448,26 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
 }
 
 /**
- * Revokes the current server session then drops local credentials.
+ * Invalidates local credentials immediately, then best-effort revokes the
+ * captured server session with a client bound to the captured bearer.
  */
 export async function logoutOnlineServicesSession(): Promise<void> {
+    blockOnlineServicesSessionEstablishment();
     const record = await getOnlineServicesSession();
-    sessionGeneration += 1;
+    await clearStoredSession();
 
     if (record.sessionToken) {
         try {
-            await authTrpcClient.v1.auth.logout.mutate({
+            const logoutClient = createSessionBoundAuthTrpcClient(
+                record.sessionToken,
+            );
+            await logoutClient.v1.auth.logout.mutate({
                 refreshToken: record.refreshToken ?? undefined,
             });
         } catch {
             // Local clear still proceeds when revocation fails offline.
         }
     }
-
-    await clearStoredSession();
 }
 
 /**

@@ -80,6 +80,17 @@ export async function setOnlineServicesSession(
     return next;
 }
 
+/**
+ * Replaces the complete session record without an asynchronous read/merge.
+ * Lifecycle commits use this after validating their generation so stale
+ * refresh or verify results cannot merge into a newer session.
+ */
+export async function replaceOnlineServicesSession(
+    record: OnlineServicesSessionRecord,
+): Promise<void> {
+    await chrome.storage.session.set({ [STORAGE_KEY]: record });
+}
+
 export async function clearOnlineServicesSession(): Promise<void> {
     await chrome.storage.session.remove(STORAGE_KEY);
 }

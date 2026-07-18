@@ -37,6 +37,7 @@ import {
 } from "./background/autofill-router";
 import type { AutofillRequestOrigin } from "./background/autofill-router";
 import {
+    allowOnlineServicesSessionEstablishment,
     clearOnlineServicesSession as clearOnlineServicesSessionInSW,
     ensureFreshOnlineServicesSession,
     ensureOnlineServicesSessionFromUnlockedVault,
@@ -410,6 +411,7 @@ async function processMessage(
                     vault,
                     metadata.DBIndex,
                 );
+                allowOnlineServicesSessionEstablishment();
 
                 // Seed the Online Services session from the just-unlocked
                 // vault so the SW has both the credentials AND a fresh JWT
@@ -417,25 +419,30 @@ async function processMessage(
                 // Fire-and-forget keeps unlock latency unaffected; the
                 // interceptor will await any in-flight establish via
                 // `ensureFreshOnlineServicesSession`'s singleton.
-                void ensureOnlineServicesSessionFromUnlockedVault().catch(
-                    (error) => {
+                void ensureOnlineServicesSessionFromUnlockedVault()
+                    .then((established) => {
+                        if (!established && vault.OnlineServices) {
+                            console.warn(
+                                "[SW] OS session bootstrap on unlock did not establish a session",
+                            );
+                        }
+                    })
+                    .catch((error) => {
                         console.warn(
                             "[SW] OS session bootstrap on unlock failed",
                             error,
                         );
-                    },
-                );
+                    });
 
                 return { ok: true };
             }
 
             case MessageType.Lock: {
-                // Zero out the session storage (unlocked vault metadata and vault)
-                await clearSessionStorage();
                 // The OS session is tied to the unlocked vault's identity.
-                // Lock should drop the JWT so a relocked-but-not-restarted
-                // browser doesn't leave a usable Authorization header behind.
+                // Its bearer is captured and local auth is invalidated before
+                // remote revocation; then all vault material is removed.
                 await clearOnlineServicesSessionInSW();
+                await clearSessionStorage();
 
                 return { ok: true };
             }
@@ -884,6 +891,7 @@ async function processMessage(
                         error: "INVALID_ESTABLISH_PAYLOAD",
                     };
                 }
+                allowOnlineServicesSessionEstablishment();
                 const result = await establishOnlineServicesSession({
                     deviceId: payload.deviceId,
                     privateKeyJWK: payload.privateKeyJWK,
@@ -1222,10 +1230,9 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === "idle") {
         console.debug("[SW] Vault locked due to inactivity");
 
-        // Lock the vault
-        await clearSessionStorage();
-        // Drop the JWT alongside the vault so the next unlock starts from a
-        // clean Authorization state (see the matching call in MessageType.Lock).
+        // Match explicit lock ordering: invalidate/capture Online Services,
+        // revoke remotely, then remove every local session value.
         await clearOnlineServicesSessionInSW();
+        await clearSessionStorage();
     }
 });

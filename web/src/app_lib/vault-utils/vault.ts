@@ -852,7 +852,13 @@ export const validateDirectoryName = (
     name: string,
     excludeID?: string,
 ): string => {
-    const parsed = DirectorySchema.shape.Name.parse(name);
+    const result = DirectorySchema.shape.Name.safeParse(name);
+    if (!result.success) {
+        throw new Error(
+            result.error.issues[0]?.message ?? "Invalid directory name",
+        );
+    }
+    const parsed = result.data;
     const normalized = normalizeDirectoryName(parsed);
     if (
         directories.some(

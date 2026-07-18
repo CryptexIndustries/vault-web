@@ -95,6 +95,21 @@ describe("flat directories", () => {
         expect(directory.Hash).not.toBe(oldHash);
     });
 
+    it("returns user-facing directory name validation errors", async () => {
+        await expect(
+            createDirectory([], {
+                ID: null,
+                Name: "   ",
+            }),
+        ).rejects.toThrow("Directory name is required");
+        await expect(
+            createDirectory([], {
+                ID: null,
+                Name: "a".repeat(101),
+            }),
+        ).rejects.toThrow("Directory name cannot exceed 100 characters");
+    });
+
     it("moves credentials and tombstones directory contents on delete", async () => {
         const vault = new Vault();
         const directory = await createDirectory(vault.Directories, {

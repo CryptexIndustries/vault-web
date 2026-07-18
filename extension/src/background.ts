@@ -50,10 +50,13 @@ import {
     setSessionDEKFromVaultMetadata,
 } from "./background/session-dek-store";
 import { etldPlus1 } from "./utils/etld";
+import { registerVaultActionStateIndicator } from "./background/action-icon";
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
 const ACTIVE_VAULT_DB_INDEX_KEY = "AVI";
+
+registerVaultActionStateIndicator();
 
 type LegacyMessage = {
     type: -1;

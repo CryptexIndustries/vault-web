@@ -10,6 +10,9 @@ import {
 import { LogGroup, LogLevel, vaultLogger } from "../../src/utils/logging";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+const setNodeEnv = (value: string | undefined) => {
+    Reflect.set(process.env, "NODE_ENV", value);
+};
 
 beforeEach(() => {
     vaultLogger.setEnabled(true);
@@ -17,7 +20,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    setNodeEnv(ORIGINAL_NODE_ENV);
     jest.restoreAllMocks();
 });
 
@@ -218,7 +221,7 @@ describe("vaultLogger", () => {
 
     describe("development console branch", () => {
         it("does not emit to console in non-development environment", () => {
-            process.env.NODE_ENV = "production";
+            setNodeEnv("production");
             const debug = jest
                 .spyOn(console, "debug")
                 .mockImplementation(() => {});
@@ -244,7 +247,7 @@ describe("vaultLogger", () => {
         });
 
         it("emits each level to the matching console method in development", () => {
-            process.env.NODE_ENV = "development";
+            setNodeEnv("development");
             const debug = jest
                 .spyOn(console, "debug")
                 .mockImplementation(() => {});

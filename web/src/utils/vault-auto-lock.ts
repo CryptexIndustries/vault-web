@@ -100,8 +100,15 @@ export function useVaultAutoLock(
     lock: VaultAutoLockCallback,
     options: Omit<StartVaultAutoLockOptions, "lock"> = {},
 ) {
+    const { idleMs, windowObj, documentObj } = options;
+
     useEffect(() => {
-        const controller = startVaultAutoLock({ lock, ...options });
+        const controller = startVaultAutoLock({
+            lock,
+            idleMs,
+            windowObj,
+            documentObj,
+        });
         return controller.stop;
-    }, [lock, options.idleMs]);
+    }, [lock, idleMs, windowObj, documentObj]);
 }

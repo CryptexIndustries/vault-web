@@ -389,8 +389,7 @@ export const FormInput = React.forwardRef<
             React.useState(false);
 
         const classes = React.useMemo(() => {
-            return clsx({
-                className: true,
+            return clsx(className, {
                 "font-mono": type === "password" && showPassword,
                 "pr-16": type === "password", // Extra padding for two buttons (eye + generator)
             });

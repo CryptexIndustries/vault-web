@@ -16,11 +16,11 @@ const checkoutSessionQueryMock =
 const subscriptionQueryMock = jest.fn<() => Promise<{ nonFree: boolean }>>();
 const syncRemoteConfigurationMock = jest.fn(async () => undefined);
 
-const toastLoadingMock = jest.fn(() => "toast-checkout");
-const toastSuccessMock = jest.fn();
-const toastMessageMock = jest.fn();
-const toastErrorMock = jest.fn();
-const toastDismissMock = jest.fn();
+const toastLoadingMock = jest.fn((..._args: unknown[]) => "toast-checkout");
+const toastSuccessMock = jest.fn((..._args: unknown[]) => undefined);
+const toastMessageMock = jest.fn((..._args: unknown[]) => undefined);
+const toastErrorMock = jest.fn((..._args: unknown[]) => undefined);
+const toastDismissMock = jest.fn((..._args: unknown[]) => undefined);
 
 jest.mock("sonner", () => ({
     toast: {

@@ -89,7 +89,7 @@ describe("device-signing-key.ts", () => {
     it("parseJwkFromString throws SyntaxError on invalid JSON", () => {
         // Source: `return JSON.parse(s) as JsonWebKey;` — no try/catch.
         expect(() => parseJwkFromString("not-json")).toThrow(SyntaxError);
-        expect(() => parseJwkFromString("{ key: 'no quotes' }")).toThrow();
+        expect(() => parseJwkFromString("{ key: 'no quotes' }")).toThrow(/./);
     });
 
     it("signChallenge propagates errors from crypto.subtle.importKey", async () => {

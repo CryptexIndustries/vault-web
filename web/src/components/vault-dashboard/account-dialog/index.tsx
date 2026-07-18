@@ -149,10 +149,12 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const recoveryPhraseAlreadyOnServer =
         !!remoteConfig?.recoveryTokenCreatedAt;
 
-    const { data: subscription, refetch: refetchSubscription } =
-        trpcReact.v1.payment.subscription.useQuery(undefined, {
+    const { data: subscription } = trpcReact.v1.payment.subscription.useQuery(
+        undefined,
+        {
             enabled: open && hasSession && !!onlineServicesData?.remoteData,
-        });
+        },
+    );
 
     const trpcUtils = trpcReact.useUtils();
 

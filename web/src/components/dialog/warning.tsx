@@ -18,7 +18,6 @@ export type WarningDialogShowFn = (
     onConfirm: (() => void) | null,
     onDismiss: (() => void) | null,
     confirmationButtonText?: string,
-    descriptionSecondPart?: string,
     autoConfirmCountdown?: number,
 ) => void;
 
@@ -32,10 +31,6 @@ export const WarningDialog: React.FC<{
     const [confirmationButtonText, setConfirmationButtonText] = React.useState<
         string | undefined
     >();
-    const [descriptionSecondPart, setDescriptionSecondPart] = React.useState<
-        string | undefined
-    >();
-
     const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
     const clearCountdownInterval = () => {
@@ -50,7 +45,6 @@ export const WarningDialog: React.FC<{
         onConfirm: (() => void) | null,
         onDismiss: (() => void) | null,
         confirmationButtonText?: string,
-        descriptionSecondPart?: string,
         autoConfirmCountdown?: number,
     ) => {
         descriptionRef.current = description;
@@ -59,7 +53,6 @@ export const WarningDialog: React.FC<{
         onDismissFnRef.current = onDismiss;
 
         setConfirmationButtonText(confirmationButtonText);
-        setDescriptionSecondPart(descriptionSecondPart);
         initialCountdownRef.current = autoConfirmCountdown ?? null;
         setCountdown(autoConfirmCountdown ?? null);
 
@@ -105,7 +98,7 @@ export const WarningDialog: React.FC<{
         if (countdown === 0 && dialogVisible) {
             onConfirm();
         }
-    }, [countdown]);
+    }, [countdown, dialogVisible]);
 
     const hideModal = () => {
         clearCountdownInterval();
@@ -162,10 +155,6 @@ export const WarningDialog: React.FC<{
                         <AlertTitle>Action required</AlertTitle>
                         <AlertDescription className="min-w-0 [overflow-wrap:anywhere]">
                             <p>{descriptionRef.current}</p>
-                            {/* <p>
-                                {descriptionSecondPart ??
-                                    "Are you sure you want to continue?"}
-                            </p> */}
                         </AlertDescription>
                     </Alert>
                     {countdown !== null && (

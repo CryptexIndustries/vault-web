@@ -121,7 +121,7 @@ describe("vault-session", () => {
         it("does not set active DEK from legacy byte secrets", () => {
             setVaultDEKInSessionForMetadata(
                 { DBIndex: 1 } as never,
-                new Uint8Array([1, 2, 3]),
+                new Uint8Array([1, 2, 3]) as unknown as CryptoKey,
             );
 
             const res = getVaultDEKFromSession();

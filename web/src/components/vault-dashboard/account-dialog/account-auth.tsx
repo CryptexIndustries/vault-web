@@ -84,7 +84,7 @@ export function AccountAuth({
                     />
                     <Button
                         className="w-full sm:w-auto"
-                        onClick={() => void onRegister()}
+                        onClick={onRegister}
                         disabled={busy || !registerCaptcha}
                     >
                         {registerPending ? (
@@ -122,7 +122,7 @@ export function AccountAuth({
                     <Button
                         variant="secondary"
                         className="w-full sm:w-auto"
-                        onClick={() => void onRecover()}
+                        onClick={onRecover}
                         disabled={busy || !recoverCaptcha}
                     >
                         {recoverPending ? (

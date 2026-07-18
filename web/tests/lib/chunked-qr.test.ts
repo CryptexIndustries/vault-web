@@ -75,7 +75,9 @@ describe("chunked QR helpers", () => {
             });
         }
 
-        expect(state?.chunks.size).toBe(frames.length - 1);
+        expect((state as ChunkedQRCodeCollectorState | null)?.chunks.size).toBe(
+            frames.length - 1,
+        );
         expect(progress.at(-1)).toMatchObject({
             received: frames.length - 1,
             total: frames.length,

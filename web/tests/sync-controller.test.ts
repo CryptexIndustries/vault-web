@@ -172,11 +172,18 @@ type FakeChannel = {
     trigger: jest.Mock;
 };
 
-type FakePeer = Partial<RTCPeerConnection> & {
+type FakePeer = {
     onconnectionstatechange?: (() => void) | null;
     ondatachannel?: ((e: unknown) => void) | null;
     onicecandidate?: ((e: unknown) => void) | null;
     connectionState: RTCPeerConnectionState;
+    close: jest.Mock;
+    createOffer: jest.Mock;
+    createAnswer: jest.Mock;
+    setLocalDescription: jest.Mock;
+    setRemoteDescription: jest.Mock;
+    addIceCandidate: jest.Mock;
+    createDataChannel: jest.Mock;
 };
 
 function makeFakePusher(): FakePusher {
@@ -1034,19 +1041,17 @@ describe("SyncConnectionController orchestration", () => {
             label: "data-channel",
         };
         const peerCreateDataChannel = jest.fn(() => localDataChannel);
-        const fakePeer: {
-            onconnectionstatechange: null | (() => void);
-            onicecandidate: null | ((e: unknown) => void);
-            ondatachannel: null | ((e: { channel: unknown }) => void);
-            connectionState: string;
-            close: jest.Mock;
-            createDataChannel: jest.Mock;
-        } = {
+        const fakePeer: FakePeer = {
             onconnectionstatechange: null,
             onicecandidate: null,
             ondatachannel: null,
             connectionState: "new",
             close: jest.fn(),
+            createOffer: jest.fn(),
+            createAnswer: jest.fn(),
+            setLocalDescription: jest.fn(),
+            setRemoteDescription: jest.fn(),
+            addIceCandidate: jest.fn(),
             createDataChannel: peerCreateDataChannel,
         };
 
@@ -1127,8 +1132,7 @@ describe("SyncConnectionController orchestration", () => {
                     [
                         "device-1",
                         {
-                            connection:
-                                fakePeer as unknown as RTCPeerConnection,
+                            connection: fakePeer,
                             dataChannel: null,
                         },
                     ],

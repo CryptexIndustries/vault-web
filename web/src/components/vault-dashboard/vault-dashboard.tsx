@@ -601,7 +601,7 @@ export function VaultDashboard() {
                 (credential) => credential.DirectoryID === directoryID,
             ).length;
             showWarningDialogFnRef.current?.(
-                `Delete “${directory.Name}” and ${count} credential${count === 1 ? "" : "s"}?`,
+                `Delete “${directory.Name}” and ${count} credential${count === 1 ? "" : "s"}? This permanently deletes every credential in the directory.`,
                 async () => {
                     const updatedVault = Object.assign(
                         new Vault(),
@@ -633,7 +633,6 @@ export function VaultDashboard() {
                 },
                 () => undefined,
                 "Delete directory",
-                "This permanently deletes every credential in the directory.",
             );
         },
         [allCredentials, saveDirectoryChange, unlockedVault],
@@ -1069,13 +1068,12 @@ export function VaultDashboard() {
 
     const lockVaultConfirm = useCallback(() => {
         showWarningDialogFnRef.current?.(
-            "Are you sure you want to lock the vault?",
+            "Are you sure you want to lock the vault? This will prevent anyone from accessing it.",
             handleLockVault,
             () => {
                 // No-op
             },
             "Lock Vault",
-            "This will lock the vault and prevent anyone from accessing it.",
             5,
         );
     }, [handleLockVault]);

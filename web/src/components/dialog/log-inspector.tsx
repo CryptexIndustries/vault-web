@@ -256,21 +256,33 @@ export const LogInspectorDialog: React.FC<{
         }
     }, [logs, autoScroll]);
 
-    const filteredLogs = useMemo(
-        () =>
-            vaultLogger.getFilteredLogs({
-                groups:
-                    selectedGroups.size === Object.values(LogGroup).length
-                        ? undefined
-                        : Array.from(selectedGroups),
-                levels:
-                    selectedLevels.size === Object.values(LogLevel).length
-                        ? undefined
-                        : Array.from(selectedLevels),
-                searchText: searchQuery || undefined,
-            }),
-        [logs, selectedGroups, selectedLevels, searchQuery],
-    );
+    const filteredLogs = useMemo(() => {
+        const groups =
+            selectedGroups.size === Object.values(LogGroup).length
+                ? undefined
+                : Array.from(selectedGroups);
+        const levels =
+            selectedLevels.size === Object.values(LogLevel).length
+                ? undefined
+                : Array.from(selectedLevels);
+        const searchLower = searchQuery.toLowerCase();
+
+        return logs.filter(
+            (log) =>
+                (!groups ||
+                    groups.length === 0 ||
+                    groups.includes(log.group)) &&
+                (!levels ||
+                    levels.length === 0 ||
+                    levels.includes(log.level)) &&
+                (!searchLower ||
+                    log.message.toLowerCase().includes(searchLower) ||
+                    (Boolean(log.data) &&
+                        JSON.stringify(log.data)
+                            .toLowerCase()
+                            .includes(searchLower))),
+        );
+    }, [logs, selectedGroups, selectedLevels, searchQuery]);
 
     const toggleGroup = (group: LogGroup) =>
         setSelectedGroups((prev) => {

@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { beforeAll, describe, expect, it } from "@jest/globals";
+import { beforeAll, describe, expect, it, jest } from "@jest/globals";
 import { webcrypto } from "crypto";
 import { TextEncoder } from "util";
 
@@ -71,7 +71,7 @@ describe("envelope-encryption", () => {
         const wrapped = await wrapDEK(dekExtractable, kek);
         const dek = await crypto.subtle.unwrapKey(
             "raw",
-            wrapped,
+            new Uint8Array(wrapped),
             kek,
             "AES-KW",
             { name: "AES-GCM", length: 256 },

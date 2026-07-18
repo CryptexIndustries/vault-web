@@ -1,5 +1,4 @@
 import { Info } from "lucide-react";
-import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,

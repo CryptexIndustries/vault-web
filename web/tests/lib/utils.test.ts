@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 
-type Uint8ArrayCtorWithPolyfill = typeof Uint8Array & {
+type Uint8ArrayCtorWithPolyfill = {
     fromBase64?: (b64: string) => Uint8Array;
 };
 
@@ -10,7 +10,7 @@ const polyfillState: {
 } = {};
 
 beforeAll(() => {
-    const ctor = Uint8Array as Uint8ArrayCtorWithPolyfill;
+    const ctor = Uint8Array as unknown as Uint8ArrayCtorWithPolyfill;
     polyfillState.originalFromBase64 = ctor.fromBase64;
     polyfillState.originalToBase64 = (
         Uint8Array.prototype as unknown as { toBase64?: () => string }
@@ -35,7 +35,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-    const ctor = Uint8Array as Uint8ArrayCtorWithPolyfill;
+    const ctor = Uint8Array as unknown as Uint8ArrayCtorWithPolyfill;
     if (polyfillState.originalFromBase64 === undefined) {
         delete ctor.fromBase64;
     } else {

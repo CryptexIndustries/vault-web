@@ -68,7 +68,7 @@ export function AccountSecurity({
                                 genRecoveryPending ||
                                 recoveryPhraseAlreadyOnServer
                             }
-                            onClick={() => void onGenerateRecovery()}
+                            onClick={onGenerateRecovery}
                         >
                             {genRecoveryPending ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

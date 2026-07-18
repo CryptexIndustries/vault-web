@@ -1,9 +1,7 @@
-import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { cn } from "@/lib/utils";
 import { CheckCircle, LoaderCircle, UploadCloud } from "lucide-react";
 import { Button } from "../ui/button";
-import { FormInput } from "../general/input-fields";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {

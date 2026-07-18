@@ -64,7 +64,7 @@ Encrypted messages are rejected with `MESSAGE_TYPE_NOT_ALLOWED` when
 `CreateCredential`, `UpdateCredential`, `DeleteCredential`, `GetLinkedDevices`,
 `SyncGetItemCredentials`, `SyncGetItemVersionVectors`, `SyncGetConfiguration`,
 `SyncUpdateCredentials`, `ProxyFetch`, `GetPendingSavePrompt`,
-`ConsumePendingSavePrompt`
+`ConsumePendingSavePrompt`, `GetActivePageOrigin`
 
 ### `link`
 
@@ -77,7 +77,8 @@ None (empty allowlist)
 ### `autofill-cs` (top frame only)
 
 `GetState`, `GetCredentialSecret`, `GenerateTOTP`, `SaveCredentialPrompt`,
-`GetPendingSavePrompt`, `OpenPopup`, `RegisterAutofillFrame`
+`GetPendingSavePrompt`, `OpenPopup`, `RegisterAutofillFrame`,
+`ReportPageOrigin`
 
 ### `autofill-icon`
 
@@ -101,6 +102,12 @@ After decryption, `processMessage` routes by `MessageType`. Autofill secret
 release adds a second gate: `getAutofillRequestOrigin(sender)` parses
 `sender.url ?? sender.tab?.url` and `credentialMatchesRequestOrigin` requires
 exact hostname match. See [autofill/origin-matching.md](../autofill/origin-matching.md).
+
+For popup site context, `ReportPageOrigin` and `OpenPopup` record the
+top-frame content script's sender-derived origin by tab id. `GetActivePageOrigin`
+looks up that context using the active tab id without requiring access to
+`Tab.url`, then confirms it against the currently running top-frame content
+script. Navigation-start and tab-removal events invalidate the stored value.
 
 ### ProxyFetch (`request-auth-interceptor.ts`)
 

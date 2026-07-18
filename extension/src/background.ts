@@ -34,6 +34,7 @@ import {
     handleGetPendingSavePrompt,
     handleOpenPopup,
     handleSaveCredentialPrompt,
+    toLiteCredential,
 } from "./background/autofill-router";
 import type { AutofillRequestOrigin } from "./background/autofill-router";
 import {
@@ -52,6 +53,11 @@ import {
 } from "./background/session-dek-store";
 import { etldPlus1 } from "./utils/etld";
 import { registerVaultActionStateIndicator } from "./background/action-icon";
+import {
+    clearPageOrigin,
+    getActivePageOrigin,
+    recordPageOrigin,
+} from "./background/page-origin-context";
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
@@ -86,6 +92,7 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.OnlineServicesForceReauthenticate,
     MessageType.GetPendingSavePrompt,
     MessageType.ConsumePendingSavePrompt,
+    MessageType.GetActivePageOrigin,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -109,6 +116,7 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.GetPendingSavePrompt,
         MessageType.OpenPopup,
         MessageType.RegisterAutofillFrame,
+        MessageType.ReportPageOrigin,
     ]),
     "autofill-icon": new Set<MessageType>([MessageType.ClaimAutofillFrame]),
     "autofill-menu": new Set<MessageType>([
@@ -477,13 +485,7 @@ async function processMessage(
 
                 const list: LiteCredential[] = (vault?.Credentials ?? [])
                     .filter((c) => !c.Deleted)
-                    .map((c) => ({
-                        id: c.ID,
-                        name: c.Name,
-                        username: c.Username,
-                        url: c.URL,
-                        directoryId: c.DirectoryID,
-                    }));
+                    .map(toLiteCredential);
                 return { ok: true, credentials: list };
             }
 
@@ -545,13 +547,7 @@ async function processMessage(
                     metadata.DBIndex!,
                 );
 
-                const lightCredential: LiteCredential = {
-                    id: data.ID,
-                    name: data.Name,
-                    username: data.Username,
-                    url: data.URL,
-                    directoryId: data.DirectoryID,
-                };
+                const lightCredential: LiteCredential = toLiteCredential(data);
 
                 return { ok: true, credential: lightCredential };
             }
@@ -919,6 +915,13 @@ async function processMessage(
                 return await handleGetCredentialsForOrigin(payload, vault);
             }
 
+            case MessageType.GetActivePageOrigin: {
+                return {
+                    ok: true,
+                    context: await getActivePageOrigin(),
+                };
+            }
+
             case MessageType.GetCredentialSecret: {
                 const vault = await getVaultFromSessionStorage();
                 const requestOrigin = getAutofillRequestOrigin(sender);
@@ -954,7 +957,15 @@ async function processMessage(
             }
 
             case MessageType.OpenPopup: {
+                await recordPageOrigin(sender);
                 return await handleOpenPopup();
+            }
+
+            case MessageType.ReportPageOrigin: {
+                const context = await recordPageOrigin(sender);
+                return context
+                    ? { ok: true }
+                    : { ok: false, error: "PAGE_ORIGIN_UNAVAILABLE" };
             }
 
             default:
@@ -1222,6 +1233,19 @@ chrome.runtime.onStartup.addListener(async () => {
     await ensureActiveKeyPair();
     // Check for key rotation on startup
     await checkAndRotateKeysIfNeeded();
+});
+
+// Invalidate site-specific popup context before a navigation can expose
+// credentials for the page that used to occupy this tab. The new top-level
+// content script records the destination origin once it starts.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === "loading" || typeof changeInfo.url === "string") {
+        void clearPageOrigin(tabId);
+    }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+    void clearPageOrigin(tabId);
 });
 
 // Set up idle detection to lock the vault after 30 minutes of inactivity

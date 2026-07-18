@@ -33,8 +33,11 @@ import {
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import {
+    ActivePageOrigin,
     EncryptedEnvelope,
+    GetActivePageOriginResponse,
     LiteCredential,
     MessageType,
     PlaintextEnvelope,
@@ -91,6 +94,8 @@ import {
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
+import { parseOriginish } from "./utils/etld";
+import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 
 type VaultViewProps = {
     name: string;
@@ -137,6 +142,9 @@ const VaultView: React.FC<VaultViewProps> = ({
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState("");
+    const [currentSiteContext, setCurrentSiteContext] =
+        useState<ActivePageOrigin | null>(null);
+    const [quickCopyKey, setQuickCopyKey] = useState<string | null>(null);
     const [showFormPassword, setShowFormPassword] = useState(false);
     const [signalingStatus, setSignalingStatus] =
         useState<SynchronizationUtils.SignalingStatus>(
@@ -193,6 +201,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     });
 
     const watchedTotp = watch("TOTP");
+    const currentSiteHost = currentSiteContext?.host ?? null;
 
     const filteredCredentials = credentials.filter(
         (cred) =>
@@ -204,15 +213,106 @@ const VaultView: React.FC<VaultViewProps> = ({
                     .includes(searchQuery.toLowerCase())),
     );
 
-    const copyToClipboard = async (text?: string) => {
+    const currentSiteCredentials = currentSiteHost
+        ? credentials.filter(
+              (credential) =>
+                  parseOriginish(credential.url)?.host === currentSiteHost,
+          )
+        : [];
+
+    const requestActivePageOrigin = useCallback(async () => {
+        // A toolbar click normally exposes Tab.url through activeTab. Keep this
+        // direct path as a live source, but do not depend on it: programmatic
+        // chrome.action.openPopup() calls do not receive that grant.
+        try {
+            const [activeTab] = await chrome.tabs.query({
+                active: true,
+                currentWindow: true,
+            });
+            if (activeTab?.id != null && activeTab.url) {
+                const activeUrl = new URL(activeTab.url);
+                if (
+                    activeUrl.protocol === "http:" ||
+                    activeUrl.protocol === "https:"
+                ) {
+                    const host = activeUrl.hostname
+                        .toLowerCase()
+                        .replace(/\.$/, "");
+                    const parsed = parseOriginish(activeUrl.href);
+                    if (host && parsed) {
+                        return {
+                            tabId: activeTab.id,
+                            host,
+                            etldPlus1: parsed.etldPlus1,
+                        } satisfies ActivePageOrigin;
+                    }
+                }
+            }
+        } catch {
+            // Fall through to sender-verified service-worker context.
+        }
+
+        const response =
+            await sendEncryptedEnvelopeToSW<GetActivePageOriginResponse>(
+                MessageType.GetActivePageOrigin,
+                null,
+            );
+        if (!response.ok || !response.payload.ok) return null;
+        return response.payload.context;
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const refreshContext = async () => {
+            const context = await requestActivePageOrigin();
+            if (!cancelled) setCurrentSiteContext(context);
+        };
+
+        const handleTabActivated = () => {
+            setCurrentSiteContext(null);
+            void refreshContext();
+        };
+
+        const handleTabUpdated = (
+            tabId: number,
+            changeInfo: { status?: string; url?: string },
+            tab: chrome.tabs.Tab,
+        ) => {
+            if (
+                changeInfo.status === "loading" &&
+                tabId === currentSiteContext?.tabId
+            ) {
+                setCurrentSiteContext(null);
+                return;
+            }
+            if (changeInfo.status === "complete" && tab.active) {
+                void refreshContext();
+            }
+        };
+
+        void refreshContext();
+        chrome.tabs.onActivated.addListener(handleTabActivated);
+        chrome.tabs.onUpdated.addListener(handleTabUpdated);
+
+        return () => {
+            cancelled = true;
+            chrome.tabs.onActivated.removeListener(handleTabActivated);
+            chrome.tabs.onUpdated.removeListener(handleTabUpdated);
+        };
+    }, [currentSiteContext?.tabId, requestActivePageOrigin]);
+
+    const copyToClipboard = async (text?: string): Promise<boolean> => {
         if (!text) {
-            return;
+            return false;
         }
 
         try {
             await navigator.clipboard.writeText(text);
+            return true;
         } catch (err) {
             console.error("Failed to copy to clipboard:", err);
+            return false;
         }
     };
 
@@ -1441,21 +1541,74 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
     }, [_getSyncConfig, serverPublicKey]);
 
-    const handleCopyUsername = (cred: VaultCredential) => {
-        copyToClipboard(cred.Username);
-    };
+    const handleQuickCopy = async (
+        credential: LiteCredential,
+        field: "username" | "password" | "totp",
+    ) => {
+        const copyKey = `${credential.id}:${field}`;
+        setQuickCopyKey(copyKey);
 
-    const handleCopyPassword = (cred: VaultCredential) => {
-        copyToClipboard(cred.Password);
-    };
-
-    const handleCopyTOTP = (cred: VaultCredential) => {
-        if (!cred.TOTP) return;
         try {
-            const { code } = calculateTOTP(cred.TOTP);
-            copyToClipboard(code);
-        } catch (e) {
-            console.error("Failed to compute TOTP code:", e);
+            let value = credential.username;
+            let successMessage = "Username copied";
+
+            if (field !== "username") {
+                const result = await loadFullCredential(credential.id);
+                if (result.isErr()) {
+                    toast.error("Could not load this credential");
+                    return;
+                }
+
+                if (field === "password") {
+                    value = result.value.Password;
+                    successMessage = "Password copied";
+                } else {
+                    if (!result.value.TOTP) {
+                        toast.error("This credential has no TOTP code");
+                        return;
+                    }
+
+                    try {
+                        value = calculateTOTP(result.value.TOTP).code;
+                        successMessage = "TOTP code copied";
+                    } catch {
+                        toast.error("Could not generate the TOTP code");
+                        return;
+                    }
+                }
+            }
+
+            // Revalidate after any secret fetch/TOTP calculation and
+            // immediately before the clipboard write. A redirect while this
+            // async action is running must not copy the previous site's data.
+            const liveContext = await requestActivePageOrigin();
+            const credentialHost = parseOriginish(credential.url)?.host;
+            if (
+                !currentSiteContext ||
+                !liveContext ||
+                liveContext.tabId !== currentSiteContext.tabId ||
+                liveContext.host !== currentSiteContext.host ||
+                credentialHost !== liveContext.host
+            ) {
+                setCurrentSiteContext(liveContext);
+                toast.error(
+                    "The active site changed. Review its matching credential.",
+                );
+                return;
+            }
+
+            if (!value) {
+                toast.error(`This credential has no ${field}`);
+                return;
+            }
+
+            if (await copyToClipboard(value)) {
+                toast.success(successMessage);
+            } else {
+                toast.error("Could not copy to the clipboard");
+            }
+        } finally {
+            setQuickCopyKey(null);
         }
     };
 
@@ -1498,6 +1651,161 @@ const VaultView: React.FC<VaultViewProps> = ({
             <div className="flex min-h-0 flex-1">
                 {/* Left pane: search + list + add */}
                 <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
+                    {currentSiteHost && currentSiteCredentials.length > 0 ? (
+                        <section className="border-b border-primary/25 bg-primary/[0.06] p-2.5">
+                            <div className="mb-2 flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+                                        <Globe className="h-3.5 w-3.5" />
+                                        For this site
+                                    </div>
+                                    <p
+                                        className="mt-0.5 truncate text-[10px] text-muted-foreground"
+                                        title={currentSiteHost}
+                                    >
+                                        {currentSiteHost}
+                                    </p>
+                                </div>
+                                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                                    {currentSiteCredentials.length}
+                                </span>
+                            </div>
+
+                            <div className="max-h-[156px] space-y-1 overflow-y-auto pr-0.5">
+                                {currentSiteCredentials.map((credential) => (
+                                    <div
+                                        key={credential.id}
+                                        className={cn(
+                                            "flex items-center gap-1 rounded-md border bg-background/80 p-1 transition-colors",
+                                            selectedCredential?.ID ===
+                                                credential.id
+                                                ? "border-primary/60"
+                                                : "border-border/80 hover:border-primary/40",
+                                        )}
+                                    >
+                                        <button
+                                            type="button"
+                                            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            onClick={() => {
+                                                if (isRefreshing) return;
+                                                void selectCredential(
+                                                    credential.id,
+                                                );
+                                            }}
+                                            disabled={isRefreshing}
+                                            aria-label={`Open ${credential.name}`}
+                                        >
+                                            <CredentialListIcon />
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-[11px] font-medium leading-tight text-foreground">
+                                                    {credential.name}
+                                                </span>
+                                                <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+                                                    {credential.username ||
+                                                        "No username"}
+                                                </span>
+                                            </span>
+                                        </button>
+
+                                        <TooltipProvider delayDuration={250}>
+                                            <div className="flex flex-shrink-0 items-center gap-0.5">
+                                                {(
+                                                    [
+                                                        {
+                                                            field: "username",
+                                                            label: "Copy username",
+                                                            icon: User,
+                                                            visible: Boolean(
+                                                                credential.username,
+                                                            ),
+                                                        },
+                                                        {
+                                                            field: "password",
+                                                            label: "Copy password",
+                                                            icon: Key,
+                                                            visible: true,
+                                                        },
+                                                        {
+                                                            field: "totp",
+                                                            label: "Copy TOTP code",
+                                                            icon: Shield,
+                                                            visible: Boolean(
+                                                                credential.hasTOTP,
+                                                            ),
+                                                        },
+                                                    ] as const
+                                                )
+                                                    .filter(
+                                                        (action) =>
+                                                            action.visible,
+                                                    )
+                                                    .map((action) => {
+                                                        const Icon =
+                                                            action.icon;
+                                                        const copyKey = `${credential.id}:${action.field}`;
+                                                        const isCopying =
+                                                            quickCopyKey ===
+                                                            copyKey;
+
+                                                        return (
+                                                            <Tooltip
+                                                                key={
+                                                                    action.field
+                                                                }
+                                                            >
+                                                                <TooltipTrigger
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className={cn(
+                                                                            "h-7 w-7 text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                                                                            action.field ===
+                                                                                "totp" &&
+                                                                                "w-10 px-1 text-[9px] font-semibold text-primary",
+                                                                        )}
+                                                                        onClick={() =>
+                                                                            void handleQuickCopy(
+                                                                                credential,
+                                                                                action.field,
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            quickCopyKey !==
+                                                                            null
+                                                                        }
+                                                                        aria-label={
+                                                                            action.label
+                                                                        }
+                                                                    >
+                                                                        {isCopying ? (
+                                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                        ) : action.field ===
+                                                                          "totp" ? (
+                                                                            "TOTP"
+                                                                        ) : (
+                                                                            <Icon className="h-3.5 w-3.5" />
+                                                                        )}
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    {
+                                                                        action.label
+                                                                    }
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </TooltipProvider>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    ) : null}
+
                     <div className="border-b border-border bg-background/50 px-3 py-2">
                         <Select
                             value={selectedDirectoryID || "root"}

@@ -26,6 +26,7 @@
  */
 
 import {
+    ACTIVE_PAGE_ORIGIN_QUERY,
     MessageType,
     type GenerateTOTPResponse,
     type GetCredentialSecretResponse,
@@ -54,6 +55,20 @@ import {
 import { getEffectiveOrigin, isTopFrame } from "./origin-utils";
 
 setEnvelopeOriginOverride("autofill-cs");
+
+chrome.runtime.onMessage.addListener(
+    (message: unknown, sender: chrome.runtime.MessageSender, sendResponse) => {
+        const request = message as { kind?: unknown } | null;
+        if (
+            request?.kind !== ACTIVE_PAGE_ORIGIN_QUERY ||
+            sender.id !== chrome.runtime.id
+        ) {
+            return;
+        }
+
+        sendResponse(getEffectiveOrigin());
+    },
+);
 
 const ICON_SIZE_PX = 25;
 const ICON_RIGHT_PADDING_PX = 6;
@@ -1075,6 +1090,11 @@ function bootstrap(): void {
     if (initialised) return;
     if (!shouldRun()) return;
     initialised = true;
+
+    // Keep a sender-verified origin context in the service worker. The popup
+    // can then identify this tab even when chrome.action.openPopup() did not
+    // grant activeTab access to Tab.url.
+    void sendEncryptedEnvelopeToSW(MessageType.ReportPageOrigin, null);
 
     reconcile();
 

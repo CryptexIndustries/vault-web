@@ -7,6 +7,7 @@ import {
     handleGenerateTOTP,
     handleGetCredentialSecret,
     matchCredentialsForOrigin,
+    toLiteCredential,
     type AutofillRequestOrigin,
 } from "../src/background/autofill-router";
 
@@ -30,6 +31,22 @@ const requestOrigin = (
 });
 
 describe("autofill origin matching", () => {
+    it("includes TOTP availability independently of the password", () => {
+        const lite = toLiteCredential(
+            credential({
+                Password: "also-has-a-password",
+                TOTP: {
+                    Secret: "JBSWY3DPEHPK3PXP",
+                    Algorithm: 1,
+                    Digits: 6,
+                    Period: 30,
+                },
+            }),
+        );
+
+        expect(lite.hasTOTP).toBe(true);
+    });
+
     it("returns only exact host matches by default", () => {
         const result = matchCredentialsForOrigin(
             [

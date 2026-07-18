@@ -33,7 +33,7 @@ export type AutofillRequestOrigin = {
 };
 
 /** Lightweight projection of a credential for the picker UI. */
-function toLite(c: VaultUtilTypes.Credential): LiteCredential {
+export function toLiteCredential(c: VaultUtilTypes.Credential): LiteCredential {
     return {
         id: c.ID,
         name: c.Name,
@@ -68,7 +68,7 @@ export function matchCredentialsForOrigin(
         const parsed = parseOriginish(cred.URL);
         if (!parsed) continue;
         if (parsed.host === wantedHost) {
-            exact.push(toLite(cred));
+            exact.push(toLiteCredential(cred));
         }
     }
 

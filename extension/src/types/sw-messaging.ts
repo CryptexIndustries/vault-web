@@ -101,6 +101,12 @@ export enum MessageType {
      */
     ClaimAutofillFrame = 27,
     GetDirectories = 29,
+
+    /** Popup: read the sender-verified origin context for the active tab. */
+    GetActivePageOrigin = 30,
+
+    /** Content script: refresh its tab's sender-verified page origin. */
+    ReportPageOrigin = 31,
 }
 
 /**
@@ -188,6 +194,20 @@ export type LiteCredential = {
     hasTOTP?: boolean;
     directoryId: string;
 };
+
+export interface ActivePageOrigin {
+    tabId: number;
+    host: string;
+    etldPlus1: string;
+}
+
+export interface GetActivePageOriginResponse {
+    ok: true;
+    context: ActivePageOrigin | null;
+}
+
+/** Internal SW-to-content-script query used to validate the current document. */
+export const ACTIVE_PAGE_ORIGIN_QUERY = "cryptex:active-page-origin" as const;
 
 /** Payload for `MessageType.GetCredentialsForOrigin`. */
 export interface GetCredentialsForOriginRequest {

@@ -158,6 +158,117 @@ const progressColors: Record<ProgressEntry["type"], string> = {
     error: "text-destructive",
 };
 
+function ReceiveLinkJourney({ stage }: { stage: ReceiveLinkStage }) {
+    const current =
+        stage === "input" || stage === "failed" || stage === "aborted"
+            ? 0
+            : stage === "linking"
+              ? 1
+              : stage === "passphrase"
+                ? 2
+                : 3;
+    const steps = ["Invitation", "Transfer", "Protect"];
+
+    return (
+        <ol className="grid grid-cols-3 gap-1" aria-label="Linking progress">
+            {steps.map((label, index) => {
+                const complete = current > index;
+                const active = current === index;
+                return (
+                    <li
+                        key={label}
+                        className={cn(
+                            "flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-[10px]",
+                            complete &&
+                                "border-emerald-500/40 bg-emerald-500/10",
+                            active && "border-primary bg-primary/10",
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px]",
+                                complete && "bg-emerald-500 text-white",
+                                active && "bg-primary text-primary-foreground",
+                            )}
+                        >
+                            {complete ? "✓" : index + 1}
+                        </span>
+                        <span className="truncate">{label}</span>
+                    </li>
+                );
+            })}
+        </ol>
+    );
+}
+
+function ReceiveLinkMethodPicker({
+    value,
+    onChange,
+}: {
+    value: ReceiveLinkMethod;
+    onChange: (method: ReceiveLinkMethod) => void;
+}) {
+    const methods: {
+        id: ReceiveLinkMethod;
+        title: string;
+        icon: typeof QrCode;
+    }[] = [
+        {
+            id: "qr",
+            title: "Scan QR",
+            icon: QrCode,
+        },
+        {
+            id: "file",
+            title: "Import file",
+            icon: FileText,
+        },
+    ];
+
+    return (
+        <div className="grid grid-cols-2 gap-2" role="radiogroup">
+            {methods.map((item) => {
+                const Icon = item.icon;
+                const active = value === item.id;
+                return (
+                    <button
+                        key={item.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => onChange(item.id)}
+                        className={cn(
+                            "flex items-center gap-2 rounded-lg border p-2 text-left transition",
+                            active
+                                ? "border-primary bg-primary/10 shadow-sm"
+                                : "hover:bg-muted/40",
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                "rounded-md bg-muted p-1.5",
+                                active && "bg-primary text-primary-foreground",
+                            )}
+                        >
+                            <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                            <span className="block text-xs font-medium">
+                                {item.title}
+                            </span>
+                            <span className="block truncate text-[9px] text-muted-foreground">
+                                {item.id === "qr"
+                                    ? "Recommended"
+                                    : "From another device"}
+                            </span>
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 function StepList({ steps }: { steps: ReceiveLinkStep[] }) {
     const iconFor = (state: LinkingProcessState) => {
         if (state === LinkingProcessState.Completed) {
@@ -710,67 +821,39 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                 step.id === LinkingProcessStep.SignalingWaitingOtherDevice &&
                 step.status === LinkingProcessState.Active,
         );
-
     return (
-        <div className="flex h-full flex-col gap-3 p-3">
+        <div className="flex h-full flex-col gap-3 p-3 sm:p-4">
             <header className="flex items-start gap-2">
-                <span className="rounded-md bg-primary/15 p-1.5 text-primary">
+                <span className="rounded-lg bg-primary/15 p-2 text-primary">
                     <Lock className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                    <h1 className="text-sm font-semibold">Link this device</h1>
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-primary">
+                        Guided setup
+                    </p>
+                    <h1 className="text-sm font-semibold">
+                        Connect this browser
+                    </h1>
                     <p className="text-[11px] leading-snug text-muted-foreground">
-                        Pair with an existing vault by importing its link
-                        package. You will set a passphrase for this device after
-                        linking.
+                        Open &quot;Link new device&quot; in your other vault,
+                        then bring its secure invitation here.
                     </p>
                 </div>
             </header>
 
+            <ReceiveLinkJourney stage={stage} />
+
             {stage === "input" ? (
                 <div className="flex flex-col gap-3">
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setMethod("qr");
-                                uiLog.debug("Selected QR receive method");
-                            }}
-                            className={cn(
-                                "rounded-md border p-2 text-left transition",
-                                method === "qr" &&
-                                    "border-primary bg-primary/10",
-                            )}
-                        >
-                            <QrCode className="mb-1 h-4 w-4" />
-                            <span className="block text-xs font-medium">
-                                Scan QR
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                                Use your device camera.
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setMethod("file");
-                                uiLog.debug("Selected file receive method");
-                            }}
-                            className={cn(
-                                "rounded-md border p-2 text-left transition",
-                                method === "file" &&
-                                    "border-primary bg-primary/10",
-                            )}
-                        >
-                            <FileText className="mb-1 h-4 w-4" />
-                            <span className="block text-xs font-medium">
-                                Import file
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                                .{LINK_FILE_EXTENSION} from the sender.
-                            </span>
-                        </button>
-                    </div>
+                    <ReceiveLinkMethodPicker
+                        value={method}
+                        onChange={(nextMethod) => {
+                            setMethod(nextMethod);
+                            uiLog.debug("Selected receive method", {
+                                method: nextMethod,
+                            });
+                        }}
+                    />
 
                     {method === "qr" ? (
                         <div className="space-y-2">
@@ -915,8 +998,12 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                             htmlFor="receive-link-mnemonic"
                             className="text-xs"
                         >
-                            Mnemonic
+                            Verification words
                         </Label>
+                        <p className="text-[10px] leading-snug text-muted-foreground">
+                            Enter the words shown below the invitation in your
+                            other vault. They prevent anyone else from using it.
+                        </p>
                         <div className="relative">
                             <Input
                                 id="receive-link-mnemonic"
@@ -925,7 +1012,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                 onChange={(
                                     event: React.ChangeEvent<HTMLInputElement>,
                                 ) => setMnemonic(event.target.value)}
-                                placeholder="Words shown on sending device"
+                                placeholder="Words shown in the other vault"
                                 onKeyDown={(
                                     event: React.KeyboardEvent<HTMLInputElement>,
                                 ) => {
@@ -943,8 +1030,8 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                                 className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
                                 aria-label={
                                     showMnemonic
-                                        ? "Hide mnemonic"
-                                        : "Show mnemonic"
+                                        ? "Hide verification words"
+                                        : "Show verification words"
                                 }
                             >
                                 {showMnemonic ? (
@@ -967,7 +1054,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         size="sm"
                         onClick={() => void startReceiving()}
                     >
-                        Receive vault data
+                        Connect with this vault
                     </Button>
                 </div>
             ) : stage === "passphrase" ? (

@@ -200,9 +200,12 @@ function usePasswordGenerator(showToasts: boolean) {
 
     useEffect(() => {
         generatePassword(watch());
-        // Generate once when the panel mounts (dialog open or autofill iframe).
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const subscription = watch((data) => {
+            generatePassword(data as PasswordGeneratorFormData);
+        });
+
+        return () => subscription.unsubscribe();
+    }, [generatePassword, watch]);
 
     return {
         generatedPassword,
@@ -429,9 +432,16 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
                     </Label>
                     <Select
                         value={watch("type")}
-                        onValueChange={(value) =>
-                            setValue("type", value as "random" | "memorable")
-                        }
+                        onValueChange={(value) => {
+                            setValue("type", value as "random" | "memorable");
+                            if (value === "memorable") {
+                                setValue("includeUppercase", false);
+                                setValue("includeNumbers", false);
+                            } else {
+                                setValue("includeUppercase", true);
+                                setValue("includeNumbers", true);
+                            }
+                        }}
                     >
                         <SelectTrigger
                             className={compact ? "h-8 text-xs" : undefined}

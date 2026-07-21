@@ -71,6 +71,8 @@ import {
     type DeviceConnectionStatus,
 } from "./device-sidebar";
 import { EditDrawer } from "./edit-drawer";
+import { SecurityReport } from "./security-report";
+import { useSecurityAnalysis } from "./use-security-analysis";
 import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 import type { VaultSignalingConfig } from "./link";
 import {
@@ -90,6 +92,8 @@ import {
 } from "src/app_lib/synchronization-utils";
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
+
+type DashboardView = "credentials" | "security-report";
 
 function getDeviceLastSyncDate(device: LinkedDevice): Date | null {
     return device.LastSync ? new Date(device.LastSync) : null;
@@ -395,6 +399,8 @@ export function VaultDashboard() {
 
     const [selectedCredential, setSelectedCredential] =
         useState<VaultCredential | null>(null);
+    const [dashboardView, setDashboardView] =
+        useState<DashboardView>("credentials");
     const [selectedDirectoryID, setSelectedDirectoryID] =
         useState<string>("all");
     const [editingCredential, setEditingCredential] =
@@ -433,6 +439,17 @@ export function VaultDashboard() {
         },
         { all: 0, root: 0 },
     );
+    const {
+        analysis: securityAnalysis,
+        progress: securityAnalysisProgress,
+        isAnalyzing: isSecurityAnalysisRunning,
+        error: securityAnalysisError,
+        analyzedAt: securityAnalysisAnalyzedAt,
+        refresh: refreshSecurityAnalysis,
+    } = useSecurityAnalysis(
+        vaultCredentials,
+        dashboardView === "security-report",
+    );
 
     const deviceConnectionStatuses = useDeviceConnectionLifecycle(
         linkedDevices,
@@ -440,6 +457,7 @@ export function VaultDashboard() {
     );
 
     useEffect(() => {
+        if (dashboardView !== "credentials") return;
         if (!selectedCredential) return;
 
         const fresh = credentials.find((c) => c.ID === selectedCredential.ID);
@@ -450,7 +468,7 @@ export function VaultDashboard() {
         }
 
         setSelectedCredential(fresh);
-    }, [credentials, selectedCredential]);
+    }, [credentials, dashboardView, selectedCredential]);
 
     const handleSelectCredential = useCallback(
         (credential: VaultCredential) => {
@@ -466,6 +484,16 @@ export function VaultDashboard() {
         setEditingCredential(credential);
         setIsEditDrawerOpen(true);
     }, []);
+
+    const handleEditSecurityFinding = useCallback(
+        (credentialId: string) => {
+            const credential = vaultCredentials.find(
+                (item) => item.ID === credentialId && !item.Deleted,
+            );
+            if (credential) handleEditCredential(credential);
+        },
+        [handleEditCredential, vaultCredentials],
+    );
 
     const handleAddNew = useCallback(() => {
         setEditingCredential(null);
@@ -820,6 +848,16 @@ export function VaultDashboard() {
         [],
     );
 
+    const handleOpenSecurityFindingUrl = useCallback(
+        (credentialId: string) => {
+            const credential = vaultCredentials.find(
+                (item) => item.ID === credentialId && !item.Deleted,
+            );
+            if (credential) handleOpenCredentialUrl(credential);
+        },
+        [handleOpenCredentialUrl, vaultCredentials],
+    );
+
     const handleDeleteCredential = useCallback(
         (credential: VaultCredential) => {
             if (!unlockedVaultMetadata) {
@@ -1143,6 +1181,7 @@ export function VaultDashboard() {
     );
 
     useEffect(() => {
+        if (dashboardView !== "credentials") return;
         if (filteredCredentials.length === 0) {
             setSelectedCredential(null);
             setIsDetailOpen(false);
@@ -1156,7 +1195,12 @@ export function VaultDashboard() {
         if (!selectedStillVisible) {
             selectCredentialAtIndex(0);
         }
-    }, [filteredCredentials, selectCredentialAtIndex, selectedCredential]);
+    }, [
+        dashboardView,
+        filteredCredentials,
+        selectCredentialAtIndex,
+        selectedCredential,
+    ]);
 
     useEffect(() => {
         const isTypingElement = (target: EventTarget | null) => {
@@ -1177,6 +1221,8 @@ export function VaultDashboard() {
             ) {
                 return;
             }
+
+            if (dashboardView !== "credentials") return;
 
             const hasBlockingOverlay =
                 isEditDrawerOpen ||
@@ -1261,6 +1307,7 @@ export function VaultDashboard() {
         };
     }, [
         clearPendingKeySequence,
+        dashboardView,
         filteredCredentials.length,
         isAccountDialogOpen,
         isEditDrawerOpen,
@@ -1286,7 +1333,9 @@ export function VaultDashboard() {
                     <Menu className="h-5 w-5" />
                 </Button>
                 <span className="font-semibold text-foreground">
-                    {unlockedVaultName}
+                    {dashboardView === "security-report"
+                        ? "Security Report"
+                        : unlockedVaultName}
                 </span>
                 <div className="w-9" /> {/* Spacer for centering */}
             </div>
@@ -1306,6 +1355,10 @@ export function VaultDashboard() {
                         subscriptionCtaVariant={subscriptionCtaVariant}
                         onOpenVaultSettings={handleOpenVaultSettings}
                         onOpenPasswordGenerator={handleOpenPasswordGenerator}
+                        onOpenSecurityReport={() =>
+                            setDashboardView("security-report")
+                        }
+                        activeView={dashboardView}
                         onLockVault={lockVaultConfirm}
                         signalingConfig={vaultSignalingConfig}
                         onSaveSignalingConfig={handleSaveSignalingConfig}
@@ -1332,6 +1385,10 @@ export function VaultDashboard() {
                     subscriptionCtaVariant={subscriptionCtaVariant}
                     onOpenVaultSettings={handleOpenVaultSettings}
                     onOpenPasswordGenerator={handleOpenPasswordGenerator}
+                    onOpenSecurityReport={() =>
+                        setDashboardView("security-report")
+                    }
+                    activeView={dashboardView}
                     onLockVault={lockVaultConfirm}
                     signalingConfig={vaultSignalingConfig}
                     onSaveSignalingConfig={handleSaveSignalingConfig}
@@ -1343,64 +1400,48 @@ export function VaultDashboard() {
 
             {/* Main Content */}
             <div className="flex min-w-0 flex-1 pt-14 lg:pt-0">
-                {/* Credentials List */}
-                <CredentialsList
-                    credentials={credentials}
-                    selectedId={selectedCredential?.ID || null}
-                    onSelect={handleSelectCredential}
-                    onAddNew={handleAddNew}
-                    onCopyUsername={handleCopyUsername}
-                    onCopyPassword={handleCopyPassword}
-                    onCopyTOTP={handleCopyTOTP}
-                    onOpenUrl={handleOpenCredentialUrl}
-                    onDeleteCredential={handleDeleteCredential}
-                    directories={unlockedVault.Directories}
-                    credentialCounts={credentialCounts}
-                    selectedDirectoryID={selectedDirectoryID}
-                    onSelectDirectory={setSelectedDirectoryID}
-                    onCreateDirectory={handleCreateDirectory}
-                    onRenameDirectory={handleRenameDirectory}
-                    onDeleteDirectory={handleDeleteDirectory}
-                    onMoveCredentials={handleMoveCredentials}
-                    onFilteredCredentialsChange={
-                        handleFilteredCredentialsChange
-                    }
-                    searchFocusRequestToken={searchFocusRequestToken}
-                />
-
-                {/* Desktop Detail Panel */}
-                <div className="hidden lg:block">
-                    <CredentialDetail
-                        credential={selectedCredential}
-                        onEdit={handleEditCredential}
-                        onOpenUrl={handleOpenCredentialUrl}
-                        onDeleteCredential={handleDeleteCredential}
-                        directoryName={
-                            unlockedVault.Directories.find(
-                                (directory) =>
-                                    directory.ID ===
-                                    selectedCredential?.DirectoryID,
-                            )?.Name ?? "Root"
-                        }
+                {dashboardView === "security-report" ? (
+                    <SecurityReport
+                        analysis={securityAnalysis}
+                        progress={securityAnalysisProgress}
+                        isAnalyzing={isSecurityAnalysisRunning}
+                        error={securityAnalysisError}
+                        analyzedAt={securityAnalysisAnalyzedAt}
+                        onBack={() => setDashboardView("credentials")}
+                        onEditCredential={handleEditSecurityFinding}
+                        onOpenCredentialUrl={handleOpenSecurityFindingUrl}
+                        onRefresh={refreshSecurityAnalysis}
                     />
-                </div>
+                ) : (
+                    <>
+                        <CredentialsList
+                            credentials={credentials}
+                            selectedId={selectedCredential?.ID || null}
+                            onSelect={handleSelectCredential}
+                            onAddNew={handleAddNew}
+                            onCopyUsername={handleCopyUsername}
+                            onCopyPassword={handleCopyPassword}
+                            onCopyTOTP={handleCopyTOTP}
+                            onOpenUrl={handleOpenCredentialUrl}
+                            onDeleteCredential={handleDeleteCredential}
+                            directories={unlockedVault.Directories}
+                            credentialCounts={credentialCounts}
+                            selectedDirectoryID={selectedDirectoryID}
+                            onSelectDirectory={setSelectedDirectoryID}
+                            onCreateDirectory={handleCreateDirectory}
+                            onRenameDirectory={handleRenameDirectory}
+                            onDeleteDirectory={handleDeleteDirectory}
+                            onMoveCredentials={handleMoveCredentials}
+                            onFilteredCredentialsChange={
+                                handleFilteredCredentialsChange
+                            }
+                            searchFocusRequestToken={searchFocusRequestToken}
+                        />
 
-                {/* Mobile Detail Sheet - only renders on mobile */}
-                {!isDesktop && (
-                    <Sheet
-                        open={isDetailOpen && !!selectedCredential}
-                        onOpenChange={(open) => {
-                            if (!open) handleCloseDetail();
-                        }}
-                    >
-                        <SheetContent
-                            side="right"
-                            className="w-full p-0 sm:w-96"
-                        >
+                        <div className="hidden lg:block">
                             <CredentialDetail
                                 credential={selectedCredential}
                                 onEdit={handleEditCredential}
-                                isMobile
                                 onOpenUrl={handleOpenCredentialUrl}
                                 onDeleteCredential={handleDeleteCredential}
                                 directoryName={
@@ -1411,8 +1452,39 @@ export function VaultDashboard() {
                                     )?.Name ?? "Root"
                                 }
                             />
-                        </SheetContent>
-                    </Sheet>
+                        </div>
+
+                        {!isDesktop && (
+                            <Sheet
+                                open={isDetailOpen && !!selectedCredential}
+                                onOpenChange={(open) => {
+                                    if (!open) handleCloseDetail();
+                                }}
+                            >
+                                <SheetContent
+                                    side="right"
+                                    className="w-full p-0 sm:w-96"
+                                >
+                                    <CredentialDetail
+                                        credential={selectedCredential}
+                                        onEdit={handleEditCredential}
+                                        isMobile
+                                        onOpenUrl={handleOpenCredentialUrl}
+                                        onDeleteCredential={
+                                            handleDeleteCredential
+                                        }
+                                        directoryName={
+                                            unlockedVault.Directories.find(
+                                                (directory) =>
+                                                    directory.ID ===
+                                                    selectedCredential?.DirectoryID,
+                                            )?.Name ?? "Root"
+                                        }
+                                    />
+                                </SheetContent>
+                            </Sheet>
+                        )}
+                    </>
                 )}
             </div>
 

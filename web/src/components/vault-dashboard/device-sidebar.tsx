@@ -7,6 +7,7 @@ import {
     RefreshCw,
     MoreVertical,
     Shield,
+    ShieldCheck,
     Plus,
     KeyRound,
     Settings,
@@ -99,6 +100,8 @@ interface DeviceSidebarProps {
     showSubscriptionCta?: boolean;
     subscriptionCtaVariant?: SubscriptionCtaVariant;
     onOpenPasswordGenerator?: () => void;
+    onOpenSecurityReport: () => void;
+    activeView: "credentials" | "security-report";
     onLockVault?: () => void;
     signalingConfig: VaultSignalingConfig;
     onSaveSignalingConfig: (
@@ -746,6 +749,8 @@ export function DeviceSidebar({
     showSubscriptionCta = false,
     subscriptionCtaVariant = "signup",
     onOpenPasswordGenerator,
+    onOpenSecurityReport,
+    activeView,
     onLockVault,
     signalingConfig,
     onSaveSignalingConfig,
@@ -865,6 +870,24 @@ export function DeviceSidebar({
                         ) : null}
                     </div>
                 </div>
+            </div>
+
+            <div className="border-sidebar-border border-b p-2">
+                <Button
+                    variant="ghost"
+                    className={cn(
+                        "hover:bg-sidebar-accent/70 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground",
+                        activeView === "security-report" &&
+                            "bg-sidebar-accent text-foreground",
+                    )}
+                    onClick={() => handleSidebarAction(onOpenSecurityReport)}
+                    aria-current={
+                        activeView === "security-report" ? "page" : undefined
+                    }
+                >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Security Report
+                </Button>
             </div>
 
             {/* Devices section */}

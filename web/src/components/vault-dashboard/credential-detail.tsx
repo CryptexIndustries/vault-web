@@ -312,7 +312,7 @@ export function CredentialDetail({
 
     if (!credential) {
         return (
-            <div className="flex h-screen w-96 items-center justify-center border-l border-border bg-card">
+            <div className="flex h-svh w-96 items-center justify-center border-l border-border bg-card">
                 <div className="p-8 text-center">
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
                         <Key className="h-8 w-8 text-muted-foreground" />
@@ -334,7 +334,7 @@ export function CredentialDetail({
                 "bg-card flex flex-col",
                 isMobile
                     ? "h-full w-full"
-                    : "border-border h-screen w-96 border-l",
+                    : "border-border h-svh w-96 border-l",
             )}
         >
             {/* Header */}

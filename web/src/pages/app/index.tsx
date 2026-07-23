@@ -224,7 +224,7 @@ const AppIndex: React.FC = () => {
                 description="Decentralized Password Manager"
             />
 
-            <HTMLMain additionalClasses="content flex min-h-screen grow flex-col overflow-clip">
+            <HTMLMain additionalClasses="content flex h-svh grow flex-col overflow-hidden">
                 {
                     // If the vault is not unlocked, show the welcome screen
                     !isVaultUnlocked && (

@@ -468,7 +468,7 @@ export function DevicesConstellation({
                 className={cn(
                     "grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]",
                     isFullscreen &&
-                        "h-screen w-screen overflow-auto bg-background p-4",
+                        "h-svh w-screen overflow-auto bg-background p-4",
                 )}
             >
                 <div
@@ -483,7 +483,7 @@ export function DevicesConstellation({
                     )}
                     style={{
                         height: isFullscreen
-                            ? "calc(100vh - 2rem)"
+                            ? "calc(100svh - 2rem)"
                             : minViewportHeight,
                     }}
                 >

@@ -6,9 +6,7 @@ export type HTMLMainProps = {
 const HTMLMain: React.FC<HTMLMainProps> = ({ additionalClasses, children }) => {
     const _additionalClasses = additionalClasses ?? "";
     return (
-        <main
-            className={"dark min-h-screen bg-background " + _additionalClasses}
-        >
+        <main className={"dark min-h-svh bg-background " + _additionalClasses}>
             {children}
         </main>
     );

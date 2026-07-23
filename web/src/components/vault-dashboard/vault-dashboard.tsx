@@ -1395,7 +1395,7 @@ export function VaultDashboard() {
     ]);
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
+        <div className="flex h-svh overflow-hidden bg-background">
             {/* Mobile Header */}
             <div className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between border-b border-border bg-background p-2 sm:p-3 lg:hidden">
                 <Button

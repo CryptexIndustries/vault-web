@@ -2,15 +2,21 @@
 # Mirrors only the `app` service pattern from cryptex-vault-cloud/compose.dev.yaml.
 # ./web and ./packages are bind-mounted over /app sources so edits apply without rebuild.
 #
-# Local-only vault (default):
+# Local-only vault (default, loopback HTTP):
 #   docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build
 #
-# Self-hosted UI + external Cryptex Cloud API:
+# Self-hosted UI + external Cryptex Cloud API (loopback HTTP):
 #   cp web/.env.client.cloud-ui.default web/.env.client.cloud-ui
 #   # set NEXT_PUBLIC_ONLINE_SERVICES_API_URL and cloud client keys in that file
 #   docker compose -f compose.dev.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build
 #
-# Profiles are mutually exclusive; both bind 127.0.0.1:${CLIENT_WEB_PORT:-3000}.
+# LAN (phone / other devices on the same network):
+#   export LAN_HOST=$(hostname -I | awk '{print $1}')
+#   docker compose -f compose.dev.yaml --profile lan --env-file web/.env.client.default up --build
+#   # cloud on LAN:
+#   docker compose -f compose.dev.yaml --profile lan-cloud --env-file web/.env.client.cloud-ui up --build
+#
+# Profiles are mutually exclusive. local/cloud bind 127.0.0.1; lan/lan-cloud bind 0.0.0.0.
 
 name: cryptex-vault-client
 
@@ -37,6 +43,19 @@ x-dev-env: &dev-env
   NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:-prod_local000000000000}
   NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:-price_local0000000000}
   NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:-price_local0000000001}
+
+x-lan-command: &lan-command
+  [
+    "sh",
+    "-c",
+    "pnpm install --frozen-lockfile --filter web... && pnpm --filter web exec next dev --experimental-https --hostname 0.0.0.0 --port 3000",
+  ]
+
+x-lan-env: &lan-env
+  <<: *dev-env
+  LAN_HOST: ${LAN_HOST:-}
+  ALLOWED_DEV_ORIGINS: ${ALLOWED_DEV_ORIGINS:-}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://${LAN_HOST:-localhost}:${CLIENT_WEB_PORT:-3000}}
 
 services:
   web-dev:
@@ -66,6 +85,37 @@ services:
       <<: *dev-env
       NEXT_PUBLIC_CLOUD_ENABLED: "true"
       NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+    restart: unless-stopped
+
+  web-dev-lan:
+    profiles: ["lan"]
+    container_name: cryptex-vault-client-web-dev-lan
+    build:
+      context: .
+      dockerfile: web/dev.Dockerfile
+    volumes: *dev-volumes
+    ports:
+      - "0.0.0.0:${CLIENT_WEB_PORT:-3000}:3000"
+    environment:
+      <<: *lan-env
+      NEXT_PUBLIC_CLOUD_ENABLED: "false"
+    command: *lan-command
+    restart: unless-stopped
+
+  web-dev-lan-cloud:
+    profiles: ["lan-cloud"]
+    container_name: cryptex-vault-client-web-dev-lan-cloud
+    build:
+      context: .
+      dockerfile: web/dev.Dockerfile
+    volumes: *dev-volumes
+    ports:
+      - "0.0.0.0:${CLIENT_WEB_PORT:-3000}:3000"
+    environment:
+      <<: *lan-env
+      NEXT_PUBLIC_CLOUD_ENABLED: "true"
+      NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+    command: *lan-command
     restart: unless-stopped
 
 volumes:

@@ -79,9 +79,22 @@ cp web/.env.client.cloud-ui.default web/.env.client.cloud-ui
 docker compose -f compose.dev.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build
 ```
 
-Or via pnpm scripts: `pnpm run docker:dev` / `pnpm run docker:dev:cloud-ui`.
+**LAN** (`lan` / `lan-cloud` — phone or other devices on the same network):
 
-Image build: `web/dev.Dockerfile`. `web/node_modules` is a named volume (`cryptex_dev_node_modules`); `pnpm install` re-runs on container start to keep the bind-mounted manifests in sync. The `local` and `cloud` profiles are mutually exclusive (both bind `127.0.0.1:3000`).
+```bash
+export LAN_HOST=$(hostname -I | awk '{print $1}')   # host LAN IP
+docker compose -f compose.dev.yaml --profile lan --env-file web/.env.client.default up --build
+# or cloud UI on LAN:
+# docker compose -f compose.dev.yaml --profile lan-cloud --env-file web/.env.client.cloud-ui up --build
+```
+
+Open `https://$LAN_HOST:3000/app`. Allow host firewall TCP `${CLIENT_WEB_PORT:-3000}`. Optional: `ALLOWED_DEV_ORIGINS=100.*.*.*` (etc.) for non-RFC1918 ranges (e.g. Tailscale).
+
+`allowedDevOrigins` defaults to RFC1918 wildcards (`192.168.*.*`, `10.*.*.*`, `172.16–31.*.*`) so HMR works without hardcoding an IP.
+
+Or via pnpm scripts: `pnpm run docker:dev` / `pnpm run docker:dev:cloud-ui` / `pnpm run docker:dev:lan` / `pnpm run docker:dev:lan-cloud`.
+
+Image build: `web/dev.Dockerfile`. `web/node_modules` is a named volume (`cryptex_dev_node_modules`); `pnpm install` re-runs on container start to keep the bind-mounted manifests in sync. Profiles are mutually exclusive: `local`/`cloud` bind `127.0.0.1:3000` (HTTP); `lan`/`lan-cloud` bind `0.0.0.0:3000` (HTTPS).
 
 ## With Cryptex Cloud (Online Services)
 

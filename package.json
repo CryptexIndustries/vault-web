@@ -31,6 +31,8 @@
     "docker:client:cloud-ui": "docker compose -f compose.prod.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build",
     "docker:dev": "docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build",
     "docker:dev:cloud-ui": "docker compose -f compose.dev.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build",
+    "docker:dev:lan": "docker compose -f compose.dev.yaml --profile lan --env-file web/.env.client.default up --build",
+    "docker:dev:lan-cloud": "docker compose -f compose.dev.yaml --profile lan-cloud --env-file web/.env.client.cloud-ui up --build",
     "prepare": "node scripts/install-lefthook.mjs",
     "test": "pnpm jest",
     "coverage": "pnpm jest --coverage"

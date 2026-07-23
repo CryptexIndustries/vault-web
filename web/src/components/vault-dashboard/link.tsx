@@ -96,15 +96,14 @@ import {
     getVaultDEKFromSession,
     MISSING_VAULT_SECRET_ERROR,
 } from "@/utils/vault-session";
+import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     clearOnlineServicesSession,
-    linkedDevicesAtom,
     onlineServicesDataAtom,
     onlineServicesStore,
     setOnlineServicesData,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
-    unlockedVaultWriteOnlyAtom,
 } from "@/utils/atoms";
 import {
     LINK_FILE_EXTENSION,
@@ -127,7 +126,7 @@ import {
     type ChunkedQRCodeProgress,
 } from "@ui/lib/chunked-qr";
 import { TRPCClientError } from "@trpc/client";
-import { useAtomValue, useSetAtom } from "jotai/react";
+import { useAtomValue } from "jotai/react";
 import {
     AlertCircle,
     Camera,
@@ -936,7 +935,6 @@ export function SendLinkRequestDialog({
     const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
         store: onlineServicesStore,
     });
-    const setLinkedDevices = useSetAtom(linkedDevicesAtom);
     const { mutateAsync: linkNewDevice } =
         trpcReact.v1.device.link.useMutation();
     const trpcUtils = trpcReact.useUtils();
@@ -1603,18 +1601,32 @@ export function SendLinkRequestDialog({
             vaultTransferSentRef.current = true;
             addToProgressLog("Encrypted vault transfer sent.", "done");
 
-            LinkedDevices.addLinkedDevice(
-                unlockedVault.LinkedDevices,
-                cleanDeviceName,
-                syncID,
-                remoteKeyBundle.SyncSigningPublicKey,
-                remoteKeyBundle.SyncKemPublicKey,
-                stunServers.map((server) => server.ID),
-                turnServers.map((server) => server.ID),
-                signalingServer?.ID,
+            const saveLinkedDeviceResult = await persistVaultMutation(
+                "vault.configuration",
+                (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
+                    );
+                    updatedVault.LinkedDevices = LinkedDevices.fromGeneric(
+                        currentVault.LinkedDevices,
+                    );
+                    LinkedDevices.addLinkedDevice(
+                        updatedVault.LinkedDevices,
+                        cleanDeviceName,
+                        syncID,
+                        remoteKeyBundle.SyncSigningPublicKey,
+                        remoteKeyBundle.SyncKemPublicKey,
+                        stunServers.map((server) => server.ID),
+                        turnServers.map((server) => server.ID),
+                        signalingServer?.ID,
+                    );
+                    return { vault: updatedVault, result: undefined };
+                },
             );
-            setLinkedDevices([...unlockedVault.LinkedDevices.Devices]);
-            await vaultMetadata.save(unlockedVault, vaultSecret.value);
+            if (saveLinkedDeviceResult.isErr()) {
+                throw new Error("Failed to persist linked device.");
+            }
             addToProgressLog("Linked device saved.");
 
             toast.success("Device linked.");
@@ -2719,9 +2731,6 @@ export function ReceiveLinkRequestDialog({
     showWarningDialog,
 }: ReceiveLinkRequestDialogProps) {
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
     const [inputStep, setInputStep] = useState<ReceiveInputStep>("package");
     const [method, setMethod] = useState<ReceiveLinkMethod>("qr");
@@ -2854,130 +2863,138 @@ export function ReceiveLinkRequestDialog({
         onlineServicesOverwrite: OnlineServices | null,
         senderKeyBundle: VaultUtilTypes.SyncKeyBundle,
     ) => {
-        if (!vaultMetadata) {
-            throw new Error("Current vault metadata is unavailable.");
-        }
+        const mutationResult = await persistVaultMutation(
+            "link.merge",
+            async (currentVault) => {
+                const receivedVault =
+                    await parseReceivedVault(receivedVaultData);
+                const mergedVault = Object.assign(new Vault(), currentVault);
+                mergedVault.Credentials =
+                    currentVault.Credentials.map(cloneCredential);
+                mergedVault.Directories = currentVault.Directories.map(
+                    (directory) => Object.assign(new Directory(), directory),
+                );
+                mergedVault.LinkedDevices = LinkedDevices.fromGeneric(
+                    currentVault.LinkedDevices,
+                );
+                if (onlineServicesOverwrite) {
+                    mergedVault.OnlineServices = onlineServicesOverwrite;
+                }
 
-        const vaultSecret = getVaultDEKFromSession();
-        if (vaultSecret.isErr()) {
-            throw new Error(MISSING_VAULT_SECRET_ERROR);
-        }
+                let credentialsAdded = 0;
+                let credentialsSkipped = 0;
+                const existingCredentialIDs = new Set(
+                    mergedVault.Credentials.map((credential) => credential.ID),
+                );
 
-        const receivedVault = await parseReceivedVault(receivedVaultData);
-        const mergedVault = Object.assign(new Vault(), unlockedVault);
-        mergedVault.Credentials =
-            unlockedVault.Credentials.map(cloneCredential);
-        mergedVault.Directories = unlockedVault.Directories.map((directory) =>
-            Object.assign(new Directory(), directory),
+                for (const credential of receivedVault.Credentials) {
+                    if (
+                        credential.Deleted ||
+                        existingCredentialIDs.has(credential.ID)
+                    ) {
+                        credentialsSkipped++;
+                        continue;
+                    }
+
+                    mergedVault.Credentials.push(cloneCredential(credential));
+                    existingCredentialIDs.add(credential.ID);
+                    credentialsAdded++;
+                }
+
+                const existingDirectoryIDs = new Set(
+                    mergedVault.Directories.map((directory) => directory.ID),
+                );
+                for (const directory of receivedVault.Directories) {
+                    if (existingDirectoryIDs.has(directory.ID)) continue;
+                    mergedVault.Directories.push(
+                        Object.assign(new Directory(), directory),
+                    );
+                    existingDirectoryIDs.add(directory.ID);
+                }
+
+                const addMissingByID = <T extends { ID: string }>(
+                    current: T[],
+                    incoming: T[],
+                    clone: (item: T) => T,
+                ) => {
+                    const ids = new Set(current.map((item) => item.ID));
+                    for (const item of incoming) {
+                        if (ids.has(item.ID)) continue;
+                        current.push(clone(item));
+                        ids.add(item.ID);
+                    }
+                };
+
+                addMissingByID(
+                    mergedVault.LinkedDevices.STUNServers,
+                    receivedVault.LinkedDevices.STUNServers,
+                    cloneSTUNServerConfig,
+                );
+                addMissingByID(
+                    mergedVault.LinkedDevices.TURNServers,
+                    receivedVault.LinkedDevices.TURNServers,
+                    cloneTURNServerConfig,
+                );
+                addMissingByID(
+                    mergedVault.LinkedDevices.SignalingServers,
+                    receivedVault.LinkedDevices.SignalingServers,
+                    cloneSignalingServerConfig,
+                );
+
+                let devicesAdded = 0;
+                const existingDeviceIDs = new Set(
+                    mergedVault.LinkedDevices.Devices.map(
+                        (device) => device.ID,
+                    ),
+                );
+                const existingSyncIDs = new Set(
+                    mergedVault.LinkedDevices.Devices.map(
+                        (device) => device.SyncID,
+                    ),
+                );
+
+                for (const device of receivedVault.LinkedDevices.Devices) {
+                    if (
+                        existingDeviceIDs.has(device.ID) ||
+                        existingSyncIDs.has(device.SyncID)
+                    ) {
+                        continue;
+                    }
+
+                    const clonedDevice = cloneLinkedDevice(device);
+                    clonedDevice.RemoteSyncPublicKey =
+                        senderKeyBundle.SyncSigningPublicKey;
+                    clonedDevice.RemoteSyncKemPublicKey =
+                        senderKeyBundle.SyncKemPublicKey;
+                    mergedVault.LinkedDevices.Devices.push(clonedDevice);
+                    existingDeviceIDs.add(device.ID);
+                    existingSyncIDs.add(device.SyncID);
+                    devicesAdded++;
+                }
+
+                await ensureSyncSigningKeypair(mergedVault.LinkedDevices);
+                await ensureSyncKemKeypair(mergedVault.LinkedDevices);
+
+                const summary = {
+                    credentialsAdded,
+                    credentialsSkipped,
+                    devicesAdded,
+                };
+                return { vault: mergedVault, result: summary };
+            },
         );
-        mergedVault.LinkedDevices = LinkedDevices.fromGeneric(
-            unlockedVault.LinkedDevices,
-        );
-        if (onlineServicesOverwrite) {
-            mergedVault.OnlineServices = onlineServicesOverwrite;
-        }
-
-        let credentialsAdded = 0;
-        let credentialsSkipped = 0;
-        const existingCredentialIDs = new Set(
-            mergedVault.Credentials.map((credential) => credential.ID),
-        );
-
-        for (const credential of receivedVault.Credentials) {
-            if (
-                credential.Deleted ||
-                existingCredentialIDs.has(credential.ID)
-            ) {
-                credentialsSkipped++;
-                continue;
-            }
-
-            mergedVault.Credentials.push(cloneCredential(credential));
-            existingCredentialIDs.add(credential.ID);
-            credentialsAdded++;
-        }
-
-        const existingDirectoryIDs = new Set(
-            mergedVault.Directories.map((directory) => directory.ID),
-        );
-        for (const directory of receivedVault.Directories) {
-            if (existingDirectoryIDs.has(directory.ID)) continue;
-            mergedVault.Directories.push(
-                Object.assign(new Directory(), directory),
+        if (mutationResult.isErr()) {
+            throw new Error(
+                mutationResult.error === "VAULT_DEK_NOT_FOUND"
+                    ? MISSING_VAULT_SECRET_ERROR
+                    : "Failed to persist merged vault.",
             );
-            existingDirectoryIDs.add(directory.ID);
         }
 
-        const addMissingByID = <T extends { ID: string }>(
-            current: T[],
-            incoming: T[],
-            clone: (item: T) => T,
-        ) => {
-            const ids = new Set(current.map((item) => item.ID));
-            for (const item of incoming) {
-                if (ids.has(item.ID)) continue;
-                current.push(clone(item));
-                ids.add(item.ID);
-            }
-        };
-
-        addMissingByID(
-            mergedVault.LinkedDevices.STUNServers,
-            receivedVault.LinkedDevices.STUNServers,
-            cloneSTUNServerConfig,
-        );
-        addMissingByID(
-            mergedVault.LinkedDevices.TURNServers,
-            receivedVault.LinkedDevices.TURNServers,
-            cloneTURNServerConfig,
-        );
-        addMissingByID(
-            mergedVault.LinkedDevices.SignalingServers,
-            receivedVault.LinkedDevices.SignalingServers,
-            cloneSignalingServerConfig,
-        );
-
-        let devicesAdded = 0;
-        const existingDeviceIDs = new Set(
-            mergedVault.LinkedDevices.Devices.map((device) => device.ID),
-        );
-        const existingSyncIDs = new Set(
-            mergedVault.LinkedDevices.Devices.map((device) => device.SyncID),
-        );
-
-        for (const device of receivedVault.LinkedDevices.Devices) {
-            if (
-                existingDeviceIDs.has(device.ID) ||
-                existingSyncIDs.has(device.SyncID)
-            ) {
-                continue;
-            }
-
-            const clonedDevice = cloneLinkedDevice(device);
-            clonedDevice.RemoteSyncPublicKey =
-                senderKeyBundle.SyncSigningPublicKey;
-            clonedDevice.RemoteSyncKemPublicKey =
-                senderKeyBundle.SyncKemPublicKey;
-            mergedVault.LinkedDevices.Devices.push(clonedDevice);
-            existingDeviceIDs.add(device.ID);
-            existingSyncIDs.add(device.SyncID);
-            devicesAdded++;
-        }
-
-        await ensureSyncSigningKeypair(mergedVault.LinkedDevices);
-        await ensureSyncKemKeypair(mergedVault.LinkedDevices);
-
-        await vaultMetadata.save(mergedVault, vaultSecret.value);
-        await setUnlockedVault(mergedVault);
-
-        const summary = {
-            credentialsAdded,
-            credentialsSkipped,
-            devicesAdded,
-        };
+        const summary = mutationResult.value;
         setMergeSummary(summary);
         addReceiveLog(
-            `Merged ${credentialsAdded} credentials and ${devicesAdded} linked devices.`,
+            `Merged ${summary.credentialsAdded} credentials and ${summary.devicesAdded} linked devices.`,
             "done",
         );
     };
@@ -3137,31 +3154,49 @@ export function ReceiveLinkRequestDialog({
 
             addReceiveLog("Link package unlocked.", "done");
 
-            const generatedSyncKeys = await ensureSyncSigningKeypair(
-                unlockedVault.LinkedDevices,
+            const syncKeyResult = await persistVaultMutation(
+                "vault.configuration",
+                async (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
+                    );
+                    updatedVault.LinkedDevices = LinkedDevices.fromGeneric(
+                        currentVault.LinkedDevices,
+                    );
+                    const generatedSigningKeys = await ensureSyncSigningKeypair(
+                        updatedVault.LinkedDevices,
+                    );
+                    const generatedKemKeys = await ensureSyncKemKeypair(
+                        updatedVault.LinkedDevices,
+                    );
+                    const syncKeys = {
+                        signingPublicKey:
+                            updatedVault.LinkedDevices.SyncSigningPublicKey,
+                        signingPrivateKey:
+                            updatedVault.LinkedDevices.SyncSigningPrivateKey,
+                        kemPublicKey:
+                            updatedVault.LinkedDevices.SyncKemPublicKey,
+                        kemPrivateKey:
+                            updatedVault.LinkedDevices.SyncKemPrivateKey,
+                    };
+                    return {
+                        vault:
+                            generatedSigningKeys || generatedKemKeys
+                                ? updatedVault
+                                : currentVault,
+                        result: syncKeys,
+                    };
+                },
             );
-            const generatedKemKeys = await ensureSyncKemKeypair(
-                unlockedVault.LinkedDevices,
-            );
-            if ((generatedSyncKeys || generatedKemKeys) && vaultMetadata) {
-                const vaultSecret = getVaultDEKFromSession();
-                if (vaultSecret.isOk()) {
-                    await vaultMetadata.save(unlockedVault, vaultSecret.value);
-                }
+            if (syncKeyResult.isErr()) {
+                throw new Error("Failed to persist synchronization keys.");
             }
 
             const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
-                {
-                    signingPublicKey:
-                        unlockedVault.LinkedDevices.SyncSigningPublicKey,
-                    signingPrivateKey:
-                        unlockedVault.LinkedDevices.SyncSigningPrivateKey,
-                    kemPublicKey: unlockedVault.LinkedDevices.SyncKemPublicKey,
-                    kemPrivateKey:
-                        unlockedVault.LinkedDevices.SyncKemPrivateKey,
-                },
+                syncKeyResult.value,
                 secret.trim(),
                 async (status) => {
                     updateStep(status);

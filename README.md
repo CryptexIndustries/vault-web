@@ -8,6 +8,7 @@ The **hosted Cryptex Cloud backend** (auth, device linking, billing, signaling/T
 
 - Vault encryption, envelopes, device signing keys, import/export (`web/src/app_lib/vault-utils/`)
 - End-to-end sync crypto and linking (`sync-crypto.ts`, `linking.ts`)
+- Serialized vault mutation and persistence rules ([web/docs/vault-persistence.md](web/docs/vault-persistence.md))
 - Extension background/content scripts
 - Client behavior and API contract types (`packages/api-contract/`)
 

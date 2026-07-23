@@ -45,10 +45,8 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-    createCredential,
     CredentialFormSchema,
     CredentialFormSchemaType,
-    updateCredentialFromForm,
     Directory,
     VaultCredential,
 } from "@/app_lib/vault-utils/vault";
@@ -70,7 +68,7 @@ interface EditDrawerProps {
     credential: VaultCredential | null;
     isOpen: boolean;
     onClose: () => void;
-    onSave: (credential: VaultCredential) => void;
+    onSave: (form: CredentialFormSchemaType) => Promise<boolean>;
     directories: Directory[];
     initialDirectoryID?: string;
 }
@@ -294,12 +292,9 @@ export function EditDrawer({
             ),
         };
 
-        const savedCredential = credential
-            ? await updateCredentialFromForm(credential, normalizedFormData)
-            : await createCredential(normalizedFormData);
-
-        onSave(savedCredential);
-        onClose();
+        if (await onSave(normalizedFormData)) {
+            onClose();
+        }
     };
 
     const requestClose = () => {

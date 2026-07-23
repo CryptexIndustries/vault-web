@@ -51,6 +51,8 @@ import {
 } from "@/utils/atoms";
 import { trpcReact } from "@/utils/trpc";
 import { onlineServicesLog } from "@/utils/logging";
+import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
+import { persistVaultMutation } from "@/utils/vault-mutations";
 
 import { AccountAuth } from "./account-auth";
 import { AccountDevices } from "./account-devices";
@@ -65,7 +67,6 @@ import {
     splitRecoveryPhraseIntoSlots,
 } from "./recovery-kit-utils";
 import type { AccountDialogProps, AccountDialogTab, AuthMode } from "./types";
-import { useSaveVault } from "./use-save-vault";
 
 export {
     buildDeviceRelationshipMap,
@@ -74,13 +75,33 @@ export {
 } from "./device-topology";
 export type { AccountDialogProps } from "./types";
 
+type AccountVaultMutation = (currentVault: Vault) => Vault | Promise<Vault>;
+
+async function persistAccountMutation(mutate: AccountVaultMutation) {
+    const result = await persistVaultMutation(
+        "vault.account",
+        async (currentVault) => ({
+            vault: await mutate(currentVault),
+            result: undefined,
+        }),
+    );
+    if (result.isOk()) return true;
+
+    if (result.error === "VAULT_DEK_NOT_FOUND") {
+        toast.error(MISSING_VAULT_SECRET_ERROR);
+    } else if (result.error === "VAULT_METADATA_MISSING") {
+        toast.error("Vault metadata is unavailable.");
+    } else {
+        toast.error("Failed to save vault.");
+    }
+    return false;
+}
+
 export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const vault = useAtomValue(unlockedVaultAtom);
     const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
         store: onlineServicesStore,
     });
-    const saveVault = useSaveVault();
-
     const onlineServicesBound = Vault.isOnlineServicesBound(vault);
     const hasSession = !!onlineServicesData?.sessionToken?.length;
 
@@ -204,13 +225,16 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                     captchaToken: registerCaptcha,
                 });
 
-            const next = Object.assign(new Vault(), vault);
-            Vault.bindOnlineServices(
-                next,
-                new OnlineServices(serverDeviceId, userId, pub, priv),
-            );
-
-            if (await saveVault(next)) {
+            if (
+                await persistAccountMutation((currentVault) => {
+                    const next = Object.assign(new Vault(), currentVault);
+                    Vault.bindOnlineServices(
+                        next,
+                        new OnlineServices(serverDeviceId, userId, pub, priv),
+                    );
+                    return next;
+                })
+            ) {
                 setOnlineServicesData({
                     deviceId: serverDeviceId,
                     sessionToken: null,
@@ -287,13 +311,21 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                 captchaToken: recoverCaptcha,
             });
 
-            const next = Object.assign(new Vault(), vault);
-            Vault.bindOnlineServices(
-                next,
-                new OnlineServices(serverDeviceId, recoverUserId, pub, priv),
-            );
-
-            if (await saveVault(next)) {
+            if (
+                await persistAccountMutation((currentVault) => {
+                    const next = Object.assign(new Vault(), currentVault);
+                    Vault.bindOnlineServices(
+                        next,
+                        new OnlineServices(
+                            serverDeviceId,
+                            recoverUserId,
+                            pub,
+                            priv,
+                        ),
+                    );
+                    return next;
+                })
+            ) {
                 setOnlineServicesData({
                     deviceId: serverDeviceId,
                     sessionToken: null,
@@ -323,10 +355,13 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         try {
             await logoutOnlineServicesSession();
 
-            const next = Object.assign(new Vault(), vault);
-            Vault.unbindOnlineServices(next);
-
-            if (await saveVault(next)) {
+            if (
+                await persistAccountMutation((currentVault) => {
+                    const next = Object.assign(new Vault(), currentVault);
+                    Vault.unbindOnlineServices(next);
+                    return next;
+                })
+            ) {
                 toast.success(
                     "Local account binding removed. You can register again or recover with a phrase.",
                 );
@@ -374,9 +409,13 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                 signature,
             });
 
-            const next = Object.assign(new Vault(), vault);
-            Vault.unbindOnlineServices(next);
-            if (await saveVault(next)) {
+            if (
+                await persistAccountMutation((currentVault) => {
+                    const next = Object.assign(new Vault(), currentVault);
+                    Vault.unbindOnlineServices(next);
+                    return next;
+                })
+            ) {
                 onlineServicesStore.set(onlineServicesDataAtom, null);
                 onlineServicesStore.set(
                     onlineServicesAuthConnectionStatusAtom,

@@ -16,6 +16,8 @@ import {
     onlineServicesStore,
     onlineServicesAuthenticationStatus,
     setOnlineServicesData,
+    unlockedVaultAtom,
+    vaultStore,
 } from "../../src/utils/atoms";
 import {
     clearVaultDEKFromSession,
@@ -64,6 +66,7 @@ describe("lockUnlockedVault", () => {
         );
 
         const vault = new Vault();
+        vaultStore.set(unlockedVaultAtom, vault);
         const save = jest.fn(async () => undefined);
         const metadata = { DBIndex: 1, save };
         const teardown = jest.fn();
@@ -72,7 +75,6 @@ describe("lockUnlockedVault", () => {
 
         const result = await lockUnlockedVault({
             unlockedVaultMetadata: metadata as never,
-            unlockedVault: vault,
             setUnlockedVault: async (value) => {
                 nextVault =
                     typeof value === "function" ? await value(vault) : value;
@@ -104,6 +106,7 @@ describe("lockUnlockedVault", () => {
         );
         setVaultDEKInSession(dek);
         const vault = new Vault();
+        vaultStore.set(unlockedVaultAtom, vault);
 
         const result = await lockUnlockedVault({
             unlockedVaultMetadata: {
@@ -112,7 +115,6 @@ describe("lockUnlockedVault", () => {
                     throw new Error("disk full");
                 }),
             } as never,
-            unlockedVault: vault,
             setUnlockedVault: async () => undefined,
             setUnlockedVaultMetadata: () => undefined,
         });

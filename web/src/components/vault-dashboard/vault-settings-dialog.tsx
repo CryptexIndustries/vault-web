@@ -1,5 +1,5 @@
 import { Download, FileJson, ShieldCheck, Upload } from "lucide-react";
-import { useAtomValue, useSetAtom } from "jotai/react";
+import { useAtomValue } from "jotai/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as ImportExport from "@/app_lib/vault-utils/import-export";
@@ -25,17 +25,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { VaultSecurityDialog } from "@/components/vault-dashboard/vault-security-dialog";
 import { ImportWizard } from "@/components/vault-import/import-wizard";
-import {
-    unlockedVaultAtom,
-    unlockedVaultMetadataAtom,
-    unlockedVaultWriteOnlyAtom,
-} from "@/utils/atoms";
+import { unlockedVaultAtom, unlockedVaultMetadataAtom } from "@/utils/atoms";
 import { vaultLog, vaultLogger } from "@/utils/logging";
 import {
     MISSING_VAULT_SECRET_ERROR,
     getVaultDEKFromSession,
-    saveVaultWithSessionDEK,
 } from "@/utils/vault-session";
+import { persistVaultMutation } from "@/utils/vault-mutations";
 import { BACKUP_FILE_EXTENSION } from "src/utils/consts";
 
 type VaultSettingsDialogProps = {
@@ -51,7 +47,6 @@ export function VaultSettingsDialog({
 }: VaultSettingsDialogProps) {
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
-    const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
     const [isLoading, setIsLoading] = useState(false);
     const [isSecurityDialogOpen, setIsSecurityDialogOpen] = useState(false);
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
@@ -71,30 +66,29 @@ export function VaultSettingsDialog({
     };
 
     const importCredentials = async (result: ImportExport.ImportResult) => {
-        if (!vaultMetadata) {
-            toast.error("Vault metadata is unavailable.");
-            return;
-        }
-
-        const sessionDek = await ensureDEK();
-        if (!sessionDek) return;
-
-        const applied = await ImportExport.applyImportToVault(
-            unlockedVault,
-            result,
+        const mutationResult = await persistVaultMutation(
+            "credentials.import",
+            async (currentVault) => {
+                const applied = await ImportExport.applyImportToVault(
+                    currentVault,
+                    result,
+                );
+                return { vault: applied.vault, result: applied };
+            },
         );
-
-        const saveRes = await saveVaultWithSessionDEK(
-            vaultMetadata,
-            applied.vault,
-        );
-        if (saveRes.isErr()) {
-            if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
+        if (mutationResult.isErr()) {
+            if (mutationResult.error === "VAULT_DEK_NOT_FOUND") {
+                toast.error(MISSING_VAULT_SECRET_ERROR);
+                return;
+            }
+            if (mutationResult.error === "VAULT_METADATA_MISSING") {
+                toast.error("Vault metadata is unavailable.");
                 return;
             }
             throw new Error("VAULT_SAVE_FAILED");
         }
-        await setUnlockedVault(async () => applied.vault);
+
+        const applied = mutationResult.value;
         toast.success(
             `Imported ${applied.importedCredentials} items${
                 applied.importedDirectories

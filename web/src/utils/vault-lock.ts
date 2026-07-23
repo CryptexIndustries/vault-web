@@ -1,8 +1,10 @@
 import type { SyncConnectionController } from "@/app_lib/synchronization";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { Vault } from "@/app_lib/vault-utils/vault";
+import { vaultWriteCoordinator } from "@/app_lib/vault-utils/vault-write-coordinator";
 import { logoutOnlineServicesSession } from "@/app_lib/auth-session";
 import { vaultLog, vaultLogger } from "@/utils/logging";
+import { unlockedVaultAtom, vaultStore } from "@/utils/atoms";
 import {
     clearVaultDEKFromSession,
     saveVaultWithSessionDEK,
@@ -23,7 +25,6 @@ export type VaultLockError =
 
 export type LockUnlockedVaultOptions = {
     unlockedVaultMetadata: VaultMetadata | null;
-    unlockedVault: Vault;
     setUnlockedVault: SetUnlockedVault;
     setUnlockedVaultMetadata: SetUnlockedVaultMetadata;
     syncConnectionController?: SyncConnectionController;
@@ -31,35 +32,36 @@ export type LockUnlockedVaultOptions = {
 
 export async function lockUnlockedVault({
     unlockedVaultMetadata,
-    unlockedVault,
     setUnlockedVault,
     setUnlockedVaultMetadata,
     syncConnectionController,
 }: LockUnlockedVaultOptions): Promise<Result<void, VaultLockError>> {
-    if (!unlockedVaultMetadata) {
-        return err("VAULT_METADATA_MISSING");
-    }
+    return vaultWriteCoordinator.run("vault.lock", async () => {
+        if (!unlockedVaultMetadata) {
+            return err("VAULT_METADATA_MISSING");
+        }
 
-    const saveRes = await saveVaultWithSessionDEK(
-        unlockedVaultMetadata,
-        unlockedVault,
-    );
-    if (saveRes.isErr()) {
-        return err(saveRes.error);
-    }
+        const saveRes = await saveVaultWithSessionDEK(
+            unlockedVaultMetadata,
+            vaultStore.get(unlockedVaultAtom),
+        );
+        if (saveRes.isErr()) {
+            return err(saveRes.error);
+        }
 
-    try {
-        syncConnectionController?.teardown();
-        clearVaultDEKFromSession();
+        try {
+            syncConnectionController?.teardown();
+            clearVaultDEKFromSession();
 
-        await logoutOnlineServicesSession();
-        setUnlockedVaultMetadata(null);
-        await setUnlockedVault(async () => new Vault());
-        vaultLogger.clearAll();
+            await logoutOnlineServicesSession();
+            setUnlockedVaultMetadata(null);
+            await setUnlockedVault(async () => new Vault());
+            vaultLogger.clearAll();
 
-        return ok(undefined);
-    } catch (error) {
-        vaultLog.error("Failed to lock vault", { error });
-        return err("VAULT_LOCK_FAILED");
-    }
+            return ok(undefined);
+        } catch (error) {
+            vaultLog.error("Failed to lock vault", { error });
+            return err("VAULT_LOCK_FAILED");
+        }
+    });
 }

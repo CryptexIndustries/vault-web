@@ -11,13 +11,16 @@ import {
     Vault,
     VaultCredential,
     calculateTOTP,
+    createCredential,
     createDirectory,
     Directory,
     deleteDirectory,
     deleteCredential,
     moveCredentialsToDirectory,
+    updateCredentialFromForm,
     updateDirectory,
 } from "@/app_lib/vault-utils/vault";
+import type { CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
 import { LogInspectorDialog } from "@/components/dialog/log-inspector";
 import {
     WarningDialog,
@@ -47,10 +50,8 @@ import {
     vaultLog,
     webrtcLog,
 } from "@/utils/logging";
-import {
-    MISSING_VAULT_SECRET_ERROR,
-    saveVaultWithSessionDEK,
-} from "@/utils/vault-session";
+import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
+import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     useVaultAutoLock,
     type VaultAutoLockReason,
@@ -62,6 +63,7 @@ import { Menu } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SyncConnectionController } from "src/app_lib/synchronization";
+import type { VaultWriteKind } from "@/app_lib/vault-utils/vault-write-coordinator";
 import { AccountDialog } from "./account-dialog";
 import { CredentialDetail } from "./credential-detail";
 import { CredentialsList } from "./credentials-list";
@@ -383,7 +385,6 @@ export function VaultDashboard() {
     const linkedDevices = useAtomValue(linkedDevicesAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultWriteOnlyAtom);
-    const setVaultCredentials = useSetAtom(vaultCredentialsAtom);
     // const setLinkedDevices = useSetAtom(linkedDevicesAtom);
     const unlockedVaultName = unlockedVaultMetadata?.Name?.trim() || "Vault";
     const unlockedVaultDescription = unlockedVaultMetadata?.Description?.trim();
@@ -422,7 +423,6 @@ export function VaultDashboard() {
     const pendingKeySequenceRef = useRef<string | null>(null);
     const pendingKeyTimeoutRef = useRef<number | null>(null);
     const syncConnectionController = useSyncConnectionController(
-        setUnlockedVault,
         unlockedVaultMetadata,
     );
     const credentials = allCredentials.filter(
@@ -501,122 +501,161 @@ export function VaultDashboard() {
     }, []);
 
     const handleSaveCredential = useCallback(
-        async (savedCredential: VaultCredential) => {
+        async (form: CredentialFormSchemaType) => {
             const toastId = toast.loading("Saving vault...");
 
-            const updatedVault = Object.assign(new Vault(), unlockedVault);
-            updatedVault.Credentials = [...vaultCredentials];
+            const mutationResult = await persistVaultMutation(
+                "credential.upsert",
+                async (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
+                    );
+                    updatedVault.Credentials = [...currentVault.Credentials];
 
-            const existingIndex = updatedVault.Credentials.findIndex(
-                (c) => c.ID === savedCredential.ID,
+                    const existingIndex = form.ID
+                        ? updatedVault.Credentials.findIndex(
+                              (credential) =>
+                                  credential.ID === form.ID &&
+                                  !credential.Deleted,
+                          )
+                        : -1;
+                    if (form.ID && existingIndex < 0) {
+                        throw new Error("Credential is no longer available");
+                    }
+                    const existingCredential =
+                        existingIndex >= 0
+                            ? updatedVault.Credentials[existingIndex]
+                            : undefined;
+                    const savedCredential = existingCredential
+                        ? await updateCredentialFromForm(
+                              existingCredential,
+                              form,
+                          )
+                        : await createCredential(form);
+
+                    if (existingIndex >= 0) {
+                        updatedVault.Credentials[existingIndex] =
+                            savedCredential;
+                    } else {
+                        updatedVault.Credentials.push(savedCredential);
+                    }
+
+                    return { vault: updatedVault, result: savedCredential };
+                },
             );
 
-            if (existingIndex >= 0) {
-                updatedVault.Credentials[existingIndex] = savedCredential;
-            } else {
-                updatedVault.Credentials.push(savedCredential);
-            }
-
-            setVaultCredentials(updatedVault.Credentials);
-
-            if (selectedCredential?.ID === savedCredential.ID) {
-                setSelectedCredential(savedCredential);
-            }
-            setEditingCredential(null);
-
-            setUnlockedVault(updatedVault);
-
-            if (!unlockedVaultMetadata) {
-                toast.error("Vault metadata is unavailable.");
-                return;
-            }
-
-            const saveRes = await saveVaultWithSessionDEK(
-                unlockedVaultMetadata,
-                updatedVault,
-            );
-            if (saveRes.isErr()) {
-                if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
+            if (mutationResult.isErr()) {
+                if (mutationResult.error === "VAULT_DEK_NOT_FOUND") {
                     toast.error(
                         "Failed to save vault. Vault encryption secret is missing.",
                         {
                             id: toastId,
                         },
                     );
-                    return;
+                    return false;
                 }
 
                 toast.error(
-                    "Failed to save vault. There is a high possibility of data loss!",
+                    mutationResult.error === "VAULT_METADATA_MISSING"
+                        ? "Vault metadata is unavailable."
+                        : "Failed to save vault.",
                     {
                         id: toastId,
                     },
                 );
-                return;
+                return false;
             }
+
+            const savedCredential = mutationResult.value;
+            if (selectedCredential?.ID === savedCredential.ID) {
+                setSelectedCredential(savedCredential);
+            }
+            setEditingCredential(null);
 
             toast.success("Vault saved.", {
                 id: toastId,
                 duration: 3000,
             });
+            return true;
         },
-        [
-            selectedCredential,
-            setUnlockedVault,
-            setVaultCredentials,
-            unlockedVault,
-            vaultCredentials,
-            unlockedVaultMetadata,
-        ],
+        [selectedCredential],
     );
 
     const saveDirectoryChange = useCallback(
-        async (updatedVault: Vault, successMessage: string) => {
-            if (!unlockedVaultMetadata) {
-                throw new Error("Vault metadata is unavailable");
-            }
-            const saveRes = await saveVaultWithSessionDEK(
-                unlockedVaultMetadata,
-                updatedVault,
+        async (
+            kind: VaultWriteKind,
+            buildUpdatedVault: (currentVault: Vault) => Promise<Vault>,
+            successMessage: string,
+        ) => {
+            const mutationResult = await persistVaultMutation(
+                kind,
+                async (currentVault) => ({
+                    vault: await buildUpdatedVault(currentVault),
+                    result: undefined,
+                }),
             );
-            if (saveRes.isErr()) {
+            if (mutationResult.isErr()) {
                 throw new Error("Failed to save directory changes");
             }
-            setVaultCredentials(updatedVault.Credentials);
-            setUnlockedVault(updatedVault);
             toast.success(successMessage);
         },
-        [setUnlockedVault, setVaultCredentials, unlockedVaultMetadata],
+        [],
     );
 
     const handleCreateDirectory = useCallback(
         async (name: string) => {
-            const updatedVault = Object.assign(new Vault(), unlockedVault, {
-                Directories: [...unlockedVault.Directories],
-            });
-            const directory = await createDirectory(updatedVault.Directories, {
-                ID: null,
-                Name: name,
-            });
-            await saveDirectoryChange(updatedVault, "Directory created.");
-            setSelectedDirectoryID(directory.ID);
+            let createdDirectoryID = "";
+            await saveDirectoryChange(
+                "directory.create",
+                async (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
+                        {
+                            Directories: [...currentVault.Directories],
+                        },
+                    );
+                    const directory = await createDirectory(
+                        updatedVault.Directories,
+                        { ID: null, Name: name },
+                    );
+                    createdDirectoryID = directory.ID;
+                    return updatedVault;
+                },
+                "Directory created.",
+            );
+            setSelectedDirectoryID(createdDirectoryID);
         },
-        [saveDirectoryChange, unlockedVault],
+        [saveDirectoryChange],
     );
 
     const handleRenameDirectory = useCallback(
         async (directoryID: string, name: string) => {
-            const updatedVault = Object.assign(new Vault(), unlockedVault, {
-                Directories: unlockedVault.Directories.map((directory) =>
-                    Object.assign(new Directory(), directory),
-                ),
-            });
-            await updateDirectory(updatedVault.Directories, directoryID, {
-                Name: name,
-            });
-            await saveDirectoryChange(updatedVault, "Directory renamed.");
+            await saveDirectoryChange(
+                "directory.rename",
+                async (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
+                        {
+                            Directories: currentVault.Directories.map(
+                                (directory) =>
+                                    Object.assign(new Directory(), directory),
+                            ),
+                        },
+                    );
+                    await updateDirectory(
+                        updatedVault.Directories,
+                        directoryID,
+                        { Name: name },
+                    );
+                    return updatedVault;
+                },
+                "Directory renamed.",
+            );
         },
-        [saveDirectoryChange, unlockedVault],
+        [saveDirectoryChange],
     );
 
     const handleDeleteDirectory = useCallback(
@@ -631,15 +670,62 @@ export function VaultDashboard() {
             showWarningDialogFnRef.current?.(
                 `Delete “${directory.Name}” and ${count} credential${count === 1 ? "" : "s"}? This permanently deletes every credential in the directory.`,
                 async () => {
+                    const mutationResult = await persistVaultMutation(
+                        "directory.delete",
+                        async (currentVault) => {
+                            const updatedVault = Object.assign(
+                                new Vault(),
+                                currentVault,
+                                {
+                                    Directories: currentVault.Directories.map(
+                                        (entry) =>
+                                            Object.assign(
+                                                new Directory(),
+                                                entry,
+                                            ),
+                                    ),
+                                    Credentials: currentVault.Credentials.map(
+                                        (currentCredential) =>
+                                            Object.assign(
+                                                new VaultCredential(),
+                                                currentCredential,
+                                            ),
+                                    ),
+                                },
+                            );
+                            await deleteDirectory(
+                                updatedVault.Directories,
+                                updatedVault.Credentials,
+                                directoryID,
+                            );
+                            return { vault: updatedVault, result: undefined };
+                        },
+                    );
+                    if (mutationResult.isErr()) {
+                        throw new Error(
+                            "Failed to save directory and credential deletion",
+                        );
+                    }
+                    toast.success("Directory and credentials deleted.");
+                    setSelectedDirectoryID("all");
+                },
+                () => undefined,
+                "Delete directory",
+            );
+        },
+        [allCredentials, unlockedVault.Directories],
+    );
+
+    const handleMoveCredentials = useCallback(
+        async (credentialIDs: string[], directoryID: string) => {
+            const mutationResult = await persistVaultMutation(
+                "credentials.move",
+                async (currentVault) => {
                     const updatedVault = Object.assign(
                         new Vault(),
-                        unlockedVault,
+                        currentVault,
                         {
-                            Directories: unlockedVault.Directories.map(
-                                (entry) =>
-                                    Object.assign(new Directory(), entry),
-                            ),
-                            Credentials: unlockedVault.Credentials.map(
+                            Credentials: currentVault.Credentials.map(
                                 (credential) =>
                                     Object.assign(
                                         new VaultCredential(),
@@ -648,40 +734,21 @@ export function VaultDashboard() {
                             ),
                         },
                     );
-                    await deleteDirectory(
-                        updatedVault.Directories,
+                    await moveCredentialsToDirectory(
                         updatedVault.Credentials,
+                        credentialIDs,
                         directoryID,
+                        updatedVault.Directories,
                     );
-                    await saveDirectoryChange(
-                        updatedVault,
-                        "Directory and credentials deleted.",
-                    );
-                    setSelectedDirectoryID("all");
+                    return { vault: updatedVault, result: undefined };
                 },
-                () => undefined,
-                "Delete directory",
             );
+            if (mutationResult.isErr()) {
+                throw new Error("Failed to save credential move");
+            }
+            toast.success("Credentials moved.");
         },
-        [allCredentials, saveDirectoryChange, unlockedVault],
-    );
-
-    const handleMoveCredentials = useCallback(
-        async (credentialIDs: string[], directoryID: string) => {
-            const updatedVault = Object.assign(new Vault(), unlockedVault, {
-                Credentials: unlockedVault.Credentials.map((credential) =>
-                    Object.assign(new VaultCredential(), credential),
-                ),
-            });
-            await moveCredentialsToDirectory(
-                updatedVault.Credentials,
-                credentialIDs,
-                directoryID,
-                updatedVault.Directories,
-            );
-            await saveDirectoryChange(updatedVault, "Credentials moved.");
-        },
-        [saveDirectoryChange, unlockedVault],
+        [],
     );
 
     // const handleSyncDevice = useCallback(
@@ -700,110 +767,116 @@ export function VaultDashboard() {
 
     const handleSaveSignalingConfig = useCallback(
         async (config: VaultSignalingConfig) => {
-            if (!unlockedVaultMetadata) {
-                throw new Error("Vault metadata is unavailable.");
-            }
-
             const toastId = toast.loading("Saving signaling configuration...");
-            const updatedVault = Object.assign(new Vault(), unlockedVault);
-            const updatedLinkedDevices = LinkedDevices.fromGeneric(
-                updatedVault.LinkedDevices,
-            );
+            const mutationResult = await persistVaultMutation(
+                "vault.configuration",
+                (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
+                    );
+                    const updatedLinkedDevices = LinkedDevices.fromGeneric(
+                        currentVault.LinkedDevices,
+                    );
 
-            updatedLinkedDevices.STUNServers = config.stunServers.map(
-                (server) =>
-                    Object.assign(new STUNServerConfiguration(), server),
-            );
-            updatedLinkedDevices.TURNServers = config.turnServers.map(
-                (server) =>
-                    Object.assign(new TURNServerConfiguration(), server),
-            );
-            updatedLinkedDevices.SignalingServers = config.signalingServers.map(
-                (server) =>
-                    Object.assign(new SignalingServerConfiguration(), server),
-            );
+                    updatedLinkedDevices.STUNServers = config.stunServers.map(
+                        (server) =>
+                            Object.assign(
+                                new STUNServerConfiguration(),
+                                server,
+                            ),
+                    );
+                    updatedLinkedDevices.TURNServers = config.turnServers.map(
+                        (server) =>
+                            Object.assign(
+                                new TURNServerConfiguration(),
+                                server,
+                            ),
+                    );
+                    updatedLinkedDevices.SignalingServers =
+                        config.signalingServers.map((server) =>
+                            Object.assign(
+                                new SignalingServerConfiguration(),
+                                server,
+                            ),
+                        );
 
-            updatedVault.LinkedDevices = updatedLinkedDevices;
-
-            const saveRes = await saveVaultWithSessionDEK(
-                unlockedVaultMetadata,
-                updatedVault,
+                    updatedVault.LinkedDevices = updatedLinkedDevices;
+                    return { vault: updatedVault, result: undefined };
+                },
             );
-            if (saveRes.isErr()) {
+            if (mutationResult.isErr()) {
                 const message =
-                    saveRes.error === "VAULT_DEK_NOT_FOUND"
+                    mutationResult.error === "VAULT_DEK_NOT_FOUND"
                         ? "Failed to save signaling configuration. Vault encryption secret is missing."
                         : "Failed to save signaling configuration.";
                 toast.error(message, { id: toastId });
                 throw new Error(message);
             }
 
-            setUnlockedVault(updatedVault);
             toast.success("Signaling configuration saved.", {
                 id: toastId,
                 duration: 3000,
             });
         },
-        [setUnlockedVault, unlockedVault, unlockedVaultMetadata],
+        [],
     );
 
     const handleSaveDeviceConfig = useCallback(
         async (config: DeviceConfigurationDraft) => {
-            if (!unlockedVaultMetadata) {
-                throw new Error("Vault metadata is unavailable.");
-            }
-
             const toastId = toast.loading("Saving device configuration...");
-            const updatedVault = Object.assign(new Vault(), unlockedVault);
-            const updatedLinkedDevices = LinkedDevices.fromGeneric(
-                updatedVault.LinkedDevices,
-            );
-            const deviceExists = updatedLinkedDevices.Devices.some(
-                (device) => device.ID === config.ID,
-            );
-
-            if (!deviceExists) {
-                const message = "Device is no longer linked.";
-                toast.error(message, { id: toastId });
-                throw new Error(message);
-            }
-
-            updatedLinkedDevices.Devices = updatedLinkedDevices.Devices.map(
-                (device) => {
-                    if (device.ID !== config.ID) return device;
-                    return Object.assign(
-                        LinkedDevices.fromGenericDevice(device),
-                        {
-                            Name: config.Name,
-                            AutoConnect: config.AutoConnect,
-                            SyncTimeout: config.SyncTimeout,
-                            SyncTimeoutPeriod: config.SyncTimeoutPeriod,
-                        },
+            const mutationResult = await persistVaultMutation(
+                "vault.configuration",
+                (currentVault) => {
+                    const updatedVault = Object.assign(
+                        new Vault(),
+                        currentVault,
                     );
+                    const updatedLinkedDevices = LinkedDevices.fromGeneric(
+                        currentVault.LinkedDevices,
+                    );
+                    const deviceExists = updatedLinkedDevices.Devices.some(
+                        (device) => device.ID === config.ID,
+                    );
+
+                    if (!deviceExists) {
+                        throw new Error("Device is no longer linked.");
+                    }
+
+                    updatedLinkedDevices.Devices =
+                        updatedLinkedDevices.Devices.map((device) => {
+                            if (device.ID !== config.ID) return device;
+                            return Object.assign(
+                                LinkedDevices.fromGenericDevice(device),
+                                {
+                                    Name: config.Name,
+                                    AutoConnect: config.AutoConnect,
+                                    SyncTimeout: config.SyncTimeout,
+                                    SyncTimeoutPeriod: config.SyncTimeoutPeriod,
+                                },
+                            );
+                        });
+                    updatedVault.LinkedDevices = updatedLinkedDevices;
+                    return { vault: updatedVault, result: undefined };
                 },
             );
-            updatedVault.LinkedDevices = updatedLinkedDevices;
-
-            const saveRes = await saveVaultWithSessionDEK(
-                unlockedVaultMetadata,
-                updatedVault,
-            );
-            if (saveRes.isErr()) {
+            if (mutationResult.isErr()) {
                 const message =
-                    saveRes.error === "VAULT_DEK_NOT_FOUND"
+                    mutationResult.error === "VAULT_DEK_NOT_FOUND"
                         ? "Failed to save device configuration. Vault encryption secret is missing."
-                        : "Failed to save device configuration.";
+                        : mutationResult.error === "VAULT_MUTATION_FAILED"
+                          ? "Device is no longer linked."
+                          : "Failed to save device configuration.";
                 toast.error(message, { id: toastId });
                 throw new Error(message);
             }
 
-            setUnlockedVault(updatedVault);
             toast.success("Device configuration saved.", {
                 id: toastId,
                 duration: 3000,
             });
         },
-        [setUnlockedVault, unlockedVault, unlockedVaultMetadata],
+        [],
     );
 
     const handleCloseDetail = useCallback(() => {
@@ -860,53 +933,60 @@ export function VaultDashboard() {
 
     const handleDeleteCredential = useCallback(
         (credential: VaultCredential) => {
-            if (!unlockedVaultMetadata) {
-                toast.error("Vault metadata is unavailable.");
-                return;
-            }
-
             showWarningDialogFnRef.current?.(
                 `You are about to remove the "${credential.Name}" credential.`,
                 async () => {
                     const toastId = toast.loading("Removing credential...");
 
                     try {
-                        const updatedVault = Object.assign(
-                            new Vault(),
-                            unlockedVault,
-                        );
-                        const deleted = await deleteCredential(
-                            [...updatedVault.Credentials],
-                            credential.ID,
+                        const mutationResult = await persistVaultMutation(
+                            "credential.delete",
+                            async (currentVault) => {
+                                const updatedVault = Object.assign(
+                                    new Vault(),
+                                    currentVault,
+                                );
+                                const deleted = await deleteCredential(
+                                    [...currentVault.Credentials],
+                                    credential.ID,
+                                );
+
+                                if (deleted.isErr()) {
+                                    throw new Error(deleted.error);
+                                }
+
+                                updatedVault.Credentials = deleted.value;
+                                return {
+                                    vault: updatedVault,
+                                    result: undefined,
+                                };
+                            },
                         );
 
-                        if (deleted.isErr()) {
-                            toast.error(
-                                "Failed to remove credential. Could not find the credential to delete.",
-                                { id: toastId },
-                            );
-                            return;
-                        }
-
-                        updatedVault.Credentials = deleted.value;
-                        setVaultCredentials(deleted.value);
-                        setUnlockedVault(updatedVault);
-
-                        const saveRes = await saveVaultWithSessionDEK(
-                            unlockedVaultMetadata,
-                            updatedVault,
-                        );
-                        if (saveRes.isErr()) {
-                            if (saveRes.error === "VAULT_DEK_NOT_FOUND") {
+                        if (mutationResult.isErr()) {
+                            if (
+                                mutationResult.error === "VAULT_MUTATION_FAILED"
+                            ) {
+                                toast.error(
+                                    "Failed to remove credential. Could not find the credential to delete.",
+                                    { id: toastId },
+                                );
+                                return;
+                            }
+                            if (
+                                mutationResult.error === "VAULT_DEK_NOT_FOUND"
+                            ) {
                                 toast.error(
                                     "Failed to remove credential. Vault encryption secret is missing.",
                                     { id: toastId },
                                 );
                                 return;
                             }
-
                             toast.error(
-                                "Failed to remove credential. Failed to save the vault.",
+                                mutationResult.error ===
+                                    "VAULT_METADATA_MISSING"
+                                    ? "Vault metadata is unavailable."
+                                    : "Failed to remove credential. Failed to save the vault.",
                                 { id: toastId },
                             );
                             return;
@@ -934,12 +1014,7 @@ export function VaultDashboard() {
                 "Remove credential",
             );
         },
-        [
-            setUnlockedVault,
-            setVaultCredentials,
-            unlockedVault,
-            unlockedVaultMetadata,
-        ],
+        [],
     );
 
     const handleOpenVaultSettings = useCallback(() => {
@@ -1048,7 +1123,6 @@ export function VaultDashboard() {
 
             const lockRes = await lockUnlockedVault({
                 unlockedVaultMetadata,
-                unlockedVault,
                 setUnlockedVault,
                 setUnlockedVaultMetadata,
                 syncConnectionController,
@@ -1086,7 +1160,6 @@ export function VaultDashboard() {
             setUnlockedVault,
             setUnlockedVaultMetadata,
             syncConnectionController,
-            unlockedVault,
             unlockedVaultMetadata,
         ],
     );

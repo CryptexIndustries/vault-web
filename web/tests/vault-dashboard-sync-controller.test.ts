@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { ok } from "neverthrow";
 
 jest.mock("sonner", () => ({
     toast: {
@@ -13,10 +12,6 @@ jest.mock("@/utils/logging", () => ({
     uiLog: {
         error: jest.fn(),
     },
-}));
-
-jest.mock("@/utils/vault-session", () => ({
-    getVaultDEKFromSession: jest.fn(),
 }));
 
 jest.mock("@/app_lib/synchronization", () => ({
@@ -36,8 +31,15 @@ import {
     shouldAutoReconnectAfterWebRTCStatus,
 } from "../src/components/vault-dashboard/sync-controller";
 import { WebRTCStatus } from "../src/app_lib/synchronization-utils";
-import { unlockedVaultAtom, vaultStore } from "../src/utils/atoms";
-import { getVaultDEKFromSession } from "../src/utils/vault-session";
+import {
+    unlockedVaultAtom,
+    unlockedVaultMetadataAtom,
+    vaultStore,
+} from "../src/utils/atoms";
+import {
+    clearVaultDEKFromSession,
+    setVaultDEKInSession,
+} from "../src/utils/vault-session";
 
 const sessionDEK = { type: "secret" } as CryptoKey;
 
@@ -90,7 +92,9 @@ describe("vault dashboard sync controller helpers", () => {
         const vault = new Vault();
         vault.Credentials = [credential("existing")];
         vaultStore.set(unlockedVaultAtom, vault);
-        jest.mocked(getVaultDEKFromSession).mockReturnValue(ok(sessionDEK));
+        vaultStore.set(unlockedVaultMetadataAtom, null);
+        clearVaultDEKFromSession();
+        setVaultDEKInSession(sessionDEK);
     });
 
     it("keys controller lifecycle by vault identity", () => {
@@ -133,21 +137,11 @@ describe("vault dashboard sync controller helpers", () => {
         const vaultA = metadata(1, "vault-a");
         const vaultB = metadata(2, "vault-b");
         let activeMetadata = vaultA;
-        const setUnlockedVault = jest.fn(
-            (next: Vault | ((prev: Vault) => Vault)) => {
-                const vault =
-                    typeof next === "function"
-                        ? next(vaultStore.get(unlockedVaultAtom))
-                        : next;
-                vaultStore.set(unlockedVaultAtom, vault);
-            },
-        );
 
-        const operations = createVaultOperations(
-            setUnlockedVault,
-            () => activeMetadata,
-        );
+        vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
+        const operations = createVaultOperations();
         activeMetadata = vaultB;
+        vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
 
         await operations.updateItems?.([], [credential("from-sync")]);
 
@@ -165,19 +159,8 @@ describe("vault dashboard sync controller helpers", () => {
 
     it("persists empty synchronized directories", async () => {
         const activeMetadata = metadata(1, "vault-a");
-        const setUnlockedVault = jest.fn(
-            (next: Vault | ((prev: Vault) => Vault)) => {
-                const vault =
-                    typeof next === "function"
-                        ? next(vaultStore.get(unlockedVaultAtom))
-                        : next;
-                vaultStore.set(unlockedVaultAtom, vault);
-            },
-        );
-        const operations = createVaultOperations(
-            setUnlockedVault,
-            () => activeMetadata,
-        );
+        vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
+        const operations = createVaultOperations();
 
         await operations.updateItems?.([directory("work")], []);
 

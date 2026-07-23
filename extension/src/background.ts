@@ -9,6 +9,10 @@ import type {
 } from "./types/sw-messaging";
 import * as VaultUtilTypes from "@/app_lib/proto/vault";
 import {
+    type VaultWriteKind,
+    vaultWriteCoordinator,
+} from "@/app_lib/vault-utils/vault-write-coordinator";
+import {
     generateECDHKeyPair,
     deriveSessionKey,
     base64UrlDecode,
@@ -361,6 +365,31 @@ async function processEnvelope(
  * Processes a decrypted message payload and returns the response.
  */
 async function processMessage(
+    type: MessageType,
+    payload: any,
+    sender: chrome.runtime.MessageSender,
+): Promise<any> {
+    const writeKind = VAULT_WRITE_MESSAGE_TYPES[type];
+    if (writeKind) {
+        return vaultWriteCoordinator.run(writeKind, () =>
+            processMessageUncoordinated(type, payload, sender),
+        );
+    }
+
+    return processMessageUncoordinated(type, payload, sender);
+}
+
+const VAULT_WRITE_MESSAGE_TYPES: Partial<Record<MessageType, VaultWriteKind>> =
+    {
+        [MessageType.Unlock]: "vault.unlock",
+        [MessageType.Lock]: "vault.lock",
+        [MessageType.CreateCredential]: "credential.upsert",
+        [MessageType.UpdateCredential]: "credential.upsert",
+        [MessageType.DeleteCredential]: "credential.delete",
+        [MessageType.SyncUpdateItems]: "synchronization.apply",
+    };
+
+async function processMessageUncoordinated(
     type: MessageType,
     payload: any,
     sender: chrome.runtime.MessageSender,
@@ -1254,9 +1283,11 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === "idle") {
         console.debug("[SW] Vault locked due to inactivity");
 
-        // Match explicit lock ordering: invalidate/capture Online Services,
-        // revoke remotely, then remove every local session value.
-        await clearOnlineServicesSessionInSW();
-        await clearSessionStorage();
+        await vaultWriteCoordinator.run("vault.lock", async () => {
+            // Match explicit lock ordering: invalidate/capture Online Services,
+            // revoke remotely, then remove every local session value.
+            await clearOnlineServicesSessionInSW();
+            await clearSessionStorage();
+        });
     }
 });

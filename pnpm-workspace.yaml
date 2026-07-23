@@ -24,6 +24,7 @@ allowBuilds:
   unrs-resolver: true
 
 overrides:
+  "@radix-ui/react-dismissable-layer": "1.1.11"
   "@babel/core@<=7.29.0": "7.29.7"
   "@tootallnate/once@<2.0.1": "2.0.1"
   "brace-expansion@<1.1.13": "1.1.13"

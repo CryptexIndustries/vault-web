@@ -97,7 +97,9 @@ function VaultEmptyState() {
                 </p>
                 <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
                     You can add a new credential by clicking the{" "}
-                    <span className="font-medium text-foreground">+ Add New</span>{" "}
+                    <span className="font-medium text-foreground">
+                        + Add New
+                    </span>{" "}
                     button.
                 </p>
             </div>
@@ -445,23 +447,16 @@ export function CredentialsList({
                             ))}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                                onSelect={() =>
-                                    setTimeout(
-                                        () => openDirectoryEditor(null),
-                                        0,
-                                    )
-                                }
+                                onSelect={() => openDirectoryEditor(null)}
                             >
                                 <Plus className="mr-2 h-4 w-4" />
                                 New directory
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                                onSelect={() =>
-                                    setTimeout(() => {
-                                        setDirectoryManagerError("");
-                                        setDirectoryManagerOpen(true);
-                                    }, 0)
-                                }
+                                onSelect={() => {
+                                    setDirectoryManagerError("");
+                                    setDirectoryManagerOpen(true);
+                                }}
                             >
                                 <Settings2 className="mr-2 h-4 w-4" />
                                 Manage directories
@@ -1039,13 +1034,7 @@ export function CredentialsList({
                                         aria-label={`Rename ${directory.Name}`}
                                         onClick={() => {
                                             setDirectoryManagerOpen(false);
-                                            setTimeout(
-                                                () =>
-                                                    openDirectoryEditor(
-                                                        directory,
-                                                    ),
-                                                0,
-                                            );
+                                            openDirectoryEditor(directory);
                                         }}
                                     >
                                         <Pencil className="h-4 w-4" />
@@ -1089,7 +1078,7 @@ export function CredentialsList({
                         <Button
                             onClick={() => {
                                 setDirectoryManagerOpen(false);
-                                setTimeout(() => openDirectoryEditor(null), 0);
+                                openDirectoryEditor(null);
                             }}
                         >
                             <Plus className="mr-2 h-4 w-4" />

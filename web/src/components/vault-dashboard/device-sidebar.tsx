@@ -727,10 +727,8 @@ function DeviceItem({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onSelect={() => {
-                            setTimeout(() => {
-                                setSelectedDevice(device);
-                                setDeviceConfigOpen(true);
-                            }, 0);
+                            setSelectedDevice(device);
+                            setDeviceConfigOpen(true);
                         }}
                     >
                         View details
@@ -739,9 +737,7 @@ function DeviceItem({
                     <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => {
-                            setTimeout(() => {
-                                void unlinkDevice(device);
-                            }, 0);
+                            void unlinkDevice(device);
                         }}
                     >
                         Unlink device
@@ -957,22 +953,14 @@ export function DeviceSidebar({
                                     onCloseAutoFocus={(e) => e.preventDefault()}
                                 >
                                     <DropdownMenuItem
-                                        onSelect={() => {
-                                            // Defer past menu teardown so DropdownMenu + Dialog do not both touch body styles in one turn (stuck pointer-events: none on <body>).
-                                            setTimeout(() => {
-                                                setSendLinkOpen(true);
-                                            }, 0);
-                                        }}
+                                        onSelect={() => setSendLinkOpen(true)}
                                     >
                                         Send link request
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                        onSelect={() => {
-                                            // Same as “Send link request”: open Dialog after menu closes to avoid Radix body lock overlap.
-                                            setTimeout(() => {
-                                                setReceiveLinkOpen(true);
-                                            }, 0);
-                                        }}
+                                        onSelect={() =>
+                                            setReceiveLinkOpen(true)
+                                        }
                                     >
                                         Receive link request
                                     </DropdownMenuItem>

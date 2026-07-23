@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { VaultRevealSecrets } from "@/app_lib/vault-utils/vault-unlock-types";
 import { SecondFactorKind } from "@/app_lib/proto/vault";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
     open: boolean;
@@ -31,6 +31,13 @@ export function VaultRevealSecretsDialog({
         !secrets?.secondFactorPassphrase,
     );
     const [ackWebAuthn, setAckWebAuthn] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        setAckRecovery(false);
+        setAckSecondFactor(!secrets?.secondFactorPassphrase);
+        setAckWebAuthn(false);
+    }, [open, secrets]);
 
     const canClose =
         ackRecovery &&

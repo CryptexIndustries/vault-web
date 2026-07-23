@@ -233,6 +233,9 @@ message LinkedDevice {
 
     /** Remote peer ML-KEM public key, exchanged during linking. */
     string RemoteSyncKemPublicKey = 14;
+
+    /** Automatically synchronize when the WebRTC data channel opens. */
+    bool AutoSync = 15;
 }
 //#endregion LinkedDevices
 

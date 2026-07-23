@@ -1068,6 +1068,7 @@ describe("SyncConnectionController orchestration", () => {
                 ID: "device-1",
                 Name: "Device",
                 SyncID: "sync-1",
+                AutoSync: true,
                 STUNServerIDs: [],
                 TURNServerIDs: [],
             } as unknown as VaultUtilTypes.LinkedDevice;
@@ -1138,6 +1139,9 @@ describe("SyncConnectionController orchestration", () => {
                     ],
                 ]),
             });
+            const transmitSyncHello = jest
+                .spyOn(controller, "transmitSyncHello")
+                .mockImplementation(() => undefined);
             (remoteDataChannel.onopen as unknown as (e: Event) => void)(
                 new Event("open"),
             );
@@ -1147,6 +1151,14 @@ describe("SyncConnectionController orchestration", () => {
                 }
             )._webRTConnections.get("device-1");
             expect(trackedConn?.dataChannel).toBe(remoteDataChannel);
+            expect(transmitSyncHello).toHaveBeenCalledWith("device-1");
+
+            transmitSyncHello.mockClear();
+            device.AutoSync = false;
+            (remoteDataChannel.onopen as unknown as (e: Event) => void)(
+                new Event("open"),
+            );
+            expect(transmitSyncHello).not.toHaveBeenCalled();
 
             // onclose should set WebRTCStatus to Disconnected and broadcast.
             const handler = jest.fn();

@@ -836,6 +836,10 @@ export class SyncConnectionController {
                     currentConnection.dataChannel = dataChannel;
                     this._webRTConnections.set(device.ID, currentConnection);
                 }
+
+                if (device.AutoSync) {
+                    this.transmitSyncHello(device.ID);
+                }
             };
 
         const dataChannelOnClose = () => (_event: Event) => {

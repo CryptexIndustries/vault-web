@@ -851,6 +851,7 @@ export function VaultDashboard() {
                                 {
                                     Name: config.Name,
                                     AutoConnect: config.AutoConnect,
+                                    AutoSync: config.AutoSync,
                                     SyncTimeout: config.SyncTimeout,
                                     SyncTimeoutPeriod: config.SyncTimeoutPeriod,
                                 },

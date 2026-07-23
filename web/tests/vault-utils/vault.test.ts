@@ -179,6 +179,7 @@ describe("vault-utils/vault", () => {
             false,
             true,
             60,
+            false,
         );
 
         expect(linked.Devices).toHaveLength(1);
@@ -191,6 +192,7 @@ describe("vault-utils/vault", () => {
             SignalingServerID: "sig-a",
             LinkedAtTimestamp: 111,
             AutoConnect: false,
+            AutoSync: false,
             SyncTimeout: true,
             SyncTimeoutPeriod: 60,
         });
@@ -205,7 +207,7 @@ describe("vault-utils/vault", () => {
 
     it("creates runtime class instances from generic linked devices payload", () => {
         const raw: LinkedDevices = Object.assign(new LinkedDevices(), {
-            Devices: [{ ID: "d1", Name: "D1" }],
+            Devices: [{ ID: "d1", Name: "D1", AutoSync: false }],
             STUNServers: [
                 { ID: "s1", Name: "S1", Host: "stun://a", Version: 1 },
             ],
@@ -236,6 +238,7 @@ describe("vault-utils/vault", () => {
 
         const hydrated = LinkedDevices.fromGeneric(raw);
         expect(hydrated.Devices[0]).toBeInstanceOf(LinkedDevice);
+        expect(hydrated.Devices[0]?.AutoSync).toBe(false);
         expect(hydrated.STUNServers[0]).toBeDefined();
         expect(hydrated.TURNServers[0]).toBeDefined();
         expect(hydrated.SignalingServers[0]).toBeDefined();

@@ -166,6 +166,7 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
     public LastSync: string | undefined;
     public LinkedAtTimestamp = Date.now();
     public AutoConnect: boolean;
+    public AutoSync: boolean;
     public SyncTimeout: boolean;
     public SyncTimeoutPeriod: number;
     public STUNServerIDs: string[] = [];
@@ -186,6 +187,7 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
         stunServerIDs: string[] = [],
         turnServerIDs: string[] = [],
         signalingServerID = ONLINE_SERVICES_SELECTION_ID,
+        autoSync = true,
     ) {
         this.ID = ulid();
         this.Name = deviceName;
@@ -194,6 +196,7 @@ export class LinkedDevice implements VaultUtilTypes.LinkedDevice {
         this.RemoteSyncKemPublicKey = remoteSyncKemPublicKey;
         this.LinkedAtTimestamp = linkedAtTimestamp;
         this.AutoConnect = autoConnect;
+        this.AutoSync = autoSync;
         this.SyncTimeout = syncTimeout;
         this.SyncTimeoutPeriod = syncTimeoutPeriod;
         this.STUNServerIDs = stunServerIDs;
@@ -302,7 +305,10 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
     ): LinkedDevice {
         return Object.assign(
             Object.create(LinkedDevice.prototype) as LinkedDevice,
-            { RemoteSyncPublicKey: "", RemoteSyncKemPublicKey: "" },
+            {
+                RemoteSyncPublicKey: "",
+                RemoteSyncKemPublicKey: "",
+            },
             rawDevice,
         );
     }
@@ -320,6 +326,7 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
         autoConnect?: boolean,
         syncTimeout?: boolean,
         syncTimeoutPeriod?: number,
+        autoSync?: boolean,
     ): LinkedDevice {
         const device = new LinkedDevice(
             deviceName,
@@ -333,6 +340,7 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
             stunServerIDs,
             turnServerIDs,
             signalingServerID ?? ONLINE_SERVICES_SELECTION_ID,
+            autoSync,
         );
         instance.Devices.push(device);
         return device;

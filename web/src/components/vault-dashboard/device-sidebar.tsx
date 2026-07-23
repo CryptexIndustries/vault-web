@@ -83,7 +83,12 @@ export type DeviceConnectionStatus = {
 
 export type DeviceConfigurationDraft = Pick<
     LinkedDevice,
-    "ID" | "Name" | "AutoConnect" | "SyncTimeout" | "SyncTimeoutPeriod"
+    | "ID"
+    | "Name"
+    | "AutoConnect"
+    | "AutoSync"
+    | "SyncTimeout"
+    | "SyncTimeoutPeriod"
 >;
 
 interface DeviceSidebarProps {
@@ -321,6 +326,7 @@ function DeviceConfigurationDialog({
 }) {
     const [name, setName] = useState("");
     const [autoConnect, setAutoConnect] = useState(false);
+    const [autoSync, setAutoSync] = useState(true);
     const [syncTimeout, setSyncTimeout] = useState(false);
     const [syncTimeoutPeriod, setSyncTimeoutPeriod] = useState("30");
     const [error, setError] = useState<string | null>(null);
@@ -330,6 +336,7 @@ function DeviceConfigurationDialog({
         if (!device) return;
         setName(device.Name || "Unnamed Device");
         setAutoConnect(device.AutoConnect);
+        setAutoSync(device.AutoSync);
         setSyncTimeout(device.SyncTimeout);
         setSyncTimeoutPeriod(String(device.SyncTimeoutPeriod || 30));
         setError(null);
@@ -372,6 +379,7 @@ function DeviceConfigurationDialog({
                 ID: device.ID,
                 Name: trimmedName,
                 AutoConnect: autoConnect,
+                AutoSync: autoSync,
                 SyncTimeout: syncTimeout,
                 SyncTimeoutPeriod:
                     Number.isFinite(timeoutPeriod) &&
@@ -481,11 +489,19 @@ function DeviceConfigurationDialog({
                             </div>
                             <DeviceToggleRow
                                 id={`device-auto-connect-${device.ID}`}
-                                label="Auto-sync with this device"
+                                label="Connect automatically"
                                 description="Connect automatically when both devices are reachable."
                                 checked={autoConnect}
                                 disabled={isSaving}
                                 onCheckedChange={setAutoConnect}
+                            />
+                            <DeviceToggleRow
+                                id={`device-auto-sync-${device.ID}`}
+                                label="Sync after connecting"
+                                description="Synchronize immediately after connecting."
+                                checked={autoSync}
+                                disabled={isSaving}
+                                onCheckedChange={setAutoSync}
                             />
                             <DeviceToggleRow
                                 id={`device-sync-timeout-${device.ID}`}

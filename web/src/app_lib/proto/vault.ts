@@ -240,6 +240,8 @@ export interface LinkedDevice {
     RemoteSyncPublicKey: string;
     /** Remote peer ML-KEM public key, exchanged during linking. */
     RemoteSyncKemPublicKey: string;
+    /** Automatically synchronize when the WebRTC data channel opens. */
+    AutoSync: boolean;
 }
 
 /** #region Credentials */
@@ -2070,6 +2072,7 @@ function createBaseLinkedDevice(): LinkedDevice {
         SignalingServerID: "",
         RemoteSyncPublicKey: "",
         RemoteSyncKemPublicKey: "",
+        AutoSync: false,
     };
 }
 
@@ -2116,6 +2119,9 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
         }
         if (message.RemoteSyncKemPublicKey !== "") {
             writer.uint32(114).string(message.RemoteSyncKemPublicKey);
+        }
+        if (message.AutoSync !== false) {
+            writer.uint32(120).bool(message.AutoSync);
         }
         return writer;
     },
@@ -2232,6 +2238,14 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
                     message.RemoteSyncKemPublicKey = reader.string();
                     continue;
                 }
+                case 15: {
+                    if (tag !== 120) {
+                        break;
+                    }
+
+                    message.AutoSync = reader.bool();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2263,6 +2277,7 @@ export const LinkedDevice: MessageFns<LinkedDevice> = {
         message.SignalingServerID = object.SignalingServerID ?? "";
         message.RemoteSyncPublicKey = object.RemoteSyncPublicKey ?? "";
         message.RemoteSyncKemPublicKey = object.RemoteSyncKemPublicKey ?? "";
+        message.AutoSync = object.AutoSync ?? false;
         return message;
     },
 };

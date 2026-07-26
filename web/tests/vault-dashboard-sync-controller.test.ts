@@ -14,6 +14,8 @@ jest.mock("@/utils/logging", () => ({
     },
 }));
 
+jest.mock("@/app_lib/vault-core-runtime", () => ({}));
+
 jest.mock("@cryptex-industries/vault-core/synchronization", () => ({
     SyncConnectionController: jest.fn().mockImplementation((operations) => ({
         operations,

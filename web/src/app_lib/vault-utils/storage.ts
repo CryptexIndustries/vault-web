@@ -1,6 +1,7 @@
 import Dexie from "dexie";
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 import {
     DecryptDataBlob,
     EncryptedBlob,
@@ -356,7 +357,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
 
     private async resolveCurrentSecondFactor(
         passphrase?: string,
-    ): Promise<CryptoKey | null> {
+    ): Promise<VaultHkdfKey | null> {
         if (!this.Blob?.Envelope) return null;
 
         const kind = this.Blob.Envelope.PrimaryFactorKind;
@@ -367,7 +368,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const primarySlot = this.getPrimarySlot();
 
         // If the primary factor is a WebAuthn PRF, we need to resolve the WebAuthn unlock callback
-        let resolvedWebAuthnUnlock: (() => Promise<CryptoKey>) | undefined;
+        let resolvedWebAuthnUnlock: (() => Promise<VaultHkdfKey>) | undefined;
         if (
             kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF &&
             primarySlot?.WebauthnCredentialId &&
@@ -425,7 +426,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const kdfConfig = params.kdfConfig ?? this.envelopeKdfConfig();
         const vaultId = this.requireVaultID();
 
-        let currentSecondFactor: CryptoKey | null;
+        let currentSecondFactor: VaultHkdfKey | null;
         try {
             currentSecondFactor = await this.resolveCurrentSecondFactor(
                 params.currentSecondFactorPassphrase,
@@ -515,7 +516,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             !!params.currentRecoveryCode &&
             params.currentRecoveryCode.length > 0;
 
-        let currentSecondFactor: CryptoKey | null = null;
+        let currentSecondFactor: VaultHkdfKey | null = null;
         if (!useRecovery) {
             try {
                 currentSecondFactor = await this.resolveCurrentSecondFactor(
@@ -557,7 +558,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         keyDerivationFunc: VaultUtilTypes.KeyDerivationFunction,
         keyDerivationFuncConfig: VaultEncryptionConfigurationsFormElementType,
         unlockParams?: VaultUnlockParams,
-        webAuthnUnlock?: () => Promise<CryptoKey>,
+        webAuthnUnlock?: () => Promise<VaultHkdfKey>,
     ): Promise<Result<VaultDecryptSuccess, string>> {
         if (this.Blob == null) {
             return err("VAULT_BLOB_NULL");
@@ -594,7 +595,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
                 }
             }
 
-            let sfKey: CryptoKey | null = null;
+            let sfKey: VaultHkdfKey | null = null;
             if (!useRecovery) {
                 try {
                     sfKey = await resolveSecondFactorForUnlock(

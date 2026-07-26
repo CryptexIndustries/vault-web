@@ -2,7 +2,10 @@
  * Wire vault-core sync/link runtime to web platform adapters.
  * Import once from app entry (_app) and sync-controller entry points.
  */
-import { configureVaultCoreRuntime } from "@cryptex-industries/vault-core/runtime";
+import {
+    configureVaultCoreRuntime,
+    createWebCryptoEnvelopeCrypto,
+} from "@cryptex-industries/vault-core/runtime";
 import { env } from "@/env/client.mjs";
 import { onlineServicesSessionPort } from "@/app_lib/online-services-session";
 import {
@@ -17,6 +20,7 @@ let configured = false;
 export function ensureWebVaultCoreRuntime(): void {
     if (configured) return;
     configureVaultCoreRuntime({
+        envelopeCrypto: createWebCryptoEnvelopeCrypto(),
         env: {
             NEXT_PUBLIC_PUSHER_APP_KEY: env.NEXT_PUBLIC_PUSHER_APP_KEY,
             NEXT_PUBLIC_PUSHER_APP_HOST: env.NEXT_PUBLIC_PUSHER_APP_HOST,

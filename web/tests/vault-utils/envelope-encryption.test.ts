@@ -44,11 +44,17 @@ import {
     importHkdfBaseKey,
     openPrimarySlot,
     openRecoverySlot,
+    unwrapDEK,
+    unwrapDEKFromSlot,
     wrapDEK,
     buildKeyEnvelope,
     encodeSlot,
 } from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
+import { configureTestVaultCoreRuntime } from "../helpers/vault-core-runtime";
+import { createWebCryptoEnvelopeCrypto } from "@cryptex-industries/vault-core/runtime";
+
+configureTestVaultCoreRuntime();
 
 describe("envelope-encryption", () => {
     beforeAll(async () => {
@@ -69,15 +75,7 @@ describe("envelope-encryption", () => {
 
         const dekExtractable = await generateExtractableDEK();
         const wrapped = await wrapDEK(dekExtractable, kek);
-        const dek = await crypto.subtle.unwrapKey(
-            "raw",
-            new Uint8Array(wrapped),
-            kek,
-            "AES-KW",
-            { name: "AES-GCM", length: 256 },
-            false,
-            ["encrypt", "decrypt"],
-        );
+        const dek = await unwrapDEK(wrapped, kek);
 
         expect(dek.extractable).toBe(false);
 
@@ -185,7 +183,7 @@ describe("envelope-encryption", () => {
         const sfDerived = await (
             await import("@cryptex-industries/vault-core/vault-utils/envelope-encryption")
         ).deriveSecondFactorKeyMaterial(sfBytes, sfSalt, kdf);
-        const sfKey = await importHkdfBaseKey(sfDerived, false);
+        const sfKey = await importHkdfBaseKey(sfDerived);
         const kek = await deriveKEK(pwKey, buildKekInfo(vaultId), sfKey, null);
 
         const dekExtractable = await generateExtractableDEK();
@@ -242,7 +240,7 @@ describe("envelope-encryption", () => {
                 encodeSlot(
                     VaultUtilTypes.KeySlotKind.RECOVERY,
                     VaultUtilTypes.SecondFactorKind.NONE,
-                    new Uint8Array([1, 2, 3]),
+                    new Uint8Array(40),
                     new Uint8Array([1]),
                     new KeyDerivationConfig_Argon2ID(8, 1),
                     null,
@@ -258,6 +256,134 @@ describe("envelope-encryption", () => {
         expect(res.isErr()).toBe(true);
         if (res.isErr()) {
             expect(res.error).toBe("RECOVERY_KEK_FAILED");
+        }
+    });
+
+    it("disposes transient HKDF and KEK handles after slot opens", async () => {
+        const cryptoPort = createWebCryptoEnvelopeCrypto();
+        const disposeHkdfKey = jest.fn(cryptoPort.disposeHkdfKey);
+        const disposeKek = jest.fn(cryptoPort.disposeKek);
+        configureTestVaultCoreRuntime({
+            envelopeCrypto: {
+                ...cryptoPort,
+                disposeHkdfKey,
+                disposeKek,
+            },
+        });
+
+        try {
+            const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
+            const salt = generateRandomSalt();
+            const hkdfSalt = generateRandomSalt();
+            const vaultId = "lifecycle";
+            const pwKey = await derivePasswordKey("master", salt, kdf);
+            const setupKek = await deriveKEK(
+                pwKey,
+                buildKekInfo(vaultId),
+                null,
+                hkdfSalt,
+            );
+            const dek = await generateExtractableDEK();
+            const wrapped = await wrapDEK(dek, setupKek);
+            cryptoPort.disposeKek(setupKek);
+            const slot = encodeSlot(
+                VaultUtilTypes.KeySlotKind.PRIMARY,
+                VaultUtilTypes.SecondFactorKind.NONE,
+                wrapped,
+                salt,
+                kdf,
+                hkdfSalt,
+                vaultId,
+            ) as VaultUtilTypes.KeySlot & {
+                Kind: VaultUtilTypes.KeySlotKind.PRIMARY;
+            };
+            disposeHkdfKey.mockClear();
+            disposeKek.mockClear();
+
+            await expect(
+                openPrimarySlot(slot, "master", vaultId, null),
+            ).resolves.toEqual(
+                expect.objectContaining({ value: expect.anything() }),
+            );
+            expect(disposeHkdfKey).toHaveBeenCalledTimes(1);
+            expect(disposeKek).toHaveBeenCalledTimes(1);
+
+            await expect(
+                openPrimarySlot(slot, "wrong-password", vaultId, null),
+            ).resolves.toEqual(
+                expect.objectContaining({ error: "DEK_UNWRAP_FAILED" }),
+            );
+            expect(disposeHkdfKey).toHaveBeenCalledTimes(2);
+            expect(disposeKek).toHaveBeenCalledTimes(2);
+        } finally {
+            configureTestVaultCoreRuntime();
+        }
+    });
+
+    it("validates domain inputs and normalizes unwrap failures", async () => {
+        await expect(importHkdfBaseKey(new Uint8Array(31))).rejects.toThrow(
+            "VAULT_HKDF_IKM_INVALID",
+        );
+        await expect(
+            deriveKEK(new Uint8Array(31), buildKekInfo("vault-1"), null, null),
+        ).rejects.toThrow("VAULT_PASSWORD_KEY_INVALID");
+        await expect(
+            deriveKEK(new Uint8Array(32), "", null, generateRandomSalt()),
+        ).rejects.toThrow("VAULT_HKDF_INFO_REQUIRED");
+
+        const kek = await deriveKEK(
+            new Uint8Array(32),
+            buildKekInfo("vault-1"),
+            null,
+            generateRandomSalt(),
+        );
+        const dek = await generateExtractableDEK();
+        const wrapped = await wrapDEK(dek, kek);
+        const slot = encodeSlot(
+            VaultUtilTypes.KeySlotKind.PRIMARY,
+            VaultUtilTypes.SecondFactorKind.NONE,
+            wrapped,
+            generateRandomSalt(),
+            new KeyDerivationConfig_Argon2ID(8, 1),
+            generateRandomSalt(),
+            "vault-1",
+        );
+
+        const malformed = await unwrapDEKFromSlot(
+            { ...slot, WrappedDEK: new Uint8Array(39) },
+            kek,
+        );
+        expect(malformed).toEqual(
+            expect.objectContaining({ error: "DEK_UNWRAP_FAILED" }),
+        );
+
+        const tamperedWrapped = new Uint8Array(wrapped);
+        tamperedWrapped[0] = tamperedWrapped[0]! ^ 1;
+        const tampered = await unwrapDEKFromSlot(
+            { ...slot, WrappedDEK: tamperedWrapped },
+            kek,
+        );
+        expect(tampered).toEqual(
+            expect.objectContaining({ error: "DEK_UNWRAP_FAILED" }),
+        );
+
+        configureTestVaultCoreRuntime({
+            envelopeCrypto: {
+                ...createWebCryptoEnvelopeCrypto(),
+                unwrapDek: async () => {
+                    throw new Error("VAULT_PLATFORM_CRYPTO_UNAVAILABLE");
+                },
+            },
+        });
+        try {
+            const unavailable = await unwrapDEKFromSlot(slot, kek);
+            expect(unavailable).toEqual(
+                expect.objectContaining({
+                    error: "VAULT_PLATFORM_CRYPTO_UNAVAILABLE",
+                }),
+            );
+        } finally {
+            configureTestVaultCoreRuntime();
         }
     });
 });

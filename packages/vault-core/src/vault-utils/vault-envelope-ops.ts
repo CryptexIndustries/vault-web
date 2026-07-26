@@ -30,6 +30,8 @@ import {
 } from "./envelope-encryption";
 import type { SecondFactorEnrollmentResult } from "./second-factor";
 import { uint8ToBase64 } from "../encoding";
+import type { VaultHkdfKey, VaultKek } from "../envelope-crypto";
+import { getEnvelopeCrypto } from "../runtime";
 
 export type EnvelopeCreateResult = {
     blob: EncryptedBlob;
@@ -41,16 +43,27 @@ export type VaultUnlockOptions = {
     masterPassword: string;
     useRecovery?: boolean;
     recoveryCode?: string;
-    secondFactorHkdfBase?: CryptoKey | null;
+    secondFactorHkdfBase?: VaultHkdfKey | null;
 };
 
 /** Current credentials needed to re-derive the (extractable) DEK before re-wrapping. */
 export type RewrapCredentials = {
     masterPassword: string;
-    secondFactorHkdfBase: CryptoKey | null;
+    secondFactorHkdfBase: VaultHkdfKey | null;
     useRecovery?: boolean;
     recoveryCode?: string;
 };
+
+async function wrapAndDisposeKek(
+    dek: CryptoKey,
+    kek: VaultKek,
+): Promise<Uint8Array> {
+    try {
+        return await wrapDEK(dek, kek);
+    } finally {
+        getEnvelopeCrypto().disposeKek(kek);
+    }
+}
 
 export async function createEnvelopeEncryptedBlob(
     vaultBytes: Uint8Array,
@@ -66,18 +79,24 @@ export async function createEnvelopeEncryptedBlob(
             ? generateRandomSalt()
             : null;
 
+    const dekExtractable = await generateExtractableDEK();
     const pwKey = await derivePasswordKey(
         masterPassword,
         primarySalt,
         kdfConfig,
     );
-
-    const primaryKek = await deriveKEK(
-        pwKey,
-        buildKekInfo(vaultId),
-        primaryFactor.hkdfBaseKey,
-        hkdfSaltNo2fa,
-    );
+    let primaryKek: VaultKek;
+    try {
+        primaryKek = await deriveKEK(
+            pwKey,
+            buildKekInfo(vaultId),
+            primaryFactor.hkdfBaseKey,
+            hkdfSaltNo2fa,
+        );
+    } finally {
+        pwKey.fill(0);
+    }
+    const wrappedPrimary = await wrapAndDisposeKek(dekExtractable, primaryKek);
 
     const recoveryCode = generateRecoveryCode();
     const recoveryKek = await deriveRecoveryKEK(
@@ -85,10 +104,10 @@ export async function createEnvelopeEncryptedBlob(
         recoverySalt,
         kdfConfig,
     );
-
-    const dekExtractable = await generateExtractableDEK();
-    const wrappedPrimary = await wrapDEK(dekExtractable, primaryKek);
-    const wrappedRecovery = await wrapDEK(dekExtractable, recoveryKek);
+    const wrappedRecovery = await wrapAndDisposeKek(
+        dekExtractable,
+        recoveryKek,
+    );
 
     const { ciphertext, iv } = await encryptWithDEK(dekExtractable, vaultBytes);
 
@@ -286,13 +305,18 @@ export async function reconfigurePrimaryFactor(
         primarySalt,
         kdfConfig,
     );
-    const primaryKek = await deriveKEK(
-        pwKey,
-        buildKekInfo(vaultId),
-        next.primaryFactor.hkdfBaseKey,
-        hkdfSaltNo2fa,
-    );
-    const wrappedPrimary = await wrapDEK(dek, primaryKek);
+    let primaryKek: VaultKek;
+    try {
+        primaryKek = await deriveKEK(
+            pwKey,
+            buildKekInfo(vaultId),
+            next.primaryFactor.hkdfBaseKey,
+            hkdfSaltNo2fa,
+        );
+    } finally {
+        pwKey.fill(0);
+    }
+    const wrappedPrimary = await wrapAndDisposeKek(dek, primaryKek);
 
     const newPrimarySlot = encodeSlot(
         VaultUtilTypes.KeySlotKind.PRIMARY,
@@ -352,7 +376,7 @@ export async function rotateRecoveryCode(
         recoverySalt,
         kdfConfig,
     );
-    const wrappedRecovery = await wrapDEK(dek, recoveryKek);
+    const wrappedRecovery = await wrapAndDisposeKek(dek, recoveryKek);
 
     const newRecoverySlot = encodeSlot(
         VaultUtilTypes.KeySlotKind.RECOVERY,

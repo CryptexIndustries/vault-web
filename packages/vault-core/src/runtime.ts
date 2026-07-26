@@ -4,6 +4,14 @@
  */
 import type { OnlineServicesSessionPort } from "./online-services-session/port";
 import type * as VaultUtilTypes from "./proto/vault";
+import type { VaultEnvelopeCrypto, VaultHkdfKey } from "./envelope-crypto";
+export { createWebCryptoEnvelopeCrypto } from "./internal/envelope-crypto";
+export type {
+    VaultEnvelopeCrypto,
+    VaultEnvelopeCryptoBackend,
+    VaultHkdfKey,
+    VaultKek,
+} from "./envelope-crypto";
 
 export type VaultCorePusherEnv = {
     NEXT_PUBLIC_PUSHER_APP_KEY: string;
@@ -38,7 +46,7 @@ export type VaultCoreOnlineServicesApi = {
 export type VaultCoreSecondFactorStore = {
     setDeviceSecondFactorKey: (
         vaultDbIndex: number,
-        factorHkdfKey: CryptoKey | null,
+        factorHkdfKey: VaultHkdfKey | null,
         kind: VaultUtilTypes.SecondFactorKind,
         webauthnCredentialId?: string,
         webauthnPrfSalt?: string,
@@ -56,7 +64,7 @@ export type VaultCoreSecondFactorStore = {
     ) => Promise<void>;
     getDeviceSecondFactorKey: (
         vaultDbIndex: number,
-    ) => Promise<CryptoKey | null>;
+    ) => Promise<VaultHkdfKey | null>;
 };
 
 export type VaultCoreRuntime = {
@@ -66,6 +74,7 @@ export type VaultCoreRuntime = {
     syncLog: VaultCoreLogger;
     signalingLog: VaultCoreLogger;
     webrtcLog: VaultCoreLogger;
+    envelopeCrypto: VaultEnvelopeCrypto;
     /** Optional until a vault unlock/create path needs device 2FA cache. */
     secondFactorStore?: VaultCoreSecondFactorStore;
 };
@@ -93,6 +102,10 @@ export function getSecondFactorStore(): VaultCoreSecondFactorStore {
         );
     }
     return store;
+}
+
+export function getEnvelopeCrypto(): VaultEnvelopeCrypto {
+    return getVaultCoreRuntime().envelopeCrypto;
 }
 
 export function isVaultCoreRuntimeConfigured(): boolean {

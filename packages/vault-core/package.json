@@ -13,6 +13,7 @@
         "./consts": "./src/consts.ts",
         "./credential-url": "./src/credential-url.ts",
         "./runtime": "./src/runtime.ts",
+        "./envelope-crypto": "./src/envelope-crypto.ts",
         "./pusher-auth": "./src/pusher-auth.ts",
         "./presence": "./src/presence.ts",
         "./synchronization": "./src/synchronization.ts",
@@ -29,8 +30,7 @@
     },
     "dependencies": {
         "@bufbuild/protobuf": "2.6.1",
-        "@noble/ciphers": "1.3.0",
-        "@noble/hashes": "1.8.0",
+        "@noble/hashes": "2.2.0",
         "@noble/post-quantum": "0.6.1",
         "@scure/bip39": "2.2.0",
         "jszip": "3.10.1",
@@ -44,6 +44,7 @@
         "zxcvbn": "4.4.2"
     },
     "devDependencies": {
+        "@noble/ciphers": "2.2.0",
         "@types/libsodium-wrappers-sumo": "0.7.8",
         "@types/papaparse": "5.3.16",
         "@types/zxcvbn": "4.4.5",

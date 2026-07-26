@@ -236,6 +236,8 @@ import {
     serializeVault,
 } from "../../src/app_lib/vault-utils/storage";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/encryption";
+import { importHkdfBaseKey } from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
+import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 
 const makeArgonConfig = (): VaultEncryptionConfigurationsFormElementType => ({
     memLimit: 4,
@@ -711,13 +713,7 @@ describe("vault-utils/storage", () => {
 
     it("persists second-factor enrollment only when local state requires it", async () => {
         const metadata = new VaultMetadata();
-        const key = await crypto.subtle.importKey(
-            "raw",
-            new Uint8Array(32),
-            { name: "HKDF" },
-            false,
-            ["deriveKey"],
-        );
+        const key = await importHkdfBaseKey(new Uint8Array(32));
 
         await metadata.persistSecondFactorEnrollment({
             kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
@@ -844,7 +840,7 @@ describe("vault-utils/storage", () => {
         await expect(
             (
                 metadata as unknown as {
-                    resolveCurrentSecondFactor: () => Promise<CryptoKey | null>;
+                    resolveCurrentSecondFactor: () => Promise<VaultHkdfKey | null>;
                 }
             ).resolveCurrentSecondFactor(),
         ).resolves.toBeNull();
@@ -932,8 +928,11 @@ describe("vault-utils/storage", () => {
         mockOpenEnvelopeBlob.mockImplementationOnce(
             async (_blob, _vaultId, options) => {
                 expect(
-                    (options as { secondFactorHkdfBase?: CryptoKey | null })
-                        .secondFactorHkdfBase,
+                    (
+                        options as {
+                            secondFactorHkdfBase?: VaultHkdfKey | null;
+                        }
+                    ).secondFactorHkdfBase,
                 ).toBeTruthy();
                 const dek = await webcrypto.subtle.generateKey(
                     { name: "AES-GCM", length: 256 },

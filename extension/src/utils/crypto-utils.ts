@@ -1,6 +1,9 @@
 import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
 
+const toBufferSource = (bytes: Uint8Array): BufferSource =>
+    new Uint8Array(bytes);
+
 /**
  * Generates a new ECDH key pair for the service worker.
  * @returns Promise resolving to the key pair and metadata
@@ -72,7 +75,7 @@ export async function deriveSessionKey(
         {
             name: "HKDF",
             hash: "SHA-256",
-            salt: salt,
+            salt: toBufferSource(salt),
             info: new TextEncoder().encode(info),
         },
         keyMaterial,
@@ -105,7 +108,7 @@ export async function encryptWithAESGCM(
             iv: iv,
         },
         key,
-        data,
+        toBufferSource(data),
     );
 
     return {
@@ -135,10 +138,10 @@ export async function decryptWithAESGCM(
         const decrypted = await crypto.subtle.decrypt(
             {
                 name: "AES-GCM",
-                iv: iv,
+                iv: toBufferSource(iv),
             },
             key,
-            ciphertext,
+            toBufferSource(ciphertext),
         );
 
         return ok(new Uint8Array(decrypted));

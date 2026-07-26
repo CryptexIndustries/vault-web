@@ -13,6 +13,7 @@ import { base64ToUint8, uint8ToBase64 as b64 } from "../encoding";
 import { getSecondFactorStore } from "../runtime";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { generateMnemonic } from "@scure/bip39";
+import type { VaultHkdfKey } from "../envelope-crypto";
 
 export type SecondFactorSource =
     | { kind: VaultUtilTypes.SecondFactorKind.NONE }
@@ -27,7 +28,7 @@ export type SecondFactorEnrollmentResult = {
     kind: VaultUtilTypes.SecondFactorKind;
     /** Shown once at creation (passphrase sources only). */
     displaySecret?: string;
-    hkdfBaseKey: CryptoKey | null;
+    hkdfBaseKey: VaultHkdfKey | null;
     /** Passphrase factors only: base64 KDF salt needed to reproduce key. */
     passphraseSalt?: string;
     /** WebAuthn PRF only: base64 credential id, needed to persist + unlock. */
@@ -52,14 +53,20 @@ export async function derivePassphraseSecondFactorKey(
     passphrase: string,
     saltB64: string,
     kdfConfig = new KeyDerivationConfig_Argon2ID(),
-): Promise<CryptoKey> {
+): Promise<VaultHkdfKey> {
     const secretBytes = new TextEncoder().encode(passphrase);
-    const derived = await deriveSecondFactorKeyMaterial(
-        secretBytes,
-        base64ToUint8(saltB64),
-        kdfConfig,
-    );
-    return importHkdfBaseKey(derived, false);
+    let derived: Uint8Array | null = null;
+    try {
+        derived = await deriveSecondFactorKeyMaterial(
+            secretBytes,
+            base64ToUint8(saltB64),
+            kdfConfig,
+        );
+        return await importHkdfBaseKey(derived);
+    } finally {
+        secretBytes.fill(0);
+        derived?.fill(0);
+    }
 }
 
 export async function enrollSecondFactor(
@@ -84,35 +91,41 @@ export async function enrollSecondFactor(
 
         const salt = generateRandomSalt();
         const saltB64 = b64(salt);
-        const derived = await deriveSecondFactorKeyMaterial(
-            secretBytes,
-            salt,
-            kdfConfig,
-        );
-        const hkdfBaseKey = await importHkdfBaseKey(derived, false);
-        if (vaultDbIndex != null && vaultDbIndex >= 0) {
-            const store = getSecondFactorStore();
-            if (store.setDeviceSecondFactorRawKey) {
-                await store.setDeviceSecondFactorRawKey(
-                    vaultDbIndex,
-                    derived,
-                    source.kind,
-                );
-            } else {
-                await store.setDeviceSecondFactorKey(
-                    vaultDbIndex,
-                    hkdfBaseKey,
-                    source.kind,
-                );
+        let derived: Uint8Array | null = null;
+        try {
+            derived = await deriveSecondFactorKeyMaterial(
+                secretBytes,
+                salt,
+                kdfConfig,
+            );
+            const hkdfBaseKey = await importHkdfBaseKey(derived);
+            if (vaultDbIndex != null && vaultDbIndex >= 0) {
+                const store = getSecondFactorStore();
+                if (store.setDeviceSecondFactorRawKey) {
+                    await store.setDeviceSecondFactorRawKey(
+                        vaultDbIndex,
+                        derived,
+                        source.kind,
+                    );
+                } else {
+                    await store.setDeviceSecondFactorKey(
+                        vaultDbIndex,
+                        hkdfBaseKey,
+                        source.kind,
+                    );
+                }
             }
-        }
 
-        return {
-            kind: source.kind,
-            displaySecret: secret,
-            hkdfBaseKey,
-            passphraseSalt: saltB64,
-        };
+            return {
+                kind: source.kind,
+                displaySecret: secret,
+                hkdfBaseKey,
+                passphraseSalt: saltB64,
+            };
+        } finally {
+            secretBytes.fill(0);
+            derived?.fill(0);
+        }
     }
 
     // WebAuthn PRF enrollment (webapp)
@@ -131,9 +144,9 @@ export async function resolveSecondFactorForUnlock(
         /** KDF config that was used when the passphrase factor was enrolled. */
         passphraseKdfConfig?: KeyDerivationConfig_Argon2ID;
         /** Required for WebAuthn PRF each unlock. */
-        webAuthnUnlock?: () => Promise<CryptoKey>;
+        webAuthnUnlock?: () => Promise<VaultHkdfKey>;
     },
-): Promise<CryptoKey | null> {
+): Promise<VaultHkdfKey | null> {
     if (envelopeKind === VaultUtilTypes.SecondFactorKind.NONE) {
         return null;
     }
@@ -246,7 +259,13 @@ async function enrollWebAuthnPrf(
 
     // PRF output is a uniform 32-byte HMAC from the authenticator: no Argon2
     // stretch needed. Import directly as HKDF IKM (deriveKEK expands it).
-    const hkdfBaseKey = await importHkdfBaseKey(new Uint8Array(prfOut), false);
+    const prfBytes = new Uint8Array(prfOut);
+    let hkdfBaseKey: VaultHkdfKey;
+    try {
+        hkdfBaseKey = await importHkdfBaseKey(prfBytes);
+    } finally {
+        prfBytes.fill(0);
+    }
 
     const credId = b64(new Uint8Array(credential.rawId));
     const prfSaltB64 = b64(prfSalt);
@@ -262,7 +281,7 @@ async function enrollWebAuthnPrf(
 export async function unlockWebAuthnPrf(
     credentialIdB64: string,
     prfSaltB64: string,
-): Promise<CryptoKey> {
+): Promise<VaultHkdfKey> {
     const credentialId = base64ToUint8(credentialIdB64);
     const prfSalt = base64ToUint8(prfSaltB64);
 
@@ -296,7 +315,12 @@ export async function unlockWebAuthnPrf(
     }
 
     // Must match enrollment: import the PRF output directly, no Argon2.
-    return importHkdfBaseKey(new Uint8Array(prfOut), false);
+    const prfBytes = new Uint8Array(prfOut);
+    try {
+        return await importHkdfBaseKey(prfBytes);
+    } finally {
+        prfBytes.fill(0);
+    }
 }
 
 /**
@@ -305,6 +329,6 @@ export async function unlockWebAuthnPrf(
 export function makeWebAuthnUnlockFromSlot(
     credentialIdB64: string,
     prfSaltB64: string,
-): () => Promise<CryptoKey> {
+): () => Promise<VaultHkdfKey> {
     return () => unlockWebAuthnPrf(credentialIdB64, prfSaltB64);
 }

@@ -1,5 +1,9 @@
-import { configureVaultCoreRuntime } from "@cryptex-industries/vault-core/runtime";
+import {
+    configureVaultCoreRuntime,
+    createWebCryptoEnvelopeCrypto,
+} from "@cryptex-industries/vault-core/runtime";
 import type { OnlineServicesSessionPort } from "@cryptex-industries/vault-core/online-services-session/port";
+import type { VaultEnvelopeCrypto } from "@cryptex-industries/vault-core/envelope-crypto";
 
 const noopLog = {
     debug: () => undefined,
@@ -34,6 +38,7 @@ type TestTrpcClient = {
 export type TestVaultCoreRuntimeOpts = {
     trpc?: unknown;
     onlineServicesSessionPort?: OnlineServicesSessionPort;
+    envelopeCrypto?: VaultEnvelopeCrypto;
 };
 
 /**
@@ -60,6 +65,7 @@ export function configureTestVaultCoreRuntime(
     }) as TestTrpcClient;
 
     configureVaultCoreRuntime({
+        envelopeCrypto: opts.envelopeCrypto ?? createWebCryptoEnvelopeCrypto(),
         env: {
             NEXT_PUBLIC_PUSHER_APP_KEY: "test-key",
             NEXT_PUBLIC_PUSHER_APP_HOST: "localhost",

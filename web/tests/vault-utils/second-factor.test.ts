@@ -9,6 +9,7 @@ import {
     it,
     jest,
 } from "@jest/globals";
+import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
 
@@ -50,7 +51,7 @@ jest.mock(
 const mockStoredFactors = new Map<
     number,
     {
-        key: CryptoKey | null;
+        key: VaultHkdfKey | null;
         kind: number;
         credentialId?: string;
         prfSalt?: string;
@@ -60,7 +61,7 @@ const mockStoredFactors = new Map<
 const mockSetDeviceSecondFactorKey = jest.fn(
     async (
         index: number,
-        key: CryptoKey | null,
+        key: VaultHkdfKey | null,
         kind: number,
         credentialId?: string,
         prfSalt?: string,
@@ -81,9 +82,13 @@ jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
     ) => mockGetDeviceSecondFactorKey(...args),
 }));
 
-import { configureVaultCoreRuntime } from "@cryptex-industries/vault-core/runtime";
+import {
+    configureVaultCoreRuntime,
+    createWebCryptoEnvelopeCrypto,
+} from "@cryptex-industries/vault-core/runtime";
 
 configureVaultCoreRuntime({
+    envelopeCrypto: createWebCryptoEnvelopeCrypto(),
     env: {
         NEXT_PUBLIC_PUSHER_APP_KEY: "test-key",
         NEXT_PUBLIC_PUSHER_APP_HOST: "localhost",

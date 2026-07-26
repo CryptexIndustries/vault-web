@@ -15,6 +15,7 @@ import {
 } from "@jest/globals";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
+import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 
 Object.defineProperty(globalThis, "crypto", {
     value: webcrypto,
@@ -55,7 +56,7 @@ jest.mock("dexie", () => {
 
 type DeviceFactorRecord = {
     kind: number;
-    factorHkdfKey: CryptoKey | null;
+    factorHkdfKey: VaultHkdfKey | null;
     webauthnCredentialId?: string;
     webauthnPrfSalt?: string;
 };
@@ -66,7 +67,7 @@ jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
     setDeviceSecondFactorKey: jest.fn(
         async (
             index: number,
-            factorHkdfKey: CryptoKey | null,
+            factorHkdfKey: VaultHkdfKey | null,
             kind: number,
             webauthnCredentialId?: string,
             webauthnPrfSalt?: string,
@@ -97,9 +98,13 @@ import {
     getDeviceSecondFactorKey,
     setDeviceSecondFactorKey,
 } from "../../src/app_lib/vault-utils/vault-key-store";
-import { configureVaultCoreRuntime } from "@cryptex-industries/vault-core/runtime";
+import {
+    configureVaultCoreRuntime,
+    createWebCryptoEnvelopeCrypto,
+} from "@cryptex-industries/vault-core/runtime";
 
 configureVaultCoreRuntime({
+    envelopeCrypto: createWebCryptoEnvelopeCrypto(),
     env: {
         NEXT_PUBLIC_PUSHER_APP_KEY: "test-key",
         NEXT_PUBLIC_PUSHER_APP_HOST: "localhost",

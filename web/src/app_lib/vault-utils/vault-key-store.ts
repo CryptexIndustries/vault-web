@@ -5,6 +5,7 @@
 
 import Dexie from "dexie";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 import { db as vaultDb } from "./storage";
 
 export interface DeviceSecondFactorRecord {
@@ -12,7 +13,7 @@ export interface DeviceSecondFactorRecord {
     vaultDbIndex: number;
     kind: VaultUtilTypes.SecondFactorKind;
     /** Null for WebAuthn PRF: key reproduced via authenticator each unlock. */
-    factorHkdfKey: CryptoKey | null;
+    factorHkdfKey: VaultHkdfKey | null;
     webauthnCredentialId?: string;
     /** Base64 PRF salt; required to reproduce PRF output on unlock. Not secret. */
     webauthnPrfSalt?: string;
@@ -35,7 +36,7 @@ export const keyStoreDb = new VaultKeyStoreDatabase();
 
 export async function setDeviceSecondFactorKey(
     vaultDbIndex: number,
-    factorHkdfKey: CryptoKey | null,
+    factorHkdfKey: VaultHkdfKey | null,
     kind: VaultUtilTypes.SecondFactorKind,
     webauthnCredentialId?: string,
     webauthnPrfSalt?: string,
@@ -52,7 +53,7 @@ export async function setDeviceSecondFactorKey(
 
 export async function getDeviceSecondFactorKey(
     vaultDbIndex: number,
-): Promise<CryptoKey | null> {
+): Promise<VaultHkdfKey | null> {
     const rec = await keyStoreDb.deviceSecondFactors.get(
         secondFactorId(vaultDbIndex),
     );

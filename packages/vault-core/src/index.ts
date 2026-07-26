@@ -24,6 +24,7 @@ export { normalizeCredentialUrl } from "./credential-url";
 export {
     configureVaultCoreRuntime,
     getVaultCoreRuntime,
+    getEnvelopeCrypto,
     getSecondFactorStore,
     isVaultCoreRuntimeConfigured,
     type VaultCoreRuntime,
@@ -31,6 +32,10 @@ export {
     type VaultCoreLogger,
     type VaultCoreOnlineServicesApi,
     type VaultCoreSecondFactorStore,
+    type VaultEnvelopeCrypto,
+    type VaultEnvelopeCryptoBackend,
+    type VaultHkdfKey,
+    type VaultKek,
 } from "./runtime";
 
 export {

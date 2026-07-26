@@ -37,6 +37,9 @@ import {
     openPrimarySlot,
 } from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import { createLinkedVaultEnvelopeBlob } from "../src/utils/linked-vault-envelope";
+import { configureTestVaultCoreRuntime } from "../../web/tests/helpers/vault-core-runtime";
+
+configureTestVaultCoreRuntime();
 
 describe("linked vault envelope", () => {
     beforeAll(async () => {

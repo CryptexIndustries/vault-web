@@ -13,21 +13,16 @@ import { base64ToUint8, uint8ToBase64 } from "../encoding";
 import { KeyDerivationConfig_Argon2ID, type EncryptedBlob } from "./encryption";
 import { generateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
-import {
-    deriveHkdfSha256,
-    getPortableHkdfMaterial,
-    importPortableHkdfKey,
-} from "./hkdf";
-import {
-    importPortableAesKwKey,
-    unwrapKeyWithAesKw,
-    wrapKeyWithAesKw,
-} from "./aes-key-wrap";
+import { getEnvelopeCrypto } from "../runtime";
+import type { VaultHkdfKey, VaultKek } from "../envelope-crypto";
 
 export const ENVELOPE_VERSION = 3;
 export const KEK_INFO_PREFIX = "cryptex/kek/v1|";
 export const DEK_ALGO = "AES-GCM-256";
 export const WRAP_ALGO = "AES-KW";
+export const AES_256_KEY_BYTES = 32;
+export const AES_256_WRAPPED_KEY_BYTES = 40;
+const PLATFORM_CRYPTO_UNAVAILABLE = "VAULT_PLATFORM_CRYPTO_UNAVAILABLE";
 
 export type EnvelopeKdfConfig = KeyDerivationConfig_Argon2ID;
 
@@ -37,6 +32,33 @@ const toBufferSource = (bytes: Uint8Array): BufferSource =>
 
 const defaultKdfConfig = (): EnvelopeKdfConfig =>
     new KeyDerivationConfig_Argon2ID();
+
+function assertByteLength(
+    value: Uint8Array,
+    expected: number,
+    errorCode: string,
+): void {
+    if (value.byteLength !== expected) {
+        throw new Error(errorCode);
+    }
+}
+
+function assertDek(dek: CryptoKey): void {
+    const algorithm = dek.algorithm as AesKeyAlgorithm;
+    if (
+        dek.type !== "secret" ||
+        algorithm.name !== "AES-GCM" ||
+        algorithm.length !== 256
+    ) {
+        throw new Error("VAULT_DEK_INVALID");
+    }
+}
+
+function isPlatformCryptoUnavailable(error: unknown): boolean {
+    return (
+        error instanceof Error && error.message === PLATFORM_CRYPTO_UNAVAILABLE
+    );
+}
 
 /** Argon2id over UTF-8 password */
 export async function derivePasswordKey(
@@ -48,15 +70,19 @@ export async function derivePasswordKey(
 
     // Convert the memory limit from MiB to bytes
     const memLimitActual = config.memLimit * 1048576;
-
-    return sodium.crypto_pwhash(
-        32,
-        new TextEncoder().encode(masterPassword),
-        salt,
-        config.opsLimit,
-        memLimitActual,
-        sodium.crypto_pwhash_ALG_ARGON2ID13,
-    );
+    const passwordBytes = new TextEncoder().encode(masterPassword);
+    try {
+        return sodium.crypto_pwhash(
+            32,
+            passwordBytes,
+            salt,
+            config.opsLimit,
+            memLimitActual,
+            sodium.crypto_pwhash_ALG_ARGON2ID13,
+        );
+    } finally {
+        passwordBytes.fill(0);
+    }
 }
 
 /** Argon2id over raw second-factor secret bytes */
@@ -82,9 +108,13 @@ export async function deriveSecondFactorKeyMaterial(
 
 export async function importHkdfBaseKey(
     rawKeyMaterial: Uint8Array,
-    extractable: boolean,
-): Promise<CryptoKey> {
-    return importPortableHkdfKey(rawKeyMaterial, extractable);
+): Promise<VaultHkdfKey> {
+    assertByteLength(
+        rawKeyMaterial,
+        AES_256_KEY_BYTES,
+        "VAULT_HKDF_IKM_INVALID",
+    );
+    return getEnvelopeCrypto().importHkdfKey(new Uint8Array(rawKeyMaterial));
 }
 
 export function buildKekInfo(vaultId: string): string {
@@ -98,28 +128,20 @@ export function buildKekInfo(vaultId: string): string {
 export async function deriveKEK(
     pwKey: Uint8Array,
     kekInfo: string,
-    secondFactorHkdfBase: CryptoKey | null,
+    secondFactorHkdfBase: VaultHkdfKey | null,
     hkdfSaltWhenNoSecondFactor: Uint8Array | null,
-): Promise<CryptoKey> {
+): Promise<VaultKek> {
+    assertByteLength(pwKey, AES_256_KEY_BYTES, "VAULT_PASSWORD_KEY_INVALID");
     const info = new TextEncoder().encode(kekInfo);
+    if (info.byteLength === 0) {
+        throw new Error("VAULT_HKDF_INFO_REQUIRED");
+    }
 
     if (secondFactorHkdfBase) {
-        const portableMaterial = getPortableHkdfMaterial(secondFactorHkdfBase);
-        if (portableMaterial) {
-            const derived = deriveHkdfSha256(portableMaterial, pwKey, info);
-            return importPortableAesKwKey(derived, false);
-        }
-        return crypto.subtle.deriveKey(
-            {
-                name: "HKDF",
-                hash: "SHA-256",
-                salt: toBufferSource(pwKey),
-                info,
-            },
+        return getEnvelopeCrypto().deriveKek(
             secondFactorHkdfBase,
-            { name: "AES-KW", length: 256 },
-            false,
-            ["wrapKey", "unwrapKey"],
+            new Uint8Array(pwKey),
+            info,
         );
     }
 
@@ -127,28 +149,16 @@ export async function deriveKEK(
         throw new Error("HKDF salt required when second factor is absent");
     }
 
-    const pwHkdfBase = await importHkdfBaseKey(pwKey, false);
-    const portableMaterial = getPortableHkdfMaterial(pwHkdfBase);
-    if (portableMaterial) {
-        const derived = deriveHkdfSha256(
-            portableMaterial,
-            hkdfSaltWhenNoSecondFactor,
+    const pwHkdfBase = await importHkdfBaseKey(pwKey);
+    try {
+        return await getEnvelopeCrypto().deriveKek(
+            pwHkdfBase,
+            new Uint8Array(hkdfSaltWhenNoSecondFactor),
             info,
         );
-        return importPortableAesKwKey(derived, false);
+    } finally {
+        getEnvelopeCrypto().disposeHkdfKey(pwHkdfBase);
     }
-    return crypto.subtle.deriveKey(
-        {
-            name: "HKDF",
-            hash: "SHA-256",
-            salt: toBufferSource(hkdfSaltWhenNoSecondFactor),
-            info,
-        },
-        pwHkdfBase,
-        { name: "AES-KW", length: 256 },
-        false,
-        ["wrapKey", "unwrapKey"],
-    );
 }
 
 /** Recovery KEK: Argon2id(recoveryCode) imported as AES-KW */
@@ -156,9 +166,18 @@ export async function deriveRecoveryKEK(
     recoveryCode: string,
     salt: Uint8Array,
     config: EnvelopeKdfConfig = defaultKdfConfig(),
-): Promise<CryptoKey> {
+): Promise<VaultKek> {
     const material = await derivePasswordKey(recoveryCode, salt, config);
-    return importPortableAesKwKey(material, false);
+    try {
+        assertByteLength(
+            material,
+            AES_256_KEY_BYTES,
+            "VAULT_KEK_MATERIAL_INVALID",
+        );
+        return await getEnvelopeCrypto().importKek(new Uint8Array(material));
+    } finally {
+        material.fill(0);
+    }
 }
 
 export async function generateExtractableDEK(): Promise<CryptoKey> {
@@ -170,17 +189,38 @@ export async function generateExtractableDEK(): Promise<CryptoKey> {
 
 export async function wrapDEK(
     dek: CryptoKey,
-    kek: CryptoKey,
+    kek: VaultKek,
 ): Promise<Uint8Array> {
-    return wrapKeyWithAesKw(dek, kek);
+    assertDek(dek);
+    if (!dek.extractable) {
+        throw new Error("VAULT_DEK_NOT_EXTRACTABLE");
+    }
+    const wrapped = await getEnvelopeCrypto().wrapDek(dek, kek);
+    assertByteLength(
+        wrapped,
+        AES_256_WRAPPED_KEY_BYTES,
+        "VAULT_WRAPPED_DEK_INVALID",
+    );
+    return wrapped;
 }
 
 export async function unwrapDEK(
     wrapped: Uint8Array,
-    kek: CryptoKey,
+    kek: VaultKek,
     extractable = false,
 ): Promise<CryptoKey> {
-    return unwrapKeyWithAesKw(wrapped, kek, extractable);
+    assertByteLength(
+        wrapped,
+        AES_256_WRAPPED_KEY_BYTES,
+        "VAULT_WRAPPED_DEK_INVALID",
+    );
+    const dek = await getEnvelopeCrypto().unwrapDek(
+        new Uint8Array(wrapped),
+        kek,
+        extractable,
+    );
+    assertDek(dek);
+    return dek;
 }
 
 export async function encryptWithDEK(
@@ -250,6 +290,11 @@ export function encodeSlot(
         secondFactorSalt?: string;
     },
 ): VaultUtilTypes.KeySlot {
+    assertByteLength(
+        wrapped,
+        AES_256_WRAPPED_KEY_BYTES,
+        "VAULT_WRAPPED_DEK_INVALID",
+    );
     return {
         Kind: kind,
         WrappedDEK: wrapped,
@@ -284,13 +329,16 @@ export function buildKeyEnvelope(
 
 export async function unwrapDEKFromSlot(
     slot: VaultUtilTypes.KeySlot,
-    kek: CryptoKey,
+    kek: VaultKek,
     extractable = false,
 ): Promise<Result<CryptoKey, string>> {
     try {
         const dek = await unwrapDEK(slot.WrappedDEK, kek, extractable);
         return ok(dek);
-    } catch {
+    } catch (error) {
+        if (isPlatformCryptoUnavailable(error)) {
+            return err(PLATFORM_CRYPTO_UNAVAILABLE);
+        }
         return err("DEK_UNWRAP_FAILED");
     }
 }
@@ -299,7 +347,7 @@ export async function openPrimarySlot(
     slot: VaultUtilTypes.KeySlot & { Kind: VaultUtilTypes.KeySlotKind.PRIMARY },
     masterPassword: string,
     vaultId: string,
-    secondFactorHkdfBase: CryptoKey | null,
+    secondFactorHkdfBase: VaultHkdfKey | null,
     extractable = false,
 ): Promise<Result<CryptoKey, string>> {
     const salt = base64ToUint8(slot.Salt);
@@ -310,7 +358,6 @@ export async function openPrimarySlot(
             KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
     );
 
-    const pwKey = await derivePasswordKey(masterPassword, salt, kdfConfig);
     const hkdfSalt =
         slot.HKDFSalt && slot.HKDFSalt.length > 0
             ? base64ToUint8(slot.HKDFSalt)
@@ -323,14 +370,24 @@ export async function openPrimarySlot(
             ? slot.HKDFInfo
             : buildKekInfo(vaultId);
 
-    let kek: CryptoKey;
+    const pwKey = await derivePasswordKey(masterPassword, salt, kdfConfig);
+    let kek: VaultKek;
     try {
         kek = await deriveKEK(pwKey, kekInfo, secondFactorHkdfBase, hkdfSalt);
-    } catch {
+    } catch (error) {
+        if (isPlatformCryptoUnavailable(error)) {
+            return err(PLATFORM_CRYPTO_UNAVAILABLE);
+        }
         return err("KEK_DERIVATION_FAILED");
+    } finally {
+        pwKey.fill(0);
     }
 
-    return unwrapDEKFromSlot(slot, kek, extractable);
+    try {
+        return await unwrapDEKFromSlot(slot, kek, extractable);
+    } finally {
+        getEnvelopeCrypto().disposeKek(kek);
+    }
 }
 
 export async function openRecoverySlot(
@@ -351,12 +408,19 @@ export async function openRecoverySlot(
             KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
     );
 
-    let kek: CryptoKey;
+    let kek: VaultKek;
     try {
         kek = await deriveRecoveryKEK(recoveryCode, salt, kdfConfig);
-    } catch {
+    } catch (error) {
+        if (isPlatformCryptoUnavailable(error)) {
+            return err(PLATFORM_CRYPTO_UNAVAILABLE);
+        }
         return err("RECOVERY_KEK_FAILED");
     }
 
-    return unwrapDEKFromSlot(slot, kek, extractable);
+    try {
+        return await unwrapDEKFromSlot(slot, kek, extractable);
+    } finally {
+        getEnvelopeCrypto().disposeKek(kek);
+    }
 }

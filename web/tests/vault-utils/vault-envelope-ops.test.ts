@@ -50,7 +50,11 @@ import {
     rotateRecoveryCode,
 } from "@cryptex-industries/vault-core/vault-utils/vault-envelope-ops";
 import type { SecondFactorEnrollmentResult } from "@cryptex-industries/vault-core/vault-utils/second-factor";
+import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/encryption";
+import { configureTestVaultCoreRuntime } from "../helpers/vault-core-runtime";
+
+configureTestVaultCoreRuntime();
 
 // Small Argon2 cost keeps the crypto deterministic but fast in CI.
 const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
@@ -68,7 +72,7 @@ async function makePassphraseFactor(
     const secretBytes = new TextEncoder().encode(passphrase);
     const salt = generateRandomSalt();
     const derived = await deriveSecondFactorKeyMaterial(secretBytes, salt, kdf);
-    const hkdfBaseKey = await importHkdfBaseKey(derived, false);
+    const hkdfBaseKey = await importHkdfBaseKey(derived);
     return {
         kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
         hkdfBaseKey,
@@ -80,13 +84,13 @@ async function makePassphraseFactor(
 async function deriveFactorFromDisplayedPassphrase(
     passphrase: string,
     saltB64: string,
-): Promise<CryptoKey> {
+): Promise<VaultHkdfKey> {
     const derived = await deriveSecondFactorKeyMaterial(
         new TextEncoder().encode(passphrase),
         new Uint8Array(Buffer.from(saltB64, "base64")),
         kdf,
     );
-    return importHkdfBaseKey(derived, false);
+    return importHkdfBaseKey(derived);
 }
 
 async function decryptedText(
@@ -617,7 +621,6 @@ describe("vault-envelope-ops re-keying", () => {
         it("creates WebAuthn primary slots only when metadata is complete", async () => {
             const key = await importHkdfBaseKey(
                 crypto.getRandomValues(new Uint8Array(32)),
-                false,
             );
             const missingMeta: SecondFactorEnrollmentResult = {
                 kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,

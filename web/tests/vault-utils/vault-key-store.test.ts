@@ -32,6 +32,7 @@ jest.mock("../../src/app_lib/vault-utils/storage", () => ({
 }));
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { createWebCryptoEnvelopeCrypto } from "@cryptex-industries/vault-core/runtime";
 import {
     clearDeviceSecondFactor,
     getDeviceSecondFactorKey,
@@ -71,12 +72,8 @@ describe("vault-key-store", () => {
     });
 
     it("stores, reads, and clears passphrase second-factor keys by vault DB index", async () => {
-        const key = await crypto.subtle.importKey(
-            "raw",
+        const key = await createWebCryptoEnvelopeCrypto().importHkdfKey(
             new Uint8Array(32),
-            { name: "HKDF" },
-            false,
-            ["deriveKey"],
         );
 
         await setDeviceSecondFactorKey(

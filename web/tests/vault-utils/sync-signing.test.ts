@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@jest/globals";
 import { TextEncoder } from "util";
 
-import { LinkedDevices } from "../../src/app_lib/vault-utils/vault";
+import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     ensureSyncSigningKeypair,
     signSyncBytes,
     verifySyncBytes,
-} from "../../src/app_lib/vault-utils/sync-signing";
+} from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 
 describe("sync-signing", () => {
     it("generates ML-DSA keys only when missing", async () => {

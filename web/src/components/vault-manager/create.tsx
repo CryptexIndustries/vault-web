@@ -4,7 +4,7 @@ import {
     EncryptionFormGroupSchemaType,
     newVaultFormSchema,
     NewVaultFormSchemaType,
-} from "../../app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FileUp, LoaderCircle, Lock, X } from "lucide-react";
 import { Button } from "../ui/button";
@@ -19,11 +19,11 @@ import {
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
-} from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/proto";
 import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
-} from "@/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import {
@@ -35,13 +35,14 @@ import type {
     VaultCreateSecondFactorOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
-} from "@/app_lib/vault-utils/vault-unlock-types";
+} from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 import { useEffect, useState } from "react";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
-import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
+import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import { ImportWizard } from "@/components/vault-import/import-wizard";
-import type { ImportResult } from "@/app_lib/vault-utils/import-export";
+import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
+import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 
 const CreateVaultTab: React.FC<{
     executeCallback: (
@@ -53,7 +54,7 @@ const CreateVaultTab: React.FC<{
         | {
               ok: true;
               revealSecrets: VaultRevealSecrets;
-              pendingUnlock: VaultPendingUnlock;
+              pendingUnlock: VaultPendingUnlock<VaultMetadata>;
           }
     >;
 }> = ({ executeCallback }) => {

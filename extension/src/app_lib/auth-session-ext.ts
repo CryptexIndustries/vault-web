@@ -28,7 +28,7 @@ import {
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
     type OnlineServicesSessionTokens,
-} from "@/app_lib/online-services-session/protocol";
+} from "@cryptex-industries/vault-core/online-services-session/protocol";
 
 import {
     clearOnlineServicesSession as clearStoredSession,

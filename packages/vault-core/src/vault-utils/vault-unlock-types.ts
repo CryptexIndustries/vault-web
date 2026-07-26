@@ -1,6 +1,5 @@
 import type { SecondFactorSource } from "./second-factor";
 import type * as VaultUtilTypes from "../proto/vault";
-import type { VaultMetadata } from "./storage";
 import type { Vault } from "./vault";
 
 export type VaultCreateSecondFactorOptions = {
@@ -23,16 +22,19 @@ export type VaultRevealSecrets = {
 };
 
 /** Unlock deferred until the reveal dialog is acknowledged. */
-export type VaultPendingUnlock = {
-    metadata: VaultMetadata;
-    vault: Vault;
-    dek: CryptoKey;
-};
+export type VaultPendingUnlock<TMetadata extends VaultUtilTypes.VaultMetadata> =
+    {
+        metadata: TMetadata;
+        vault: Vault;
+        dek: CryptoKey;
+    };
 
 /** Result from decrypt/unlock callbacks that may show the reveal dialog. */
-export type VaultUnlockFlowResult = {
+export type VaultUnlockFlowResult<
+    TMetadata extends VaultUtilTypes.VaultMetadata,
+> = {
     revealSecrets?: VaultRevealSecrets;
-    pendingUnlock?: VaultPendingUnlock;
+    pendingUnlock?: VaultPendingUnlock<TMetadata>;
 };
 
 export type VaultDecryptSuccess = {

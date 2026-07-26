@@ -21,22 +21,22 @@ import {
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Err, Ok } from "neverthrow";
-import type { VaultUnlockFlowResult } from "@/app_lib/vault-utils/vault-unlock-types";
+import type { VaultUnlockFlowResult } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
     SecondFactorKind,
-} from "../../app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/proto";
 import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
-} from "../../app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     EditVaultFormSchemaType,
     editVaultFormSchema,
     EncryptionFormGroupSchemaType,
     encryptionFormGroupSchema,
-} from "../../app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import { FormInput } from "../general/input-fields";
 import {
     AlertDialog,
@@ -71,7 +71,9 @@ type UnlockTabProps = {
             recoveryCode?: string;
             secondFactorPassphrase?: string;
         },
-    ) => Promise<Err<never, string> | Ok<VaultUnlockFlowResult, never>>;
+    ) => Promise<
+        Err<never, string> | Ok<VaultUnlockFlowResult<VaultMetadata>, never>
+    >;
     deleteVaultCallback: (dbIndex: number) => Promise<void>;
 };
 

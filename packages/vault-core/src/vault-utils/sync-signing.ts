@@ -1,5 +1,5 @@
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
-import { base64UrlToUint8, uint8ToBase64Url } from "@/lib/utils";
+import { base64UrlToUint8, uint8ToBase64Url } from "../encoding";
 import type { LinkedDevices } from "./vault";
 
 export async function ensureSyncSigningKeypair(

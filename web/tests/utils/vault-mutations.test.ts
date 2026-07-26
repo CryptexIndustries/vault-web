@@ -10,7 +10,10 @@ Object.defineProperty(globalThis, "crypto", {
 });
 
 import type { VaultMetadata } from "../../src/app_lib/vault-utils/storage";
-import { Vault, VaultCredential } from "../../src/app_lib/vault-utils/vault";
+import {
+    Vault,
+    VaultCredential,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,

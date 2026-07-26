@@ -1,7 +1,7 @@
 import { TriangleAlert } from "lucide-react";
 
-import { KeyDerivationConfig_Argon2ID } from "@/app_lib/vault-utils/encryption";
-import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
+import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";

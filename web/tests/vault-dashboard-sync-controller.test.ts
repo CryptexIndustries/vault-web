@@ -14,7 +14,7 @@ jest.mock("@/utils/logging", () => ({
     },
 }));
 
-jest.mock("@/app_lib/synchronization", () => ({
+jest.mock("@cryptex-industries/vault-core/synchronization", () => ({
     SyncConnectionController: jest.fn().mockImplementation((operations) => ({
         operations,
         init: jest.fn(),
@@ -22,15 +22,15 @@ jest.mock("@/app_lib/synchronization", () => ({
     })),
 }));
 
-import * as VaultUtilTypes from "../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import type { VaultMetadata } from "../src/app_lib/vault-utils/storage";
-import { Vault } from "../src/app_lib/vault-utils/vault";
+import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     createVaultOperations,
     getVaultMetadataLifecycleKey,
     shouldAutoReconnectAfterWebRTCStatus,
 } from "../src/components/vault-dashboard/sync-controller";
-import { WebRTCStatus } from "../src/app_lib/synchronization-utils";
+import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import {
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,

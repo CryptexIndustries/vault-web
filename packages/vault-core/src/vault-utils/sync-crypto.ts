@@ -1,5 +1,6 @@
 import { ulid } from "ulidx";
 import * as VaultUtilTypes from "../proto/vault";
+import { deriveHkdfSha256 } from "./hkdf";
 
 export const SYNC_PROTOCOL_VERSION = 2;
 export const AES_GCM_NONCE_BYTES = 12;
@@ -154,24 +155,15 @@ export async function deriveAeadKey(
     sharedSecret: Uint8Array,
     context: Uint8Array,
 ): Promise<CryptoKey> {
-    const baseKey = await crypto.subtle.importKey(
-        "raw",
-        toArrayBuffer(sharedSecret),
-        "HKDF",
-        false,
-        ["deriveKey"],
-    );
     const contextHash = await sha256(context);
-    return crypto.subtle.deriveKey(
-        {
-            name: "HKDF",
-            hash: "SHA-256",
-            salt: toArrayBuffer(contextHash),
-            info: toArrayBuffer(
-                concatBytes(utf8("cryptex/aead/v1"), contextHash),
-            ),
-        },
-        baseKey,
+    const rawKey = deriveHkdfSha256(
+        sharedSecret,
+        contextHash,
+        concatBytes(utf8("cryptex/aead/v1"), contextHash),
+    );
+    return crypto.subtle.importKey(
+        "raw",
+        toArrayBuffer(rawKey),
         { name: "AES-GCM", length: 256 },
         false,
         ["encrypt", "decrypt"],

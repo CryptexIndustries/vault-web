@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type { VaultRevealSecrets } from "@/app_lib/vault-utils/vault-unlock-types";
-import { SecondFactorKind } from "@/app_lib/proto/vault";
+import type { VaultRevealSecrets } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
+import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
 import { useEffect, useState } from "react";
 
 type Props = {

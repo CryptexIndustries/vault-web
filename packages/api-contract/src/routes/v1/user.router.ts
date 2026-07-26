@@ -12,14 +12,12 @@ export const userRouterGenerateRecoveryToken = protectedProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const userRouterClearRecoveryToken = protectedProcedure
     .output(z.boolean())
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const userRouterConfiguration = protectedProcedure
     .output(
         z.object({
@@ -35,8 +33,7 @@ export const userRouterConfiguration = protectedProcedure
     )
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const userRouterDeleteChallenge = protectedProcedure
     .output(
         z.object({
@@ -47,8 +44,7 @@ export const userRouterDeleteChallenge = protectedProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const userRouterDelete = protectedProcedure
     .input(
         z.object({
@@ -59,5 +55,4 @@ export const userRouterDelete = protectedProcedure
     .output(z.boolean())
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });

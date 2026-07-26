@@ -35,17 +35,14 @@ export const paymentRouterGetCheckoutSession = protectedProcedure
     .output(z.string())
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const paymentRouterGetSubscription = protectedProcedure
     .output(getSubscriptionOutputSchema)
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const paymentRouterGetCustomerPortal = protectedProcedure
     .output(z.string().nullable())
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });

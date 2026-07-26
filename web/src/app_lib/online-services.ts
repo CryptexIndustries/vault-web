@@ -183,7 +183,5 @@ export async function finalizeCheckoutCompletion(
 //#endregion Subscription
 
 //#region Online Services - Synchronization
-export const constructLinkPresenceChannelName = (id: string) => {
-    return `presence-link-${id}`;
-};
+export { constructLinkPresenceChannelName } from "@cryptex-industries/vault-core/presence";
 //#endregion Online Services

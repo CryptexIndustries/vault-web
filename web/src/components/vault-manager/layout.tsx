@@ -17,7 +17,7 @@ import {
     EncryptionFormGroupSchemaType,
     NewVaultFormSchemaType,
     VaultRestoreFormSchema,
-} from "@/app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import { Err, Ok } from "neverthrow";
 import * as Storage from "../../app_lib/vault-utils/storage";
 import CreateVaultTab from "./create";
@@ -27,12 +27,12 @@ import type {
     VaultPendingUnlock,
     VaultRevealSecrets,
     VaultUnlockFlowResult,
-} from "@/app_lib/vault-utils/vault-unlock-types";
-import type { ImportResult } from "@/app_lib/vault-utils/import-export";
+} from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
+import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
 import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
-import * as Vault from "../../app_lib/vault-utils/vault";
+import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
 import { clearDeviceSecondFactor } from "@/app_lib/vault-utils/vault-key-store";
 
 type OperationStatus = {
@@ -49,7 +49,10 @@ const VaultManager: React.FC<{
             recoveryCode?: string;
             secondFactorPassphrase?: string;
         },
-    ) => Promise<Err<never, string> | Ok<VaultUnlockFlowResult, never>>;
+    ) => Promise<
+        | Err<never, string>
+        | Ok<VaultUnlockFlowResult<Storage.VaultMetadata>, never>
+    >;
     tryCreateVaultCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         secondFactorOptions?: VaultCreateSecondFactorOptions,
@@ -59,7 +62,7 @@ const VaultManager: React.FC<{
         | {
               ok: true;
               revealSecrets: VaultRevealSecrets;
-              pendingUnlock: VaultPendingUnlock;
+              pendingUnlock: VaultPendingUnlock<Storage.VaultMetadata>;
           }
     >;
     finalizeVaultUnlockCallback: (
@@ -83,7 +86,7 @@ const VaultManager: React.FC<{
     const [pendingReveal, setPendingReveal] =
         useState<VaultRevealSecrets | null>(null);
     const [pendingUnlock, setPendingUnlock] =
-        useState<VaultPendingUnlock | null>(null);
+        useState<VaultPendingUnlock<Storage.VaultMetadata> | null>(null);
 
     const resetForm = () => {
         setOperationStatus({ status: "idle" });

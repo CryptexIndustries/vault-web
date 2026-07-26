@@ -30,12 +30,12 @@ jest.mock(
 );
 
 import sodium from "libsodium-wrappers-sumo";
-import * as VaultUtilTypes from "../../web/src/app_lib/proto/vault";
-import { KeyDerivationConfig_Argon2ID } from "../../web/src/app_lib/vault-utils/encryption";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     decryptWithDEK,
     openPrimarySlot,
-} from "../../web/src/app_lib/vault-utils/envelope-encryption";
+} from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import { createLinkedVaultEnvelopeBlob } from "../src/utils/linked-vault-envelope";
 
 describe("linked vault envelope", () => {

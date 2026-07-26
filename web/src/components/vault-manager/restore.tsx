@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
     vaultRestoreFormSchema,
     VaultRestoreFormSchema,
-} from "@/app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import { Textarea } from "../ui/textarea";
 import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
 

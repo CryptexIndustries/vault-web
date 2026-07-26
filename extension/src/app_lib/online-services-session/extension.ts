@@ -1,4 +1,4 @@
-import type { OnlineServicesSessionPort } from "@/app_lib/online-services-session/port";
+import type { OnlineServicesSessionPort } from "@cryptex-industries/vault-core/online-services-session/port";
 
 import {
     ensureFreshOnlineServicesSessionViaSW,

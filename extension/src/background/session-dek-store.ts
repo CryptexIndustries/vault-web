@@ -6,12 +6,12 @@
  * browser-session state, not IndexedDB/local disk state.
  */
 
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
-import { isPrimarySlot } from "@/app_lib/vault-utils/encryption";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { isPrimarySlot } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     isEnvelopeBlob,
     openPrimarySlot,
-} from "@/app_lib/vault-utils/envelope-encryption";
+} from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 
 const STORAGE_PREFIX = "SESSION_DEK:";

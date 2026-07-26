@@ -4,6 +4,7 @@ import { Provider } from "jotai/react";
 import type { AppType } from "next/dist/shared/lib/utils";
 import superjson from "superjson";
 import type { VersionedRouter } from "@cryptex-industries/api-contract";
+import "@/app_lib/vault-core-runtime";
 import "../styles/globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { vaultStore } from "../utils/atoms";

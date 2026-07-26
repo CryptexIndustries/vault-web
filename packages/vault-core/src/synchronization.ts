@@ -1,12 +1,10 @@
-import PusherAuth from "pusher";
 import Pusher, { type Channel } from "pusher-js";
 import { ulid } from "ulidx";
 
-import { env } from "../env/client.mjs";
-import { ONLINE_SERVICES_SELECTION_ID } from "../utils/consts";
-import { syncLog, signalingLog, webrtcLog } from "../utils/logging";
-import { trpc } from "../utils/trpc";
-import { onlineServicesSessionPort } from "@/app_lib/online-services-session";
+import { ONLINE_SERVICES_SELECTION_ID } from "./consts";
+import { constructSyncPresenceChannelName } from "./presence";
+import { authorizePresenceChannel } from "./pusher-auth";
+import { getVaultCoreRuntime } from "./runtime";
 import * as VaultUtilTypes from "./proto/vault";
 import {
     // ManualConflictResolutionDialogData,
@@ -39,6 +37,62 @@ import {
     SYNC_PROTOCOL_VERSION,
 } from "./vault-utils/sync-crypto";
 
+const syncLog = {
+    debug: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().syncLog.debug(message, context),
+    info: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().syncLog.info(message, context),
+    warn: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().syncLog.warn(message, context),
+    error: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().syncLog.error(message, context),
+};
+
+const signalingLog = {
+    debug: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().signalingLog.debug(message, context),
+    info: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().signalingLog.info(message, context),
+    warn: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().signalingLog.warn(message, context),
+    error: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().signalingLog.error(message, context),
+};
+
+const webrtcLog = {
+    debug: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().webrtcLog.debug(message, context),
+    info: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().webrtcLog.info(message, context),
+    warn: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().webrtcLog.warn(message, context),
+    error: (message: string, context?: Record<string, unknown>) =>
+        getVaultCoreRuntime().webrtcLog.error(message, context),
+};
+
+const env = {
+    get NEXT_PUBLIC_PUSHER_APP_KEY() {
+        return getVaultCoreRuntime().env.NEXT_PUBLIC_PUSHER_APP_KEY;
+    },
+    get NEXT_PUBLIC_PUSHER_APP_HOST() {
+        return getVaultCoreRuntime().env.NEXT_PUBLIC_PUSHER_APP_HOST;
+    },
+    get NEXT_PUBLIC_PUSHER_APP_PORT() {
+        return getVaultCoreRuntime().env.NEXT_PUBLIC_PUSHER_APP_PORT;
+    },
+    get NEXT_PUBLIC_PUSHER_APP_TLS() {
+        return getVaultCoreRuntime().env.NEXT_PUBLIC_PUSHER_APP_TLS;
+    },
+};
+
+function onlineServicesApi() {
+    return getVaultCoreRuntime().onlineServicesApi;
+}
+
+function onlineServicesSessionPort() {
+    return getVaultCoreRuntime().onlineServicesSessionPort;
+}
+
 /**
  * Interface for vault operations that the VaultItemSynchronization class needs
  */
@@ -66,9 +120,7 @@ export type InitWebRTCOptions = {
     syncId?: string;
 };
 
-const constructSyncChannelName = (syncID: string): string => {
-    return `presence-sync-${syncID}`;
-};
+const constructSyncChannelName = constructSyncPresenceChannelName;
 
 const MAX_PENDING_SYNC_DATA_REQUESTS_PER_DEVICE = 32;
 const PENDING_SYNC_DATA_REQUEST_TTL_MS = 2 * 60 * 1000;
@@ -113,19 +165,17 @@ export const initWebRTC = async (
             );
         }
 
-        await onlineServicesSessionPort.ensureFresh();
+        await onlineServicesSessionPort().ensureFresh();
 
         const syncId = options.syncId;
         const fetchTurnCredentials = () =>
-            trpc.v1.device.turnCredentials.mutate({
-                syncId,
-            });
+            onlineServicesApi().getTurnCredentials(syncId);
         let turnCredentials: Awaited<ReturnType<typeof fetchTurnCredentials>>;
         try {
             turnCredentials = await fetchTurnCredentials();
         } catch (error) {
             const reauthenticated =
-                await onlineServicesSessionPort.forceReauthenticate();
+                await onlineServicesSessionPort().forceReauthenticate();
             if (!reauthenticated) {
                 throw error;
             }
@@ -174,9 +224,9 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
             endpoint: "",
             customHandler: async (req, next) => {
                 const authorizeChannel = () =>
-                    trpc.v1.device.signalingAuthChannel.mutate({
-                        channel_name: req.channelName,
-                        socket_id: req.socketId,
+                    onlineServicesApi().authorizeSignalingChannel({
+                        channelName: req.channelName,
+                        socketId: req.socketId,
                     });
 
                 try {
@@ -185,7 +235,7 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
                     return next(null, data);
                 } catch (e) {
                     const reauthenticated =
-                        await onlineServicesSessionPort.forceReauthenticate();
+                        await onlineServicesSessionPort().forceReauthenticate();
                     if (reauthenticated) {
                         try {
                             const data = await authorizeChannel();
@@ -251,18 +301,6 @@ export const initPusherInstance = (
                     { channelName: req.channelName },
                 );
 
-                // Craft the authorization data
-                const pusherAuth = new PusherAuth({
-                    appId: signalingServer.AppID,
-                    key: signalingServer.Key,
-                    secret: signalingServer.Secret,
-                    useTLS: usingTLS,
-                    host: signalingServer.Host,
-                    port: usingTLS
-                        ? signalingServer.SecureServicePort
-                        : signalingServer.ServicePort,
-                });
-
                 const userData = {
                     user_id: user_id,
                     user_info: {
@@ -270,13 +308,23 @@ export const initPusherInstance = (
                     },
                 };
 
-                const data = pusherAuth.authorizeChannel(
-                    req.socketId,
-                    req.channelName,
-                    userData,
-                );
-
-                return next(null, data);
+                try {
+                    const data = await authorizePresenceChannel({
+                        key: signalingServer.Key,
+                        secret: signalingServer.Secret,
+                        socketId: req.socketId,
+                        channelName: req.channelName,
+                        userData,
+                    });
+                    return next(null, data);
+                } catch (error) {
+                    return next(
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                        null,
+                    );
+                }
             },
         },
     });
@@ -1075,7 +1123,9 @@ export class SyncConnectionController {
                 (i) => i.SignalingServerID === device.SignalingServerID,
             ).map((i) => i.ID);
 
-            const webRTCInstances = this._webRTConnections.entries();
+            const webRTCInstances = Array.from(
+                this._webRTConnections.entries(),
+            );
             const youngConnectionExists = webRTCInstances
                 .filter((i) => linkedDevicesUsingSS.includes(i[0]))
                 .some((i) => i[1].connection.connectionState === "new");

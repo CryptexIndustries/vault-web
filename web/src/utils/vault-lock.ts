@@ -1,7 +1,7 @@
-import type { SyncConnectionController } from "@/app_lib/synchronization";
+import type { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
-import { Vault } from "@/app_lib/vault-utils/vault";
-import { vaultWriteCoordinator } from "@/app_lib/vault-utils/vault-write-coordinator";
+import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { vaultWriteCoordinator } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 import { logoutOnlineServicesSession } from "@/app_lib/auth-session";
 import { vaultLog, vaultLogger } from "@/utils/logging";
 import { unlockedVaultAtom, vaultStore } from "@/utils/atoms";

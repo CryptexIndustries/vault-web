@@ -1,5 +1,5 @@
 import { type VaultMetadata } from "@/app_lib/vault-utils/storage";
-import { type Vault } from "@/app_lib/vault-utils/vault";
+import { type Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { err, ok, type Result } from "neverthrow";
 
 export const MISSING_VAULT_SECRET_ERROR =

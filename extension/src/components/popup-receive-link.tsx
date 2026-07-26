@@ -34,31 +34,31 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
-} from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/proto";
 import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
-} from "@/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     LinkingPackage,
     LinkingProcessController,
     LinkingProcessState,
     LinkingProcessStatus,
     LinkingProcessStep,
-} from "@/app_lib/vault-utils/linking";
+} from "@cryptex-industries/vault-core/vault-utils/linking";
 import {
     EncryptionFormGroupSchemaType,
     encryptionFormGroupSchema,
-} from "@/app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import { saveVault, VaultMetadata } from "@/app_lib/vault-utils/storage";
 import {
     LinkedDevices,
     OnlineServices,
     Vault,
-} from "@/app_lib/vault-utils/vault";
-import { ensureSyncSigningKeypair } from "@/app_lib/vault-utils/sync-signing";
-import { ensureSyncKemKeypair } from "@/app_lib/vault-utils/post-quantum-kem";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
+import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
+import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { LINK_FILE_EXTENSION } from "@/utils/consts";
 import {
     clearOnlineServicesSessionViaSW,
@@ -76,7 +76,7 @@ import type { ChunkedQRCodeProgress } from "@ui/lib/chunked-qr";
 import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
-import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
+import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 
 type ReceiveLinkMethod = "qr" | "file";
 type ReceiveLinkStage =

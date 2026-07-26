@@ -7,7 +7,7 @@ import {
     ONLINE_SERVICES_SELECTION_ID,
     REQUIRED_FIELD_ERROR,
     TOTPConstants,
-} from "../../utils/consts";
+} from "../consts";
 import * as VaultUtilTypes from "../proto/vault";
 import {
     DirectorySchema,

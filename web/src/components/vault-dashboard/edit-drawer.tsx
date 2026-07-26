@@ -49,12 +49,12 @@ import {
     CredentialFormSchemaType,
     Directory,
     VaultCredential,
-} from "@/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     CustomFieldType,
     ItemType,
     TOTPAlgorithm,
-} from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
 import { PasswordGeneratorDialog } from "@/components/ui/password-generator";

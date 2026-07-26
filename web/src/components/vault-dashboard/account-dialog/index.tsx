@@ -20,8 +20,11 @@ import {
     privateKeyJwkToString,
     publicKeyJwkToString,
     signChallenge,
-} from "@/app_lib/vault-utils/device-signing-key";
-import { OnlineServices, Vault } from "@/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
+import {
+    OnlineServices,
+    Vault,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     AlertDialog,
     AlertDialogCancel,

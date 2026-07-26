@@ -1,3 +1,5 @@
+import "./vault-core-runtime";
+
 import { createRoot } from "react-dom/client";
 import { Shield, ShieldCheck } from "lucide-react";
 

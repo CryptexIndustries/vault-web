@@ -5,8 +5,7 @@ export const featureVotingRouterOpenRoundExists = protectedProcedure
     .output(z.boolean())
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const featureVotingRouterGetRounds = protectedProcedure
     .output(
         z.object({
@@ -35,8 +34,7 @@ export const featureVotingRouterGetRounds = protectedProcedure
     )
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const featureVotingRouterPlaceVote = protectedProcedure
     .input(
         z.object({
@@ -47,5 +45,4 @@ export const featureVotingRouterPlaceVote = protectedProcedure
     .output(z.object({ success: z.boolean() }))
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });

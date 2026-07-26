@@ -3,7 +3,7 @@ import { describe, expect, it } from "@jest/globals";
 import type {
     SecurityAnalysisResult,
     SecurityReportCredential,
-} from "../../src/app_lib/vault-utils/security-report";
+} from "@cryptex-industries/vault-core/vault-utils/security-report";
 import { SecurityAnalysisCache } from "../../src/components/vault-dashboard/security-analysis-cache";
 
 const result: SecurityAnalysisResult = {

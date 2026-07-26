@@ -52,10 +52,13 @@ jest.mock("../src/env", () => ({
     },
 }));
 
-jest.mock("@/app_lib/vault-utils/device-signing-key", () => ({
-    parseJwkFromString: jest.fn(() => ({ kty: "EC" })),
-    signChallenge: jest.fn(async () => "signed-challenge"),
-}));
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/device-signing-key",
+    () => ({
+        parseJwkFromString: jest.fn(() => ({ kty: "EC" })),
+        signChallenge: jest.fn(async () => "signed-challenge"),
+    }),
+);
 
 const sessionStorage = new Map<string, unknown>();
 
@@ -116,7 +119,7 @@ import {
 import {
     parseJwkFromString,
     signChallenge,
-} from "../../web/src/app_lib/vault-utils/device-signing-key";
+} from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
 
 const mockParseJwkFromString = parseJwkFromString as jest.MockedFunction<
     typeof parseJwkFromString

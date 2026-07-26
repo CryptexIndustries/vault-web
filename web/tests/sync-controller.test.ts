@@ -55,13 +55,6 @@ jest.mock("../src/app_lib/online-services-session", () => ({
     },
 }));
 
-jest.mock("pusher", () => ({
-    __esModule: true,
-    default: class {
-        authorizeChannel = jest.fn(() => ({ auth: "stub" }));
-    },
-}));
-
 const pusherConstructorMock = jest.fn();
 jest.mock("pusher-js", () => ({
     __esModule: true,
@@ -83,15 +76,23 @@ jest.mock("pusher-js", () => ({
     },
 }));
 
-import * as VaultUtilTypes from "../src/app_lib/proto/vault";
-import { SyncConnectionController } from "../src/app_lib/synchronization";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import {
     SignalingStatus,
     SyncConnectionControllerEventType,
     SignalingServerMessageType,
     WebRTCMessageEventType,
     WebRTCStatus,
-} from "../src/app_lib/synchronization-utils";
+} from "@cryptex-industries/vault-core/synchronization-utils";
+import { configureTestVaultCoreRuntime } from "./helpers/vault-core-runtime";
+import { trpc } from "../src/utils/trpc";
+import { onlineServicesSessionPort } from "../src/app_lib/online-services-session";
+
+configureTestVaultCoreRuntime({
+    trpc,
+    onlineServicesSessionPort,
+});
 
 type VaultOps = {
     getCredentialVersionVectors: jest.MockedFunction<

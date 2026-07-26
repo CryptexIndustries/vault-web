@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
-import { isBelowOwaspRecommendedArgon2id } from "@/app_lib/vault-utils/password-strength";
+import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import { useAtomValue } from "jotai/react";
 import {
     Copy,
@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { SecondFactorKind } from "@/app_lib/proto/vault";
-import { KeyDerivationConfig_Argon2ID } from "@/app_lib/vault-utils/encryption";
+import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
     Accordion,

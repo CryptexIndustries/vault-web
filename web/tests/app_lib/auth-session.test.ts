@@ -79,10 +79,13 @@ jest.mock("@trpc/client", () => ({
     httpBatchLink: jest.fn(() => ({})),
 }));
 
-jest.mock("../../src/app_lib/vault-utils/device-signing-key", () => ({
-    parseJwkFromString: jest.fn(),
-    signChallenge: jest.fn(),
-}));
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/device-signing-key",
+    () => ({
+        parseJwkFromString: jest.fn(),
+        signChallenge: jest.fn(),
+    }),
+);
 
 import {
     createBareAuthHeader,
@@ -95,8 +98,11 @@ import {
 import {
     parseJwkFromString,
     signChallenge,
-} from "../../src/app_lib/vault-utils/device-signing-key";
-import { OnlineServices, Vault } from "../../src/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
+import {
+    OnlineServices,
+    Vault,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     onlineServicesAuthConnectionStatusAtom,
     onlineServicesDataAtom,

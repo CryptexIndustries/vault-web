@@ -81,16 +81,42 @@ jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
     ) => mockGetDeviceSecondFactorKey(...args),
 }));
 
+import { configureVaultCoreRuntime } from "@cryptex-industries/vault-core/runtime";
+
+configureVaultCoreRuntime({
+    env: {
+        NEXT_PUBLIC_PUSHER_APP_KEY: "test-key",
+        NEXT_PUBLIC_PUSHER_APP_HOST: "localhost",
+        NEXT_PUBLIC_PUSHER_APP_PORT: "6001",
+        NEXT_PUBLIC_PUSHER_APP_TLS: false,
+    },
+    onlineServicesSessionPort: {
+        ensureFresh: async () => true,
+        forceReauthenticate: async () => false,
+    },
+    onlineServicesApi: {
+        getTurnCredentials: async () => ({ iceServers: [], expiresAt: 0 }),
+        authorizeSignalingChannel: async () => ({ auth: "" }),
+    },
+    syncLog: { debug() {}, info() {}, warn() {}, error() {} },
+    signalingLog: { debug() {}, info() {}, warn() {}, error() {} },
+    webrtcLog: { debug() {}, info() {}, warn() {}, error() {} },
+    secondFactorStore: {
+        setDeviceSecondFactorKey: mockSetDeviceSecondFactorKey,
+        getDeviceSecondFactorKey: mockGetDeviceSecondFactorKey,
+    },
+});
+
 import sodium from "libsodium-wrappers-sumo";
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
-import { KeyDerivationConfig_Argon2ID } from "../../src/app_lib/vault-utils/encryption";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     derivePassphraseSecondFactorKey,
     enrollSecondFactor,
     makeWebAuthnUnlockFromSlot,
     resolveSecondFactorForUnlock,
     unlockWebAuthnPrf,
-} from "../../src/app_lib/vault-utils/second-factor";
+} from "@cryptex-industries/vault-core/vault-utils/second-factor";
 
 const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
 

@@ -63,17 +63,17 @@ jest.mock("dexie", () => {
     };
 });
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     TOTP,
     Vault,
     VaultCredential,
-} from "../../src/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import type {
     EncryptionFormGroupSchemaType,
     NewVaultFormSchemaType,
     VaultEncryptionConfigurationsFormElementType,
-} from "../../src/app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 
 type EncryptDataBlobFn = (
     blob: Uint8Array,
@@ -95,7 +95,7 @@ type DecryptDataBlobFn = (
 ) => Promise<Result<Uint8Array, string>>;
 
 type OpenEnvelopeBlobFn = (
-    blob: import("../../src/app_lib/vault-utils/encryption").EncryptedBlob,
+    blob: import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob,
     vaultId: string | undefined,
     options: unknown,
 ) => Promise<Result<{ dek: CryptoKey; plaintext: Uint8Array }, string>>;
@@ -103,33 +103,35 @@ type OpenEnvelopeBlobFn = (
 type ReencryptVaultBytesWithDEKFn = (
     bytes: Uint8Array,
     dek: CryptoKey,
-    existing: import("../../src/app_lib/vault-utils/encryption").EncryptedBlob,
+    existing: import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob,
     envelope: VaultUtilTypes.KeyEnvelope,
     kdfConfig: VaultUtilTypes.KeyDerivationConfigArgon2ID,
-) => Promise<import("../../src/app_lib/vault-utils/encryption").EncryptedBlob>;
+) => Promise<
+    import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob
+>;
 
 type ReconfigurePrimaryFactorFn = (
-    blob: import("../../src/app_lib/vault-utils/encryption").EncryptedBlob,
+    blob: import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob,
     vaultId: string,
     currentCreds: unknown,
     next: unknown,
     kdfConfig: VaultUtilTypes.KeyDerivationConfigArgon2ID,
 ) => Promise<
     Result<
-        import("../../src/app_lib/vault-utils/encryption").EncryptedBlob,
+        import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob,
         string
     >
 >;
 
 type RotateRecoveryCodeFn = (
-    blob: import("../../src/app_lib/vault-utils/encryption").EncryptedBlob,
+    blob: import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob,
     vaultId: string,
     currentCreds: unknown,
     kdfConfig: VaultUtilTypes.KeyDerivationConfigArgon2ID,
 ) => Promise<
     Result<
         {
-            blob: import("../../src/app_lib/vault-utils/encryption").EncryptedBlob;
+            blob: import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob;
             recoveryCode: string;
         },
         string
@@ -156,59 +158,65 @@ jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
     clearDeviceSecondFactor: jest.fn(async () => undefined),
 }));
 
-jest.mock("../../src/app_lib/vault-utils/vault-envelope-ops", () => {
-    const { EncryptedBlob } = jest.requireActual(
-        "../../src/app_lib/vault-utils/encryption",
-    ) as {
-        EncryptedBlob: typeof import("../../src/app_lib/vault-utils/encryption").EncryptedBlob;
-    };
-    return {
-        migrateLegacyBlobToEnvelope: jest.fn(async () => {
-            const blob = EncryptedBlob.CreateDefault();
-            blob.Envelope = {
-                Version: 3,
-                DEKAlgo: "AES-GCM-256",
-                Slots: [],
-                PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
-                VaultID: "test-vault",
-            };
-            return {
-                blob,
-                recoveryCode: "deadbeef",
-                secondFactorDisplaySecret: undefined,
-            };
-        }),
-        openEnvelopeBlob: (...args: Parameters<OpenEnvelopeBlobFn>) =>
-            mockOpenEnvelopeBlob(...args),
-        reencryptVaultBytesWithDEK: (
-            ...args: Parameters<ReencryptVaultBytesWithDEKFn>
-        ) => mockReencryptVaultBytesWithDEK(...args),
-        reconfigurePrimaryFactor: (
-            ...args: Parameters<ReconfigurePrimaryFactorFn>
-        ) => mockReconfigurePrimaryFactor(...args),
-        rotateRecoveryCode: (...args: Parameters<RotateRecoveryCodeFn>) =>
-            mockRotateRecoveryCode(...args),
-        createEnvelopeEncryptedBlob: jest.fn(async () => {
-            const blob = EncryptedBlob.CreateDefault();
-            blob.Envelope = {
-                Version: 3,
-                DEKAlgo: "AES-GCM-256",
-                Slots: [],
-                PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
-                VaultID: "test-vault",
-            };
-            return {
-                blob,
-                recoveryCode: "recovery-code",
-                secondFactorDisplaySecret: undefined,
-            };
-        }),
-    };
-});
+import { configureTestVaultCoreRuntime } from "../helpers/vault-core-runtime";
+configureTestVaultCoreRuntime();
 
-jest.mock("../../src/app_lib/vault-utils/encryption", () => {
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/vault-envelope-ops",
+    () => {
+        const { EncryptedBlob } = jest.requireActual(
+            "@cryptex-industries/vault-core/vault-utils/encryption",
+        ) as {
+            EncryptedBlob: typeof import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob;
+        };
+        return {
+            migrateLegacyBlobToEnvelope: jest.fn(async () => {
+                const blob = EncryptedBlob.CreateDefault();
+                blob.Envelope = {
+                    Version: 3,
+                    DEKAlgo: "AES-GCM-256",
+                    Slots: [],
+                    PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+                    VaultID: "test-vault",
+                };
+                return {
+                    blob,
+                    recoveryCode: "deadbeef",
+                    secondFactorDisplaySecret: undefined,
+                };
+            }),
+            openEnvelopeBlob: (...args: Parameters<OpenEnvelopeBlobFn>) =>
+                mockOpenEnvelopeBlob(...args),
+            reencryptVaultBytesWithDEK: (
+                ...args: Parameters<ReencryptVaultBytesWithDEKFn>
+            ) => mockReencryptVaultBytesWithDEK(...args),
+            reconfigurePrimaryFactor: (
+                ...args: Parameters<ReconfigurePrimaryFactorFn>
+            ) => mockReconfigurePrimaryFactor(...args),
+            rotateRecoveryCode: (...args: Parameters<RotateRecoveryCodeFn>) =>
+                mockRotateRecoveryCode(...args),
+            createEnvelopeEncryptedBlob: jest.fn(async () => {
+                const blob = EncryptedBlob.CreateDefault();
+                blob.Envelope = {
+                    Version: 3,
+                    DEKAlgo: "AES-GCM-256",
+                    Slots: [],
+                    PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+                    VaultID: "test-vault",
+                };
+                return {
+                    blob,
+                    recoveryCode: "recovery-code",
+                    secondFactorDisplaySecret: undefined,
+                };
+            }),
+        };
+    },
+);
+
+jest.mock("@cryptex-industries/vault-core/vault-utils/encryption", () => {
     const actual = jest.requireActual(
-        "../../src/app_lib/vault-utils/encryption",
+        "@cryptex-industries/vault-core/vault-utils/encryption",
     ) as object;
     return {
         __esModule: true,
@@ -227,7 +235,7 @@ import {
     saveVault,
     serializeVault,
 } from "../../src/app_lib/vault-utils/storage";
-import { EncryptedBlob } from "../../src/app_lib/vault-utils/encryption";
+import { EncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/encryption";
 
 const makeArgonConfig = (): VaultEncryptionConfigurationsFormElementType => ({
     memLimit: 4,

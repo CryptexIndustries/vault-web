@@ -11,8 +11,8 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { SecondFactorKind } from "@/app_lib/proto/vault";
-import type { SecondFactorSource } from "@/app_lib/vault-utils/second-factor";
+import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
+import type { SecondFactorSource } from "@cryptex-industries/vault-core/vault-utils/second-factor";
 
 export type SecondFactorChoice =
     | "none"

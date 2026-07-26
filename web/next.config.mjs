@@ -56,43 +56,89 @@ const contentSecurityPolicy = [
     "form-action 'self'",
 ].join("; ");
 
+/** Narrow CSP for the native Turnstile WebView bridge only — no Stripe/app APIs. */
+const turnstileMobileContentSecurityPolicy = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    // Next Pages emits small inline bootstrap scripts; keep this exception
+    // isolated to the bridge route.
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https://challenges.cloudflare.com",
+    "font-src 'self' data:",
+    "connect-src 'self' https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com about:blank about:srcdoc",
+    "child-src https://challenges.cloudflare.com about:blank about:srcdoc",
+    "worker-src 'none'",
+    "manifest-src 'none'",
+    "media-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'none'",
+].join("; ");
+
+const securityHeadersBase = [
+    {
+        key: "Strict-Transport-Security",
+        value: "max-age=63072000; includeSubDomains; preload",
+    },
+    {
+        key: "X-DNS-Prefetch-Control",
+        value: "on",
+    },
+    {
+        key: "X-Frame-Options",
+        value: "DENY",
+    },
+    {
+        key: "X-XSS-Protection",
+        value: "1; mode=block",
+    },
+    {
+        key: "X-Content-Type-Options",
+        value: "nosniff",
+    },
+    {
+        key: "Referrer-Policy",
+        value: "strict-origin-when-cross-origin",
+    },
+    {
+        key: "Permissions-Policy",
+        value: "microphone=(), geolocation=(), interest-cohort=()",
+    },
+];
+
 const headers = () => {
     return [
         {
-            source: "/(.*)",
+            source: "/turnstile/mobile",
+            headers: [
+                {
+                    key: "Content-Security-Policy",
+                    value: turnstileMobileContentSecurityPolicy,
+                },
+                ...securityHeadersBase,
+            ],
+        },
+        {
+            source: "/turnstile/mobile/",
+            headers: [
+                {
+                    key: "Content-Security-Policy",
+                    value: turnstileMobileContentSecurityPolicy,
+                },
+                ...securityHeadersBase,
+            ],
+        },
+        {
+            // Exclude the Turnstile bridge so its narrow CSP is not merged with app CSP.
+            source: "/((?!turnstile/mobile(?:/)?$).*)",
             headers: [
                 {
                     key: "Content-Security-Policy",
                     value: contentSecurityPolicy,
                 },
-                {
-                    key: "Strict-Transport-Security",
-                    value: "max-age=63072000; includeSubDomains; preload",
-                },
-                {
-                    key: "X-DNS-Prefetch-Control",
-                    value: "on",
-                },
-                {
-                    key: "X-Frame-Options",
-                    value: "DENY",
-                },
-                {
-                    key: "X-XSS-Protection",
-                    value: "1; mode=block",
-                },
-                {
-                    key: "X-Content-Type-Options",
-                    value: "nosniff",
-                },
-                {
-                    key: "Referrer-Policy",
-                    value: "strict-origin-when-cross-origin",
-                },
-                {
-                    key: "Permissions-Policy",
-                    value: "microphone=(), geolocation=(), interest-cohort=()",
-                },
+                ...securityHeadersBase,
             ],
         },
     ];

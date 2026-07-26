@@ -3,6 +3,7 @@ packages:
   - extension
   - packages/shared-ui
   - packages/api-contract
+  - packages/vault-core
 
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true

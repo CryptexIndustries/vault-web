@@ -3,7 +3,7 @@
  */
 import { describe, expect, it, jest } from "@jest/globals";
 
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 
 import {
     createCachedSyncConfigLoader,

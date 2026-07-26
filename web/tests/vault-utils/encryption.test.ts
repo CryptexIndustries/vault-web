@@ -160,7 +160,7 @@ jest.mock("libsodium-wrappers-sumo", () => {
     };
 });
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import sodium from "libsodium-wrappers-sumo";
 import {
     DecryptDataBlob,
@@ -170,7 +170,7 @@ import {
     KeyDerivationConfig_PBKDF2,
     hashSecret,
     isRecoverySlot,
-} from "../../src/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 
 describe("vault-utils/encryption", () => {
     beforeEach(() => {

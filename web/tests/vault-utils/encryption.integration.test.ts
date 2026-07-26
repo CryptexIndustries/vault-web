@@ -38,7 +38,7 @@ jest.mock(
     { virtual: true },
 );
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     DecryptDataBlob,
     EncryptDataBlob,
@@ -46,7 +46,7 @@ import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
     hashSecret,
-} from "../../src/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 
 const decodeUtf8 = (value: Uint8Array): string =>
     new TextDecoder().decode(value);

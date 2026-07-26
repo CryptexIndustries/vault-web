@@ -1,19 +1,20 @@
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import "@/app_lib/vault-core-runtime";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     Directory,
     hashCredential,
     resolveDirectoryNameCollisions,
     shouldAcceptVersionedRecord,
     VaultCredential,
-} from "@/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import {
     SyncConnectionController,
     type VaultOperations,
-} from "@/app_lib/synchronization";
-import { WebRTCStatus } from "@/app_lib/synchronization-utils";
+} from "@cryptex-industries/vault-core/synchronization";
+import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import { uiLog } from "@/utils/logging";
 import { vaultGet } from "@/utils/atoms";
 import { persistVaultMutation } from "@/utils/vault-mutations";

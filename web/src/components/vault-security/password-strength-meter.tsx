@@ -4,7 +4,7 @@ import {
     isWeakPasswordScore,
     PASSWORD_STRENGTH_LABELS,
     scorePassword,
-} from "@/app_lib/vault-utils/password-strength";
+} from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import { cn } from "@/lib/utils";
 
 const SCORE_BAR_COLORS = [

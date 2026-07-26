@@ -1,5 +1,6 @@
 import * as Storage from "@/app_lib/vault-utils/storage";
-import * as Vault from "@/app_lib/vault-utils/vault";
+import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
+import "./vault-core-runtime";
 import { MessageType } from "./types/sw-messaging";
 import type {
     EncryptedEnvelope,
@@ -7,11 +8,11 @@ import type {
     LiteCredential,
     PlaintextEnvelope,
 } from "./types/sw-messaging";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     type VaultWriteKind,
     vaultWriteCoordinator,
-} from "@/app_lib/vault-utils/vault-write-coordinator";
+} from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 import {
     generateECDHKeyPair,
     deriveSessionKey,

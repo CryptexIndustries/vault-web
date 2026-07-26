@@ -1,4 +1,4 @@
-import * as Proto from "../../src/app_lib/proto/vault";
+import * as Proto from "@cryptex-industries/vault-core/proto";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
 import { describe, expect, it } from "@jest/globals";
@@ -12,7 +12,7 @@ import {
     shouldAcceptVersionedRecord,
     updateDirectory,
     Vault,
-} from "../../src/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 
 Object.defineProperty(globalThis, "crypto", {
     value: webcrypto,

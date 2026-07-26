@@ -24,7 +24,11 @@
             "@/*": ["./src/*"],
             "src/*": ["./src/*"],
             "@ui/*": ["../packages/shared-ui/src/*"],
-            "@cryptex-industries/shared-ui/*": ["../packages/shared-ui/*"]
+            "@cryptex-industries/shared-ui/*": ["../packages/shared-ui/*"],
+            "@cryptex-industries/vault-core": [
+                "../packages/vault-core/src/index.ts"
+            ],
+            "@cryptex-industries/vault-core/*": ["../packages/vault-core/src/*"]
         },
         "moduleResolution": "bundler"
     },

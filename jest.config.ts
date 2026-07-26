@@ -6,7 +6,14 @@ const jestConfig: JestConfigWithTsJest = {
     moduleNameMapper: {
         "^@/(.*)$": "<rootDir>/web/src/$1",
         "^@ui/(.*)$": "<rootDir>/packages/shared-ui/src/$1",
-        "^@cryptex-industries/shared-ui/(.*)$": "<rootDir>/packages/shared-ui/$1",
+        "^@cryptex-industries/shared-ui/(.*)$":
+            "<rootDir>/packages/shared-ui/$1",
+        "^@cryptex-industries/vault-core$":
+            "<rootDir>/packages/vault-core/src/index.ts",
+        "^@cryptex-industries/vault-core/proto$":
+            "<rootDir>/packages/vault-core/src/proto/vault.ts",
+        "^@cryptex-industries/vault-core/(.*)$":
+            "<rootDir>/packages/vault-core/src/$1",
     },
     transformIgnorePatterns: ["node_modules/(?!@ngrx|(?!deck.gl)|ng-dynamic)"],
     transform: {
@@ -14,7 +21,9 @@ const jestConfig: JestConfigWithTsJest = {
         "^.+\\.m?[tj]sx?$": [
             "ts-jest",
             {
-                // ts-jest configuration goes here
+                tsconfig: {
+                    jsx: "react-jsx",
+                },
             },
         ],
     },

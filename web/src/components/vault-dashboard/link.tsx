@@ -51,24 +51,24 @@ import {
     Vault,
     VaultCredential,
     packageForLinking,
-} from "@/app_lib/vault-utils/vault";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     LinkingPackage,
     LinkingProcessController,
     LinkingProcessState,
     LinkingProcessStatus,
     LinkingProcessStep,
-} from "@/app_lib/vault-utils/linking";
+} from "@cryptex-industries/vault-core/vault-utils/linking";
 import {
     generateKeyPair,
     privateKeyJwkToString,
     publicKeyJwkToString,
-} from "@/app_lib/vault-utils/device-signing-key";
+} from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
 import {
     encapsulateSyncKem,
     ensureSyncKemKeypair,
-} from "@/app_lib/vault-utils/post-quantum-kem";
+} from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
 import {
     buildSyncKeyBundle,
     createLinkMac,
@@ -79,9 +79,9 @@ import {
     linkVaultTransferContext,
     sealAead,
     verifyLinkMac,
-} from "@/app_lib/vault-utils/sync-crypto";
-import { ensureSyncSigningKeypair } from "@/app_lib/vault-utils/sync-signing";
-import * as Synchronization from "@/app_lib/synchronization";
+} from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
+import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
+import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
 import {
     constructLinkPresenceChannelName,
     finalizeCheckoutCompletion,

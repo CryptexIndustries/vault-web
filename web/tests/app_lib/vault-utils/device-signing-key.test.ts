@@ -11,7 +11,7 @@ import {
     privateKeyJwkToString,
     publicKeyJwkToString,
     signChallenge,
-} from "../../../src/app_lib/vault-utils/device-signing-key";
+} from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
 import { verifyDeviceSigningKeySignature } from "../../utils/verify-device-signing-key";
 
 beforeAll(() => {

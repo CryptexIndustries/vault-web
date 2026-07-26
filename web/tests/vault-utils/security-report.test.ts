@@ -1,11 +1,11 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { ItemType } from "../../src/app_lib/proto/vault";
+import { ItemType } from "@cryptex-industries/vault-core/proto";
 import {
     PASSWORD_AGE_REVIEW_DAYS,
     analyzeCredentialSecurity,
     type SecurityReportCredential,
-} from "../../src/app_lib/vault-utils/security-report";
+} from "@cryptex-industries/vault-core/vault-utils/security-report";
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 6, 19);

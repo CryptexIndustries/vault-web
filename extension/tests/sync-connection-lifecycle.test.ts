@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { WebRTCStatus } from "@/app_lib/synchronization-utils";
+import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import { shouldAutoReconnectAfterWebRTCStatus } from "../src/sync-connection-lifecycle";
 
 describe("extension sync connection lifecycle", () => {

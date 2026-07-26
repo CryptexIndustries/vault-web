@@ -16,8 +16,7 @@ export const deviceRouterLink = protectedProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterRemove = protectedProcedure
     .input(
         z.object({
@@ -27,8 +26,7 @@ export const deviceRouterRemove = protectedProcedure
     .output(z.void())
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterBreakLink = protectedProcedure
     .input(
         z.object({
@@ -38,8 +36,7 @@ export const deviceRouterBreakLink = protectedProcedure
     .output(z.void())
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 const devicePurpose = z.enum(["web", "mobile", "browser", "cli"]);
 
 export const deviceRouterLinked = protectedProcedure
@@ -55,8 +52,7 @@ export const deviceRouterLinked = protectedProcedure
     )
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterTopology = protectedProcedure
     .output(
         z.object({
@@ -82,8 +78,7 @@ export const deviceRouterTopology = protectedProcedure
     )
     .query(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterSetRoot = protectedProcedure
     .input(
         z.object({
@@ -94,8 +89,7 @@ export const deviceRouterSetRoot = protectedProcedure
     .output(z.void())
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterSignalingAuth = protectedProcedure
     .input(
         z.object({
@@ -111,8 +105,7 @@ export const deviceRouterSignalingAuth = protectedProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterSignalingAuthChannel = protectedProcedure
     .input(
         z.object({
@@ -129,8 +122,7 @@ export const deviceRouterSignalingAuthChannel = protectedProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const deviceRouterTurnCredentials = protectedProcedure
     .input(
         z.object({
@@ -151,5 +143,5 @@ export const deviceRouterTurnCredentials = protectedProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;//#endregion Pusher
+    });
+//#endregion Pusher

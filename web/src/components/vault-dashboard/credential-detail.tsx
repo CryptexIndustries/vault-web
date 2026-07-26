@@ -25,8 +25,11 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { VaultCredential, calculateTOTP } from "@/app_lib/vault-utils/vault";
-import { CustomFieldType } from "@/app_lib/proto/vault";
+import {
+    VaultCredential,
+    calculateTOTP,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
+import { CustomFieldType } from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
 import { copySecretToClipboard } from "@/utils/clipboard";

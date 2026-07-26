@@ -7,7 +7,7 @@
     "types": "src/index.d.ts",
     "packageManager": "pnpm@11.8.0",
     "scripts": {
-        "lint-tsc": "tsc --watch --noEmit --strict"
+        "lint-tsc": "tsgo --noEmit --strict"
     },
     "dependencies": {
         "autoprefixer": "10.4.21",

@@ -13,16 +13,22 @@
             "@/*": ["../web/src/*"],
             "@ui/*": ["../packages/shared-ui/src/*"],
             "@cryptex-industries/shared-ui/*": ["../packages/shared-ui/*"],
+            "@cryptex-industries/vault-core": [
+                "../packages/vault-core/src/index.ts"
+            ],
+            "@cryptex-industries/vault-core/*": [
+                "../packages/vault-core/src/*"
+            ],
             "../env/client.mjs": ["./src/env.ts"],
             "../../env/client.mjs": ["./src/env.ts"],
             "@/env/client.mjs": ["./src/env.ts"],
             "../utils/trpc": ["./src/trpc-ext.ts"],
             "@/utils/trpc": ["./src/trpc-ext.ts"],
             "@/app_lib/online-services-session/port": [
-                "../web/src/app_lib/online-services-session/port.ts"
+                "../packages/vault-core/src/online-services-session/port.ts"
             ],
             "@/app_lib/online-services-session/protocol": [
-                "../web/src/app_lib/online-services-session/protocol.ts"
+                "../packages/vault-core/src/online-services-session/protocol.ts"
             ],
             "@/app_lib/online-services-session": [
                 "./src/app_lib/online-services-session/extension.ts"

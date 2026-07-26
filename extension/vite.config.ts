@@ -83,11 +83,11 @@ export default defineConfig(({ mode }) => {
                 "../../utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
                 "@/app_lib/online-services-session/port": path.resolve(
                     __dirname,
-                    "../web/src/app_lib/online-services-session/port.ts",
+                    "../packages/vault-core/src/online-services-session/port.ts",
                 ),
                 "@/app_lib/online-services-session/protocol": path.resolve(
                     __dirname,
-                    "../web/src/app_lib/online-services-session/protocol.ts",
+                    "../packages/vault-core/src/online-services-session/protocol.ts",
                 ),
                 "@/app_lib/online-services-session": path.resolve(
                     __dirname,

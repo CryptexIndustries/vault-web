@@ -50,7 +50,7 @@ import {
     Directory,
     sortDirectories,
     VaultCredential,
-} from "@/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
 import { normalizeCredentialUrl } from "@/utils/credential-url";

@@ -42,7 +42,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { LinkedDevice, LinkedDevices } from "@/app_lib/vault-utils/vault";
+import {
+    LinkedDevice,
+    LinkedDevices,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import { cn } from "@/lib/utils";
 import {
     ReceiveLinkRequestDialog,
@@ -58,8 +61,8 @@ import type { WarningDialogShowFn } from "@/components/dialog/warning";
 import {
     SignalingStatus,
     WebRTCStatus,
-} from "src/app_lib/synchronization-utils";
-import { SyncConnectionController } from "src/app_lib/synchronization";
+} from "@cryptex-industries/vault-core/synchronization-utils";
+import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import { useSetAtom } from "jotai";
 import { linkedDevicesAtom } from "src/utils/atoms";
 import { toast } from "sonner";

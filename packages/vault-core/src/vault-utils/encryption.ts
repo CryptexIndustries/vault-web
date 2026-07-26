@@ -1,7 +1,7 @@
 import sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "../proto/vault";
 import { err, ok } from "neverthrow";
-import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
+import { base64ToUint8, uint8ToBase64 } from "../encoding";
 
 export class KeyDerivationConfig_PBKDF2
     implements VaultUtilTypes.KeyDerivationConfigPBKDF2

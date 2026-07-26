@@ -17,7 +17,7 @@ import type {
     SecurityAnalysisResult,
     SecurityFindingIdentity,
     WeakPasswordFinding,
-} from "@/app_lib/vault-utils/security-report";
+} from "@cryptex-industries/vault-core/vault-utils/security-report";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

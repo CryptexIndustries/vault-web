@@ -1,5 +1,5 @@
-import type { VaultOperations } from "@/app_lib/synchronization";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import type { VaultOperations } from "@cryptex-industries/vault-core/synchronization";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 
 import {
     EncryptedEnvelope,

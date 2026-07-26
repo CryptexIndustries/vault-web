@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { KeyDerivationConfig_Argon2ID } from "../../src/app_lib/vault-utils/encryption";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     isBelowOwaspRecommendedArgon2id,
     isWeakPasswordScore,
     PASSWORD_STRENGTH_WEAK_THRESHOLD,
     scorePassword,
-} from "../../src/app_lib/vault-utils/password-strength";
+} from "@cryptex-industries/vault-core/vault-utils/password-strength";
 
 describe("password-strength", () => {
     it("returns null for empty password", () => {

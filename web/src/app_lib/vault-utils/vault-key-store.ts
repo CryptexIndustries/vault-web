@@ -4,7 +4,7 @@
  */
 
 import Dexie from "dexie";
-import * as VaultUtilTypes from "../proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { db as vaultDb } from "./storage";
 
 export interface DeviceSecondFactorRecord {

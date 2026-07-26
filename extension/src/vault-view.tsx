@@ -1,11 +1,11 @@
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
-import * as SynchronizationUtils from "@/app_lib/synchronization-utils";
-import * as Vault from "@/app_lib/vault-utils/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import * as SynchronizationUtils from "@cryptex-industries/vault-core/synchronization-utils";
+import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     calculateTOTP,
     CredentialFormSchemaType,
     VaultCredential,
-} from "@/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import { CredentialDetail } from "@/components/vault-dashboard/credential-detail";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -49,7 +49,7 @@ import {
 } from "./utils/session-utils";
 
 // Shadcn UI Components
-import { SyncConnectionController } from "@/app_lib/synchronization";
+import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import { createVaultOperations } from "./vault-operations";
 import { Button } from "@/components/ui/button";
 import {

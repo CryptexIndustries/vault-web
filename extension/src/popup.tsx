@@ -1,3 +1,5 @@
+import "./vault-core-runtime";
+
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -5,7 +7,7 @@ import { err, ok } from "neverthrow";
 import { LoaderCircle, Link2, ScrollText, Shield } from "lucide-react";
 
 import "./popup.css";
-import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
+import { type EncryptionFormGroupSchemaType } from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import * as Storage from "@/app_lib/vault-utils/storage";
 
 import { Button } from "@/components/ui/button";

@@ -1,4 +1,4 @@
-import { WebRTCStatus } from "@/app_lib/synchronization-utils";
+import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 
 /**
  * A clean disconnect can be retried automatically. A failed setup must wait

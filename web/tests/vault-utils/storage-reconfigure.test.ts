@@ -92,22 +92,52 @@ jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
     }),
 }));
 
+import {
+    clearDeviceSecondFactor,
+    getDeviceSecondFactorKey,
+    setDeviceSecondFactorKey,
+} from "../../src/app_lib/vault-utils/vault-key-store";
+import { configureVaultCoreRuntime } from "@cryptex-industries/vault-core/runtime";
+
+configureVaultCoreRuntime({
+    env: {
+        NEXT_PUBLIC_PUSHER_APP_KEY: "test-key",
+        NEXT_PUBLIC_PUSHER_APP_HOST: "localhost",
+        NEXT_PUBLIC_PUSHER_APP_PORT: "6001",
+        NEXT_PUBLIC_PUSHER_APP_TLS: false,
+    },
+    onlineServicesSessionPort: {
+        ensureFresh: async () => true,
+        forceReauthenticate: async () => false,
+    },
+    onlineServicesApi: {
+        getTurnCredentials: async () => ({ iceServers: [], expiresAt: 0 }),
+        authorizeSignalingChannel: async () => ({ auth: "" }),
+    },
+    syncLog: { debug() {}, info() {}, warn() {}, error() {} },
+    signalingLog: { debug() {}, info() {}, warn() {}, error() {} },
+    webrtcLog: { debug() {}, info() {}, warn() {}, error() {} },
+    secondFactorStore: {
+        setDeviceSecondFactorKey: setDeviceSecondFactorKey as never,
+        getDeviceSecondFactorKey: getDeviceSecondFactorKey as never,
+    },
+});
+
 import sodium from "libsodium-wrappers-sumo";
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     EncryptedBlob,
     EncryptDataBlob,
     hashSecret,
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
-} from "../../src/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { VaultMetadata, db } from "../../src/app_lib/vault-utils/storage";
-import { Vault } from "../../src/app_lib/vault-utils/vault";
+import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type {
     EncryptionFormGroupSchemaType,
     VaultEncryptionConfigurationsFormElementType,
-} from "../../src/app_lib/vault-utils/form-schemas";
-import { clearDeviceSecondFactor } from "../../src/app_lib/vault-utils/vault-key-store";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 
 const KDF_CONFIG: VaultEncryptionConfigurationsFormElementType = {
     memLimit: 8,

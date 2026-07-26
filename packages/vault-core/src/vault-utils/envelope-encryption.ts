@@ -9,10 +9,20 @@
 import sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "../proto/vault";
 import { err, ok, type Result } from "neverthrow";
-import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
+import { base64ToUint8, uint8ToBase64 } from "../encoding";
 import { KeyDerivationConfig_Argon2ID, type EncryptedBlob } from "./encryption";
 import { generateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
+import {
+    deriveHkdfSha256,
+    getPortableHkdfMaterial,
+    importPortableHkdfKey,
+} from "./hkdf";
+import {
+    importPortableAesKwKey,
+    unwrapKeyWithAesKw,
+    wrapKeyWithAesKw,
+} from "./aes-key-wrap";
 
 export const ENVELOPE_VERSION = 3;
 export const KEK_INFO_PREFIX = "cryptex/kek/v1|";
@@ -74,13 +84,7 @@ export async function importHkdfBaseKey(
     rawKeyMaterial: Uint8Array,
     extractable: boolean,
 ): Promise<CryptoKey> {
-    return crypto.subtle.importKey(
-        "raw",
-        toBufferSource(rawKeyMaterial),
-        { name: "HKDF" },
-        extractable,
-        ["deriveKey"],
-    );
+    return importPortableHkdfKey(rawKeyMaterial, extractable);
 }
 
 export function buildKekInfo(vaultId: string): string {
@@ -100,6 +104,11 @@ export async function deriveKEK(
     const info = new TextEncoder().encode(kekInfo);
 
     if (secondFactorHkdfBase) {
+        const portableMaterial = getPortableHkdfMaterial(secondFactorHkdfBase);
+        if (portableMaterial) {
+            const derived = deriveHkdfSha256(portableMaterial, pwKey, info);
+            return importPortableAesKwKey(derived, false);
+        }
         return crypto.subtle.deriveKey(
             {
                 name: "HKDF",
@@ -119,6 +128,15 @@ export async function deriveKEK(
     }
 
     const pwHkdfBase = await importHkdfBaseKey(pwKey, false);
+    const portableMaterial = getPortableHkdfMaterial(pwHkdfBase);
+    if (portableMaterial) {
+        const derived = deriveHkdfSha256(
+            portableMaterial,
+            hkdfSaltWhenNoSecondFactor,
+            info,
+        );
+        return importPortableAesKwKey(derived, false);
+    }
     return crypto.subtle.deriveKey(
         {
             name: "HKDF",
@@ -140,13 +158,7 @@ export async function deriveRecoveryKEK(
     config: EnvelopeKdfConfig = defaultKdfConfig(),
 ): Promise<CryptoKey> {
     const material = await derivePasswordKey(recoveryCode, salt, config);
-    return crypto.subtle.importKey(
-        "raw",
-        toBufferSource(material),
-        { name: "AES-KW" },
-        false,
-        ["wrapKey", "unwrapKey"],
-    );
+    return importPortableAesKwKey(material, false);
 }
 
 export async function generateExtractableDEK(): Promise<CryptoKey> {
@@ -160,8 +172,7 @@ export async function wrapDEK(
     dek: CryptoKey,
     kek: CryptoKey,
 ): Promise<Uint8Array> {
-    const wrapped = await crypto.subtle.wrapKey("raw", dek, kek, "AES-KW");
-    return new Uint8Array(wrapped);
+    return wrapKeyWithAesKw(dek, kek);
 }
 
 export async function unwrapDEK(
@@ -169,15 +180,7 @@ export async function unwrapDEK(
     kek: CryptoKey,
     extractable = false,
 ): Promise<CryptoKey> {
-    return crypto.subtle.unwrapKey(
-        "raw",
-        toBufferSource(wrapped),
-        kek,
-        "AES-KW",
-        { name: "AES-GCM", length: 256 },
-        extractable,
-        ["encrypt", "decrypt"],
-    );
+    return unwrapKeyWithAesKw(wrapped, kek, extractable);
 }
 
 export async function encryptWithDEK(

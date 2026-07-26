@@ -44,10 +44,22 @@ jest.mock("../src/app_lib/online-services-session", () => ({
     },
 }));
 
-import { initWebRTC } from "../src/app_lib/synchronization";
+import { initWebRTC } from "@cryptex-industries/vault-core/synchronization";
+import { configureTestVaultCoreRuntime } from "./helpers/vault-core-runtime";
+import { trpc } from "../src/utils/trpc";
+import { onlineServicesSessionPort } from "../src/app_lib/online-services-session";
+
+configureTestVaultCoreRuntime({
+    trpc,
+    onlineServicesSessionPort,
+});
 
 describe("initWebRTC", () => {
     beforeEach(() => {
+        configureTestVaultCoreRuntime({
+            trpc,
+            onlineServicesSessionPort,
+        });
         jest.clearAllMocks();
         ensureFresh.mockResolvedValue(true);
         forceReauthenticate.mockResolvedValue(false);

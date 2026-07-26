@@ -19,8 +19,8 @@ import {
     moveCredentialsToDirectory,
     updateCredentialFromForm,
     updateDirectory,
-} from "@/app_lib/vault-utils/vault";
-import type { CredentialFormSchemaType } from "@/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
+import type { CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { LogInspectorDialog } from "@/components/dialog/log-inspector";
 import {
     WarningDialog,
@@ -62,8 +62,8 @@ import { useAtomValue, useSetAtom } from "jotai/react";
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { SyncConnectionController } from "src/app_lib/synchronization";
-import type { VaultWriteKind } from "@/app_lib/vault-utils/vault-write-coordinator";
+import type { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
+import type { VaultWriteKind } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 import { AccountDialog } from "./account-dialog";
 import { CredentialDetail } from "./credential-detail";
 import { CredentialsList } from "./credentials-list";
@@ -91,7 +91,7 @@ import {
     type WebRTCEventDataPayload,
     WebRTCMessageEventType,
     WebRTCStatus,
-} from "src/app_lib/synchronization-utils";
+} from "@cryptex-industries/vault-core/synchronization-utils";
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
 

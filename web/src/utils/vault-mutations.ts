@@ -1,10 +1,10 @@
 import { err, ok, type Result } from "neverthrow";
 
-import type { Vault } from "@/app_lib/vault-utils/vault";
+import type { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     vaultWriteCoordinator,
     type VaultWriteKind,
-} from "@/app_lib/vault-utils/vault-write-coordinator";
+} from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 import {
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,

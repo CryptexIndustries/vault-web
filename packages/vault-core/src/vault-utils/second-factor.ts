@@ -9,11 +9,8 @@ import {
 } from "./envelope-encryption";
 import { KeyDerivationConfig_Argon2ID } from "./encryption";
 import { generateRandomSalt } from "./envelope-encryption";
-import { base64ToUint8, uint8ToBase64 as b64 } from "@/lib/utils";
-import {
-    setDeviceSecondFactorKey,
-    getDeviceSecondFactorKey,
-} from "./vault-key-store";
+import { base64ToUint8, uint8ToBase64 as b64 } from "../encoding";
+import { getSecondFactorStore } from "../runtime";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { generateMnemonic } from "@scure/bip39";
 
@@ -94,11 +91,20 @@ export async function enrollSecondFactor(
         );
         const hkdfBaseKey = await importHkdfBaseKey(derived, false);
         if (vaultDbIndex != null && vaultDbIndex >= 0) {
-            await setDeviceSecondFactorKey(
-                vaultDbIndex,
-                hkdfBaseKey,
-                source.kind,
-            );
+            const store = getSecondFactorStore();
+            if (store.setDeviceSecondFactorRawKey) {
+                await store.setDeviceSecondFactorRawKey(
+                    vaultDbIndex,
+                    derived,
+                    source.kind,
+                );
+            } else {
+                await store.setDeviceSecondFactorKey(
+                    vaultDbIndex,
+                    hkdfBaseKey,
+                    source.kind,
+                );
+            }
         }
 
         return {
@@ -143,7 +149,7 @@ export async function resolveSecondFactorForUnlock(
         if (vaultDbIndex == null || vaultDbIndex < 0) {
             throw new Error("VAULT_DB_INDEX_MISSING");
         }
-        return getDeviceSecondFactorKey(vaultDbIndex);
+        return getSecondFactorStore().getDeviceSecondFactorKey(vaultDbIndex);
     }
 
     if (envelopeKind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF) {
@@ -257,8 +263,8 @@ export async function unlockWebAuthnPrf(
     credentialIdB64: string,
     prfSaltB64: string,
 ): Promise<CryptoKey> {
-    const credentialId = Uint8Array.fromBase64(credentialIdB64);
-    const prfSalt = Uint8Array.fromBase64(prfSaltB64);
+    const credentialId = base64ToUint8(credentialIdB64);
+    const prfSalt = base64ToUint8(prfSaltB64);
 
     const assertion = await navigator.credentials.get({
         publicKey: {
@@ -266,13 +272,13 @@ export async function unlockWebAuthnPrf(
             rpId: window.location.hostname,
             allowCredentials: [
                 {
-                    id: credentialId,
+                    id: credentialId as BufferSource,
                     type: "public-key",
                 },
             ],
             userVerification: "required",
             extensions: {
-                prf: { eval: { first: prfSalt } },
+                prf: { eval: { first: prfSalt as BufferSource } },
             },
         },
     });

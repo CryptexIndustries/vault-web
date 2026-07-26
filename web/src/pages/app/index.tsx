@@ -6,9 +6,9 @@ import dayjs from "dayjs";
 import RelativeTime from "dayjs/plugin/relativeTime";
 
 import * as Storage from "../../app_lib/vault-utils/storage";
-import * as Vault from "../../app_lib/vault-utils/vault";
-import * as FormSchemas from "../../app_lib/vault-utils/form-schemas";
-import * as VaultEncryption from "../../app_lib/vault-utils/encryption";
+import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
+import * as FormSchemas from "@cryptex-industries/vault-core/vault-utils/form-schemas";
+import * as VaultEncryption from "@cryptex-industries/vault-core/vault-utils/encryption";
 import HTMLHeader from "../../components/html-header";
 import HTMLMain from "../../components/html-main";
 
@@ -29,9 +29,9 @@ import type {
     VaultCreateSecondFactorOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
-} from "@/app_lib/vault-utils/vault-unlock-types";
-import type { ImportResult } from "@/app_lib/vault-utils/import-export";
-import { SecondFactorKind } from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
+import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
+import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
 import {
     establishPremiumSession,
     syncOnlineServicesRemoteConfiguration,
@@ -144,7 +144,7 @@ const AppIndex: React.FC = () => {
         | {
               ok: true;
               revealSecrets: VaultRevealSecrets;
-              pendingUnlock: VaultPendingUnlock;
+              pendingUnlock: VaultPendingUnlock<Storage.VaultMetadata>;
           }
     > => {
         try {

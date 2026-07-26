@@ -31,7 +31,7 @@ jest.mock("../../src/app_lib/vault-utils/storage", () => ({
     db: mockVaultDb,
 }));
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     clearDeviceSecondFactor,
     getDeviceSecondFactorKey,

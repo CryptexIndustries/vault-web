@@ -19,15 +19,15 @@ import {
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
-} from "@/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/proto";
 import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
-} from "@/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     EncryptionFormGroupSchemaType,
     encryptionFormGroupSchema,
-} from "@/app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import * as Storage from "@/app_lib/vault-utils/storage";
 import { uiLog, vaultLog } from "../utils/ext-logging";
 

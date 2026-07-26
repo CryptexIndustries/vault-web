@@ -11,10 +11,13 @@ if (
     });
 }
 
-jest.mock("../src/app_lib/vault-utils/device-signing-key", () => ({
-    parseJwkFromString: jest.fn(() => ({})),
-    signChallenge: jest.fn(async () => "signed-challenge"),
-}));
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/device-signing-key",
+    () => ({
+        parseJwkFromString: jest.fn(() => ({})),
+        signChallenge: jest.fn(async () => "signed-challenge"),
+    }),
+);
 
 import {
     createForcedReauthGate,
@@ -23,7 +26,7 @@ import {
     refreshOnlineServicesSessionTokens,
     shouldRefreshOnlineServicesSession,
     type OnlineServicesAuthApi,
-} from "../src/app_lib/online-services-session/protocol";
+} from "@cryptex-industries/vault-core/online-services-session/protocol";
 
 describe("online-services-session protocol", () => {
     beforeEach(() => {

@@ -1,13 +1,16 @@
 import Dexie from "dexie";
 
-import * as VaultUtilTypes from "../proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     DecryptDataBlob,
     EncryptedBlob,
     hashSecret,
     KeyDerivationConfig_Argon2ID,
-} from "./encryption";
-import { ENVELOPE_VERSION, isEnvelopeBlob } from "./envelope-encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
+import {
+    ENVELOPE_VERSION,
+    isEnvelopeBlob,
+} from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import {
     createEnvelopeEncryptedBlob,
     migrateLegacyBlobToEnvelope,
@@ -15,14 +18,14 @@ import {
     reconfigurePrimaryFactor,
     reencryptVaultBytesWithDEK,
     rotateRecoveryCode,
-} from "./vault-envelope-ops";
+} from "@cryptex-industries/vault-core/vault-utils/vault-envelope-ops";
 import {
     enrollSecondFactor,
     makeWebAuthnUnlockFromSlot,
     resolveSecondFactorForUnlock,
     type SecondFactorEnrollmentResult,
     type SecondFactorSource,
-} from "./second-factor";
+} from "@cryptex-industries/vault-core/vault-utils/second-factor";
 import { clearDeviceSecondFactor } from "./vault-key-store";
 import { setDeviceSecondFactorKey } from "./vault-key-store";
 import type {
@@ -30,31 +33,34 @@ import type {
     VaultDecryptSuccess,
     VaultRevealSecrets,
     VaultUnlockParams,
-} from "./vault-unlock-types";
+} from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 import {
     EncryptionFormGroupSchemaType,
     NewVaultFormSchemaType,
     VaultEncryptionConfigurationsFormElementType,
-} from "./form-schemas";
-import { ensureSyncKemKeypair } from "./post-quantum-kem";
-import { ensureSyncSigningKeypair } from "./sync-signing";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
+import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
+import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import {
     Directory,
     LinkedDevices,
     TOTP,
     Vault,
     VaultCredential,
-} from "./vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
-import { applyImportToVault, type ImportResult } from "./import-export";
+import {
+    applyImportToVault,
+    type ImportResult,
+} from "@cryptex-industries/vault-core/vault-utils/import-export";
 
 export type {
     VaultCreateSecondFactorOptions,
     VaultDecryptSuccess,
     VaultRevealSecrets,
     VaultUnlockParams,
-} from "./vault-unlock-types";
+} from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 
 export interface VaultMetadataInterface {
     id?: number;

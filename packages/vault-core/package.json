@@ -1,0 +1,53 @@
+{
+    "name": "@cryptex-industries/vault-core",
+    "private": true,
+    "version": "0.1.0",
+    "license": "AGPL-3.0-only",
+    "type": "module",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./proto": "./src/proto/vault.ts",
+        "./encoding": "./src/encoding.ts",
+        "./consts": "./src/consts.ts",
+        "./credential-url": "./src/credential-url.ts",
+        "./runtime": "./src/runtime.ts",
+        "./pusher-auth": "./src/pusher-auth.ts",
+        "./presence": "./src/presence.ts",
+        "./synchronization": "./src/synchronization.ts",
+        "./synchronization-utils": "./src/synchronization-utils.ts",
+        "./online-services-session/port": "./src/online-services-session/port.ts",
+        "./online-services-session/protocol": "./src/online-services-session/protocol.ts",
+        "./vault-utils/*": "./src/vault-utils/*.ts"
+    },
+    "packageManager": "pnpm@11.8.0",
+    "scripts": {
+        "protogen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=. src/proto/vault.proto --ts_proto_opt=oneof=unions,unrecognizedEnum=false,useOptionals=none,initializeFieldsAsUndefined=false,esModuleInterop=true,useDate=false,stringEnums=false,outputEncodeMethods=true,outputJsonMethods=false",
+        "lint-tsc": "tsgo --noEmit --strict",
+        "test": "pnpm --workspace-root jest packages/vault-core/src/tests --runInBand"
+    },
+    "dependencies": {
+        "@bufbuild/protobuf": "2.6.1",
+        "@noble/ciphers": "1.3.0",
+        "@noble/hashes": "1.8.0",
+        "@noble/post-quantum": "0.6.1",
+        "@scure/bip39": "2.2.0",
+        "jszip": "3.10.1",
+        "libsodium-wrappers-sumo": "0.7.15",
+        "neverthrow": "8.2.0",
+        "otpauth": "9.4.0",
+        "papaparse": "5.5.3",
+        "pusher-js": "8.4.0",
+        "ulidx": "2.4.1",
+        "zod": "3.25.76",
+        "zxcvbn": "4.4.2"
+    },
+    "devDependencies": {
+        "@types/libsodium-wrappers-sumo": "0.7.8",
+        "@types/papaparse": "5.3.16",
+        "@types/zxcvbn": "4.4.5",
+        "ts-proto": "2.7.5",
+        "typescript": "5.8.3"
+    }
+}

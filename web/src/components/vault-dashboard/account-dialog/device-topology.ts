@@ -1,4 +1,7 @@
-import { LinkedDevices, type LinkedDevice } from "@/app_lib/vault-utils/vault";
+import {
+    LinkedDevices,
+    type LinkedDevice,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 
 type DeviceTopologyDevice = {
     id: string;

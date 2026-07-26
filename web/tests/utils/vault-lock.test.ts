@@ -9,7 +9,7 @@ Object.defineProperty(globalThis, "crypto", {
     writable: true,
 });
 
-import { Vault } from "../../src/app_lib/vault-utils/vault";
+import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     onlineServicesAuthConnectionStatusAtom,
     onlineServicesDataAtom,

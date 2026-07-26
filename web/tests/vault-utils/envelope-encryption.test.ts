@@ -30,7 +30,7 @@ jest.mock(
 );
 
 import sodium from "libsodium-wrappers-sumo";
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     buildKekInfo,
     deriveKEK,
@@ -47,8 +47,8 @@ import {
     wrapDEK,
     buildKeyEnvelope,
     encodeSlot,
-} from "../../src/app_lib/vault-utils/envelope-encryption";
-import { KeyDerivationConfig_Argon2ID } from "../../src/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 
 describe("envelope-encryption", () => {
     beforeAll(async () => {
@@ -183,7 +183,7 @@ describe("envelope-encryption", () => {
 
         await sodium.ready;
         const sfDerived = await (
-            await import("../../src/app_lib/vault-utils/envelope-encryption")
+            await import("@cryptex-industries/vault-core/vault-utils/envelope-encryption")
         ).deriveSecondFactorKeyMaterial(sfBytes, sfSalt, kdf);
         const sfKey = await importHkdfBaseKey(sfDerived, false);
         const kek = await deriveKEK(pwKey, buildKekInfo(vaultId), sfKey, null);

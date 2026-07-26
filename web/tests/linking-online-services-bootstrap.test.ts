@@ -33,7 +33,7 @@ jest.mock("../src/app_lib/online-services-session", () => ({
     },
 }));
 
-jest.mock("../src/app_lib/synchronization", () => ({
+jest.mock("@cryptex-industries/vault-core/synchronization", () => ({
     initWebRTC,
     initPusherInstance: jest.fn(() => {
         const channel = {
@@ -52,12 +52,15 @@ jest.mock("../src/app_lib/synchronization", () => ({
     }),
 }));
 
-jest.mock("../src/app_lib/online-services", () => ({
+jest.mock("@cryptex-industries/vault-core/presence", () => ({
     constructLinkPresenceChannelName: jest.fn((id: string) => `presence-${id}`),
 }));
 
-import * as VaultUtilTypes from "../src/app_lib/proto/vault";
-import { LinkingProcessController } from "../src/app_lib/vault-utils/linking";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { LinkingProcessController } from "@cryptex-industries/vault-core/vault-utils/linking";
+import { configureTestVaultCoreRuntime } from "./helpers/vault-core-runtime";
+
+configureTestVaultCoreRuntime();
 
 describe("LinkingProcessController Online Services bootstrap", () => {
     beforeEach(() => {

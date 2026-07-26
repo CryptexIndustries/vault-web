@@ -2,13 +2,13 @@ import { describe, expect, it, beforeAll } from "@jest/globals";
 import { webcrypto } from "node:crypto";
 import { TextDecoder, TextEncoder } from "util";
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     decapsulateSyncKem,
     encapsulateSyncKem,
     ensureSyncKemKeypair,
-} from "../../src/app_lib/vault-utils/post-quantum-kem";
-import { ensureSyncSigningKeypair } from "../../src/app_lib/vault-utils/sync-signing";
+} from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
+import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import {
     buildSyncKeyBundle,
     createLinkMac,
@@ -20,8 +20,8 @@ import {
     openAead,
     sealAead,
     verifyLinkMac,
-} from "../../src/app_lib/vault-utils/sync-crypto";
-import { LinkedDevices } from "../../src/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
+import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
 
 if (!globalThis.crypto?.subtle) {
     Object.defineProperty(globalThis, "crypto", {

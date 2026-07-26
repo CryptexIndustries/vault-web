@@ -29,7 +29,7 @@ import {
     type EnvelopeKdfConfig,
 } from "./envelope-encryption";
 import type { SecondFactorEnrollmentResult } from "./second-factor";
-import { uint8ToBase64 } from "@/lib/utils";
+import { uint8ToBase64 } from "../encoding";
 
 export type EnvelopeCreateResult = {
     blob: EncryptedBlob;

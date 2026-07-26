@@ -2,13 +2,13 @@ import { describe, expect, it, jest, beforeAll } from "@jest/globals";
 import { webcrypto } from "node:crypto";
 import { TextDecoder, TextEncoder } from "util";
 
-import * as VaultUtilTypes from "../src/app_lib/proto/vault";
-import { SyncConnectionController } from "../src/app_lib/synchronization";
-import type { VaultOperations } from "../src/app_lib/synchronization";
-import { SynchronizationEnvelope } from "../src/app_lib/synchronization-utils";
-import { ensureSyncKemKeypair } from "../src/app_lib/vault-utils/post-quantum-kem";
-import { ensureSyncSigningKeypair } from "../src/app_lib/vault-utils/sync-signing";
-import { LinkedDevices } from "../src/app_lib/vault-utils/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
+import type { VaultOperations } from "@cryptex-industries/vault-core/synchronization";
+import { SynchronizationEnvelope } from "@cryptex-industries/vault-core/synchronization-utils";
+import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
+import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
+import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
 
 if (!globalThis.crypto?.subtle) {
     Object.defineProperty(globalThis, "crypto", {
@@ -48,6 +48,11 @@ jest.mock("../src/utils/trpc", () => ({
         },
     },
 }));
+
+import { configureTestVaultCoreRuntime } from "./helpers/vault-core-runtime";
+import { trpc } from "../src/utils/trpc";
+
+configureTestVaultCoreRuntime({ trpc });
 
 type SyncHandle = {
     transmitSyncHello(

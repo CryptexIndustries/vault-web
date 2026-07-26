@@ -2,7 +2,7 @@ import { Download, FileJson, ShieldCheck, Upload } from "lucide-react";
 import { useAtomValue } from "jotai/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import * as ImportExport from "@/app_lib/vault-utils/import-export";
+import * as ImportExport from "@cryptex-industries/vault-core/vault-utils/import-export";
 import * as Storage from "@/app_lib/vault-utils/storage";
 import { Button } from "@/components/ui/button";
 import {

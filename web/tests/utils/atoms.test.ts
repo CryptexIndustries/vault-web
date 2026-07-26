@@ -14,7 +14,7 @@ import {
     vaultStore,
     type OnlineServicesData,
 } from "../../src/utils/atoms";
-import { Vault } from "../../src/app_lib/vault-utils/vault";
+import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 
 const sampleData: OnlineServicesData = {
     sessionToken: "tok",

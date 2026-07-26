@@ -15,8 +15,7 @@ export const authRouterRegister = publicProcedure
     .output(z.object({ deviceId: z.string(), userId: z.string() }))
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const authRouterChallenge = publicProcedure
     .input(z.object({ deviceId: deviceIdSchema }))
     .output(
@@ -28,8 +27,7 @@ export const authRouterChallenge = publicProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 /** Server challenge ids are 32 hex chars; allow slack for format changes. */
 const authVerifyChallengeIdSchema = z.string().min(1).max(64);
 /** P-256 IEEE P1363 signature as base64url (typically well under this cap). */
@@ -53,8 +51,7 @@ export const authRouterVerify = publicProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const authRouterRefresh = publicProcedure
     .input(z.object({ refreshToken: refreshTokenSchema }))
     .output(
@@ -67,8 +64,7 @@ export const authRouterRefresh = publicProcedure
     )
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const authRouterLogout = protectedProcedure
     .input(
         z.object({
@@ -78,8 +74,7 @@ export const authRouterLogout = protectedProcedure
     .output(z.object({ success: z.literal(true) }))
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });
 export const authRouterRecover = publicProcedure
     .input(
         z.object({
@@ -92,5 +87,4 @@ export const authRouterRecover = publicProcedure
     .output(z.object({ success: z.literal(true), deviceId: z.string() }))
     .mutation(() => {
         throw new Error("api-contract stub");
-    })
-;
+    });

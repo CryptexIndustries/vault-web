@@ -5,7 +5,7 @@ import {
     type SecurityAnalysisProgress,
     type SecurityAnalysisResult,
     type SecurityReportCredential,
-} from "@/app_lib/vault-utils/security-report";
+} from "@cryptex-industries/vault-core/vault-utils/security-report";
 import { SecurityAnalysisCache } from "./security-analysis-cache";
 
 const ANALYSIS_CHUNK_BUDGET_MS = 12;

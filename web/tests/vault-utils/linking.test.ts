@@ -25,7 +25,7 @@ Object.defineProperty(globalThis, "crypto", {
     writable: true,
 });
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 
 const uint8ToBase64 = (value: Uint8Array): string =>
     Buffer.from(value).toString("base64");
@@ -81,9 +81,9 @@ jest.mock("@scure/bip39", () => ({
     generateMnemonic: mockGenerateMnemonic,
 }));
 
-jest.mock("../../src/app_lib/vault-utils/encryption", () => {
+jest.mock("@cryptex-industries/vault-core/vault-utils/encryption", () => {
     const actual = jest.requireActual(
-        "../../src/app_lib/vault-utils/encryption",
+        "@cryptex-industries/vault-core/vault-utils/encryption",
     ) as object;
     return {
         __esModule: true,
@@ -97,12 +97,12 @@ jest.mock("../../src/app_lib/vault-utils/encryption", () => {
 });
 
 // Prevent import-time dependency complexity from synchronization helpers.
-jest.mock("../../src/app_lib/synchronization", () => ({
+jest.mock("@cryptex-industries/vault-core/synchronization", () => ({
     initPusherInstance: jest.fn(),
     initWebRTC: jest.fn(),
 }));
 
-jest.mock("../../src/app_lib/online-services", () => ({
+jest.mock("@cryptex-industries/vault-core/presence", () => ({
     constructLinkPresenceChannelName: jest.fn((id: string) => `presence-${id}`),
 }));
 
@@ -111,7 +111,7 @@ jest.mock("pusher-js", () => ({
     default: class {},
 }));
 
-import { LinkingPackage } from "../../src/app_lib/vault-utils/linking";
+import { LinkingPackage } from "@cryptex-industries/vault-core/vault-utils/linking";
 
 describe("vault-utils/linking", () => {
     beforeEach(() => {

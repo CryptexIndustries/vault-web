@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import * as OTPAuth from "otpauth";
 import { z } from "zod";
 
-import { CredentialConstants } from "../../utils/consts";
+import { CredentialConstants } from "../consts";
 import {
     Credential,
     CustomFieldType,
@@ -20,16 +20,19 @@ import {
     VaultCredential,
 } from "./vault";
 
-export const vaultToJSON = (vaultInstance: Vault) => {
-    // Make sure to remove all unnecessary properties from the vault by manually creating a new object
+/** Sanitized cleartext JSON for migration export (no download side effects). */
+export const vaultToJSONString = (vaultInstance: Vault): string => {
     const sanitizedVault = {
         Directories: vaultInstance.Directories.filter((item) => !item.Deleted),
         Credentials: vaultInstance.Credentials,
     };
+    return JSON.stringify(sanitizedVault, null, 4);
+};
 
-    const stringifiedData = JSON.stringify(sanitizedVault, null, 4);
+export const vaultToJSON = (vaultInstance: Vault) => {
+    const stringifiedData = vaultToJSONString(vaultInstance);
 
-    // Trigger data download
+    // Trigger data download (web)
     const blob = new Blob([stringifiedData], {
         type: "application/json",
     });

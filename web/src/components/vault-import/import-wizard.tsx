@@ -7,7 +7,7 @@ import {
     parseImportFile,
     type ImportResult,
     type ImportSource,
-} from "@/app_lib/vault-utils/import-export";
+} from "@cryptex-industries/vault-core/vault-utils/import-export";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {

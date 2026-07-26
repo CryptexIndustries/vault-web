@@ -1,9 +1,9 @@
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     EncryptedBlob,
     KeyDerivationConfig_Argon2ID,
-} from "@/app_lib/vault-utils/encryption";
-import { createEnvelopeEncryptedBlob } from "@/app_lib/vault-utils/vault-envelope-ops";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
+import { createEnvelopeEncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/vault-envelope-ops";
 
 export type LinkedVaultEnvelopeOptions = {
     vaultId: string;

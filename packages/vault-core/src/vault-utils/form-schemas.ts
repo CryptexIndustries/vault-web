@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-    BACKUP_FILE_EXTENSION,
-    REQUIRED_FIELD_ERROR,
-} from "../../utils/consts";
+import { BACKUP_FILE_EXTENSION, REQUIRED_FIELD_ERROR } from "../consts";
 import * as VaultUtilTypes from "../proto/vault";
 import {
     KeyDerivationConfig_Argon2ID,
@@ -51,12 +48,6 @@ export const vaultEncryptionConfigurationsFormElement = z.object({
 export type VaultEncryptionConfigurationsFormElementType = z.infer<
     typeof vaultEncryptionConfigurationsFormElement
 >;
-
-// export const vaultEncryptionDescriptions = {
-//     XChaCha20Poly1305:
-//         "Uses Argon2ID under the hood - resistant to GPU and ASIC attacks (more secure), slower, and requires more memory.",
-//     AES256: "Uses PBKDF2 under the hood - faster, not resistant to GPU and ASIC attacks (less secure).",
-// };
 
 export const unlockVaultFormSchema = z.object({
     CaptchaToken: z.string(),

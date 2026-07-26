@@ -34,13 +34,13 @@ jest.mock(
 );
 
 import sodium from "libsodium-wrappers-sumo";
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
-import { KeyDerivationConfig_Argon2ID } from "../../src/app_lib/vault-utils/encryption";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     deriveSecondFactorKeyMaterial,
     generateRandomSalt,
     importHkdfBaseKey,
-} from "../../src/app_lib/vault-utils/envelope-encryption";
+} from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import {
     createEnvelopeEncryptedBlob,
     migrateLegacyBlobToEnvelope,
@@ -48,9 +48,9 @@ import {
     reconfigurePrimaryFactor,
     reencryptVaultBytesWithDEK,
     rotateRecoveryCode,
-} from "../../src/app_lib/vault-utils/vault-envelope-ops";
-import type { SecondFactorEnrollmentResult } from "../../src/app_lib/vault-utils/second-factor";
-import { EncryptedBlob } from "../../src/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/vault-envelope-ops";
+import type { SecondFactorEnrollmentResult } from "@cryptex-industries/vault-core/vault-utils/second-factor";
+import { EncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/encryption";
 
 // Small Argon2 cost keeps the crypto deterministic but fast in CI.
 const kdf = new KeyDerivationConfig_Argon2ID(8, 1);

@@ -13,7 +13,7 @@ import {
     unlockedVaultMetadataAtom,
     vaultStore,
 } from "@/utils/atoms";
-import { Vault } from "@/app_lib/vault-utils/vault";
+import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { getOnlineServicesTrpcUrl } from "@/utils/online-services-api-url";
 import {
     createForcedReauthGate,

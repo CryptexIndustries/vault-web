@@ -23,7 +23,10 @@ import {
 } from "../types/sw-messaging";
 import { sendEncryptedEnvelopeToSW } from "../utils/sw-envelope-client";
 import { uiLog, vaultLog } from "../utils/ext-logging";
-import { CustomFieldType, ItemType } from "@/app_lib/proto/vault";
+import {
+    CustomFieldType,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 
 export type PopupSaveCredentialProps = {
     prompt: PendingSavePrompt;

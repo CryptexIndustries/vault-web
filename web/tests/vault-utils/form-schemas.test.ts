@@ -15,7 +15,7 @@ jest.mock(
     { virtual: true },
 );
 
-import * as VaultUtilTypes from "../../src/app_lib/proto/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     BACKUP_FILE_EXTENSION,
     REQUIRED_FIELD_ERROR,
@@ -35,11 +35,11 @@ import {
     vaultEncryptionFormElement,
     vaultEncryptionKeyDerivationFunctionFormElement,
     vaultRestoreFormSchema,
-} from "../../src/app_lib/vault-utils/form-schemas";
+} from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import {
     KeyDerivationConfig_Argon2ID,
     KeyDerivationConfig_PBKDF2,
-} from "../../src/app_lib/vault-utils/encryption";
+} from "@cryptex-industries/vault-core/vault-utils/encryption";
 
 describe("vault-utils/form-schemas", () => {
     it("applies default encryption and key derivation values", () => {

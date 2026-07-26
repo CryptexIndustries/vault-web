@@ -1,9 +1,3 @@
-// import { type EncryptionFormGroupSchemaType } from "@/app_lib/vault-utils/form-schemas";
-// import {
-//     type VaultCredential,
-//     type CredentialFormSchemaType,
-// } from "@/app_lib/vault-utils/vault";
-
 export enum MessageType {
     GetState = 0,
     Unlock = 2,

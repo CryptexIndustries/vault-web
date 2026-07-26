@@ -17,8 +17,8 @@ jest.mock("papaparse", () => ({
 import Papa from "papaparse";
 
 import { CredentialConstants } from "../../src/utils/consts";
-import { ItemType } from "../../src/app_lib/proto/vault";
-jest.mock("../../src/app_lib/vault-utils/vault", () => ({
+import { ItemType } from "@cryptex-industries/vault-core/proto";
+jest.mock("@cryptex-industries/vault-core/vault-utils/vault", () => ({
     __esModule: true,
     assimilateImportedCredential: jest.fn(async (credential: any) => ({
         ...credential,
@@ -72,7 +72,7 @@ import {
     vaultToJSON,
     type FieldsSchemaType,
     type ImportResult,
-} from "../../src/app_lib/vault-utils/import-export";
+} from "@cryptex-industries/vault-core/vault-utils/import-export";
 
 describe("vault-utils/import-export", () => {
     const mockPapaParse = Papa.parse as jest.Mock;

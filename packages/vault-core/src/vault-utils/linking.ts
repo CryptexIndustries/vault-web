@@ -4,9 +4,9 @@ import { err, ok, ResultAsync } from "neverthrow";
 import * as VaultUtilTypes from "../proto/vault";
 import * as VaultEncryption from "./encryption";
 import { initPusherInstance, initWebRTC } from "../synchronization";
-import { constructLinkPresenceChannelName } from "../online-services";
+import { constructLinkPresenceChannelName } from "../presence";
 import Pusher, { Channel } from "pusher-js";
-import { base64ToUint8, uint8ToBase64 } from "@/lib/utils";
+import { base64ToUint8, uint8ToBase64 } from "../encoding";
 import { decapsulateSyncKem } from "./post-quantum-kem";
 import {
     buildSyncKeyBundle,

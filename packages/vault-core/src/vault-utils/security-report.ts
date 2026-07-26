@@ -1,5 +1,5 @@
 import { ItemType, type Credential } from "../proto/vault";
-import { normalizeCredentialUrl } from "../../utils/credential-url";
+import { normalizeCredentialUrl } from "../credential-url";
 import { PASSWORD_STRENGTH_LABELS, scorePassword } from "./password-strength";
 
 export const PASSWORD_AGE_REVIEW_DAYS = 365;

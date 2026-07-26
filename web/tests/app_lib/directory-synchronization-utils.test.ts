@@ -1,11 +1,11 @@
 import { TextDecoder, TextEncoder } from "util";
 import { describe, expect, it } from "@jest/globals";
-import * as Proto from "../../src/app_lib/proto/vault";
-import { SynchronizationEnvelope } from "../../src/app_lib/synchronization-utils";
+import * as Proto from "@cryptex-industries/vault-core/proto";
+import { SynchronizationEnvelope } from "@cryptex-industries/vault-core/synchronization-utils";
 import {
     Directory,
     VaultCredential,
-} from "../../src/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 
 Object.defineProperty(globalThis, "TextEncoder", {
     value: TextEncoder,

@@ -9,8 +9,8 @@
  * encrypt and return to the caller.
  */
 
-import { calculateTOTP } from "@/app_lib/vault-utils/vault";
-import * as VaultUtilTypes from "@/app_lib/proto/vault";
+import { calculateTOTP } from "@cryptex-industries/vault-core/vault-utils/vault";
+import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     GetCredentialsForOriginRequest,
     GetCredentialsForOriginResponse,

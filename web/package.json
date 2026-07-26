@@ -9,16 +9,16 @@
         "dev-turbo": "next dev --turbo",
         "lint-next": "next typegen",
         "lint": "oxlint",
-        "lint-tsc": "tsgo --watch --noEmit --strict",
+        "lint-tsc": "tsgo --noEmit --strict",
         "fmt": "oxfmt",
         "fmt-check": "oxfmt --check",
-        "protogen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=. ./src/app_lib/proto/vault.proto --ts_proto_opt=oneof=unions,unrecognizedEnum=false,useOptionals=none,initializeFieldsAsUndefined=false,esModuleInterop=true,useDate=false,stringEnums=false,outputEncodeMethods=true,outputJsonMethods=false",
         "build": "next build",
         "start": "next start"
     },
     "dependencies": {
         "@cryptex-industries/api-contract": "workspace:*",
         "@cryptex-industries/shared-ui": "workspace:*",
+        "@cryptex-industries/vault-core": "workspace:*",
         "@floating-ui/react": "0.26.28",
         "@headlessui/react": "2.2.0",
         "@heroicons/react": "2.2.0",
@@ -65,7 +65,6 @@
         "next": "16.2.6",
         "otpauth": "9.4.0",
         "papaparse": "5.5.3",
-        "pusher": "5.2.0",
         "pusher-js": "8.4.0",
         "react": "19.2.1",
         "react-dom": "19.2.1",
@@ -81,7 +80,6 @@
         "zxcvbn": "4.4.2"
     },
     "devDependencies": {
-        "@bufbuild/protobuf": "2.6.1",
         "@types/libsodium-wrappers-sumo": "0.7.8",
         "@types/papaparse": "5.3.16",
         "@types/react": "19.1.8",
@@ -90,8 +88,7 @@
         "autoprefixer": "10.4.21",
         "cssnano": "7.1.0",
         "postcss": "8.5.15",
-        "tailwindcss": "3.4.17",
-        "ts-proto": "2.7.5"
+        "tailwindcss": "3.4.17"
     },
     "ct3aMetadata": {
         "initVersion": "5.10.0"

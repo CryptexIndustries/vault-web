@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "@jest/globals";
 
-import { VaultWriteCoordinator } from "../../src/app_lib/vault-utils/vault-write-coordinator";
+import { VaultWriteCoordinator } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 
 describe("VaultWriteCoordinator", () => {
     it("runs writes in submission order", async () => {

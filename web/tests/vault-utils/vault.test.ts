@@ -65,14 +65,14 @@ import {
     updateCredentialFromForm,
     updateDirectory,
     type CredentialFormSchemaType,
-} from "../../src/app_lib/vault-utils/vault";
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import { ONLINE_SERVICES_SELECTION_ID } from "../../src/utils/consts";
 import {
     CustomFieldType,
     ItemType,
     TOTPAlgorithm,
     type Credential as VaultUtilCredential,
-} from "../../src/app_lib/proto/vault";
+} from "@cryptex-industries/vault-core/proto";
 
 const buildForm = (
     overrides: Partial<CredentialFormSchemaType> = {},

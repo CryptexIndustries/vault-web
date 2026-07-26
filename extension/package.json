@@ -13,13 +13,14 @@
         "build": "pnpm run clean && vite build --config vite.config.ts && vite build --config vite.config.content.ts",
         "preview": "vite preview",
         "lint": "oxlint",
-        "lint-tsc": "tsgo --watch --noEmit --strict",
+        "lint-tsc": "tsgo --noEmit --strict",
         "fmt": "oxfmt",
         "fmt-check": "oxfmt --check"
     },
     "dependencies": {
         "@cryptex-industries/api-contract": "workspace:*",
         "@cryptex-industries/shared-ui": "workspace:*",
+        "@cryptex-industries/vault-core": "workspace:*",
         "@hookform/resolvers": "3.10.0",
         "@scure/bip39": "2.2.0",
         "@tanstack/react-query": "5.83.0",

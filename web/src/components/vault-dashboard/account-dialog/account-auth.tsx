@@ -80,6 +80,7 @@ export function AccountAuth({
                     </p>
                     <Turnstile
                         siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                        options={{ action: "auth_register" }}
                         onSuccess={onRegisterCaptcha}
                     />
                     <Button
@@ -117,6 +118,7 @@ export function AccountAuth({
                     />
                     <Turnstile
                         siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                        options={{ action: "auth_recover" }}
                         onSuccess={onRecoverCaptcha}
                     />
                     <Button

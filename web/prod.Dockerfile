@@ -15,6 +15,7 @@ COPY scripts/install-lefthook.mjs ./scripts/install-lefthook.mjs
 COPY web/package.json ./web/
 COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/shared-ui/package.json ./packages/shared-ui/
+COPY packages/vault-core/package.json ./packages/vault-core/
 
 RUN corepack enable pnpm && pnpm install --frozen-lockfile --filter web...
 

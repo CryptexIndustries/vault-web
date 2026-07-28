@@ -139,21 +139,41 @@ function createPair() {
         remoteController as unknown as { _vaultItemSynchronization: SyncHandle }
     )._vaultItemSynchronization;
 
+    // Channel.send is sync in WebRTC; delivery/handling is async. Track those
+    // handlers so tests can drain the full exchange before asserting.
+    const pendingDeliveries: Promise<void>[] = [];
+    const enqueue = (delivery: Promise<void>) => {
+        pendingDeliveries.push(
+            delivery.catch(() => undefined).then(() => undefined),
+        );
+    };
+    const flush = async () => {
+        // New sends can enqueue while earlier handlers run (hello → echo → …).
+        while (pendingDeliveries.length > 0) {
+            const batch = pendingDeliveries.splice(0);
+            await Promise.all(batch);
+        }
+    };
+
     const localChannel = {
         send: jest.fn((bytes: Uint8Array | ArrayBuffer) => {
-            void remoteSync.onDataChannelMessage(
-                "local-device",
-                remoteChannel as unknown as RTCDataChannel,
-                createMessageEvent(bytes),
+            enqueue(
+                remoteSync.onDataChannelMessage(
+                    "local-device",
+                    remoteChannel as unknown as RTCDataChannel,
+                    createMessageEvent(bytes),
+                ),
             );
         }),
     };
     const remoteChannel = {
         send: jest.fn((bytes: Uint8Array | ArrayBuffer) => {
-            void localSync.onDataChannelMessage(
-                "remote-device",
-                localChannel as unknown as RTCDataChannel,
-                createMessageEvent(bytes),
+            enqueue(
+                localSync.onDataChannelMessage(
+                    "remote-device",
+                    localChannel as unknown as RTCDataChannel,
+                    createMessageEvent(bytes),
+                ),
             );
         }),
     };
@@ -167,6 +187,7 @@ function createPair() {
         remoteChannel: remoteChannel as unknown as RTCDataChannel,
         localSend: localChannel.send,
         remoteSend: remoteChannel.send,
+        flush,
     };
 }
 
@@ -267,9 +288,10 @@ describe("VaultItemSynchronization encrypted transport", () => {
             remoteChannel,
             localSend,
             remoteSend,
+            flush,
         } = createPair();
         await localSync.transmitSyncHello("remote-device", localChannel);
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await flush();
 
         const encrypted = localSend.mock.calls
             .map((call) => new Uint8Array(call[0] as ArrayBuffer))
@@ -289,6 +311,7 @@ describe("VaultItemSynchronization encrypted transport", () => {
             remoteChannel,
             createMessageEvent(encrypted!),
         );
+        await flush();
 
         expect(remoteSend.mock.calls).toHaveLength(sendsBeforeReplay);
     });

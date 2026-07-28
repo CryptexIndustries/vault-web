@@ -1363,14 +1363,6 @@ export function VaultDashboard() {
                 return;
             }
 
-            if (event.key === "Enter" || event.key === "o") {
-                if (!selectedCredential) return;
-                event.preventDefault();
-                setIsDetailOpen(true);
-                clearPendingKeySequence();
-                return;
-            }
-
             clearPendingKeySequence();
         };
 
@@ -1391,7 +1383,6 @@ export function VaultDashboard() {
         isVaultSettingsOpen,
         moveSelection,
         selectCredentialAtIndex,
-        selectedCredential,
     ]);
 
     return (

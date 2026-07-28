@@ -313,6 +313,56 @@ export function CredentialsList({
         setSelectedIDs(new Set());
     }, [selectedDirectoryID]);
 
+    const toggleCredentialChecked = (credentialID: string) => {
+        setSelectedIDs((previous) => {
+            const next = new Set(previous);
+            if (next.has(credentialID)) {
+                next.delete(credentialID);
+            } else {
+                next.add(credentialID);
+            }
+            return next;
+        });
+    };
+
+    useEffect(() => {
+        if (!selectedId) return;
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== " ") return;
+            if (
+                event.defaultPrevented ||
+                event.ctrlKey ||
+                event.metaKey ||
+                event.altKey
+            ) {
+                return;
+            }
+            if (!(event.target instanceof HTMLElement)) return;
+            if (
+                event.target.closest(
+                    'input, textarea, select, [contenteditable="true"], [role="textbox"], button, [role="menuitem"], [role="option"], [role="dialog"]',
+                )
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            setSelectedIDs((previous) => {
+                const next = new Set(previous);
+                if (next.has(selectedId)) {
+                    next.delete(selectedId);
+                } else {
+                    next.add(selectedId);
+                }
+                return next;
+            });
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [selectedId]);
+
     const sortedDirectories = sortDirectories(directories);
     const selectedDirectory = directories.find(
         (directory) => directory.ID === selectedDirectoryID,
@@ -535,6 +585,21 @@ export function CredentialsList({
                 </div>
                 {selectedIDs.size > 0 ? (
                     <div className="mt-2 flex items-center gap-2 rounded-md bg-muted p-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                                setSelectedIDs(
+                                    new Set(
+                                        filteredCredentials.map(
+                                            (credential) => credential.ID,
+                                        ),
+                                    ),
+                                )
+                            }
+                        >
+                            Select All
+                        </Button>
                         <span className="text-sm text-foreground">
                             {selectedIDs.size} selected
                         </span>
@@ -603,12 +668,15 @@ export function CredentialsList({
                                             tabIndex={0}
                                             onClick={() => onSelect(credential)}
                                             onKeyDown={(e) => {
-                                                if (
-                                                    e.key === "Enter" ||
-                                                    e.key === " "
-                                                ) {
+                                                if (e.key === "Enter") {
                                                     e.preventDefault();
                                                     onSelect(credential);
+                                                } else if (e.key === " ") {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    toggleCredentialChecked(
+                                                        credential.ID,
+                                                    );
                                                 }
                                             }}
                                             className={cn(
@@ -1033,7 +1101,6 @@ export function CredentialsList({
                                         className="h-8 w-8"
                                         aria-label={`Rename ${directory.Name}`}
                                         onClick={() => {
-                                            setDirectoryManagerOpen(false);
                                             openDirectoryEditor(directory);
                                         }}
                                     >

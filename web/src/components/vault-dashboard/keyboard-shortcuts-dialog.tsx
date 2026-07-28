@@ -17,7 +17,7 @@ const shortcuts = [
     { key: "gg", description: "Jump to first credential" },
     { key: "G", description: "Jump to last credential" },
     { key: "/", description: "Focus credential search" },
-    { key: "Enter / o", description: "Open selected credential" },
+    { key: "Space", description: "Toggle checkbox on selected credential" },
     { key: "?", description: "Open this shortcuts dialog" },
 ];
 

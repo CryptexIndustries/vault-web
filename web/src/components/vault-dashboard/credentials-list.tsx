@@ -52,8 +52,12 @@ import {
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { cn } from "@/lib/utils";
-import { CredentialConstants } from "@/utils/consts";
 import { normalizeCredentialUrl } from "@/utils/credential-url";
+import {
+    CredentialSearch,
+    credentialMatchesSearch,
+    parseTags,
+} from "@/components/vault-dashboard/credential-search";
 
 interface CredentialsListProps {
     credentials: VaultCredential[];
@@ -123,65 +127,6 @@ function SearchEmptyState() {
     );
 }
 
-function parseTags(tags?: string): string[] {
-    if (!tags) return [];
-    return tags
-        .split(CredentialConstants.TAG_SEPARATOR)
-        .map((tag) => tag.trim())
-        .filter(Boolean);
-}
-
-type ParsedSearchQuery = {
-    tagTerms: string[];
-    noteTerms: string[];
-    freeText: string;
-};
-
-function parseIdentifierValues(rawValue: string): string[] {
-    const values: string[] = [];
-    const valueRegex = /"([^"]*)"|([^,]+)/g;
-    let match: RegExpExecArray | null;
-
-    while ((match = valueRegex.exec(rawValue)) !== null) {
-        const quotedValue = match[1];
-        const plainValue = match[2];
-        const value = (quotedValue ?? plainValue ?? "").trim();
-        if (value) {
-            values.push(value);
-        }
-    }
-
-    return values;
-}
-
-function parseSearchQuery(query: string): ParsedSearchQuery {
-    const parsed: ParsedSearchQuery = {
-        tagTerms: [],
-        noteTerms: [],
-        freeText: query.trim(),
-    };
-
-    const identifierRegex =
-        /(^|\s)(tag|note):((?:"[^"]*"|[^,\s]+)(?:\s*,\s*(?:"[^"]*"|[^,\s]+))*)/g;
-    let remaining = query;
-
-    remaining = remaining.replace(
-        identifierRegex,
-        (_fullMatch, leadingWhitespace, identifier, rawValue) => {
-            const values = parseIdentifierValues(String(rawValue));
-            if (identifier === "tag") {
-                parsed.tagTerms.push(...values);
-            } else if (identifier === "note") {
-                parsed.noteTerms.push(...values);
-            }
-            return String(leadingWhitespace ?? "");
-        },
-    );
-
-    parsed.freeText = remaining.trim().replace(/\s+/g, " ");
-    return parsed;
-}
-
 function formatDate(timestamp: number): string {
     const date = new Date(timestamp);
     const now = new Date();
@@ -230,7 +175,6 @@ export function CredentialsList({
     const [directoryManagerError, setDirectoryManagerError] = useState("");
     const [isSavingDirectory, setIsSavingDirectory] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle | null>(null);
-    const searchInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         const mediaQuery = window.matchMedia("(max-width: 639px)");
@@ -241,47 +185,9 @@ export function CredentialsList({
         return () => mediaQuery.removeEventListener("change", updateIsMobile);
     }, []);
 
-    const parsedSearchQuery = parseSearchQuery(searchQuery);
-    const hasIdentifierFilters =
-        parsedSearchQuery.tagTerms.length > 0 ||
-        parsedSearchQuery.noteTerms.length > 0;
-
-    const filteredCredentials = credentials.filter((credential) => {
-        const tags = parseTags(credential.Tags);
-        const searchableFields = [
-            credential.Name,
-            credential.Username,
-            credential.Notes,
-            ...tags,
-        ];
-
-        const matchesFreeText =
-            parsedSearchQuery.freeText.length === 0
-                ? true
-                : searchableFields.some((field) =>
-                      field.includes(parsedSearchQuery.freeText),
-                  );
-
-        if (!hasIdentifierFilters) {
-            return matchesFreeText;
-        }
-
-        const matchesTags =
-            parsedSearchQuery.tagTerms.length === 0
-                ? true
-                : parsedSearchQuery.tagTerms.some((tagTerm) =>
-                      tags.some((tag) => tag.includes(tagTerm)),
-                  );
-
-        const matchesNotes =
-            parsedSearchQuery.noteTerms.length === 0
-                ? true
-                : parsedSearchQuery.noteTerms.some((noteTerm) =>
-                      credential.Notes.includes(noteTerm),
-                  );
-
-        return matchesTags && matchesNotes && matchesFreeText;
-    });
+    const filteredCredentials = credentials.filter((credential) =>
+        credentialMatchesSearch(credential, searchQuery),
+    );
     const effectiveViewMode = isMobile ? "list" : viewMode;
 
     useEffect(() => {
@@ -301,13 +207,6 @@ export function CredentialsList({
             behavior: "smooth",
         });
     }, [effectiveViewMode, filteredCredentials, selectedId]);
-
-    useEffect(() => {
-        const input = searchInputRef.current;
-        if (!input) return;
-        input.focus();
-        input.select();
-    }, [searchFocusRequestToken]);
 
     useEffect(() => {
         setSelectedIDs(new Set());
@@ -521,23 +420,11 @@ export function CredentialsList({
                         <Plus className="h-4 w-4" />
                         <span>Add New</span>
                     </Button>
-                    <div className="relative flex-1">
-                        <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            ref={searchInputRef}
-                            placeholder='Search (e.g. tag:"work","urgent" or note:"shared account")'
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Escape") {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.currentTarget.blur();
-                                }
-                            }}
-                            className="bg-card pl-9 text-sm"
-                        />
-                    </div>
+                    <CredentialSearch
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        focusRequestToken={searchFocusRequestToken}
+                    />
                     <div className="flex items-center gap-2">
                         {!isMobile && (
                             <div className="flex items-center overflow-hidden rounded-md border border-border">

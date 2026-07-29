@@ -626,6 +626,7 @@ export function VaultDashboard() {
                 "Directory created.",
             );
             setSelectedDirectoryID(createdDirectoryID);
+            return createdDirectoryID;
         },
         [saveDirectoryChange],
     );
@@ -1563,6 +1564,7 @@ export function VaultDashboard() {
                 initialDirectoryID={
                     selectedDirectoryID === "all" ? "" : selectedDirectoryID
                 }
+                onCreateDirectory={handleCreateDirectory}
             />
             <div className="fixed bottom-4 left-4 right-4 z-50 lg:left-3 lg:right-auto"></div>
             <PasswordGeneratorDialog

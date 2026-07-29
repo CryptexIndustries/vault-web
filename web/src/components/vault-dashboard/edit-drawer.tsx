@@ -63,6 +63,10 @@ import {
     WarningDialog,
     WarningDialogShowFn,
 } from "@/components/dialog/warning";
+import {
+    DirectoryEditorDialog,
+    DirectoryPicker,
+} from "@/components/vault-dashboard/directory-dialogs";
 
 interface EditDrawerProps {
     credential: VaultCredential | null;
@@ -71,6 +75,7 @@ interface EditDrawerProps {
     onSave: (form: CredentialFormSchemaType) => Promise<boolean>;
     directories: Directory[];
     initialDirectoryID?: string;
+    onCreateDirectory: (name: string) => Promise<string | void> | string | void;
 }
 
 function TagControl({
@@ -167,12 +172,14 @@ export function EditDrawer({
     onSave,
     directories,
     initialDirectoryID = "",
+    onCreateDirectory,
 }: EditDrawerProps) {
     const isNew = !credential;
 
     const [showPassword, setShowPassword] = useState(false);
     const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] =
         useState(false);
+    const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
 
     const buildDefaultValues = useCallback(
         (): CredentialFormSchemaType => ({
@@ -378,54 +385,25 @@ export function EditDrawer({
                                         control={control}
                                         name="DirectoryID"
                                         render={({ field }) => (
-                                            <Select
-                                                value={field.value || "root"}
-                                                onValueChange={(value) =>
-                                                    field.onChange(
-                                                        value === "root"
-                                                            ? ""
-                                                            : value,
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger aria-label="Directory">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="root">
-                                                        Root
-                                                    </SelectItem>
-                                                    {directories
-                                                        .filter(
-                                                            (directory) =>
-                                                                !directory.Deleted,
-                                                        )
-                                                        .sort((a, b) =>
-                                                            a.Name.localeCompare(
-                                                                b.Name,
-                                                                undefined,
-                                                                {
-                                                                    sensitivity:
-                                                                        "base",
-                                                                },
-                                                            ),
-                                                        )
-                                                        .map((directory) => (
-                                                            <SelectItem
-                                                                key={
-                                                                    directory.ID
-                                                                }
-                                                                value={
-                                                                    directory.ID
-                                                                }
-                                                            >
-                                                                {directory.Name}
-                                                            </SelectItem>
-                                                        ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <DirectoryPicker
+                                                directories={directories}
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                            />
                                         )}
                                     />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full gap-1.5"
+                                        onClick={() =>
+                                            setDirectoryEditorOpen(true)
+                                        }
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        New directory
+                                    </Button>
                                 </div>
 
                                 <div className="space-y-2">
@@ -914,6 +892,21 @@ export function EditDrawer({
                 open={isPasswordGeneratorOpen}
                 onOpenChange={setIsPasswordGeneratorOpen}
                 onPasswordSelect={handleGeneratedPasswordSelect}
+            />
+            <DirectoryEditorDialog
+                open={directoryEditorOpen}
+                onOpenChange={setDirectoryEditorOpen}
+                directory={null}
+                onCreate={async (name) => {
+                    const directoryID = await onCreateDirectory(name);
+                    if (typeof directoryID === "string" && directoryID) {
+                        setValue("DirectoryID", directoryID, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                        });
+                    }
+                    return directoryID;
+                }}
             />
         </>
     );

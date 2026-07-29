@@ -15,22 +15,11 @@ import {
     Folder,
     FolderRoot,
     LayoutList,
-    Pencil,
     Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import {
     Select,
     SelectContent,
@@ -58,6 +47,10 @@ import {
     credentialMatchesSearch,
     parseTags,
 } from "@/components/vault-dashboard/credential-search";
+import {
+    DirectoryEditorDialog,
+    DirectoryManagerDialog,
+} from "@/components/vault-dashboard/directory-dialogs";
 
 interface CredentialsListProps {
     credentials: VaultCredential[];
@@ -75,7 +68,7 @@ interface CredentialsListProps {
     credentialCounts: Record<string, number>;
     selectedDirectoryID: string;
     onSelectDirectory: (directoryID: string) => void;
-    onCreateDirectory: (name: string) => Promise<void> | void;
+    onCreateDirectory: (name: string) => Promise<string | void> | string | void;
     onRenameDirectory: (
         directoryID: string,
         name: string,
@@ -170,10 +163,6 @@ export function CredentialsList({
     const [editingDirectory, setEditingDirectory] = useState<Directory | null>(
         null,
     );
-    const [directoryName, setDirectoryName] = useState("");
-    const [directoryError, setDirectoryError] = useState("");
-    const [directoryManagerError, setDirectoryManagerError] = useState("");
-    const [isSavingDirectory, setIsSavingDirectory] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle | null>(null);
 
     useEffect(() => {
@@ -281,30 +270,7 @@ export function CredentialsList({
 
     const openDirectoryEditor = (directory: Directory | null) => {
         setEditingDirectory(directory);
-        setDirectoryName(directory?.Name ?? "");
-        setDirectoryError("");
         setDirectoryEditorOpen(true);
-    };
-
-    const saveDirectory = async () => {
-        setDirectoryError("");
-        setIsSavingDirectory(true);
-        try {
-            if (editingDirectory) {
-                await onRenameDirectory(editingDirectory.ID, directoryName);
-            } else {
-                await onCreateDirectory(directoryName);
-            }
-            setDirectoryEditorOpen(false);
-        } catch (error: unknown) {
-            setDirectoryError(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to save directory",
-            );
-        } finally {
-            setIsSavingDirectory(false);
-        }
     };
 
     return (
@@ -402,10 +368,7 @@ export function CredentialsList({
                                 New directory
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                                onSelect={() => {
-                                    setDirectoryManagerError("");
-                                    setDirectoryManagerOpen(true);
-                                }}
+                                onSelect={() => setDirectoryManagerOpen(true)}
                             >
                                 <Settings2 className="mr-2 h-4 w-4" />
                                 Manage directories
@@ -878,169 +841,22 @@ export function CredentialsList({
                 </div>
             )}
 
-            <Dialog
+            <DirectoryEditorDialog
                 open={directoryEditorOpen}
                 onOpenChange={setDirectoryEditorOpen}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingDirectory
-                                ? "Rename directory"
-                                : "Create directory"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            Directory names must be unique and 1–100 characters.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-2">
-                        <Label htmlFor="credential-list-directory-name">
-                            Name
-                        </Label>
-                        <Input
-                            id="credential-list-directory-name"
-                            value={directoryName}
-                            maxLength={100}
-                            autoFocus
-                            disabled={isSavingDirectory}
-                            onChange={(event) => {
-                                setDirectoryName(event.target.value);
-                                setDirectoryError("");
-                            }}
-                            onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                    event.preventDefault();
-                                    void saveDirectory();
-                                }
-                            }}
-                        />
-                        {directoryError ? (
-                            <p
-                                className="text-sm text-destructive"
-                                role="alert"
-                            >
-                                {directoryError}
-                            </p>
-                        ) : null}
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            disabled={isSavingDirectory}
-                            onClick={() => setDirectoryEditorOpen(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            disabled={isSavingDirectory}
-                            onClick={() => void saveDirectory()}
-                        >
-                            {isSavingDirectory ? "Saving..." : "Save"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog
+                directory={editingDirectory}
+                onCreate={onCreateDirectory}
+                onRename={onRenameDirectory}
+            />
+            <DirectoryManagerDialog
                 open={directoryManagerOpen}
                 onOpenChange={setDirectoryManagerOpen}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Manage directories</DialogTitle>
-                        <DialogDescription>
-                            Rename or delete directories. Root is always
-                            available and cannot be changed.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex items-center justify-between rounded-md border p-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <FolderRoot className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            <span className="truncate text-sm font-medium">
-                                Root
-                            </span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                            {credentialCounts.root ?? 0}
-                        </span>
-                    </div>
-                    <div className="max-h-72 space-y-2 overflow-y-auto">
-                        {sortedDirectories.length === 0 ? (
-                            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                                No directories yet.
-                            </div>
-                        ) : (
-                            sortedDirectories.map((directory) => (
-                                <div
-                                    key={directory.ID}
-                                    className="flex items-center gap-3 rounded-md border p-3"
-                                >
-                                    <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                                        {directory.Name}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                        {credentialCounts[directory.ID] ?? 0}
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        aria-label={`Rename ${directory.Name}`}
-                                        onClick={() => {
-                                            openDirectoryEditor(directory);
-                                        }}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-destructive hover:text-destructive"
-                                        aria-label={`Delete ${directory.Name}`}
-                                        onClick={() => {
-                                            setDirectoryManagerError("");
-                                            void Promise.resolve(
-                                                onDeleteDirectory(directory.ID),
-                                            ).catch((error: unknown) =>
-                                                setDirectoryManagerError(
-                                                    error instanceof Error
-                                                        ? error.message
-                                                        : "Failed to delete directory",
-                                                ),
-                                            );
-                                        }}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                    {directoryManagerError ? (
-                        <p className="text-sm text-destructive" role="alert">
-                            {directoryManagerError}
-                        </p>
-                    ) : null}
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setDirectoryManagerOpen(false)}
-                        >
-                            Close
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                setDirectoryManagerOpen(false);
-                                openDirectoryEditor(null);
-                            }}
-                        >
-                            <Plus className="mr-2 h-4 w-4" />
-                            New directory
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                directories={directories}
+                credentialCounts={credentialCounts}
+                onDelete={onDeleteDirectory}
+                onEditDirectory={openDirectoryEditor}
+                onCreateDirectory={() => openDirectoryEditor(null)}
+            />
         </div>
     );
 }

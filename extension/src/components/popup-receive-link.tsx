@@ -11,6 +11,7 @@ import {
     Loader2,
     Lock,
     QrCode,
+    RefreshCw,
     Settings2,
     Upload,
     X,
@@ -75,6 +76,7 @@ import BarcodeScanner from "./qr-scanner";
 import type { ChunkedQRCodeProgress } from "@ui/lib/chunked-qr";
 import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
+import { PasswordGeneratorDialog } from "@/components/ui/password-generator";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
 import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 
@@ -361,10 +363,13 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const [passphraseConfirm, setPassphraseConfirm] = useState("");
     const [isSavingVault, setIsSavingVault] = useState(false);
     const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
+    const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] =
+        useState(false);
 
     const {
         register,
         handleSubmit,
+        setValue,
         watch,
         reset: resetEncryptionForm,
         formState: { errors: encryptionErrors },
@@ -395,6 +400,14 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         Number(opsLimit),
     );
     const submitBlockedByKdf = belowRecommendedKdf && !kdfRiskAcknowledged;
+
+    const handleGeneratedPassphrase = (passphrase: string) => {
+        setValue("Secret", passphrase, {
+            shouldDirty: true,
+            shouldValidate: true,
+        });
+        setPassphraseConfirm(passphrase);
+    };
 
     const progressRef = useRef<ProgressEntry[]>([]);
     const receivedVaultRef = useRef<Uint8Array | null>(null);
@@ -437,6 +450,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         resetEncryptionForm();
         setPassphraseConfirm("");
         setKdfRiskAcknowledged(false);
+        setIsPasswordGeneratorOpen(false);
         setIsSavingVault(false);
         setSteps(createSteps());
         setProgress([]);
@@ -1076,13 +1090,24 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         <Label htmlFor="link-passphrase" className="text-xs">
                             Passphrase
                         </Label>
-                        <Input
-                            id="link-passphrase"
-                            type="password"
-                            className="text-xs"
-                            autoComplete="new-password"
-                            {...register("Secret")}
-                        />
+                        <div className="relative">
+                            <Input
+                                id="link-passphrase"
+                                type="password"
+                                className="pr-9 text-xs"
+                                autoComplete="new-password"
+                                {...register("Secret")}
+                            />
+                            <button
+                                type="button"
+                                className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-primary"
+                                onClick={() => setIsPasswordGeneratorOpen(true)}
+                                aria-label="Generate passphrase"
+                                title="Generate passphrase"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                         {encryptionErrors.Secret ? (
                             <p className="text-[11px] text-destructive">
                                 {encryptionErrors.Secret.message}
@@ -1097,21 +1122,32 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         >
                             Confirm passphrase
                         </Label>
-                        <Input
-                            id="link-passphrase-confirm"
-                            type="password"
-                            value={passphraseConfirm}
-                            onChange={(event) =>
-                                setPassphraseConfirm(event.target.value)
-                            }
-                            className="text-xs"
-                            autoComplete="new-password"
-                            onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                    void savePassphrase();
+                        <div className="relative">
+                            <Input
+                                id="link-passphrase-confirm"
+                                type="password"
+                                value={passphraseConfirm}
+                                onChange={(event) =>
+                                    setPassphraseConfirm(event.target.value)
                                 }
-                            }}
-                        />
+                                className="pr-9 text-xs"
+                                autoComplete="new-password"
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                        void savePassphrase();
+                                    }
+                                }}
+                            />
+                            <button
+                                type="button"
+                                className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-primary"
+                                onClick={() => setIsPasswordGeneratorOpen(true)}
+                                aria-label="Generate passphrase"
+                                title="Generate passphrase"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                     </div>
 
                     <Accordion type="single" collapsible>
@@ -1292,6 +1328,11 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     </div>
                 </div>
             )}
+            <PasswordGeneratorDialog
+                open={isPasswordGeneratorOpen}
+                onOpenChange={setIsPasswordGeneratorOpen}
+                onPasswordSelect={handleGeneratedPassphrase}
+            />
         </div>
     );
 };

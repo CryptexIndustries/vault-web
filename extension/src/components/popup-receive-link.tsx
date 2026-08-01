@@ -5,8 +5,6 @@ import {
     AlertCircle,
     Camera,
     CheckCircle2,
-    Eye,
-    EyeOff,
     FileText,
     Loader2,
     Lock,
@@ -29,6 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -1018,43 +1017,25 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                             Enter the words shown below the invitation in your
                             other vault. They prevent anyone else from using it.
                         </p>
-                        <div className="relative">
-                            <Input
-                                id="receive-link-mnemonic"
-                                type={showMnemonic ? "text" : "password"}
-                                value={mnemonic}
-                                onChange={(
-                                    event: React.ChangeEvent<HTMLInputElement>,
-                                ) => setMnemonic(event.target.value)}
-                                placeholder="Words shown in the other vault"
-                                onKeyDown={(
-                                    event: React.KeyboardEvent<HTMLInputElement>,
-                                ) => {
-                                    if (event.key === "Enter") {
-                                        void startReceiving();
-                                    }
-                                }}
-                                className="pr-9 text-xs"
-                            />
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setShowMnemonic((value) => !value)
+                        <PasswordInput
+                            id="receive-link-mnemonic"
+                            revealed={showMnemonic}
+                            onRevealedChange={setShowMnemonic}
+                            secretLabel="verification words"
+                            value={mnemonic}
+                            onChange={(
+                                event: React.ChangeEvent<HTMLInputElement>,
+                            ) => setMnemonic(event.target.value)}
+                            placeholder="Words shown in the other vault"
+                            onKeyDown={(
+                                event: React.KeyboardEvent<HTMLInputElement>,
+                            ) => {
+                                if (event.key === "Enter") {
+                                    void startReceiving();
                                 }
-                                className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
-                                aria-label={
-                                    showMnemonic
-                                        ? "Hide verification words"
-                                        : "Show verification words"
-                                }
-                            >
-                                {showMnemonic ? (
-                                    <EyeOff className="h-3.5 w-3.5" />
-                                ) : (
-                                    <Eye className="h-3.5 w-3.5" />
-                                )}
-                            </button>
-                        </div>
+                            }}
+                            className="text-xs"
+                        />
                     </div>
 
                     {formError ? (
@@ -1090,24 +1071,22 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         <Label htmlFor="link-passphrase" className="text-xs">
                             Passphrase
                         </Label>
-                        <div className="relative">
-                            <Input
-                                id="link-passphrase"
-                                type="password"
-                                className="pr-9 text-xs"
-                                autoComplete="new-password"
-                                {...register("Secret")}
-                            />
-                            <button
-                                type="button"
-                                className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-primary"
-                                onClick={() => setIsPasswordGeneratorOpen(true)}
-                                aria-label="Generate passphrase"
-                                title="Generate passphrase"
-                            >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                        <PasswordInput
+                            id="link-passphrase"
+                            className="text-xs"
+                            autoComplete="new-password"
+                            secretLabel="passphrase"
+                            actions={[
+                                {
+                                    label: "Generate passphrase",
+                                    icon: <RefreshCw className="h-3.5 w-3.5" />,
+                                    onClick: () =>
+                                        setIsPasswordGeneratorOpen(true),
+                                    className: "hover:text-primary",
+                                },
+                            ]}
+                            {...register("Secret")}
+                        />
                         {encryptionErrors.Secret ? (
                             <p className="text-[11px] text-destructive">
                                 {encryptionErrors.Secret.message}
@@ -1122,32 +1101,30 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                         >
                             Confirm passphrase
                         </Label>
-                        <div className="relative">
-                            <Input
-                                id="link-passphrase-confirm"
-                                type="password"
-                                value={passphraseConfirm}
-                                onChange={(event) =>
-                                    setPassphraseConfirm(event.target.value)
+                        <PasswordInput
+                            id="link-passphrase-confirm"
+                            value={passphraseConfirm}
+                            onChange={(event) =>
+                                setPassphraseConfirm(event.target.value)
+                            }
+                            className="text-xs"
+                            autoComplete="new-password"
+                            secretLabel="confirmation passphrase"
+                            actions={[
+                                {
+                                    label: "Generate passphrase",
+                                    icon: <RefreshCw className="h-3.5 w-3.5" />,
+                                    onClick: () =>
+                                        setIsPasswordGeneratorOpen(true),
+                                    className: "hover:text-primary",
+                                },
+                            ]}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    void savePassphrase();
                                 }
-                                className="pr-9 text-xs"
-                                autoComplete="new-password"
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                        void savePassphrase();
-                                    }
-                                }}
-                            />
-                            <button
-                                type="button"
-                                className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-primary"
-                                onClick={() => setIsPasswordGeneratorOpen(true)}
-                                aria-label="Generate passphrase"
-                                title="Generate passphrase"
-                            >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                            }}
+                        />
                     </div>
 
                     <Accordion type="single" collapsible>

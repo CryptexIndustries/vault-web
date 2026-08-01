@@ -3,11 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Err, Ok } from "neverthrow";
-import { Eye, EyeOff, LoaderCircle, Lock } from "lucide-react";
+import { LoaderCircle, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
     Select,
     SelectContent,
@@ -122,6 +122,7 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
     useEffect(() => {
         if (!selectedVault) return;
 
+        setShowSecret(false);
         localStorage.setItem(
             LAST_SELECTED_VAULT_KEY,
             selectedVault.DBIndex?.toString() ?? "",
@@ -173,6 +174,7 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
         }
 
         resetForm(undefined, { keepDefaultValues: true });
+        setShowSecret(false);
     };
 
     if (vaults == null) {
@@ -255,30 +257,15 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
                 <Label htmlFor="vault-secret" className="text-xs">
                     Password
                 </Label>
-                <div className="relative">
-                    <Input
-                        id="vault-secret"
-                        type={showSecret ? "text" : "password"}
-                        autoComplete="current-password"
-                        className="pr-9 text-xs"
-                        placeholder="Vault password"
-                        {...register("Secret")}
-                    />
-                    <button
-                        type="button"
-                        onClick={() => setShowSecret((value) => !value)}
-                        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
-                        aria-label={
-                            showSecret ? "Hide password" : "Show password"
-                        }
-                    >
-                        {showSecret ? (
-                            <EyeOff className="h-3.5 w-3.5" />
-                        ) : (
-                            <Eye className="h-3.5 w-3.5" />
-                        )}
-                    </button>
-                </div>
+                <PasswordInput
+                    id="vault-secret"
+                    revealed={showSecret}
+                    onRevealedChange={setShowSecret}
+                    autoComplete="current-password"
+                    className="text-xs"
+                    placeholder="Vault password"
+                    {...register("Secret")}
+                />
                 {errors.Secret ? (
                     <p className="text-[11px] text-destructive">
                         {errors.Secret.message}

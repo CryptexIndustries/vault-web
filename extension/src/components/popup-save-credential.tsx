@@ -10,11 +10,12 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, Loader2, Save, ShieldCheck, X } from "lucide-react";
+import { Loader2, Save, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 
 import {
     MessageType,
@@ -53,6 +54,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
         setUsername(prompt.username);
         setPassword(prompt.password);
         setUrl(prompt.url);
+        setShowPassword(false);
     }, [prompt]);
 
     const submitDisabled = useMemo(
@@ -169,30 +171,15 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                     <Label htmlFor="save-password" className="text-xs">
                         Password
                     </Label>
-                    <div className="relative">
-                        <Input
-                            id="save-password"
-                            type={showPassword ? "text" : "password"}
-                            autoComplete="off"
-                            className="pr-9 text-xs"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowPassword((v) => !v)}
-                            className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
-                            aria-label={
-                                showPassword ? "Hide password" : "Show password"
-                            }
-                        >
-                            {showPassword ? (
-                                <EyeOff className="h-3.5 w-3.5" />
-                            ) : (
-                                <Eye className="h-3.5 w-3.5" />
-                            )}
-                        </button>
-                    </div>
+                    <PasswordInput
+                        id="save-password"
+                        revealed={showPassword}
+                        onRevealedChange={setShowPassword}
+                        autoComplete="off"
+                        className="text-xs"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
                 </div>
 
                 <div className="space-y-1.5">

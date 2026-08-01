@@ -1,5 +1,5 @@
 import { Download, FileJson, ShieldCheck, Upload } from "lucide-react";
-import { useAtomValue } from "jotai/react";
+import { useAtom, useAtomValue } from "jotai/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as ImportExport from "@cryptex-industries/vault-core/vault-utils/import-export";
@@ -22,6 +22,13 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { VaultSecurityDialog } from "@/components/vault-dashboard/vault-security-dialog";
 import { ImportWizard } from "@/components/vault-import/import-wizard";
@@ -32,6 +39,10 @@ import {
     getVaultDEKFromSession,
 } from "@/utils/vault-session";
 import { persistVaultMutation } from "@/utils/vault-mutations";
+import {
+    VAULT_AUTO_LOCK_TIMEOUT_OPTIONS,
+    vaultAutoLockTimeoutAtom,
+} from "@/utils/vault-auto-lock";
 import { BACKUP_FILE_EXTENSION } from "src/utils/consts";
 
 type VaultSettingsDialogProps = {
@@ -47,6 +58,9 @@ export function VaultSettingsDialog({
 }: VaultSettingsDialogProps) {
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
+    const [autoLockTimeoutMs, setAutoLockTimeoutMs] = useAtom(
+        vaultAutoLockTimeoutAtom,
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [isSecurityDialogOpen, setIsSecurityDialogOpen] = useState(false);
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
@@ -194,6 +208,54 @@ export function VaultSettingsDialog({
                                                 : "Unknown"}
                                         </span>
                                     </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className={sectionCardClassName}>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">
+                                        Auto-lock
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Lock this vault after a period of
+                                        inactivity.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                    <label
+                                        className="text-sm font-medium"
+                                        htmlFor="vault-auto-lock-timeout"
+                                    >
+                                        Inactivity timeout
+                                    </label>
+                                    <Select
+                                        value={String(autoLockTimeoutMs)}
+                                        onValueChange={(value) =>
+                                            setAutoLockTimeoutMs(Number(value))
+                                        }
+                                    >
+                                        <SelectTrigger id="vault-auto-lock-timeout">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {VAULT_AUTO_LOCK_TIMEOUT_OPTIONS.map(
+                                                (option) => (
+                                                    <SelectItem
+                                                        key={option.value}
+                                                        value={String(
+                                                            option.value,
+                                                        )}
+                                                    >
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ),
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Saved for this browser. Activity resets
+                                        the timer.
+                                    </p>
                                 </CardContent>
                             </Card>
 

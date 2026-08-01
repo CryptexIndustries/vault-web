@@ -55,6 +55,7 @@ import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     useVaultAutoLock,
     type VaultAutoLockReason,
+    vaultAutoLockTimeoutAtom,
 } from "@/utils/vault-auto-lock";
 import { lockUnlockedVault } from "@/utils/vault-lock";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
@@ -381,6 +382,7 @@ export function VaultDashboard() {
         store: onlineServicesStore,
     });
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
+    const vaultAutoLockTimeoutMs = useAtomValue(vaultAutoLockTimeoutAtom);
     const vaultCredentials = useAtomValue(vaultCredentialsAtom);
     const linkedDevices = useAtomValue(linkedDevicesAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
@@ -1170,7 +1172,7 @@ export function VaultDashboard() {
         await lockVault();
     }, [lockVault]);
 
-    useVaultAutoLock(lockVault);
+    useVaultAutoLock(lockVault, { idleMs: vaultAutoLockTimeoutMs });
 
     const showWarningDialog = useCallback(
         (...args: Parameters<WarningDialogShowFn>) => {

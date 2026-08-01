@@ -9,11 +9,13 @@ import {
     it,
     jest,
 } from "@jest/globals";
+import { createStore } from "jotai";
 
 import {
     VAULT_IDLE_AUTO_LOCK_MS,
     startVaultAutoLock,
     type VaultAutoLockController,
+    vaultAutoLockTimeoutAtom,
 } from "../../src/utils/vault-auto-lock";
 
 function setVisibilityState(state: DocumentVisibilityState) {
@@ -92,5 +94,30 @@ describe("startVaultAutoLock", () => {
         await jest.advanceTimersByTimeAsync(1);
         expect(lock).toHaveBeenCalledTimes(1);
         expect(lock).toHaveBeenCalledWith("idle");
+    });
+});
+
+describe("vaultAutoLockTimeoutAtom", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("falls back to 15 minutes for a tampered stored value", () => {
+        localStorage.setItem("cryptex-vault-auto-lock-timeout-ms", "999999999");
+        const store = createStore();
+        const unsubscribe = store.sub(vaultAutoLockTimeoutAtom, () => {});
+
+        expect(store.get(vaultAutoLockTimeoutAtom)).toBe(
+            VAULT_IDLE_AUTO_LOCK_MS,
+        );
+        unsubscribe();
+    });
+
+    it("persists supported values", () => {
+        const store = createStore();
+
+        store.set(vaultAutoLockTimeoutAtom, 30 * 60 * 1000);
+
+        expect(localStorage.getItem("cryptex-vault-auto-lock-timeout-ms")).toBe(
+            String(30 * 60 * 1000),
+        );
     });
 });

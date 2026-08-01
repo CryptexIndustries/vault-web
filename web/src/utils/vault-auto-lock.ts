@@ -1,6 +1,36 @@
+import { atom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 import { useEffect } from "react";
 
 export const VAULT_IDLE_AUTO_LOCK_MS = 15 * 60 * 1000;
+
+export const VAULT_AUTO_LOCK_TIMEOUT_OPTIONS = [
+    { value: 1 * 60 * 1000, label: "1 minute" },
+    { value: 5 * 60 * 1000, label: "5 minutes" },
+    { value: VAULT_IDLE_AUTO_LOCK_MS, label: "15 minutes" },
+    { value: 30 * 60 * 1000, label: "30 minutes" },
+    { value: 60 * 60 * 1000, label: "1 hour" },
+    { value: 4 * 60 * 60 * 1000, label: "4 hours" },
+    { value: 8 * 60 * 60 * 1000, label: "8 hours" },
+] as const;
+
+const storedVaultAutoLockTimeoutAtom = atomWithStorage<unknown>(
+    "cryptex-vault-auto-lock-timeout-ms",
+    VAULT_IDLE_AUTO_LOCK_MS,
+);
+
+const normalizeVaultAutoLockTimeout = (value: unknown) =>
+    VAULT_AUTO_LOCK_TIMEOUT_OPTIONS.find((option) => option.value === value)
+        ?.value ?? VAULT_IDLE_AUTO_LOCK_MS;
+
+export const vaultAutoLockTimeoutAtom = atom(
+    (get) => normalizeVaultAutoLockTimeout(get(storedVaultAutoLockTimeoutAtom)),
+    (_get, set, value: number) =>
+        set(
+            storedVaultAutoLockTimeoutAtom,
+            normalizeVaultAutoLockTimeout(value),
+        ),
+);
 
 export type VaultAutoLockReason = "idle";
 

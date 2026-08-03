@@ -17,6 +17,43 @@ import {
     ensureFreshOnlineServicesSession,
 } from "../app_lib/auth-session";
 
+function createTrpcLoggerLink() {
+    return loggerLink<VersionedRouter>({
+        enabled: (opts) =>
+            process.env.NODE_ENV === "development" ||
+            (opts.direction === "down" && opts.result instanceof Error),
+        logger: (opts) => {
+            const label = `[tRPC] ${opts.direction} ${opts.type} #${opts.id} ${opts.path}`;
+
+            if (process.env.NODE_ENV === "development") {
+                if (opts.direction === "up") {
+                    console.log(label, { input: opts.input });
+                } else if (opts.result instanceof Error) {
+                    console.error(label, {
+                        input: opts.input,
+                        result: opts.result,
+                        elapsedMs: opts.elapsedMs,
+                    });
+                } else {
+                    console.log(label, {
+                        input: opts.input,
+                        result: opts.result,
+                        elapsedMs: opts.elapsedMs,
+                    });
+                }
+                return;
+            }
+
+            if (opts.direction === "down" && opts.result instanceof Error) {
+                console.error(label, {
+                    elapsedMs: opts.elapsedMs,
+                    error: opts.result.name,
+                });
+            }
+        },
+    });
+}
+
 function shouldEnsureFreshSession(opList: Operation[]) {
     return opList.some((op) => {
         if (op.path === "v1.auth.logout") return true;
@@ -43,11 +80,7 @@ export const reactQueryClientConfig = (baseUrl: string) => {
 
     return {
         links: [
-            loggerLink({
-                enabled: (opts) =>
-                    process.env.NODE_ENV === "development" ||
-                    (opts.direction === "down" && opts.result instanceof Error),
-            }),
+            createTrpcLoggerLink(),
             httpBatchLink({
                 url,
                 headers: async ({ opList }) =>
@@ -67,11 +100,7 @@ export const trpcReact = createTRPCReact<VersionedRouter>({});
 
 export const trpc = createTRPCClient<VersionedRouter>({
     links: [
-        loggerLink({
-            enabled: (opts) =>
-                process.env.NODE_ENV === "development" ||
-                (opts.direction === "down" && opts.result instanceof Error),
-        }),
+        createTrpcLoggerLink(),
         httpBatchLink({
             url: isCloudServicesEnabled()
                 ? getOnlineServicesTrpcUrl()

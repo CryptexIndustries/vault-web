@@ -24,23 +24,33 @@ interface ChangelogRelease {
 
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
-        version: "v1.4.1",
-        date: "2026-07-17",
+        version: "v1.4.0",
+        date: "2026-07-06",
         changes: [
             {
                 type: "added",
                 description:
-                    "Organize credentials into directories, filter between them, and move multiple credentials at once from the vault dashboard.",
+                    "A new Backup Center provides encrypted downloads and optional Premium managed restore points with backup status, history, and management controls. Restore local files or recover on a fresh device without replacing an existing vault, and rotate or replace your Recovery Kit for future recovery.",
             },
             {
-                type: "changed",
+                type: "added",
                 description:
-                    "Directories and their credentials now stay consistent across linked devices and are preserved when importing or exporting a vault.",
+                    "Choose how long the web vault waits before automatically locking after inactivity.",
+            },
+            {
+                type: "added",
+                description:
+                    "Organize credentials into directories across the web app and extension, move multiple credentials at once, and preserve directories through imports, exports, and linked-device synchronization.",
             },
             {
                 type: "changed",
                 description:
                     "Online Services sessions now refresh and sign out more reliably, including when locking a vault or removing an account connection.",
+            },
+            {
+                type: "removed",
+                description:
+                    "Removed the unused Online Services feature-voting integration and Premium perk listing.",
             },
             {
                 type: "fix",
@@ -50,73 +60,37 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "fix",
                 description:
-                    "Browser extension autofill now recognizes more sign-in, sign-up, password-change, and verification forms while avoiding unrelated or hidden fields.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Autofill icons and open panels now remain aligned with their fields while pages scroll, resize, or update.",
-            },
-        ],
-    },
-    {
-        version: "v1.4.0",
-        date: "2026-07-06",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Payments now stay inside Cryptex Vault with embedded checkout, billing management, and clearer subscription flows.",
+                    "Production Online Services error logs no longer include request inputs or response details that may contain sensitive information.",
             },
             {
                 type: "added",
                 description:
-                    "The browser extension can now help fill, save, and manage credentials from the extension UI.",
+                    "Payments now stay inside Cryptex Vault with embedded monthly and yearly checkout, billing management, and clearer account and recovery flows.",
             },
             {
                 type: "added",
                 description:
-                    "Passwords now show strength guidance, with warnings for weak vault protection settings.",
+                    "The browser extension can securely recognize authentication forms, fill, save, and manage credentials for the current site, generate passwords and linking passphrases, keep its controls aligned, and automatically lock when idle.",
             },
             {
                 type: "added",
                 description:
-                    "Vaults can now use additional optional unlock protection, including recovery passphrases and second-factor credentials alongside the vault secret.",
+                    "Vault protection now includes password-strength guidance, optional recovery passphrases and second-factor credentials, safer secret handling, and clearer setup and recovery controls.",
             },
             {
                 type: "added",
                 description:
-                    "New vault setup guidance, recovery phrase peek controls, and clearer account recovery information.",
+                    "Import passwords from Cryptex Vault, Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox using a guided preview, including during new vault setup.",
             },
             {
                 type: "added",
                 description:
-                    "You can now import passwords from Cryptex Vault exports, Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox, including during new vault setup.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Linking and synchronization are now encrypted end-to-end and more reliable when scanning QR codes.",
+                    "Linking and synchronization are now encrypted end-to-end with more reliable QR exchange, improved connectivity, and post-quantum message signing.",
             },
             {
                 type: "changed",
                 description:
                     "Vault, account, recovery, and connected-device screens have been refined for clearer feedback.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Browser extension autofill, messaging, and credential access have been hardened around the current website origin.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Vault auto-lock, copied-secret warnings, unsafe URL blocking, and secure sync logging improve day-to-day safety.",
-            },
-            {
-                type: "fix",
-                description:
-                    "QR linking, TURN connectivity, sidebar layout, connected account status, and payment edge cases are more stable.",
             },
         ],
     },

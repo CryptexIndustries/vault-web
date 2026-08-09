@@ -11,6 +11,10 @@ import {
     type VaultSessionError,
 } from "@/utils/vault-session";
 import { err, ok, type Result } from "neverthrow";
+import {
+    flushManagedBackupBeforeLock,
+    stopManagedBackup,
+} from "@/app_lib/managed-backup-hooks";
 
 type SetUnlockedVault = (
     vault: Vault | ((previous: Vault) => Vault | Promise<Vault>),
@@ -49,9 +53,12 @@ export async function lockUnlockedVault({
             return err(saveRes.error);
         }
 
+        await flushManagedBackupBeforeLock();
+
         try {
             syncConnectionController?.teardown();
             clearVaultDEKFromSession();
+            stopManagedBackup();
 
             await logoutOnlineServicesSession();
             setUnlockedVaultMetadata(null);

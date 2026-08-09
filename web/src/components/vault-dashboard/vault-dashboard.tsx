@@ -84,6 +84,8 @@ import {
 } from "./sync-controller";
 import { VaultSettingsDialog } from "./vault-settings-dialog";
 import { VaultMigrationNoticeDialog } from "./vault-migration-notice-dialog";
+import { BackupDialog } from "./backup-dialog";
+import { managedBackupCoordinator } from "@/app_lib/managed-backup-coordinator";
 import {
     type SCCEvent,
     type SignalingEventData,
@@ -93,6 +95,7 @@ import {
     WebRTCMessageEventType,
     WebRTCStatus,
 } from "@cryptex-industries/vault-core/synchronization-utils";
+import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
 
@@ -378,9 +381,7 @@ export function VaultDashboard() {
     const isDesktop = useIsDesktop();
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     /** Session + remote flags live in `onlineServicesStore` (same store tRPC / auth-session use). */
-    const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
-        store: onlineServicesStore,
-    });
+    const onlineServicesData = useOnlineServicesData();
     const unlockedVaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const vaultAutoLockTimeoutMs = useAtomValue(vaultAutoLockTimeoutAtom);
     const vaultCredentials = useAtomValue(vaultCredentialsAtom);
@@ -414,6 +415,7 @@ export function VaultDashboard() {
     const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] =
         useState(false);
     const [isVaultSettingsOpen, setIsVaultSettingsOpen] = useState(false);
+    const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
     const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
     const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] =
         useState(false);
@@ -1025,6 +1027,10 @@ export function VaultDashboard() {
         setIsVaultSettingsOpen(true);
     }, []);
 
+    const handleOpenBackup = useCallback(() => {
+        setIsBackupDialogOpen(true);
+    }, []);
+
     const handleOpenAccountDialog = useCallback(() => {
         setIsAccountDialogOpen(true);
     }, []);
@@ -1114,6 +1120,12 @@ export function VaultDashboard() {
             await ensureSession();
         })();
     }, [ensureSession, cloudServicesEnabled]);
+
+    useEffect(() => {
+        if (!cloudServicesEnabled || !onlineServicesData?.sessionToken) return;
+        void managedBackupCoordinator.start();
+        return () => managedBackupCoordinator.stop();
+    }, [cloudServicesEnabled, onlineServicesData?.sessionToken]);
 
     const handleOpenPasswordGenerator = useCallback(() => {
         setIsPasswordGeneratorOpen(true);
@@ -1305,6 +1317,7 @@ export function VaultDashboard() {
                 isEditDrawerOpen ||
                 isSidebarOpen ||
                 isVaultSettingsOpen ||
+                isBackupDialogOpen ||
                 isAccountDialogOpen ||
                 isPasswordGeneratorOpen;
             if (hasBlockingOverlay) return;
@@ -1379,6 +1392,7 @@ export function VaultDashboard() {
         dashboardView,
         filteredCredentials.length,
         isAccountDialogOpen,
+        isBackupDialogOpen,
         isEditDrawerOpen,
         isKeyboardShortcutsOpen,
         isPasswordGeneratorOpen,
@@ -1426,6 +1440,9 @@ export function VaultDashboard() {
                         onOpenSecurityReport={() =>
                             setDashboardView("security-report")
                         }
+                        onOpenBackup={handleOpenBackup}
+                        vaultId={unlockedVaultMetadata?.Blob?.Envelope?.VaultID}
+                        vaultBlob={unlockedVaultMetadata?.Blob}
                         activeView={dashboardView}
                         onLockVault={lockVaultConfirm}
                         signalingConfig={vaultSignalingConfig}
@@ -1456,6 +1473,9 @@ export function VaultDashboard() {
                     onOpenSecurityReport={() =>
                         setDashboardView("security-report")
                     }
+                    onOpenBackup={handleOpenBackup}
+                    vaultId={unlockedVaultMetadata?.Blob?.Envelope?.VaultID}
+                    vaultBlob={unlockedVaultMetadata?.Blob}
                     activeView={dashboardView}
                     onLockVault={lockVaultConfirm}
                     signalingConfig={vaultSignalingConfig}
@@ -1577,6 +1597,11 @@ export function VaultDashboard() {
                 open={isVaultSettingsOpen}
                 onOpenChange={setIsVaultSettingsOpen}
                 onOpenLogInspector={() => showLogInspectorDialogRef.current?.()}
+            />
+            <BackupDialog
+                open={isBackupDialogOpen}
+                onOpenChange={setIsBackupDialogOpen}
+                onOpenAccountDialog={handleOpenAccountDialog}
             />
             {cloudServicesEnabled ? (
                 <AccountDialog

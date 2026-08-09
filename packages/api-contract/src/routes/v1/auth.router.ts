@@ -1,9 +1,5 @@
-import { z } from "zod";
-
 import { protectedProcedure, publicProcedure } from "../../trpc";
-
-const deviceIdSchema = z.string().min(1).max(128);
-const refreshTokenSchema = z.string().min(1).max(256);
+import { z } from "zod";
 
 export const authRouterRegister = publicProcedure
     .input(
@@ -16,8 +12,9 @@ export const authRouterRegister = publicProcedure
     .mutation(() => {
         throw new Error("api-contract stub");
     });
+
 export const authRouterChallenge = publicProcedure
-    .input(z.object({ deviceId: deviceIdSchema }))
+    .input(z.object({ deviceId: z.string().min(1).max(128) }))
     .output(
         z.object({
             challengeId: z.string(),
@@ -28,17 +25,13 @@ export const authRouterChallenge = publicProcedure
     .mutation(() => {
         throw new Error("api-contract stub");
     });
-/** Server challenge ids are 32 hex chars; allow slack for format changes. */
-const authVerifyChallengeIdSchema = z.string().min(1).max(64);
-/** P-256 IEEE P1363 signature as base64url (typically well under this cap). */
-const authVerifySignatureSchema = z.string().min(1).max(128);
 
 export const authRouterVerify = publicProcedure
     .input(
         z.object({
-            challengeId: authVerifyChallengeIdSchema,
-            signature: authVerifySignatureSchema,
-            deviceId: deviceIdSchema,
+            challengeId: z.string().min(1).max(64),
+            signature: z.string().min(1).max(128),
+            deviceId: z.string().min(1).max(128),
         }),
     )
     .output(
@@ -52,8 +45,9 @@ export const authRouterVerify = publicProcedure
     .mutation(() => {
         throw new Error("api-contract stub");
     });
+
 export const authRouterRefresh = publicProcedure
-    .input(z.object({ refreshToken: refreshTokenSchema }))
+    .input(z.object({ refreshToken: z.string().min(1).max(256) }))
     .output(
         z.object({
             sessionToken: z.string(),
@@ -65,16 +59,18 @@ export const authRouterRefresh = publicProcedure
     .mutation(() => {
         throw new Error("api-contract stub");
     });
+
 export const authRouterLogout = protectedProcedure
     .input(
         z.object({
-            refreshToken: refreshTokenSchema.optional(),
+            refreshToken: z.string().min(1).max(256).optional(),
         }),
     )
     .output(z.object({ success: z.literal(true) }))
     .mutation(() => {
         throw new Error("api-contract stub");
     });
+
 export const authRouterRecover = publicProcedure
     .input(
         z.object({

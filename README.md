@@ -9,6 +9,7 @@ The **hosted Cryptex Cloud backend** (auth, device linking, billing, signaling/T
 - Vault encryption, envelopes, device signing keys, import/export (`web/src/app_lib/vault-utils/`)
 - End-to-end sync crypto and linking (`sync-crypto.ts`, `linking.ts`)
 - Serialized vault mutation and persistence rules ([web/docs/vault-persistence.md](web/docs/vault-persistence.md))
+- Managed zero-knowledge backup behavior and root-only Recovery Kit restore ([web/docs/managed-backups.md](web/docs/managed-backups.md))
 - Extension background/content scripts
 - Client behavior and API contract types (`packages/api-contract/`)
 
@@ -105,10 +106,13 @@ Point this client at the cloud API:
 ```env
 NEXT_PUBLIC_CLOUD_ENABLED=true
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_ONLINE_SERVICES_API_URL=http://localhost:3000
+NEXT_PUBLIC_ONLINE_SERVICES_API_URL=http://localhost:3001
+NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN=http://garage.localhost:3900
 ```
 
 When the UI and API run on different ports/origins, set `NEXT_PUBLIC_APP_URL` to the UI and `NEXT_PUBLIC_ONLINE_SERVICES_API_URL` to the cloud service.
+The cloud API development Compose stack exposes its private Garage bucket at
+`garage.localhost:3900`; this exact origin must be present at client build time for the backup transfer CSP.
 
 Extension builds use the same split via `VITE_APP_URL` and optional `VITE_ONLINE_SERVICES_API_URL` in `extension/.env.development`.
 

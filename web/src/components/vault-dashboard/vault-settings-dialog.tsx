@@ -1,9 +1,8 @@
-import { Download, FileJson, ShieldCheck, Upload } from "lucide-react";
+import { FileJson, ShieldCheck, Upload } from "lucide-react";
 import { useAtom, useAtomValue } from "jotai/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as ImportExport from "@cryptex-industries/vault-core/vault-utils/import-export";
-import * as Storage from "@/app_lib/vault-utils/storage";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -34,16 +33,12 @@ import { VaultSecurityDialog } from "@/components/vault-dashboard/vault-security
 import { ImportWizard } from "@/components/vault-import/import-wizard";
 import { unlockedVaultAtom, unlockedVaultMetadataAtom } from "@/utils/atoms";
 import { vaultLog, vaultLogger } from "@/utils/logging";
-import {
-    MISSING_VAULT_SECRET_ERROR,
-    getVaultDEKFromSession,
-} from "@/utils/vault-session";
+import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     VAULT_AUTO_LOCK_TIMEOUT_OPTIONS,
     vaultAutoLockTimeoutAtom,
 } from "@/utils/vault-auto-lock";
-import { BACKUP_FILE_EXTENSION } from "src/utils/consts";
 
 type VaultSettingsDialogProps = {
     open: boolean;
@@ -61,7 +56,6 @@ export function VaultSettingsDialog({
     const [autoLockTimeoutMs, setAutoLockTimeoutMs] = useAtom(
         vaultAutoLockTimeoutAtom,
     );
-    const [isLoading, setIsLoading] = useState(false);
     const [isSecurityDialogOpen, setIsSecurityDialogOpen] = useState(false);
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
 
@@ -69,15 +63,6 @@ export function VaultSettingsDialog({
         (count, value) => count + value,
         0,
     );
-
-    const ensureDEK = async () => {
-        const dekRes = getVaultDEKFromSession();
-        if (dekRes.isErr()) {
-            toast.error(MISSING_VAULT_SECRET_ERROR);
-            return null;
-        }
-        return dekRes.value;
-    };
 
     const importCredentials = async (result: ImportExport.ImportResult) => {
         const mutationResult = await persistVaultMutation(
@@ -112,41 +97,6 @@ export function VaultSettingsDialog({
         );
     };
 
-    const handleManualBackup = async () => {
-        if (!vaultMetadata?.Blob) {
-            toast.error("Vault metadata is unavailable.");
-            return;
-        }
-
-        const sessionDek = await ensureDEK();
-        if (!sessionDek) return;
-
-        setIsLoading(true);
-        try {
-            const serializedData = await Storage.serializeVault(
-                unlockedVault,
-                vaultMetadata.Blob,
-                sessionDek,
-            );
-            const blob = new Blob([serializedData], {
-                type: "application/octet-stream",
-            });
-            const url = URL.createObjectURL(blob);
-            const anchor = document.createElement("a");
-            anchor.href = url;
-            anchor.download = `cryptexvault-bk-${Date.now()}.${BACKUP_FILE_EXTENSION}`;
-            anchor.click();
-            URL.revokeObjectURL(url);
-            toast.success("Vault backup complete.");
-        } catch (error) {
-            vaultLog.error("Failed to backup vault", { error });
-            toast.error("Failed to create encrypted backup.");
-            return;
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleExportData = () => {
         try {
             ImportExport.vaultToJSON(unlockedVault);
@@ -170,8 +120,8 @@ export function VaultSettingsDialog({
                             Vault Settings
                         </DialogTitle>
                         <DialogDescription>
-                            Manage backup, import/export, encryption, and
-                            diagnostics in one place.
+                            Manage vault behavior, import/export, encryption,
+                            and diagnostics.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -262,28 +212,6 @@ export function VaultSettingsDialog({
                             <Card className={sectionCardClassName}>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-base">
-                                        Backup
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Download an encrypted backup file.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <Button
-                                        variant="outline"
-                                        className={actionButtonClassName}
-                                        onClick={handleManualBackup}
-                                        disabled={isLoading}
-                                    >
-                                        <Download className="h-4 w-4" />
-                                        Manual Backup
-                                    </Button>
-                                </CardContent>
-                            </Card>
-
-                            <Card className={sectionCardClassName}>
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-base">
                                         Import
                                     </CardTitle>
                                     <CardDescription>
@@ -298,7 +226,6 @@ export function VaultSettingsDialog({
                                         onClick={() =>
                                             setIsImportWizardOpen(true)
                                         }
-                                        disabled={isLoading}
                                     >
                                         <Upload className="h-4 w-4" />
                                         Import Passwords
@@ -324,7 +251,6 @@ export function VaultSettingsDialog({
                                         variant="outline"
                                         className={actionButtonClassName}
                                         onClick={handleExportData}
-                                        disabled={isLoading}
                                     >
                                         <FileJson className="h-4 w-4" />
                                         Export Data
@@ -349,7 +275,6 @@ export function VaultSettingsDialog({
                                         onClick={() =>
                                             setIsSecurityDialogOpen(true)
                                         }
-                                        disabled={isLoading}
                                     >
                                         <ShieldCheck className="h-4 w-4" />
                                         Manage Encryption &amp; Security

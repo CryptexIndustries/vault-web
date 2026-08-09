@@ -55,8 +55,8 @@ export function RecoveryKitDialog({
     }, []);
 
     const handleComplete = () => {
-        resetState();
         onComplete();
+        resetState();
     };
 
     const markSaved = () => setSavedActionTaken(true);

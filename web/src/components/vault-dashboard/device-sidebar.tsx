@@ -46,6 +46,7 @@ import {
     LinkedDevice,
     LinkedDevices,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
 import {
     ReceiveLinkRequestDialog,
@@ -69,6 +70,7 @@ import { toast } from "sonner";
 import { trpcReact } from "src/utils/trpc";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { onlineServicesLog } from "src/utils/logging";
+import { BackupSidebarEntry } from "./backup-dialog";
 
 // TODO: Remove this type
 export type DeviceSyncStatus = {
@@ -109,6 +111,9 @@ interface DeviceSidebarProps {
     subscriptionCtaVariant?: SubscriptionCtaVariant;
     onOpenPasswordGenerator?: () => void;
     onOpenSecurityReport: () => void;
+    onOpenBackup: () => void;
+    vaultId?: string;
+    vaultBlob?: EncryptedBlob;
     activeView: "credentials" | "security-report";
     onLockVault?: () => void;
     signalingConfig: VaultSignalingConfig;
@@ -765,6 +770,9 @@ export function DeviceSidebar({
     subscriptionCtaVariant = "signup",
     onOpenPasswordGenerator,
     onOpenSecurityReport,
+    onOpenBackup,
+    vaultId,
+    vaultBlob,
     activeView,
     onLockVault,
     signalingConfig,
@@ -903,6 +911,11 @@ export function DeviceSidebar({
                     <ShieldCheck className="h-3.5 w-3.5" />
                     Security Report
                 </Button>
+                <BackupSidebarEntry
+                    vaultId={vaultId}
+                    vaultBlob={vaultBlob}
+                    onOpen={() => handleSidebarAction(onOpenBackup)}
+                />
             </div>
 
             {/* Devices section */}

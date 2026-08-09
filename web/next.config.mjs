@@ -35,9 +35,20 @@ const onlineServicesApiOrigin = (() => {
     }
 })();
 
+const backupStorageOrigin = (() => {
+    const raw = process.env.NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN;
+    if (!raw) return null;
+    try {
+        return new URL(raw).origin;
+    } catch {
+        return null;
+    }
+})();
+
 const connectSrc = [
     "connect-src 'self' ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
     onlineServicesApiOrigin,
+    backupStorageOrigin,
 ]
     .filter(Boolean)
     .join(" ");

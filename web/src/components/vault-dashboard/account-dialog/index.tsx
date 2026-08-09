@@ -56,7 +56,6 @@ import { trpcReact } from "@/utils/trpc";
 import { onlineServicesLog } from "@/utils/logging";
 import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
 import { persistVaultMutation } from "@/utils/vault-mutations";
-
 import { AccountAuth } from "./account-auth";
 import { AccountDevices } from "./account-devices";
 import { AccountSecurity } from "./account-security";
@@ -70,6 +69,7 @@ import {
     splitRecoveryPhraseIntoSlots,
 } from "./recovery-kit-utils";
 import type { AccountDialogProps, AccountDialogTab, AuthMode } from "./types";
+import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
 
 export {
     buildDeviceRelationshipMap,
@@ -102,9 +102,7 @@ async function persistAccountMutation(mutate: AccountVaultMutation) {
 
 export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const vault = useAtomValue(unlockedVaultAtom);
-    const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
-        store: onlineServicesStore,
-    });
+    const onlineServicesData = useOnlineServicesData();
     const onlineServicesBound = Vault.isOnlineServicesBound(vault);
     const hasSession = !!onlineServicesData?.sessionToken?.length;
 
@@ -123,7 +121,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const [recoveryKitOpen, setRecoveryKitOpen] = useState(false);
     const [recoveryKitFromRegistration, setRecoveryKitFromRegistration] =
         useState(false);
-    const [clearRecoveryOpen, setClearRecoveryOpen] = useState(false);
+    const [rotateRecoveryOpen, setRotateRecoveryOpen] = useState(false);
     const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
     const [deleteAccountPending, setDeleteAccountPending] = useState(false);
 
@@ -133,9 +131,11 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const deleteChallengeMut = trpcReact.v1.user.deleteChallenge.useMutation();
     const genRecoveryMut =
         trpcReact.v1.user.generateRecoveryToken.useMutation();
-    const clearRecoveryMut = trpcReact.v1.user.clearRecoveryToken.useMutation();
+    const rotateRecoveryMut =
+        trpcReact.v1.user.rotateRecoveryToken.useMutation();
 
     const checkoutFinalizeAbortRef = useRef<AbortController | null>(null);
+    const recoveryGenerationStartedRef = useRef(false);
 
     useEffect(() => {
         if (!open) {
@@ -165,13 +165,18 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         }
     };
 
+    const recoveryGenerationNeeded =
+        onlineServicesData?.remoteData?.recoveryGenerationNeeded === true;
+
     const { data: remoteConfig, refetch: refetchConfig } =
         trpcReact.v1.user.configuration.useQuery(undefined, {
-            enabled: open && hasSession,
+            enabled: hasSession && open,
         });
 
     const recoveryPhraseAlreadyOnServer =
-        !!remoteConfig?.recoveryTokenCreatedAt;
+        remoteConfig !== undefined
+            ? !!remoteConfig.recoveryTokenCreatedAt
+            : !!onlineServicesData?.remoteData?.recoveryTokenCreatedAt;
 
     const { data: subscription } = trpcReact.v1.payment.subscription.useQuery(
         undefined,
@@ -440,29 +445,46 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         }
     };
 
-    const handleGenerateRecovery = async () => {
+    const createRecoveryPackage = async (
+        mode: "generate" | "rotate" = "generate",
+    ) => {
         try {
-            const res = await genRecoveryMut.mutateAsync();
-            await refetchConfig();
+            const res =
+                mode === "rotate"
+                    ? await rotateRecoveryMut.mutateAsync()
+                    : await genRecoveryMut.mutateAsync();
+            if (mode === "rotate") setRotateRecoveryOpen(false);
             showRecoveryKit({
                 userId: res.userId,
                 recoveryPhrase: res.token,
             });
+            await Promise.all([
+                syncOnlineServicesRemoteConfiguration(),
+                refetchConfig(),
+            ]);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed");
+            toast.error(
+                e instanceof Error
+                    ? e.message
+                    : mode === "rotate"
+                      ? "Could not rotate the Recovery Kit."
+                      : "Could not generate a Recovery Kit.",
+            );
         }
     };
 
-    const handleClearRecovery = async () => {
-        try {
-            await clearRecoveryMut.mutateAsync();
-            toast.success("Recovery phrase cleared.");
-            await refetchConfig();
-            setClearRecoveryOpen(false);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed");
+    useEffect(() => {
+        if (!hasSession || !recoveryGenerationNeeded) {
+            recoveryGenerationStartedRef.current = false;
+            return;
         }
-    };
+        if (recoveryKitOpen || recoveryGenerationStartedRef.current) {
+            return;
+        }
+        recoveryGenerationStartedRef.current = true;
+        void createRecoveryPackage();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasSession, recoveryGenerationNeeded, recoveryKitOpen]);
 
     const busy =
         registerMut.isPending ||
@@ -607,14 +629,14 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                         genRecoveryPending={
                                             genRecoveryMut.isPending
                                         }
-                                        clearRecoveryPending={
-                                            clearRecoveryMut.isPending
+                                        rotateRecoveryPending={
+                                            rotateRecoveryMut.isPending
                                         }
                                         onGenerateRecovery={() =>
-                                            void handleGenerateRecovery()
+                                            void createRecoveryPackage()
                                         }
-                                        onClearRecovery={() =>
-                                            setClearRecoveryOpen(true)
+                                        onRotateRecovery={() =>
+                                            setRotateRecoveryOpen(true)
                                         }
                                         onRemoveLocalBinding={() => {
                                             setRemoveLocalBindingOpen(true);
@@ -660,33 +682,32 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
             />
 
             <AlertDialog
-                open={clearRecoveryOpen}
-                onOpenChange={setClearRecoveryOpen}
+                open={rotateRecoveryOpen}
+                onOpenChange={setRotateRecoveryOpen}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            Clear recovery phrase?
+                            Rotate recovery package?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            This removes the phrase stored on the server. Any
-                            printed or saved Recovery Kit with the old phrase
-                            will stop working. You can generate a new phrase
-                            afterward.
+                            This invalidates every previous Recovery Kit and any
+                            active backup recovery session. You must save the
+                            new package before continuing.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel
-                            disabled={clearRecoveryMut.isPending}
+                            disabled={rotateRecoveryMut.isPending}
                         >
                             Cancel
                         </AlertDialogCancel>
                         <Button
                             variant="destructive"
-                            disabled={clearRecoveryMut.isPending}
-                            onClick={() => void handleClearRecovery()}
+                            disabled={rotateRecoveryMut.isPending}
+                            onClick={() => void createRecoveryPackage("rotate")}
                         >
-                            Clear phrase
+                            Rotate package
                         </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>

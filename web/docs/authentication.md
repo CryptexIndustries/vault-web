@@ -1,997 +1,468 @@
 # Authentication
 
-This document describes the current authentication model used by the `web` app for Cryptex Vault Online Services.
+This document explains how authentication and recovery work in the web app.
+It focuses on the browser, the UI, and the steps the user actually takes.
+It documents the client and checked-in API contract, not private server storage
+or deployment internals.
+
+For the server API and authorization details, see
+[authentication-api.md](./authentication-api.md).
+
+## A quick distinction
+
+Cryptex has two separate layers:
+
+- The **local vault** contains encrypted vault data and, when the user has
+  connected Online Services, the local credentials that let the app sign in
+  automatically.
+- The **Online Services account** provides hosted synchronization infrastructure, device linking, billing, and managed encrypted backups.
+
+Recovering one does not automatically recover the other. In particular, an
+Online Services Recovery Kit phrase does not decrypt a vault, and a vault
+recovery code does not recover an Online Services account.
+
+## Terms and secrets
+
+- **Vault**: The encrypted local password vault. It must be unlocked before the
+  dashboard and account controls are available.
+- **Online Services binding**: The account and device credentials stored inside
+  an unlocked vault. It contains a server-issued device ID, the account User
+  ID, and a device-signing key pair. The private signing key stays in the
+  vault; it is not sent to Online Services auth endpoints.
+- **Session**: Short-lived Online Services access held in frontend memory. It
+  contains an access session token and a refresh token, and is recreated
+  automatically from the vault binding when possible.
+- **Root device**: The account device allowed to manage account-level features,
+  including Recovery Kits and managed backup setup.
+- **Online Services Recovery Kit**: The User ID and a 24-word recovery phrase
+  saved together. They recover Online Services access and authorize a fresh
+  device to find eligible cloud restore points.
+- **Vault recovery code**: A local fallback for unlocking an encrypted vault.
+  It is unrelated to the Online Services Recovery Kit.
+
+| Secret                                        | Used for                                          | Where it is used           |
+| --------------------------------------------- | ------------------------------------------------- | -------------------------- |
+| Vault password                                | Normal local vault unlock                         | Browser only               |
+| Vault recovery code                           | Fallback local vault unlock                       | Browser only               |
+| Online Services User ID + Recovery Kit phrase | Account recovery and fresh-device backup recovery | Entered in the recovery UI |
+| Second-factor passphrase or WebAuthn factor   | Additional local vault unlock protection          | Browser during unlock      |
+
+## What is stored where
+
+### Inside the vault
+
+When Online Services is connected, the serialized `OnlineServices` section of
+the vault contains four values:
+
+- `DeviceId`: the server-issued ID for this device
+- `UserID`: the Online Services account ID
+- `PublicKeyJWK`: the public half of the device-signing key pair
+- `PrivateKeyJWK`: the private half, stored inside the encrypted vault
+
+This binding is encrypted with the vault. It is what allows the dashboard to
+sign in again after the vault is unlocked without asking for an Online Services
+password.
+
+The runtime `OnlineServices` class also exposes `IsRootDevice`. The client
+updates it from the latest account configuration as a convenience cache, but it
+is not the authorization source and is not part of the serialized protobuf
+binding. Use the server-provided configuration for current permissions.
+
+The vault's `LinkedDevices` section is separate. It contains peer/sync
+configuration and is not the credential store for the Online Services session.
+
+### In frontend session state
+
+The app keeps the current Online Services session in
+`onlineServicesDataAtom` / `onlineServicesStore`. The state contains:
 
-For the server-side API and middleware view of the same system, see [`authentication-api.md`](./authentication-api.md).
-
-It focuses on:
-
-- what the client stores locally
-- how a user registers and signs in
-- how protected API calls are authenticated
-- how session refresh and fallback re-authentication work
-- how recovery works
-- where root-device and subscription-derived permissions come from
-
-This is an implementation document for the current codebase, not a product-level security whitepaper.
-
-## Terms
-
-- `vault`: The locally unlocked Cryptex Vault object stored in the frontend.
-- `OnlineServices`: The section of the vault that stores server-account binding material.
-- `device signing key binding`: In this codebase, this means the vault stores:
-    - `DeviceId` (server-generated device id; equals **`UserDevice.id`**)
-    - `UserID` (account id; equals **`User.id`**)
-    - `PrivateKeyJWK`
-    - `PublicKeyJWK`
-    - `IsRootDevice` (cached value of the server's **`UserDevice.is_root`** for this device)
-- `deviceId`: The server id stored in **`vault.OnlineServices.DeviceId`** must match **`UserDevice.id`** for **`auth.verify`** to succeed. For **`device.link`**, the sender generates a **new** key pair, calls the server with the new **public** key, and ships both keys to the peer inside the encrypted **`LinkingPackageBlob.OnlineServices`** (a full `OnlineServices` payload, including the private key).
-- `session token`: A short-lived JWT used in `Authorization: Bearer <token>`.
-- `protectedProcedure`: A tRPC procedure that requires a valid session token.
-- `root device`: A device flagged server-side as the root for account-level privileged actions.
-
-## High-Level Design
-
-The authentication model is split into two layers:
-
-1. Long-lived local binding
-   The unlocked vault's `OnlineServices` stores the account binding material:
-
-- `DeviceId` (server **`UserDevice.id`**)
-- `UserID` (server **`User.id`**)
-- `PublicKeyJWK`
-- `PrivateKeyJWK`
-- `IsRootDevice` (cached server root flag)
-
-2. Short-lived server session
-   The frontend proves possession of the private key via challenge-response and receives a short-lived JWT session token.
-
-The local binding is persistent in the vault. The JWT is ephemeral and stored only in frontend app state.
-
-## Stored Data
-
-### In The Vault
-
-The `OnlineServices` section of the vault stores the account binding:
-
-- `DeviceId` - server **`UserDevice.id`** for this device; must exist server-side for **`auth.verify`** to succeed
-- `UserID` - server **`User.id`** for the account
-- `PublicKeyJWK`
-- `PrivateKeyJWK`
-- `IsRootDevice` - **cache** of the server's `UserDevice.is_root` value, refreshed after `user.configuration`
-
-This is what allows the frontend to establish a new premium session later without asking the user to manually sign in again, as long as the vault is unlocked.
-
-The vault's separate `LinkedDevices` section (peer/sync configuration, STUN/TURN/signaling lists) is not used by the authentication flow.
-
-### In Frontend Session State
-
-The frontend keeps session state in `onlineServicesStore` / `onlineServicesDataAtom`:
-
-- `deviceId` (matches JWT subject / server device)
-- `sessionToken`
-- `sessionExpiresAt`
-- `remoteData`
-
-`remoteData` is server-derived account metadata such as:
-
-- whether the current device is root
-- linking limits and permissions
-- subscription-derived capabilities
-- recovery-token presence metadata
-
-### On The Server
-
-The server persists:
-
-- the user record (recovery hash only; **no** account-level device signing key field)
-- user-device records with **`public_key` per device** (Prisma generates `UserDevice.id` via its `@default(cuid())`; `auth.recover` explicitly overrides with `ulid()`). `public_key` is `@unique` so the same JWK cannot register twice.
-- device relationships (`DeviceRelationship`) created by `device.link` between an existing root device and the newly minted linked device
-- subscription configuration
-- recovery token hash and creation timestamp
-
-The server also uses Redis for:
-
-- one-time auth challenges
-- cached subscription/session-derived data
-
-## Main Components
-
-### Frontend
-
-- `web/src/app_lib/auth-session.ts`
-  Owns challenge-response sign-in, refresh, lazy preflight freshness checks, and refresh fallback re-authentication.
-- `web/src/utils/trpc.ts`
-  Attaches the bearer token and runs the shared preflight freshness hook before protected traffic.
-- `web/src/components/vault-dashboard/vault-dashboard.tsx`
-  Performs automatic sign-in when a vault with device signing key binding is opened.
-- `web/src/components/vault-dashboard/account-dialog.tsx`
-  Handles registration, recovery, account management, and post-auth configuration refresh.
-
-### Backend (Cryptex Cloud — `cryptex-vault-cloud`)
-
-Server API reference: [`authentication-api.md`](./authentication-api.md) (canonical doc in cloud repo).
-
-## End-To-End Model
-
-At a high level:
-
-1. Registration creates a server user record and a **root `UserDevice`** row holding the device signing key **public** key.
-2. The frontend stores the full device signing key binding in the vault.
-3. Sign-in uses challenge-response:
-
-- server issues challenge
-- frontend signs challenge with vault private key
-- server verifies signature against stored public key
-- server issues short-lived JWT
-
-4. Protected tRPC procedures require that JWT in `Authorization: Bearer`.
-5. Before protected requests, the client checks whether the JWT is near expiry.
-6. If near expiry, the client first tries `auth.refresh`.
-7. If refresh fails, the client falls back to a full challenge-response re-authentication using the unlocked vault’s device signing key material.
-
-## Authentication Lifecycle
-
-```mermaid
-sequenceDiagram
-    participant user as User
-    participant frontend as Frontend
-    participant local_vault as Local Vault
-    participant session_state as onlineServices session state
-    participant auth_bootstrap as auth.challenge/auth.verify
-    participant auth_refresh as auth.refresh
-    participant protected_server as protectedProcedure
-
-    user->>frontend: Unlock vault
-    frontend->>local_vault: Check for OnlineServices device signing key binding
-    alt no device signing key binding exists
-        frontend-->>user: No online auth session is established
-    else device signing key binding exists
-        frontend->>auth_bootstrap: Establish premium session from vault binding
-        auth_bootstrap-->>frontend: sessionToken and expiresAt
-        frontend->>session_state: Store short-lived JWT session
-
-        loop protected usage
-            frontend->>session_state: Read sessionToken and expiry before protected request
-            alt token not near expiry
-                frontend->>protected_server: Send protected request with Bearer token
-            else token near expiry
-                frontend->>auth_refresh: Try refresh(sessionToken)
-                alt refresh succeeds
-                    auth_refresh-->>frontend: new sessionToken and expiresAt
-                    frontend->>session_state: Store refreshed JWT session
-                    frontend->>protected_server: Send protected request with Bearer token
-                else refresh fails
-                    frontend->>auth_bootstrap: Retry full challenge-response sign-in
-                    alt re-authentication succeeds
-                        auth_bootstrap-->>frontend: new sessionToken and expiresAt
-                        frontend->>session_state: Store re-authenticated JWT session
-                        frontend->>protected_server: Send protected request with Bearer token
-                    else re-authentication fails
-                        frontend->>protected_server: Protected request may still be sent with stale or missing auth state
-                        protected_server-->>frontend: Request can fail unauthorized
-                    end
-                end
-            end
-        end
-    end
-```
-
-## Registration Flow
-
-Registration creates a new server user and binds that account into the local vault.
-
-### Frontend Steps
-
-In `AccountDialog`:
-
-1. User completes captcha.
-2. Frontend generates a new keypair locally.
-3. Frontend sends `publicKeyJWK` and captcha token to `v1.auth.register`.
-4. Server runs a Prisma `$transaction`: creates the `User`, upserts a standard `Subscription`, creates the first `UserDevice` (root) with `public_key`, and returns **`{ deviceId, userId }`**.
-5. Frontend builds `new OnlineServices(deviceId, userId, publicKeyJWK, privateKeyJWK)` and calls `Vault.bindOnlineServices(vault, onlineServices)`.
-6. Frontend saves the updated vault.
-7. Frontend sets temporary online-services session state with no JWT yet.
-8. Frontend calls `establishPremiumSession({ deviceId, privateKeyJWK })`.
-9. Frontend fetches remote configuration via `syncOnlineServicesRemoteConfiguration()`.
-
-### Registration Diagram
-
-```mermaid
-sequenceDiagram
-    participant user as User
-    participant frontend as Frontend
-    participant local_vault as Local Vault
-    participant auth_register as auth.register
-    participant database as Database
-    participant auth_bootstrap as auth.challenge/auth.verify
-
-    user->>frontend: Complete captcha and submit registration
-    frontend->>frontend: Generate public/private keypair
-    frontend->>auth_register: register(publicKeyJWK, captchaToken)
-    auth_register->>database: $transaction create user + subscription + first UserDevice (public_key on device, is_root true)
-    auth_register-->>frontend: { deviceId, userId }
-    frontend->>local_vault: Vault.bindOnlineServices(new OnlineServices(deviceId, userId, pub, priv))
-    frontend->>auth_bootstrap: establishPremiumSession(deviceId, privateKeyJWK)
-    auth_bootstrap-->>frontend: sessionToken + expiresAt
-    frontend->>frontend: Store sessionToken and sessionExpiresAt
-```
-
-### Important Notes
-
-- The server never receives the private key.
-- The private key lives in the local vault binding.
-- The server assigns **`deviceId`** (Prisma `@default(cuid())` on `UserDevice.id`) and returns it together with the new **`userId`**; the client must persist both into `OnlineServices` before **`establishPremiumSession`** / **`auth.verify`**.
-- The transaction also ensures the `Subscription` row exists; without it `auth.verify` would later fail with `INTERNAL_SERVER_ERROR` "Subscription not configured."
-- Registration does not by itself create a durable browser session cookie.
-- The authenticated session after registration is still a JWT bearer token obtained through challenge-response.
-
-## Sign-In Flow
-
-Sign-in means establishing a premium session JWT from the existing vault binding.
-
-### When It Happens
-
-It currently happens automatically from `VaultDashboard` when:
-
-- the vault is unlocked
-- `Vault.isOnlineServicesBound(vault)` is true
-- there is no already-valid matching session in frontend state
-
-It can also be reached indirectly after registration or recovery.
-
-### Frontend Logic
-
-The dashboard `ensureSession` effect does this:
-
-1. Read `vault.OnlineServices`; bail out if absent.
-2. If a session token already exists and `data.deviceId !== vault.OnlineServices.DeviceId`, clear the frontend online-services session state (mismatched binding).
-3. If a session token already exists and matches, return early - keep the live session.
-4. Otherwise:
-
-- call `establishPremiumSession({ deviceId, privateKeyJWK })`
-- then call `syncOnlineServicesRemoteConfiguration()`
-
-### Challenge-Response Steps
-
-`establishPremiumSession()` performs:
-
-1. Call `v1.auth.challenge` with `deviceId`
-2. Decode returned challenge bytes
-3. Sign challenge with the locally stored private key
-4. Call `v1.auth.verify` with:
-
-- `challengeId`
-- `signature`
 - `deviceId`
+- `sessionToken` and `sessionExpiresAt`
+- `refreshToken` and `refreshExpiresAt`
+- `remoteData`, the server-provided account configuration
 
-5. Receive:
+This is a module-local memory store. It is not the durable account binding, a
+browser cookie, or local vault persistence. Locking the vault clears it; the
+binding remains in the encrypted vault unless the user explicitly removes it.
 
-- `sessionToken`
-- `expiresAt`
+### In account configuration
 
-6. Store both in frontend session state
-7. Mark online-services connection status as connected
+After a session is established, `user.configuration` hydrates the client with
+the current device ID and capability flags, including:
 
-### Sign-In Diagram
+- whether this device is currently `root`
+- whether it may link or promote devices, and its `maxLinks` limit
+- whether managed encrypted backups and security-report features are available
+- whether a Recovery Kit exists and whether a replacement kit is required
 
-```mermaid
-sequenceDiagram
-    participant frontend as Frontend
-    participant local_vault as Local Vault
-    participant auth_challenge as auth.challenge
-    participant auth_verify as auth.verify
-    participant database as Database
-    participant redis_cache as Redis
+These values drive the UI. They are not a second local authorization system;
+the service remains authoritative when a protected operation is attempted.
 
-    frontend->>local_vault: Read deviceId, privateKeyJWK
-    frontend->>auth_challenge: challenge(deviceId)
-    auth_challenge->>database: confirm UserDevice exists and has public_key
-    auth_challenge->>redis_cache: store one-time challenge
-    auth_challenge-->>frontend: challengeId, challenge, expiresAt
-    frontend->>frontend: Sign challenge with privateKeyJWK
-    frontend->>auth_verify: verify(challengeId, signature, deviceId)
-    auth_verify->>redis_cache: consume challenge once
-    auth_verify->>database: verify public key, find UserDevice, update last_seen, read subscription config
-    auth_verify-->>frontend: sessionToken, expiresAt
-    frontend->>frontend: Store JWT in onlineServicesDataAtom
+### In managed backup storage
+
+Managed backup storage receives encrypted `.cryx` bytes, not the secrets needed
+to unlock them. See [managed-backups.md](./managed-backups.md) for the storage
+and transfer details.
+
+## The client-side authentication protocol
+
+The web app does not use an Online Services account password for its normal
+sign-in path. It uses possession of a device-signing private key that is
+unlocked along with the vault.
+
+### Device-signing key
+
+The browser generates an extractable ECDSA key pair using the Web Crypto API:
+
+- named curve: **P-256**
+- signature hash: **SHA-256**
+- storage format: JSON Web Key (JWK) strings
+
+The public JWK may cross the Online Services API boundary. The private JWK is
+exported once, placed in the `OnlineServices` vault binding, and later imported
+by Web Crypto only when the browser needs to sign a challenge. The signing
+helper returns a base64url signature in Web Crypto's fixed-width IEEE P1363
+format.
+
+### Challenge-response
+
+The login exchange is deliberately split into two requests:
+
+1. `v1.auth.challenge({ deviceId })` returns a `challengeId`, base64-encoded
+   challenge bytes, and an expiry timestamp.
+2. The browser decodes the challenge bytes and signs the raw bytes with the
+   private JWK from the unlocked vault.
+3. `v1.auth.verify({ challengeId, signature, deviceId })` exchanges the
+   signature for an access `sessionToken`, a `refreshToken`, and the two
+   corresponding expiry timestamps.
+
+The challenge ID and signature are not stored in the vault. A successful
+exchange produces only the temporary session state described above.
+
+### Contract-level API map
+
+These are the browser-facing operations in the checked-in API contract. The
+table describes data crossing the client boundary only.
+
+| Operation                                     | Access    | Browser sends                                    | Browser receives                                     |
+| --------------------------------------------- | --------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `v1.auth.register`                            | Public    | Public JWK + captcha                             | New `deviceId` + `userId`                            |
+| `v1.auth.challenge`                           | Public    | `deviceId`                                       | Challenge ID, bytes, expiry                          |
+| `v1.auth.verify`                              | Public    | Challenge ID + signature + `deviceId`            | Access/refresh tokens + expiries                     |
+| `v1.auth.refresh`                             | Public    | Current refresh token                            | Rotated access/refresh tokens + expiries             |
+| `v1.auth.logout`                              | Protected | Optional current refresh token                   | Success                                              |
+| `v1.auth.recover`                             | Public    | User ID + 24 words + new public JWK + captcha    | New `deviceId`                                       |
+| `v1.user.configuration`                       | Protected | Bearer session token                             | Root status and account capability flags             |
+| `v1.backup.createRecoverySession`             | Public    | User ID + Recovery Kit + captcha + browser token | Recovery-session expiry                              |
+| `v1.backup.recoveryList` / `recoveryDownload` | Public    | Recovery-session token + cursor or snapshot ID   | Encrypted restore-point metadata or transfer details |
+
+The public/protected labels here describe whether a bearer session is required
+for that contract operation. They do not mean that the operation is
+unauthorized in the product sense: captcha, Recovery Kit, root status, and
+local-vault secrets are checked by their respective flows.
+
+## Registration
+
+Registration is available from the Account dialog after a vault is unlocked.
+
+1. Open **Account** and choose **Create account**.
+2. Complete the captcha.
+3. Choose **Register & sign in**.
+4. The browser generates a P-256 key pair and sends only the public JWK and
+   captcha token to `v1.auth.register`.
+5. After receiving the new `deviceId` and `userId`, the browser stores the full
+   binding, including the private JWK, in the current vault.
+6. The app establishes an Online Services session and loads account
+   configuration.
+7. The app attempts to create and show a Recovery Kit.
+
+The private key is generated and retained locally. The Recovery Kit is shown
+only when it is generated, so the user should download, print, or copy it and
+store both the User ID and phrase offline. If the post-registration dialog
+cannot be shown, create the kit later from **Account > Security**.
+
+## Normal sign-in
+
+There is no separate password prompt for Online Services when the vault already
+contains a valid binding.
+
+When a vault is unlocked:
+
+1. `VaultDashboard` checks for an Online Services binding.
+2. If one exists, `establishPremiumSession` requests a challenge for the
+   binding's `DeviceId`.
+3. The browser decodes and signs the challenge locally with the binding's
+   `PrivateKeyJWK`.
+4. The browser sends the challenge ID, signature, and device ID to `auth.verify`.
+5. The returned access and refresh session data is placed in
+   `onlineServicesStore`.
+6. The app calls `user.configuration` and refreshes root status and available
+   account features.
+
+If the vault has no binding, the dashboard does not create an Online Services
+session. The Account action is shown as **Sign up**, and the user can register
+or recover an account.
+
+If automatic sign-in fails, the dashboard shows an error and tells the user to
+open **Account** to retry. The vault itself is still available locally.
+
+## Session refresh
+
+The standard tRPC client runs a freshness check just before it sends a batch
+that contains Online Services traffic. This is a lazy check, not a background
+timer: an idle browser does not keep refreshing an account session.
+
+The client considers either token due for attention when its server-provided
+expiry is within **60 seconds**. It then tries the following, in order:
+
+1. Continue with the current session if the access and refresh data are still
+   outside that window.
+2. Call `v1.auth.refresh` with the current refresh token.
+3. Replace the access and refresh session data with the returned pair. Refresh
+   is a rotation operation from the browser's point of view; the old refresh
+   value is not retained as the current one.
+4. If refresh fails, sign in again using the unlocked vault's Online Services
+   binding and the challenge-response flow.
+
+The refresh result is applied only if the session has not been replaced while
+the request was in flight. This prevents an older concurrent refresh from
+overwriting a newer session. A shared in-flight runner also makes concurrent
+protected calls wait for one refresh or re-authentication attempt instead of
+starting several of them. Forced re-authentication requests are additionally
+gated for 30 seconds.
+
+If the frontend session's device ID differs from the unlocked vault binding,
+the client clears/signs out the old session and starts again from the vault
+binding. If the vault is locked, has no binding, or the private key no longer
+matches the account device, the automatic fallback cannot succeed. The
+preflight does not replay a failed protected request; the caller may receive
+an authorization error and the user may need to open **Account** after
+unlocking.
+
+## Protected requests and authorization
+
+`createBareAuthHeader` reads the current access session token from
+`onlineServicesStore` and sends it as:
+
+```text
+Authorization: Bearer <sessionToken>
 ```
 
-## Protected Request Flow
+The header is created after the freshness check, so a request sees the latest
+token produced by a refresh or re-authentication. Auth bootstrap calls use a
+small client dedicated to the `v1.auth` namespace so the freshness hook does
+not recursively call itself.
 
-Protected tRPC procedures are guarded by `protectedProcedure`.
+After sign-in, `user.configuration` supplies the account and device state used
+by the UI. In particular, `root`, `canLink`, `maxLinks`,
+`canPromoteDevices`, `managedEncryptedBackups`, and
+`recoveryGenerationNeeded` are server-provided facts, not values inferred from
+the vault password or Recovery Kit.
+
+The local `IsRootDevice` field and the `remoteData.root` value are useful for
+displaying the current state, but they are not permission grants. A root-only
+operation must still be accepted by the Online Services side for the current
+session and device.
 
-### What The Frontend Sends
+## Linking another device
 
-The frontend sends:
+Online Services device linking creates another account binding; it does not
+copy the current browser session to the peer.
 
-- `Authorization: Bearer <sessionToken>`
+1. The sending device generates a new P-256 key pair for the peer.
+2. It sends only the new public JWK through `v1.device.link` and receives a
+   new server device ID and a sync relationship ID.
+3. The sender places the peer's private JWK and the new device ID in the
+   encrypted linking package delivered to the peer.
+4. The peer installs that `OnlineServices` payload in its own vault and later
+   performs its own challenge-response sign-in.
 
-The header is assembled by `createBareAuthHeader()` (in `web/src/app_lib/auth-session.ts`) and wrapped by `createHeadersWithFreshSession()` in `web/src/utils/trpc.ts`, which runs the preflight freshness check first.
+The private key is therefore transported to the peer as part of the encrypted
+linking flow, not as a plaintext auth API field. The peer has a distinct
+Online Services device ID and session even though both devices belong to the
+same account.
 
-### What The tRPC Client Does Before A Protected Call
+## Recovery overview
 
-Before any non-`v1.auth.*` batch is sent:
+There are three different recovery actions in the frontend:
 
-1. `createHeadersWithFreshSession(opList)` runs.
-2. If the batch includes non-auth procedures, it calls `ensureFreshOnlineServicesSession()`.
-3. After that check completes, it attaches the current bearer token from state.
+1. **Recover Online Services account in an unlocked vault** - restores account
+   control and binds a new local device key pair, but does not restore vault
+   contents.
+2. **Restore an encrypted vault backup** - creates a local vault from a `.cryx`
+   file and then unlocks it with the vault secret.
+3. **Restore from a managed backup on a fresh device** - uses the Online
+   Services Recovery Kit to find an eligible encrypted restore point, then
+   unlocks it locally with the vault secret.
 
-This means:
+See [managed-backups.md](./managed-backups.md) for the backup requirements,
+restore steps, retry behavior, and Recovery Kit lifecycle.
 
-- there is no timer-based background refresh
-- the app only refreshes or re-authenticates when protected traffic is about to happen
+## Recover an Online Services account in an unlocked vault
 
-### Protected Middleware Steps
+Use this path when the user has a usable local vault but no working Online
+Services binding, or when the existing binding has to be replaced.
 
-For a `protectedProcedure`, the server:
+### Before starting
 
-1. Parses the `Authorization` header in `createContext()`
-2. Verifies the JWT signature and expiry
-3. Extracts:
+The user needs:
 
-- `sub` as **device id** (`UserDevice.id`)
-- `root` as a cached device-root hint from the token
+- the Online Services **User ID**
+- the current **24-word Recovery Kit phrase**
+- a working local vault that is unlocked
+- a completed captcha
 
-4. Confirms the device row still exists; resolves **`user_id`** for subscription
-5. Loads subscription configuration:
+If the current vault still has an Online Services binding, first use
+**Account > Security > Remove local binding**. This removes the account
+credentials from that vault and signs out locally; it does not delete the
+Online Services account.
 
-- from Redis cache if present
-- otherwise from the database and then re-caches it
+### Steps
 
-6. Enriches the request context with:
+1. Open **Account**.
+2. Choose **Recover account**.
+3. Enter the User ID.
+4. Enter or paste all 24 Recovery Kit words in order.
+5. Complete the captcha.
+6. Choose **Recover account**.
 
-- `user.id`
-- `deviceId`
-- `rootDevice`
-- `subscriptionConfig`
-- `rateLimitKey`
+The browser generates a new local device key pair. After the recovery
+operation succeeds, it:
 
-### Protected Request Diagram
+1. stores the new Online Services binding in the current vault
+2. establishes a fresh Online Services session
+3. refreshes the account configuration
+4. reports **Account recovered. Sign-in refreshed.**
 
-```mermaid
-sequenceDiagram
-    participant protected_client as Protected frontend query or mutation
-    participant trpc_preflight as TRPC client preflight
-    participant session_guard as ensureFreshOnlineServicesSession
-    participant session_state as onlineServices session state
-    participant context_builder as createContext
-    participant protected_middleware as protectedProcedure
-    participant subscription_lookup as Session cache or subscription lookup
-    participant route_handler as Route handler
+### What this path does not do
 
-    protected_client->>trpc_preflight: Start protected request
-    trpc_preflight->>session_guard: Run preflight freshness check
-    alt token not near expiry
-        session_guard-->>trpc_preflight: No refresh work needed
-    else token near expiry
-        alt refresh or re-auth succeeds
-            session_guard->>session_state: Update sessionToken and expiresAt if needed
-            session_guard-->>trpc_preflight: Fresh session available
-        else refresh and re-auth both fail
-            session_guard-->>trpc_preflight: Continue with current auth state
-        end
-    end
+This path does not reconstruct a lost vault. It only restores Online Services
+account access in the vault currently open in the browser. To recover vault
+contents, follow the local or managed restore instructions in
+[managed-backups.md](./managed-backups.md).
 
-    trpc_preflight->>session_state: Read latest sessionToken
-    trpc_preflight->>context_builder: Send request with Authorization Bearer token
-    context_builder->>protected_middleware: Pass bearer token into protectedProcedure
-    protected_middleware->>protected_middleware: Verify JWT signature and expiry
-    protected_middleware->>protected_middleware: Verify device still belongs to user
-    protected_middleware->>subscription_lookup: Load cached or DB subscription config
-    subscription_lookup-->>protected_middleware: Return subscription context
+The Recovery Kit used for account recovery is consumed. Existing device access
+may need to be set up again, and the user should create and save a new kit from
+**Account > Security** before relying on recovery again.
 
-    alt protected validation succeeds
-        protected_middleware->>route_handler: Execute route handler with auth context
-        route_handler-->>protected_client: Protected request succeeds
-    else protected validation fails
-        protected_middleware-->>protected_client: Request fails unauthorized
-    end
-```
+## Backup restoration and authentication
 
-## Refresh And Re-Authentication
+Backup restoration does not bypass either authentication layer. An Online
+Services Recovery Kit can authorize access to an eligible managed restore
+point, but it cannot decrypt the vault. The vault password or recovery code,
+plus any second factor, is still required locally.
 
-This is one of the most important parts of the current implementation.
+Fresh-device lookup uses a random recovery-session value rather than a normal
+bearer session. The value is kept in memory, is never written into the vault,
+and is used only with `v1.backup.createRecoverySession`,
+`v1.backup.recoveryList`, and `v1.backup.recoveryDownload`.
 
-### Current Strategy
+After a restored vault is unlocked, an embedded Online Services binding can
+establish the normal signed-in session. For the complete restore workflow, see
+[managed-backups.md](./managed-backups.md).
 
-The app does not refresh sessions on a timer anymore.
-
-Instead:
-
-- just before protected traffic, the client checks whether `sessionExpiresAt` is within a lead window
-- if yes, it tries to refresh
-- if refresh fails, it tries a full device signing key re-authentication
-
-### Lead Window
-
-`auth-session.ts` currently uses:
-
-- `SESSION_REFRESH_LEAD_MS = 60_000`
-
-That means a token is considered stale-enough when it has 60 seconds or less remaining.
-
-### Refresh Flow
-
-`refreshOnlineServicesSession()`:
-
-1. Reads the existing token from `onlineServicesStore`
-2. Calls `v1.auth.refresh({ sessionToken })`
-3. On success, replaces:
-
-- `sessionToken`
-- `sessionExpiresAt`
-
-### Why Refresh Can Fail
-
-Refresh can fail when:
-
-- the JWT is already expired
-- the JWT is invalid
-- the device no longer exists
-- the user no longer has usable subscription configuration
-
-### Fallback Re-Authentication Flow
-
-If refresh fails, `ensureFreshOnlineServicesSession()` calls `reauthenticateOnlineServicesSession()`.
-
-That function:
-
-1. Reads the unlocked vault via `getUnlockedVault()`
-2. Verifies the vault is still bound (`Vault.isOnlineServicesBound(vault)`)
-3. Extracts:
-
-- `vault.OnlineServices.DeviceId`
-- `vault.OnlineServices.PrivateKeyJWK`
-
-4. Calls `establishPremiumSession({ deviceId, privateKeyJWK })`
-
-This gives the app a second chance to recover automatically as long as:
-
-- the vault is unlocked
-- the binding still exists
-- the stored private key still matches the server’s current public key
-
-### Deduplication
-
-`ensureFreshOnlineServicesSession()` uses `refreshInFlight` to deduplicate concurrent stale-session checks.
-
-This prevents a burst of queries from causing:
-
-- multiple simultaneous refreshes
-- multiple simultaneous challenge-response re-auth attempts
-
-### Refresh / Re-Auth Diagram
-
-```mermaid
-sequenceDiagram
-    participant frontend_preflight as Frontend preflight
-    participant session_state as onlineServices session state
-    participant auth_refresh as auth.refresh
-    participant unlocked_vault as Unlocked Vault
-    participant auth_challenge as auth.challenge
-    participant auth_verify as auth.verify
-
-    frontend_preflight->>session_state: Read sessionToken + sessionExpiresAt
-    alt token not near expiry
-        frontend_preflight-->>frontend_preflight: proceed without auth work
-    else token near expiry
-        frontend_preflight->>auth_refresh: refresh(sessionToken)
-        alt refresh succeeds
-            auth_refresh-->>frontend_preflight: new sessionToken + expiresAt
-            frontend_preflight->>session_state: update token and expiry
-        else refresh fails
-            frontend_preflight->>unlocked_vault: read deviceId + privateKeyJWK
-            frontend_preflight->>auth_challenge: challenge(deviceId)
-            auth_challenge-->>frontend_preflight: challengeId + challenge
-            frontend_preflight->>frontend_preflight: sign challenge with private key
-            frontend_preflight->>auth_verify: verify(challengeId, signature, deviceId)
-            alt verify succeeds
-                auth_verify-->>frontend_preflight: new sessionToken + expiresAt
-                frontend_preflight->>session_state: update token and expiry
-            else verify fails
-                frontend_preflight-->>frontend_preflight: protected call likely fails unauthorized
-            end
-        end
-    end
-```
-
-## Why `auth.refresh` And Full Re-Auth Both Exist
-
-They solve different problems:
-
-- `auth.refresh`
-  Extends a still-valid session token cheaply without doing a full challenge-response cycle.
-- full re-authentication
-  Recovers when refresh cannot succeed anymore, especially after expiry.
-
-Because `auth.refresh` verifies the incoming JWT before issuing a new one, it cannot revive an already-expired token. That is why the fallback re-auth path is necessary.
-
-## Server-Side JWT Contents
-
-The JWT currently contains:
-
-- subject (`sub`): **device id** (`UserDevice.id`)
-- `root`: whether the device was root when the token was signed
-
-There is **no** separate `did` claim; the account user is inferred from the device row.
-
-The token is signed with:
-
-- algorithm: `HS256`
-
-The token expiry is controlled by:
-
-- `SESSION_TOKEN_EXPIRY_SECONDS`
-
-Even though the token carries a `root` claim, the server still re-checks the current device record on protected requests and refresh, so the live server-side device state remains authoritative.
-
-## Challenge Mechanics
-
-Challenges are generated and consumed through Redis.
-
-### Challenge Creation
-
-`createAuthChallenge(deviceId)`:
-
-- generates a random `challengeId`
-- generates random challenge bytes
-- stores `{ deviceId, challengeB64 }` in Redis
-- returns the challenge plus its expiration time
-
-### Challenge Consumption
-
-`consumeAuthChallenge(challengeId)`:
-
-- atomically reads and deletes the challenge in Redis through Lua
-- ensures the same challenge cannot be reused
-
-### Signature Verification
-
-The server verifies:
-
-- ECDSA P-256
-- SHA-256
-- `ieee-p1363` signature encoding
-
-The client signs the raw challenge bytes using the local private key JWK.
-
-## Recovery Flow
-
-Recovery is the account-binding reset path, not a JWT refresh path.
-
-It is used when the user has:
-
-- a `userId`
-- a recovery phrase
-- no usable original device signing key binding
-
-### Frontend Recovery Steps
-
-In `AccountDialog`:
-
-1. User enters:
-
-- account `userId`
-- recovery phrase
-- captcha
-
-2. Frontend generates a new local keypair
-3. Frontend calls `v1.auth.recover` with:
-
-- `userId`
-- `recoveryPhrase`
-- `newPublicKeyJWK`
-- `captchaToken`
-
-4. Server verifies the recovery phrase against the stored hash and validates the new public key (P-256 EC JWK)
-5. In a single Prisma `$transaction` the server **deletes all `UserDevice` rows** for that user, clears `recovery_token` / `recovery_token_created_at`, and **creates a new root `UserDevice`** (id `ulid()`, `public_key = newPublicKeyJWK`, `is_root: true`). Returns **`{ success: true, deviceId }`**.
-6. Server invalidates cached session data for every device of that user (in practice only the new device id remains after the transaction).
-7. Frontend builds `new OnlineServices(deviceId, recoverUserId, pub, priv)` and calls `Vault.bindOnlineServices(...)` so `DeviceId` + `UserID` are stored alongside the new keys
-8. Frontend establishes a fresh premium session using the new private key
-9. Frontend refreshes remote configuration
-
-### Recovery Diagram
-
-```mermaid
-sequenceDiagram
-    participant user as User
-    participant frontend as Frontend
-    participant auth_recover as auth.recover
-    participant database as Database
-    participant local_vault as Local Vault
-    participant auth_bootstrap as challenge/verify
-
-    user->>frontend: Enter userId + recovery phrase + captcha
-    frontend->>frontend: Generate new keypair
-    frontend->>auth_recover: recover(userId, recoveryPhrase, newPublicKeyJWK, captcha)
-    auth_recover->>database: Verify recovery phrase hash + P-256 JWK
-    auth_recover->>database: $transaction deleteMany devices, clear recovery_token fields, create new root UserDevice
-    auth_recover-->>frontend: { success: true, deviceId }
-    frontend->>local_vault: Vault.bindOnlineServices(new OnlineServices(deviceId, userId, pub, priv))
-    frontend->>auth_bootstrap: establishPremiumSession with new private key
-    auth_bootstrap-->>frontend: sessionToken + expiresAt
-```
-
-## Recovery Token Management
-
-Recovery token creation and clearing are protected operations exposed through `user.router`.
-
-### Generate Recovery Token
-
-`v1.user.generateRecoveryToken`:
-
-- requires a protected session
-- requires `ctx.rootDevice === true`
-- generates a 256-bit BIP39 mnemonic
-- hashes it with Argon2id
-- stores only the hash server-side
-- returns the plaintext phrase once
-
-### Clear Recovery Token
-
-`v1.user.clearRecoveryToken`:
-
-- requires a protected session
-- requires root device
-- removes the stored recovery token hash and timestamp
-
-### Frontend Behavior
-
-After either generating or clearing a recovery phrase, the frontend refreshes remote account configuration so the UI reflects the latest recovery-token status.
-
-## Account Configuration Fetch
-
-`v1.user.configuration` is a protected procedure and is the main "who am I and what can I do?" endpoint for the frontend.
-
-It returns:
-
-- `deviceId` (this JWT’s device)
-- `root`
-- `canLink`
-- `maxLinks`
-- `canPromoteDevices`
-- `alwaysConnected`
-- `canFeatureVote`
-- `recoveryTokenCreatedAt`
-
-The frontend uses this as the authoritative source for:
-
-- root-device status
-- account capability flags
-- recovery-token presence
-
-## Device Identity And Root Status
-
-**Device ids are created only on the server**. The Prisma schema sets `UserDevice.id @default(cuid())`, so most creation paths get an auto-generated cuid; `auth.recover` is the one path that explicitly passes a `ulid()`. Devices are created in:
-
-- **`auth.register`** - creates the first (root) device for a new account inside a `$transaction`, returns **`{ deviceId, userId }`**.
-- **`auth.recover`** - inside a `$transaction`, deletes every existing `UserDevice` for the user, clears recovery-token fields, and creates a new root device with a fresh `ulid()`. Returns **`{ success, deviceId }`**.
-- **`device.link`** (authenticated, root caller, within plan `linking_allowed` / `max_links`) - inside a `$transaction`, creates an additional non-root device and a `DeviceRelationship` row, returns **`{ deviceId, syncId }`** where `syncId` is the relationship row id.
-
-The client stores `deviceId` (and `userId`) in **`OnlineServices`** and sends **`deviceId`** on **`auth.verify`**. The server **does not create** `UserDevice` rows inside verify: it **finds** the row by **`id`** and **updates `last_seen`** only. If there is no row or the signature does not match **`UserDevice.public_key`**, verify fails. **`is_root`** on the JWT comes from **`UserDevice.is_root`** for that row.
-
-On each protected request and refresh, the server re-checks the device row. So even though the JWT includes `root`, the server does not trust the token claim alone for privileged actions.
-
-### Multiple root devices
-
-The data model allows **more than one** `UserDevice` with `is_root: true`. **`device.setRoot`** can promote or demote any device the caller is allowed to touch, subject to subscription **`promoting_to_root`**. The only hard rule is **you cannot demote the last root device** (the account would have no device able to manage links, recovery, or deletion).
-
-Product meaning: several devices may hold root privileges at once (e.g. a laptop and a phone both “admin”). That is intentional; it is not “exactly one root worldwide.”
-
-### Cached root flag in the vault
-
-**`OnlineServices.IsRootDevice`** in the encrypted vault is a **cache** of whether **this** device id is root on the server. It is updated when the client refreshes remote configuration after sign-in. **Authorization always uses the server**, not this field.
-
-### Linking a new device (Online Services)
-
-To add a device under the same account with a **distinct** device signing key pair:
-
-1. The **sender** generates a new P-256 key pair locally.
-2. The sender calls **`device.link`** with **`publicKeyJWK`**; in a single `$transaction` the server creates a new non-root **`UserDevice`** row (with that `public_key`) and a **`DeviceRelationship`** row pairing the caller's `deviceId` to the new one. The mutation returns **`{ deviceId, syncId }`**, where `syncId` is the relationship row id used for sync correlation.
-3. The sender builds a full **`OnlineServices`** payload for the peer: `new OnlineServices(deviceId, vault.OnlineServices.UserID, publicKeyJWK, privateKeyJWK, isRoot)` - the peer must carry **its own private key** to sign future challenges.
-4. **`packageForLinking`** writes a **`LinkingPackageBlob`** containing **`SyncID`**, the peer's **`OnlineServices`**, plus the curated **`STUNServers`**, **`TURNServers`**, and **`SignalingServer`** lists. The blob is encrypted before being sent over WebRTC.
-5. If the UI requested the linked device be promoted to root, the sender calls **`device.setRoot`** right after `device.link`; failure triggers a rollback via `device.remove`.
-
-The **receiver** opens the encrypted blob, installs the embedded `OnlineServices` into its own vault (with the peer-minted `DeviceId`), and seeds frontend session state from that `DeviceId` for JWT-backed calls.
-
-## Automatic Sign-In On Vault Open
-
-When the vault dashboard loads, the app automatically tries to establish a session if:
-
-- the vault is unlocked
-- device signing key binding exists in the vault
-
-### Current Behavior
-
-If there is already a session token in frontend state:
-
-- and the session `deviceId` matches `vault.OnlineServices.DeviceId`, the dashboard leaves it alone
-- if they differ, it clears the current frontend online-services session state and signs in again from the vault binding
-
-This protects against stale frontend session state if the local vault binding changes.
-
-## Sign-Out And Local Unbinding
-
-There is no dedicated server-side logout endpoint for the JWT session.
-
-Current practical sign-out behavior is local:
-
-- clear frontend session state
-- clear online-services connection status
-- optionally remove device signing key binding from the vault
-
-### Locking The Vault
-
-When the vault is locked, the app:
-
-- clears the vault secret from browser session storage
-- clears online-services auth status
-- clears online-services session data
-- resets unlocked vault state
-
-### Remove Local Binding
-
-The account dialog can remove only the local binding:
-
-- it clears frontend session/auth state
-- it unbinds `OnlineServices` from the local vault
-- it saves the vault
-
-This does not delete the server account.
-
-### Delete Account
-
-Deleting the account is a protected root-device action:
-
-- frontend calls `v1.user.delete`
-- frontend unbinds local `OnlineServices`
-- frontend saves the vault
-- frontend clears session state
-
-## Authorization Model
-
-The authentication layer provides the basis for authorization by enriching request context with:
-
-- current user id
-- current device id
-- current root-device status
-- current subscription configuration
-
-Route handlers then use these to enforce permissions such as:
-
-- only root devices may generate or clear recovery tokens
-- only root devices may delete the user
-- device-management and billing routes can rely on current subscription/device state
-
-Premium upgrades use **embedded Stripe Checkout** on the web client (`v1.payment.checkoutSession` returns a client secret). Post-payment tier activation is driven by Stripe webhooks and client-side polling — see [Payment API (`v1.payment`)](./authentication-api.md#71-payment-api-v1payment) in the server API reference.
-
-## Error And Failure Modes
-
-### Missing Bearer Token
-
-Protected procedures fail with `UNAUTHORIZED` when no bearer token is sent.
-
-### Expired Or Invalid JWT
-
-Protected procedures fail with `UNAUTHORIZED` if:
-
-- JWT signature is invalid
-- JWT is expired
-- token payload is malformed
-
-### Device No Longer Exists
-
-Even with a valid JWT, requests fail if the referenced **`UserDevice`** row no longer exists (`sub` is device id).
-
-### No Subscription Configuration
-
-Protected requests and refresh fail if the user no longer has valid subscription configuration.
-
-### Missing Local Device Signing Key Material
-
-Automatic re-authentication cannot happen if the unlocked vault is missing:
-
-- `OnlineServices.DeviceId`
-- `OnlineServices.PrivateKeyJWK`
-
-(i.e. `Vault.isOnlineServicesBound(vault)` returns false). In that case, a protected request near expiry cannot recover automatically through full re-auth.
-
-### Unknown User During Challenge
-
-`auth.challenge` rejects requests for unknown **`UserDevice`** ids or devices with no **`public_key`** on record.
-
-### Invalid Signature
-
-`auth.verify` rejects invalid device signing key signatures.
-
-### Expired Challenge
-
-`auth.verify` rejects stale, missing, or already-consumed challenges.
-
-## Security Properties Of The Current Design
-
-### Good Properties
-
-- The server stores only the public key, not the private key.
-- Session JWTs are short-lived.
-- Challenges are one-time and atomically consumed.
-- Root-device status is re-checked server-side.
-- Subscription-derived auth context is reloaded or refreshed on the server.
-- The client does not keep a refresh timer hammering the server while idle.
-
-### Trade-Offs
-
-- The session token is stored in frontend state, not in an `httpOnly` cookie.
-- As long as the vault is unlocked and still contains device signing key material, the frontend can re-establish a session automatically.
-- There is no dedicated logout-revocation mechanism for already-issued JWTs beyond expiry and the device/user checks on use.
-
-## Current Sequence Summaries
-
-### Register
-
-```mermaid
-sequenceDiagram
-    participant user as User
-    participant account_dialog as Account dialog
-    participant auth_register as auth.register
-    participant local_vault as Local Vault
-    participant auth_session as establishPremiumSession
-    participant auth_challenge as auth.challenge
-    participant auth_verify as auth.verify
-    participant configuration_query as user.configuration
-
-    user->>account_dialog: Submit registration with captcha
-    account_dialog->>account_dialog: Generate local keypair
-    account_dialog->>auth_register: register(publicKeyJWK, captchaToken)
-    alt register fails
-        auth_register-->>account_dialog: error
-        account_dialog-->>user: Show registration error
-    else register succeeds
-        auth_register-->>account_dialog: { deviceId, userId }
-        account_dialog->>local_vault: Vault.bindOnlineServices(new OnlineServices(deviceId, userId, pub, priv))
-        alt vault save fails
-            local_vault-->>account_dialog: save error
-            account_dialog-->>user: Show local vault save failure
-        else vault save succeeds
-            local_vault-->>account_dialog: binding persisted
-            account_dialog->>account_dialog: Initialize online session state with deviceId and no JWT
-            account_dialog->>auth_session: establishPremiumSession({ deviceId, privateKeyJWK })
-            auth_session->>auth_challenge: challenge(deviceId)
-            auth_challenge-->>auth_session: challengeId and challenge
-            auth_session->>auth_session: Sign challenge with private key
-            auth_session->>auth_verify: verify(challengeId, signature, deviceId)
-            alt sign-in fails
-                auth_verify-->>auth_session: error
-                auth_session-->>account_dialog: auth status failed
-                account_dialog-->>user: Show sign-in failure
-            else sign-in succeeds
-                auth_verify-->>auth_session: sessionToken and expiresAt
-                auth_session-->>account_dialog: Store sessionToken and sessionExpiresAt
-                account_dialog->>configuration_query: syncOnlineServicesRemoteConfiguration -> user.configuration
-                configuration_query-->>account_dialog: remoteData (root, plan flags, recoveryTokenCreatedAt)
-                account_dialog-->>user: Connected state available
-            end
-        end
-    end
-```
-
-### Auto Sign-In
-
-```mermaid
-sequenceDiagram
-    participant user as User
-    participant vault_dashboard as Vault dashboard
-    participant session_state as onlineServices session state
-    participant local_vault as Local Vault
-    participant auth_session as establishPremiumSession
-    participant configuration_sync as syncOnlineServicesRemoteConfiguration
-
-    user->>vault_dashboard: Unlock vault
-    vault_dashboard->>local_vault: Check OnlineServices device signing key binding
-    alt no device signing key binding
-        vault_dashboard-->>user: Skip online auth
-    else device signing key binding exists
-        vault_dashboard->>session_state: Read current session state
-        alt session token exists and deviceId matches vault binding
-            session_state-->>vault_dashboard: Reuse current session
-            vault_dashboard-->>user: Existing connected state remains active
-        else session token exists and or deviceId mismatches vault binding
-            vault_dashboard->>session_state: Clear mismatched session and auth status
-            vault_dashboard->>local_vault: Read OnlineServices.DeviceId + PrivateKeyJWK
-            alt binding material incomplete
-                local_vault-->>vault_dashboard: Missing binding material
-                vault_dashboard-->>user: Remain disconnected
-            else binding material complete
-                vault_dashboard->>auth_session: establishPremiumSession({ deviceId, privateKeyJWK })
-                alt sign-in fails
-                    auth_session-->>vault_dashboard: error
-                    vault_dashboard-->>user: Show retry toast from Account
-                else sign-in succeeds
-                    auth_session-->>vault_dashboard: sessionToken and expiresAt stored
-                    vault_dashboard->>configuration_sync: Fetch remote configuration
-                    configuration_sync-->>vault_dashboard: remoteData populated
-                    vault_dashboard-->>user: Connected account state available
-                end
-            end
-        end
-    end
-```
-
-### Preflight Freshness Check
-
-```mermaid
-sequenceDiagram
-    participant protected_client as Protected tRPC client
-    participant session_state as onlineServices session state
-    participant refresh_guard as ensureFreshOnlineServicesSession
-    participant auth_refresh as auth.refresh
-    participant unlocked_vault as Unlocked Vault
-    participant auth_challenge as auth.challenge
-    participant auth_verify as auth.verify
-    participant protected_server as protectedProcedure
-
-    protected_client->>session_state: Read sessionToken and sessionExpiresAt
-    alt no session token or token not near expiry
-        protected_client->>protected_client: Skip refresh work
-    else token near expiry
-        protected_client->>refresh_guard: Start or join freshness check
-        alt shared refresh already in flight
-            refresh_guard-->>protected_client: Wait for existing result
-        else no shared refresh in flight
-            refresh_guard->>auth_refresh: refresh(sessionToken)
-            alt refresh succeeds
-                auth_refresh-->>refresh_guard: new sessionToken and expiresAt
-                refresh_guard->>session_state: Store refreshed token and expiry
-            else refresh fails
-                refresh_guard->>unlocked_vault: Read OnlineServices.DeviceId + PrivateKeyJWK
-                alt device signing key binding available
-                    refresh_guard->>auth_challenge: challenge(deviceId)
-                    auth_challenge-->>refresh_guard: challengeId and challenge
-                    refresh_guard->>refresh_guard: Sign challenge with private key
-                    refresh_guard->>auth_verify: verify(challengeId, signature, deviceId)
-                    alt re-auth succeeds
-                        auth_verify-->>refresh_guard: new sessionToken and expiresAt
-                        refresh_guard->>session_state: Store re-authenticated token and expiry
-                    else re-auth fails
-                        refresh_guard-->>protected_client: Automatic recovery unavailable
-                    end
-                else no device signing key binding available
-                    refresh_guard-->>protected_client: Automatic recovery unavailable
-                end
-            end
-        end
-    end
-
-    protected_client->>session_state: Read latest sessionToken for Authorization header
-    protected_client->>protected_server: Send protected request with Bearer token
-    alt server accepts token
-        protected_server-->>protected_client: Protected request succeeds
-    else server rejects token
-        protected_server-->>protected_client: Request fails unauthorized
-    end
-```
-
-## Practical Notes For Future Changes
-
-- If you add new protected routes, they automatically inherit the shared preflight freshness behavior as long as they use the standard tRPC clients from `web/src/utils/trpc.ts`.
-- If you add new auth bootstrap routes, keep them under `v1.auth.*` unless they truly need the preflight hook.
-- If you add new privileged actions, rely on server-side `ctx.rootDevice` and not on the JWT `root` claim alone.
-- If you change the session-expiry model, review:
-    - `SESSION_TOKEN_EXPIRY_SECONDS`
-    - `SESSION_REFRESH_LEAD_MS`
-    - `auth.refresh`
-    - `ensureFreshOnlineServicesSession()`
-- If you change the vault binding model, review:
-    - `Vault.bindOnlineServices` / `Vault.unbindOnlineServices`
-    - `Vault.isOnlineServicesBound`
-    - the `OnlineServices` class fields (`DeviceId`, `UserID`, `PublicKeyJWK`, `PrivateKeyJWK`, `IsRootDevice`)
-    - dashboard auto sign-in
-    - fallback re-authentication
-
-## Source Map
-
-- Frontend session orchestration: `web/src/app_lib/auth-session.ts`
-- Frontend tRPC auth headers: `web/src/utils/trpc.ts`
-- Auto sign-in on vault open: `web/src/components/vault-dashboard/vault-dashboard.tsx`
-- Registration and recovery UI: `web/src/components/vault-dashboard/account-dialog.tsx`
+## Online Services Recovery Kit management
+
+Recovery Kit management is in **Account > Security**.
+
+### Generate a kit
+
+When no kit exists, a root device can choose **Generate recovery package**.
+The app shows the User ID and 24-word phrase once in the **Save your Recovery
+Kit** dialog. The user can download, print, or copy it, then acknowledge that
+it has been saved.
+
+### Rotate a kit
+
+When a kit already exists, **Rotate recovery package** replaces it. The
+confirmation explains that:
+
+- every previous Recovery Kit becomes invalid
+- any active backup recovery session ends
+- the new package must be saved before continuing
+
+There is no clear-only action. The UI offers generation or rotation, not
+removal of the recovery capability. Only the root device can perform these
+actions.
+
+Anyone who has both the User ID and the current phrase can attempt account or
+fresh-device recovery. They should be stored offline and separately from
+ordinary browser data where practical.
+
+## Automatic sign-in when a vault opens
+
+When the dashboard loads after an unlock, it compares the session's device ID
+with the binding in the vault:
+
+- if they match, the current session is reused
+- if they differ, stale session state is cleared and the app signs in from the
+  vault binding
+- if no binding exists, no Online Services session is created
+
+The same behavior runs after registration, account recovery, and a cloud backup
+restore.
+
+## Locking and removing the local binding
+
+### Locking the vault
+
+Locking:
+
+- saves pending local vault changes
+- clears the vault decryption key from browser session storage
+- attempts `v1.auth.logout` with the current session, then clears Online
+  Services state locally even if the network call fails
+- clears the unlocked vault state
+
+The encrypted vault and its Online Services binding remain stored locally.
+
+### Removing the local binding
+
+**Account > Security > Remove local binding**:
+
+- attempts the same best-effort Online Services sign-out
+- removes the Online Services binding from the current vault
+- saves that vault
+- leaves the server-side account and its other data intact
+
+Afterward, the user can register a different account or use **Recover account**
+with a Recovery Kit.
+
+## User-facing failure cases
+
+- **Automatic sign-in fails**: unlock remains available; open **Account** to
+  retry.
+- **Recovery phrase is rejected**: verify the User ID and all 24 words, in
+  order, then retry. A phrase from an older rotated kit is no longer valid.
+- **Session refresh fails**: the app tries a full sign-in from the unlocked
+  vault binding. If that binding is missing or invalid, open **Account** after
+  unlocking.
+
+## Frontend source map
+
+- Session creation, refresh, fallback re-authentication, and logout:
+  [`web/src/app_lib/auth-session.ts`](../src/app_lib/auth-session.ts)
+- Shared session freshness before protected tRPC requests:
+  [`web/src/utils/trpc.ts`](../src/utils/trpc.ts)
+- Session atom shape and in-memory store:
+  [`web/src/utils/atoms.ts`](../src/utils/atoms.ts)
+- Automatic sign-in and Online Services session startup:
+  [`web/src/components/vault-dashboard/vault-dashboard.tsx`](../src/components/vault-dashboard/vault-dashboard.tsx)
+- Account registration, account recovery, Recovery Kit generation/rotation,
+  and local binding removal:
+  [`web/src/components/vault-dashboard/account-dialog/index.tsx`](../src/components/vault-dashboard/account-dialog/index.tsx)
+- Account registration/recovery controls:
+  [`web/src/components/vault-dashboard/account-dialog/account-auth.tsx`](../src/components/vault-dashboard/account-dialog/account-auth.tsx)
+- Recovery phrase entry and normalization:
+  [`web/src/components/vault-dashboard/account-dialog/recovery-phrase-input.tsx`](../src/components/vault-dashboard/account-dialog/recovery-phrase-input.tsx)
+- Recovery Kit save, download, print, and copy UI:
+  [`web/src/components/vault-dashboard/account-dialog/recovery-kit-dialog.tsx`](../src/components/vault-dashboard/account-dialog/recovery-kit-dialog.tsx)
+- Local vault unlock and vault recovery-code entry:
+  [`web/src/components/vault-manager/unlock.tsx`](../src/components/vault-manager/unlock.tsx)
+- Device-signing key generation and challenge signatures:
+  [`packages/vault-core/src/vault-utils/device-signing-key.ts`](../../packages/vault-core/src/vault-utils/device-signing-key.ts)
+- Vault binding model and serialized Online Services fields:
+  [`packages/vault-core/src/vault-utils/vault.ts`](../../packages/vault-core/src/vault-utils/vault.ts),
+  [`packages/vault-core/src/proto/vault.ts`](../../packages/vault-core/src/proto/vault.ts)
+- Client-facing authentication operations:
+  [`auth.router.ts`](../../packages/api-contract/src/routes/v1/auth.router.ts)

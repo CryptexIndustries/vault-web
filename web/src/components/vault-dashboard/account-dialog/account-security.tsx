@@ -18,9 +18,9 @@ type AccountSecurityProps = {
     busy: boolean;
     recoveryPhraseAlreadyOnServer: boolean;
     genRecoveryPending: boolean;
-    clearRecoveryPending: boolean;
+    rotateRecoveryPending: boolean;
     onGenerateRecovery: () => void;
-    onClearRecovery: () => void;
+    onRotateRecovery: () => void;
     onRemoveLocalBinding: () => void;
     onDeleteAccount: () => void;
 };
@@ -31,9 +31,9 @@ export function AccountSecurity({
     busy,
     recoveryPhraseAlreadyOnServer,
     genRecoveryPending,
-    clearRecoveryPending,
+    rotateRecoveryPending,
     onGenerateRecovery,
-    onClearRecovery,
+    onRotateRecovery,
     onRemoveLocalBinding,
     onDeleteAccount,
 }: AccountSecurityProps) {
@@ -41,58 +41,52 @@ export function AccountSecurity({
         <div className="space-y-4">
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">Recovery phrase</CardTitle>
+                    <CardTitle className="text-sm">Recovery package</CardTitle>
                     <CardDescription>
-                        Backs up your Online Services account. Recovery requires
-                        both your User ID and the phrase. To rotate, clear the
-                        old phrase first — that invalidates any previous backup.
+                        Backs up Online Services account control. Recovery needs
+                        both your User ID and the Recovery Kit phrase. You can
+                        replace the current package, but you cannot clear it
+                        without creating a new one.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    {recoveryPhraseAlreadyOnServer ? (
-                        <p className="text-xs text-muted-foreground">
-                            A recovery phrase is on file. Clear it before
-                            generating a new one.
-                        </p>
+                    {!recoveryPhraseAlreadyOnServer ? (
+                        <>
+                            <p className="text-xs text-muted-foreground">
+                                No recovery package on file.
+                            </p>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!isRoot || genRecoveryPending}
+                                onClick={onGenerateRecovery}
+                            >
+                                {genRecoveryPending ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : null}
+                                Generate recovery package
+                            </Button>
+                        </>
                     ) : (
-                        <p className="text-xs text-muted-foreground">
-                            No recovery phrase on file.
-                        </p>
+                        <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground">
+                                A recovery package is on file. Rotating replaces
+                                the current Recovery Kit and ends any active
+                                backup recovery session.
+                            </p>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!isRoot || rotateRecoveryPending}
+                                onClick={onRotateRecovery}
+                            >
+                                {rotateRecoveryPending ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : null}
+                                Rotate recovery package
+                            </Button>
+                        </div>
                     )}
-                    <div className="flex flex-wrap gap-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                                !isRoot ||
-                                genRecoveryPending ||
-                                recoveryPhraseAlreadyOnServer
-                            }
-                            onClick={onGenerateRecovery}
-                        >
-                            {genRecoveryPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : null}
-                            {recoveryPhraseAlreadyOnServer
-                                ? "Generate new"
-                                : "Generate"}
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                                !isRoot ||
-                                clearRecoveryPending ||
-                                !recoveryPhraseAlreadyOnServer
-                            }
-                            onClick={onClearRecovery}
-                        >
-                            {clearRecoveryPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : null}
-                            Clear phrase
-                        </Button>
-                    </div>
                 </CardContent>
             </Card>
 
@@ -121,11 +115,11 @@ export function AccountSecurity({
             <Card className="border-destructive/30">
                 <CardHeader className="pb-3">
                     <CardTitle className="text-sm text-destructive">
-                        Delete account
+                        Danger
                     </CardTitle>
                     <CardDescription>
-                        Permanently removes the server account. Root device
-                        only. This cannot be undone.
+                        Permanently deletes your Online Services account and its
+                        server-side data. This cannot be undone.
                     </CardDescription>
                 </CardHeader>
                 <CardFooter className="border-t pt-4">

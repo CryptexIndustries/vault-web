@@ -55,6 +55,7 @@ services:
         <<: *client-build-args
         NEXT_PUBLIC_CLOUD_ENABLED: "true"
         NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+        NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: ${NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN:-}
     environment:
       HOSTNAME: "0.0.0.0"
       PORT: "3000"

@@ -62,6 +62,22 @@ const PrivacyPolicy: NextPage = () => {
                                 </a>
                                 .
                             </p>
+                            <h3 className="mt-5 text-xl font-bold">
+                                1.4. Optional managed encrypted backups
+                            </h3>
+                            <p className="pt-2 text-justify">
+                                Premium users may explicitly enable managed
+                                backups. We store encrypted vault backup bytes
+                                and operational metadata such as upload time,
+                                encrypted size, source device identifier, and
+                                access timing. Vault passwords, vault recovery
+                                codes, encryption keys, second-factor secrets,
+                                and plaintext vault contents are never sent to
+                                the backup service. Disabling backups pauses new
+                                uploads; users may download or delete retained
+                                restore points according to the displayed
+                                retention policy.
+                            </p>
                         </div>
                     </div>
                 </div>

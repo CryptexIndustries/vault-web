@@ -28,6 +28,8 @@ const baseClientSchema = z.object({
 
     /** Cryptex Cloud API origin (tRPC). Empty = use NEXT_PUBLIC_APP_URL. */
     NEXT_PUBLIC_ONLINE_SERVICES_API_URL: z.string().default(""),
+    /** Exact S3-compatible origin used by short-lived backup transfer URLs. */
+    NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: z.string().default(""),
 
     /** When "false", hide online-services UI and skip cloud tRPC. */
     NEXT_PUBLIC_CLOUD_ENABLED: z
@@ -140,6 +142,8 @@ export const clientEnv = {
 
     NEXT_PUBLIC_ONLINE_SERVICES_API_URL:
         process.env.NEXT_PUBLIC_ONLINE_SERVICES_API_URL ?? "",
+    NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN:
+        process.env.NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN ?? "",
 
     NEXT_PUBLIC_CLOUD_ENABLED:
         process.env.NEXT_PUBLIC_CLOUD_ENABLED?.toLowerCase() !== "false",

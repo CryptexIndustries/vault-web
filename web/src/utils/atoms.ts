@@ -17,9 +17,8 @@ export type OnlineServicesData = {
         root: boolean;
         canLink: boolean;
         maxLinks: number;
-        alwaysConnected: boolean;
-        canFeatureVote: boolean;
         recoveryTokenCreatedAt: Date | null;
+        recoveryGenerationNeeded?: boolean;
     } | null;
 };
 

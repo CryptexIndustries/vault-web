@@ -1,10 +1,10 @@
 // src/server/router/index.ts
 import { router } from "./trpc";
 import {
-    userRouterClearRecoveryToken,
     userRouterDelete,
     userRouterDeleteChallenge,
     userRouterGenerateRecoveryToken,
+    userRouterRotateRecoveryToken,
     userRouterConfiguration,
 } from "./routes/v1/user.router";
 import {
@@ -26,15 +26,29 @@ import {
     deviceRouterBreakLink,
 } from "./routes/v1/device.router";
 import {
-    featureVotingRouterGetRounds,
-    featureVotingRouterOpenRoundExists,
-    featureVotingRouterPlaceVote,
-} from "./routes/v1/feature-voting.router";
-import {
     paymentRouterGetCheckoutSession,
     paymentRouterGetCustomerPortal,
     paymentRouterGetSubscription,
 } from "./routes/v1/payment.router";
+
+import {
+    backupRouterDisable,
+    backupRouterEnable,
+    backupRouterStatus,
+} from "./routes/v1/backup-settings.router";
+import {
+    backupRouterCompleteUpload,
+    backupRouterCreateDownload,
+    backupRouterCreateUpload,
+    backupRouterDelete,
+    backupRouterDeleteAll,
+    backupRouterList,
+} from "./routes/v1/backup-snapshots.router";
+import {
+    backupRouterCreateRecoverySession,
+    backupRouterRecoveryDownload,
+    backupRouterRecoveryList,
+} from "./routes/v1/backup-recovery.router";
 
 const _versionedRouter = router({
     v1: router({
@@ -48,7 +62,7 @@ const _versionedRouter = router({
         }),
         user: router({
             generateRecoveryToken: userRouterGenerateRecoveryToken,
-            clearRecoveryToken: userRouterClearRecoveryToken,
+            rotateRecoveryToken: userRouterRotateRecoveryToken,
             configuration: userRouterConfiguration,
             deleteChallenge: userRouterDeleteChallenge,
             delete: userRouterDelete,
@@ -63,15 +77,24 @@ const _versionedRouter = router({
             signalingAuthChannel: deviceRouterSignalingAuthChannel,
             turnCredentials: deviceRouterTurnCredentials,
         }),
-        featureVoting: router({
-            openRoundExists: featureVotingRouterOpenRoundExists,
-            rounds: featureVotingRouterGetRounds,
-            placeVote: featureVotingRouterPlaceVote,
-        }),
         payment: router({
             checkoutSession: paymentRouterGetCheckoutSession,
             customerPortal: paymentRouterGetCustomerPortal,
             subscription: paymentRouterGetSubscription,
+        }),
+        backup: router({
+            status: backupRouterStatus,
+            enable: backupRouterEnable,
+            disable: backupRouterDisable,
+            createUpload: backupRouterCreateUpload,
+            completeUpload: backupRouterCompleteUpload,
+            list: backupRouterList,
+            createDownload: backupRouterCreateDownload,
+            delete: backupRouterDelete,
+            deleteAll: backupRouterDeleteAll,
+            createRecoverySession: backupRouterCreateRecoverySession,
+            recoveryList: backupRouterRecoveryList,
+            recoveryDownload: backupRouterRecoveryDownload,
         }),
     }),
 });

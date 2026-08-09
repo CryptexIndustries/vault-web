@@ -25,9 +25,8 @@ const sampleData: OnlineServicesData = {
         root: true,
         canLink: true,
         maxLinks: 5,
-        alwaysConnected: true,
-        canFeatureVote: true,
         recoveryTokenCreatedAt: null,
+        recoveryGenerationNeeded: false,
     },
 };
 
@@ -99,6 +98,21 @@ describe("clearOnlineServicesSession", () => {
 
         clearOnlineServicesSession();
         expect(onlineServicesStore.get(onlineServicesDataAtom)).toBeNull();
+    });
+
+    it("preserves the server recovery-generation flag", () => {
+        setOnlineServicesData({
+            ...sampleData,
+            remoteData: {
+                ...sampleData.remoteData!,
+                recoveryGenerationNeeded: true,
+            },
+        });
+
+        expect(
+            onlineServicesStore.get(onlineServicesDataAtom)?.remoteData
+                ?.recoveryGenerationNeeded,
+        ).toBe(true);
     });
 });
 

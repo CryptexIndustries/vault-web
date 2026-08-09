@@ -85,6 +85,7 @@ services:
       <<: *dev-env
       NEXT_PUBLIC_CLOUD_ENABLED: "true"
       NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+      NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: ${NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN:-http://garage.localhost:3900}
     restart: unless-stopped
 
   web-dev-lan:
@@ -115,6 +116,7 @@ services:
       <<: *lan-env
       NEXT_PUBLIC_CLOUD_ENABLED: "true"
       NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+      NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: ${NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN:-}
     command: *lan-command
     restart: unless-stopped
 

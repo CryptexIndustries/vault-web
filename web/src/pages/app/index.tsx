@@ -187,7 +187,7 @@ const AppIndex: React.FC = () => {
 
     const tryRestoreVault = async (
         formData: FormSchemas.VaultRestoreFormSchema,
-    ) => {
+    ): Promise<{ dbIndex: number } | false> => {
         let validBackupFile: VaultEncryption.EncryptedBlob | null = null;
         try {
             validBackupFile = VaultEncryption.EncryptedBlob.fromBinary(
@@ -214,7 +214,15 @@ const AppIndex: React.FC = () => {
             return false;
         }
 
-        return true;
+        const dbIndex = newVaultMetadataInst.DBIndex;
+        if (dbIndex == null) {
+            console.error(
+                "Failed to restore the vault. Missing local database index.",
+            );
+            return false;
+        }
+
+        return { dbIndex };
     };
 
     return (

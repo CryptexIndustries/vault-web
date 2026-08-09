@@ -7,7 +7,6 @@ type DeviceTopologyDevice = {
     id: string;
     createdAt: Date;
     lastSeen: Date | null;
-    purpose: "web" | "mobile" | "browser" | "cli";
     root: boolean;
     current: boolean;
 };

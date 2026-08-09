@@ -99,8 +99,6 @@ import {
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     clearOnlineServicesSession,
-    onlineServicesDataAtom,
-    onlineServicesStore,
     setOnlineServicesData,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
@@ -153,6 +151,7 @@ import { ulid } from "ulidx";
 import BarcodeScanner from "@/components/general/qr-scanner";
 import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
 import type { WarningDialogShowFn } from "@/components/dialog/warning";
+import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
 
 export type SendLinkRequestDialogProps = {
     open: boolean;
@@ -932,9 +931,7 @@ export function SendLinkRequestDialog({
 }: SendLinkRequestDialogProps) {
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
-        store: onlineServicesStore,
-    });
+    const onlineServicesData = useOnlineServicesData();
     const { mutateAsync: linkNewDevice } =
         trpcReact.v1.device.link.useMutation();
     const trpcUtils = trpcReact.useUtils();

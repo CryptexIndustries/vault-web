@@ -72,7 +72,7 @@ const VaultManager: React.FC<{
     ) => void;
     tryRestoreVaultCallback: (
         formData: VaultRestoreFormSchema,
-    ) => Promise<boolean>;
+    ) => Promise<{ dbIndex: number } | false>;
 }> = ({
     tryDecryptVaultCallback,
     tryCreateVaultCallback,
@@ -175,9 +175,9 @@ const VaultManager: React.FC<{
     };
 
     const restoreVaultCallback = async (formData: VaultRestoreFormSchema) => {
-        const success = await tryRestoreVaultCallback(formData);
+        const result = await tryRestoreVaultCallback(formData);
 
-        if (success) {
+        if (result) {
             setActiveTab("unlock");
             setOperationStatus({
                 status: "success",
@@ -190,7 +190,7 @@ const VaultManager: React.FC<{
             });
         }
 
-        return success;
+        return result;
     };
 
     const deleteVaultCallback = async (dbIndex: number) => {

@@ -382,9 +382,8 @@ describe("auth-session freshness checks", () => {
                 root: true,
                 canLink: true,
                 maxLinks: 3,
-                alwaysConnected: true,
-                canFeatureVote: true,
                 recoveryTokenCreatedAt: null,
+                recoveryGenerationNeeded: false,
             },
         });
 
@@ -680,9 +679,8 @@ describe("syncOnlineServicesRemoteConfiguration", () => {
             root: true,
             canLink: true,
             maxLinks: 3,
-            alwaysConnected: true,
-            canFeatureVote: true,
             recoveryTokenCreatedAt: null,
+            recoveryGenerationNeeded: true,
         };
         configurationQuery.mockResolvedValue(remoteData);
 
@@ -697,7 +695,10 @@ describe("syncOnlineServicesRemoteConfiguration", () => {
 
         const session = onlineServicesStore.get(onlineServicesDataAtom);
         expect(session?.deviceId).toBe("device_1");
-        expect(session?.remoteData).toMatchObject({ root: true });
+        expect(session?.remoteData).toMatchObject({
+            root: true,
+            recoveryGenerationNeeded: true,
+        });
     });
 
     it("clones the vault and updates IsRootDevice when blob exists and remote root differs from cached", async () => {
@@ -706,9 +707,8 @@ describe("syncOnlineServicesRemoteConfiguration", () => {
             root: true,
             canLink: true,
             maxLinks: 3,
-            alwaysConnected: true,
-            canFeatureVote: true,
             recoveryTokenCreatedAt: null,
+            recoveryGenerationNeeded: false,
         };
         configurationQuery.mockResolvedValue(remoteData);
 
@@ -750,9 +750,8 @@ describe("syncOnlineServicesRemoteConfiguration", () => {
             root: true,
             canLink: true,
             maxLinks: 3,
-            alwaysConnected: true,
-            canFeatureVote: true,
             recoveryTokenCreatedAt: null,
+            recoveryGenerationNeeded: false,
         };
         configurationQuery.mockResolvedValue(remoteData);
 

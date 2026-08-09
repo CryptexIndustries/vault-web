@@ -40,8 +40,6 @@ type RemoteConfig = {
     root?: boolean;
     canLink?: boolean;
     canPromoteDevices?: boolean;
-    alwaysConnected?: boolean;
-    canFeatureVote?: boolean;
     maxLinks?: number;
     recoveryTokenCreatedAt?: Date | string | null;
 };
@@ -99,18 +97,6 @@ function buildLockedPerks(
         perks.push({
             label: "Root device promotion",
             detail: "Upgrade to promote trusted devices.",
-        });
-    }
-    if (!remoteConfig?.alwaysConnected) {
-        perks.push({
-            label: "Always-connected access",
-            detail: "Upgrade to keep Online Services always available.",
-        });
-    }
-    if (!remoteConfig?.canFeatureVote) {
-        perks.push({
-            label: "Feature voting",
-            detail: "Upgrade to vote on upcoming features.",
         });
     }
 

@@ -1,11 +1,9 @@
-import { z } from "zod";
-
 import { protectedProcedure } from "../../trpc";
+import { z } from "zod";
 
 export const userRouterGenerateRecoveryToken = protectedProcedure
     .output(
         z.object({
-            /** Account id (required when calling `auth.recover`). */
             userId: z.string(),
             token: z.string(),
         }),
@@ -13,11 +11,18 @@ export const userRouterGenerateRecoveryToken = protectedProcedure
     .mutation(() => {
         throw new Error("api-contract stub");
     });
-export const userRouterClearRecoveryToken = protectedProcedure
-    .output(z.boolean())
+
+export const userRouterRotateRecoveryToken = protectedProcedure
+    .output(
+        z.object({
+            userId: z.string(),
+            token: z.string(),
+        }),
+    )
     .mutation(() => {
         throw new Error("api-contract stub");
     });
+
 export const userRouterConfiguration = protectedProcedure
     .output(
         z.object({
@@ -26,14 +31,18 @@ export const userRouterConfiguration = protectedProcedure
             canLink: z.boolean(),
             maxLinks: z.number(),
             canPromoteDevices: z.boolean(),
-            alwaysConnected: z.boolean(),
-            canFeatureVote: z.boolean(),
+            managedEncryptedBackups: z.boolean(),
+            passwordSharing: z.boolean(),
+            securityReportBasic: z.boolean(),
+            securityReportAdvanced: z.boolean(),
             recoveryTokenCreatedAt: z.date().nullable(),
+            recoveryGenerationNeeded: z.boolean(),
         }),
     )
     .query(() => {
         throw new Error("api-contract stub");
     });
+
 export const userRouterDeleteChallenge = protectedProcedure
     .output(
         z.object({
@@ -45,6 +54,7 @@ export const userRouterDeleteChallenge = protectedProcedure
     .mutation(() => {
         throw new Error("api-contract stub");
     });
+
 export const userRouterDelete = protectedProcedure
     .input(
         z.object({

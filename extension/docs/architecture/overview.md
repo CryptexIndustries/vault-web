@@ -12,9 +12,8 @@ flowchart TB
         HostPage["Host web page (http/https)"]
     end
 
-    subgraph semi["Semi-trusted (extension-origin, host DOM)"]
-        CS["Content script (autofill-cs)"]
-        Icon["autofill-icon iframe"]
+    subgraph semi["Semi-trusted (extension UI in host DOM)"]
+        CS["Content script and field control"]
         Menu["autofill-menu iframe"]
         Gen["autofill-generator iframe"]
         Save["autofill-save iframe"]
@@ -39,22 +38,22 @@ flowchart TB
     end
 
     HostPage --> CS
-    CS --> Icon & Menu & Gen & Save
-    CS & Icon & Menu & Gen & Save & Popup & Link -->|encrypted envelopes| BG
+    CS --> Menu & Gen & Save
+    CS & Menu & Gen & Save & Popup & Link -->|encrypted envelopes| BG
     Popup -->|SyncConnectionController| Pusher & Peer
     Link -->|LinkingProcessController| Pusher & Peer
     BG --> Store & IDB
     BG -->|ProxyFetch| API
 ```
 
-| Realm            | Entry             | Trust                               | Can message SW?       |
-| ---------------- | ----------------- | ----------------------------------- | --------------------- |
-| Service worker   | `background.js`   | Root                                | N/A (handler)         |
-| Action popup     | `popup.html`      | High                                | Yes — full vault ACL  |
-| Link tab         | `link.html`       | Medium-high                         | Yes — OS + proxy only |
-| Logs tab         | `logs.html`       | Low                                 | No                    |
-| Content script   | `autofill-cs.js`  | Semi — top frame only               | Yes — autofill ACL    |
-| Autofill iframes | `autofill-*.html` | Semi — extension origin in host DOM | Yes — per-kind ACL    |
+| Realm           | Entry             | Trust                               | Can message SW?       |
+| --------------- | ----------------- | ----------------------------------- | --------------------- |
+| Service worker  | `background.js`   | Root                                | N/A (handler)         |
+| Action popup    | `popup.html`      | High                                | Yes — full vault ACL  |
+| Link tab        | `link.html`       | Medium-high                         | Yes — OS + proxy only |
+| Logs tab        | `logs.html`       | Low                                 | No                    |
+| Content script  | `autofill-cs.js`  | Semi — top frame only               | Yes — autofill ACL    |
+| Autofill panels | `autofill-*.html` | Semi — extension origin in host DOM | Yes — per-kind ACL    |
 
 ## Three parallel stacks
 

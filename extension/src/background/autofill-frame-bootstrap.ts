@@ -37,7 +37,6 @@ function isValidToken(value: unknown): value is string {
 
 function isFrameKind(value: unknown): value is AutofillFrameKind {
     return (
-        value === "autofill-icon" ||
         value === "autofill-menu" ||
         value === "autofill-generator" ||
         value === "autofill-save"

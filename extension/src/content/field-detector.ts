@@ -92,11 +92,8 @@ const nextGroupId = () => `cxg-${++groupIdCounter}`;
 const elementIdCache = new WeakMap<HTMLInputElement, string>();
 
 /**
- * Cache mapping form container → group id. Without this, every rescan
- * mints a fresh groupId and the content script's reconcile loop treats
- * the previous group as gone, tears down the icon iframe, mounts a new
- * one, and the MutationObserver fires again — endless fetches of
- * autofill-icon.html.
+ * Cache mapping form container → group id. Stable group ids let the content
+ * script reconcile dynamic forms without closing an active panel on every scan.
  */
 const containerGroupIdCache = new WeakMap<Element, string>();
 
@@ -143,20 +140,6 @@ function nameSignal(el: HTMLInputElement): string {
         .join(" ");
 }
 
-function isElementInViewPort(el: HTMLElement): boolean {
-    var rect = el.getBoundingClientRect();
-
-    const visible =
-        rect.top >= 0 &&
-        rect.left >= 0 &&
-        rect.bottom <=
-            (window.innerHeight || document.documentElement.clientHeight) &&
-        rect.right <=
-            (window.innerWidth || document.documentElement.clientWidth);
-
-    return visible;
-}
-
 /**
  * Checks the visibility of an element.
  * @param el - The element to check the visibility of.
@@ -164,14 +147,13 @@ function isElementInViewPort(el: HTMLElement): boolean {
  */
 function visibilityRejectionReason(el: HTMLElement): string | null {
     if (el.hidden) return "hidden attribute";
-    if (!isElementInViewPort(el)) return "field out of viewport";
 
     // Check for various visibility properties
     if (
         typeof el.checkVisibility === "function" &&
         !el.checkVisibility({ visibilityProperty: true })
     ) {
-        return "field not visible in viewport";
+        return "field CSS visibility check failed";
     }
 
     if (el.getAttribute("aria-hidden") === "true") return "aria-hidden=true";

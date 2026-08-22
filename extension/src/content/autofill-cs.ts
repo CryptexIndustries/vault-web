@@ -3,9 +3,9 @@
  *
  * Runs in the isolated world of every top-level http(s) frame and is
  * responsible for:
- *   - detecting login/signup/OTP fields in the host page
- *   - attaching picker or generator shields to each qualified field
- *   - opening the matching inline panel beside the clicked field
+ *   - detecting login, signup, and OTP fields in the host page
+ *   - tracking qualified fields and showing one control on the active field
+ *   - opening the matching inline panel beside that field
  *   - filling selected credentials and wiping local references
  *   - prompting the user to save new credentials on form submit
  *
@@ -15,9 +15,8 @@
  *   - All sensitive traffic with the SW uses the same envelope-encrypted
  *     transport as the popup. The shared client is configured with
  *     `setEnvelopeOriginOverride("autofill-cs")` so the SW recognises us.
- *   - Iframe contents are loaded from the extension origin and isolated
- *     from the host page. Communication uses `MessageChannel` ports so
- *     unrelated `postMessage` traffic on the page cannot pose as the UI;
+ *   - Sensitive iframe contents are loaded from the extension origin and
+ *     isolated from the host page. Communication uses `MessageChannel` ports;
  *     each iframe first claims a SW-backed nonce before accepting `init`.
  *   - Credential secrets only live in local variables for the duration
  *     of a single fill, then references are cleared so GC can collect
@@ -44,7 +43,6 @@ import {
 import {
     detectGroups,
     getInlineFieldMode,
-    isVisible,
     selectGeneratedPasswordFields,
     selectInlineMenuField,
     selectOtpField,
@@ -52,6 +50,11 @@ import {
     type FieldGroup,
     type FieldKind,
 } from "./field-detector";
+import {
+    createInlineIcon,
+    type InlineIconController,
+    type InlineIconMode,
+} from "./inline-icon";
 import { getEffectiveOrigin, isTopFrame } from "./origin-utils";
 
 setEnvelopeOriginOverride("autofill-cs");
@@ -70,8 +73,6 @@ chrome.runtime.onMessage.addListener(
     },
 );
 
-const ICON_SIZE_PX = 25;
-const ICON_RIGHT_PADDING_PX = 6;
 const MENU_WIDTH_PX = 280;
 const MENU_HEIGHT_PX = 320;
 const GENERATOR_WIDTH_PX = 280;
@@ -86,30 +87,27 @@ const MUTATION_DEBOUNCE_MS = 150;
 const UNLOCK_POLL_INTERVAL_MS = 750;
 const UNLOCK_POLL_TIMEOUT_MS = 90_000;
 
-const ICON_URL = chrome.runtime.getURL("/autofill-icon.html");
-const GENERATOR_ICON_URL = chrome.runtime.getURL(
-    "/autofill-icon.html?mode=generator",
-);
 const MENU_URL = chrome.runtime.getURL("/autofill-menu.html");
 const GENERATOR_URL = chrome.runtime.getURL("/autofill-generator.html");
 const SAVE_URL = chrome.runtime.getURL("/autofill-save.html");
 const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("/")).origin;
 
-type IconMode = "autofill" | "generator";
-
-interface IconHandle {
-    field: HTMLInputElement;
+interface IconHandle extends InlineIconController {
     fieldKind: FieldKind;
     groupId: string;
-    mode: IconMode;
-    iframe: HTMLIFrameElement;
-    mounted: boolean;
-    port: MessagePort | null;
-    cleanup: () => void;
+    mode: InlineIconMode;
 }
 
-const iconsByField = new Map<HTMLInputElement, IconHandle>();
+interface TrackedInlineField {
+    fieldKind: FieldKind;
+    groupId: string;
+    mode: InlineIconMode;
+}
+
+const trackedFields = new Map<HTMLInputElement, TrackedInlineField>();
+const fieldListenerControllers = new Map<HTMLInputElement, AbortController>();
 const trackedGroups = new Map<string, FieldGroup>();
+let activeIcon: IconHandle | null = null;
 
 function postBootstrapInit(
     iframe: HTMLIFrameElement,
@@ -168,128 +166,109 @@ function shouldRun(): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Icon mounting                                                               */
+/* Inline control                                                              */
 /* -------------------------------------------------------------------------- */
 
-function positionIconOverField(
-    iframe: HTMLIFrameElement,
-    field: HTMLInputElement,
-): void {
-    const rect = field.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-        iframe.style.display = "none";
-        return;
-    }
-    iframe.style.display = "block";
-    const size = Math.min(ICON_SIZE_PX, rect.height - 4);
-    const top = rect.top + (rect.height - size) / 2 + window.scrollY;
-    const left =
-        rect.left + rect.width - size - ICON_RIGHT_PADDING_PX + window.scrollX;
-    iframe.style.top = `${Math.max(top, 0)}px`;
-    iframe.style.left = `${Math.max(left, 0)}px`;
-    iframe.style.width = `${size}px`;
-    iframe.style.height = `${size}px`;
+function fieldHasOpenPanel(field: HTMLInputElement): boolean {
+    return (
+        menuActiveIcon?.field === field || generatorActiveIcon?.field === field
+    );
 }
 
-function mountIconForField(
+function detachActiveIcon(field?: HTMLInputElement): void {
+    if (!activeIcon || (field && activeIcon.field !== field)) return;
+    activeIcon.destroy();
+    activeIcon = null;
+}
+
+function detachIconWhenInactive(field: HTMLInputElement): void {
+    window.setTimeout(() => {
+        if (document.activeElement !== field && !fieldHasOpenPanel(field)) {
+            detachActiveIcon(field);
+        }
+    }, 0);
+}
+
+function attachIconForField(field: HTMLInputElement): IconHandle | null {
+    const tracked = trackedFields.get(field);
+    if (!tracked || !field.isConnected) return null;
+
+    if (
+        activeIcon?.field === field &&
+        activeIcon.mode === tracked.mode &&
+        activeIcon.fieldKind === tracked.fieldKind &&
+        activeIcon.groupId === tracked.groupId
+    ) {
+        activeIcon.reposition();
+        return activeIcon;
+    }
+
+    if (activeIcon?.field !== field) {
+        closeMenu();
+        closeGenerator();
+    }
+    detachActiveIcon();
+
+    let handle: IconHandle;
+    const controller = createInlineIcon({
+        field,
+        mode: tracked.mode,
+        onClick: () => void handleIconClick(handle),
+    });
+    handle = {
+        ...controller,
+        fieldKind: tracked.fieldKind,
+        groupId: tracked.groupId,
+        mode: tracked.mode,
+    };
+    activeIcon = handle;
+    return handle;
+}
+
+function trackInlineField(
     group: FieldGroup,
     field: HTMLInputElement,
     fieldKind: FieldKind,
-    mode: IconMode = "autofill",
-): IconHandle | null {
-    const existing = iconsByField.get(field);
-    if (existing) {
-        if (existing.mode === mode) {
-            const kindChanged = existing.fieldKind !== fieldKind;
-            existing.fieldKind = fieldKind;
-            existing.groupId = group.groupId;
-            if (kindChanged && menuActiveIcon === existing) closeMenu();
-            return existing;
-        }
-        existing.cleanup();
-        iconsByField.delete(field);
-    }
-
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("role", "presentation");
-    iframe.setAttribute("data-cryptex-autofill", "icon");
-    iframe.style.cssText = [
-        "position: absolute",
-        "border: 0",
-        "background: transparent",
-        "color-scheme: dark",
-        "z-index: 2147483646",
-        "pointer-events: auto",
-    ].join(";");
-
-    let handshakeListener: ((event: MessageEvent) => void) | null = null;
-    const handle: IconHandle = {
-        field,
+    mode: InlineIconMode,
+): void {
+    trackedFields.set(field, {
         fieldKind,
         groupId: group.groupId,
         mode,
-        iframe,
-        mounted: false,
-        port: null,
-        cleanup: () => {
-            if (handshakeListener) {
-                window.removeEventListener("message", handshakeListener);
-                handshakeListener = null;
-            }
-            handle.port?.close();
-            handle.port = null;
-            iframe.remove();
-        },
-    };
+    });
 
-    iconsByField.set(field, handle);
+    if (fieldListenerControllers.has(field)) {
+        if (activeIcon?.field === field) attachIconForField(field);
+        return;
+    }
 
-    const initialise = async () => {
-        const bootstrap = await createAutofillFrameBootstrap("autofill-icon");
-        if (
-            !bootstrap ||
-            iconsByField.get(field) !== handle ||
-            !field.isConnected
-        ) {
-            handle.cleanup();
-            if (iconsByField.get(field) === handle) iconsByField.delete(field);
-            return;
-        }
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    field.addEventListener("focus", () => attachIconForField(field), options);
+    field.addEventListener(
+        "mousedown",
+        () => attachIconForField(field),
+        options,
+    );
+    field.addEventListener(
+        "blur",
+        () => detachIconWhenInactive(field),
+        options,
+    );
+    fieldListenerControllers.set(field, controller);
 
-        iframe.src = withAutofillFrameMount(
-            mode === "generator" ? GENERATOR_ICON_URL : ICON_URL,
-            bootstrap.mountId,
-        );
+    if (document.activeElement === field) attachIconForField(field);
+}
 
-        document.documentElement.appendChild(iframe);
-        handle.mounted = true;
-        positionIconOverField(iframe, field);
-
-        handshakeListener = (event: MessageEvent) => {
-            if (event.source !== iframe.contentWindow) return;
-            const data = event.data as { kind?: string } | undefined;
-            if (data?.kind !== "ready") return;
-            if (event.origin !== EXTENSION_ORIGIN) return;
-            if (handshakeListener) {
-                window.removeEventListener("message", handshakeListener);
-                handshakeListener = null;
-            }
-            const channel = new MessageChannel();
-            handle.port = channel.port1;
-            channel.port1.onmessage = (ev) => {
-                const msg = ev.data as { kind?: string } | undefined;
-                if (msg?.kind === "click") {
-                    void handleIconClick(handle);
-                }
-            };
-            channel.port1.start();
-            postBootstrapInit(iframe, bootstrap, channel.port2);
-        };
-        window.addEventListener("message", handshakeListener);
-    };
-
-    void initialise();
-    return handle;
+function untrackInlineField(field: HTMLInputElement): void {
+    trackedFields.delete(field);
+    fieldListenerControllers.get(field)?.abort();
+    fieldListenerControllers.delete(field);
+    if (activeIcon?.field === field) {
+        closeMenu();
+        closeGenerator();
+        detachActiveIcon(field);
+    }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -297,6 +276,7 @@ function mountIconForField(
 /* -------------------------------------------------------------------------- */
 
 function closeMenu(): void {
+    const field = menuActiveIcon?.field;
     menuMountToken += 1;
     if (menuHandshakeListener) {
         window.removeEventListener("message", menuHandshakeListener);
@@ -318,9 +298,11 @@ function closeMenu(): void {
     menuActiveIcon = null;
     document.removeEventListener("mousedown", onDocumentMouseDown, true);
     document.removeEventListener("keydown", onDocumentKeyDown, true);
+    if (field) detachIconWhenInactive(field);
 }
 
 function closeGenerator(): void {
+    const field = generatorActiveIcon?.field;
     generatorMountToken += 1;
     if (generatorHandshakeListener) {
         window.removeEventListener("message", generatorHandshakeListener);
@@ -341,6 +323,7 @@ function closeGenerator(): void {
         true,
     );
     document.removeEventListener("keydown", onGeneratorDocumentKeyDown, true);
+    if (field) detachIconWhenInactive(field);
 }
 
 function positionPanelNearField(
@@ -426,7 +409,14 @@ async function openGeneratorForField(icon: IconHandle): Promise<void> {
     if (!group) return;
 
     const bootstrap = await createAutofillFrameBootstrap("autofill-generator");
-    if (!bootstrap || token !== generatorMountToken) return;
+    if (
+        !bootstrap ||
+        token !== generatorMountToken ||
+        activeIcon !== icon ||
+        !icon.field.isConnected
+    ) {
+        return;
+    }
 
     const iframe = document.createElement("iframe");
     iframe.src = withAutofillFrameMount(GENERATOR_URL, bootstrap.mountId);
@@ -532,7 +522,7 @@ async function openMenuForIcon(
     if (
         !bootstrap ||
         token !== menuMountToken ||
-        iconsByField.get(icon.field) !== icon ||
+        activeIcon !== icon ||
         !icon.field.isConnected
     ) {
         return;
@@ -969,28 +959,19 @@ function reconcile(): void {
         seenGroupIds.add(group.groupId);
         trackedGroups.set(group.groupId, group);
 
-        // Each qualified login or
-        // OTP input receives a picker button. This is important for split
-        // username/password pages where only one field exists at a time.
+        // Detection tracks every eligible field. The control itself is only
+        // attached to the field the user is interacting with.
         for (const field of group.fields) {
             const mode = getInlineFieldMode(group, field);
             if (!mode) continue;
-            mountIconForField(group, field.el, field.kind, mode);
+            trackInlineField(group, field.el, field.kind, mode);
             seenFields.add(field.el);
         }
     }
 
-    // Drop icons for fields that vanished from the DOM.
-    for (const [field, handle] of iconsByField.entries()) {
+    for (const field of trackedFields.keys()) {
         if (!seenFields.has(field) || !field.isConnected) {
-            handle.cleanup();
-            iconsByField.delete(field);
-            if (menuActiveIcon?.field === field) {
-                closeMenu();
-            }
-            if (generatorActiveIcon?.field === field) {
-                closeGenerator();
-            }
+            untrackInlineField(field);
         }
     }
 
@@ -1005,14 +986,8 @@ function reconcile(): void {
     }
 }
 
-function repositionAllIcons(): void {
-    for (const [, handle] of iconsByField) {
-        if (!handle.field.isConnected || !isVisible(handle.field)) {
-            handle.iframe.style.display = "none";
-            continue;
-        }
-        positionIconOverField(handle.iframe, handle.field);
-    }
+function repositionInlineUi(): void {
+    activeIcon?.reposition();
     if (menuIframe && menuActiveIcon?.field.isConnected) {
         positionMenuNearField(menuIframe, menuActiveIcon.field);
     }
@@ -1100,7 +1075,7 @@ function bootstrap(): void {
 
     const refresh = debounce(() => {
         reconcile();
-        repositionAllIcons();
+        repositionInlineUi();
     }, MUTATION_DEBOUNCE_MS);
     const observer = new MutationObserver(refresh);
     observer.observe(document.documentElement, {
@@ -1115,12 +1090,15 @@ function bootstrap(): void {
             "readonly",
             "disabled",
             "hidden",
+            "class",
         ],
     });
 
-    const onScrollOrResize = throttleRaf(repositionAllIcons);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+    const onLayoutChange = throttleRaf(repositionInlineUi);
+    window.addEventListener("scroll", onLayoutChange, true);
+    window.addEventListener("resize", onLayoutChange);
+    document.addEventListener("transitionend", onLayoutChange, true);
+    document.addEventListener("animationend", onLayoutChange, true);
 
     attachSubmitListener();
     void showPendingSavePromptWhenReady();

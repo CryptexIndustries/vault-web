@@ -120,25 +120,7 @@ function validateOrigin(
         return { valid: true };
     }
 
-    // Autofill icon iframe: extension-origin page loaded inside a host
-    // tab. Validate against its known URL prefix; the page is rendered
-    // cross-origin to the host so the host cannot spoof it.
-    if (claimedOrigin === "autofill-icon") {
-        if (
-            !sender.url?.startsWith(
-                chrome.runtime.getURL("/autofill-icon.html"),
-            )
-        ) {
-            return {
-                valid: false,
-                error: "Invalid autofill-icon origin",
-                code: "INVALID_ORIGIN",
-            };
-        }
-        return { valid: true };
-    }
-
-    // Autofill menu iframe: same reasoning as the icon iframe.
+    // Autofill menu iframe: extension-origin page loaded inside a host tab.
     if (claimedOrigin === "autofill-menu") {
         if (
             !sender.url?.startsWith(

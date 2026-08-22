@@ -38,7 +38,6 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "autofill-icon.html",
                 "autofill-generator.html",
                 "autofill-menu.html",
                 "autofill-save.html",

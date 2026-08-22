@@ -1,10 +1,10 @@
 # Autofill Iframe Bootstrap
 
 The autofill content script mounts extension-origin iframes into third-party
-pages for the field icon, credential menu, password generator, and save prompt.
-Those iframes are isolated from the page by origin, but from inside the iframe
-both the page script and the isolated-world content script appear as
-`window.parent`. The iframe therefore cannot trust `event.source` alone.
+pages for the credential menu, password generator, and save prompt. Those
+iframes are isolated from the page by origin, but from inside the iframe both
+the page script and isolated-world content script appear as `window.parent`.
+The iframe therefore cannot trust `event.source` alone.
 
 ## Threat Model
 
@@ -71,14 +71,13 @@ The encrypted envelope allowlist in `background.ts` and sender validation in
 
 - `RegisterAutofillFrame` is allowed only from `autofill-cs`, which must be the
   top-frame content script.
-- `ClaimAutofillFrame` is allowed only from autofill extension iframe origins:
-  `autofill-icon`, `autofill-menu`, `autofill-generator`, or `autofill-save`.
+- `ClaimAutofillFrame` is allowed only from the `autofill-menu`,
+  `autofill-generator`, and `autofill-save` extension iframe origins.
 - Other origins cannot invoke these message types even if they reach the service
   worker.
 
-The per-field generator shield reuses `autofill-icon`
-(`autofill-icon.html?mode=generator`). The standalone generator panel uses
-`autofill-generator`.
+The field control is a closed shadow root owned by the content script. It does
+not exchange messages with the service worker and needs no iframe bootstrap.
 
 ## Caller Responsibilities
 

@@ -123,7 +123,6 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.RegisterAutofillFrame,
         MessageType.ReportPageOrigin,
     ]),
-    "autofill-icon": new Set<MessageType>([MessageType.ClaimAutofillFrame]),
     "autofill-menu": new Set<MessageType>([
         MessageType.GetCredentialsForOrigin,
         MessageType.ClaimAutofillFrame,

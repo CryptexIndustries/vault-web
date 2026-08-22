@@ -49,6 +49,31 @@ describe("detectGroups", () => {
         expect(detectGroups()).toHaveLength(0);
     });
 
+    it("detects rendered login fields below the current viewport", () => {
+        mount(`
+            <form>
+                <input type="text" name="username" />
+                <input type="password" name="password" />
+            </form>
+        `);
+        for (const input of document.querySelectorAll("input")) {
+            input.getBoundingClientRect = () =>
+                ({
+                    width: 200,
+                    height: 24,
+                    top: 2_000,
+                    left: 0,
+                    right: 200,
+                    bottom: 2_024,
+                    x: 0,
+                    y: 2_000,
+                    toJSON: () => ({}),
+                }) as DOMRect;
+        }
+
+        expect(detectGroups()).toHaveLength(1);
+    });
+
     it("ignores text fields whose hints only substring-match old user rule", () => {
         mount('<input type="text" name="user_comment" />');
         expect(detectGroups()).toHaveLength(0);

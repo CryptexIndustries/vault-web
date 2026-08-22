@@ -55,7 +55,6 @@ export function detectEnvelopeOrigin(): EnvelopeOrigin {
     const pathname = window.location.pathname;
     if (pathname.endsWith("/popup.html")) return "popup";
     if (pathname.endsWith("/link.html")) return "link";
-    if (pathname.endsWith("/autofill-icon.html")) return "autofill-icon";
     if (pathname.endsWith("/autofill-menu.html")) return "autofill-menu";
     if (pathname.endsWith("/autofill-generator.html")) {
         return "autofill-generator";

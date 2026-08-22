@@ -111,7 +111,6 @@ export enum MessageType {
  *   - `autofill-cs`: content script running in the host page (isolated
  *     world). Only ever validated when `sender.frameId === 0` so
  *     clickjacked sub-frames cannot pose as the top frame.
- *   - `autofill-icon`: per-field icon iframe loaded from the extension.
  *   - `autofill-menu`: shared inline picker/unlock iframe loaded from the
  *     extension.
  *   - `autofill-generator`: inline password generator iframe loaded from
@@ -124,7 +123,6 @@ export type EnvelopeOrigin =
     | "worker"
     | "link"
     | "autofill-cs"
-    | "autofill-icon"
     | "autofill-menu"
     | "autofill-generator"
     | "autofill-save";
@@ -220,7 +218,6 @@ export interface GetCredentialsForOriginResponse {
 }
 
 export type AutofillFrameKind =
-    | "autofill-icon"
     | "autofill-menu"
     | "autofill-generator"
     | "autofill-save";

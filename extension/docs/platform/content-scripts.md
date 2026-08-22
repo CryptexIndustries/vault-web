@@ -195,19 +195,34 @@ The picker panel position, reported field kind, OTP mode, and OTP target all
 come from the clicked field rather than the group anchor. Normal credential
 selection intentionally fills the matching group.
 
+### Field control lifecycle
+
+Detection records every qualified field, but only the active field gets a
+control. Focus or pointer interaction moves the single control to that field.
+Blur removes it after the browser settles focus, unless its picker or generator
+is still open.
+
+The control lives in a closed shadow root and contains no vault data. It is
+positioned against the field's viewport rectangle, reserves enough input
+padding to keep text clear, and shifts away from existing site controls. The
+original padding is restored when the control moves or closes. Resize,
+scroll, transition, and animation events keep the active control and panel in
+place.
+
 ## Injection model
 
-The content script does not inject scripts into the page. It injects
-**extension-origin iframes** into host DOM:
+The content script owns the lightweight field control in its isolated world. It
+uses extension-origin iframes only for panels with their own UI and message
+channel:
 
-| Iframe                    | Purpose                    |
-| ------------------------- | -------------------------- |
-| `autofill-icon.html`      | Per-field autofill trigger |
-| `autofill-menu.html`      | Credential picker          |
-| `autofill-generator.html` | Password generator         |
-| `autofill-save.html`      | Save-login consent panel   |
+| Iframe                    | Purpose                  |
+| ------------------------- | ------------------------ |
+| `autofill-menu.html`      | Credential picker        |
+| `autofill-generator.html` | Password generator       |
+| `autofill-save.html`      | Save-login consent panel |
 
-URLs from `chrome.runtime.getURL()` → web-accessible resources.
+The iframe URLs come from `chrome.runtime.getURL()` and are web-accessible
+resources. The field control is not web-accessible.
 
 ### Bootstrap handshake
 
@@ -255,8 +270,8 @@ flowchart TD
 | Classification     | `classifyInput()`                      | Precedence of explicit metadata, exclusions, and fuzzy hints           |
 | Group boundaries   | `groupContainer()` / `detectGroups()`  | Unrelated fields grouped together or valid fields separated            |
 | Control policy     | `getInlineFieldMode()`                 | Picker versus generator assignment                                     |
-| DOM reconciliation | `reconcile()` / `iconsByField`         | Stable reuse, stale cleanup, and SPA field-role changes                |
-| Picker binding     | `openMenuForIcon()` / `menuActiveIcon` | Panel position and behavior follow the clicked field                   |
+| DOM reconciliation | `reconcile()` / `trackedFields`        | Stable field tracking, stale cleanup, and SPA field-role changes       |
+| Picker binding     | `openMenuForIcon()` / `menuActiveIcon` | Panel position and behavior follow the active field                    |
 | Secret fill        | `fillFromCredential()`                 | OTP targets one field; credentials fill the group                      |
 | Generated fill     | `selectGeneratedPasswordFields()`      | Current passwords are never overwritten when new-password fields exist |
 | Save handling      | `shouldPromptSave()`                   | Correct field selection and suppression of unchanged autofill          |

@@ -130,10 +130,6 @@ export default defineConfig(({ mode }) => {
                     background: path.resolve(__dirname, "src/background.ts"),
                     logs: path.resolve(__dirname, "logs.html"),
                     link: path.resolve(__dirname, "link.html"),
-                    "autofill-icon": path.resolve(
-                        __dirname,
-                        "autofill-icon.html",
-                    ),
                     "autofill-menu": path.resolve(
                         __dirname,
                         "autofill-menu.html",

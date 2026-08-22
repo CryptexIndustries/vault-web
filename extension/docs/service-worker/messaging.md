@@ -43,7 +43,6 @@ Applied before decryption:
 | `popup`              | `sender.url` starts with `chrome.runtime.getURL("/popup.html")`            |
 | `link`               | `sender.url` starts with `chrome.runtime.getURL("/link.html")`             |
 | `worker`             | `sender.id === chrome.runtime.id` only (response tag; weak client binding) |
-| `autofill-icon`      | URL prefix `/autofill-icon.html`                                           |
 | `autofill-menu`      | URL prefix `/autofill-menu.html`                                           |
 | `autofill-generator` | URL prefix `/autofill-generator.html`                                      |
 | `autofill-save`      | URL prefix `/autofill-save.html`                                           |
@@ -79,10 +78,6 @@ None (empty allowlist)
 `GetState`, `GetCredentialSecret`, `GenerateTOTP`, `SaveCredentialPrompt`,
 `GetPendingSavePrompt`, `OpenPopup`, `RegisterAutofillFrame`,
 `ReportPageOrigin`
-
-### `autofill-icon`
-
-`ClaimAutofillFrame`
 
 ### `autofill-menu`
 

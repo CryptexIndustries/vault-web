@@ -11,13 +11,13 @@ build hardening.
 
 ## Manifest attack surface
 
-| Surface            | Dev                                             | Production                  |
-| ------------------ | ----------------------------------------------- | --------------------------- |
-| `host_permissions` | `https://*/*`, `http://*/*`                     | API host + Pusher host only |
-| `permissions`      | `storage`, `idle`, `activeTab`, `scripting`     | Same                        |
-| CSP                | `script-src 'self' 'wasm-unsafe-eval'`          | Same                        |
-| Content scripts    | `autofill-cs.js` on all http/https, top frame   | Same                        |
-| WAR                | `autofill-*.html`, `assets/*` on all http/https | Same                        |
+| Surface            | Dev                                           | Production                  |
+| ------------------ | --------------------------------------------- | --------------------------- |
+| `host_permissions` | `https://*/*`, `http://*/*`                   | API host + Pusher host only |
+| `permissions`      | `storage`, `idle`, `activeTab`, `scripting`   | Same                        |
+| CSP                | `script-src 'self' 'wasm-unsafe-eval'`        | Same                        |
+| Content scripts    | `autofill-cs.js` on all http/https, top frame | Same                        |
+| WAR                | Three autofill panel pages + `assets/*`       | Same                        |
 
 `activeTab` and `scripting` are declared but unused in extension source.
 
@@ -28,14 +28,13 @@ directly.
 
 Host pages can load:
 
-- `autofill-icon.html`, `autofill-menu.html`, `autofill-generator.html`,
-  `autofill-save.html`
+- `autofill-menu.html`, `autofill-generator.html`, and `autofill-save.html`
 - Any hashed bundle under `assets/`
 
 Extension pages (`popup.html`, `link.html`, `logs.html`) are
 **not** web-accessible.
 
-WAR enables extension-origin iframes in host DOM but exposes bundle fingerprints
+WAR enables extension-origin panels in host DOM but exposes bundle fingerprints
 to pages that probe `chrome.runtime.getURL()`.
 
 ## Content script (summary)

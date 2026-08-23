@@ -17,7 +17,10 @@ jest.mock("papaparse", () => ({
 import Papa from "papaparse";
 
 import { CredentialConstants } from "../../src/utils/consts";
-import { ItemType } from "@cryptex-industries/vault-core/proto";
+import {
+    CredentialURLMatchMode,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 jest.mock("@cryptex-industries/vault-core/vault-utils/vault", () => ({
     __esModule: true,
     assimilateImportedCredential: jest.fn(async (credential: any) => ({
@@ -747,7 +750,7 @@ describe("vault-utils/import-export", () => {
             });
         });
 
-        it("parseImportFile preserves Bitwarden extras as custom fields and warnings", async () => {
+        it("parseImportFile preserves Bitwarden extras and warnings", async () => {
             MockFileReader.nextResult = JSON.stringify({
                 folders: [{ id: "cards", name: "Cards" }],
                 items: [
@@ -814,14 +817,13 @@ describe("vault-utils/import-export", () => {
                 "-1",
             );
             expect(login?.URL).toBe("https://primary.example");
-            expect(login?.CustomFields).toEqual(
-                expect.arrayContaining([
-                    expect.objectContaining({
-                        Name: "Bitwarden URI 2",
-                        Value: "https://secondary.example",
-                    }),
-                ]),
-            );
+            expect(login?.URLMatchMode).toBe(CredentialURLMatchMode.Domain);
+            expect(login?.AdditionalURLs).toEqual([
+                {
+                    URL: "https://secondary.example",
+                    MatchMode: CredentialURLMatchMode.Domain,
+                },
+            ]);
         });
     });
 
@@ -848,6 +850,7 @@ describe("vault-utils/import-export", () => {
                         Username: "alice",
                         Password: "pw",
                         URL: "https://cryptex.example.test",
+                        AdditionalURLs: ["https://legacy.example.test"],
                         Notes: "from export",
                         CustomFields: [
                             {
@@ -905,6 +908,15 @@ describe("vault-utils/import-export", () => {
                 Username: "alice",
                 Password: "pw",
             });
+            expect(output.credentials[0]?.URLMatchMode).toBe(
+                CredentialURLMatchMode.ExactHost,
+            );
+            expect(output.credentials[0]?.AdditionalURLs).toEqual([
+                {
+                    URL: "https://legacy.example.test",
+                    MatchMode: CredentialURLMatchMode.ExactHost,
+                },
+            ]);
             expect(output.credentials[0]?.CustomFields[0]?.ID).not.toBe("-1");
         });
 

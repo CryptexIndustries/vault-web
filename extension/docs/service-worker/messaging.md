@@ -75,13 +75,13 @@ None (empty allowlist)
 
 ### `autofill-cs` (top frame only)
 
-`GetState`, `GetCredentialSecret`, `GenerateTOTP`, `SaveCredentialPrompt`,
-`GetPendingSavePrompt`, `OpenPopup`, `RegisterAutofillFrame`,
-`ReportPageOrigin`
+`GetState`, `GetCredentialsForOrigin`, `GetCredentialSecret`, `GenerateTOTP`,
+`SaveCredentialPrompt`, `GetPendingSavePrompt`, `OpenPopup`,
+`RegisterAutofillFrame`, `ReportPageOrigin`
 
 ### `autofill-menu`
 
-`GetCredentialsForOrigin`, `ClaimAutofillFrame`
+`ClaimAutofillFrame`
 
 ### `autofill-generator`
 
@@ -93,10 +93,10 @@ None (empty allowlist)
 
 ## Handler dispatch highlights
 
-After decryption, `processMessage` routes by `MessageType`. Autofill secret
-release adds a second gate: `getAutofillRequestOrigin(sender)` parses
-`sender.url ?? sender.tab?.url` and `credentialMatchesRequestOrigin` requires
-exact hostname match. See [autofill/origin-matching.md](../autofill/origin-matching.md).
+After decryption, `processMessage` routes by `MessageType`. Candidate discovery
+and secret release derive the full page URL from the content-script sender and
+apply the shared credential URL matcher. See
+[autofill/origin-matching.md](../autofill/origin-matching.md).
 
 For popup site context, `ReportPageOrigin` and `OpenPopup` record the
 top-frame content script's sender-derived origin by tab id. `GetActivePageOrigin`

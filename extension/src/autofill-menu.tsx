@@ -8,15 +8,15 @@
  *     accept the vault passphrase in the iframe — the iframe lives on
  *     a third-party page and we don't want users habituated to typing
  *     their vault secret somewhere a phishing page could imitate.
- *   - Unlocked: shows exact-host matching credentials. When the focused
- *     field is an OTP slot, only credentials with TOTP configured are
+ *   - Unlocked: shows credentials authorized for the active page. When the
+ *     focused field is an OTP slot, only credentials with TOTP configured are
  *     listed and selecting one fills the rolling code instead.
  *
  * Communication with the parent CS is bidirectional over a
  * `MessageChannel` port that the parent transfers in during the
- * initial handshake. All envelope traffic with the SW is the iframe's
- * own concern (it's an extension page, so it uses the same envelope
- * client the popup does).
+ * initial handshake. The parent content script performs credential discovery so
+ * the service worker can derive the page URL from the browser-authenticated
+ * sender.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -25,8 +25,10 @@ import { Key, Loader2, Lock, ShieldCheck } from "lucide-react";
 
 import "./autofill-menu.css";
 
-import { MessageType, type LiteCredential } from "./types/sw-messaging";
-import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
+import {
+    type GetCredentialsForOriginResponse,
+    type LiteCredential,
+} from "./types/sw-messaging";
 import { uiLog } from "./utils/ext-logging";
 import {
     claimAutofillFrameBootstrap,
@@ -37,18 +39,19 @@ type FieldKind = "username" | "password" | "newPassword" | "otp";
 
 type InitPayload = {
     host: string;
-    etldPlus1: string;
     fieldKind: FieldKind;
     locked: boolean;
 };
 
 type ParentMessage =
+    | { kind: "credentials-request"; otpOnly: boolean }
     | { kind: "unlock-request" }
     | { kind: "pick"; credentialId: string; useTotpOnly: boolean }
     | { kind: "close" };
 
 type IncomingMessage =
     | { kind: "init"; payload: InitPayload }
+    | { kind: "credentials"; payload: GetCredentialsForOriginResponse }
     | { kind: "state-changed"; locked: boolean };
 
 let outboundPort: MessagePort | null = null;
@@ -66,8 +69,7 @@ const App = () => {
     const [init, setInit] = useState<InitPayload | null>(null);
     const [locked, setLocked] = useState<boolean>(true);
     const [loading, setLoading] = useState<boolean>(false);
-    const [exact, setExact] = useState<LiteCredential[]>([]);
-    const [fuzzy, setFuzzy] = useState<LiteCredential[]>([]);
+    const [matches, setMatches] = useState<LiteCredential[]>([]);
     const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -79,6 +81,14 @@ const App = () => {
             if (data.kind === "init") {
                 setInit(data.payload);
                 setLocked(data.payload.locked);
+            } else if (data.kind === "credentials") {
+                setLoading(false);
+                if (!data.payload.ok) {
+                    setLoadError(data.payload.error ?? "UNKNOWN");
+                    setMatches([]);
+                } else {
+                    setMatches(data.payload.matches);
+                }
             } else if (data.kind === "state-changed") {
                 setLocked(data.locked);
             }
@@ -129,45 +139,11 @@ const App = () => {
 
     const otpOnly = init?.fieldKind === "otp";
 
-    const loadCredentials = useCallback(async () => {
+    const loadCredentials = useCallback(() => {
         if (!init) return;
         setLoading(true);
         setLoadError(null);
-        try {
-            const res = await sendEncryptedEnvelopeToSW<{
-                ok: boolean;
-                exact: LiteCredential[];
-                fuzzy: LiteCredential[];
-                error?: string;
-            }>(MessageType.GetCredentialsForOrigin, {
-                host: init.host,
-                etldPlus1: init.etldPlus1,
-            });
-
-            if (!res.ok || !res.payload?.ok) {
-                const errorCode =
-                    (!res.ok ? res.error : res.payload?.error) ?? "UNKNOWN";
-                setLoadError(errorCode);
-                setExact([]);
-                setFuzzy([]);
-                return;
-            }
-
-            const nextExact = otpOnly
-                ? res.payload.exact.filter((c) => c.hasTOTP)
-                : res.payload.exact;
-            const nextFuzzy = otpOnly
-                ? res.payload.fuzzy.filter((c) => c.hasTOTP)
-                : res.payload.fuzzy;
-
-            setExact(nextExact);
-            setFuzzy(nextFuzzy);
-        } catch (err) {
-            uiLog.warn("[autofill-menu] credential load failed", { err });
-            setLoadError("LOAD_FAILED");
-        } finally {
-            setLoading(false);
-        }
+        postToParent({ kind: "credentials-request", otpOnly });
     }, [init, otpOnly]);
 
     useEffect(() => {
@@ -216,7 +192,7 @@ const App = () => {
         );
     }
 
-    const showEmpty = !loading && !loadError && !exact.length && !fuzzy.length;
+    const showEmpty = !loading && !loadError && !matches.length;
 
     return (
         <div className="dark flex h-full max-h-[320px] flex-col overflow-hidden rounded-md border bg-popover/95 text-popover-foreground shadow-xl">
@@ -263,18 +239,10 @@ const App = () => {
                     </p>
                 ) : null}
 
-                {!loading && exact.length ? (
+                {!loading && matches.length ? (
                     <CredSection
-                        label="Exact match"
-                        creds={exact}
-                        otpOnly={otpOnly}
-                    />
-                ) : null}
-
-                {!loading && fuzzy.length ? (
-                    <CredSection
-                        label="Other matches"
-                        creds={fuzzy}
+                        label="Matching credentials"
+                        creds={matches}
                         otpOnly={otpOnly}
                     />
                 ) : null}

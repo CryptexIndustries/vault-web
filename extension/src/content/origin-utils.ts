@@ -15,6 +15,7 @@ export { etldPlus1 } from "../utils/etld";
  * should treat as "no autofill on this page".
  */
 export function getEffectiveOrigin(): {
+    url: string;
     host: string;
     etldPlus1: string;
 } | null {
@@ -25,7 +26,7 @@ export function getEffectiveOrigin(): {
     const host = window.location.hostname.toLowerCase().replace(/\.$/, "");
     if (!host) return null;
 
-    return { host, etldPlus1: etldPlus1(host) };
+    return { url: window.location.href, host, etldPlus1: etldPlus1(host) };
 }
 
 /**

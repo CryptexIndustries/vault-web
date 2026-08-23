@@ -22,16 +22,17 @@ Keep these notes in sync with:
 - [iframe-bootstrap.md](iframe-bootstrap.md) describes how content-script mounted
   extension iframes authenticate the `MessageChannel` bootstrap with a
   service-worker-backed nonce.
-- [origin-matching.md](origin-matching.md) describes exact-host credential
-  matching and why eTLD+1 is not an authority for password or TOTP release.
+- [origin-matching.md](origin-matching.md) describes exact, domain, and wildcard
+  rules; sender-derived discovery; and secret-release checks.
 
 ## Invariants
 
 - Autofill runs only in the top-level `http:` / `https:` frame.
 - Extension iframes must not accept a parent `init` message unless it carries the
   nonce claimed from the service worker for the current mount id and iframe kind.
-- `GetCredentialSecret` and `GenerateTOTP` release secret material only when the
-  saved credential hostname exactly matches the requesting page hostname after
-  normalization.
-- The `fuzzy` response bucket is reserved for a future explicit opt-in
-  sibling-domain feature and remains empty by default.
+- Discovery, password release, and TOTP release use the same matcher against the
+  browser-authenticated content-script sender URL.
+- Exact-host rules are the default. Domain and wildcard rules require explicit
+  selection and are enforced identically during discovery and secret release.
+- HTTPS credentials cannot downgrade to HTTP, and explicit non-default ports
+  must match.

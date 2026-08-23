@@ -257,6 +257,17 @@ message Directory {
     bool Deleted = 6;
 }
 
+enum CredentialURLMatchMode {
+    ExactHost = 0;
+    Domain = 1;
+    Wildcard = 2;
+}
+
+message CredentialURL {
+    string URL = 1;
+    CredentialURLMatchMode MatchMode = 2;
+}
+
 message Credential {
     string ID = 1;
     ItemType Type = 2;
@@ -284,6 +295,8 @@ message Credential {
 
     bool Deleted = 20;
     string DirectoryID = 21;
+    CredentialURLMatchMode URLMatchMode = 22;
+    repeated CredentialURL AdditionalURLs = 23;
 }
 
 message TOTP {

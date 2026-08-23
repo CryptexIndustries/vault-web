@@ -68,6 +68,7 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { ONLINE_SERVICES_SELECTION_ID } from "../../src/utils/consts";
 import {
+    CredentialURLMatchMode,
     CustomFieldType,
     ItemType,
     TOTPAlgorithm,
@@ -86,6 +87,8 @@ const buildForm = (
     TOTP: overrides.TOTP,
     Tags: overrides.Tags,
     URL: overrides.URL ?? "https://example.com",
+    URLMatchMode: overrides.URLMatchMode ?? CredentialURLMatchMode.ExactHost,
+    AdditionalURLs: overrides.AdditionalURLs ?? [],
     Notes: overrides.Notes ?? "note",
     CustomFields: overrides.CustomFields ?? [],
 });
@@ -590,6 +593,8 @@ describe("vault-utils/vault", () => {
             Username: "user",
             Password: "pw",
             URL: "",
+            URLMatchMode: CredentialURLMatchMode.ExactHost,
+            AdditionalURLs: [],
             Notes: "",
             DateCreated: new Date().toISOString(),
             DateModified: undefined,
@@ -863,6 +868,8 @@ describe("CredentialFormSchema zod parsing", () => {
             Username: "u",
             Password: "p",
             URL: "",
+            URLMatchMode: CredentialURLMatchMode.ExactHost,
+            AdditionalURLs: [],
             Notes: "",
             CustomFields: [
                 {

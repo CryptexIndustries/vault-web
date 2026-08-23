@@ -37,6 +37,8 @@ const form = (name: string, directoryID = "") => ({
     TOTP: null,
     Tags: "",
     URL: "https://example.com",
+    URLMatchMode: Proto.CredentialURLMatchMode.ExactHost,
+    AdditionalURLs: [],
     Notes: "",
     CustomFields: [],
 });

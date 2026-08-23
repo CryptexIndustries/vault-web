@@ -19,12 +19,13 @@ import {
 
 const sessionValues: Record<string, unknown> = {};
 let activeTab: chrome.tabs.Tab;
-let liveOrigin: { host: string; etldPlus1: string };
+let liveOrigin: { url: string; host: string; etldPlus1: string };
 
 beforeEach(() => {
     for (const key of Object.keys(sessionValues)) delete sessionValues[key];
     activeTab = { id: 17, active: true } as chrome.tabs.Tab;
     liveOrigin = {
+        url: "https://accounts.example.com/login",
         host: "accounts.example.com",
         etldPlus1: "example.com",
     };
@@ -65,6 +66,7 @@ describe("page origin context", () => {
 
         expect(context).toMatchObject({
             tabId: 17,
+            url: "https://login.example.com/path",
             host: "login.example.com",
             etldPlus1: "example.com",
             documentId: "document-1",
@@ -81,6 +83,7 @@ describe("page origin context", () => {
         expect(activeTab.url).toBeUndefined();
         await expect(getActivePageOrigin()).resolves.toEqual({
             tabId: 17,
+            url: "https://accounts.example.com/login",
             host: "accounts.example.com",
             etldPlus1: "example.com",
         });
@@ -105,6 +108,7 @@ describe("page origin context", () => {
             tab: { id: 17 } as chrome.tabs.Tab,
         });
         liveOrigin = {
+            url: "https://other.example.com",
             host: "other.example.com",
             etldPlus1: "example.com",
         };

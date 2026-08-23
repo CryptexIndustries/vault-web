@@ -1,3 +1,8 @@
+import type {
+    CredentialURL,
+    CredentialURLMatchMode,
+} from "@cryptex-industries/vault-core/proto";
+
 export enum MessageType {
     GetState = 0,
     Unlock = 2,
@@ -40,9 +45,8 @@ export enum MessageType {
     OnlineServicesForceReauthenticate = 28,
 
     /**
-     * Autofill: list credentials matching a page origin. Returns two
-     * buckets so the UI can prioritise exact-host matches over eTLD+1
-     * fuzzy matches. Never returns secrets.
+     * Autofill: list credentials authorized for the sender-derived page URL.
+     * Never returns secrets.
      */
     GetCredentialsForOrigin = 19,
 
@@ -183,6 +187,8 @@ export type LiteCredential = {
     name: string;
     username: string;
     url: string;
+    urlMatchMode: CredentialURLMatchMode;
+    additionalUrls: CredentialURL[];
     hasTOTP?: boolean;
     directoryId: string;
 };
@@ -190,6 +196,7 @@ export type LiteCredential = {
 export interface ActivePageOrigin {
     tabId: number;
     host: string;
+    url: string;
     etldPlus1: string;
 }
 
@@ -201,22 +208,12 @@ export interface GetActivePageOriginResponse {
 /** Internal SW-to-content-script query used to validate the current document. */
 export const ACTIVE_PAGE_ORIGIN_QUERY = "cryptex:active-page-origin" as const;
 
-/** Payload for `MessageType.GetCredentialsForOrigin`. */
-export interface GetCredentialsForOriginRequest {
-    host: string;
-    etldPlus1: string;
-}
-
 /** Response for `MessageType.GetCredentialsForOrigin`. */
 export interface GetCredentialsForOriginResponse {
     ok: boolean;
-    /** Exact host matches (e.g. `accounts.example.com` == `accounts.example.com`). */
-    exact: LiteCredential[];
-    /** Reserved for future explicit user-approved sibling-domain matches. */
-    fuzzy: LiteCredential[];
+    matches: LiteCredential[];
     error?: string;
 }
-
 export type AutofillFrameKind =
     | "autofill-menu"
     | "autofill-generator"

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added vault onboarding and account-recovery guidance, including an empty-state guide, signup/signin prompts, recovery phrase peek controls, and user ID display.
 - Added a shared API contracts package and API contract stub generator.
 - Refreshed vault importing with guided previews, warnings and result counts, optional import during vault creation, and support for Cryptex Vault JSON, Bitwarden JSON, 1Password CSV/1PUX, KeePass CSV/XML, LastPass CSV, Chrome CSV, and Firefox CSV.
+- Credentials can store multiple website rules with exact-host, parent/sibling domain, or safe wildcard matching.
 
 ### Changed
 

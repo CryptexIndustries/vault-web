@@ -45,6 +45,12 @@ export enum CustomFieldType {
     Date = 3,
 }
 
+export enum CredentialURLMatchMode {
+    ExactHost = 0,
+    Domain = 1,
+    Wildcard = 2,
+}
+
 export enum TOTPAlgorithm {
     SHA1 = 0,
     SHA256 = 1,
@@ -262,6 +268,11 @@ export interface Directory {
     Deleted: boolean;
 }
 
+export interface CredentialURL {
+    URL: string;
+    MatchMode: CredentialURLMatchMode;
+}
+
 export interface Credential {
     ID: string;
     Type: ItemType;
@@ -290,6 +301,8 @@ export interface Credential {
     DatePasswordChangedTimestamp: number;
     Deleted: boolean;
     DirectoryID: string;
+    URLMatchMode: CredentialURLMatchMode;
+    AdditionalURLs: CredentialURL[];
 }
 
 export interface TOTP {
@@ -2513,6 +2526,72 @@ export const Directory: MessageFns<Directory> = {
     },
 };
 
+function createBaseCredentialURL(): CredentialURL {
+    return { URL: "", MatchMode: 0 };
+}
+
+export const CredentialURL: MessageFns<CredentialURL> = {
+    encode(
+        message: CredentialURL,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.URL !== "") {
+            writer.uint32(10).string(message.URL);
+        }
+        if (message.MatchMode !== 0) {
+            writer.uint32(16).int32(message.MatchMode);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): CredentialURL {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseCredentialURL();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.URL = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 16) {
+                        break;
+                    }
+
+                    message.MatchMode = reader.int32() as any;
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<CredentialURL>, I>>(
+        base?: I,
+    ): CredentialURL {
+        return CredentialURL.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<CredentialURL>, I>>(
+        object: I,
+    ): CredentialURL {
+        const message = createBaseCredentialURL();
+        message.URL = object.URL ?? "";
+        message.MatchMode = object.MatchMode ?? 0;
+        return message;
+    },
+};
+
 function createBaseCredential(): Credential {
     return {
         ID: "",
@@ -2531,6 +2610,8 @@ function createBaseCredential(): Credential {
         DatePasswordChangedTimestamp: 0,
         Deleted: false,
         DirectoryID: "",
+        URLMatchMode: 0,
+        AdditionalURLs: [],
     };
 }
 
@@ -2598,6 +2679,12 @@ export const Credential: MessageFns<Credential> = {
         }
         if (message.DirectoryID !== "") {
             writer.uint32(170).string(message.DirectoryID);
+        }
+        if (message.URLMatchMode !== 0) {
+            writer.uint32(176).int32(message.URLMatchMode);
+        }
+        for (const v of message.AdditionalURLs) {
+            CredentialURL.encode(v!, writer.uint32(186).fork()).join();
         }
         return writer;
     },
@@ -2776,6 +2863,24 @@ export const Credential: MessageFns<Credential> = {
                     message.DirectoryID = reader.string();
                     continue;
                 }
+                case 22: {
+                    if (tag !== 176) {
+                        break;
+                    }
+
+                    message.URLMatchMode = reader.int32() as any;
+                    continue;
+                }
+                case 23: {
+                    if (tag !== 186) {
+                        break;
+                    }
+
+                    message.AdditionalURLs.push(
+                        CredentialURL.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2817,6 +2922,10 @@ export const Credential: MessageFns<Credential> = {
             object.DatePasswordChangedTimestamp ?? 0;
         message.Deleted = object.Deleted ?? false;
         message.DirectoryID = object.DirectoryID ?? "";
+        message.URLMatchMode = object.URLMatchMode ?? 0;
+        message.AdditionalURLs =
+            object.AdditionalURLs?.map((e) => CredentialURL.fromPartial(e)) ||
+            [];
         return message;
     },
 };

@@ -25,6 +25,7 @@ import {
 import { sendEncryptedEnvelopeToSW } from "../utils/sw-envelope-client";
 import { uiLog, vaultLog } from "../utils/ext-logging";
 import {
+    CredentialURLMatchMode,
     CustomFieldType,
     ItemType,
 } from "@cryptex-industries/vault-core/proto";
@@ -91,6 +92,8 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                 TOTP: null,
                 Tags: "",
                 URL: url,
+                URLMatchMode: CredentialURLMatchMode.ExactHost,
+                AdditionalURLs: [],
                 Notes: "",
                 CustomFields: [] as Array<{
                     ID: string;

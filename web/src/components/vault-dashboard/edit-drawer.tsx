@@ -11,7 +11,6 @@ import {
     Loader2,
     Key,
     User,
-    Link,
     FileText,
     Globe,
     GripVertical,
@@ -51,6 +50,7 @@ import {
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
+    CredentialURLMatchMode,
     CustomFieldType,
     ItemType,
     TOTPAlgorithm,
@@ -67,6 +67,7 @@ import {
     DirectoryEditorDialog,
     DirectoryPicker,
 } from "@/components/vault-dashboard/directory-dialogs";
+import { CredentialURLRulesEditor } from "@/components/vault-dashboard/credential-url-rules";
 
 interface EditDrawerProps {
     credential: VaultCredential | null;
@@ -192,6 +193,8 @@ export function EditDrawer({
             TOTP: null,
             Tags: "",
             URL: "",
+            URLMatchMode: CredentialURLMatchMode.ExactHost,
+            AdditionalURLs: [],
             Notes: "",
             CustomFields: [],
         }),
@@ -234,6 +237,8 @@ export function EditDrawer({
                 Username: credential.Username,
                 Password: credential.Password,
                 URL: credential.URL,
+                URLMatchMode: credential.URLMatchMode,
+                AdditionalURLs: credential.AdditionalURLs,
                 Notes: credential.Notes,
                 Tags: credential.Tags || "",
                 TOTP: credential.TOTP ?? null,
@@ -526,23 +531,11 @@ export function EditDrawer({
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label
-                                        htmlFor="url"
-                                        className="text-sm font-medium"
-                                    >
-                                        Website URL
-                                    </Label>
-                                    <div className="relative">
-                                        <Link className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            id="url"
-                                            placeholder="https://example.com"
-                                            {...register("URL")}
-                                            className="pl-10"
-                                        />
-                                    </div>
-                                </div>
+                                <CredentialURLRulesEditor
+                                    control={control}
+                                    errors={errors}
+                                    register={register}
+                                />
 
                                 <div className="space-y-2">
                                     <Label

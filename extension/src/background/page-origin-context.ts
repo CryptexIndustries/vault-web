@@ -36,6 +36,7 @@ export function pageOriginFromSender(
         return {
             tabId,
             host,
+            url: url.href,
             etldPlus1: etldPlus1(host),
             documentId: sender.documentId,
             updatedAt: Date.now(),
@@ -81,24 +82,28 @@ export async function getActivePageOrigin(): Promise<ActivePageOrigin | null> {
     try {
         const liveOrigin = (await chrome.tabs.sendMessage(activeTab.id, {
             kind: ACTIVE_PAGE_ORIGIN_QUERY,
-        })) as { host?: unknown; etldPlus1?: unknown } | undefined;
+        })) as
+            | { url?: unknown; host?: unknown; etldPlus1?: unknown }
+            | undefined;
         if (
-            typeof liveOrigin?.host !== "string" ||
+            typeof liveOrigin?.url !== "string" ||
+            typeof liveOrigin.host !== "string" ||
             typeof liveOrigin.etldPlus1 !== "string" ||
             liveOrigin.host !== context.host ||
             liveOrigin.etldPlus1 !== context.etldPlus1
         ) {
             return null;
         }
+
+        return {
+            tabId: context.tabId,
+            url: liveOrigin.url,
+            host: context.host,
+            etldPlus1: context.etldPlus1,
+        };
     } catch {
         // No current top-frame content script means the stored origin cannot
         // be proven live (commonly while a navigation is still loading).
         return null;
     }
-
-    return {
-        tabId: context.tabId,
-        host: context.host,
-        etldPlus1: context.etldPlus1,
-    };
 }

@@ -171,11 +171,19 @@ export function generateSalt(): Uint8Array {
 
 /**
  * Encodes a Uint8Array to base64url format.
+ * TODO: Consolidate with other similar fns.
  * @param data The data to encode
  * @returns Base64url encoded string
  */
 export function base64UrlEncode(data: Uint8Array): string {
-    const base64 = btoa(String.fromCharCode(...data));
+    const chunks: string[] = [];
+    const chunkSize = 32 * 1024; // 32KB
+    for (let offset = 0; offset < data.length; offset += chunkSize) {
+        chunks.push(
+            String.fromCharCode(...data.subarray(offset, offset + chunkSize)),
+        );
+    }
+    const base64 = btoa(chunks.join(""));
     return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 

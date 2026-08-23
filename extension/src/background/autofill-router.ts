@@ -12,7 +12,14 @@
 import { calculateTOTP } from "@cryptex-industries/vault-core/vault-utils/vault";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
-    GetCredentialsForOriginRequest,
+    credentialMatchesPageUrl,
+    findCredentialUrlMatch,
+    getCredentialUrlRules,
+    isCredentialUrlRuleValid,
+    normalizeCredentialUrl,
+    type CredentialUrlRule,
+} from "@cryptex-industries/vault-core/credential-url";
+import {
     GetCredentialsForOriginResponse,
     GetCredentialSecretRequest,
     GetCredentialSecretResponse,
@@ -21,82 +28,72 @@ import {
     PendingSavePrompt,
     SaveCredentialPromptRequest,
 } from "../types/sw-messaging";
-import { parseOriginish } from "../utils/etld";
 
 const PENDING_SAVE_KEY = "PENDING_SAVE";
 const PENDING_SAVE_TTL_MS = 5 * 60 * 1000;
 const SAVE_BADGE = "+";
 
 export type AutofillRequestOrigin = {
+    url: string;
     host: string;
-    etldPlus1: string;
 };
 
 /** Lightweight projection of a credential for the picker UI. */
-export function toLiteCredential(c: VaultUtilTypes.Credential): LiteCredential {
+export function toLiteCredential(
+    c: VaultUtilTypes.Credential,
+    matchedRule: CredentialUrlRule = {
+        URL: c.URL,
+        MatchMode:
+            c.URLMatchMode ?? VaultUtilTypes.CredentialURLMatchMode.ExactHost,
+    },
+): LiteCredential {
     return {
         id: c.ID,
         name: c.Name,
         username: c.Username,
-        url: c.URL,
+        url: matchedRule.URL,
+        urlMatchMode: matchedRule.MatchMode,
+        additionalUrls: c.AdditionalURLs ?? [],
         hasTOTP: Boolean(c.TOTP && c.TOTP.Secret),
         directoryId: c.DirectoryID,
     };
 }
 
-/**
- * Matches a vault's credentials against `host`. Returns two buckets:
- *   - `exact`: credentials whose stored URL hostname matches `host`
- *     verbatim.
- *   - `fuzzy`: reserved for future explicit user-approved sibling-domain
- *     matches. It stays empty by default to avoid surfacing credentials on
- *     sibling subdomains or relying on a stale Public Suffix List.
- *
- * Credentials with no parseable URL never match. We don't try to be
- * clever with path matching; password managers that match on path
- * tend to leak credentials to unrelated subpaths.
- */
+/** Matches every active credential against the sender-derived page URL. */
 export function matchCredentialsForOrigin(
     credentials: VaultUtilTypes.Credential[] | undefined,
-    request: { host: string },
-): { exact: LiteCredential[]; fuzzy: LiteCredential[] } {
-    const exact: LiteCredential[] = [];
-    const wantedHost = request.host.toLowerCase().replace(/\.$/, "");
+    request: { url: string },
+): LiteCredential[] {
+    const matches: LiteCredential[] = [];
 
     for (const cred of credentials ?? []) {
         if (cred.Deleted) continue;
-        const parsed = parseOriginish(cred.URL);
-        if (!parsed) continue;
-        if (parsed.host === wantedHost) {
-            exact.push(toLiteCredential(cred));
-        }
+        const match = findCredentialUrlMatch(cred, request.url);
+        if (match) matches.push(toLiteCredential(cred, match.rule));
     }
 
-    return { exact, fuzzy: [] };
+    return matches;
 }
 
 export async function handleGetCredentialsForOrigin(
-    payload: GetCredentialsForOriginRequest | null | undefined,
     vault: VaultUtilTypes.Vault | null,
+    requestOrigin: AutofillRequestOrigin,
 ): Promise<GetCredentialsForOriginResponse> {
-    if (!payload || typeof payload.host !== "string") {
-        return { ok: false, exact: [], fuzzy: [], error: "INVALID_PAYLOAD" };
+    if (!normalizeCredentialUrl(requestOrigin.url)) {
+        return { ok: false, matches: [], error: "INVALID_ORIGIN" };
     }
     if (!vault) {
         return {
             ok: false,
-            exact: [],
-            fuzzy: [],
+            matches: [],
             error: "VAULT_NOT_UNLOCKED",
         };
     }
 
-    const normalisedHost = payload.host.toLowerCase().replace(/\.$/, "");
-    const { exact, fuzzy } = matchCredentialsForOrigin(vault.Credentials, {
-        host: normalisedHost,
+    const matches = matchCredentialsForOrigin(vault.Credentials, {
+        url: requestOrigin.url,
     });
-
-    return { ok: true, exact, fuzzy };
+    return { ok: true, matches };
 }
 
 export async function handleGetCredentialSecret(
@@ -175,16 +172,15 @@ function credentialMatchesRequestOrigin(
     cred: VaultUtilTypes.Credential,
     requestOrigin: AutofillRequestOrigin,
 ): { ok: true } | { ok: false; error: string } {
-    const parsed = parseOriginish(cred.URL);
-    if (!parsed) {
+    const hasVerifiedUrl = getCredentialUrlRules(cred).some(
+        isCredentialUrlRuleValid,
+    );
+    if (!hasVerifiedUrl) {
         return { ok: false, error: "CREDENTIAL_ORIGIN_UNVERIFIED" };
     }
-
-    const wantedHost = requestOrigin.host.toLowerCase().replace(/\.$/, "");
-    if (parsed.host === wantedHost) {
+    if (credentialMatchesPageUrl(cred, requestOrigin.url)) {
         return { ok: true };
     }
-
     return { ok: false, error: "ORIGIN_MISMATCH" };
 }
 

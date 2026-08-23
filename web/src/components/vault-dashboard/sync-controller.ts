@@ -173,6 +173,9 @@ export const createVaultOperations = (): VaultOperations => {
                             hydrated.TOTP = undefined;
                             hydrated.Tags = "";
                             hydrated.URL = "";
+                            hydrated.URLMatchMode =
+                                VaultUtilTypes.CredentialURLMatchMode.ExactHost;
+                            hydrated.AdditionalURLs = [];
                             hydrated.Notes = "";
                             hydrated.CustomFields = [];
                             hydrated.Deleted = true;
@@ -191,6 +194,9 @@ export const createVaultOperations = (): VaultOperations => {
                             credential.TOTP = undefined;
                             credential.Tags = "";
                             credential.URL = "";
+                            credential.URLMatchMode =
+                                VaultUtilTypes.CredentialURLMatchMode.ExactHost;
+                            credential.AdditionalURLs = [];
                             credential.Notes = "";
                             credential.CustomFields = [];
                             credential.Deleted = true;

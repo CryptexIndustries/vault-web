@@ -8,6 +8,10 @@ import {
     REQUIRED_FIELD_ERROR,
     TOTPConstants,
 } from "../consts";
+import {
+    isCredentialUrlRuleValid,
+    sanitizeAdditionalCredentialUrls,
+} from "../credential-url";
 import * as VaultUtilTypes from "../proto/vault";
 import {
     DirectorySchema,
@@ -459,29 +463,63 @@ export class CustomField implements VaultUtilTypes.CustomField {
     }
 }
 
-export const CredentialFormSchema = z.object({
-    ID: z.string().nullable(),
-    Type: z.nativeEnum(VaultUtilTypes.ItemType),
-    DirectoryID: z.string(),
-    Name: z.string().min(1, REQUIRED_FIELD_ERROR).max(255, "Name is too long"),
-    Username: z.string(),
-    Password: z.string(),
-    TOTP: TOTPFormSchema.optional().nullable(), // This has to be nullable because of the way the form works
-    Tags: z.string().optional(),
-    URL: z.string(),
-    Notes: z.string(),
-    // DateCreated: z.string().optional(), // Used only in diffing
-    // DateModified: z.string().optional(), // Used only in diffing
-    // DatePasswordChanged: z.string().optional(), // Used only in diffing
-    CustomFields: z.array(
-        z.object({
-            ID: z.string(),
-            Name: z.string(),
-            Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
-            Value: z.string(),
-        }),
-    ),
-});
+export const CredentialFormSchema = z
+    .object({
+        ID: z.string().nullable(),
+        Type: z.nativeEnum(VaultUtilTypes.ItemType),
+        DirectoryID: z.string(),
+        Name: z
+            .string()
+            .min(1, REQUIRED_FIELD_ERROR)
+            .max(255, "Name is too long"),
+        Username: z.string(),
+        Password: z.string(),
+        TOTP: TOTPFormSchema.optional().nullable(), // This has to be nullable because of the way the form works
+        Tags: z.string().optional(),
+        URL: z.string(),
+        URLMatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
+        AdditionalURLs: z.array(
+            z.object({
+                URL: z.string(),
+                MatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
+            }),
+        ),
+        Notes: z.string(),
+        // DateCreated: z.string().optional(), // Used only in diffing
+        // DateModified: z.string().optional(), // Used only in diffing
+        // DatePasswordChanged: z.string().optional(), // Used only in diffing
+        CustomFields: z.array(
+            z.object({
+                ID: z.string(),
+                Name: z.string(),
+                Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
+                Value: z.string(),
+            }),
+        ),
+    })
+    .superRefine((form, context) => {
+        const primaryRule = {
+            URL: form.URL,
+            MatchMode: form.URLMatchMode,
+        };
+        if (form.URL.trim() && !isCredentialUrlRuleValid(primaryRule)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["URL"],
+                message: "Enter a valid URL or safe wildcard pattern.",
+            });
+        }
+
+        form.AdditionalURLs.forEach((rule, index) => {
+            if (!rule.URL.trim() || isCredentialUrlRuleValid(rule)) return;
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["AdditionalURLs", index, "URL"],
+                message: "Enter a valid URL or safe wildcard pattern.",
+            });
+        });
+    });
+
 export type CredentialFormSchemaType = z.infer<typeof CredentialFormSchema>;
 export class VaultCredential
     implements VaultUtilTypes.Credential, CredentialFormSchemaType
@@ -495,6 +533,8 @@ export class VaultCredential
     public TOTP?: TOTP | undefined;
     public Tags?: string | undefined;
     public URL: string;
+    public URLMatchMode: VaultUtilTypes.CredentialURLMatchMode;
+    public AdditionalURLs: VaultUtilTypes.CredentialURL[];
     public Notes: string;
 
     /**
@@ -532,6 +572,13 @@ export class VaultCredential
             : undefined;
         this.Tags = form?.Tags ? String(form.Tags).trim() : "";
         this.URL = form?.URL ? String(form.URL).trim() : "";
+        this.URLMatchMode =
+            form?.URLMatchMode ??
+            VaultUtilTypes.CredentialURLMatchMode.ExactHost;
+        this.AdditionalURLs = sanitizeAdditionalCredentialUrls(
+            { URL: this.URL, MatchMode: this.URLMatchMode },
+            form?.AdditionalURLs,
+        );
         this.Notes = form?.Notes ? String(form.Notes).trim() : "";
 
         // The version is 0 for new credentials. This is to be incremented when the credential is modified.
@@ -749,6 +796,15 @@ export const updateCredentialFromForm = async (
         : undefined;
     moddedCredential.Tags = form.Tags ?? moddedCredential.Tags;
     moddedCredential.URL = form.URL ?? moddedCredential.URL;
+    moddedCredential.URLMatchMode =
+        form.URLMatchMode ?? moddedCredential.URLMatchMode;
+    moddedCredential.AdditionalURLs = sanitizeAdditionalCredentialUrls(
+        {
+            URL: moddedCredential.URL,
+            MatchMode: moddedCredential.URLMatchMode,
+        },
+        form.AdditionalURLs ?? moddedCredential.AdditionalURLs,
+    );
     moddedCredential.Notes = form.Notes ?? moddedCredential.Notes;
 
     // The date created cannot be changed, so we don't check for it

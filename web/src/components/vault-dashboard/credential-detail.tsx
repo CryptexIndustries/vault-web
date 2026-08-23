@@ -481,6 +481,17 @@ export function CredentialDetail({
                         />
                     )}
 
+                    {credential.AdditionalURLs.map((rule, index) => (
+                        <CopyableField
+                            key={`${rule.URL}:${index}`}
+                            label={`Website ${index + 2}`}
+                            value={rule.URL}
+                            icon={Link}
+                            isCopied={copiedField === `url-${index}`}
+                            onCopy={() => handleCopy(`url-${index}`, rule.URL)}
+                        />
+                    ))}
+
                     {credential.TOTP && <TOTPField credential={credential} />}
 
                     {/* Description */}

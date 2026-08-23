@@ -56,7 +56,6 @@ import {
     getSessionDEK,
     setSessionDEKFromVaultMetadata,
 } from "./background/session-dek-store";
-import { etldPlus1 } from "./utils/etld";
 import { registerVaultActionStateIndicator } from "./background/action-icon";
 import {
     clearPageOrigin,
@@ -115,6 +114,7 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
     worker: new Set<MessageType>(),
     "autofill-cs": new Set<MessageType>([
         MessageType.GetState,
+        MessageType.GetCredentialsForOrigin,
         MessageType.GetCredentialSecret,
         MessageType.GenerateTOTP,
         MessageType.SaveCredentialPrompt,
@@ -123,10 +123,7 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.RegisterAutofillFrame,
         MessageType.ReportPageOrigin,
     ]),
-    "autofill-menu": new Set<MessageType>([
-        MessageType.GetCredentialsForOrigin,
-        MessageType.ClaimAutofillFrame,
-    ]),
+    "autofill-menu": new Set<MessageType>([MessageType.ClaimAutofillFrame]),
     "autofill-generator": new Set<MessageType>([
         MessageType.ClaimAutofillFrame,
     ]),
@@ -158,7 +155,7 @@ function getAutofillRequestOrigin(
 
         const host = url.hostname.toLowerCase().replace(/\.$/, "");
         if (!host) return null;
-        return { host, etldPlus1: etldPlus1(host) };
+        return { url: url.href, host };
     } catch {
         return null;
     }
@@ -514,7 +511,7 @@ async function processMessageUncoordinated(
 
                 const list: LiteCredential[] = (vault?.Credentials ?? [])
                     .filter((c) => !c.Deleted)
-                    .map(toLiteCredential);
+                    .map((credential) => toLiteCredential(credential));
                 return { ok: true, credentials: list };
             }
 
@@ -832,7 +829,10 @@ async function processMessageUncoordinated(
                     existing.TOTP = undefined;
                     existing.Tags = "";
                     existing.URL = "";
+                    existing.URLMatchMode =
+                        VaultUtilTypes.CredentialURLMatchMode.ExactHost;
                     existing.Notes = "";
+                    existing.AdditionalURLs = [];
                     existing.CustomFields = [];
                     existing.Version += 1;
                     existing.Hash = await Vault.hashCredential(
@@ -866,7 +866,10 @@ async function processMessageUncoordinated(
                         credential.TOTP = undefined;
                         credential.Tags = "";
                         credential.URL = "";
+                        credential.URLMatchMode =
+                            VaultUtilTypes.CredentialURLMatchMode.ExactHost;
                         credential.Notes = "";
+                        credential.AdditionalURLs = [];
                         credential.CustomFields = [];
                         credential.Hash = await Vault.hashCredential(
                             Object.assign(
@@ -941,7 +944,14 @@ async function processMessageUncoordinated(
 
             case MessageType.GetCredentialsForOrigin: {
                 const vault = await getVaultFromSessionStorage();
-                return await handleGetCredentialsForOrigin(payload, vault);
+                const requestOrigin = getAutofillRequestOrigin(sender);
+                if (!requestOrigin) {
+                    return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
+                }
+                return await handleGetCredentialsForOrigin(
+                    vault,
+                    requestOrigin,
+                );
             }
 
             case MessageType.GetActivePageOrigin: {

@@ -40,7 +40,7 @@ Security and design notes for the Cryptex Vault browser extension.
 
 ## Autofill
 
-- [Autofill security notes](autofill/README.md) — Iframe bootstrap and exact-host
+- [Autofill security notes](autofill/README.md) — Iframe bootstrap and URL rule
   matching policy.
 - [Iframe bootstrap](autofill/iframe-bootstrap.md)
 - [Origin matching](autofill/origin-matching.md)

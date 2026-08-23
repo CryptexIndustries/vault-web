@@ -6,10 +6,10 @@ import {
     CredentialFormSchemaType,
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { credentialMatchesPageUrl } from "@cryptex-industries/vault-core/credential-url";
 import { CredentialDetail } from "@/components/vault-dashboard/credential-detail";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-    ArrowRightSquare,
     Copy,
     Edit,
     Eye,
@@ -18,7 +18,6 @@ import {
     Globe,
     GripVertical,
     Key,
-    Link as LinkIcon,
     Loader2,
     LockKeyhole,
     MoreVertical,
@@ -92,6 +91,7 @@ import {
     WarningDialogShowFn,
 } from "@/components/dialog/warning";
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
+import { CredentialURLRulesEditor } from "@/components/vault-dashboard/credential-url-rules";
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
@@ -186,6 +186,8 @@ const VaultView: React.FC<VaultViewProps> = ({
             TOTP: null,
             Tags: "",
             URL: "",
+            URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
+            AdditionalURLs: [],
             Notes: "",
             CustomFields: [],
         },
@@ -201,6 +203,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     });
 
     const watchedTotp = watch("TOTP");
+    const currentSiteUrl = currentSiteContext?.url ?? null;
     const currentSiteHost = currentSiteContext?.host ?? null;
 
     const filteredCredentials = credentials.filter(
@@ -213,10 +216,16 @@ const VaultView: React.FC<VaultViewProps> = ({
                     .includes(searchQuery.toLowerCase())),
     );
 
-    const currentSiteCredentials = currentSiteHost
-        ? credentials.filter(
-              (credential) =>
-                  parseOriginish(credential.url)?.host === currentSiteHost,
+    const currentSiteCredentials = currentSiteUrl
+        ? credentials.filter((credential) =>
+              credentialMatchesPageUrl(
+                  {
+                      URL: credential.url,
+                      URLMatchMode: credential.urlMatchMode,
+                      AdditionalURLs: credential.additionalUrls,
+                  },
+                  currentSiteUrl,
+              ),
           )
         : [];
 
@@ -242,6 +251,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                     if (host && parsed) {
                         return {
                             tabId: activeTab.id,
+                            url: activeUrl.href,
                             host,
                             etldPlus1: parsed.etldPlus1,
                         } satisfies ActivePageOrigin;
@@ -1248,6 +1258,8 @@ const VaultView: React.FC<VaultViewProps> = ({
             TOTP: null,
             Tags: "",
             URL: "",
+            URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
+            AdditionalURLs: [],
             Notes: "",
             CustomFields: [],
         });
@@ -1278,6 +1290,8 @@ const VaultView: React.FC<VaultViewProps> = ({
                 : null,
             Tags: credential.Tags || "",
             URL: credential.URL,
+            URLMatchMode: credential.URLMatchMode,
+            AdditionalURLs: credential.AdditionalURLs,
             Notes: credential.Notes,
             CustomFields: credential.CustomFields || [],
         });
@@ -1582,13 +1596,18 @@ const VaultView: React.FC<VaultViewProps> = ({
             // immediately before the clipboard write. A redirect while this
             // async action is running must not copy the previous site's data.
             const liveContext = await requestActivePageOrigin();
-            const credentialHost = parseOriginish(credential.url)?.host;
             if (
                 !currentSiteContext ||
                 !liveContext ||
                 liveContext.tabId !== currentSiteContext.tabId ||
-                liveContext.host !== currentSiteContext.host ||
-                credentialHost !== liveContext.host
+                !credentialMatchesPageUrl(
+                    {
+                        URL: credential.url,
+                        URLMatchMode: credential.urlMatchMode,
+                        AdditionalURLs: credential.additionalUrls,
+                    },
+                    liveContext.url,
+                )
             ) {
                 setCurrentSiteContext(liveContext);
                 toast.error(
@@ -2375,96 +2394,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         )}
                                     </div>
 
-                                    {/* URL */}
-                                    <div className="space-y-1.5">
-                                        <Label
-                                            htmlFor="cred-url"
-                                            className="text-xs font-medium"
-                                        >
-                                            Website URL
-                                        </Label>
-                                        <div className="relative">
-                                            <LinkIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                            <Input
-                                                id="cred-url"
-                                                type="url"
-                                                placeholder="https://example.com"
-                                                {...register("URL")}
-                                                className={cn(
-                                                    "h-9 pl-8 pr-[4.5rem] text-sm",
-                                                    errors.URL &&
-                                                        "border-destructive",
-                                                )}
-                                            />
-                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7"
-                                                                onClick={() => {
-                                                                    const url =
-                                                                        getValues(
-                                                                            "URL",
-                                                                        );
-                                                                    if (!url)
-                                                                        return;
-                                                                    const fullUrl =
-                                                                        url.startsWith(
-                                                                            "http",
-                                                                        )
-                                                                            ? url
-                                                                            : `https://${url}`;
-                                                                    window.open(
-                                                                        fullUrl,
-                                                                        "_blank",
-                                                                        "noopener,noreferrer",
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <ArrowRightSquare className="h-3 w-3 text-muted-foreground" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            Open
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7"
-                                                                onClick={() =>
-                                                                    copyToClipboard(
-                                                                        getValues(
-                                                                            "URL",
-                                                                        ),
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Copy className="h-3 w-3 text-muted-foreground" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            Copy
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </div>
-                                        {errors.URL && (
-                                            <p className="text-xs text-destructive">
-                                                {errors.URL.message}
-                                            </p>
-                                        )}
-                                    </div>
+                                    <CredentialURLRulesEditor
+                                        control={control}
+                                        errors={errors}
+                                        register={register}
+                                    />
 
                                     {/* Tags */}
                                     <div className="space-y-1.5">

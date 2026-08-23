@@ -30,6 +30,11 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "added",
                 description:
+                    "Credentials can store multiple website rules with exact-host, parent/sibling domain, or safe wildcard matching.",
+            },
+            {
+                type: "added",
+                description:
                     "A new Backup Center provides encrypted downloads and optional Premium managed restore points with backup status, history, and management controls. Restore local files or recover on a fresh device without replacing an existing vault, and rotate or replace your Recovery Kit for future recovery.",
             },
             {

@@ -53,6 +53,8 @@ const credential = (id: string): VaultUtilTypes.Credential => ({
     Username: `user-${id}`,
     Password: "secret",
     URL: "https://example.com",
+    URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
+    AdditionalURLs: [],
     Notes: "",
     DateCreated: "2026-01-01T00:00:00.000Z",
     DateModified: undefined,

@@ -6,16 +6,13 @@
  * suffixes (ccTLD second-levels + common platform suffixes) and fall
  * back to the last-two-labels heuristic for everything else.
  *
- * Security note: password/TOTP release is exact-host-only. This helper
- * must not be used as an authority for releasing credentials across
- * sibling subdomains unless a future explicit user-approved policy adds
- * that behavior.
+ * Security note: this helper provides display context only. Autofill authority
+ * lives in the shared credential URL matcher, which uses the full Public Suffix
+ * List for explicit domain rules.
  */
 
 /**
- * Multi-label public suffixes. The list is intentionally small; we'd
- * rather miss a fuzzy match for an obscure platform than mis-classify
- * `attacker.com` as part of a legitimate `victim.com`.
+ * Multi-label public suffixes retained for lightweight display context.
  */
 const MULTI_LABEL_SUFFIXES: ReadonlySet<string> = new Set([
     // United Kingdom

@@ -239,6 +239,9 @@ importers:
       pusher-js:
         specifier: 8.4.0
         version: 8.4.0
+      psl:
+        specifier: 1.15.0
+        version: 1.15.0
       ulidx:
         specifier: 2.4.1
         version: 2.4.1

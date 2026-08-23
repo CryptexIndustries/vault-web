@@ -64,7 +64,7 @@ but shares the DOM.
 - Top-frame only (`all_frames: false`, `isTopFrame()`, `frameId === 0`)
 - Iframe bootstrap nonce registered in SW; host cannot learn nonce or hijack
   MessageChannel ([autofill/iframe-bootstrap.md](autofill/iframe-bootstrap.md))
-- Exact-host credential release ([autofill/origin-matching.md](autofill/origin-matching.md))
+- Exact, domain, and wildcard credential release rules ([autofill/origin-matching.md](autofill/origin-matching.md))
 - WAR limited to autofill HTML + assets (not popup/link/logs)
 
 **Residual:** Host can DoS autofill (mount-id race, remove iframes). Host can
@@ -136,14 +136,15 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 
 **Goals:** Steal credentials, probe vault state, inject saved logins, disrupt autofill.
 
-| Technique                                      | Control                | Residual risk                                        |
-| ---------------------------------------------- | ---------------------- | ---------------------------------------------------- |
-| Request autofill secrets for sibling subdomain | Exact-host match       | Low — blocked                                        |
-| Request secrets for exact-host phish domain    | Exact-host match       | **Medium** — works if user saved creds for that host |
-| Probe vault locked/unlocked                    | `GetState` from CS     | Low — metadata only                                  |
-| Hijack iframe MessageChannel                   | SW nonce bootstrap     | Low — blocked                                        |
-| Stash fake login for save prompt               | `SaveCredentialPrompt` | Low — user must confirm                              |
-| Read extension bundle via WAR                  | WAR exposes assets     | Low — fingerprinting, no secrets                     |
+| Technique                                    | Control                    | Residual risk                                                   |
+| -------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| Request secrets outside configured URL rules | Shared URL rule matcher    | Low — blocked                                                   |
+| Abuse a broad domain or wildcard rule        | Explicit per-rule mode     | **Medium** - user-approved scope may include a compromised host |
+| Request secrets for an authorized phish host | Sender-derived URL recheck | **Medium** - works when a saved rule authorizes that host       |
+| Probe vault locked/unlocked                  | `GetState` from CS         | Low — metadata only                                             |
+| Hijack iframe MessageChannel                 | SW nonce bootstrap         | Low — blocked                                                   |
+| Stash fake login for save prompt             | `SaveCredentialPrompt`     | Low — user must confirm                                         |
+| Read extension bundle via WAR                | WAR exposes assets         | Low — fingerprinting, no secrets                                |
 
 ### A2 — Malicious website (subframe)
 
@@ -196,38 +197,38 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 
 ## Controls matrix
 
-| Control                     | Protects against                       | Location                              |
-| --------------------------- | -------------------------------------- | ------------------------------------- |
-| ECDH envelope encryption    | Eavesdropping on extension message bus | `session-utils.ts`                    |
-| Origin + capability ACL     | Unauthorized SW operations             | `security-utils.ts`, `background.ts`  |
-| Top-frame CS gate           | Subframe autofill attacks              | `autofill-cs.ts`, `security-utils.ts` |
-| Iframe nonce bootstrap      | Host hijack of MessageChannel          | `autofill-frame-bootstrap.ts`         |
-| Exact-host autofill release | Sibling subdomain credential theft     | `autofill-router.ts`                  |
-| SW-owned JWT                | UI token injection                     | `request-auth-interceptor.ts`         |
-| tRPC allowlist              | Arbitrary fetch from proxy             | `trpc-auth-url.ts`                    |
-| Lock + idle session clear   | Stale session exposure                 | `background.ts`                       |
-| Link ACL restriction        | Link page vault unlock/CRUD            | `background.ts` allowlist             |
-| AEAD sync/link wire         | Network peer payload disclosure        | `synchronization.ts`, `linking.ts`    |
-| Argon2id vault sealing      | Offline vault blob cracking            | shared vault utils                    |
+| Control                   | Protects against                         | Location                                  |
+| ------------------------- | ---------------------------------------- | ----------------------------------------- |
+| ECDH envelope encryption  | Eavesdropping on extension message bus   | `session-utils.ts`                        |
+| Origin + capability ACL   | Unauthorized SW operations               | `security-utils.ts`, `background.ts`      |
+| Top-frame CS gate         | Subframe autofill attacks                | `autofill-cs.ts`, `security-utils.ts`     |
+| Iframe nonce bootstrap    | Host hijack of MessageChannel            | `autofill-frame-bootstrap.ts`             |
+| Per-rule autofill release | Credential theft outside saved URL rules | `credential-url.ts`, `autofill-router.ts` |
+| SW-owned JWT              | UI token injection                       | `request-auth-interceptor.ts`             |
+| tRPC allowlist            | Arbitrary fetch from proxy               | `trpc-auth-url.ts`                        |
+| Lock + idle session clear | Stale session exposure                   | `background.ts`                           |
+| Link ACL restriction      | Link page vault unlock/CRUD              | `background.ts` allowlist                 |
+| AEAD sync/link wire       | Network peer payload disclosure          | `synchronization.ts`, `linking.ts`        |
+| Argon2id vault sealing    | Offline vault blob cracking              | shared vault utils                        |
 
 ## Residual risks (prioritized)
 
-| Priority | Risk                                                | Mitigation status | Notes                                         |
-| -------- | --------------------------------------------------- | ----------------- | --------------------------------------------- |
-| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window       |
-| P1       | Phishing on exact-host saved credentials            | Partial           | User education; no eTLD+1 fuzzy release       |
-| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`   |
-| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens |
-| P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required       |
-| P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock              |
-| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy   |
-| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact          |
-| P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                  |
-| P3       | Logs persist metadata locally                       | Accepted          | User can clear                                |
-| P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                           |
-| P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content |
-| P4       | `worker` origin weak binding                        | Accepted          | Public key only                               |
-| P4       | Extension 2FA unsupported                           | Accepted          | `EXTENSION_2FA_UNSUPPORTED`                   |
+| Priority | Risk                                                | Mitigation status | Notes                                               |
+| -------- | --------------------------------------------------- | ----------------- | --------------------------------------------------- |
+| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window             |
+| P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation |
+| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`         |
+| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens       |
+| P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required             |
+| P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                    |
+| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy         |
+| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                |
+| P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                        |
+| P3       | Logs persist metadata locally                       | Accepted          | User can clear                                      |
+| P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                 |
+| P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content       |
+| P4       | `worker` origin weak binding                        | Accepted          | Public key only                                     |
+| P4       | Extension 2FA unsupported                           | Accepted          | `EXTENSION_2FA_UNSUPPORTED`                         |
 
 ## Data flow diagrams
 
@@ -260,9 +261,11 @@ sequenceDiagram
     CS->>SW: RegisterAutofillFrame (nonce)
     CS->>Menu: iframe + MessageChannel init
     Menu->>SW: ClaimAutofillFrame
-    Menu->>SW: GetCredentialsForOrigin (exact host)
+    Menu->>CS: credentials-request
+    CS->>SW: GetCredentialsForOrigin
+    SW->>SW: match saved URLs against sender URL
     CS->>SW: GetCredentialSecret
-    SW->>SW: credential host === tab host?
+    SW->>SW: repeat sender URL match
     SW-->>CS: username, password
     CS->>Page: fill fields
 ```

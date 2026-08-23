@@ -4,8 +4,11 @@ import * as OTPAuth from "otpauth";
 import { z } from "zod";
 
 import { CredentialConstants } from "../consts";
+import { sanitizeAdditionalCredentialUrls } from "../credential-url";
 import {
     Credential,
+    CredentialURLMatchMode,
+    type CredentialURL,
     CustomFieldType,
     ItemType,
     TOTPAlgorithm,
@@ -153,7 +156,7 @@ interface BitwardenItem {
         password: string;
         totp: string;
         uris: {
-            match: string;
+            match: string | number | null;
             uri: string;
         }[];
     };
@@ -184,6 +187,20 @@ interface BitwardenJSON {
     items: BitwardenItem[];
 }
 //#endregion Bitwarden
+
+type BitwardenURI = NonNullable<BitwardenItem["login"]>["uris"][number];
+
+const mapBitwardenURL = (value: BitwardenURI): CredentialURL | null => {
+    const uri = value.uri?.trim();
+    if (!uri || Number(value.match) === 5) return null;
+    return {
+        URL: uri,
+        MatchMode:
+            value.match == null || Number(value.match) === 0
+                ? CredentialURLMatchMode.Domain
+                : CredentialURLMatchMode.ExactHost,
+    };
+};
 
 const readFileAsText = (file: File): Promise<string> =>
     typeof file.text === "function"
@@ -338,6 +355,7 @@ const makeCredential = (data: {
     username?: string;
     password?: string;
     url?: string;
+    additionalUrls?: string[];
     notes?: string;
     tags?: string;
     createdAt?: number;
@@ -356,6 +374,14 @@ const makeCredential = (data: {
         Password: data.password ?? "",
         Tags: data.tags,
         URL: data.url ?? "",
+        URLMatchMode: CredentialURLMatchMode.ExactHost,
+        AdditionalURLs: sanitizeAdditionalCredentialUrls(
+            {
+                URL: data.url ?? "",
+                MatchMode: CredentialURLMatchMode.ExactHost,
+            },
+            data.additionalUrls,
+        ),
         Notes: data.notes ?? "",
         CustomFields: [],
 
@@ -504,6 +530,8 @@ export const CSV = async (
                         Password: extractValue(row, "Password") ?? "",
                         Tags: parseTags(extractValue(row, "Tags") ?? ""),
                         URL: extractValue(row, "URL") ?? "",
+                        URLMatchMode: CredentialURLMatchMode.ExactHost,
+                        AdditionalURLs: [],
                         Notes: extractValue(row, "Notes") ?? "",
                         CustomFields: [],
 
@@ -626,6 +654,13 @@ export const BitwardenJSON = (
                             item.passwordHistory?.[0]?.lastUsedDate,
                         createdTimestamp,
                     );
+                    const urlRules = (item.login?.uris ?? [])
+                        .map(mapBitwardenURL)
+                        .filter((rule): rule is CredentialURL => rule != null);
+                    const primaryURL = urlRules[0] ?? {
+                        URL: "",
+                        MatchMode: CredentialURLMatchMode.ExactHost,
+                    };
 
                     const credential: Credential = {
                         ID: "",
@@ -635,7 +670,12 @@ export const BitwardenJSON = (
                         Name: item.name ?? "Import",
                         Username: item.login?.username ?? "",
                         Password: item.login?.password ?? "",
-                        URL: item.login?.uris?.[0]?.uri ?? "",
+                        URL: primaryURL.URL,
+                        URLMatchMode: primaryURL.MatchMode,
+                        AdditionalURLs: sanitizeAdditionalCredentialUrls(
+                            primaryURL,
+                            urlRules.slice(1),
+                        ),
                         Notes: item.notes ?? "",
 
                         // TODO: Remove these fields after August 2026
@@ -667,13 +707,6 @@ export const BitwardenJSON = (
                         }
                     });
 
-                    item.login?.uris?.slice(1).forEach((uri, index) => {
-                        addCustomField(
-                            credential,
-                            `Bitwarden URI ${index + 2}`,
-                            uri.uri,
-                        );
-                    });
                     addCustomField(credential, "Bitwarden item ID", item.id);
                     addCustomField(
                         credential,
@@ -1115,16 +1148,18 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
                 const password =
                     loginFields.find((f) => f.designation === "password")
                         ?.value ?? "";
-                const url =
-                    item.overview?.url ??
-                    item.overview?.urls?.find((entry) => entry.url)?.url ??
-                    "";
+                const urls = [
+                    item.overview?.url,
+                    ...(item.overview?.urls?.map(({ url }) => url) ?? []),
+                ].filter((url): url is string => Boolean(url));
+                const url = urls[0] ?? "";
                 const credential = makeCredential({
                     directoryId,
                     name: item.title,
                     username,
                     password,
                     url,
+                    additionalUrls: urls.slice(1),
                     notes:
                         item.details?.notesPlain ?? item.details?.notes ?? "",
                     tags: joinTags(item.tags ?? []),
@@ -1198,6 +1233,17 @@ const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
         }
 
         const credential = Object.assign(new VaultCredential(), rawCredential);
+        credential.URLMatchMode =
+            rawCredential.URLMatchMode ?? CredentialURLMatchMode.ExactHost;
+        credential.AdditionalURLs = sanitizeAdditionalCredentialUrls(
+            {
+                URL: credential.URL,
+                MatchMode: credential.URLMatchMode,
+            },
+            rawCredential.AdditionalURLs as unknown as Array<
+                Credential["AdditionalURLs"][number] | string
+            >,
+        );
         if (rawCredential.TOTP) {
             credential.TOTP =
                 typeof rawCredential.TOTP.Secret === "string" &&

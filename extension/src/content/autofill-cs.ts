@@ -28,6 +28,7 @@ import {
     ACTIVE_PAGE_ORIGIN_QUERY,
     MessageType,
     type GenerateTOTPResponse,
+    type GetCredentialsForOriginResponse,
     type GetCredentialSecretResponse,
     type PendingSavePrompt,
 } from "../types/sw-messaging";
@@ -549,7 +550,6 @@ async function openMenuForIcon(
 
     const init = {
         host: origin.host,
-        etldPlus1: origin.etldPlus1,
         fieldKind: menuField.kind,
         locked: lockedRes,
     } as const;
@@ -832,11 +832,39 @@ async function handleMenuMessage(
     targetField: HTMLInputElement,
 ): Promise<void> {
     const data = raw as
+        | { kind: "credentials-request"; otpOnly: boolean }
         | { kind: "unlock-request" }
         | { kind: "pick"; credentialId: string; useTotpOnly: boolean }
         | { kind: "close" }
         | undefined;
     if (!data || typeof data !== "object") return;
+
+    if (data.kind === "credentials-request") {
+        const result =
+            await sendEncryptedEnvelopeToSW<GetCredentialsForOriginResponse>(
+                MessageType.GetCredentialsForOrigin,
+                null,
+            );
+        const response: GetCredentialsForOriginResponse =
+            result.ok && result.payload
+                ? result.payload
+                : {
+                      ok: false,
+                      matches: [],
+                      error: result.ok ? "EMPTY_RESPONSE" : result.error,
+                  };
+        const payload = data.otpOnly
+            ? {
+                  ...response,
+                  matches: response.matches.filter((item) => item.hasTOTP),
+              }
+            : response;
+
+        if (menuActiveIcon?.field === targetField && menuPort) {
+            menuPort.postMessage({ kind: "credentials", payload });
+        }
+        return;
+    }
 
     if (data.kind === "close") {
         closeMenu();

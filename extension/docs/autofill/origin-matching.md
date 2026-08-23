@@ -1,125 +1,122 @@
-# Autofill Origin Matching
+# Autofill origin matching
 
-Autofill credential matching is exact-host-only by default. Credential discovery
-for the menu and secret release for fill/TOTP actions use the same hostname
-comparison, but the service worker treats secret release as the enforcement
-boundary.
+Each saved website has its own matching rule. The same rule engine controls the
+picker, password release, TOTP release, popup site filtering, and quick-copy
+checks.
 
-## Policy
+## Rule modes
 
-The extension may show a credential in the menu only when:
+### Exact host
 
-- Autofill is running on a top-level `http:` / `https:` page.
-- The `autofill-menu` iframe requests discovery with the host received from the
-  content script's `getEffectiveOrigin()` init payload.
-- The page hostname and saved credential hostname match exactly after
-  normalization.
-- The saved credential URL is parseable.
-- The credential is not deleted.
+This is the default and safest mode. The saved and current hostnames must match.
+Paths, queries, and fragments do not participate.
 
-The service worker releases password or TOTP material only when:
+`https://www.example.com/account` matches other pages on
+`www.example.com`, but not `app.example.com`.
 
-- The request comes from `autofill-cs`.
-- The service worker derives a parseable `http:` / `https:` page URL from
-  `chrome.runtime.MessageSender`.
-- The sender-derived page hostname exactly matches the saved credential hostname
-  after normalization.
+### Parent and sibling domains
 
-Normalization lowercases hosts and removes a trailing dot. Saved URLs are
-trimmed, scheme-less values are parsed as `https://...`, and matching uses
-hostname only. Scheme, port, path, and query do not participate in matching. The
-policy does not collapse sibling subdomains.
+This mode compares registrable domains using the Public Suffix List. A rule for
+`www.example.com` can match `example.com`, `app.example.com`, and deeper hosts
+under `example.com`.
 
-Allowed:
+Private suffixes remain tenant boundaries. A rule for `alice.github.io` does not
+match `bob.github.io`.
 
-- Page `login.example.com` and saved URL `https://login.example.com`.
-- Page `login.example.com.` and saved URL `https://Login.Example.Com.`.
+This mode is deliberately broad. Use it only when every matching host belongs to
+the same account boundary.
 
-Denied:
+### Wildcard
 
-- Page `evil.example.com` and saved URL `https://login.example.com`.
-- Page `example.com` and saved URL `https://login.example.com`.
-- Saved credentials with no parseable URL.
+Wildcard rules accept `*` as a complete hostname label:
 
-## Discovery vs Release Authority
+- `https://*.example.com` matches `app.example.com`.
+- It does not match the apex `example.com`.
+- `*` cannot replace any label in the registrable domain. Patterns such as
+  `https://*.com` are rejected.
 
-`GetCredentialsForOrigin` matches on `payload.host` supplied by the
-`autofill-menu` iframe. That host originates in the content script's
-`getEffectiveOrigin()` result and is passed to the menu over the authenticated
-iframe bootstrap channel. The service worker does not re-derive the tab URL for
-credential discovery.
+Paths may also contain wildcards. `*` stays within one path segment and `**`
+crosses segments:
 
-`GetCredentialSecret` and `GenerateTOTP` re-check origin from
-`chrome.runtime.MessageSender` via `getAutofillRequestOrigin()` in
-`background.ts`. A stale or incorrect menu list can therefore show metadata for a
-credential that will not be releasable at fill time.
+- `https://*.example.com/login/*`
+- `https://*.example.com/accounts/**`
 
-## Why eTLD+1 Is Not Used For Release
+The matcher validates the hostname separately before evaluating the path. Text
+inside a foreign URL path cannot satisfy the hostname pattern.
 
-`etldPlus1()` still exists for origin context and future UX. It uses a small
-hand-maintained suffix table, not a full Public Suffix List. That means it is not
-appropriate as an authority for releasing secrets.
+## Shared protocol and port rules
 
-Even with a perfect Public Suffix List, same registrable domain does not imply
-same security boundary. A credential for `login.example.com` must not be offered
-to `evil.example.com` unless a future feature records explicit user approval for
-that sibling-domain relationship.
+All modes enforce these checks:
 
-## Response Shape
+- Values without a scheme are treated as HTTPS.
+- An HTTP rule may upgrade to an HTTPS page.
+- An HTTPS rule cannot match an HTTP page.
+- Explicit non-default ports must match.
 
-`GetCredentialsForOriginResponse` still returns:
+## Multiple URLs
 
-- `exact`: exact-host matches.
-- `fuzzy`: reserved for a future explicit opt-in sibling-domain feature.
+`Credential.URL` and `Credential.URLMatchMode` define the primary website rule.
+`Credential.AdditionalURLs` stores extra `{ URL, MatchMode }` rules.
 
-`fuzzy` is empty by default. Do not populate it from eTLD+1 matching without a
-new persisted user-consent model and matching service-worker enforcement for
-`GetCredentialSecret` and `GenerateTOTP`.
+Exact matches rank above wildcard matches, which rank above domain matches. This
+chooses the most specific saved URL for display while authorizing the credential
+only once.
 
-`etldPlus1` is still present in `GetCredentialsForOriginRequest` for context and
-future compatibility, but the current matcher ignores it.
+Empty, invalid, unsafe, and duplicate additional rules are removed when a
+credential is created or updated. Existing credentials migrate to exact-host
+mode. Native JSON imports also convert the earlier string-only additional URL
+format to exact-host rules.
 
-## Secret Release
+Bitwarden imports preserve domain and host modes where they map cleanly.
+Unsupported imported match modes fall back to exact host.
 
-The menu can only request a fill by credential id. The service worker re-checks
-the requesting page origin from `chrome.runtime.MessageSender` before releasing
-secret material.
+## Request authority
 
-Secret-bearing handlers:
+The credential menu does not send a hostname to the service worker. It asks the
+parent content script for candidates over the authenticated `MessageChannel`.
+The content script then sends `GetCredentialsForOrigin`.
 
-- `GetCredentialSecret`
-- `GenerateTOTP`
+The service worker derives the full page URL from
+`chrome.runtime.MessageSender`. It does not trust a URL supplied by the menu or
+host page.
 
-Both handlers return `ORIGIN_MISMATCH` for sibling subdomains and
-`CREDENTIAL_ORIGIN_UNVERIFIED` for URL-less or unparseable credentials.
-Routing in `background.ts` returns `REQUEST_ORIGIN_UNAVAILABLE` if the
-content-script sender has no parseable `http:` / `https:` URL.
+## Secret release
 
-If the page navigates while a menu is open, the list may be stale. The secret
-release check still uses the current sender-derived page URL and denies mismatch.
+Candidate discovery returns credential metadata only. `GetCredentialSecret` and
+`GenerateTOTP` derive the sender URL again and run the same matcher before
+returning secret material.
 
-## Code Map
+If navigation occurs while a picker is open, a stale selection is denied
+because the release check uses the current sender URL.
 
-- `extension/src/content/origin-utils.ts` derives page origin context in the
-  content script.
-- `extension/src/background.ts` derives requester origin from
-  `chrome.runtime.MessageSender` for secret release.
-- `extension/src/background/autofill-router.ts` performs matching and secret
-  release checks.
-- `extension/src/utils/etld.ts` provides eTLD+1 context but is not a secret
-  release authority.
-- `extension/src/autofill-menu.tsx` renders only returned matches.
+Handlers return:
 
-## Regression Coverage
+- `ORIGIN_MISMATCH` when the credential has verified rules but none authorize
+  the current page.
+- `CREDENTIAL_ORIGIN_UNVERIFIED` when the credential has no valid rule.
+- `REQUEST_ORIGIN_UNAVAILABLE` when the worker cannot derive an HTTP or HTTPS
+  sender URL.
 
-Tests live in `extension/tests/autofill-router.test.ts` and cover:
+## Response shape
 
-- Exact-host discovery only.
-- Case/trailing-dot normalization.
-- Denial of password release to sibling subdomains.
-- Denial of TOTP generation to sibling subdomains.
+`GetCredentialsForOriginResponse.matches` contains the authorized credentials.
+The matched rule URL travels with each lightweight result so the popup can apply
+the same policy to quick actions.
 
-The tests cover `matchCredentialsForOrigin` and sibling-domain denial for
-secret-bearing handlers. They do not yet cover `handleGetCredentialsForOrigin`
-integration, unparseable-credential release denial, or
-`REQUEST_ORIGIN_UNAVAILABLE` routing.
+## Code map
+
+- `packages/vault-core/src/credential-url.ts` owns URL normalization and
+  matching.
+- `web/src/components/vault-dashboard/credential-url-rules.tsx` owns the shared
+  rules editor.
+- `extension/src/background.ts` derives the requester URL.
+- `extension/src/background/autofill-router.ts` applies matching to discovery
+  and secret release.
+- `extension/src/content/autofill-cs.ts` relays candidate requests from the menu.
+- `extension/src/vault-view.tsx` applies the same policy to current-site actions.
+
+## Regression coverage
+
+Tests cover exact, domain, wildcard, and multi-URL rules; private suffix
+boundaries; wildcard host isolation; matching priority; HTTPS downgrade denial;
+port checks; legacy migration; password release; and TOTP release.

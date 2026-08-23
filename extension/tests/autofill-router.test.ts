@@ -2,6 +2,7 @@
  * @jest-environment node
  */
 import { describe, expect, it } from "@jest/globals";
+import { CredentialURLMatchMode } from "@cryptex-industries/vault-core/proto";
 
 import {
     handleGenerateTOTP,
@@ -22,13 +23,13 @@ const credential = (overrides: Record<string, unknown> = {}) =>
         ...overrides,
     }) as never;
 
-const requestOrigin = (
-    host: string,
-    etldPlus1 = "example.com",
-): AutofillRequestOrigin => ({
-    host,
-    etldPlus1,
-});
+const requestOrigin = (url: string): AutofillRequestOrigin => {
+    const parsed = new URL(url);
+    return {
+        url: parsed.href,
+        host: parsed.hostname,
+    };
+};
 
 describe("autofill origin matching", () => {
     it("includes TOTP availability independently of the password", () => {
@@ -47,7 +48,7 @@ describe("autofill origin matching", () => {
         expect(lite.hasTOTP).toBe(true);
     });
 
-    it("returns only exact host matches by default", () => {
+    it("returns only credentials authorized for the page URL", () => {
         const result = matchCredentialsForOrigin(
             [
                 credential(),
@@ -60,11 +61,10 @@ describe("autofill origin matching", () => {
                     URL: "https://example.co.uk",
                 }),
             ],
-            { host: "login.example.com" },
+            { url: "https://login.example.com" },
         );
 
-        expect(result.exact.map((c) => c.id)).toEqual(["cred_1"]);
-        expect(result.fuzzy).toEqual([]);
+        expect(result.map((item) => item.id)).toEqual(["cred_1"]);
     });
 
     it("normalizes case and trailing dots for exact host matches", () => {
@@ -74,18 +74,17 @@ describe("autofill origin matching", () => {
                     URL: "https://Login.Example.Com.",
                 }),
             ],
-            { host: "login.example.com." },
+            { url: "https://login.example.com." },
         );
 
-        expect(result.exact.map((c) => c.id)).toEqual(["cred_1"]);
-        expect(result.fuzzy).toEqual([]);
+        expect(result.map((item) => item.id)).toEqual(["cred_1"]);
     });
 
     it("does not release password material to sibling subdomains", async () => {
         const result = await handleGetCredentialSecret(
             { id: "cred_1" },
             { Credentials: [credential()] } as never,
-            requestOrigin("evil.example.com"),
+            requestOrigin("https://evil.example.com"),
         );
 
         expect(result).toEqual({ ok: false, error: "ORIGIN_MISMATCH" });
@@ -106,9 +105,49 @@ describe("autofill origin matching", () => {
                     }),
                 ],
             } as never,
-            requestOrigin("evil.example.com"),
+            requestOrigin("https://evil.example.com"),
         );
 
         expect(result).toEqual({ ok: false, error: "ORIGIN_MISMATCH" });
+    });
+
+    it("matches an additional credential URL", () => {
+        const result = matchCredentialsForOrigin(
+            [
+                credential({
+                    AdditionalURLs: [
+                        {
+                            URL: "https://accounts.example.net",
+                            MatchMode: CredentialURLMatchMode.ExactHost,
+                        },
+                    ],
+                }),
+            ],
+            { url: "https://accounts.example.net/login" },
+        );
+
+        expect(result.map((item) => item.id)).toEqual(["cred_1"]);
+        expect(result[0]?.url).toBe("https://accounts.example.net");
+    });
+
+    it("releases a credential authorized by domain mode", async () => {
+        const result = await handleGetCredentialSecret(
+            { id: "cred_1" },
+            {
+                Credentials: [
+                    credential({
+                        URL: "https://www.example.com/en",
+                        URLMatchMode: CredentialURLMatchMode.Domain,
+                    }),
+                ],
+            } as never,
+            requestOrigin("https://app.example.com/"),
+        );
+
+        expect(result).toMatchObject({
+            ok: true,
+            username: "user@example.com",
+            password: "secret",
+        });
     });
 });

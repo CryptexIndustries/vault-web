@@ -242,9 +242,11 @@ Allowed encrypted messages: see [service-worker/messaging.md](../service-worker/
 
 Sensitive paths:
 
-- `GetCredentialSecret` / `GenerateTOTP` — exact-host match on `sender.tab.url`
-- `SaveCredentialPrompt` — stashes password in session (5 min TTL)
-- `GetState` — reveals vault locked/unlocked to any top-frame page
+- `GetCredentialsForOrigin` derives the page URL from the content-script sender.
+- `GetCredentialSecret` / `GenerateTOTP` repeat the shared URL policy before
+  releasing secrets.
+- `SaveCredentialPrompt` stashes the password in session storage for 5 minutes.
+- `GetState` reveals vault locked/unlocked state to a top-frame page.
 
 ## Save-on-submit flow
 

@@ -97,6 +97,7 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.GetPendingSavePrompt,
     MessageType.ConsumePendingSavePrompt,
     MessageType.GetActivePageOrigin,
+    MessageType.SyncSetLastSync,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -884,6 +885,48 @@ async function processMessageUncoordinated(
                         vault.Credentials.push(credential);
                     }
                 }
+
+                // TODO: Remove the unnecessary object assignment when we clean up the storage layer
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, dek);
+
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
+
+                return { ok: true };
+            }
+
+            case MessageType.SyncSetLastSync: {
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                if (
+                    !payload ||
+                    typeof payload.deviceId !== "string" ||
+                    typeof payload.timestamp !== "string"
+                ) {
+                    return { ok: false, error: "INVALID_LAST_SYNC_PAYLOAD" };
+                }
+
+                const device = vault.LinkedDevices?.Devices?.find(
+                    (entry) => entry.ID === payload.deviceId,
+                );
+                if (!device) {
+                    return { ok: false, error: "DEVICE_NOT_FOUND" };
+                }
+
+                device.LastSync = payload.timestamp;
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(

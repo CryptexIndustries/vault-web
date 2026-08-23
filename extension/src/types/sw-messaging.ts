@@ -105,6 +105,12 @@ export enum MessageType {
 
     /** Content script: refresh its tab's sender-verified page origin. */
     ReportPageOrigin = 31,
+
+    /**
+     * Popup: record a completed synchronization with a linked device so the
+     * persisted `LinkedDevice.LastSync` can feed the last-sync UI.
+     */
+    SyncSetLastSync = 32,
 }
 
 /**
@@ -279,6 +285,13 @@ export interface GenerateTOTPResponse {
     code?: string;
     timeRemaining?: number;
     error?: string;
+}
+
+/** Payload for `MessageType.SyncSetLastSync`. */
+export interface SyncSetLastSyncRequest {
+    deviceId: string;
+    /** ISO-8601 timestamp of the completed synchronization. */
+    timestamp: string;
 }
 
 // type MessageResponsePayload = {

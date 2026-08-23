@@ -40,6 +40,7 @@ import {
     LiteCredential,
     MessageType,
     PlaintextEnvelope,
+    SyncSetLastSyncRequest,
 } from "./types/sw-messaging";
 import {
     createEncryptedEnvelope,
@@ -1142,6 +1143,71 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     }, [serverPublicKey]);
 
+    /**
+     * Persists a completed synchronization to the vault
+     * (`LinkedDevice.LastSync`) so the "Last sync" label survives popup
+     * sessions. Fire-and-forget background record: failures only log.
+     */
+    const recordDeviceLastSync = useCallback(
+        async (request: SyncSetLastSyncRequest) => {
+            if (!serverPublicKey) return;
+
+            const envelope = await createEncryptedEnvelope(
+                MessageType.SyncSetLastSync,
+                request,
+                serverPublicKey.publicKeyJwk,
+                serverPublicKey.keyId,
+                "popup",
+            );
+
+            const res: EncryptedEnvelope | PlaintextEnvelope =
+                await chrome.runtime.sendMessage(envelope);
+
+            if (isEncryptedEnvelope(res)) {
+                const decryptedPayload = await decryptResponseEnvelope<{
+                    ok: boolean;
+                    error?: string;
+                }>(res);
+
+                if (!decryptedPayload?.ok) {
+                    console.warn(
+                        "Failed to decrypt encrypted response (SyncSetLastSync):",
+                        decryptedPayload.error,
+                    );
+                    return;
+                }
+
+                if (!decryptedPayload.payload.ok) {
+                    console.warn(
+                        "Failed to record device last sync (SyncSetLastSync):",
+                        decryptedPayload.payload.error,
+                    );
+                }
+                return;
+            }
+
+            if (res.payload?.code === "STALE_KEY") {
+                console.warn(
+                    "Stale key while recording device last sync, refreshing",
+                );
+                const refreshRes = await onStaleKeyError();
+                if (refreshRes.isErr()) {
+                    console.warn(
+                        "Failed to refresh public key after stale key (SyncSetLastSync):",
+                        refreshRes.error,
+                    );
+                }
+                return;
+            }
+
+            console.warn(
+                "Unexpected plaintext envelope while recording device last sync",
+                res.payload,
+            );
+        },
+        [serverPublicKey, onStaleKeyError],
+    );
+
     const loadFullCredential = async (
         id: string,
     ): Promise<Result<VaultCredential, string>> => {
@@ -1441,6 +1507,17 @@ const VaultView: React.FC<VaultViewProps> = ({
                 const { devices } = syncConfig.value;
 
                 linkedDevicesRef.current = devices;
+
+                // Seed the "Last sync" label from the most recent persisted
+                // synchronization across all linked devices.
+                const lastSyncTimestamps = devices
+                    .map((device) => device.LastSync)
+                    .filter((value): value is string => Boolean(value))
+                    .map((value) => new Date(value).getTime())
+                    .filter((value) => Number.isFinite(value));
+                if (lastSyncTimestamps.length > 0) {
+                    setLastSync(new Date(Math.max(...lastSyncTimestamps)));
+                }
                 if (devices.length > 0) {
                     const primaryDevice = devices[0];
                     setSignalingStatus(
@@ -1537,7 +1614,12 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     SynchronizationUtils.WebRTCMessageEventType
                                         .Synchronized
                                 ) {
-                                    setLastSync(new Date());
+                                    const syncedAt = new Date();
+                                    setLastSync(syncedAt);
+                                    void recordDeviceLastSync({
+                                        deviceId: device.ID,
+                                        timestamp: syncedAt.toISOString(),
+                                    });
                                 } else if (
                                     event.event ===
                                     SynchronizationUtils.WebRTCMessageEventType

@@ -146,6 +146,16 @@ const VaultView: React.FC<VaultViewProps> = ({
         useState<ActivePageOrigin | null>(null);
     const [quickCopyKey, setQuickCopyKey] = useState<string | null>(null);
     const [showFormPassword, setShowFormPassword] = useState(false);
+    const [revealedCustomFieldIds, setRevealedCustomFieldIds] = useState<
+        Record<string, boolean>
+    >({});
+
+    const toggleCustomFieldReveal = (fieldId: string) => {
+        setRevealedCustomFieldIds((prev) => ({
+            ...prev,
+            [fieldId]: !prev[fieldId],
+        }));
+    };
     const [signalingStatus, setSignalingStatus] =
         useState<SynchronizationUtils.SignalingStatus>(
             SynchronizationUtils.SignalingStatus.Disconnected,
@@ -1246,6 +1256,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setCredentialFormMode("create");
         setEditingCredential(null);
         setShowFormPassword(false);
+        setRevealedCustomFieldIds({});
         credentialModalVisible[1](true);
         reset({
             ID: null,
@@ -1269,6 +1280,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setCredentialFormMode("edit");
         setEditingCredential(credential);
         setShowFormPassword(false);
+        setRevealedCustomFieldIds({});
         credentialModalVisible[1](true);
 
         // Populate form with existing data
@@ -2675,6 +2687,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                     const fieldType = watch(
                                                         `CustomFields.${index}.Type`,
                                                     );
+                                                    const isRevealed =
+                                                        !!revealedCustomFieldIds[
+                                                            field.id
+                                                        ];
                                                     return (
                                                         <div
                                                             key={field.id}
@@ -2689,22 +2705,67 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                     )}
                                                                     className="h-8 text-sm"
                                                                 />
-                                                                <div className="flex items-center gap-2">
-                                                                    <Input
-                                                                        placeholder="Value"
-                                                                        type={
-                                                                            fieldType ===
+                                                                <div className="flex items-start gap-2">
+                                                                    <div className="relative min-w-0 flex-1">
+                                                                        <Textarea
+                                                                            placeholder="Value"
+                                                                            rows={
+                                                                                1
+                                                                            }
+                                                                            {...register(
+                                                                                `CustomFields.${index}.Value`,
+                                                                            )}
+                                                                            className={cn(
+                                                                                "h-8 min-h-8 resize-y py-1 font-mono text-sm",
+                                                                                fieldType ===
+                                                                                    VaultUtilTypes
+                                                                                        .CustomFieldType
+                                                                                        .MaskedText &&
+                                                                                    cn(
+                                                                                        "pr-8",
+                                                                                        !isRevealed &&
+                                                                                            "secret-masked",
+                                                                                    ),
+                                                                            )}
+                                                                        />
+                                                                        {fieldType ===
                                                                             VaultUtilTypes
                                                                                 .CustomFieldType
-                                                                                .MaskedText
-                                                                                ? "password"
-                                                                                : "text"
-                                                                        }
-                                                                        {...register(
-                                                                            `CustomFields.${index}.Value`,
+                                                                                .MaskedText && (
+                                                                            <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                                                <TooltipProvider>
+                                                                                    <Tooltip>
+                                                                                        <TooltipTrigger
+                                                                                            asChild
+                                                                                        >
+                                                                                            <Button
+                                                                                                type="button"
+                                                                                                variant="ghost"
+                                                                                                size="icon"
+                                                                                                className="h-7 w-7"
+                                                                                                onClick={() =>
+                                                                                                    toggleCustomFieldReveal(
+                                                                                                        field.id,
+                                                                                                    )
+                                                                                                }
+                                                                                            >
+                                                                                                {isRevealed ? (
+                                                                                                    <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                                                                                ) : (
+                                                                                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                                                                                )}
+                                                                                            </Button>
+                                                                                        </TooltipTrigger>
+                                                                                        <TooltipContent>
+                                                                                            {isRevealed
+                                                                                                ? "Hide"
+                                                                                                : "Show"}
+                                                                                        </TooltipContent>
+                                                                                    </Tooltip>
+                                                                                </TooltipProvider>
+                                                                            </div>
                                                                         )}
-                                                                        className="h-8 font-mono text-sm"
-                                                                    />
+                                                                    </div>
                                                                     <Controller
                                                                         control={
                                                                             control

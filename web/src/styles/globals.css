@@ -120,3 +120,11 @@ html {
         @apply text-foreground;
     }
 }
+
+/* Mask secret values in plain text controls (e.g. hidden custom fields that
+   render as resizable textareas). 
+   I am aware that it is not a standard CSS prop, but it is well supported.
+*/
+.secret-masked {
+    -webkit-text-security: disc;
+}

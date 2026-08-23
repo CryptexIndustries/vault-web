@@ -181,6 +181,9 @@ export function EditDrawer({
     const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] =
         useState(false);
     const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
+    const [revealedCustomFieldIds, setRevealedCustomFieldIds] = useState<
+        Record<string, boolean>
+    >({});
 
     const buildDefaultValues = useCallback(
         (): CredentialFormSchemaType => ({
@@ -249,6 +252,7 @@ export function EditDrawer({
         }
 
         setShowPassword(false);
+        setRevealedCustomFieldIds({});
     }, [buildDefaultValues, credential, isOpen, reset]);
 
     const handleAddCustomField = () => {
@@ -258,6 +262,13 @@ export function EditDrawer({
             Type: CustomFieldType.Text,
             Value: "",
         });
+    };
+
+    const toggleCustomFieldReveal = (fieldId: string) => {
+        setRevealedCustomFieldIds((prev) => ({
+            ...prev,
+            [fieldId]: !prev[fieldId],
+        }));
     };
 
     const handleGeneratedPasswordSelect = (newPassword: string) => {
@@ -746,6 +757,10 @@ export function EditDrawer({
                                             const fieldType = watch(
                                                 `CustomFields.${index}.Type`,
                                             );
+                                            const isRevealed =
+                                                !!revealedCustomFieldIds[
+                                                    field.id
+                                                ];
                                             return (
                                                 <div
                                                     key={field.id}
@@ -760,20 +775,61 @@ export function EditDrawer({
                                                             )}
                                                             className="h-8 text-sm"
                                                         />
-                                                        <div className="flex items-center gap-2">
-                                                            <Input
-                                                                placeholder="Value"
-                                                                type={
-                                                                    fieldType ===
-                                                                    CustomFieldType.MaskedText
-                                                                        ? "password"
-                                                                        : "text"
-                                                                }
-                                                                {...register(
-                                                                    `CustomFields.${index}.Value`,
+                                                        <div className="flex items-start gap-2">
+                                                            <div className="relative min-w-0 flex-1">
+                                                                <Textarea
+                                                                    placeholder="Value"
+                                                                    rows={1}
+                                                                    {...register(
+                                                                        `CustomFields.${index}.Value`,
+                                                                    )}
+                                                                    className={cn(
+                                                                        "h-8 min-h-8 resize-y py-1 font-mono text-sm",
+                                                                        fieldType ===
+                                                                            CustomFieldType.MaskedText &&
+                                                                            cn(
+                                                                                "pr-8",
+                                                                                !isRevealed &&
+                                                                                    "secret-masked",
+                                                                            ),
+                                                                    )}
+                                                                />
+                                                                {fieldType ===
+                                                                    CustomFieldType.MaskedText && (
+                                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                                        <TooltipProvider>
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger
+                                                                                    asChild
+                                                                                >
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        className="h-7 w-7"
+                                                                                        onClick={() =>
+                                                                                            toggleCustomFieldReveal(
+                                                                                                field.id,
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {isRevealed ? (
+                                                                                            <EyeOff className="h-3.5 w-3.5" />
+                                                                                        ) : (
+                                                                                            <Eye className="h-3.5 w-3.5" />
+                                                                                        )}
+                                                                                    </Button>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent>
+                                                                                    {isRevealed
+                                                                                        ? "Hide"
+                                                                                        : "Show"}
+                                                                                </TooltipContent>
+                                                                            </Tooltip>
+                                                                        </TooltipProvider>
+                                                                    </div>
                                                                 )}
-                                                                className="h-8 font-mono text-sm"
-                                                            />
+                                                            </div>
                                                             <Controller
                                                                 control={
                                                                     control

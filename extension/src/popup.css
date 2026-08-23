@@ -5,6 +5,13 @@
 }
 
 html {
+    /* Scale the popup down ~20%: Tailwind sizes are rem-based, so a
+       smaller root font shrinks text, spacing, and components together.
+       (zoom does not work: the popup window is sized from the unscaled
+       layout box, which leaves a white bar.) 
+       Feels a bit dirty, but it'll do for now.
+    */
+    font-size: 12.8px;
     scrollbar-width: thin;
 }
 
@@ -12,7 +19,7 @@ html,
 body,
 #root {
     width: 720px;
-    min-height: 520px;
+    min-height: 416px;
 }
 
 .dark {

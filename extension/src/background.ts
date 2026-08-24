@@ -3,6 +3,7 @@ import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
 import "./vault-core-runtime";
 import { MessageType } from "./types/sw-messaging";
 import type {
+    AttachPasskeyRequest,
     EncryptedEnvelope,
     EnvelopeOrigin,
     LiteCredential,
@@ -109,6 +110,7 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.GetCredentialDraft,
     MessageType.SaveCredentialDraft,
     MessageType.ClearCredentialDraft,
+    MessageType.AttachPasskey,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -140,7 +142,9 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.ClaimAutofillFrame,
     ]),
     "autofill-save": new Set<MessageType>([
+        MessageType.GetCredentials,
         MessageType.CreateCredential,
+        MessageType.AttachPasskey,
         MessageType.ConsumePendingSavePrompt,
         MessageType.ClaimAutofillFrame,
     ]),
@@ -394,6 +398,7 @@ const VAULT_WRITE_MESSAGE_TYPES: Partial<Record<MessageType, VaultWriteKind>> =
         [MessageType.Lock]: "vault.lock",
         [MessageType.CreateCredential]: "credential.upsert",
         [MessageType.UpdateCredential]: "credential.upsert",
+        [MessageType.AttachPasskey]: "credential.upsert",
         [MessageType.DeleteCredential]: "credential.delete",
         [MessageType.SyncUpdateItems]: "synchronization.apply",
     };
@@ -632,6 +637,82 @@ async function processMessageUncoordinated(
                 );
 
                 return { ok: true };
+            }
+
+            case MessageType.AttachPasskey: {
+                const request = payload as AttachPasskeyRequest | undefined;
+                if (
+                    !request ||
+                    typeof request.credentialId !== "string" ||
+                    !request.passkey
+                ) {
+                    return { ok: false, error: "INVALID_PAYLOAD" };
+                }
+
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                const existingIndex = vault.Credentials.findIndex(
+                    (credential) =>
+                        credential.ID === request.credentialId &&
+                        !credential.Deleted,
+                );
+                if (existingIndex === -1) {
+                    return { ok: false, error: "NOT_FOUND" };
+                }
+
+                const existing = vault.Credentials[existingIndex];
+                if (existing.Type !== VaultUtilTypes.ItemType.Credentials) {
+                    return { ok: false, error: "NOT_A_LOGIN_CREDENTIAL" };
+                }
+                if (existing.Passkey) {
+                    return { ok: false, error: "PASSKEY_ALREADY_ATTACHED" };
+                }
+
+                const parsedForm = Vault.CredentialFormSchema.safeParse({
+                    ID: existing.ID,
+                    Type: existing.Type,
+                    DirectoryID: existing.DirectoryID,
+                    Name: existing.Name,
+                    Username: existing.Username,
+                    Password: existing.Password,
+                    TOTP: existing.TOTP ?? null,
+                    Tags: existing.Tags ?? "",
+                    URL: existing.URL,
+                    URLMatchMode:
+                        existing.URLMatchMode ??
+                        VaultUtilTypes.CredentialURLMatchMode.ExactHost,
+                    AdditionalURLs: existing.AdditionalURLs ?? [],
+                    Passkey: request.passkey,
+                    Notes: existing.Notes,
+                    CustomFields: existing.CustomFields ?? [],
+                });
+                if (!parsedForm.success) {
+                    return { ok: false, error: "INVALID_PASSKEY" };
+                }
+
+                const updated = await Vault.updateCredentialFromForm(
+                    existing,
+                    parsedForm.data,
+                );
+                vault.Credentials[existingIndex] = updated;
+
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
+
+                return { ok: true, credential: toLiteCredential(updated) };
             }
 
             case MessageType.DeleteCredential: {

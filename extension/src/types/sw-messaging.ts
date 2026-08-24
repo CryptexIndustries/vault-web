@@ -128,6 +128,9 @@ export enum MessageType {
 
     /** Popup: clear the stashed credential form draft. */
     ClearCredentialDraft = 35,
+
+    /** Trusted save UI: attach newly generated passkey material to a login. */
+    AttachPasskey = 36,
 }
 
 /**
@@ -300,6 +303,11 @@ export interface PendingSavePrompt {
     passkey?: PasskeyData;
     /** Epoch millis when the prompt was stashed. Used to enforce a TTL. */
     stashedAt: number;
+}
+
+export interface AttachPasskeyRequest {
+    credentialId: string;
+    passkey: PasskeyData;
 }
 
 export type CredentialDraftMode = "create" | "edit";

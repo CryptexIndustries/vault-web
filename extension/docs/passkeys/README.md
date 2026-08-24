@@ -16,6 +16,11 @@ the relying-party page.
 4. `passkey-authenticator-data.ts` is the protocol boundary. It encodes the
    WebAuthn authenticator data, COSE public key, and `none` attestation object.
 
+At confirmation time, the user can save a standalone passkey item or attach the
+new passkey to an existing login. Attached logins retain their username and
+password and expose the passkey marker and metadata in both web and extension
+detail/edit views.
+
 The authenticator-data byte order is mandated by WebAuthn and is therefore
 necessary:
 

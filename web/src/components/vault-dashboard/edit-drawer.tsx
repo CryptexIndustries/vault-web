@@ -230,7 +230,8 @@ export function EditDrawer({
     const watchedTotp = watch("TOTP");
     const watchedPassword = watch("Password");
     const watchedType = watch("Type");
-    const isPasskey = watchedType === ItemType.Passkey;
+    const isPasskeyOnly = watchedType === ItemType.Passkey;
+    const hasPasskey = Boolean(watch("Passkey"));
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
 
     useEffect(() => {
@@ -356,7 +357,7 @@ export function EditDrawer({
                         <SheetTitle className="text-lg">
                             {isNew
                                 ? "Add New Credential"
-                                : isPasskey
+                                : isPasskeyOnly
                                   ? "Edit Passkey"
                                   : "Edit Credential"}
                         </SheetTitle>
@@ -371,7 +372,7 @@ export function EditDrawer({
                         <div className="space-y-6 p-6">
                             {/* Basic Info */}
                             <div className="space-y-4">
-                                {isPasskey && (
+                                {hasPasskey && (
                                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
                                         <div className="flex items-start gap-3">
                                             <Fingerprint className="mt-0.5 h-5 w-5 text-primary" />
@@ -450,7 +451,7 @@ export function EditDrawer({
                                     </Button>
                                 </div>
 
-                                {!isPasskey && (
+                                {!isPasskeyOnly && (
                                     <>
                                         <div className="space-y-2">
                                             <Label
@@ -579,7 +580,7 @@ export function EditDrawer({
                                     </>
                                 )}
 
-                                {isPasskey && credential?.Passkey && (
+                                {hasPasskey && credential?.Passkey && (
                                     <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
                                         <div>
                                             <Label className="text-xs uppercase tracking-wider text-muted-foreground">

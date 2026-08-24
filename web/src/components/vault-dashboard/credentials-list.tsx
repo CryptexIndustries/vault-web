@@ -595,8 +595,7 @@ export function CredentialsList({
                                                             </span>
                                                         </Badge>
                                                     )}
-                                                    {credential.Type ===
-                                                        ItemType.Passkey && (
+                                                    {credential.Passkey && (
                                                         <Badge
                                                             variant="outline"
                                                             className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
@@ -834,8 +833,7 @@ export function CredentialsList({
                                                         </span>
                                                     </Badge>
                                                 )}
-                                                {credential.Type ===
-                                                    ItemType.Passkey && (
+                                                {credential.Passkey && (
                                                     <Badge
                                                         variant="outline"
                                                         className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"

@@ -261,7 +261,8 @@ flowchart TD
     Unchanged -- No --> Stage["SaveCredentialPrompt"]
     Stage --> Pending["Service worker stores PENDING_SAVE<br/>with 5-minute TTL"]
     Pending --> Consent["Popup or autofill-save consent UI"]
-    Consent -- Confirm --> Create["CreateCredential"]
+    Consent -- New item --> Create["CreateCredential"]
+    Consent -- Existing login --> Attach["AttachPasskey"]
     Consent -- Dismiss --> Consume["ConsumePendingSavePrompt"]
 ```
 

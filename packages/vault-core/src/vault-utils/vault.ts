@@ -518,7 +518,7 @@ export const CredentialFormBaseSchema = z.object({
 
 export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
     (form, context) => {
-        if (form.Type === VaultUtilTypes.ItemType.Passkey) {
+        if (form.Type === VaultUtilTypes.ItemType.Passkey || form.Passkey) {
             if (
                 !form.Passkey?.CredentialID.trim() ||
                 !form.Passkey.RPID.trim() ||
@@ -857,6 +857,7 @@ export const updateCredentialFromForm = async (
         },
         form.AdditionalURLs ?? moddedCredential.AdditionalURLs,
     );
+    moddedCredential.Passkey = form.Passkey ?? undefined;
     moddedCredential.Notes = form.Notes ?? moddedCredential.Notes;
 
     // The date created cannot be changed, so we don't check for it

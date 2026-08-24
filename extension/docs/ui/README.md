@@ -12,7 +12,7 @@ pages.
 | Full-page vault | `popup.html?view=tab`          | High          | `popup`                    | Full vault + sync + proxy       |
 | Vault dashboard | `vault-view.tsx` (popup child) | High          | `popup`                    | Same                            |
 | Unlock form     | `popup-unlock.tsx`             | High          | via parent                 | Unlock only                     |
-| Save prompt     | `popup-save-credential.tsx`    | High / Medium | `popup` or `autofill-save` | Create + consume pending save   |
+| Save prompt     | `popup-save-credential.tsx`    | High / Medium | `popup` or `autofill-save` | List, create/attach + consume   |
 | Link tab        | `link.html` → `link.tsx`       | Medium-high   | `link`                     | Proxy + OS establish/clear only |
 
 Manifest: `action.default_popup` → `/popup.html`.
@@ -58,7 +58,13 @@ for the picker is read from Dexie locally; decryption is delegated to SW.
 ### PopupSaveCredential
 
 - Pre-filled from `PENDING_SAVE` (password in React state until consumed).
-- `CreateCredential` persists; `ConsumePendingSavePrompt` clears stash + badge.
+- For passkeys, lists non-passkey login credentials so the user can create a
+  standalone item or attach the passkey to an existing login. The existing-login
+  picker prioritizes current-site matches, searches names/usernames/URL rules,
+  and renders at most six results so large vaults do not expand the prompt.
+- `CreateCredential` persists a new item; `AttachPasskey` performs the narrow
+  existing-login update without returning its password to the save UI.
+- `ConsumePendingSavePrompt` clears the stash and badge.
 - Also embedded in `autofill-save.html` with `autofill-save` origin and frame
   bootstrap nonce.
 

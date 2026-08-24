@@ -295,6 +295,61 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
     );
 }
 
+function PasskeyDetails({
+    credential,
+    copiedField,
+    onCopy,
+    onOpenUrl,
+}: {
+    credential: VaultCredential & {
+        Passkey: NonNullable<VaultCredential["Passkey"]>;
+    };
+    copiedField: string | null;
+    onCopy: (field: string, value: string) => void;
+    onOpenUrl: () => void;
+}) {
+    return (
+        <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-start gap-3">
+                <Fingerprint className="mt-0.5 h-5 w-5 text-primary" />
+                <div>
+                    <p className="text-sm font-medium">Passwordless sign-in</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Cryptex Vault will offer this passkey when{" "}
+                        {credential.Passkey.RPID} requests it.
+                    </p>
+                </div>
+            </div>
+            <CopyableField
+                label="Passkey account"
+                value={
+                    credential.Passkey.UserDisplayName ||
+                    credential.Passkey.UserName
+                }
+                icon={User}
+                isCopied={copiedField === "passkey-account"}
+                onCopy={() =>
+                    onCopy("passkey-account", credential.Passkey.UserName)
+                }
+            />
+            <CopyableField
+                label="Relying party"
+                value={credential.Passkey.RPID}
+                icon={Link}
+                isCopied={copiedField === "rp-id"}
+                onCopy={() => onCopy("rp-id", credential.Passkey.RPID)}
+                onOpenUrl={onOpenUrl}
+            />
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-3 text-sm">
+                <span className="text-muted-foreground">Credential</span>
+                <span className="font-mono text-xs">
+                    •••• {credential.Passkey.CredentialID.slice(-8)}
+                </span>
+            </div>
+        </div>
+    );
+}
+
 export function CredentialDetail({
     credential,
     onEdit,
@@ -308,7 +363,8 @@ export function CredentialDetail({
     const visibleTags = allTags.slice(0, MAX_VISIBLE_TAGS);
     const hiddenTags = allTags.slice(MAX_VISIBLE_TAGS);
     const hiddenTagCount = Math.max(allTags.length - MAX_VISIBLE_TAGS, 0);
-    const isPasskey = credential?.Type === ItemType.Passkey;
+    const isPasskeyOnly = credential?.Type === ItemType.Passkey;
+    const hasPasskey = Boolean(credential?.Passkey);
 
     const handleCopy = (field: string, value: string) => {
         void copySecretToClipboard(value).then((copied) => {
@@ -350,7 +406,7 @@ export function CredentialDetail({
                 <div className="mb-4 flex items-start justify-between">
                     <div className="flex items-center gap-3">
                         <div className="hidden h-12 w-12 items-center justify-center rounded-lg bg-muted sm:flex">
-                            {isPasskey ? (
+                            {isPasskeyOnly ? (
                                 <Fingerprint className="h-6 w-6 text-primary" />
                             ) : (
                                 <Globe className="h-6 w-6 text-muted-foreground" />
@@ -363,7 +419,7 @@ export function CredentialDetail({
                             <p className="mt-0.5 text-xs text-muted-foreground">
                                 Directory: {directoryName}
                             </p>
-                            {isPasskey && (
+                            {hasPasskey && (
                                 <Badge className="mt-1.5 gap-1 bg-primary/10 text-primary hover:bg-primary/10">
                                     <Fingerprint className="h-3 w-3" />
                                     Passkey
@@ -416,7 +472,7 @@ export function CredentialDetail({
                         className="flex-1 gap-2"
                     >
                         <Edit2 className="h-4 w-4" />
-                        Edit
+                        {isPasskeyOnly ? "Edit details" : "Edit"}
                     </Button>
                     {/* {credential.URL && (
                         <TooltipProvider>
@@ -463,62 +519,19 @@ export function CredentialDetail({
             <ScrollArea className="min-h-0 flex-1">
                 <div className="w-0 min-w-full space-y-4 p-4">
                     {/* Core fields */}
-                    {isPasskey && credential.Passkey ? (
-                        <div className="space-y-4">
-                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                                <div className="flex items-start gap-3">
-                                    <Fingerprint className="mt-0.5 h-5 w-5 text-primary" />
-                                    <div>
-                                        <p className="text-sm font-medium">
-                                            Passwordless sign-in
-                                        </p>
-                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                                            Cryptex Vault will offer this
-                                            passkey when{" "}
-                                            {credential.Passkey.RPID} requests
-                                            it.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            <CopyableField
-                                label="Account"
-                                value={
-                                    credential.Passkey.UserDisplayName ||
-                                    credential.Passkey.UserName
+                    {isPasskeyOnly && credential.Passkey ? (
+                        <PasskeyDetails
+                            credential={
+                                credential as VaultCredential & {
+                                    Passkey: NonNullable<
+                                        VaultCredential["Passkey"]
+                                    >;
                                 }
-                                icon={User}
-                                isCopied={copiedField === "passkey-account"}
-                                onCopy={() =>
-                                    handleCopy(
-                                        "passkey-account",
-                                        credential.Passkey!.UserName,
-                                    )
-                                }
-                            />
-                            <CopyableField
-                                label="Website"
-                                value={credential.Passkey.RPID}
-                                icon={Link}
-                                isCopied={copiedField === "rp-id"}
-                                onCopy={() =>
-                                    handleCopy(
-                                        "rp-id",
-                                        credential.Passkey!.RPID,
-                                    )
-                                }
-                                onOpenUrl={() => onOpenUrl(credential)}
-                            />
-                            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                                <span className="text-muted-foreground">
-                                    Credential
-                                </span>
-                                <span className="font-mono text-xs">
-                                    ••••{" "}
-                                    {credential.Passkey.CredentialID.slice(-8)}
-                                </span>
-                            </div>
-                        </div>
+                            }
+                            copiedField={copiedField}
+                            onCopy={handleCopy}
+                            onOpenUrl={() => onOpenUrl(credential)}
+                        />
                     ) : (
                         <>
                             <CopyableField
@@ -573,6 +586,21 @@ export function CredentialDetail({
                                 <TOTPField credential={credential} />
                             )}
                         </>
+                    )}
+
+                    {!isPasskeyOnly && credential.Passkey && (
+                        <PasskeyDetails
+                            credential={
+                                credential as VaultCredential & {
+                                    Passkey: NonNullable<
+                                        VaultCredential["Passkey"]
+                                    >;
+                                }
+                            }
+                            copiedField={copiedField}
+                            onCopy={handleCopy}
+                            onOpenUrl={() => onOpenUrl(credential)}
+                        />
                     )}
 
                     {/* Description */}

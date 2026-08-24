@@ -14,6 +14,7 @@ import {
     CredentialFormSchema,
     VaultCredential,
     hashCredential,
+    updateCredentialFromForm,
 } from "../vault-utils/vault";
 
 const passkey = {
@@ -78,5 +79,31 @@ describe("passkey credentials", () => {
         expect(await hashCredential(first)).not.toBe(
             await hashCredential(second),
         );
+    });
+
+    it("validates and persists a passkey attached to a login credential", async () => {
+        const loginForm = {
+            ...form,
+            Type: ItemType.Credentials,
+            Username: "person@example.com",
+            Password: "password",
+            Passkey: null,
+        };
+        const login = new VaultCredential(loginForm);
+        const attachedForm = { ...loginForm, ID: login.ID, Passkey: passkey };
+
+        expect(CredentialFormSchema.safeParse(attachedForm).success).toBe(true);
+        expect(
+            CredentialFormSchema.safeParse({
+                ...attachedForm,
+                Passkey: { ...passkey, PrivateKey: "" },
+            }).success,
+        ).toBe(false);
+
+        const updated = await updateCredentialFromForm(login, attachedForm);
+        expect(updated.Type).toBe(ItemType.Credentials);
+        expect(updated.Username).toBe("person@example.com");
+        expect(updated.Password).toBe("password");
+        expect(updated.Passkey).toEqual(passkey);
     });
 });

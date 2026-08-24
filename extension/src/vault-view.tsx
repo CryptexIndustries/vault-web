@@ -16,6 +16,7 @@ import {
     Eye,
     EyeOff,
     FileText,
+    Fingerprint,
     Globe,
     GripVertical,
     Key,
@@ -236,6 +237,9 @@ const VaultView: React.FC<VaultViewProps> = ({
     });
 
     const watchedTotp = watch("TOTP");
+    const watchedType = watch("Type");
+    const watchedPasskey = watch("Passkey");
+    const isPasskeyOnly = watchedType === VaultUtilTypes.ItemType.Passkey;
 
     // Debounced capture of the in-flight form into the SW draft stash:
     // every form change restarts the timer, so the value lands in session
@@ -2124,6 +2128,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 >
                                                     <CredentialListIcon
                                                         type={credential.type}
+                                                        hasPasskey={Boolean(
+                                                            credential.passkey,
+                                                        )}
                                                     />
                                                     <span className="min-w-0 flex-1">
                                                         <span className="block truncate text-[11px] font-medium leading-tight text-foreground">
@@ -2300,6 +2307,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 <div className="flex min-w-0 flex-1 items-center gap-2">
                                                     <CredentialListIcon
                                                         type={credential.type}
+                                                        hasPasskey={Boolean(
+                                                            credential.passkey,
+                                                        )}
                                                     />
                                                     <div className="min-w-0 flex-1">
                                                         <div className="truncate text-xs font-medium leading-tight text-foreground">
@@ -2457,7 +2467,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                             <Shield className="h-4 w-4 text-primary" />
                             {credentialFormMode === "create"
                                 ? "Add New Credential"
-                                : "Edit Credential"}
+                                : isPasskeyOnly
+                                  ? "Edit Passkey Details"
+                                  : "Edit Credential"}
                         </DialogTitle>
                         <DialogDescription
                             id="credential-form-description"
@@ -2465,7 +2477,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                         >
                             {credentialFormMode === "create"
                                 ? "Add a new credential to your secure vault"
-                                : "Update the details of this credential"}
+                                : isPasskeyOnly
+                                  ? "Update this passkey's vault metadata"
+                                  : "Update the details of this credential"}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -2494,6 +2508,44 @@ const VaultView: React.FC<VaultViewProps> = ({
                             <div className="space-y-5">
                                 {/* Basic Info */}
                                 <div className="space-y-4">
+                                    {isPasskeyOnly && watchedPasskey && (
+                                        <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+                                            <div className="flex items-start gap-2.5">
+                                                <Fingerprint className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium text-foreground">
+                                                        Passkey
+                                                    </p>
+                                                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                                                        The cryptographic key
+                                                        and account identity are
+                                                        read-only. You can edit
+                                                        how this passkey is
+                                                        organized in your vault.
+                                                    </p>
+                                                    <div className="mt-2 grid gap-1 text-[11px]">
+                                                        <p className="truncate">
+                                                            <span className="text-muted-foreground">
+                                                                Account:{" "}
+                                                            </span>
+                                                            {watchedPasskey.UserDisplayName ||
+                                                                watchedPasskey.UserName}
+                                                        </p>
+                                                        <p className="truncate font-mono">
+                                                            <span className="font-sans text-muted-foreground">
+                                                                Relying
+                                                                party:{" "}
+                                                            </span>
+                                                            {
+                                                                watchedPasskey.RPID
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Name */}
                                     <div className="space-y-1.5">
                                         <Label
@@ -2587,168 +2639,191 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         />
                                     </div>
 
-                                    {/* Username */}
-                                    <div className="space-y-1.5">
-                                        <Label
-                                            htmlFor="cred-username"
-                                            className="text-xs font-medium"
-                                        >
-                                            Username / Email
-                                        </Label>
-                                        <div className="relative">
-                                            <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                            <Input
-                                                id="cred-username"
-                                                placeholder="username@email.com"
-                                                {...register("Username")}
-                                                className={cn(
-                                                    "h-9 pl-8 pr-9 text-sm",
-                                                    errors.Username &&
-                                                        "border-destructive",
+                                    {!isPasskeyOnly && (
+                                        <>
+                                            {/* Username */}
+                                            <div className="space-y-1.5">
+                                                <Label
+                                                    htmlFor="cred-username"
+                                                    className="text-xs font-medium"
+                                                >
+                                                    Username / Email
+                                                </Label>
+                                                <div className="relative">
+                                                    <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                                    <Input
+                                                        id="cred-username"
+                                                        placeholder="username@email.com"
+                                                        {...register(
+                                                            "Username",
+                                                        )}
+                                                        className={cn(
+                                                            "h-9 pl-8 pr-9 text-sm",
+                                                            errors.Username &&
+                                                                "border-destructive",
+                                                        )}
+                                                    />
+                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-7 w-7"
+                                                                        onClick={() =>
+                                                                            copyToClipboard(
+                                                                                getValues(
+                                                                                    "Username",
+                                                                                ),
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Copy className="h-3 w-3 text-muted-foreground" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    Copy
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    </div>
+                                                </div>
+                                                {errors.Username && (
+                                                    <p className="text-xs text-destructive">
+                                                        {
+                                                            errors.Username
+                                                                .message
+                                                        }
+                                                    </p>
                                                 )}
-                                            />
-                                            <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7"
-                                                                onClick={() =>
-                                                                    copyToClipboard(
-                                                                        getValues(
-                                                                            "Username",
-                                                                        ),
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Copy className="h-3 w-3 text-muted-foreground" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            Copy
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
                                             </div>
-                                        </div>
-                                        {errors.Username && (
-                                            <p className="text-xs text-destructive">
-                                                {errors.Username.message}
-                                            </p>
-                                        )}
-                                    </div>
 
-                                    {/* Password */}
-                                    <div className="space-y-1.5">
-                                        <Label
-                                            htmlFor="cred-password"
-                                            className="text-xs font-medium"
-                                        >
-                                            Password
-                                        </Label>
-                                        <div className="relative">
-                                            <Key className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                            <Input
-                                                id="cred-password"
-                                                type={
-                                                    showFormPassword
-                                                        ? "text"
-                                                        : "password"
-                                                }
-                                                placeholder="Enter password"
-                                                {...register("Password")}
-                                                className={cn(
-                                                    "h-9 pl-8 pr-[7rem] font-mono text-sm",
-                                                    errors.Password &&
-                                                        "border-destructive",
+                                            {/* Password */}
+                                            <div className="space-y-1.5">
+                                                <Label
+                                                    htmlFor="cred-password"
+                                                    className="text-xs font-medium"
+                                                >
+                                                    Password
+                                                </Label>
+                                                <div className="relative">
+                                                    <Key className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                                    <Input
+                                                        id="cred-password"
+                                                        type={
+                                                            showFormPassword
+                                                                ? "text"
+                                                                : "password"
+                                                        }
+                                                        placeholder="Enter password"
+                                                        {...register(
+                                                            "Password",
+                                                        )}
+                                                        className={cn(
+                                                            "h-9 pl-8 pr-[7rem] font-mono text-sm",
+                                                            errors.Password &&
+                                                                "border-destructive",
+                                                        )}
+                                                    />
+                                                    <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-7 w-7"
+                                                                        onClick={() =>
+                                                                            setShowFormPassword(
+                                                                                !showFormPassword,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {showFormPassword ? (
+                                                                            <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                                                        ) : (
+                                                                            <Eye className="h-3 w-3 text-muted-foreground" />
+                                                                        )}
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    {showFormPassword
+                                                                        ? "Hide"
+                                                                        : "Show"}
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-7 w-7"
+                                                                        onClick={() =>
+                                                                            setShowPasswordGenerator(
+                                                                                true,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    Generate
+                                                                    password
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-7 w-7"
+                                                                        onClick={() =>
+                                                                            copyToClipboard(
+                                                                                getValues(
+                                                                                    "Password",
+                                                                                ),
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Copy className="h-3 w-3 text-muted-foreground" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    Copy
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    </div>
+                                                </div>
+                                                {errors.Password && (
+                                                    <p className="text-xs text-destructive">
+                                                        {
+                                                            errors.Password
+                                                                .message
+                                                        }
+                                                    </p>
                                                 )}
-                                            />
-                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7"
-                                                                onClick={() =>
-                                                                    setShowFormPassword(
-                                                                        !showFormPassword,
-                                                                    )
-                                                                }
-                                                            >
-                                                                {showFormPassword ? (
-                                                                    <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                                                ) : (
-                                                                    <Eye className="h-3 w-3 text-muted-foreground" />
-                                                                )}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            {showFormPassword
-                                                                ? "Hide"
-                                                                : "Show"}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7"
-                                                                onClick={() =>
-                                                                    setShowPasswordGenerator(
-                                                                        true,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <RefreshCw className="h-3 w-3 text-muted-foreground" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            Generate password
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7"
-                                                                onClick={() =>
-                                                                    copyToClipboard(
-                                                                        getValues(
-                                                                            "Password",
-                                                                        ),
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Copy className="h-3 w-3 text-muted-foreground" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            Copy
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
                                             </div>
-                                        </div>
-                                        {errors.Password && (
-                                            <p className="text-xs text-destructive">
-                                                {errors.Password.message}
-                                            </p>
-                                        )}
-                                    </div>
+                                        </>
+                                    )}
 
                                     <CredentialURLRulesEditor
                                         control={control}
@@ -2806,199 +2881,221 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 </div>
 
                                 {/* TOTP */}
-                                <Separator />
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="space-y-0.5">
-                                            <Label className="text-xs font-medium">
-                                                Two-Factor Authentication
-                                            </Label>
-                                            <p className="text-xs text-muted-foreground">
-                                                Enable TOTP for this credential
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            checked={!!watchedTotp}
-                                            onCheckedChange={handleTotpToggle}
-                                        />
-                                    </div>
-                                    {watchedTotp && (
-                                        <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
-                                            <div className="space-y-1.5">
-                                                <Label
-                                                    htmlFor="totp-label"
-                                                    className="text-xs"
-                                                >
-                                                    TOTP Label
-                                                </Label>
-                                                <Input
-                                                    id="totp-label"
-                                                    placeholder="Credential"
-                                                    {...register("TOTP.Label")}
-                                                    className="h-8 text-sm"
-                                                />
-                                                {errors.TOTP?.Label && (
-                                                    <p className="text-xs text-destructive">
-                                                        {
-                                                            errors.TOTP.Label
-                                                                .message
-                                                        }
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label
-                                                    htmlFor="totp-secret"
-                                                    className="text-xs"
-                                                >
-                                                    TOTP Secret
-                                                </Label>
-                                                <Input
-                                                    id="totp-secret"
-                                                    placeholder="Base32 secret"
-                                                    {...register("TOTP.Secret")}
-                                                    className="h-8 font-mono text-sm"
-                                                />
-                                                {errors.TOTP?.Secret && (
-                                                    <p className="text-xs text-destructive">
-                                                        {
-                                                            errors.TOTP.Secret
-                                                                .message
-                                                        }
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1.5">
-                                                    <Label
-                                                        htmlFor="totp-period"
-                                                        className="text-xs"
-                                                    >
-                                                        Period (seconds)
+                                {!isPasskeyOnly && (
+                                    <>
+                                        <Separator />
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-0.5">
+                                                    <Label className="text-xs font-medium">
+                                                        Two-Factor
+                                                        Authentication
                                                     </Label>
-                                                    <Input
-                                                        id="totp-period"
-                                                        type="number"
-                                                        min={1}
-                                                        {...register(
-                                                            "TOTP.Period",
-                                                            {
-                                                                valueAsNumber: true,
-                                                            },
-                                                        )}
-                                                        className="h-8 text-sm"
-                                                    />
-                                                    {errors.TOTP?.Period && (
-                                                        <p className="text-xs text-destructive">
-                                                            {
-                                                                errors.TOTP
-                                                                    .Period
-                                                                    .message
-                                                            }
-                                                        </p>
-                                                    )}
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Enable TOTP for this
+                                                        credential
+                                                    </p>
                                                 </div>
-                                                <div className="space-y-1.5">
-                                                    <Label
-                                                        htmlFor="totp-digits"
-                                                        className="text-xs"
-                                                    >
-                                                        Digits
-                                                    </Label>
-                                                    <Input
-                                                        id="totp-digits"
-                                                        type="number"
-                                                        min={1}
-                                                        {...register(
-                                                            "TOTP.Digits",
-                                                            {
-                                                                valueAsNumber: true,
-                                                            },
-                                                        )}
-                                                        className="h-8 text-sm"
-                                                    />
-                                                    {errors.TOTP?.Digits && (
-                                                        <p className="text-xs text-destructive">
-                                                            {
-                                                                errors.TOTP
-                                                                    .Digits
-                                                                    .message
-                                                            }
-                                                        </p>
-                                                    )}
-                                                </div>
+                                                <Switch
+                                                    checked={!!watchedTotp}
+                                                    onCheckedChange={
+                                                        handleTotpToggle
+                                                    }
+                                                />
                                             </div>
-                                            <div className="space-y-1.5">
-                                                <Label className="text-xs">
-                                                    Algorithm
-                                                </Label>
-                                                <Controller
-                                                    name="TOTP.Algorithm"
-                                                    control={control}
-                                                    render={({ field }) => (
-                                                        <Select
-                                                            value={String(
-                                                                field.value ??
-                                                                    TOTPConstants.ALGORITHM_DEFAULT,
-                                                            )}
-                                                            onValueChange={(
-                                                                value,
-                                                            ) =>
-                                                                field.onChange(
-                                                                    Number(
-                                                                        value,
-                                                                    ),
-                                                                )
-                                                            }
+                                            {watchedTotp && (
+                                                <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                                                    <div className="space-y-1.5">
+                                                        <Label
+                                                            htmlFor="totp-label"
+                                                            className="text-xs"
                                                         >
-                                                            <SelectTrigger className="h-8 text-sm">
-                                                                <SelectValue placeholder="Select algorithm" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem
+                                                            TOTP Label
+                                                        </Label>
+                                                        <Input
+                                                            id="totp-label"
+                                                            placeholder="Credential"
+                                                            {...register(
+                                                                "TOTP.Label",
+                                                            )}
+                                                            className="h-8 text-sm"
+                                                        />
+                                                        {errors.TOTP?.Label && (
+                                                            <p className="text-xs text-destructive">
+                                                                {
+                                                                    errors.TOTP
+                                                                        .Label
+                                                                        .message
+                                                                }
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label
+                                                            htmlFor="totp-secret"
+                                                            className="text-xs"
+                                                        >
+                                                            TOTP Secret
+                                                        </Label>
+                                                        <Input
+                                                            id="totp-secret"
+                                                            placeholder="Base32 secret"
+                                                            {...register(
+                                                                "TOTP.Secret",
+                                                            )}
+                                                            className="h-8 font-mono text-sm"
+                                                        />
+                                                        {errors.TOTP
+                                                            ?.Secret && (
+                                                            <p className="text-xs text-destructive">
+                                                                {
+                                                                    errors.TOTP
+                                                                        .Secret
+                                                                        .message
+                                                                }
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div className="space-y-1.5">
+                                                            <Label
+                                                                htmlFor="totp-period"
+                                                                className="text-xs"
+                                                            >
+                                                                Period (seconds)
+                                                            </Label>
+                                                            <Input
+                                                                id="totp-period"
+                                                                type="number"
+                                                                min={1}
+                                                                {...register(
+                                                                    "TOTP.Period",
+                                                                    {
+                                                                        valueAsNumber: true,
+                                                                    },
+                                                                )}
+                                                                className="h-8 text-sm"
+                                                            />
+                                                            {errors.TOTP
+                                                                ?.Period && (
+                                                                <p className="text-xs text-destructive">
+                                                                    {
+                                                                        errors
+                                                                            .TOTP
+                                                                            .Period
+                                                                            .message
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <Label
+                                                                htmlFor="totp-digits"
+                                                                className="text-xs"
+                                                            >
+                                                                Digits
+                                                            </Label>
+                                                            <Input
+                                                                id="totp-digits"
+                                                                type="number"
+                                                                min={1}
+                                                                {...register(
+                                                                    "TOTP.Digits",
+                                                                    {
+                                                                        valueAsNumber: true,
+                                                                    },
+                                                                )}
+                                                                className="h-8 text-sm"
+                                                            />
+                                                            {errors.TOTP
+                                                                ?.Digits && (
+                                                                <p className="text-xs text-destructive">
+                                                                    {
+                                                                        errors
+                                                                            .TOTP
+                                                                            .Digits
+                                                                            .message
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs">
+                                                            Algorithm
+                                                        </Label>
+                                                        <Controller
+                                                            name="TOTP.Algorithm"
+                                                            control={control}
+                                                            render={({
+                                                                field,
+                                                            }) => (
+                                                                <Select
                                                                     value={String(
-                                                                        VaultUtilTypes
-                                                                            .TOTPAlgorithm
-                                                                            .SHA1,
+                                                                        field.value ??
+                                                                            TOTPConstants.ALGORITHM_DEFAULT,
                                                                     )}
+                                                                    onValueChange={(
+                                                                        value,
+                                                                    ) =>
+                                                                        field.onChange(
+                                                                            Number(
+                                                                                value,
+                                                                            ),
+                                                                        )
+                                                                    }
                                                                 >
-                                                                    SHA1
-                                                                </SelectItem>
-                                                                <SelectItem
-                                                                    value={String(
-                                                                        VaultUtilTypes
-                                                                            .TOTPAlgorithm
-                                                                            .SHA256,
-                                                                    )}
-                                                                >
-                                                                    SHA256
-                                                                </SelectItem>
-                                                                <SelectItem
-                                                                    value={String(
-                                                                        VaultUtilTypes
-                                                                            .TOTPAlgorithm
-                                                                            .SHA512,
-                                                                    )}
-                                                                >
-                                                                    SHA512
-                                                                </SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    )}
-                                                />
-                                                {errors.TOTP?.Algorithm && (
-                                                    <p className="text-xs text-destructive">
-                                                        {
-                                                            errors.TOTP
-                                                                .Algorithm
-                                                                .message
-                                                        }
-                                                    </p>
-                                                )}
-                                            </div>
+                                                                    <SelectTrigger className="h-8 text-sm">
+                                                                        <SelectValue placeholder="Select algorithm" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem
+                                                                            value={String(
+                                                                                VaultUtilTypes
+                                                                                    .TOTPAlgorithm
+                                                                                    .SHA1,
+                                                                            )}
+                                                                        >
+                                                                            SHA1
+                                                                        </SelectItem>
+                                                                        <SelectItem
+                                                                            value={String(
+                                                                                VaultUtilTypes
+                                                                                    .TOTPAlgorithm
+                                                                                    .SHA256,
+                                                                            )}
+                                                                        >
+                                                                            SHA256
+                                                                        </SelectItem>
+                                                                        <SelectItem
+                                                                            value={String(
+                                                                                VaultUtilTypes
+                                                                                    .TOTPAlgorithm
+                                                                                    .SHA512,
+                                                                            )}
+                                                                        >
+                                                                            SHA512
+                                                                        </SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )}
+                                                        />
+                                                        {errors.TOTP
+                                                            ?.Algorithm && (
+                                                            <p className="text-xs text-destructive">
+                                                                {
+                                                                    errors.TOTP
+                                                                        .Algorithm
+                                                                        .message
+                                                                }
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
+                                    </>
+                                )}
 
                                 {/* Custom Fields */}
                                 <Separator />

@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Save, ShieldCheck, X } from "lucide-react";
+import { Fingerprint, Loader2, Save, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ import {
 
 export type PopupSaveCredentialProps = {
     prompt: PendingSavePrompt;
-    onDone: () => void;
+    onDone: (outcome: "saved" | "dismissed") => void;
     /** In-page iframe: size to content instead of filling a fixed parent. */
     embedded?: boolean;
 };
@@ -49,21 +49,22 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
     const [showPassword, setShowPassword] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const isPasskey = prompt.kind === "passkey";
 
     useEffect(() => {
-        setName(prompt.host);
-        setUsername(prompt.username);
+        setName(prompt.passkey?.RPName ?? prompt.host);
+        setUsername(prompt.passkey?.UserName ?? prompt.username);
         setPassword(prompt.password);
         setUrl(prompt.url);
         setShowPassword(false);
     }, [prompt]);
 
     const submitDisabled = useMemo(
-        () => saving || !name.trim() || !password,
-        [saving, name, password],
+        () => saving || !name.trim() || (!isPasskey && !password),
+        [saving, name, password, isPasskey],
     );
 
-    const consumeAndExit = async () => {
+    const consumeAndExit = async (outcome: "saved" | "dismissed") => {
         try {
             await sendEncryptedEnvelopeToSW(
                 MessageType.ConsumePendingSavePrompt,
@@ -72,7 +73,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
         } catch (err) {
             uiLog.warn("Failed to consume pending save prompt", { err });
         }
-        onDone();
+        onDone(outcome);
     };
 
     const handleSave = async () => {
@@ -84,7 +85,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
         >(MessageType.CreateCredential, {
             form: {
                 ID: null,
-                Type: ItemType.Credentials,
+                Type: isPasskey ? ItemType.Passkey : ItemType.Credentials,
                 DirectoryID: "",
                 Name: name.trim() || prompt.host,
                 Username: username,
@@ -94,6 +95,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                 URL: url,
                 URLMatchMode: CredentialURLMatchMode.ExactHost,
                 AdditionalURLs: [],
+                Passkey: isPasskey ? prompt.passkey : null,
                 Notes: "",
                 CustomFields: [] as Array<{
                     ID: string;
@@ -117,27 +119,43 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
         vaultLog.info("Saved credential from autofill prompt", {
             host: prompt.host,
         });
-        await consumeAndExit();
+        await consumeAndExit("saved");
     };
 
     return (
         <div className={`flex flex-col p-4${embedded ? "" : " h-full"}`}>
             <header className="flex items-start gap-2 pb-3">
                 <span className="rounded-md bg-primary/15 p-1.5 text-primary">
-                    <ShieldCheck className="h-4 w-4" />
+                    {isPasskey ? (
+                        <Fingerprint className="h-4 w-4" />
+                    ) : (
+                        <ShieldCheck className="h-4 w-4" />
+                    )}
                 </span>
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-sm font-semibold">Save this login?</h1>
+                    <h1 className="text-sm font-semibold">
+                        {isPasskey ? "Save this passkey?" : "Save this login?"}
+                    </h1>
                     <p className="text-[11px] leading-snug text-muted-foreground">
-                        Cryptex Vault detected a new sign-in on{" "}
-                        <strong>{prompt.host}</strong>. Saving it here keeps it
-                        in sync with your other devices.
+                        {isPasskey ? (
+                            <>
+                                Create a passwordless sign-in for{" "}
+                                <strong>{prompt.host}</strong>. The passkey will
+                                stay encrypted in your vault.
+                            </>
+                        ) : (
+                            <>
+                                Cryptex Vault detected a new sign-in on{" "}
+                                <strong>{prompt.host}</strong>. Saving it here
+                                keeps it in sync with your other devices.
+                            </>
+                        )}
                     </p>
                 </div>
                 <button
                     type="button"
                     aria-label="Dismiss"
-                    onClick={consumeAndExit}
+                    onClick={() => void consumeAndExit("dismissed")}
                     className="rounded-md p-1 text-muted-foreground hover:text-foreground"
                 >
                     <X className="h-3.5 w-3.5" />
@@ -159,7 +177,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
 
                 <div className="space-y-1.5">
                     <Label htmlFor="save-username" className="text-xs">
-                        Username
+                        {isPasskey ? "Account" : "Username"}
                     </Label>
                     <Input
                         id="save-username"
@@ -170,20 +188,32 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                     />
                 </div>
 
-                <div className="space-y-1.5">
-                    <Label htmlFor="save-password" className="text-xs">
-                        Password
-                    </Label>
-                    <PasswordInput
-                        id="save-password"
-                        revealed={showPassword}
-                        onRevealedChange={setShowPassword}
-                        autoComplete="off"
-                        className="text-xs"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
-                </div>
+                {!isPasskey && (
+                    <div className="space-y-1.5">
+                        <Label htmlFor="save-password" className="text-xs">
+                            Password
+                        </Label>
+                        <PasswordInput
+                            id="save-password"
+                            revealed={showPassword}
+                            onRevealedChange={setShowPassword}
+                            autoComplete="off"
+                            className="text-xs"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                        />
+                    </div>
+                )}
+
+                {isPasskey && (
+                    <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
+                        <Fingerprint className="h-4 w-4 shrink-0 text-primary" />
+                        <span>
+                            No password is saved. Your private key remains
+                            encrypted and cannot be copied.
+                        </span>
+                    </div>
+                )}
 
                 <div className="space-y-1.5">
                     <Label htmlFor="save-url" className="text-xs">
@@ -210,7 +240,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                     variant="secondary"
                     size="sm"
                     className="flex-1"
-                    onClick={consumeAndExit}
+                    onClick={() => void consumeAndExit("dismissed")}
                     disabled={saving}
                 >
                     Not now
@@ -229,8 +259,12 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                         </span>
                     ) : (
                         <span className="flex items-center gap-2">
-                            <Save className="h-3.5 w-3.5" />
-                            Save
+                            {isPasskey ? (
+                                <Fingerprint className="h-3.5 w-3.5" />
+                            ) : (
+                                <Save className="h-3.5 w-3.5" />
+                            )}
+                            {isPasskey ? "Save passkey" : "Save"}
                         </span>
                     )}
                 </Button>

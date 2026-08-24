@@ -6,6 +6,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, __dirname, ["VITE_"]);
     const isProduction = mode === "production";
+    const isE2E = process.env.CRYPTEX_E2E === "1";
 
     if (isProduction) {
         if (!env.VITE_APP_URL) {
@@ -141,6 +142,14 @@ export default defineConfig(({ mode }) => {
                         __dirname,
                         "autofill-generator.html",
                     ),
+                    ...(isE2E
+                        ? {
+                              "e2e-bootstrap": path.resolve(
+                                  __dirname,
+                                  "e2e-bootstrap.html",
+                              ),
+                          }
+                        : {}),
                 },
                 output: {
                     entryFileNames: (chunk) => {

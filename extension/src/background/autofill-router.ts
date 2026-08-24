@@ -56,6 +56,14 @@ export function toLiteCredential(
         additionalUrls: c.AdditionalURLs ?? [],
         hasTOTP: Boolean(c.TOTP && c.TOTP.Secret),
         directoryId: c.DirectoryID,
+        type: c.Type,
+        passkey: c.Passkey
+            ? {
+                  RPID: c.Passkey.RPID,
+                  UserName: c.Passkey.UserName,
+                  UserDisplayName: c.Passkey.UserDisplayName,
+              }
+            : undefined,
     };
 }
 
@@ -201,15 +209,20 @@ export async function handleSaveCredentialPrompt(
     ) {
         return { ok: false, error: "INVALID_PAYLOAD" };
     }
-    if (!payload.password) {
+    if (payload.kind === "passkey" && !payload.passkey) {
+        return { ok: false, error: "PASSKEY_DATA_REQUIRED" };
+    }
+    if (payload.kind !== "passkey" && !payload.password) {
         return { ok: false, error: "EMPTY_PASSWORD" };
     }
 
     const prompt: PendingSavePrompt = {
+        kind: payload.kind ?? "login",
         host: payload.host,
         url: payload.url,
         username: payload.username ?? "",
         password: payload.password,
+        passkey: payload.passkey,
         stashedAt: Date.now(),
     };
 

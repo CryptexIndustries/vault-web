@@ -14,6 +14,7 @@ import {
     Trash2,
     FileText,
     Plus,
+    Fingerprint,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,10 @@ import {
     VaultCredential,
     calculateTOTP,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
-import { CustomFieldType } from "@cryptex-industries/vault-core/proto";
+import {
+    CustomFieldType,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
 import { copySecretToClipboard } from "@/utils/clipboard";
@@ -304,6 +308,7 @@ export function CredentialDetail({
     const visibleTags = allTags.slice(0, MAX_VISIBLE_TAGS);
     const hiddenTags = allTags.slice(MAX_VISIBLE_TAGS);
     const hiddenTagCount = Math.max(allTags.length - MAX_VISIBLE_TAGS, 0);
+    const isPasskey = credential?.Type === ItemType.Passkey;
 
     const handleCopy = (field: string, value: string) => {
         void copySecretToClipboard(value).then((copied) => {
@@ -345,7 +350,11 @@ export function CredentialDetail({
                 <div className="mb-4 flex items-start justify-between">
                     <div className="flex items-center gap-3">
                         <div className="hidden h-12 w-12 items-center justify-center rounded-lg bg-muted sm:flex">
-                            <Globe className="h-6 w-6 text-muted-foreground" />
+                            {isPasskey ? (
+                                <Fingerprint className="h-6 w-6 text-primary" />
+                            ) : (
+                                <Globe className="h-6 w-6 text-muted-foreground" />
+                            )}
                         </div>
                         <div>
                             <h3 className="line-clamp-2 font-semibold text-foreground">
@@ -354,6 +363,12 @@ export function CredentialDetail({
                             <p className="mt-0.5 text-xs text-muted-foreground">
                                 Directory: {directoryName}
                             </p>
+                            {isPasskey && (
+                                <Badge className="mt-1.5 gap-1 bg-primary/10 text-primary hover:bg-primary/10">
+                                    <Fingerprint className="h-3 w-3" />
+                                    Passkey
+                                </Badge>
+                            )}
                             <div className="mt-1 flex flex-wrap gap-1.5">
                                 {visibleTags.map((tag) => (
                                     <Badge
@@ -448,51 +463,117 @@ export function CredentialDetail({
             <ScrollArea className="min-h-0 flex-1">
                 <div className="w-0 min-w-full space-y-4 p-4">
                     {/* Core fields */}
-                    <CopyableField
-                        label="Username"
-                        value={credential.Username}
-                        icon={User}
-                        isCopied={copiedField === "username"}
-                        onCopy={() =>
-                            handleCopy("username", credential.Username)
-                        }
-                    />
+                    {isPasskey && credential.Passkey ? (
+                        <div className="space-y-4">
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                                <div className="flex items-start gap-3">
+                                    <Fingerprint className="mt-0.5 h-5 w-5 text-primary" />
+                                    <div>
+                                        <p className="text-sm font-medium">
+                                            Passwordless sign-in
+                                        </p>
+                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                            Cryptex Vault will offer this
+                                            passkey when{" "}
+                                            {credential.Passkey.RPID} requests
+                                            it.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <CopyableField
+                                label="Account"
+                                value={
+                                    credential.Passkey.UserDisplayName ||
+                                    credential.Passkey.UserName
+                                }
+                                icon={User}
+                                isCopied={copiedField === "passkey-account"}
+                                onCopy={() =>
+                                    handleCopy(
+                                        "passkey-account",
+                                        credential.Passkey!.UserName,
+                                    )
+                                }
+                            />
+                            <CopyableField
+                                label="Website"
+                                value={credential.Passkey.RPID}
+                                icon={Link}
+                                isCopied={copiedField === "rp-id"}
+                                onCopy={() =>
+                                    handleCopy(
+                                        "rp-id",
+                                        credential.Passkey!.RPID,
+                                    )
+                                }
+                                onOpenUrl={() => onOpenUrl(credential)}
+                            />
+                            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-3 text-sm">
+                                <span className="text-muted-foreground">
+                                    Credential
+                                </span>
+                                <span className="font-mono text-xs">
+                                    ••••{" "}
+                                    {credential.Passkey.CredentialID.slice(-8)}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <CopyableField
+                                label="Username"
+                                value={credential.Username}
+                                icon={User}
+                                isCopied={copiedField === "username"}
+                                onCopy={() =>
+                                    handleCopy("username", credential.Username)
+                                }
+                            />
 
-                    <CopyableField
-                        label="Password"
-                        value={credential.Password}
-                        icon={Key}
-                        isPassword
-                        showStrengthMeter
-                        isCopied={copiedField === "password"}
-                        onCopy={() =>
-                            handleCopy("password", credential.Password)
-                        }
-                    />
+                            <CopyableField
+                                label="Password"
+                                value={credential.Password}
+                                icon={Key}
+                                isPassword
+                                showStrengthMeter
+                                isCopied={copiedField === "password"}
+                                onCopy={() =>
+                                    handleCopy("password", credential.Password)
+                                }
+                            />
 
-                    {credential.URL && (
-                        <CopyableField
-                            label="Website"
-                            value={credential.URL}
-                            icon={Link}
-                            isCopied={copiedField === "url"}
-                            onCopy={() => handleCopy("url", credential.URL)}
-                            onOpenUrl={() => onOpenUrl(credential)}
-                        />
+                            {credential.URL && (
+                                <CopyableField
+                                    label="Website"
+                                    value={credential.URL}
+                                    icon={Link}
+                                    isCopied={copiedField === "url"}
+                                    onCopy={() =>
+                                        handleCopy("url", credential.URL)
+                                    }
+                                    onOpenUrl={() => onOpenUrl(credential)}
+                                />
+                            )}
+
+                            {credential.AdditionalURLs.map((rule, index) => (
+                                <CopyableField
+                                    key={`${rule.URL}:${index}`}
+                                    label={`Website ${index + 2}`}
+                                    value={rule.URL}
+                                    icon={Link}
+                                    isCopied={copiedField === `url-${index}`}
+                                    onCopy={() =>
+                                        handleCopy(`url-${index}`, rule.URL)
+                                    }
+                                />
+                            ))}
+
+                            {credential.TOTP && (
+                                <TOTPField credential={credential} />
+                            )}
+                        </>
                     )}
-
-                    {credential.AdditionalURLs.map((rule, index) => (
-                        <CopyableField
-                            key={`${rule.URL}:${index}`}
-                            label={`Website ${index + 2}`}
-                            value={rule.URL}
-                            icon={Link}
-                            isCopied={copiedField === `url-${index}`}
-                            onCopy={() => handleCopy(`url-${index}`, rule.URL)}
-                        />
-                    ))}
-
-                    {credential.TOTP && <TOTPField credential={credential} />}
 
                     {/* Description */}
                     {credential.Notes && (

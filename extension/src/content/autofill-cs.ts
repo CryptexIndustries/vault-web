@@ -31,6 +31,7 @@ import {
     type GetCredentialsForOriginResponse,
     type GetCredentialSecretResponse,
     type PendingSavePrompt,
+    type SaveCredentialPromptRequest,
 } from "../types/sw-messaging";
 import {
     sendEncryptedEnvelopeToSW,
@@ -57,6 +58,13 @@ import {
     type InlineIconMode,
 } from "./inline-icon";
 import { getEffectiveOrigin, isTopFrame } from "./origin-utils";
+import {
+    generatePasskeyRegistration,
+    PASSKEY_CONTENT_SOURCE,
+    PASSKEY_PAGE_SOURCE,
+    type PasskeyCreateRequest,
+    type PasskeyCreateResult,
+} from "./passkey-registration";
 
 setEnvelopeOriginOverride("autofill-cs");
 
@@ -153,6 +161,8 @@ let menuLockPollStartedAt = 0;
 let saveIframe: HTMLIFrameElement | null = null;
 let savePort: MessagePort | null = null;
 let saveMountToken = 0;
+let saveOutcomeHandler: ((outcome: "saved" | "dismissed") => void) | null =
+    null;
 let initialised = false;
 
 function shouldRun(): boolean {
@@ -644,6 +654,7 @@ function closeSavePrompt(): void {
         saveIframe.remove();
         saveIframe = null;
     }
+    saveOutcomeHandler = null;
 }
 
 function clampSaveIframeHeight(contentHeight: number): number {
@@ -654,25 +665,19 @@ function clampSaveIframeHeight(contentHeight: number): number {
     return Math.min(Math.max(contentHeight, SAVE_MIN_HEIGHT_PX), maxHeight);
 }
 
-function mountSavePrompt(payload: {
-    host: string;
-    url: string;
-    username: string;
-    password: string;
-}): void {
+function mountSavePrompt(
+    payload: Omit<PendingSavePrompt, "stashedAt">,
+    onOutcome?: (outcome: "saved" | "dismissed") => void,
+): void {
     closeSavePrompt();
+    saveOutcomeHandler = onOutcome ?? null;
     const token = saveMountToken;
 
     void mountSavePromptWithBootstrap(payload, token);
 }
 
 async function mountSavePromptWithBootstrap(
-    payload: {
-        host: string;
-        url: string;
-        username: string;
-        password: string;
-    },
+    payload: Omit<PendingSavePrompt, "stashedAt">,
     token: number,
 ): Promise<void> {
     const bootstrap = await createAutofillFrameBootstrap("autofill-save");
@@ -711,8 +716,18 @@ async function mountSavePromptWithBootstrap(
         savePort = channel.port1;
         channel.port1.onmessage = (ev) => {
             const msg = ev.data as
-                | { kind?: string; height?: number }
+                | {
+                      kind?: string;
+                      height?: number;
+                      outcome?: "saved" | "dismissed";
+                  }
                 | undefined;
+            if (msg?.kind === "done" && msg.outcome) {
+                const handler = saveOutcomeHandler;
+                closeSavePrompt();
+                handler?.(msg.outcome);
+                return;
+            }
             if (msg?.kind === "close") {
                 closeSavePrompt();
                 return;
@@ -736,17 +751,16 @@ async function mountSavePromptWithBootstrap(
     window.addEventListener("message", saveHandshakeListener);
 }
 
-function pendingPromptToPayload(prompt: PendingSavePrompt): {
-    host: string;
-    url: string;
-    username: string;
-    password: string;
-} {
+function pendingPromptToPayload(
+    prompt: PendingSavePrompt,
+): Omit<PendingSavePrompt, "stashedAt"> {
     return {
+        kind: prompt.kind,
         host: prompt.host,
         url: prompt.url,
         username: prompt.username,
         password: prompt.password,
+        passkey: prompt.passkey,
     };
 }
 
@@ -805,15 +819,108 @@ function scheduleSavePromptOnSamePage(): void {
     }, SAVE_SHOW_DEFER_MS);
 }
 
-function promptSaveCredential(payload: {
-    host: string;
-    url: string;
-    username: string;
-    password: string;
-}): void {
+function promptSaveCredential(payload: SaveCredentialPromptRequest): void {
     void sendEncryptedEnvelopeToSW(MessageType.SaveCredentialPrompt, payload);
     scheduleSavePromptOnSamePage();
 }
+
+function postPasskeyResult(result: Omit<PasskeyCreateResult, "source">): void {
+    window.postMessage(
+        { ...result, source: PASSKEY_CONTENT_SOURCE },
+        window.location.origin,
+    );
+}
+
+async function handlePasskeyCreateRequest(
+    request: PasskeyCreateRequest,
+): Promise<void> {
+    const fallback = () =>
+        postPasskeyResult({
+            type: "create-result",
+            requestId: request.requestId,
+            outcome: "fallback",
+        });
+    if (saveIframe) {
+        fallback();
+        return;
+    }
+
+    const origin = getEffectiveOrigin();
+    if (!origin) {
+        fallback();
+        return;
+    }
+    const rpId = request.publicKey.rp.id ?? origin.host;
+    if (origin.host !== rpId && !origin.host.endsWith(`.${rpId}`)) {
+        fallback();
+        return;
+    }
+
+    const stateRes = await sendEncryptedEnvelopeToSW<{ unlocked: boolean }>(
+        MessageType.GetState,
+        null,
+    );
+    if (!stateRes.ok || !stateRes.payload?.unlocked) {
+        fallback();
+        return;
+    }
+
+    try {
+        const generated = await generatePasskeyRegistration(
+            request.publicKey,
+            window.location.origin,
+            // The encrypted vault can only reach this branch in an authenticated,
+            // unlocked session. The later explicit Save action supplies fresh user
+            // presence before this credential is returned to the relying party.
+            // This is our software-authenticator UV policy; a future per-item
+            // reprompt can replace this boolean without touching protocol encoding.
+            { userVerified: true },
+        );
+        const payload: SaveCredentialPromptRequest = {
+            kind: "passkey",
+            host: origin.host,
+            url: window.location.href,
+            username: generated.passkey.UserName,
+            password: "",
+            passkey: generated.passkey,
+        };
+        const promptRes = await sendEncryptedEnvelopeToSW(
+            MessageType.SaveCredentialPrompt,
+            payload,
+        );
+        if (!promptRes.ok) {
+            fallback();
+            return;
+        }
+        mountSavePrompt(payload, (outcome) => {
+            postPasskeyResult({
+                type: "create-result",
+                requestId: request.requestId,
+                outcome: outcome === "saved" ? "created" : "fallback",
+                credential:
+                    outcome === "saved" ? generated.credential : undefined,
+            });
+        });
+    } catch (error) {
+        console.warn("[autofill-cs] passkey registration failed", error);
+        fallback();
+    }
+}
+
+window.addEventListener("message", (event: MessageEvent) => {
+    if (event.source !== window || event.origin !== window.location.origin)
+        return;
+    const request = event.data as PasskeyCreateRequest | undefined;
+    if (
+        request?.source !== PASSKEY_PAGE_SOURCE ||
+        request.type !== "create-request" ||
+        typeof request.requestId !== "string" ||
+        !request.publicKey
+    ) {
+        return;
+    }
+    void handlePasskeyCreateRequest(request);
+});
 
 /* -------------------------------------------------------------------------- */
 /* Click + SW interaction                                                      */

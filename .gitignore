@@ -9,10 +9,13 @@ node_modules
 # testing
 /coverage
 web/coverage/
+/playwright-report/
+/test-results/
 
 # database
 # next.js
 .next/
+web/.next-e2e/
 web/next-env.d.ts
 web/out/
 

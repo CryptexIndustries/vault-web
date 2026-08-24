@@ -16,6 +16,7 @@ import {
     FolderRoot,
     LayoutList,
     Settings2,
+    Fingerprint,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { cn } from "@/lib/utils";
 import { normalizeCredentialUrl } from "@/utils/credential-url";
+import { ItemType } from "@cryptex-industries/vault-core/proto";
 import {
     CredentialSearch,
     credentialMatchesSearch,
@@ -568,7 +570,12 @@ export function CredentialsList({
                                             />
                                             {/* Favicon */}
                                             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted sm:h-10 sm:w-10">
-                                                <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
+                                                {credential.Type ===
+                                                ItemType.Passkey ? (
+                                                    <Fingerprint className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
+                                                ) : (
+                                                    <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
+                                                )}
                                             </div>
 
                                             {/* Content */}
@@ -588,9 +595,26 @@ export function CredentialsList({
                                                             </span>
                                                         </Badge>
                                                     )}
+                                                    {credential.Type ===
+                                                        ItemType.Passkey && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
+                                                        >
+                                                            <Fingerprint className="mr-1 h-3 w-3" />
+                                                            Passkey
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                                 <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                                    {credential.Username}
+                                                    {credential.Type ===
+                                                    ItemType.Passkey
+                                                        ? credential.Passkey
+                                                              ?.UserDisplayName ||
+                                                          credential.Passkey
+                                                              ?.UserName ||
+                                                          credential.URL
+                                                        : credential.Username}
                                                 </p>
                                                 <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
                                                     {visibleTags.map((tag) => (
@@ -785,7 +809,12 @@ export function CredentialsList({
                                     >
                                         {/* Favicon */}
                                         <div className="mb-3 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
-                                            <Globe className="h-5 w-5 text-muted-foreground" />
+                                            {credential.Type ===
+                                            ItemType.Passkey ? (
+                                                <Fingerprint className="h-5 w-5 text-primary" />
+                                            ) : (
+                                                <Globe className="h-5 w-5 text-muted-foreground" />
+                                            )}
                                         </div>
 
                                         {/* Content */}
@@ -805,9 +834,26 @@ export function CredentialsList({
                                                         </span>
                                                     </Badge>
                                                 )}
+                                                {credential.Type ===
+                                                    ItemType.Passkey && (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
+                                                    >
+                                                        <Fingerprint className="mr-1 h-3 w-3" />
+                                                        Passkey
+                                                    </Badge>
+                                                )}
                                             </div>
                                             <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                                {credential.Username}
+                                                {credential.Type ===
+                                                ItemType.Passkey
+                                                    ? credential.Passkey
+                                                          ?.UserDisplayName ||
+                                                      credential.Passkey
+                                                          ?.UserName ||
+                                                      credential.URL
+                                                    : credential.Username}
                                             </p>
                                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                                 {visibleTags.map((tag) => (

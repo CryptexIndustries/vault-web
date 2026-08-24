@@ -22,7 +22,10 @@ import {
 
 type InitPayload = Omit<PendingSavePrompt, "stashedAt">;
 
-type ParentMessage = { kind: "close" } | { kind: "resize"; height: number };
+type ParentMessage =
+    | { kind: "close" }
+    | { kind: "resize"; height: number }
+    | { kind: "done"; outcome: "saved" | "dismissed" };
 
 type IncomingMessage = { kind: "init"; payload: InitPayload };
 
@@ -146,7 +149,9 @@ const App = () => {
                 <PopupSaveCredential
                     embedded
                     prompt={prompt}
-                    onDone={() => postToParent({ kind: "close" })}
+                    onDone={(outcome) =>
+                        postToParent({ kind: "done", outcome })
+                    }
                 />
             )}
         </div>

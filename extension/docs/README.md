@@ -45,12 +45,18 @@ Security and design notes for the Cryptex Vault browser extension.
 - [Iframe bootstrap](autofill/iframe-bootstrap.md)
 - [Origin matching](autofill/origin-matching.md)
 
+## Passkeys
+
+- [Passkey architecture](passkeys/README.md) — WebAuthn interception, software
+  authenticator encoding, user-verification policy, and reference designs.
+
 ## Reading order for security review
 
 1. [Threat model](threat-model.md)
 2. [Architecture overview](architecture/overview.md)
 3. [Service worker messaging](service-worker/messaging.md)
 4. [Autofill security notes](autofill/README.md)
-5. [UI surfaces](ui/README.md)
-6. [Sync and link](sync-and-link/README.md)
-7. [Platform layer](platform/README.md)
+5. [Passkey architecture](passkeys/README.md)
+6. [UI surfaces](ui/README.md)
+7. [Sync and link](sync-and-link/README.md)
+8. [Platform layer](platform/README.md)

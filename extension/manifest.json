@@ -29,8 +29,16 @@
     "content_scripts": [
         {
             "matches": ["http://*/*", "https://*/*"],
+            "js": ["assets/passkey-page-bridge.js"],
+            "run_at": "document_start",
+            "world": "MAIN",
+            "all_frames": false,
+            "match_about_blank": false
+        },
+        {
+            "matches": ["http://*/*", "https://*/*"],
             "js": ["assets/autofill-cs.js"],
-            "run_at": "document_idle",
+            "run_at": "document_start",
             "all_frames": false,
             "match_about_blank": false
         }

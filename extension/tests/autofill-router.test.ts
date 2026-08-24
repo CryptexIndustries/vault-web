@@ -2,7 +2,10 @@
  * @jest-environment node
  */
 import { describe, expect, it } from "@jest/globals";
-import { CredentialURLMatchMode } from "@cryptex-industries/vault-core/proto";
+import {
+    CredentialURLMatchMode,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 
 import {
     handleGenerateTOTP,
@@ -46,6 +49,32 @@ describe("autofill origin matching", () => {
         );
 
         expect(lite.hasTOTP).toBe(true);
+    });
+
+    it("projects passkey labels without exposing key material", () => {
+        const lite = toLiteCredential(
+            credential({
+                Type: ItemType.Passkey,
+                Passkey: {
+                    RPID: "example.com",
+                    UserName: "person@example.com",
+                    UserDisplayName: "Person",
+                    CredentialID: "credential-id",
+                    PrivateKey: "private-jwk",
+                },
+            }),
+        );
+
+        expect(lite).toMatchObject({
+            type: ItemType.Passkey,
+            passkey: {
+                RPID: "example.com",
+                UserName: "person@example.com",
+                UserDisplayName: "Person",
+            },
+        });
+        expect(JSON.stringify(lite)).not.toContain("private-jwk");
+        expect(JSON.stringify(lite)).not.toContain("credential-id");
     });
 
     it("returns only credentials authorized for the page URL", () => {

@@ -486,6 +486,22 @@ export const CredentialFormBaseSchema = z.object({
             MatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
         }),
     ),
+    Passkey: z
+        .object({
+            CredentialID: z.string(),
+            RPID: z.string(),
+            RPName: z.string(),
+            UserHandle: z.string(),
+            UserName: z.string(),
+            UserDisplayName: z.string(),
+            PublicKey: z.string(),
+            PrivateKey: z.string(),
+            Algorithm: z.number().int(),
+            SignCount: z.number().int().nonnegative(),
+            Discoverable: z.boolean(),
+        })
+        .optional()
+        .nullable(),
     Notes: z.string(),
     // DateCreated: z.string().optional(), // Used only in diffing
     // DateModified: z.string().optional(), // Used only in diffing
@@ -502,6 +518,20 @@ export const CredentialFormBaseSchema = z.object({
 
 export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
     (form, context) => {
+        if (form.Type === VaultUtilTypes.ItemType.Passkey) {
+            if (
+                !form.Passkey?.CredentialID.trim() ||
+                !form.Passkey.RPID.trim() ||
+                !form.Passkey.PrivateKey.trim()
+            ) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["Passkey"],
+                    message: "Passkey credential material is incomplete.",
+                });
+            }
+        }
+
         const primaryRule = {
             URL: form.URL,
             MatchMode: form.URLMatchMode,
@@ -554,6 +584,7 @@ export class VaultCredential
     public URL: string;
     public URLMatchMode: VaultUtilTypes.CredentialURLMatchMode;
     public AdditionalURLs: VaultUtilTypes.CredentialURL[];
+    public Passkey?: VaultUtilTypes.PasskeyData | undefined;
     public Notes: string;
 
     /**
@@ -598,6 +629,7 @@ export class VaultCredential
             { URL: this.URL, MatchMode: this.URLMatchMode },
             form?.AdditionalURLs,
         );
+        this.Passkey = form?.Passkey ?? undefined;
         this.Notes = form?.Notes ? String(form.Notes).trim() : "";
 
         // The version is 0 for new credentials. This is to be incremented when the credential is modified.
@@ -651,6 +683,7 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
         "Name",
         "Username",
         "Password",
+        "Passkey",
         // "TOTP",
         "Tags",
         "URL",

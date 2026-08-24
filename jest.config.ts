@@ -2,6 +2,7 @@ import type { JestConfigWithTsJest } from "ts-jest";
 
 const jestConfig: JestConfigWithTsJest = {
     testEnvironment: "jsdom",
+    testPathIgnorePatterns: ["/node_modules/", "/extension/e2e/", "/web/e2e/"],
     // testEnvironment: "node",
     moduleNameMapper: {
         "^@/(.*)$": "<rootDir>/web/src/$1",

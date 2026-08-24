@@ -34,7 +34,12 @@ const baseClientSchema = z.object({
     /** When "false", hide online-services UI and skip cloud tRPC. */
     NEXT_PUBLIC_CLOUD_ENABLED: z
         .preprocess(
-            (v) => (typeof v === "string" ? v.toLowerCase() !== "false" : true),
+            (v) =>
+                typeof v === "string"
+                    ? v.toLowerCase() !== "false"
+                    : typeof v === "boolean"
+                      ? v
+                      : true,
             z.boolean(),
         )
         .default(true),

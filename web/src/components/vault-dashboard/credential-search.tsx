@@ -59,9 +59,15 @@ export function credentialMatchesSearch(
 
     const freeOk =
         !freeText ||
-        [credential.Name, credential.Username, credential.Notes, ...tags].some(
-            (value) => includesCI(value, freeText),
-        );
+        [
+            credential.Name,
+            credential.Username,
+            credential.Notes,
+            credential.Passkey?.RPID ?? "",
+            credential.Passkey?.UserName ?? "",
+            credential.Passkey?.UserDisplayName ?? "",
+            ...tags,
+        ].some((value) => includesCI(value, freeText));
 
     return (
         freeOk &&

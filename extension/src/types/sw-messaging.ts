@@ -1,6 +1,8 @@
 import type {
     CredentialURL,
     CredentialURLMatchMode,
+    ItemType,
+    PasskeyData,
 } from "@cryptex-industries/vault-core/proto";
 import { type CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
 
@@ -212,6 +214,8 @@ export type LiteCredential = {
     additionalUrls: CredentialURL[];
     hasTOTP?: boolean;
     directoryId: string;
+    type: ItemType;
+    passkey?: Pick<PasskeyData, "RPID" | "UserName" | "UserDisplayName">;
 };
 
 export interface ActivePageOrigin {
@@ -278,18 +282,22 @@ export interface GetCredentialSecretResponse {
 
 /** Payload for `MessageType.SaveCredentialPrompt`. */
 export interface SaveCredentialPromptRequest {
+    kind?: "login" | "passkey";
     host: string;
     url: string;
     username: string;
     password: string;
+    passkey?: PasskeyData;
 }
 
 /** Response shape returned from `MessageType.GetPendingSavePrompt`. */
 export interface PendingSavePrompt {
+    kind?: "login" | "passkey";
     host: string;
     url: string;
     username: string;
     password: string;
+    passkey?: PasskeyData;
     /** Epoch millis when the prompt was stashed. Used to enforce a TTL. */
     stashedAt: number;
 }

@@ -14,6 +14,7 @@ import {
     FileText,
     Globe,
     GripVertical,
+    Fingerprint,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -228,6 +229,8 @@ export function EditDrawer({
 
     const watchedTotp = watch("TOTP");
     const watchedPassword = watch("Password");
+    const watchedType = watch("Type");
+    const isPasskey = watchedType === ItemType.Passkey;
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
 
     useEffect(() => {
@@ -242,6 +245,7 @@ export function EditDrawer({
                 URL: credential.URL,
                 URLMatchMode: credential.URLMatchMode,
                 AdditionalURLs: credential.AdditionalURLs,
+                Passkey: credential.Passkey ?? null,
                 Notes: credential.Notes,
                 Tags: credential.Tags || "",
                 TOTP: credential.TOTP ?? null,
@@ -350,7 +354,11 @@ export function EditDrawer({
                 >
                     <SheetHeader className="border-b border-border p-6 pb-4">
                         <SheetTitle className="text-lg">
-                            {isNew ? "Add New Credential" : "Edit Credential"}
+                            {isNew
+                                ? "Add New Credential"
+                                : isPasskey
+                                  ? "Edit Passkey"
+                                  : "Edit Credential"}
                         </SheetTitle>
                         <SheetDescription>
                             {isNew
@@ -363,6 +371,26 @@ export function EditDrawer({
                         <div className="space-y-6 p-6">
                             {/* Basic Info */}
                             <div className="space-y-4">
+                                {isPasskey && (
+                                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                                        <div className="flex items-start gap-3">
+                                            <Fingerprint className="mt-0.5 h-5 w-5 text-primary" />
+                                            <div>
+                                                <p className="text-sm font-medium">
+                                                    Passkey
+                                                </p>
+                                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                                    This passkey was created by
+                                                    the Cryptex Vault browser
+                                                    extension. Its private key
+                                                    stays encrypted and cannot
+                                                    be viewed or copied.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <Label
                                         htmlFor="name"
@@ -422,125 +450,157 @@ export function EditDrawer({
                                     </Button>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label
-                                        htmlFor="username"
-                                        className="text-sm font-medium"
-                                    >
-                                        Username / Email{" "}
-                                        <span className="text-destructive">
-                                            *
-                                        </span>
-                                    </Label>
-                                    <div className="relative">
-                                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            id="username"
-                                            placeholder="username@email.com"
-                                            {...register("Username")}
-                                            className={cn(
-                                                "pl-10",
-                                                errors.Username &&
-                                                    "border-destructive",
+                                {!isPasskey && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label
+                                                htmlFor="username"
+                                                className="text-sm font-medium"
+                                            >
+                                                Username / Email{" "}
+                                                <span className="text-destructive">
+                                                    *
+                                                </span>
+                                            </Label>
+                                            <div className="relative">
+                                                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                                <Input
+                                                    id="username"
+                                                    placeholder="username@email.com"
+                                                    {...register("Username")}
+                                                    className={cn(
+                                                        "pl-10",
+                                                        errors.Username &&
+                                                            "border-destructive",
+                                                    )}
+                                                />
+                                            </div>
+                                            {errors.Username && (
+                                                <p className="text-xs text-destructive">
+                                                    {errors.Username.message}
+                                                </p>
                                             )}
-                                        />
-                                    </div>
-                                    {errors.Username && (
-                                        <p className="text-xs text-destructive">
-                                            {errors.Username.message}
-                                        </p>
-                                    )}
-                                </div>
+                                        </div>
 
-                                <div className="space-y-2">
-                                    <Label
-                                        htmlFor="password"
-                                        className="text-sm font-medium"
-                                    >
-                                        Password{" "}
-                                        <span className="text-destructive">
-                                            *
-                                        </span>
-                                    </Label>
-                                    <div className="relative">
-                                        <Key className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            id="password"
-                                            type={
-                                                showPassword
-                                                    ? "text"
-                                                    : "password"
-                                            }
-                                            placeholder="Enter password"
-                                            {...register("Password")}
-                                            className={cn(
-                                                "pl-10 pr-20 font-mono",
-                                                errors.Password &&
-                                                    "border-destructive",
+                                        <div className="space-y-2">
+                                            <Label
+                                                htmlFor="password"
+                                                className="text-sm font-medium"
+                                            >
+                                                Password{" "}
+                                                <span className="text-destructive">
+                                                    *
+                                                </span>
+                                            </Label>
+                                            <div className="relative">
+                                                <Key className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                                <Input
+                                                    id="password"
+                                                    type={
+                                                        showPassword
+                                                            ? "text"
+                                                            : "password"
+                                                    }
+                                                    placeholder="Enter password"
+                                                    {...register("Password")}
+                                                    className={cn(
+                                                        "pl-10 pr-20 font-mono",
+                                                        errors.Password &&
+                                                            "border-destructive",
+                                                    )}
+                                                />
+                                                <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() =>
+                                                                        setShowPassword(
+                                                                            !showPassword,
+                                                                        )
+                                                                    }
+                                                                    className="h-7 w-7"
+                                                                >
+                                                                    {showPassword ? (
+                                                                        <EyeOff className="h-3.5 w-3.5" />
+                                                                    ) : (
+                                                                        <Eye className="h-3.5 w-3.5" />
+                                                                    )}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                {showPassword
+                                                                    ? "Hide"
+                                                                    : "Show"}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() =>
+                                                                        setIsPasswordGeneratorOpen(
+                                                                            true,
+                                                                        )
+                                                                    }
+                                                                    className="h-7 w-7"
+                                                                >
+                                                                    <RefreshCw className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                Generate
+                                                                password
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                </div>
+                                            </div>
+                                            {errors.Password && (
+                                                <p className="text-xs text-destructive">
+                                                    {errors.Password.message}
+                                                </p>
                                             )}
-                                        />
-                                        <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() =>
-                                                                setShowPassword(
-                                                                    !showPassword,
-                                                                )
-                                                            }
-                                                            className="h-7 w-7"
-                                                        >
-                                                            {showPassword ? (
-                                                                <EyeOff className="h-3.5 w-3.5" />
-                                                            ) : (
-                                                                <Eye className="h-3.5 w-3.5" />
-                                                            )}
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        {showPassword
-                                                            ? "Hide"
-                                                            : "Show"}
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() =>
-                                                                setIsPasswordGeneratorOpen(
-                                                                    true,
-                                                                )
-                                                            }
-                                                            className="h-7 w-7"
-                                                        >
-                                                            <RefreshCw className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        Generate password
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
+                                            <PasswordStrengthMeter
+                                                password={watchedPassword}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                                {isPasskey && credential?.Passkey && (
+                                    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+                                        <div>
+                                            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                                                Account
+                                            </Label>
+                                            <p className="mt-1 text-sm">
+                                                {credential.Passkey
+                                                    .UserDisplayName ||
+                                                    credential.Passkey.UserName}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                                                Relying party
+                                            </Label>
+                                            <p className="mt-1 font-mono text-sm">
+                                                {credential.Passkey.RPID}
+                                            </p>
                                         </div>
                                     </div>
-                                    {errors.Password && (
-                                        <p className="text-xs text-destructive">
-                                            {errors.Password.message}
-                                        </p>
-                                    )}
-                                    <PasswordStrengthMeter
-                                        password={watchedPassword}
-                                    />
-                                </div>
+                                )}
 
                                 <CredentialURLRulesEditor
                                     control={control}

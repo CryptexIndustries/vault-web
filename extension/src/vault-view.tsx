@@ -220,6 +220,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             URL: "",
             URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
             AdditionalURLs: [],
+            Passkey: null,
             Notes: "",
             CustomFields: [],
         },
@@ -1469,6 +1470,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             URL: "",
             URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
             AdditionalURLs: [],
+            Passkey: null,
             Notes: "",
             CustomFields: [],
         });
@@ -1503,6 +1505,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             URL: credential.URL,
             URLMatchMode: credential.URLMatchMode,
             AdditionalURLs: credential.AdditionalURLs,
+            Passkey: credential.Passkey ?? null,
             Notes: credential.Notes,
             CustomFields: credential.CustomFields || [],
         });
@@ -2119,14 +2122,27 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                     disabled={isRefreshing}
                                                     aria-label={`Open ${credential.name}`}
                                                 >
-                                                    <CredentialListIcon />
+                                                    <CredentialListIcon
+                                                        type={credential.type}
+                                                    />
                                                     <span className="min-w-0 flex-1">
                                                         <span className="block truncate text-[11px] font-medium leading-tight text-foreground">
                                                             {credential.name}
                                                         </span>
                                                         <span className="block truncate text-[10px] leading-tight text-muted-foreground">
-                                                            {credential.username ||
-                                                                "No username"}
+                                                            {credential.type ===
+                                                            VaultUtilTypes
+                                                                .ItemType
+                                                                .Passkey
+                                                                ? credential
+                                                                      .passkey
+                                                                      ?.UserDisplayName ||
+                                                                  credential
+                                                                      .passkey
+                                                                      ?.UserName ||
+                                                                  "Passkey"
+                                                                : credential.username ||
+                                                                  "No username"}
                                                         </span>
                                                     </span>
                                                 </button>
@@ -2150,7 +2166,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                     field: "password",
                                                                     label: "Copy password",
                                                                     icon: Key,
-                                                                    visible: true,
+                                                                    visible:
+                                                                        credential.type !==
+                                                                        VaultUtilTypes
+                                                                            .ItemType
+                                                                            .Passkey,
                                                                 },
                                                                 {
                                                                     field: "totp",
@@ -2278,15 +2298,26 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         >
                                             <div className="flex items-center justify-between p-2">
                                                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                                                    <CredentialListIcon />
+                                                    <CredentialListIcon
+                                                        type={credential.type}
+                                                    />
                                                     <div className="min-w-0 flex-1">
                                                         <div className="truncate text-xs font-medium leading-tight text-foreground">
                                                             {credential.name}
                                                         </div>
                                                         <div className="-mt-0.5 truncate text-xs leading-tight text-muted-foreground">
-                                                            {
-                                                                credential.username
-                                                            }
+                                                            {credential.type ===
+                                                            VaultUtilTypes
+                                                                .ItemType
+                                                                .Passkey
+                                                                ? credential
+                                                                      .passkey
+                                                                      ?.UserDisplayName ||
+                                                                  credential
+                                                                      .passkey
+                                                                      ?.UserName ||
+                                                                  "Passkey"
+                                                                : credential.username}
                                                         </div>
                                                     </div>
                                                 </div>

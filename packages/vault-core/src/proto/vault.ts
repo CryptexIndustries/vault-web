@@ -36,6 +36,7 @@ export enum ItemType {
     Credentials = 1,
     Note = 2,
     Identity = 3,
+    Passkey = 4,
 }
 
 export enum CustomFieldType {
@@ -273,6 +274,24 @@ export interface CredentialURL {
     MatchMode: CredentialURLMatchMode;
 }
 
+/**
+ * WebAuthn passkey material. Secret key material remains inside the encrypted
+ * vault and must never be projected into list/search responses.
+ */
+export interface PasskeyData {
+    CredentialID: string;
+    RPID: string;
+    RPName: string;
+    UserHandle: string;
+    UserName: string;
+    UserDisplayName: string;
+    PublicKey: string;
+    PrivateKey: string;
+    Algorithm: number;
+    SignCount: number;
+    Discoverable: boolean;
+}
+
 export interface Credential {
     ID: string;
     Type: ItemType;
@@ -303,6 +322,7 @@ export interface Credential {
     DirectoryID: string;
     URLMatchMode: CredentialURLMatchMode;
     AdditionalURLs: CredentialURL[];
+    Passkey?: PasskeyData | undefined;
 }
 
 export interface TOTP {
@@ -2592,6 +2612,192 @@ export const CredentialURL: MessageFns<CredentialURL> = {
     },
 };
 
+function createBasePasskeyData(): PasskeyData {
+    return {
+        CredentialID: "",
+        RPID: "",
+        RPName: "",
+        UserHandle: "",
+        UserName: "",
+        UserDisplayName: "",
+        PublicKey: "",
+        PrivateKey: "",
+        Algorithm: 0,
+        SignCount: 0,
+        Discoverable: false,
+    };
+}
+
+export const PasskeyData: MessageFns<PasskeyData> = {
+    encode(
+        message: PasskeyData,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.CredentialID !== "") {
+            writer.uint32(10).string(message.CredentialID);
+        }
+        if (message.RPID !== "") {
+            writer.uint32(18).string(message.RPID);
+        }
+        if (message.RPName !== "") {
+            writer.uint32(26).string(message.RPName);
+        }
+        if (message.UserHandle !== "") {
+            writer.uint32(34).string(message.UserHandle);
+        }
+        if (message.UserName !== "") {
+            writer.uint32(42).string(message.UserName);
+        }
+        if (message.UserDisplayName !== "") {
+            writer.uint32(50).string(message.UserDisplayName);
+        }
+        if (message.PublicKey !== "") {
+            writer.uint32(58).string(message.PublicKey);
+        }
+        if (message.PrivateKey !== "") {
+            writer.uint32(66).string(message.PrivateKey);
+        }
+        if (message.Algorithm !== 0) {
+            writer.uint32(72).int32(message.Algorithm);
+        }
+        if (message.SignCount !== 0) {
+            writer.uint32(80).uint32(message.SignCount);
+        }
+        if (message.Discoverable !== false) {
+            writer.uint32(88).bool(message.Discoverable);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): PasskeyData {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBasePasskeyData();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.CredentialID = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.RPID = reader.string();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.RPName = reader.string();
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.UserHandle = reader.string();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.UserName = reader.string();
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.UserDisplayName = reader.string();
+                    continue;
+                }
+                case 7: {
+                    if (tag !== 58) {
+                        break;
+                    }
+
+                    message.PublicKey = reader.string();
+                    continue;
+                }
+                case 8: {
+                    if (tag !== 66) {
+                        break;
+                    }
+
+                    message.PrivateKey = reader.string();
+                    continue;
+                }
+                case 9: {
+                    if (tag !== 72) {
+                        break;
+                    }
+
+                    message.Algorithm = reader.int32();
+                    continue;
+                }
+                case 10: {
+                    if (tag !== 80) {
+                        break;
+                    }
+
+                    message.SignCount = reader.uint32();
+                    continue;
+                }
+                case 11: {
+                    if (tag !== 88) {
+                        break;
+                    }
+
+                    message.Discoverable = reader.bool();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<PasskeyData>, I>>(
+        base?: I,
+    ): PasskeyData {
+        return PasskeyData.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<PasskeyData>, I>>(
+        object: I,
+    ): PasskeyData {
+        const message = createBasePasskeyData();
+        message.CredentialID = object.CredentialID ?? "";
+        message.RPID = object.RPID ?? "";
+        message.RPName = object.RPName ?? "";
+        message.UserHandle = object.UserHandle ?? "";
+        message.UserName = object.UserName ?? "";
+        message.UserDisplayName = object.UserDisplayName ?? "";
+        message.PublicKey = object.PublicKey ?? "";
+        message.PrivateKey = object.PrivateKey ?? "";
+        message.Algorithm = object.Algorithm ?? 0;
+        message.SignCount = object.SignCount ?? 0;
+        message.Discoverable = object.Discoverable ?? false;
+        return message;
+    },
+};
+
 function createBaseCredential(): Credential {
     return {
         ID: "",
@@ -2685,6 +2891,12 @@ export const Credential: MessageFns<Credential> = {
         }
         for (const v of message.AdditionalURLs) {
             CredentialURL.encode(v!, writer.uint32(186).fork()).join();
+        }
+        if (message.Passkey !== undefined) {
+            PasskeyData.encode(
+                message.Passkey,
+                writer.uint32(194).fork(),
+            ).join();
         }
         return writer;
     },
@@ -2881,6 +3093,17 @@ export const Credential: MessageFns<Credential> = {
                     );
                     continue;
                 }
+                case 24: {
+                    if (tag !== 194) {
+                        break;
+                    }
+
+                    message.Passkey = PasskeyData.decode(
+                        reader,
+                        reader.uint32(),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -2926,6 +3149,10 @@ export const Credential: MessageFns<Credential> = {
         message.AdditionalURLs =
             object.AdditionalURLs?.map((e) => CredentialURL.fromPartial(e)) ||
             [];
+        message.Passkey =
+            object.Passkey !== undefined && object.Passkey !== null
+                ? PasskeyData.fromPartial(object.Passkey)
+                : undefined;
         return message;
     },
 };

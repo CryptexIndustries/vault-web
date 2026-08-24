@@ -128,7 +128,6 @@ export default defineConfig(({ mode }) => {
                 input: {
                     popup: path.resolve(__dirname, "popup.html"),
                     background: path.resolve(__dirname, "src/background.ts"),
-                    logs: path.resolve(__dirname, "logs.html"),
                     link: path.resolve(__dirname, "link.html"),
                     "autofill-menu": path.resolve(
                         __dirname,

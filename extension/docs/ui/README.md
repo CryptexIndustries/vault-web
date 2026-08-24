@@ -9,13 +9,17 @@ pages.
 | Surface         | Entry                          | Privilege     | SW origin                  | ACL                             |
 | --------------- | ------------------------------ | ------------- | -------------------------- | ------------------------------- |
 | Action popup    | `popup.html` → `popup.tsx`     | High          | `popup`                    | Full vault + sync + proxy       |
+| Full-page vault | `popup.html?view=tab`          | High          | `popup`                    | Full vault + sync + proxy       |
 | Vault dashboard | `vault-view.tsx` (popup child) | High          | `popup`                    | Same                            |
 | Unlock form     | `popup-unlock.tsx`             | High          | via parent                 | Unlock only                     |
 | Save prompt     | `popup-save-credential.tsx`    | High / Medium | `popup` or `autofill-save` | Create + consume pending save   |
 | Link tab        | `link.html` → `link.tsx`       | Medium-high   | `link`                     | Proxy + OS establish/clear only |
-| Logs tab        | `logs.html` → `logs.tsx`       | Low           | none                       | No SW messaging                 |
 
 Manifest: `action.default_popup` → `/popup.html`.
+
+The popup's open-in-tab action launches `popup.html?view=tab`. It uses the same
+state machine and SW ACL, with CSS expanding the dashboard to the browser
+viewport.
 
 ## Popup state machine
 
@@ -73,12 +77,6 @@ Deliberately excluded from link ACL: Unlock, Lock, credential CRUD, sync fetch.
 
 After completion the link tab auto-closes; user must unlock from popup.
 
-### Logs
-
-- Reads `chrome.storage.local` key `extLogs` (up to 2000 entries).
-- Filter, search, export JSON, clear.
-- No SW access; not web-accessible.
-
 ## Security choices
 
 | Choice                        | Rationale                                                                   |
@@ -110,6 +108,5 @@ See [service-worker/messaging.md](../service-worker/messaging.md) for full ACL.
 | `src/components/popup-save-credential.tsx` | Save-login consent      |
 | `src/components/popup-receive-link.tsx`    | Link-receive wizard     |
 | `link.html`, `src/link.tsx`                | Link tab shell          |
-| `logs.html`, `src/logs.tsx`                | Log viewer              |
 | `src/utils/sw-envelope-client.ts`          | Shared SW client        |
 | `src/utils/sw-proxy-fetch.ts`              | tRPC → ProxyFetch shim  |

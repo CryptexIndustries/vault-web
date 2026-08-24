@@ -31,9 +31,11 @@ The popup styling shares CSS variables with the web client via
 All extension code routes log records through
 [`extension/src/utils/ext-logging.ts`](src/utils/ext-logging.ts), which wraps
 the shared web `vaultLogger` and additionally persists each entry to
-`chrome.storage.local`. The popup footer exposes a "Logs" button that opens a
-full-tab log viewer ([`extension/logs.html`](logs.html)) with filtering,
-search, and export, mirroring the web client's `LogInspectorDialog`.
+`chrome.storage.local` for internal diagnostics.
+
+The unlocked dashboard can also be opened as a full browser tab from its
+top-bar action. The tab reuses `popup.html` with a full-viewport layout rather
+than maintaining a separate dashboard entry point.
 
 ### Configuration
 

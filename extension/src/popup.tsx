@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useLiveQuery } from "dexie-react-hooks";
 import { err, ok } from "neverthrow";
-import { LoaderCircle, Link2, ScrollText, Shield } from "lucide-react";
+import { LoaderCircle, Link2, Shield } from "lucide-react";
 
 import "./popup.css";
 import { type EncryptionFormGroupSchemaType } from "@cryptex-industries/vault-core/vault-utils/form-schemas";
@@ -25,7 +25,7 @@ import {
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
-import { generalLog, openLogsTab, uiLog, vaultLog } from "./utils/ext-logging";
+import { generalLog, uiLog, vaultLog } from "./utils/ext-logging";
 import PopupUnlock from "./components/popup-unlock";
 import PopupSaveCredential from "./components/popup-save-credential";
 import VaultView from "./vault-view";
@@ -38,6 +38,21 @@ const openLinkTab = () => {
     }
     void chrome.tabs.create({
         url: chrome.runtime.getURL("/link.html"),
+    });
+};
+
+const isFullPageView =
+    new URLSearchParams(window.location.search).get("view") === "tab";
+document.documentElement.classList.toggle("full-page", isFullPageView);
+
+const openFullPageTab = () => {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.tabs) {
+        uiLog.warn("Cannot open full-page vault outside the extension context");
+        return;
+    }
+
+    void chrome.tabs.create({
+        url: chrome.runtime.getURL("/popup.html?view=tab"),
     });
 };
 
@@ -411,8 +426,10 @@ const App = () => {
             }
             return (
                 <VaultView
-                    name={bg.metadata.name}
                     lockVaultFn={handleLock}
+                    openFullPageFn={
+                        isFullPageView ? undefined : openFullPageTab
+                    }
                     serverPublicKey={serverPublicKey}
                     onStaleKeyError={handleStaleKeyError}
                 />
@@ -469,22 +486,6 @@ const App = () => {
     return (
         <div className="dark flex h-full flex-col bg-background text-foreground">
             <div className="flex-1 overflow-y-auto">{renderBody()}</div>
-            <footer className="flex items-center justify-between border-t bg-background/80 px-2 py-1 text-[10px] text-muted-foreground">
-                <span>Cryptex Vault</span>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 gap-1 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                        uiLog.debug("Opening logs tab");
-                        openLogsTab();
-                    }}
-                >
-                    <ScrollText className="h-3 w-3" />
-                    Logs
-                </Button>
-            </footer>
             <Toaster />
         </div>
     );

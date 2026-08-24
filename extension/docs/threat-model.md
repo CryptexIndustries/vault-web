@@ -6,12 +6,12 @@ architecture docs under `extension/docs/`.
 
 ## Scope
 
-| In scope                                                                | Out of scope                                       |
-| ----------------------------------------------------------------------- | -------------------------------------------------- |
-| MV3 extension (SW, popup, link, logs, content script, autofill iframes) | Cryptex web app (separate codebase)                |
-| Local vault storage and session                                         | Backend API compromise (assumed honest tRPC + TLS) |
-| Autofill on host pages                                                  | Physical device compromise (assumed out of band)   |
-| Sync and link over Pusher/WebRTC                                        | Malicious browser or OS (assumed honest Chrome)    |
+| In scope                                                                          | Out of scope                                       |
+| --------------------------------------------------------------------------------- | -------------------------------------------------- |
+| MV3 extension (SW, popup/full-page vault, link, content script, autofill iframes) | Cryptex web app (separate codebase)                |
+| Local vault storage and session                                                   | Backend API compromise (assumed honest tRPC + TLS) |
+| Autofill on host pages                                                            | Physical device compromise (assumed out of band)   |
+| Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome)    |
 
 ## Assets
 
@@ -188,7 +188,7 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | Read IndexedDB vault blobs     | Encrypted at rest           | Low without master password                     |
 | Read session while unlocked    | Lock on idle                | **High** - `UV` is plaintext                    |
 | Read form draft while unlocked | Session-scoped `DRAFT_SAVE` | Medium - typed password until lock/idle/discard |
-| Export diagnostic logs         | Logs UI in extension        | Medium - metadata                               |
+| Read persisted diagnostic logs | Browser profile access      | Medium - metadata                               |
 | Read clipboard after copy      | OS clipboard                | Medium - expected PM behavior                   |
 
 ### A6 — Extension supply chain / developer mistake
@@ -232,7 +232,7 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                   |
 | P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                          |
 | P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                  |
-| P3       | Logs persist metadata locally                       | Accepted          | User can clear                                                                |
+| P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                             |
 | P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                           |
 | P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                 |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                               |

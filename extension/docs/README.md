@@ -19,7 +19,7 @@ Security and design notes for the Cryptex Vault browser extension.
 
 ## UI surfaces
 
-- [Extension UI](ui/README.md) — Popup, vault dashboard, link tab, logs; privilege
+- [Extension UI](ui/README.md) - Popup, full-page vault dashboard, and link tab; privilege
   tiers and sensitive operations.
 
 ## Sync and link

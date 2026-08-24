@@ -2,9 +2,8 @@
  * Extension-side logging adapter.
  *
  * Forwards every log to the shared in-memory `vaultLogger` (so consumers in the
- * web codebase keep working) and persists each entry to `chrome.storage.local`.
- * That makes logs survive popup teardown and visible from the dedicated logs
- * tab opened via `openLogsTab()`.
+ * web codebase keep working) and persists each entry to `chrome.storage.local`
+ * so diagnostic history survives popup teardown.
  */
 
 import {
@@ -27,15 +26,6 @@ export interface SerializedLogEntry extends Omit<LogEntry, "timestamp"> {
 const serialize = (entry: LogEntry): SerializedLogEntry => ({
     id: entry.id,
     timestamp: entry.timestamp.toISOString(),
-    group: entry.group,
-    level: entry.level,
-    message: entry.message,
-    data: entry.data,
-});
-
-const deserialize = (entry: SerializedLogEntry): LogEntry => ({
-    id: entry.id,
-    timestamp: new Date(entry.timestamp),
     group: entry.group,
     level: entry.level,
     message: entry.message,
@@ -124,50 +114,3 @@ export const onlineServicesLog = channel(LogGroup.OnlineServices);
 export const importLog = channel(LogGroup.Import);
 export const generalLog = channel(LogGroup.General);
 export const syncLog = channel(LogGroup.Synchronization);
-
-export const openLogsTab = () => {
-    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.tabs) {
-        generalLog.warn("Cannot open logs tab outside the extension context");
-        return;
-    }
-    void chrome.tabs.create({
-        url: chrome.runtime.getURL("/logs.html"),
-    });
-};
-
-export const getStoredLogs = async (): Promise<LogEntry[]> => {
-    if (!hasChromeStorage()) return [];
-    const result = await chrome.storage.local.get(EXT_LOGS_STORAGE_KEY);
-    const stored = Array.isArray(result[EXT_LOGS_STORAGE_KEY])
-        ? (result[EXT_LOGS_STORAGE_KEY] as SerializedLogEntry[])
-        : [];
-    return stored.map(deserialize);
-};
-
-export const clearStoredLogs = async (): Promise<void> => {
-    if (!hasChromeStorage()) return;
-    await chrome.storage.local.set({ [EXT_LOGS_STORAGE_KEY]: [] });
-};
-
-export const subscribeStoredLogs = (
-    onChange: (logs: LogEntry[]) => void,
-): (() => void) => {
-    if (typeof chrome === "undefined" || !chrome.storage?.onChanged) {
-        return () => undefined;
-    }
-
-    const handler = (
-        changes: { [key: string]: chrome.storage.StorageChange },
-        area: chrome.storage.AreaName,
-    ) => {
-        if (area !== "local" || !changes[EXT_LOGS_STORAGE_KEY]) return;
-        const next = changes[EXT_LOGS_STORAGE_KEY].newValue;
-        const entries = Array.isArray(next)
-            ? (next as SerializedLogEntry[]).map(deserialize)
-            : [];
-        onChange(entries);
-    };
-
-    chrome.storage.onChanged.addListener(handler);
-    return () => chrome.storage.onChanged.removeListener(handler);
-};

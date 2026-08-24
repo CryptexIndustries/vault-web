@@ -12,6 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
     Copy,
     Edit,
+    ExternalLink,
     Eye,
     EyeOff,
     FileText,
@@ -103,8 +104,8 @@ import { uiLog } from "./utils/ext-logging";
 import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 
 type VaultViewProps = {
-    name: string;
     lockVaultFn: () => void;
+    openFullPageFn?: () => void;
     serverPublicKey: {
         keyId: string;
         publicKeyJwk: JsonWebKey;
@@ -120,8 +121,8 @@ let GlobalSyncConnectionController: SyncConnectionController | null = null;
 const DRAFT_DEBOUNCE_MS = 500;
 
 const VaultView: React.FC<VaultViewProps> = ({
-    name,
     lockVaultFn,
+    openFullPageFn,
     serverPublicKey,
     onStaleKeyError,
 }) => {
@@ -1813,7 +1814,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 }
             })();
         }
-    }, [_getSyncConfig, serverPublicKey]);
+    }, [_getSyncConfig, recordDeviceLastSync, serverPublicKey]);
 
     const handleQuickCopy = async (
         credential: LiteCredential,
@@ -1905,30 +1906,135 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     return (
         <div className="flex h-full flex-col">
-            {/* Header with sync status */}
-            <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-2">
-                <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-primary" />
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap text-nowrap text-xs font-semibold text-foreground">
-                        {name}
+            {/* Brand, primary actions, and search share one compact top bar. */}
+            <header className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-background via-background to-primary/[0.05] px-3 py-2">
+                <div className="flex shrink-0 items-center gap-2.5 pr-1">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 shadow-sm shadow-primary/10">
+                        <Shield className="h-4 w-4 text-primary" />
+                    </span>
+                    <span className="whitespace-nowrap text-sm font-semibold tracking-wide text-foreground">
+                        Cryptex <span className="text-primary">Vault</span>
                     </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
+
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="relative min-w-[180px] flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            autoFocus
+                            placeholder="Search credentials..."
+                            aria-label="Search credentials"
+                            value={searchQuery}
+                            onChange={(
+                                e: React.ChangeEvent<HTMLInputElement>,
+                            ) => setSearchQuery(e.target.value)}
+                            className="h-8 border-border/80 bg-secondary/60 pl-9 text-sm text-foreground shadow-inner placeholder:text-muted-foreground focus:border-primary/60 focus:ring-primary/20"
+                        />
+                    </div>
+                    <TooltipProvider delayDuration={250}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    type="button"
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0 shadow-sm shadow-primary/20"
+                                    onClick={openCreateForm}
+                                    disabled={
+                                        isCreating ||
+                                        isUpdating ||
+                                        isDeleting ||
+                                        isRefreshing
+                                    }
+                                    aria-label="Add credential"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add credential</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1 border-l border-border/80 pl-2">
                     <ConnectionStatusIndicator
                         signaling={signalingStatus}
                         webrtc={webRTCStatus}
                     />
                     {lastSync ? (
-                        <span className="text-xs text-muted-foreground">
-                            Last sync {formatTimeAgo(lastSync)}
+                        <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                            {formatTimeAgo(lastSync)}
                         </span>
                     ) : null}
+
+                    <TooltipProvider delayDuration={250}>
+                        {openFullPageFn ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                        onClick={openFullPageFn}
+                                        aria-label="Open vault in a browser tab"
+                                    >
+                                        <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    Open in browser tab
+                                </TooltipContent>
+                            </Tooltip>
+                        ) : null}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                    onClick={handleSyncNow}
+                                    disabled={
+                                        isCreating ||
+                                        isUpdating ||
+                                        isDeleting ||
+                                        isRefreshing
+                                    }
+                                    aria-label="Sync now"
+                                >
+                                    <RefreshCw className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Sync now</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                    onClick={lockVaultFn}
+                                    disabled={
+                                        isCreating ||
+                                        isUpdating ||
+                                        isDeleting ||
+                                        isRefreshing
+                                    }
+                                    aria-label="Lock vault"
+                                >
+                                    <LockKeyhole className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Lock vault</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
-            </div>
+            </header>
 
             {/* Body: split pane */}
             <div className="flex min-h-0 flex-1">
-                {/* Left pane: search + list + add */}
+                {/* Left pane: directory + credential list */}
                 <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
                     <div className="border-b border-border bg-background/50 px-3 py-2">
                         <Select
@@ -1940,7 +2046,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                             }
                         >
                             <SelectTrigger
-                                className="mb-2 h-7 text-xs"
+                                className="h-8 bg-secondary/30 text-xs"
                                 aria-label="Browse directory"
                             >
                                 <SelectValue />
@@ -1963,17 +2069,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     ))}
                             </SelectContent>
                         </Select>
-                        <div className="relative">
-                            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                placeholder="Search credentials..."
-                                value={searchQuery}
-                                onChange={(
-                                    e: React.ChangeEvent<HTMLInputElement>,
-                                ) => setSearchQuery(e.target.value)}
-                                className="h-7 border-border bg-input pl-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20"
-                            />
-                        </div>
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -2276,23 +2371,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </div>
                         )}
                     </div>
-
-                    <div className="border-t border-border bg-background/50 p-2">
-                        <Button
-                            className="h-8 w-full gap-2 text-xs"
-                            size="sm"
-                            onClick={openCreateForm}
-                            disabled={
-                                isCreating ||
-                                isUpdating ||
-                                isDeleting ||
-                                isRefreshing
-                            }
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                            Add Credential
-                        </Button>
-                    </div>
                 </aside>
 
                 {/* Right pane: detail */}
@@ -2330,43 +2408,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                         </div>
                     )}
                 </main>
-            </div>
-
-            {/* Footer: sync + lock */}
-            <div className="border-t border-border bg-background/50 p-2">
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        className="h-7 flex-1 text-xs"
-                        size="sm"
-                        onClick={handleSyncNow}
-                        disabled={
-                            isCreating ||
-                            isUpdating ||
-                            isDeleting ||
-                            isRefreshing
-                        }
-                    >
-                        <RefreshCw className="mr-1.5 h-3 w-3" />
-                        Sync Now
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        className="h-7 flex-1 text-xs"
-                        size="sm"
-                        onClick={lockVaultFn}
-                        disabled={
-                            isCreating ||
-                            isUpdating ||
-                            isDeleting ||
-                            isRefreshing
-                        }
-                    >
-                        <LockKeyhole className="mr-1.5 h-3 w-3" />
-                        Lock Vault
-                    </Button>
-                </div>
             </div>
 
             {/* Credential Form Dialog */}

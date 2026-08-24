@@ -31,7 +31,7 @@ Host pages can load:
 - `autofill-menu.html`, `autofill-generator.html`, and `autofill-save.html`
 - Any hashed bundle under `assets/`
 
-Extension pages (`popup.html`, `link.html`, `logs.html`) are
+Extension pages (`popup.html`, `link.html`) are
 **not** web-accessible.
 
 WAR enables extension-origin panels in host DOM but exposes bundle fingerprints
@@ -69,8 +69,8 @@ See [persistence.md](persistence.md).
 Channels: `uiLog`, `vaultLog`, `signalingLog`, `webrtcLog`, `onlineServicesLog`,
 `importLog`, `generalLog`, `syncLog`.
 
-`logs.html` provides filter/search/export/clear. Logs survive popup close and
-browser restart until explicitly cleared. Optional `data` field may contain
+Logs survive popup close and browser restart until the extension's local data
+is cleared. Optional `data` fields may contain
 deviceId, vaultId, or error context — not credential secrets by policy, but not
 enforced at runtime.
 
@@ -90,7 +90,6 @@ extension inactivity. Closing popup alone does not lock.
 | `vite.config.content.ts`        | Content script IIFE                |
 | `src/env.ts`                    | Env shim                           |
 | `src/utils/ext-logging.ts`      | Log adapter + persistence          |
-| `src/logs.tsx`                  | Log viewer                         |
 | `src/content/autofill-cs.ts`    | Content script entry               |
 | `src/content/field-detector.ts` | Field heuristics                   |
 | `src/content/origin-utils.ts`   | Origin helpers                     |

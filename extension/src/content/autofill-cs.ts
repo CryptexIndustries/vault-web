@@ -338,21 +338,41 @@ function positionPanelNearField(
         window.innerHeight || document.documentElement.clientHeight;
     const viewportWidth =
         window.innerWidth || document.documentElement.clientWidth;
-    const spaceBelow = viewportHeight - rect.bottom;
-    const placeAbove = spaceBelow < heightPx && rect.top > heightPx;
+    const margin = 8;
 
-    const top = placeAbove
-        ? rect.top + window.scrollY - heightPx - 4
-        : rect.bottom + window.scrollY + 4;
+    // The panel is fixed-size; if the viewport is shorter than the
+    // panel, shrink it instead of letting it run off-screen — the
+    // panel's own scroll area takes over for the clipped rows.
+    const panelHeight = Math.max(
+        120,
+        Math.min(heightPx, viewportHeight - margin * 2),
+    );
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let top: number;
+    if (spaceBelow >= panelHeight + margin) {
+        top = rect.bottom + window.scrollY + 4;
+    } else if (spaceAbove >= panelHeight + margin) {
+        top = rect.top + window.scrollY - panelHeight - 4;
+    } else {
+        // The field sits too close to a viewport edge for the panel to
+        // fit above or below it. Pin the panel to whichever side has
+        // more room so it stays fully on screen.
+        top =
+            spaceBelow >= spaceAbove
+                ? window.scrollY + margin
+                : window.scrollY + viewportHeight - panelHeight - margin;
+    }
     const left = Math.min(
         rect.left + window.scrollX,
-        viewportWidth + window.scrollX - widthPx - 8,
+        viewportWidth + window.scrollX - widthPx - margin,
     );
 
-    iframe.style.top = `${Math.max(top, window.scrollY)}px`;
+    iframe.style.top = `${Math.max(top, window.scrollY + margin)}px`;
     iframe.style.left = `${Math.max(left, window.scrollX)}px`;
     iframe.style.width = `${widthPx}px`;
-    iframe.style.height = `${heightPx}px`;
+    iframe.style.height = `${panelHeight}px`;
 }
 
 function positionMenuNearField(

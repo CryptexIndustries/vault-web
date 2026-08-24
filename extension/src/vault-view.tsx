@@ -1764,161 +1764,6 @@ const VaultView: React.FC<VaultViewProps> = ({
             <div className="flex min-h-0 flex-1">
                 {/* Left pane: search + list + add */}
                 <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
-                    {currentSiteHost && currentSiteCredentials.length > 0 ? (
-                        <section className="border-b border-primary/25 bg-primary/[0.06] p-2.5">
-                            <div className="mb-2 flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
-                                        <Globe className="h-3.5 w-3.5" />
-                                        For this site
-                                    </div>
-                                    <p
-                                        className="mt-0.5 truncate text-[10px] text-muted-foreground"
-                                        title={currentSiteHost}
-                                    >
-                                        {currentSiteHost}
-                                    </p>
-                                </div>
-                                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-primary">
-                                    {currentSiteCredentials.length}
-                                </span>
-                            </div>
-
-                            <div className="max-h-[156px] space-y-1 overflow-y-auto pr-0.5">
-                                {currentSiteCredentials.map((credential) => (
-                                    <div
-                                        key={credential.id}
-                                        className={cn(
-                                            "flex items-center gap-1 rounded-md border bg-background/80 p-1 transition-colors",
-                                            selectedCredential?.ID ===
-                                                credential.id
-                                                ? "border-primary/60"
-                                                : "border-border/80 hover:border-primary/40",
-                                        )}
-                                    >
-                                        <button
-                                            type="button"
-                                            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                            onClick={() => {
-                                                if (isRefreshing) return;
-                                                void selectCredential(
-                                                    credential.id,
-                                                );
-                                            }}
-                                            disabled={isRefreshing}
-                                            aria-label={`Open ${credential.name}`}
-                                        >
-                                            <CredentialListIcon />
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-[11px] font-medium leading-tight text-foreground">
-                                                    {credential.name}
-                                                </span>
-                                                <span className="block truncate text-[10px] leading-tight text-muted-foreground">
-                                                    {credential.username ||
-                                                        "No username"}
-                                                </span>
-                                            </span>
-                                        </button>
-
-                                        <TooltipProvider delayDuration={250}>
-                                            <div className="flex flex-shrink-0 items-center gap-0.5">
-                                                {(
-                                                    [
-                                                        {
-                                                            field: "username",
-                                                            label: "Copy username",
-                                                            icon: User,
-                                                            visible: Boolean(
-                                                                credential.username,
-                                                            ),
-                                                        },
-                                                        {
-                                                            field: "password",
-                                                            label: "Copy password",
-                                                            icon: Key,
-                                                            visible: true,
-                                                        },
-                                                        {
-                                                            field: "totp",
-                                                            label: "Copy TOTP code",
-                                                            icon: Shield,
-                                                            visible: Boolean(
-                                                                credential.hasTOTP,
-                                                            ),
-                                                        },
-                                                    ] as const
-                                                )
-                                                    .filter(
-                                                        (action) =>
-                                                            action.visible,
-                                                    )
-                                                    .map((action) => {
-                                                        const Icon =
-                                                            action.icon;
-                                                        const copyKey = `${credential.id}:${action.field}`;
-                                                        const isCopying =
-                                                            quickCopyKey ===
-                                                            copyKey;
-
-                                                        return (
-                                                            <Tooltip
-                                                                key={
-                                                                    action.field
-                                                                }
-                                                            >
-                                                                <TooltipTrigger
-                                                                    asChild
-                                                                >
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className={cn(
-                                                                            "h-7 w-7 text-muted-foreground hover:bg-primary/10 hover:text-primary",
-                                                                            action.field ===
-                                                                                "totp" &&
-                                                                                "w-10 px-1 text-[9px] font-semibold text-primary",
-                                                                        )}
-                                                                        onClick={() =>
-                                                                            void handleQuickCopy(
-                                                                                credential,
-                                                                                action.field,
-                                                                            )
-                                                                        }
-                                                                        disabled={
-                                                                            quickCopyKey !==
-                                                                            null
-                                                                        }
-                                                                        aria-label={
-                                                                            action.label
-                                                                        }
-                                                                    >
-                                                                        {isCopying ? (
-                                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                        ) : action.field ===
-                                                                          "totp" ? (
-                                                                            "TOTP"
-                                                                        ) : (
-                                                                            <Icon className="h-3.5 w-3.5" />
-                                                                        )}
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    {
-                                                                        action.label
-                                                                    }
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        );
-                                                    })}
-                                            </div>
-                                        </TooltipProvider>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    ) : null}
-
                     <div className="border-b border-border bg-background/50 px-3 py-2">
                         <Select
                             value={selectedDirectoryID || "root"}
@@ -1966,6 +1811,168 @@ const VaultView: React.FC<VaultViewProps> = ({
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto">
+                        {currentSiteHost &&
+                        currentSiteCredentials.length > 0 ? (
+                            <section className="border-b border-primary/25 bg-primary/[0.06] p-2.5">
+                                <div className="mb-2 flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+                                            <Globe className="h-3.5 w-3.5" />
+                                            For this site
+                                        </div>
+                                        <p
+                                            className="mt-0.5 truncate text-[10px] text-muted-foreground"
+                                            title={currentSiteHost}
+                                        >
+                                            {currentSiteHost}
+                                        </p>
+                                    </div>
+                                    <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                                        {currentSiteCredentials.length}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-1 pr-0.5">
+                                    {currentSiteCredentials.map(
+                                        (credential) => (
+                                            <div
+                                                key={credential.id}
+                                                className={cn(
+                                                    "flex items-center gap-1 rounded-md border bg-background/80 p-1 transition-colors",
+                                                    selectedCredential?.ID ===
+                                                        credential.id
+                                                        ? "border-primary/60"
+                                                        : "border-border/80 hover:border-primary/40",
+                                                )}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    onClick={() => {
+                                                        if (isRefreshing)
+                                                            return;
+                                                        void selectCredential(
+                                                            credential.id,
+                                                        );
+                                                    }}
+                                                    disabled={isRefreshing}
+                                                    aria-label={`Open ${credential.name}`}
+                                                >
+                                                    <CredentialListIcon />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block truncate text-[11px] font-medium leading-tight text-foreground">
+                                                            {credential.name}
+                                                        </span>
+                                                        <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+                                                            {credential.username ||
+                                                                "No username"}
+                                                        </span>
+                                                    </span>
+                                                </button>
+
+                                                <TooltipProvider
+                                                    delayDuration={250}
+                                                >
+                                                    <div className="flex flex-shrink-0 items-center gap-0.5">
+                                                        {(
+                                                            [
+                                                                {
+                                                                    field: "username",
+                                                                    label: "Copy username",
+                                                                    icon: User,
+                                                                    visible:
+                                                                        Boolean(
+                                                                            credential.username,
+                                                                        ),
+                                                                },
+                                                                {
+                                                                    field: "password",
+                                                                    label: "Copy password",
+                                                                    icon: Key,
+                                                                    visible: true,
+                                                                },
+                                                                {
+                                                                    field: "totp",
+                                                                    label: "Copy TOTP code",
+                                                                    icon: Shield,
+                                                                    visible:
+                                                                        Boolean(
+                                                                            credential.hasTOTP,
+                                                                        ),
+                                                                },
+                                                            ] as const
+                                                        )
+                                                            .filter(
+                                                                (action) =>
+                                                                    action.visible,
+                                                            )
+                                                            .map((action) => {
+                                                                const Icon =
+                                                                    action.icon;
+                                                                const copyKey = `${credential.id}:${action.field}`;
+                                                                const isCopying =
+                                                                    quickCopyKey ===
+                                                                    copyKey;
+
+                                                                return (
+                                                                    <Tooltip
+                                                                        key={
+                                                                            action.field
+                                                                        }
+                                                                    >
+                                                                        <TooltipTrigger
+                                                                            asChild
+                                                                        >
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className={cn(
+                                                                                    "h-7 w-7 text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                                                                                    action.field ===
+                                                                                        "totp" &&
+                                                                                        "w-10 px-1 text-[9px] font-semibold text-primary",
+                                                                                )}
+                                                                                onClick={() =>
+                                                                                    void handleQuickCopy(
+                                                                                        credential,
+                                                                                        action.field,
+                                                                                    )
+                                                                                }
+                                                                                disabled={
+                                                                                    quickCopyKey !==
+                                                                                    null
+                                                                                }
+                                                                                aria-label={
+                                                                                    action.label
+                                                                                }
+                                                                            >
+                                                                                {isCopying ? (
+                                                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                                ) : action.field ===
+                                                                                  "totp" ? (
+                                                                                    "TOTP"
+                                                                                ) : (
+                                                                                    <Icon className="h-3.5 w-3.5" />
+                                                                                )}
+                                                                            </Button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            {
+                                                                                action.label
+                                                                            }
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </TooltipProvider>
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
+                            </section>
+                        ) : null}
                         {filteredCredentials.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center px-3 text-center text-muted-foreground">
                                 <Shield className="mb-2 h-6 w-6 opacity-50" />

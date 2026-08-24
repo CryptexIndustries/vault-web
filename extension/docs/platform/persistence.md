@@ -24,17 +24,29 @@ Extension vaults with non-`NONE` primary factor cannot unlock DEK
 Memory-backed. Cleared on browser shutdown, `Lock`, system idle, or explicit
 `session.clear()`.
 
-| Key               | Owner                                | Contents                                   |
-| ----------------- | ------------------------------------ | ------------------------------------------ |
-| `UV`              | `background.ts`                      | Full decrypted `Vault` protobuf            |
-| `UVM`             | `background.ts`                      | Base64-encoded vault metadata              |
-| `AVI`             | `background.ts`                      | Active vault DB index                      |
-| `SESSION_DEK:{n}` | `session-dek-store.ts`               | Raw vault DEK (base64); `TRUSTED_CONTEXTS` |
-| `OS_SESSION`      | `online-services-session-storage.ts` | JWT, expiry, deviceId, privateKeyJWK       |
-| `PENDING_SAVE`    | `autofill-router.ts`                 | Captured login incl. password (5 min TTL)  |
+| Key               | Owner                                | Contents                                                     |
+| ----------------- | ------------------------------------ | ------------------------------------------------------------ |
+| `UV`              | `background.ts`                      | Full decrypted `Vault` protobuf                              |
+| `UVM`             | `background.ts`                      | Base64-encoded vault metadata                                |
+| `AVI`             | `background.ts`                      | Active vault DB index                                        |
+| `SESSION_DEK:{n}` | `session-dek-store.ts`               | Raw vault DEK (base64); `TRUSTED_CONTEXTS`                   |
+| `OS_SESSION`      | `online-services-session-storage.ts` | JWT, expiry, deviceId, privateKeyJWK                         |
+| `PENDING_SAVE`    | `autofill-router.ts`                 | Captured login incl. password (5 min TTL)                    |
+| `DRAFT_SAVE`      | `credential-draft-store.ts`          | In-flight credential form draft (mode, form data, stashedAt) |
 
 `UV` is the highest-sensitivity session key: all credential secrets while
 unlocked.
+
+`DRAFT_SAVE` is the in-flight credential form draft: SW-owned and session-scoped.
+While the popup's form is open and dirty, the popup stashes the current form
+values here 500 ms after the last change; on the next popup open the SW
+validates the draft against the live unlocked vault (stale edit drafts — the
+credential was deleted or its version changed while the popup was closed — are
+dropped) and re-presents the form pre-filled. The draft is cleared on
+successful save, explicit discard, vault lock / idle lock, and browser
+shutdown. The draft stores the form data exactly as typed and may be
+incomplete (e.g. password filled, name empty) - completeness is validated
+only at submit time.
 
 ## `chrome.storage.local`
 

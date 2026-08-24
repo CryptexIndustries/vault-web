@@ -58,6 +58,14 @@ import {
 } from "./background/session-dek-store";
 import { registerVaultActionStateIndicator } from "./background/action-icon";
 import {
+    clearCredentialDraft,
+    getCredentialDraft,
+    normalizeDraftForm,
+    setCredentialDraft,
+    validateCredentialDraftAgainstVault,
+    validateSaveCredentialDraftRequest,
+} from "./background/credential-draft-store";
+import {
     clearPageOrigin,
     getActivePageOrigin,
     recordPageOrigin,
@@ -98,6 +106,9 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.ConsumePendingSavePrompt,
     MessageType.GetActivePageOrigin,
     MessageType.SyncSetLastSync,
+    MessageType.GetCredentialDraft,
+    MessageType.SaveCredentialDraft,
+    MessageType.ClearCredentialDraft,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -1036,6 +1047,80 @@ async function processMessageUncoordinated(
 
             case MessageType.ConsumePendingSavePrompt: {
                 return await handleConsumePendingSavePrompt();
+            }
+
+            case MessageType.GetCredentialDraft: {
+                const vault = await getVaultFromSessionStorage();
+                const dbIndex = vault ? await getActiveVaultDbIndex() : null;
+                if (!vault || dbIndex == null) {
+                    return { ok: true, draft: null };
+                }
+                const draft = await getCredentialDraft();
+                if (!draft) return { ok: true, draft: null };
+                if (
+                    !validateCredentialDraftAgainstVault(draft, vault, dbIndex)
+                ) {
+                    // Stale (edited credential deleted/version-changed, or the
+                    // draft belongs to a different vault): drop it so the popup
+                    // is not re-presented with data it cannot apply.
+                    await clearCredentialDraft();
+                    return { ok: true, draft: null };
+                }
+                return { ok: true, draft };
+            }
+
+            case MessageType.SaveCredentialDraft: {
+                const validation = validateSaveCredentialDraftRequest(payload);
+                if (!validation.ok) {
+                    return { ok: false, error: validation.error };
+                }
+                const vault = await getVaultFromSessionStorage();
+                const dbIndex = vault ? await getActiveVaultDbIndex() : null;
+                if (!vault || dbIndex == null) {
+                    return { ok: false, error: "VAULT_LOCKED" };
+                }
+                let credentialVersion: number | null = null;
+                if (validation.request.mode === "edit") {
+                    const id = validation.request.credentialId;
+                    if (!id)
+                        return {
+                            ok: false,
+                            error: "DRAFT_CREDENTIAL_ID_REQUIRED",
+                        };
+                    const credential = vault.Credentials.find(
+                        (c) => c.ID === id,
+                    );
+                    if (!credential || credential.Deleted) {
+                        return {
+                            ok: false,
+                            error: "DRAFT_CREDENTIAL_NOT_FOUND",
+                        };
+                    }
+                    credentialVersion = credential.Version;
+                }
+                await setCredentialDraft({
+                    vaultDbIndex: dbIndex,
+                    mode: validation.request.mode,
+                    credentialId:
+                        validation.request.mode === "edit"
+                            ? validation.request.credentialId!
+                            : null,
+                    credentialVersion,
+                    form: normalizeDraftForm(
+                        validation.request.form,
+                        validation.request.mode,
+                        validation.request.mode === "edit"
+                            ? validation.request.credentialId!
+                            : null,
+                    ),
+                    stashedAt: Date.now(),
+                });
+                return { ok: true };
+            }
+
+            case MessageType.ClearCredentialDraft: {
+                await clearCredentialDraft();
+                return { ok: true };
             }
 
             case MessageType.OpenPopup: {

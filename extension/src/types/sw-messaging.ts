@@ -2,6 +2,7 @@ import type {
     CredentialURL,
     CredentialURLMatchMode,
 } from "@cryptex-industries/vault-core/proto";
+import { type CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
 
 export enum MessageType {
     GetState = 0,
@@ -111,6 +112,20 @@ export enum MessageType {
      * persisted `LinkedDevice.LastSync` can feed the last-sync UI.
      */
     SyncSetLastSync = 32,
+
+    /**
+     * Popup: read the stashed in-flight credential form draft (if any).
+     * The SW validates the draft against the live unlocked vault before
+     * returning it and drops stale drafts (e.g. the edited credential was
+     * deleted or its version changed via sync).
+     */
+    GetCredentialDraft = 33,
+
+    /** Popup: stash/replace the in-flight credential form draft. */
+    SaveCredentialDraft = 34,
+
+    /** Popup: clear the stashed credential form draft. */
+    ClearCredentialDraft = 35,
 }
 
 /**
@@ -277,6 +292,45 @@ export interface PendingSavePrompt {
     password: string;
     /** Epoch millis when the prompt was stashed. Used to enforce a TTL. */
     stashedAt: number;
+}
+
+export type CredentialDraftMode = "create" | "edit";
+
+/**
+ * In-flight credential form draft owned by the SW in session storage.
+ * Modeled on the Proton Pass extension's item drafts: a single active
+ * draft whose form data is captured while the user types. Session-scoped:
+ * cleared on vault lock, idle lock, and browser shutdown (session
+ * storage semantics), plus explicit save/discard.
+ */
+export interface CredentialDraft {
+    /** `VaultMetadata.DBIndex` of the vault the draft belongs to. */
+    vaultDbIndex: number;
+    mode: CredentialDraftMode;
+    /** Edit mode only: ID of the credential being edited. */
+    credentialId: string | null;
+    /**
+     * Edit mode only: `Credential.Version` at stash time. Used to detect
+     * stale drafts when the credential changed (sync) while the popup was closed.
+     */
+    credentialVersion: number | null;
+    form: CredentialFormSchemaType;
+    /** Epoch millis when the draft was stashed. */
+    stashedAt: number;
+}
+
+/** Payload for `MessageType.SaveCredentialDraft`. */
+export interface SaveCredentialDraftRequest {
+    mode: CredentialDraftMode;
+    /** Required in edit mode. */
+    credentialId?: string;
+    form: CredentialFormSchemaType;
+}
+
+/** Response for `MessageType.GetCredentialDraft`. */
+export interface GetCredentialDraftResponse {
+    ok: true;
+    draft: CredentialDraft | null;
 }
 
 /** Response for `MessageType.GenerateTOTP`. */

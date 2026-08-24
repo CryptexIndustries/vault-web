@@ -35,11 +35,14 @@ import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
     ActivePageOrigin,
+    CredentialDraft,
     EncryptedEnvelope,
     GetActivePageOriginResponse,
+    GetCredentialDraftResponse,
     LiteCredential,
     MessageType,
     PlaintextEnvelope,
+    SaveCredentialDraftRequest,
     SyncSetLastSyncRequest,
 } from "./types/sw-messaging";
 import {
@@ -96,6 +99,7 @@ import { CredentialURLRulesEditor } from "@/components/vault-dashboard/credentia
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
+import { uiLog } from "./utils/ext-logging";
 import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 
 type VaultViewProps = {
@@ -111,6 +115,9 @@ type VaultViewProps = {
 type CredentialFormMode = "create" | "edit" | null;
 
 let GlobalSyncConnectionController: SyncConnectionController | null = null;
+
+/** Delay after the last dirty form change before the draft is stashed. */
+const DRAFT_DEBOUNCE_MS = 500;
 
 const VaultView: React.FC<VaultViewProps> = ({
     name,
@@ -129,11 +136,24 @@ const VaultView: React.FC<VaultViewProps> = ({
         useState<CredentialFormMode>(null);
     const [editingCredential, setEditingCredential] =
         useState<VaultCredential | null>(null);
+    const [restoredDraft, setRestoredDraft] = useState<CredentialDraft | null>(
+        null,
+    );
+    const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
     const [selectedCredential, setSelectedCredential] =
         useState<VaultCredential | null>(null);
 
     // Modal states
     const credentialModalVisible = useState(false);
+    const credentialModalOpen = credentialModalVisible[0];
+    // Live mirror of the form modal's open state so async draft work can
+    // check it without capturing a stale render-time value.
+    const formModalOpenRef = useRef(credentialModalVisible[0]);
+    useEffect(() => {
+        formModalOpenRef.current = credentialModalVisible[0];
+    });
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
 
     // Loading states for CRUD operations
@@ -214,6 +234,72 @@ const VaultView: React.FC<VaultViewProps> = ({
     });
 
     const watchedTotp = watch("TOTP");
+
+    // Debounced capture of the in-flight form into the SW draft stash:
+    // every form change restarts the timer, so the value lands in session
+    // storage 500 ms after the last change while the form is open/dirty.
+    const watchedFormValues = watch();
+
+    useEffect(() => {
+        if (draftSaveTimerRef.current) {
+            clearTimeout(draftSaveTimerRef.current);
+            draftSaveTimerRef.current = null;
+        }
+
+        if (
+            !credentialModalOpen ||
+            credentialFormMode === null ||
+            !isDirty ||
+            isSubmitting ||
+            isCreating ||
+            isUpdating
+        ) {
+            return;
+        }
+
+        draftSaveTimerRef.current = setTimeout(() => {
+            void (async () => {
+                const payload: SaveCredentialDraftRequest = {
+                    mode: credentialFormMode,
+                    form: getValues(),
+                };
+                if (credentialFormMode === "edit" && editingCredential) {
+                    payload.credentialId = editingCredential.ID;
+                }
+                const res = await sendEncryptedEnvelopeToSW<
+                    { ok: true } | { ok: false; error: string }
+                >(MessageType.SaveCredentialDraft, payload);
+                if (!res.ok) {
+                    uiLog.debug("Failed to stash credential draft", {
+                        error: res.error,
+                    });
+                    return;
+                }
+                if (!res.payload.ok) {
+                    uiLog.debug("Failed to stash credential draft", {
+                        error: res.payload.error,
+                    });
+                }
+            })();
+        }, DRAFT_DEBOUNCE_MS);
+
+        return () => {
+            if (draftSaveTimerRef.current) {
+                clearTimeout(draftSaveTimerRef.current);
+                draftSaveTimerRef.current = null;
+            }
+        };
+    }, [
+        watchedFormValues,
+        isDirty,
+        isSubmitting,
+        isCreating,
+        isUpdating,
+        credentialFormMode,
+        credentialModalOpen,
+        editingCredential,
+        getValues,
+    ]);
     const currentSiteUrl = currentSiteContext?.url ?? null;
     const currentSiteHost = currentSiteContext?.host ?? null;
 
@@ -638,6 +724,44 @@ const VaultView: React.FC<VaultViewProps> = ({
         );
     };
 
+    // SW-stashed credential form draft: the SW owns the stash in session
+    // storage; these helpers only talk to it.
+    const clearCredentialDraftRemote = useCallback(async (): Promise<void> => {
+        const res = await sendEncryptedEnvelopeToSW<
+            { ok: true } | { ok: false; error: string }
+        >(MessageType.ClearCredentialDraft, null);
+        if (!res.ok) {
+            uiLog.debug("Failed to clear stashed credential draft", {
+                error: res.error,
+            });
+            return;
+        }
+        if (!res.payload.ok) {
+            uiLog.debug("Failed to clear stashed credential draft", {
+                error: res.payload.error,
+            });
+        }
+    }, []);
+
+    /** Opens the form pre-filled from a stashed draft (popup re-presentation). */
+    const applyDraft = useCallback(
+        (draft: CredentialDraft) => {
+            setCredentialFormMode(draft.mode);
+            setEditingCredential(
+                draft.mode === "edit" && draft.credentialId
+                    ? ({ ID: draft.credentialId } as VaultCredential)
+                    : null,
+            );
+            setShowFormPassword(false);
+            setRevealedCustomFieldIds({});
+            credentialModalVisible[1](true);
+            reset(draft.form);
+
+            setRestoredDraft(draft);
+        },
+        [reset, credentialModalVisible],
+    );
+
     // Credential CRUD operations
     const createCredential = async (formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) {
@@ -655,6 +779,9 @@ const VaultView: React.FC<VaultViewProps> = ({
             credentialModalVisible[1](false);
             setCredentialFormMode(null);
             reset();
+            // The stash was consumed by the save (also covers the STALE_KEY
+            // retry path, which re-runs successFn).
+            void clearCredentialDraftRemote();
         };
 
         setIsCreating(true);
@@ -769,6 +896,9 @@ const VaultView: React.FC<VaultViewProps> = ({
             setCredentialFormMode(null);
             setEditingCredential(null);
             reset();
+            // The stash was consumed by the save (also covers the STALE_KEY
+            // retry path, which re-runs successFn).
+            void clearCredentialDraftRemote();
         };
 
         setIsUpdating(true);
@@ -1319,6 +1449,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const openCreateForm = () => {
+        setRestoredDraft(null);
         setCredentialFormMode("create");
         setEditingCredential(null);
         setShowFormPassword(false);
@@ -1343,6 +1474,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const openEditForm = (credential: VaultCredential) => {
+        setRestoredDraft(null);
         setCredentialFormMode("edit");
         setEditingCredential(credential);
         setShowFormPassword(false);
@@ -1381,15 +1513,27 @@ const VaultView: React.FC<VaultViewProps> = ({
         setShowFormPassword(false);
         credentialModalVisible[1](false);
         reset();
+        const hadRestoredDraft = restoredDraft !== null;
+        setRestoredDraft(null);
+        // A draft that was re-presented on popup open and closed without
+        // saving is declined: discard the SW stash so it is not re-presented
+        // on the next popup open. Fresh (non-restored) forms are unaffected:
+        // their explicit discard/save clears handle their own stash entries.
+        if (hadRestoredDraft) {
+            void clearCredentialDraftRemote();
+        }
     };
 
     const requestCloseCredentialForm = () => {
         if (isSubmitting || isCreating || isUpdating) return;
 
-        if (isDirty) {
+        if (isDirty || restoredDraft != null) {
             showWarningDialogFnRef.current?.(
                 "You have unsaved changes.",
-                () => closeCredentialForm(),
+                () => {
+                    void clearCredentialDraftRemote();
+                    closeCredentialForm();
+                },
                 null,
                 "Discard changes",
             );
@@ -1477,6 +1621,28 @@ const VaultView: React.FC<VaultViewProps> = ({
                 GlobalSyncConnectionController.teardown();
         };
     }, [refreshCredentials]);
+
+    // Re-present an in-flight credential form draft left behind when the
+    // popup was closed mid-edit (SW-stashed; validated against the live
+    // vault before it reaches us). Skipped if the user already opened a
+    // form while the fetch was in flight.
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            const res =
+                await sendEncryptedEnvelopeToSW<GetCredentialDraftResponse>(
+                    MessageType.GetCredentialDraft,
+                    null,
+                );
+            if (cancelled) return;
+            if (!res.ok || !res.payload?.ok || !res.payload.draft) return;
+            if (formModalOpenRef.current) return;
+            applyDraft(res.payload.draft);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [applyDraft]);
 
     useEffect(() => {
         // Clean up and close up the sync connection controller before we refresh it's instance w/ the new server public key
@@ -2236,6 +2402,23 @@ const VaultView: React.FC<VaultViewProps> = ({
                         className="flex min-h-0 flex-1 flex-col"
                     >
                         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                            {restoredDraft && (
+                                <div className="mb-4 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+                                    <span>Restored your unsaved draft</span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 gap-1 px-2 text-[10px] text-primary hover:text-primary"
+                                        onClick={() => {
+                                            closeCredentialForm();
+                                        }}
+                                    >
+                                        <X className="h-3 w-3" />
+                                        Discard
+                                    </Button>
+                                </div>
+                            )}
                             <div className="space-y-5">
                                 {/* Basic Info */}
                                 <div className="space-y-4">

@@ -463,41 +463,45 @@ export class CustomField implements VaultUtilTypes.CustomField {
     }
 }
 
-export const CredentialFormSchema = z
-    .object({
-        ID: z.string().nullable(),
-        Type: z.nativeEnum(VaultUtilTypes.ItemType),
-        DirectoryID: z.string(),
-        Name: z
-            .string()
-            .min(1, REQUIRED_FIELD_ERROR)
-            .max(255, "Name is too long"),
-        Username: z.string(),
-        Password: z.string(),
-        TOTP: TOTPFormSchema.optional().nullable(), // This has to be nullable because of the way the form works
-        Tags: z.string().optional(),
-        URL: z.string(),
-        URLMatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
-        AdditionalURLs: z.array(
-            z.object({
-                URL: z.string(),
-                MatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
-            }),
-        ),
-        Notes: z.string(),
-        // DateCreated: z.string().optional(), // Used only in diffing
-        // DateModified: z.string().optional(), // Used only in diffing
-        // DatePasswordChanged: z.string().optional(), // Used only in diffing
-        CustomFields: z.array(
-            z.object({
-                ID: z.string(),
-                Name: z.string(),
-                Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
-                Value: z.string(),
-            }),
-        ),
-    })
-    .superRefine((form, context) => {
+/**
+ * Structural shape of the credential form. Completeness rules (name length,
+ * URL validity) are layered on top by `CredentialFormSchema` via superRefine.
+ * The shape itself is what `CredentialDraftFormSchema` relaxes further so
+ * in-flight (incomplete) form drafts can be stashed and restored.
+ */
+export const CredentialFormBaseSchema = z.object({
+    ID: z.string().nullable(),
+    Type: z.nativeEnum(VaultUtilTypes.ItemType),
+    DirectoryID: z.string(),
+    Name: z.string().min(1, REQUIRED_FIELD_ERROR).max(255, "Name is too long"),
+    Username: z.string(),
+    Password: z.string(),
+    TOTP: TOTPFormSchema.optional().nullable(), // This has to be nullable because of the way the form works
+    Tags: z.string().optional(),
+    URL: z.string(),
+    URLMatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
+    AdditionalURLs: z.array(
+        z.object({
+            URL: z.string(),
+            MatchMode: z.nativeEnum(VaultUtilTypes.CredentialURLMatchMode),
+        }),
+    ),
+    Notes: z.string(),
+    // DateCreated: z.string().optional(), // Used only in diffing
+    // DateModified: z.string().optional(), // Used only in diffing
+    // DatePasswordChanged: z.string().optional(), // Used only in diffing
+    CustomFields: z.array(
+        z.object({
+            ID: z.string(),
+            Name: z.string(),
+            Type: z.nativeEnum(VaultUtilTypes.CustomFieldType),
+            Value: z.string(),
+        }),
+    ),
+});
+
+export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
+    (form, context) => {
         const primaryRule = {
             URL: form.URL,
             MatchMode: form.URLMatchMode,
@@ -518,7 +522,22 @@ export const CredentialFormSchema = z
                 message: "Enter a valid URL or safe wildcard pattern.",
             });
         });
-    });
+    },
+);
+
+/**
+ * Shape-only variant used to stash in-flight credential form drafts. The name
+ * may still be empty and URLs may still be mid-typing. Only field types/structure
+ * are enforced here; completeness is validated at submit time against `CredentialFormSchema`.
+ */
+export const CredentialDraftFormSchema = z.object({
+    ...CredentialFormBaseSchema.shape,
+    Name: z.string(),
+});
+
+export type CredentialDraftFormSchemaType = z.infer<
+    typeof CredentialDraftFormSchema
+>;
 
 export type CredentialFormSchemaType = z.infer<typeof CredentialFormSchema>;
 export class VaultCredential

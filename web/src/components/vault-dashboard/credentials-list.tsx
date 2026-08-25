@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
     Search,
     Plus,
-    Grid3X3,
-    List,
     Key,
     Inbox,
     Globe,
@@ -157,8 +155,6 @@ export function CredentialsList({
     onMoveCredentials,
 }: CredentialsListProps) {
     const [searchQuery, setSearchQuery] = useState("");
-    const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-    const [isMobile, setIsMobile] = useState(false);
     const [selectedIDs, setSelectedIDs] = useState<Set<string>>(new Set());
     const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
     const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
@@ -167,26 +163,16 @@ export function CredentialsList({
     );
     const virtuosoRef = useRef<VirtuosoHandle | null>(null);
 
-    useEffect(() => {
-        const mediaQuery = window.matchMedia("(max-width: 639px)");
-        const updateIsMobile = () => setIsMobile(mediaQuery.matches);
-
-        updateIsMobile();
-        mediaQuery.addEventListener("change", updateIsMobile);
-        return () => mediaQuery.removeEventListener("change", updateIsMobile);
-    }, []);
-
     const filteredCredentials = credentials.filter((credential) =>
         credentialMatchesSearch(credential, searchQuery),
     );
-    const effectiveViewMode = isMobile ? "list" : viewMode;
 
     useEffect(() => {
         onFilteredCredentialsChange?.(filteredCredentials);
     }, [filteredCredentials, onFilteredCredentialsChange]);
 
     useEffect(() => {
-        if (!selectedId || effectiveViewMode !== "list") return;
+        if (!selectedId) return;
         const selectedIndex = filteredCredentials.findIndex(
             (credential) => credential.ID === selectedId,
         );
@@ -197,7 +183,7 @@ export function CredentialsList({
             align: "center",
             behavior: "smooth",
         });
-    }, [effectiveViewMode, filteredCredentials, selectedId]);
+    }, [filteredCredentials, selectedId]);
 
     useEffect(() => {
         setSelectedIDs(new Set());
@@ -377,50 +363,20 @@ export function CredentialsList({
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button
-                        onClick={onAddNew}
-                        className="inline-flex w-full gap-2 sm:w-auto"
-                        size="sm"
-                    >
-                        <Plus className="h-4 w-4" />
-                        <span>Add New</span>
-                    </Button>
-                    <CredentialSearch
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                        focusRequestToken={searchFocusRequestToken}
-                    />
-                    <div className="flex items-center gap-2">
-                        {!isMobile && (
-                            <div className="flex items-center overflow-hidden rounded-md border border-border">
-                                <Button
-                                    variant={
-                                        viewMode === "list"
-                                            ? "secondary"
-                                            : "ghost"
-                                    }
-                                    size="icon"
-                                    onClick={() => setViewMode("list")}
-                                    className="rounded-none"
-                                    aria-label="List view"
-                                >
-                                    <List className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant={
-                                        viewMode === "grid"
-                                            ? "secondary"
-                                            : "ghost"
-                                    }
-                                    size="icon"
-                                    onClick={() => setViewMode("grid")}
-                                    className="rounded-none"
-                                    aria-label="Grid view"
-                                >
-                                    <Grid3X3 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        )}
+                    <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                        <CredentialSearch
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                            focusRequestToken={searchFocusRequestToken}
+                        />
+                        <Button
+                            onClick={onAddNew}
+                            className="inline-flex shrink-0 gap-2"
+                            size="sm"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>Add New</span>
+                        </Button>
                     </div>
                 </div>
                 <div className="flex items-center justify-between px-2 sm:pt-2">
@@ -488,338 +444,89 @@ export function CredentialsList({
             </div>
 
             {/* Credentials list */}
-            {effectiveViewMode === "list" ? (
-                <div className="min-h-0 flex-1">
-                    {credentials.length === 0 ? (
-                        <VaultEmptyState />
-                    ) : filteredCredentials.length === 0 ? (
-                        <SearchEmptyState />
-                    ) : (
-                        <Virtuoso
-                            ref={virtuosoRef}
-                            style={{ height: "100%" }}
-                            className="min-w-0"
-                            data={filteredCredentials}
-                            computeItemKey={(_index, credential) =>
-                                credential.ID
-                            }
-                            itemContent={(_index, credential) => {
-                                const tags = parseTags(credential.Tags);
-                                const visibleTags = tags.slice(
-                                    0,
-                                    MAX_VISIBLE_TAGS,
-                                );
-                                const hiddenTagCount = Math.max(
-                                    tags.length - MAX_VISIBLE_TAGS,
-                                    0,
-                                );
-                                return (
-                                    <div className="px-1 first:pt-3 sm:px-2 sm:first:pt-2">
-                                        <div
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={() => onSelect(credential)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                    e.preventDefault();
-                                                    onSelect(credential);
-                                                } else if (e.key === " ") {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    toggleCredentialChecked(
-                                                        credential.ID,
-                                                    );
-                                                }
-                                            }}
-                                            className={cn(
-                                                "w-full min-w-0 cursor-pointer text-left transition-all",
-                                                "hover:border-primary/50 flex items-start gap-2 rounded-lg border p-2.5 sm:items-center sm:gap-4 sm:p-3",
-                                                selectedId === credential.ID
-                                                    ? "bg-primary/5 border-primary"
-                                                    : "bg-card border-border",
-                                            )}
-                                        >
-                                            <Checkbox
-                                                checked={selectedIDs.has(
-                                                    credential.ID,
-                                                )}
-                                                aria-label={`Select ${credential.Name}`}
-                                                onClick={(event) =>
-                                                    event.stopPropagation()
-                                                }
-                                                onCheckedChange={(checked) => {
-                                                    setSelectedIDs(
-                                                        (previous) => {
-                                                            const next =
-                                                                new Set(
-                                                                    previous,
-                                                                );
-                                                            if (checked) {
-                                                                next.add(
-                                                                    credential.ID,
-                                                                );
-                                                            } else {
-                                                                next.delete(
-                                                                    credential.ID,
-                                                                );
-                                                            }
-                                                            return next;
-                                                        },
-                                                    );
-                                                }}
-                                            />
-                                            {/* Favicon */}
-                                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted sm:h-10 sm:w-10">
-                                                {credential.Type ===
-                                                ItemType.Passkey ? (
-                                                    <Fingerprint className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
-                                                ) : (
-                                                    <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
-                                                )}
-                                            </div>
-
-                                            {/* Content */}
-                                            <div className="min-w-0 flex-1">
-                                                <div className="mb-1 flex min-w-0 items-center gap-2">
-                                                    <span className="block min-w-0 truncate text-sm font-medium text-foreground sm:text-base">
-                                                        {credential.Name}
-                                                    </span>
-                                                    {credential.TOTP && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
-                                                        >
-                                                            <Key className="mr-1 h-3 w-3" />
-                                                            <span className="hidden sm:inline">
-                                                                2FA
-                                                            </span>
-                                                        </Badge>
-                                                    )}
-                                                    {credential.Passkey && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="h-5 flex-shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-xs text-primary"
-                                                        >
-                                                            <Fingerprint className="mr-1 h-3 w-3" />
-                                                            Passkey
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                                    {credential.Type ===
-                                                    ItemType.Passkey
-                                                        ? credential.Passkey
-                                                              ?.UserDisplayName ||
-                                                          credential.Passkey
-                                                              ?.UserName ||
-                                                          credential.URL
-                                                        : credential.Username}
-                                                </p>
-                                                <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
-                                                    {visibleTags.map((tag) => (
-                                                        <Badge
-                                                            key={tag}
-                                                            variant="outline"
-                                                            className="max-w-[110px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
-                                                        >
-                                                            <span className="truncate">
-                                                                {tag}
-                                                            </span>
-                                                        </Badge>
-                                                    ))}
-                                                    {hiddenTagCount > 0 && (
-                                                        <Badge
-                                                            variant="secondary"
-                                                            className="text-xs"
-                                                        >
-                                                            +{hiddenTagCount}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground sm:hidden">
-                                                    <Clock className="h-3 w-3" />
-                                                    {formatDate(
-                                                        credential.DateModifiedTimestamp ||
-                                                            credential.DateCreatedTimestamp,
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* List view extras */}
-                                            <div className="hidden flex-shrink-0 flex-wrap items-center gap-1.5 md:flex">
-                                                {visibleTags.map((tag) => (
-                                                    <Badge
-                                                        key={tag}
-                                                        variant="outline"
-                                                        className="max-w-[120px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
-                                                    >
-                                                        <span className="truncate">
-                                                            {tag}
-                                                        </span>
-                                                    </Badge>
-                                                ))}
-                                                {hiddenTagCount > 0 && (
-                                                    <Badge
-                                                        variant="secondary"
-                                                        className="text-xs"
-                                                    >
-                                                        +{hiddenTagCount}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <div className="hidden flex-shrink-0 items-center gap-1 text-xs text-muted-foreground sm:flex">
-                                                <Clock className="h-3 w-3" />
-                                                {formatDate(
-                                                    credential.DateModifiedTimestamp ||
-                                                        credential.DateCreatedTimestamp,
-                                                )}
-                                            </div>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger
-                                                    asChild
-                                                    onClick={(e) =>
-                                                        e.stopPropagation()
-                                                    }
-                                                >
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="mt-0.5 h-8 w-8 flex-shrink-0 sm:mt-0 sm:h-9 sm:w-9"
-                                                        aria-label={`Actions for ${credential.Name}`}
-                                                    >
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onCopyUsername(
-                                                                credential,
-                                                            );
-                                                        }}
-                                                    >
-                                                        <Copy className="mr-2 h-4 w-4" />
-                                                        Copy username
-                                                    </DropdownMenuItem>
-                                                    {credential.Password && (
-                                                        <DropdownMenuItem
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onCopyPassword(
-                                                                    credential,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Key className="mr-2 h-4 w-4" />
-                                                            Copy password
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    {credential.TOTP && (
-                                                        <DropdownMenuItem
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onCopyTOTP(
-                                                                    credential,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Key className="mr-2 h-4 w-4" />
-                                                            Copy OTP
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    {normalizeCredentialUrl(
-                                                        credential.URL,
-                                                    ) && (
-                                                        <DropdownMenuItem
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onOpenUrl(
-                                                                    credential,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Globe className="mr-2 h-4 w-4" />
-                                                            Open URL
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        className="text-destructive"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onDeleteCredential(
-                                                                credential,
-                                                            );
-                                                        }}
-                                                    >
-                                                        <Trash2 className="mr-2 h-4 w-4" />
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
-                                    </div>
-                                );
-                            }}
-                        />
-                    )}
-                </div>
-            ) : (
-                <div className="min-w-0 flex-1 overflow-y-auto">
-                    {credentials.length === 0 ? (
-                        <VaultEmptyState />
-                    ) : filteredCredentials.length === 0 ? (
-                        <SearchEmptyState />
-                    ) : (
-                        <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4">
-                            {filteredCredentials.map((credential) => {
-                                const tags = parseTags(credential.Tags);
-                                const visibleTags = tags.slice(
-                                    0,
-                                    MAX_VISIBLE_TAGS,
-                                );
-                                const hiddenTagCount = Math.max(
-                                    tags.length - MAX_VISIBLE_TAGS,
-                                    0,
-                                );
-                                return (
+            <div className="min-h-0 flex-1">
+                {credentials.length === 0 ? (
+                    <VaultEmptyState />
+                ) : filteredCredentials.length === 0 ? (
+                    <SearchEmptyState />
+                ) : (
+                    <Virtuoso
+                        ref={virtuosoRef}
+                        style={{ height: "100%" }}
+                        className="min-w-0"
+                        data={filteredCredentials}
+                        computeItemKey={(_index, credential) => credential.ID}
+                        itemContent={(_index, credential) => {
+                            const tags = parseTags(credential.Tags);
+                            const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
+                            const hiddenTagCount = Math.max(
+                                tags.length - MAX_VISIBLE_TAGS,
+                                0,
+                            );
+                            return (
+                                <div className="px-1 first:pt-3 sm:px-2 sm:first:pt-2">
                                     <div
-                                        key={credential.ID}
                                         role="button"
                                         tabIndex={0}
                                         onClick={() => onSelect(credential)}
                                         onKeyDown={(e) => {
-                                            if (
-                                                e.key === "Enter" ||
-                                                e.key === " "
-                                            ) {
+                                            if (e.key === "Enter") {
                                                 e.preventDefault();
                                                 onSelect(credential);
+                                            } else if (e.key === " ") {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                toggleCredentialChecked(
+                                                    credential.ID,
+                                                );
                                             }
                                         }}
                                         className={cn(
                                             "w-full min-w-0 cursor-pointer text-left transition-all",
-                                            "hover:border-primary/50 rounded-lg border p-3 sm:p-4",
+                                            "hover:border-primary/50 flex items-start gap-2 rounded-lg border p-2.5 sm:items-center sm:gap-4 sm:p-3",
                                             selectedId === credential.ID
                                                 ? "bg-primary/5 border-primary"
                                                 : "bg-card border-border",
                                         )}
                                     >
+                                        <Checkbox
+                                            checked={selectedIDs.has(
+                                                credential.ID,
+                                            )}
+                                            aria-label={`Select ${credential.Name}`}
+                                            onClick={(event) =>
+                                                event.stopPropagation()
+                                            }
+                                            onCheckedChange={(checked) => {
+                                                setSelectedIDs((previous) => {
+                                                    const next = new Set(
+                                                        previous,
+                                                    );
+                                                    if (checked) {
+                                                        next.add(credential.ID);
+                                                    } else {
+                                                        next.delete(
+                                                            credential.ID,
+                                                        );
+                                                    }
+                                                    return next;
+                                                });
+                                            }}
+                                        />
                                         {/* Favicon */}
-                                        <div className="mb-3 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
+                                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted sm:h-10 sm:w-10">
                                             {credential.Type ===
                                             ItemType.Passkey ? (
-                                                <Fingerprint className="h-5 w-5 text-primary" />
+                                                <Fingerprint className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
                                             ) : (
-                                                <Globe className="h-5 w-5 text-muted-foreground" />
+                                                <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
                                             )}
                                         </div>
 
                                         {/* Content */}
-                                        <div className="min-w-0">
+                                        <div className="min-w-0 flex-1">
                                             <div className="mb-1 flex min-w-0 items-center gap-2">
-                                                <span className="block min-w-0 flex-1 truncate text-sm font-medium text-foreground sm:text-base">
+                                                <span className="block min-w-0 truncate text-sm font-medium text-foreground sm:text-base">
                                                     {credential.Name}
                                                 </span>
                                                 {credential.TOTP && (
@@ -853,12 +560,12 @@ export function CredentialsList({
                                                       credential.URL
                                                     : credential.Username}
                                             </p>
-                                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                            <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
                                                 {visibleTags.map((tag) => (
                                                     <Badge
                                                         key={tag}
                                                         variant="outline"
-                                                        className="max-w-[120px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
+                                                        className="max-w-[110px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
                                                     >
                                                         <span className="truncate">
                                                             {tag}
@@ -874,16 +581,135 @@ export function CredentialsList({
                                                     </Badge>
                                                 )}
                                             </div>
+                                            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground sm:hidden">
+                                                <Clock className="h-3 w-3" />
+                                                {formatDate(
+                                                    credential.DateModifiedTimestamp ||
+                                                        credential.DateCreatedTimestamp,
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* List view extras */}
+                                        <div className="hidden flex-shrink-0 flex-wrap items-center gap-1.5 md:flex">
+                                            {visibleTags.map((tag) => (
+                                                <Badge
+                                                    key={tag}
+                                                    variant="outline"
+                                                    className="max-w-[120px] border-border/70 bg-muted/60 text-xs text-muted-foreground"
+                                                >
+                                                    <span className="truncate">
+                                                        {tag}
+                                                    </span>
+                                                </Badge>
+                                            ))}
+                                            {hiddenTagCount > 0 && (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-xs"
+                                                >
+                                                    +{hiddenTagCount}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="hidden flex-shrink-0 items-center gap-1 text-xs text-muted-foreground sm:flex">
+                                            <Clock className="h-3 w-3" />
+                                            {formatDate(
+                                                credential.DateModifiedTimestamp ||
+                                                    credential.DateCreatedTimestamp,
+                                            )}
+                                        </div>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger
+                                                asChild
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
+                                            >
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="mt-0.5 h-8 w-8 flex-shrink-0 sm:mt-0 sm:h-9 sm:w-9"
+                                                    aria-label={`Actions for ${credential.Name}`}
+                                                >
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onCopyUsername(
+                                                            credential,
+                                                        );
+                                                    }}
+                                                >
+                                                    <Copy className="mr-2 h-4 w-4" />
+                                                    Copy username
+                                                </DropdownMenuItem>
+                                                {credential.Password && (
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onCopyPassword(
+                                                                credential,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Key className="mr-2 h-4 w-4" />
+                                                        Copy password
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {credential.TOTP && (
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onCopyTOTP(
+                                                                credential,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Key className="mr-2 h-4 w-4" />
+                                                        Copy OTP
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {normalizeCredentialUrl(
+                                                    credential.URL,
+                                                ) && (
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onOpenUrl(
+                                                                credential,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Globe className="mr-2 h-4 w-4" />
+                                                        Open URL
+                                                    </DropdownMenuItem>
+                                                )}
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className="text-destructive"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDeleteCredential(
+                                                            credential,
+                                                        );
+                                                    }}
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
+                                </div>
+                            );
+                        }}
+                    />
+                )}
+            </div>
 
             <DirectoryEditorDialog
                 open={directoryEditorOpen}

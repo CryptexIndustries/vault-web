@@ -17,6 +17,7 @@ while the vault is unlocked.
 | ---------------- | ------------------------------------------------------------------------- |
 | Envelope hub     | `background.ts`, `utils/security-utils.ts`, `utils/session-utils.ts`      |
 | Vault session    | `background.ts`, `background/session-dek-store.ts`                        |
+| Backups          | `background/backup-service.ts`, `utils/backup-staging.ts`                 |
 | Autofill routing | `background/autofill-router.ts`, `background/autofill-frame-bootstrap.ts` |
 | tRPC proxy       | `background/request-auth-interceptor.ts`                                  |
 | OS JWT           | `app_lib/auth-session-ext.ts`, `utils/online-services-session-storage.ts` |

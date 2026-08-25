@@ -6,30 +6,33 @@ architecture docs under `extension/docs/`.
 
 ## Scope
 
-| In scope                                                                          | Out of scope                                       |
-| --------------------------------------------------------------------------------- | -------------------------------------------------- |
-| MV3 extension (SW, popup/full-page vault, link, content script, autofill iframes) | Cryptex web app (separate codebase)                |
-| Local vault storage and session                                                   | Backend API compromise (assumed honest tRPC + TLS) |
-| Autofill on host pages                                                            | Physical device compromise (assumed out of band)   |
-| Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome)    |
+| In scope                                                                          | Out of scope                                               |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| MV3 extension (SW, popup/full-page vault, link, content script, autofill iframes) | Cryptex web app (separate codebase)                        |
+| Local vault storage and session                                                   | Backend API compromise (assumed honest tRPC + TLS)         |
+| Autofill on host pages                                                            | Physical device compromise (assumed out of band)           |
+| Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome)            |
+| Backup Center: local `.cryx` create/download; managed list/upload/download/delete | Fresh-device restore and Recovery Kit flows (web app only) |
 
 ## Assets
 
-| Asset                         | Location while at risk                                            | Impact if exposed                                       |
-| ----------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------- |
-| Master password               | Encrypted in unlock/assertion envelope; ephemeral in popup memory | Full vault decryption                                   |
-| Vault DEK                     | `chrome.storage.session` `SESSION_DEK:*`                          | Decrypt vault blob at rest                              |
-| Decrypted vault               | `chrome.storage.session` `UV`                                     | All passwords, TOTP secrets, notes                      |
-| Credential secrets (autofill) | CS → SW → fill path; pending save in session                      | Per-credential exposure                                 |
-| Passkey private JWK           | Encrypted vault; briefly imported non-extractable in SW           | Authentication as that credential                       |
-| Assertion ceremony            | `chrome.storage.session` for at most 2 minutes                    | RP/challenge/candidate metadata; signing authorization  |
-| Credential form draft         | `chrome.storage.session` `DRAFT_SAVE` (SW-owned)                  | Typed form data incl. new/changed password/other fields |
-| Online Services JWT           | `chrome.storage.session` `OS_SESSION`                             | API access as device                                    |
-| Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                              | Re-auth without user gesture                            |
-| ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                            | Decrypt captured envelopes                              |
-| Mnemonic (link receive)       | Link page memory during flow                                      | Decrypt link package                                    |
-| Diagnostic logs               | `chrome.storage.local` `extLogs`                                  | Metadata leakage (deviceId, vaultId, errors)            |
-| Clipboard                     | OS clipboard after copy actions                                   | Credential field exposure                               |
+| Asset                         | Location while at risk                                                          | Impact if exposed                                       |
+| ----------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Master password               | Encrypted in unlock/assertion envelope; ephemeral in popup memory               | Full vault decryption                                   |
+| Vault DEK                     | `chrome.storage.session` `SESSION_DEK:*`                                        | Decrypt vault blob at rest                              |
+| Decrypted vault               | `chrome.storage.session` `UV`                                                   | All passwords, TOTP secrets, notes                      |
+| Credential secrets (autofill) | CS → SW → fill path; pending save in session                                    | Per-credential exposure                                 |
+| Passkey private JWK           | Encrypted vault; briefly imported non-extractable in SW                         | Authentication as that credential                       |
+| Assertion ceremony            | `chrome.storage.session` for at most 2 minutes                                  | RP/challenge/candidate metadata; signing authorization  |
+| Credential form draft         | `chrome.storage.session` `DRAFT_SAVE` (SW-owned)                                | Typed form data incl. new/changed password/other fields |
+| Online Services JWT           | `chrome.storage.session` `OS_SESSION`                                           | API access as device                                    |
+| Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                                            | Re-auth without user gesture                            |
+| ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                                          | Decrypt captured envelopes                              |
+| Mnemonic (link receive)       | Link page memory during flow                                                    | Decrypt link package                                    |
+| Diagnostic logs               | `chrome.storage.local` `extLogs`                                                | Metadata leakage (deviceId, vaultId, errors)            |
+| Encrypted `.cryx` ciphertext  | IndexedDB `cryptex-backup-staging` (one-shot); popup after take; user Downloads | Vault at rest if the vault secret is also stolen        |
+| Local backup receipt          | `chrome.storage.local` `cryptex:local-backup-receipt:{vaultId}`                 | Last-backup time and blob fingerprint; not vault bytes  |
+| Clipboard                     | OS clipboard after copy actions                                                 | Credential field exposure                               |
 
 ## Trust boundaries
 
@@ -97,10 +100,21 @@ vault password never enters the host tab.
 - Passkey assertion messages are content-script-only; request sizes and active
   ceremonies are bounded, exact sender/origin bindings are rechecked on completion,
   and private key material never leaves the SW
+- Backup messages (`CreateEncryptedBackup`, `GetBackupContext`) are popup-only.
+  The SW serializes with the session DEK and stages ciphertext in IndexedDB
+  (`cryptex-backup-staging`). The envelope returns a one-shot `stagingId` and
+  `byteLength`, not backup bytes. The DEK never leaves the SW.
+  `CreateEncryptedBackup` rejects extra or non-boolean payload fields. Vault IDs
+  used as receipt keys are bounded (`[A-Za-z0-9_-]{1,64}`). Staged blobs above
+  128 MiB are refused. Debug logs redact `stagingId`. `GetBackupContext` returns
+  a session-presence boolean and the opened receipt — not JWTs or vault secrets
 
 **Residual:** Full vault in session while unlocked — any SW bug or extension
 compromise is total loss. `worker` origin binding is weak (public key only).
 Response envelope validation not implemented. Replay cache resets on SW eviction.
+A popup that can take a staged backup receives a portable encrypted vault file;
+that is intended, and unlocking it still needs the vault secret. An unused
+staging row lasts until lock/idle or the next create (which clears the store).
 
 ### B3 — Service worker ↔ Cryptex API
 
@@ -111,9 +125,20 @@ Response envelope validation not implemented. Replay cache resets on SW eviction
 - tRPC URL allowlist on configured app origin
 - GET/POST only; `credentials: omit`
 - JWT owned by SW; UI cannot inject auth headers
+- Managed backup tRPC (`v1.backup.*`) uses `ProxyFetch` like other authenticated
+  APIs. Object-store PUT/GET uses the signed URL from that tRPC response via
+  native `fetch` in the popup (`credentials: "omit"`). Those URLs must **not**
+  go through `ProxyFetch`, which would attach the Online Services JWT to a
+  non-tRPC origin. Download checks byte length and SHA-256 against the snapshot
+  metadata before the file is saved
 
 **Residual:** Compromised API or DNS hijack on dev wildcard host permissions.
-Mitigated in production by narrowed `host_permissions`.
+Mitigated in production by narrowed `host_permissions`. Object-store PUT/GET
+from the popup is a CORS request from `chrome-extension://<id>`, not a
+`host_permissions` fetch. It works when the bucket already allows that origin
+(or `*`) — the same CORS the web vault uses for signed URLs. Adding the object
+store to production `host_permissions` would bypass CORS and widen the install
+warning; do not add it unless CORS cannot include the extension origin.
 
 ### B4 — Extension ↔ sync/link peer (Pusher + WebRTC)
 
@@ -140,12 +165,18 @@ crypto mitigates payload disclosure but does not remove signaling trust.
 - DEK `TRUSTED_CONTEXTS` access level
 - Vault encrypted at rest in IndexedDB
 - Credential form draft (`DRAFT_SAVE`) session-scoped: cleared on lock, idle lock, browser shutdown, successful save, and explicit user discard
+- Local backup receipts are DEK-authenticated AES-GCM with vault-id AAD, size-bounded
+  (`<=512` stored chars), and treated as hostile on read. Lock does not delete them;
+  without the DEK they are indistinguishable from corrupt or forged input
 
 **Residual:** Unlocked vault is plaintext in `chrome.storage.session`. Malware with
 browser profile access reads `UV`. Pending save holds password up to 5 minutes.
 Form drafts hold typed (possibly new/changed) passwords for the whole unlocked
 window (up to 30 min idle).
-Logs persist device/vault metadata to `chrome.storage.local`.
+Logs persist device/vault metadata to `chrome.storage.local`. Receipts persist
+across lock and restart; they do not contain vault plaintext. A local `.cryx`
+download lives in the user's Downloads folder — encrypted, user-held, and not
+proven to still exist by the receipt.
 
 ## Attacker models
 
@@ -179,12 +210,13 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 
 **Goals:** Intercept API traffic, replay envelopes, MITM sync signaling.
 
-| Technique                            | Control                             | Residual risk                        |
-| ------------------------------------ | ----------------------------------- | ------------------------------------ |
-| Replay SW envelopes                  | Nonce cache + timestamp             | Low–medium — cache resets on SW wake |
-| Forge API requests from extension UI | ProxyFetch allowlist + JWT in SW    | Low                                  |
-| Read sync/link payloads on wire      | AEAD session encryption             | Low                                  |
-| MITM signaling                       | Channel auth + handshake signatures | Medium — availability/metadata       |
+| Technique                            | Control                               | Residual risk                        |
+| ------------------------------------ | ------------------------------------- | ------------------------------------ |
+| Replay SW envelopes                  | Nonce cache + timestamp               | Low–medium — cache resets on SW wake |
+| Forge API requests from extension UI | ProxyFetch allowlist + JWT in SW      | Low                                  |
+| Attach JWT to object-store transfer  | Native fetch; ProxyFetch is tRPC-only | Low - signed URL is capability       |
+| Read sync/link payloads on wire      | AEAD session encryption               | Low                                  |
+| MITM signaling                       | Channel auth + handshake signatures   | Medium — availability/metadata       |
 
 ### A4 — Malicious sync or link peer
 
@@ -199,23 +231,25 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 
 **Goals:** Read vault from disk, logs, clipboard, or unlocked session.
 
-| Technique                      | Control                     | Residual risk                                   |
-| ------------------------------ | --------------------------- | ----------------------------------------------- |
-| Read IndexedDB vault blobs     | Encrypted at rest           | Low without master password                     |
-| Read session while unlocked    | Lock on idle                | **High** - `UV` is plaintext                    |
-| Read form draft while unlocked | Session-scoped `DRAFT_SAVE` | Medium - typed password until lock/idle/discard |
-| Read persisted diagnostic logs | Browser profile access      | Medium - metadata                               |
-| Read clipboard after copy      | OS clipboard                | Medium - expected PM behavior                   |
+| Technique                      | Control                     | Residual risk                                                    |
+| ------------------------------ | --------------------------- | ---------------------------------------------------------------- |
+| Read IndexedDB vault blobs     | Encrypted at rest           | Low without master password                                      |
+| Read session while unlocked    | Lock on idle                | **High** - `UV` is plaintext                                     |
+| Read form draft while unlocked | Session-scoped `DRAFT_SAVE` | Medium - typed password until lock/idle/discard                  |
+| Read persisted diagnostic logs | Browser profile access      | Medium - metadata                                                |
+| Read local backup receipts     | DEK-authenticated AES-GCM   | Low without DEK; Medium while unlocked (time + fingerprint only) |
+| Read downloaded `.cryx`        | Encrypted vault file        | Low without vault secret; user-held like any backup              |
+| Read clipboard after copy      | OS clipboard                | Medium - expected PM behavior                                    |
 
 ### A6 — Extension supply chain / developer mistake
 
 **Goals:** N/A — integrity failure.
 
-| Technique                             | Control                         | Residual risk                                        |
-| ------------------------------------- | ------------------------------- | ---------------------------------------------------- |
-| Dev wildcard host_permissions shipped | Prod manifest rewrite           | Low if checklist followed                            |
-| Debug logging of decrypted payloads   | Terser drops log/debug in prod  | Medium in dev builds                                 |
-| Incomplete VaultOperations            | Missing KEM/signing key getters | **Mitigated** — full bridge in `vault-operations.ts` |
+| Technique                             | Control                                                    | Residual risk                                        |
+| ------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| Dev wildcard host_permissions shipped | Prod manifest rewrite                                      | Low if checklist followed                            |
+| Debug logging of decrypted payloads   | Terser drops log/debug in prod; backup ciphertext redacted | Medium in dev builds for other message types         |
+| Incomplete VaultOperations            | Missing KEM/signing key getters                            | **Mitigated** — full bridge in `vault-operations.ts` |
 
 ## Controls matrix
 
@@ -235,27 +269,34 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | Link ACL restriction               | Link page vault unlock/CRUD               | `background.ts` allowlist                     |
 | AEAD sync/link wire                | Network peer payload disclosure           | `synchronization.ts`, `linking.ts`            |
 | Argon2id vault sealing             | Offline vault blob cracking               | shared vault utils                            |
+| Popup-only backup messages         | CS/link cannot mint `.cryx` or receipts   | `background.ts`, `backup-service.ts`          |
+| IndexedDB backup staging           | Ciphertext not copied through envelopes   | `backup-staging.ts`                           |
+| DEK-sealed local backup receipts   | Forged coverage / cross-vault receipt use | `backup-status.ts`, `backup-service.ts`       |
+| Signed-URL fetch off ProxyFetch    | JWT sent to object-store origin           | `managed-backups.ts`                          |
 
 ## Residual risks (prioritized)
 
-| Priority | Risk                                                | Mitigation status | Notes                                                                         |
-| -------- | --------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
-| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window                                       |
-| P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation                           |
-| P1       | In-page vault-password prompt is visually spoofable | Fixed             | Confirmation now lives in the toolbar popup                                   |
-| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`                                   |
-| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens                                 |
-| P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required                                       |
-| P2       | Draft password in session (unlocked window)         | Accepted          | Session-scoped; explicit discard confirmation; shape-validated at SW boundary |
-| P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                                              |
-| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                   |
-| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                          |
-| P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                  |
-| P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                             |
-| P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                           |
-| P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                 |
-| P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                               |
-| P4       | Extension 2FA unsupported                           | Accepted          | `EXTENSION_2FA_UNSUPPORTED`                                                   |
+| Priority | Risk                                                | Mitigation status | Notes                                                                                              |
+| -------- | --------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
+| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window                                                            |
+| P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation                                                |
+| P1       | In-page vault-password prompt is visually spoofable | Fixed             | Confirmation now lives in the toolbar popup                                                        |
+| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`                                                        |
+| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens                                                      |
+| P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required                                                            |
+| P2       | Draft password in session (unlocked window)         | Accepted          | Session-scoped; explicit discard confirmation; shape-validated at SW boundary                      |
+| P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                                                                   |
+| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                                        |
+| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                                               |
+| P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                                       |
+| P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                                                  |
+| P3       | Local backup receipts persist after lock            | Accepted          | DEK-authenticated; opaque without session DEK                                                      |
+| P3       | Downloaded `.cryx` on disk                          | Accepted          | Encrypted; receipt cannot prove the file still exists                                              |
+| P3       | Object-store CORS vs extension origin               | Accepted          | Signed URL fetch uses CORS, not `host_permissions`; bucket must allow `chrome-extension://` or `*` |
+| P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                                                |
+| P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                                      |
+| P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    |
+| P4       | Extension 2FA unsupported                           | Accepted          | `EXTENSION_2FA_UNSUPPORTED`                                                                        |
 
 ## Data flow diagrams
 
@@ -332,6 +373,43 @@ sequenceDiagram
     SW->>API: fetch (credentials omit)
     API-->>SW: response
     SW-->>UI: encrypted response
+```
+
+### Backup Center
+
+```mermaid
+sequenceDiagram
+    participant Popup
+    participant SW
+    participant Session as storage.session
+    participant Local as storage.local
+    participant Staging as IndexedDB staging
+    participant API as Cryptex tRPC
+    participant Store as Object store
+
+    Popup->>SW: GetBackupContext
+    SW->>Session: blob, DEK, OS session presence
+    SW->>Local: open DEK-authenticated receipt
+    SW-->>Popup: hasSession, localReceipt
+
+    Popup->>SW: CreateEncryptedBackup
+    SW->>SW: serializeVault (DEK stays in SW)
+    SW->>Staging: put one-shot .cryx
+    alt local download
+        SW->>Local: seal receipt
+        SW-->>Popup: stagingId, byteLength
+        Popup->>Staging: take (read + delete)
+        Popup->>Popup: download .cryx
+    else managed upload
+        SW-->>Popup: stagingId, byteLength
+        Popup->>Staging: take (read + delete)
+        Popup->>SW: ProxyFetch backup.createUpload
+        SW->>API: tRPC + JWT
+        API-->>SW: signed URL
+        SW-->>Popup: transfer intent
+        Popup->>Store: PUT ciphertext (native fetch, no JWT)
+        Popup->>SW: ProxyFetch backup.completeUpload
+    end
 ```
 
 ## Hardening roadmap

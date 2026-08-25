@@ -290,8 +290,9 @@ export function ManagedBackupsSettingsCard({
                     </Badge>
                 </div>
                 <CardDescription>
-                    Versioned, zero-knowledge restore points. Cryptex stores
-                    encrypted bytes only and never receives your vault secrets.
+                    Versioned, zero-knowledge restore points. Cryptex Vault
+                    stores encrypted bytes only and never receives your vault
+                    secrets.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -378,10 +379,10 @@ export function ManagedBackupsSettingsCard({
                                                 Enable managed backups?
                                             </AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                Cryptex stores encrypted .cryx
-                                                files and cannot recover your
-                                                vault password, recovery code,
-                                                or plaintext. Fresh-device
+                                                Cryptex Vault stores encrypted
+                                                .cryx files and cannot recover
+                                                your vault password, recovery
+                                                code, or plaintext. Fresh-device
                                                 recovery requires both your
                                                 Online Services recovery phrase
                                                 and your vault secret

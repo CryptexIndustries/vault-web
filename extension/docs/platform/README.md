@@ -51,13 +51,14 @@ save-on-submit. See [content-scripts.md](content-scripts.md) and
 
 ## Persistence (summary)
 
-| Layer                     | Key examples                                        | Lifetime                    |
-| ------------------------- | --------------------------------------------------- | --------------------------- |
-| IndexedDB `vaultDB`       | `vaults`, `keyPairs`                                | Persistent                  |
-| IndexedDB `vaultKeyStore` | `deviceSecondFactors`                               | Persistent; cleared on lock |
-| `chrome.storage.session`  | `UV`, `OS_SESSION`, `PENDING_SAVE`, `SESSION_DEK:*` | Browser session             |
-| `chrome.storage.local`    | `extLogs`                                           | Persistent until cleared    |
-| `localStorage`            | `extension-last-selected-vault`                     | Persistent; non-secret      |
+| Layer                              | Key examples                                        | Lifetime                        |
+| ---------------------------------- | --------------------------------------------------- | ------------------------------- |
+| IndexedDB `vaultDB`                | `vaults`, `keyPairs`                                | Persistent                      |
+| IndexedDB `cryptex-backup-staging` | one-shot `.cryx` blobs                              | Until take / next create / lock |
+| IndexedDB `vaultKeyStore`          | `deviceSecondFactors`                               | Persistent; cleared on lock     |
+| `chrome.storage.session`           | `UV`, `OS_SESSION`, `PENDING_SAVE`, `SESSION_DEK:*` | Browser session                 |
+| `chrome.storage.local`             | `extLogs`, `cryptex:local-backup-receipt:*`         | Persistent until cleared        |
+| `localStorage`                     | `extension-last-selected-vault`                     | Persistent; non-secret          |
 
 See [persistence.md](persistence.md).
 

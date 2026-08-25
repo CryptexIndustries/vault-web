@@ -26,12 +26,14 @@ flowchart TB
 
     subgraph sw["Service worker"]
         BG["background.ts"]
-        Store["chrome.storage.session"]
+        Session["chrome.storage.session"]
+        Local["chrome.storage.local"]
         IDB["IndexedDB vaultDB"]
     end
 
     subgraph remote["Remote"]
         API["Cryptex tRPC API"]
+        ObjStore["Backup object store"]
         Pusher["Pusher signaling"]
         Peer["WebRTC peer"]
     end
@@ -40,8 +42,9 @@ flowchart TB
     CS --> Menu & Gen & Save
     CS & Menu & Gen & Save & Popup & Link -->|encrypted envelopes| BG
     Popup -->|SyncConnectionController| Pusher & Peer
+    Popup -->|signed URL fetch| ObjStore
     Link -->|LinkingProcessController| Pusher & Peer
-    BG --> Store & IDB
+    BG --> Session & Local & IDB
     BG -->|ProxyFetch| API
 ```
 
@@ -55,9 +58,10 @@ flowchart TB
 
 ## Three parallel stacks
 
-1. **SW envelope bus** — All vault mutations, autofill secret release, and tRPC
-   proxying flow through ECDH-encrypted envelopes validated by origin and message
-   type. See [service-worker/messaging.md](../service-worker/messaging.md).
+1. **SW envelope bus** — All vault mutations, autofill secret release, tRPC
+   proxying, and backup serialization flow through ECDH-encrypted envelopes
+   validated by origin and message type. See
+   [service-worker/messaging.md](../service-worker/messaging.md).
 
 2. **Online Services JWT** — Session token from device signing key auth, stored in
    `chrome.storage.session` (`OS_SESSION`). Established on unlock or link
@@ -77,15 +81,18 @@ and are reused unchanged where possible. Extension-specific bridges:
 - `trpc-ext.ts` — routes tRPC through SW `ProxyFetch`
 - `auth-session-ext.ts` — SW-owned JWT lifecycle
 - `VaultOperations` in `vault-view.tsx` — SW sync message bridge
+- Backup Center uses shared `managed-backups.ts` for signed-URL transfer; the
+  popup must call native `fetch` for those URLs, not `ProxyFetch`
 
 ## Storage split
 
-| Layer                    | What                                       | Lifetime                              |
-| ------------------------ | ------------------------------------------ | ------------------------------------- |
-| IndexedDB `vaultDB`      | Encrypted vault blobs, ECDH key pairs      | Persistent                            |
-| `chrome.storage.session` | Decrypted vault, DEK, OS JWT, pending save | Browser session; cleared on lock/idle |
-| `chrome.storage.local`   | Diagnostic logs (`extLogs`)                | Persistent until cleared              |
-| `localStorage`           | Last-selected vault index (popup unlock)   | Persistent; non-secret                |
+| Layer                              | What                                                    | Lifetime                              |
+| ---------------------------------- | ------------------------------------------------------- | ------------------------------------- |
+| IndexedDB `vaultDB`                | Encrypted vault blobs, ECDH key pairs                   | Persistent                            |
+| IndexedDB `cryptex-backup-staging` | One-shot encrypted `.cryx` (take/lock clears)           | Until take, next create, or lock      |
+| `chrome.storage.session`           | Decrypted vault, DEK, OS JWT, pending save              | Browser session; cleared on lock/idle |
+| `chrome.storage.local`             | Diagnostic logs (`extLogs`); DEK-sealed backup receipts | Persistent until cleared              |
+| `localStorage`                     | Last-selected vault index (popup unlock)                | Persistent; non-secret                |
 
 See [platform/persistence.md](../platform/persistence.md).
 

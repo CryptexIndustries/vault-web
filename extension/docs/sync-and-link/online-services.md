@@ -90,6 +90,11 @@ Rules (`trpc-auth-url.ts`):
 - Caller `Authorization` always stripped
 - `credentials: "omit"`
 
+Managed backup tRPC (`v1.backup.*`) uses this proxy. Object-store PUT/GET for
+signed snapshot URLs uses native `fetch` from the popup and must not go through
+`ProxyFetch`. See [threat-model.md](../threat-model.md) (B3) and
+[messaging.md](../service-worker/messaging.md).
+
 ## Per-origin access
 
 | Origin     | OS messages                                                                           |

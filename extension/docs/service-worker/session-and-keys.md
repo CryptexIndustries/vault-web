@@ -58,6 +58,11 @@ Actions:
 - `chrome.storage.session.clear()` (vault, metadata, OS session, pending save)
 - `clearOnlineServicesSessionInSW()`
 - `clearDeviceSecondFactor()` (IndexedDB `vaultKeyStore`)
+- Clear IndexedDB `cryptex-backup-staging` (one-shot `.cryx` blobs)
+
+Local backup receipts in `chrome.storage.local` are not cleared. They are
+DEK-authenticated metadata and are unreadable without a later unlock of the
+same vault.
 
 ## Online Services session (`OS_SESSION`)
 

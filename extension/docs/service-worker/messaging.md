@@ -59,13 +59,25 @@ Encrypted messages are rejected with `MESSAGE_TYPE_NOT_ALLOWED` when
 
 ### `popup`
 
-`GetState`, `Unlock`, `Lock`, `GetCredentials`, `GetCredential`,
-`CreateCredential`, `UpdateCredential`, `DeleteCredential`, `GetLinkedDevices`,
-`SyncGetItemCredentials`, `SyncGetItemVersionVectors`, `SyncGetConfiguration`,
-`SyncUpdateCredentials`, `ProxyFetch`, `GetPendingSavePrompt`,
-`ConsumePendingSavePrompt`, `GetActivePageOrigin`, `AttachPasskey`,
-`GetPendingPasskeyAssertion`, `CompletePasskeyAssertion`,
-`DeclinePasskeyAssertion`
+Vault session and CRUD: `GetState`, `Unlock`, `Lock`, `GetCredentials`,
+`GetCredential`, `CreateCredential`, `UpdateCredential`, `DeleteCredential`,
+`CreateDirectory`, `UpdateDirectory`, `DeleteDirectory`, `GetDirectories`,
+`GetLinkedDevices`
+
+Sync: `SyncGetItems`, `SyncGetVersionVectors`, `SyncGetConfiguration`,
+`SyncUpdateItems`, `SyncSetLastSync`
+
+Online Services: `ProxyFetch`, `OnlineServicesEnsureFresh`,
+`OnlineServicesForceReauthenticate`
+
+Autofill / save: `GetPendingSavePrompt`, `ConsumePendingSavePrompt`,
+`GetActivePageOrigin`, `GetCredentialDraft`, `SaveCredentialDraft`,
+`ClearCredentialDraft`
+
+Passkeys: `AttachPasskey`, `GetPendingPasskeyAssertion`,
+`CompletePasskeyAssertion`, `DeclinePasskeyAssertion`
+
+Backups: `CreateEncryptedBackup`, `GetBackupContext`
 
 ### `link`
 
@@ -116,14 +128,37 @@ script. Navigation-start and tab-removal events invalidate the stored value.
 - SW injects JWT only when `trpcBatchRequiresAuth(url)` (procedures not under `v1.auth.*`)
 - `credentials: "omit"` — no API cookies
 
+### Backup (`backup-service.ts`)
+
+- Popup-only. The DEK stays in the SW. Ciphertext is staged in IndexedDB
+  (`cryptex-backup-staging`); the create response is `{ stagingId, byteLength,
+completedAt }`.
+- The popup takes the staged blob by id (read + delete) and never receives
+  backup bytes over `sendMessage`.
+- `CreateEncryptedBackup` payload must be exactly `{ recordLocalReceipt: boolean }`.
+  Extra fields, arrays, and non-booleans return `INVALID_BACKUP_REQUEST`.
+- Vault IDs used as receipt keys must match `[A-Za-z0-9_-]{1,64}`. Ciphertext
+  over 128 MiB is refused (`BACKUP_TOO_LARGE`) before staging.
+- Each create clears any previous staged blob. Lock/idle also clears the store.
+- Receipts are DEK-authenticated in `chrome.storage.local`. The SW fingerprints
+  the session blob protobuf _before_ serialize, and serialize runs on a decoded
+  clone so coverage `isCurrent` is not poisoned by in-place mutation.
+- `GetBackupContext` returns Online Services session presence and the opened
+  receipt. It does not return tokens or vault secrets.
+- Managed backup tRPC still uses `ProxyFetch`. Object-store PUT/GET uses the
+  signed URL from that response via native `fetch` in the popup and must not
+  go through `ProxyFetch` (that interceptor would attach the JWT to a non-tRPC
+  origin).
+
 ## Client call sites
 
-| Client                               | Origin tag    | Transport                                          |
-| ------------------------------------ | ------------- | -------------------------------------------------- |
-| `popup.tsx`, `vault-view.tsx`        | `popup`       | Direct envelope + some `sendEncryptedEnvelopeToSW` |
-| `link.tsx`, `popup-receive-link.tsx` | `link`        | `sw-proxy-fetch`, `online-services-session-client` |
-| `autofill-cs.ts`                     | `autofill-cs` | `sw-envelope-client`                               |
-| Autofill iframes                     | per-kind      | `sw-envelope-client` + frame bootstrap             |
+| Client                               | Origin tag    | Transport                                                          |
+| ------------------------------------ | ------------- | ------------------------------------------------------------------ |
+| `popup.tsx`, `vault-view.tsx`        | `popup`       | Direct envelope + some `sendEncryptedEnvelopeToSW`                 |
+| `popup-backup-dialog.tsx`            | `popup`       | `backup-client.ts` + tRPC `ProxyFetch` + native signed-URL `fetch` |
+| `link.tsx`, `popup-receive-link.tsx` | `link`        | `sw-proxy-fetch`, `online-services-session-client`                 |
+| `autofill-cs.ts`                     | `autofill-cs` | `sw-envelope-client`                                               |
+| Autofill iframes                     | per-kind      | `sw-envelope-client` + frame bootstrap                             |
 
 ## Known limitations
 

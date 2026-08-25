@@ -158,6 +158,19 @@ export enum MessageType {
 
     /** Popup: delete a directory and every credential it contains. */
     DeleteDirectory = 45,
+
+    /**
+     * Popup: serialize an encrypted `.cryx` backup from the unlocked vault.
+     * The DEK never leaves the SW. Ciphertext is staged in IndexedDB; the
+     * response carries a one-shot staging id, not backup bytes.
+     */
+    CreateEncryptedBackup = 46,
+
+    /**
+     * Popup: local backup receipt plus whether an Online Services session
+     * exists. Does not return tokens or vault secrets.
+     */
+    GetBackupContext = 47,
 }
 
 /**
@@ -465,6 +478,35 @@ export interface SyncSetLastSyncRequest {
     /** ISO-8601 timestamp of the completed synchronization. */
     timestamp: string;
 }
+
+export type CreateEncryptedBackupRequest = {
+    recordLocalReceipt: boolean;
+};
+
+export type CreateEncryptedBackupResponse =
+    | {
+          ok: true;
+          /** One-shot IndexedDB key for the staged `.cryx`. */
+          stagingId: string;
+          byteLength: number;
+          /** ISO-8601 timestamp recorded on the local backup receipt. */
+          completedAt: string;
+      }
+    | { ok: false; error: string };
+
+export type BackupContextLocalReceipt = {
+    /** ISO-8601 timestamp of the last local backup initiated here. */
+    completedAt: string;
+    isCurrent: boolean;
+};
+
+export type GetBackupContextResponse =
+    | {
+          ok: true;
+          hasOnlineServicesSession: boolean;
+          localReceipt: BackupContextLocalReceipt | null;
+      }
+    | { ok: false; error: string };
 
 // type MessageResponsePayload = {
 //     [-1]: { error: string }; // Error response

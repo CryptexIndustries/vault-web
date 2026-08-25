@@ -21,6 +21,7 @@ import {
     Fingerprint,
     Globe,
     GripVertical,
+    ArchiveRestore,
     Key,
     Folder,
     FolderRoot,
@@ -116,6 +117,7 @@ import {
 } from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
+import { PopupBackupDialog } from "./components/popup-backup-dialog";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
 import { uiLog } from "./utils/ext-logging";
@@ -175,6 +177,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         formModalOpenRef.current = credentialModalVisible[0];
     });
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
+    const [showBackupCenter, setShowBackupCenter] = useState(false);
     const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
     const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
     const [editingDirectory, setEditingDirectory] =
@@ -2238,6 +2241,30 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     </span>
                                 </span>
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    requestAnimationFrame(() =>
+                                        setShowBackupCenter(true),
+                                    );
+                                }}
+                                disabled={
+                                    isCreating ||
+                                    isUpdating ||
+                                    isDeleting ||
+                                    isRefreshing
+                                }
+                                className="items-start py-2"
+                            >
+                                <ArchiveRestore className="mt-0.5 text-primary" />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        Backup Center
+                                    </span>
+                                    <span className="block text-[11px] text-muted-foreground">
+                                        Local and managed backups
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
                             {openFullPageFn ? (
                                 <DropdownMenuItem
                                     onSelect={openFullPageFn}
@@ -3646,6 +3673,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                 open={showPasswordGenerator}
                 onOpenChange={setShowPasswordGenerator}
                 onPasswordSelect={handleGeneratedPasswordSelect}
+            />
+            <PopupBackupDialog
+                open={showBackupCenter}
+                onOpenChange={setShowBackupCenter}
             />
 
             <DirectoryEditorDialog

@@ -51,6 +51,7 @@ import {
     ensureOnlineServicesSessionFromUnlockedVault,
     establishOnlineServicesSession,
     forceOnlineServicesSessionReauthentication,
+    getOnlineServicesStateSnapshot,
 } from "./app_lib/auth-session-ext";
 import {
     clearAllVaultKeyMaterial,
@@ -80,10 +81,20 @@ import {
     declinePasskeyAssertion,
     getPendingPasskeyAssertion,
 } from "./background/passkey-assertion-service";
+import {
+    createChromeLocalBackupReceiptStore,
+    handleCreateEncryptedBackupRequest,
+    handleGetBackupContextRequest,
+    parseCreateEncryptedBackupRequest,
+    redactBackupHandlerResult,
+} from "./background/backup-service";
+import { createIndexedDbBackupBlobStore } from "./utils/backup-staging";
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
 const ACTIVE_VAULT_DB_INDEX_KEY = "AVI";
+
+const backupBlobStore = createIndexedDbBackupBlobStore();
 
 registerVaultActionStateIndicator();
 
@@ -148,6 +159,8 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.CompletePasskeyAssertion,
     MessageType.GetPendingPasskeyAssertion,
     MessageType.DeclinePasskeyAssertion,
+    MessageType.CreateEncryptedBackup,
+    MessageType.GetBackupContext,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -407,7 +420,7 @@ async function processEnvelope(
         "[SW] Previewing the response after processing:",
         MessageType[envelope.type],
         "result:",
-        result,
+        redactBackupHandlerResult(envelope.type, result),
     );
 
     // Re-encrypt the response envelope
@@ -1407,6 +1420,31 @@ async function processMessageUncoordinated(
                     : { ok: false, error: "PAGE_ORIGIN_UNAVAILABLE" };
             }
 
+            case MessageType.CreateEncryptedBackup: {
+                const request = parseCreateEncryptedBackupRequest(payload);
+                if (!request) {
+                    return { ok: false, error: "INVALID_BACKUP_REQUEST" };
+                }
+                return handleCreateEncryptedBackupRequest({
+                    vault: await getVaultFromSessionStorage(),
+                    blob: (await getVaultMetadataFromSessionStorage())?.Blob,
+                    dek: await getVaultDEKFromSessionStorage(),
+                    store: createChromeLocalBackupReceiptStore(),
+                    blobs: backupBlobStore,
+                    recordLocalReceipt: request.recordLocalReceipt,
+                });
+            }
+
+            case MessageType.GetBackupContext: {
+                const session = await getOnlineServicesStateSnapshot();
+                return handleGetBackupContextRequest({
+                    blob: (await getVaultMetadataFromSessionStorage())?.Blob,
+                    dek: await getVaultDEKFromSessionStorage(),
+                    hasOnlineServicesSession: session.hasSession,
+                    store: createChromeLocalBackupReceiptStore(),
+                });
+            }
+
             default:
                 return { ok: false, error: "UNKNOWN_ENCRYPTED_MESSAGE_TYPE" };
         }
@@ -1607,6 +1645,7 @@ async function clearSessionStorage(): Promise<void> {
         await clearSessionDEK(idx);
     }
     await clearAllVaultKeyMaterial();
+    await backupBlobStore.clear();
     await chrome.storage.session.clear();
 }
 

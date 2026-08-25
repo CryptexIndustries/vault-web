@@ -35,6 +35,9 @@ On `mode === "production"` in `vite.config.ts`:
 - Build fails if `VITE_APP_URL` missing, contains `REPLACE_ME`, or is not `https://`
 
 Dev manifest keeps wildcard `https://*/*` and `http://*/*` host permissions.
+Managed backup object-store PUT/GET is a CORS `fetch` from the popup. It does
+not need the object-store host in production `host_permissions` when the
+bucket already allows `chrome-extension://<id>` or `*`.
 
 ## Aliases
 

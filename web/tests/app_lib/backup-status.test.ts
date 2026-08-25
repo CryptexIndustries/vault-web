@@ -13,7 +13,9 @@ import {
     formatBackupAge,
     getBackupOverview,
     getLocalBackupReceipt,
+    openLocalBackupReceipt,
     recordLocalBackupCompleted,
+    sealLocalBackupReceipt,
 } from "../../src/app_lib/backup-status";
 
 describe("backup status", () => {
@@ -111,6 +113,26 @@ describe("backup status", () => {
         await expect(
             getLocalBackupReceipt("vault-one", source, dek),
         ).resolves.toBeNull();
+    });
+
+    it("round-trips a sealed receipt without localStorage", async () => {
+        const completedAt = new Date("2026-08-08T10:00:00.000Z");
+        const source = new Uint8Array([4, 5, 6]);
+        const dek = await crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt", "decrypt"],
+        );
+        const stored = await sealLocalBackupReceipt(
+            "vault-two",
+            source,
+            dek,
+            completedAt,
+        );
+
+        await expect(
+            openLocalBackupReceipt("vault-two", stored, source, dek),
+        ).resolves.toEqual({ completedAt, isCurrent: true });
     });
 
     it("formats recent backup ages for compact status labels", () => {

@@ -8,6 +8,7 @@ const RECEIPT_DOMAIN = "cryptex:local-backup-receipt";
 const AES_GCM_IV_BYTES = 12;
 const AES_GCM_TAG_BYTES = 16;
 const MAX_RECEIPT_CIPHERTEXT_BYTES = 384;
+const MAX_STORED_RECEIPT_CHARS = 512;
 
 type Receipt = { at: number; source: string };
 
@@ -20,7 +21,8 @@ export type BackupOverview = {
     needsReminder: boolean;
 };
 
-const storageKey = (vaultId: string) => `${RECEIPT_DOMAIN}:${vaultId}`;
+export const localBackupReceiptStorageKey = (vaultId: string) =>
+    `${RECEIPT_DOMAIN}:${vaultId}`;
 
 const aad = (vaultId: string) =>
     new TextEncoder().encode(`${RECEIPT_DOMAIN}:${vaultId}`);
@@ -39,16 +41,47 @@ const fingerprint = async (source: Uint8Array) =>
         ),
     );
 
-// Read localStorage as hostile input: bound its size, authenticate it, and
-// validate its shape before using the timestamp or source fingerprint
-export async function getLocalBackupReceipt(
+function isReceipt(value: unknown): value is Receipt {
+    if (typeof value !== "object" || value === null) return false;
+    if (!("at" in value) || !("source" in value)) return false;
+    return (
+        typeof value.at === "number" &&
+        Number.isSafeInteger(value.at) &&
+        value.at >= 0 &&
+        typeof value.source === "string"
+    );
+}
+
+/** Encrypt a DEK-authenticated local-backup receipt for durable storage. */
+export async function sealLocalBackupReceipt(
     vaultId: string,
+    source: Uint8Array,
+    dek: CryptoKey,
+    completedAt = new Date(),
+): Promise<string> {
+    const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
+    const body = new TextEncoder().encode(
+        JSON.stringify({
+            at: completedAt.getTime(),
+            source: await fingerprint(source),
+        } satisfies Receipt),
+    );
+    const box = await crypto.subtle.encrypt(gcm(vaultId, iv), dek, body);
+    return `${uint8ToBase64(iv)}.${uint8ToBase64(new Uint8Array(box))}`;
+}
+
+/**
+ * Authenticate a stored receipt. Corrupt, forged, and hostile inputs all
+ * return null so callers cannot tell them apart.
+ */
+export async function openLocalBackupReceipt(
+    vaultId: string,
+    stored: string | null,
     source: Uint8Array,
     dek: CryptoKey,
 ): Promise<LocalBackupReceipt | null> {
     try {
-        const stored = localStorage.getItem(storageKey(vaultId));
-        if (!stored || stored.length > 512) return null;
+        if (!stored || stored.length > MAX_STORED_RECEIPT_CHARS) return null;
         const parts = stored.split(".");
         if (
             parts.length !== 2 ||
@@ -69,25 +102,32 @@ export async function getLocalBackupReceipt(
             dek,
             new Uint8Array(box),
         );
-        const receipt = JSON.parse(
-            new TextDecoder().decode(plaintext),
-        ) as Partial<Receipt>;
-        if (
-            !Number.isSafeInteger(receipt.at) ||
-            receipt.at! < 0 ||
-            typeof receipt.source !== "string"
-        )
-            return null;
-        const completedAt = new Date(receipt.at!);
+        const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext));
+        if (!isReceipt(parsed)) return null;
+        const completedAt = new Date(parsed.at);
         if (Number.isNaN(completedAt.getTime())) return null;
         return {
             completedAt,
-            isCurrent: receipt.source === (await fingerprint(source)),
+            isCurrent: parsed.source === (await fingerprint(source)),
         };
     } catch {
-        // Corrupt and forged receipts are deliberately indistinguishable
         return null;
     }
+}
+
+// Read localStorage as hostile input: bound its size, authenticate it, and
+// validate its shape before using the timestamp or source fingerprint
+export async function getLocalBackupReceipt(
+    vaultId: string,
+    source: Uint8Array,
+    dek: CryptoKey,
+): Promise<LocalBackupReceipt | null> {
+    return openLocalBackupReceipt(
+        vaultId,
+        localStorage.getItem(localBackupReceiptStorageKey(vaultId)),
+        source,
+        dek,
+    );
 }
 
 // This records that Cryptex Vault initiated a download. It cannot prove that the
@@ -98,17 +138,9 @@ export async function recordLocalBackupCompleted(
     dek: CryptoKey,
     completedAt = new Date(),
 ): Promise<void> {
-    const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
-    const body = new TextEncoder().encode(
-        JSON.stringify({
-            at: completedAt.getTime(),
-            source: await fingerprint(source),
-        } satisfies Receipt),
-    );
-    const box = await crypto.subtle.encrypt(gcm(vaultId, iv), dek, body);
     localStorage.setItem(
-        storageKey(vaultId),
-        `${uint8ToBase64(iv)}.${uint8ToBase64(new Uint8Array(box))}`,
+        localBackupReceiptStorageKey(vaultId),
+        await sealLocalBackupReceipt(vaultId, source, dek, completedAt),
     );
     window.dispatchEvent(new Event(LOCAL_BACKUP_STATUS_EVENT));
 }

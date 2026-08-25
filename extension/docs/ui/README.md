@@ -45,15 +45,16 @@ for the picker is read from Dexie locally; decryption is delegated to SW.
 
 ### VaultView
 
-| Operation        | SW message                      | Exposure                                   |
-| ---------------- | ------------------------------- | ------------------------------------------ |
-| List credentials | `GetCredentials`                | LiteCredential (no secrets)                |
-| View detail      | `GetCredential`                 | Full password + TOTP secret in React state |
-| CRUD             | Create/Update/Delete            | Full form secrets                          |
-| Sync             | Sync\* messages                 | Credentials cross-device via WebRTC        |
-| Copy fields      | `navigator.clipboard.writeText` | Clipboard                                  |
-| Open URL         | `window.open(url, "_blank")`    | New tab — see threat model                 |
-| Lock             | `Lock`                          | Clears SW session                          |
+| Operation        | SW message                                  | Exposure                                                       |
+| ---------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| List credentials | `GetCredentials`                            | LiteCredential (no secrets)                                    |
+| View detail      | `GetCredential`                             | Full password + TOTP secret in React state                     |
+| CRUD             | Create/Update/Delete                        | Full form secrets                                              |
+| Sync             | Sync\* messages                             | Credentials cross-device via WebRTC                            |
+| Copy fields      | `navigator.clipboard.writeText`             | Clipboard                                                      |
+| Backup Center    | `CreateEncryptedBackup`, `GetBackupContext` | Staged `.cryx` in IndexedDB then popup memory; DEK stays in SW |
+| Open URL         | `window.open(url, "_blank")`                | New tab — see threat model                                     |
+| Lock             | `Lock`                                      | Clears SW session                                              |
 
 ### PopupSaveCredential
 
@@ -67,6 +68,20 @@ for the picker is read from Dexie locally; decryption is delegated to SW.
 - `ConsumePendingSavePrompt` clears the stash and badge.
 - Also embedded in `autofill-save.html` with `autofill-save` origin and frame
   bootstrap nonce.
+
+### Backup Center (`popup-backup-dialog.tsx`)
+
+Opened from Vault actions. The SW serializes an encrypted `.cryx`; the popup
+never receives the DEK.
+
+| Operation                              | Path                                                            | Exposure                                                  |
+| -------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------- |
+| Local download                         | `CreateEncryptedBackup` with receipt; popup takes staged blob   | Ciphertext in IndexedDB then popup, then Downloads        |
+| Managed list / enable / pause / delete | tRPC `v1.backup.*` via `ProxyFetch`                             | Snapshot metadata; enable/delete are root-only on the API |
+| Managed upload / cloud download        | tRPC intent, then native `fetch` of the signed object-store URL | Ciphertext on the wire to the object store; no JWT        |
+
+Restore and Recovery Kit flows are web-only. A local receipt records that Cryptex
+initiated a download; it cannot prove the file still exists.
 
 ### Link tab (`popup-receive-link.tsx`)
 
@@ -94,6 +109,8 @@ After completion the link tab auto-closes; user must unlock from popup.
 | Save-login prioritizes prompt | Explicit consent before persisting autofill-captured login                  |
 | Lite vs full credentials      | List omits secrets; detail fetch is explicit                                |
 | Lock clears OS session        | JWT not usable while locked                                                 |
+| Backup serialize in SW        | DEK never enters popup; `.cryx` is ciphertext only                          |
+| Signed backup URLs off proxy  | Object-store PUT/GET must not receive the Online Services JWT               |
 
 ## SW communication
 
@@ -112,7 +129,10 @@ See [service-worker/messaging.md](../service-worker/messaging.md) for full ACL.
 | `src/vault-view.tsx`                       | Unlocked dashboard      |
 | `src/components/popup-unlock.tsx`          | Vault picker + password |
 | `src/components/popup-save-credential.tsx` | Save-login consent      |
+| `src/components/popup-backup-dialog.tsx`   | Backup Center           |
 | `src/components/popup-receive-link.tsx`    | Link-receive wizard     |
+| `src/utils/backup-client.ts`               | Popup → SW backup RPC   |
+| `src/utils/backup-staging.ts`              | IndexedDB `.cryx` stage |
 | `link.html`, `src/link.tsx`                | Link tab shell          |
 | `src/utils/sw-envelope-client.ts`          | Shared SW client        |
 | `src/utils/sw-proxy-fetch.ts`              | tRPC → ProxyFetch shim  |

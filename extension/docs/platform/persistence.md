@@ -10,6 +10,16 @@
 Persistent across browser restarts. Vault blobs remain encrypted at rest; DEK is
 **not** stored here.
 
+## IndexedDB `cryptex-backup-staging`
+
+| Store   | Contents                         | Cleared on lock? |
+| ------- | -------------------------------- | ---------------- |
+| `blobs` | One-shot encrypted `.cryx` bytes | Yes              |
+
+Shared by the service worker (put/clear) and the popup (take). Each create
+replaces any previous row. The envelope never carries backup bytes; it carries
+a UUID `stagingId`. Take is read-and-delete. Lock and idle clear the store.
+
 ## IndexedDB `vaultKeyStore`
 
 | Store                 | Contents              | Cleared on lock?                |
@@ -50,11 +60,16 @@ only at submit time.
 
 ## `chrome.storage.local`
 
-| Key       | Owner            | Contents                          |
-| --------- | ---------------- | --------------------------------- |
-| `extLogs` | `ext-logging.ts` | Up to 2000 diagnostic log entries |
+| Key                                      | Owner                          | Contents                                    |
+| ---------------------------------------- | ------------------------------ | ------------------------------------------- |
+| `extLogs`                                | `ext-logging.ts`               | Up to 2000 diagnostic log entries           |
+| `cryptex:local-backup-receipt:{vaultId}` | `background/backup-service.ts` | DEK-authenticated last-local-backup receipt |
 
-Only `chrome.storage.local` usage in extension source. Survives browser restart.
+Survives browser restart and vault lock. Receipts are AES-GCM sealed with the
+session DEK and vault-id AAD (`web/src/app_lib/backup-status.ts`). Stored
+strings longer than 512 characters, corrupt boxes, and forged input all open as
+`null`. They hold a timestamp and a SHA-256 fingerprint of the session blob -
+not vault plaintext. Lock does not delete them.
 
 ## `localStorage`
 
@@ -79,4 +94,5 @@ Non-secret metadata only.
 
 Encrypted vault blobs live in IndexedDB. Decrypted vault and DEK live only in
 `chrome.storage.session` while unlocked. Never persist plaintext credentials to
-`chrome.storage.local` or `localStorage`.
+`chrome.storage.local` or `localStorage`. Local backup receipts in
+`chrome.storage.local` are DEK-authenticated metadata, not vault bytes.

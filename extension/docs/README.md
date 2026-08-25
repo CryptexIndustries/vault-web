@@ -13,7 +13,7 @@ Security and design notes for the Cryptex Vault browser extension.
 
 - [Service worker index](service-worker/README.md)
 - [Messaging and capability model](service-worker/messaging.md) — Envelope protocol,
-  origin validation, per-origin ACLs, ProxyFetch rules.
+  origin validation, per-origin ACLs, ProxyFetch rules, backup messages.
 - [Session and keys](service-worker/session-and-keys.md) — Unlock/lock, DEK, ECDH
   rotation, Online Services session.
 

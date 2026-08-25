@@ -106,6 +106,12 @@ export default defineConfig(({ mode }) => {
         },
         publicDir: "public",
         build: {
+            // Chrome extension pages cannot use <link rel="modulepreload">
+            // for chrome-extension:// scripts. The preload scanner and the
+            // module graph run in different isolated worlds, so Chromium
+            // logs "cross-world extension resource mismatch" and ignores
+            // every hint. Chunks still load via import().
+            modulePreload: false,
             sourcemap: !isProduction,
             // emptyOutDir is `false` here because we run a second
             // Vite invocation (`vite.config.content.ts`) right after

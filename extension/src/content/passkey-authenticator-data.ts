@@ -42,6 +42,7 @@ const AUTHENTICATOR_DATA_FLAG = {
     BACKUP_ELIGIBLE: 1 << 3,
     BACKED_UP: 1 << 4,
     ATTESTED_CREDENTIAL_DATA: 1 << 6,
+    EXTENSION_DATA: 1 << 7,
 } as const;
 
 const COSE_KEY_LABEL = {
@@ -179,6 +180,7 @@ type AuthenticatorFlags = {
     backupEligible: boolean;
     backedUp: boolean;
     includesAttestedCredentialData: boolean;
+    includesExtensionData?: boolean;
 };
 
 export function encodeAuthenticatorFlags(options: AuthenticatorFlags): number {
@@ -193,7 +195,51 @@ export function encodeAuthenticatorFlags(options: AuthenticatorFlags): number {
         (options.backedUp ? AUTHENTICATOR_DATA_FLAG.BACKED_UP : 0) |
         (options.includesAttestedCredentialData
             ? AUTHENTICATOR_DATA_FLAG.ATTESTED_CREDENTIAL_DATA
+            : 0) |
+        (options.includesExtensionData
+            ? AUTHENTICATOR_DATA_FLAG.EXTENSION_DATA
             : 0)
+    );
+}
+
+type AssertionAuthenticatorDataOptions = {
+    rpId: string;
+    signCount: number;
+    userVerified: boolean;
+};
+
+/** Builds the fixed 37-byte authenticator data used by an assertion. */
+export async function buildAssertionAuthenticatorData({
+    rpId,
+    signCount,
+    userVerified,
+}: AssertionAuthenticatorDataOptions): Promise<Uint8Array> {
+    if (!rpId.trim()) throw new Error("RP ID is required");
+
+    if (
+        !Number.isSafeInteger(signCount) ||
+        signCount < 0 ||
+        signCount > 0xffffffff
+    ) {
+        throw new RangeError(
+            "Signature counter must fit an unsigned 32-bit integer",
+        );
+    }
+
+    const rpIdHash = new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rpId)),
+    );
+    const flags = encodeAuthenticatorFlags({
+        userPresent: true,
+        userVerified,
+        backupEligible: true,
+        backedUp: true,
+        includesAttestedCredentialData: false,
+    });
+    return concatBytes(
+        rpIdHash,
+        Uint8Array.of(flags),
+        unsignedBigEndian(signCount, 4),
     );
 }
 

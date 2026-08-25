@@ -21,7 +21,9 @@ The E2E build uses `CRYPTEX_E2E=1` and development mode to add the private
 `e2e-bootstrap.html` seed page; it is absent from production builds. The relying
 party uses a real `navigator.credentials.create({ publicKey })` request. The
 suite therefore exercises the production main-world detector, ES256 software
-authenticator, save decision, encrypted vault persistence, lock, and re-unlock.
+authenticator, save decision, encrypted vault persistence, vault-password user
+verification, assertion generation, RP hash/flag validation, server-side ES256
+signature verification, lock, and re-unlock.
 
 **NOTE:** An external smoke test covers Autofill.me's SimpleWebAuthn registration flow:
 

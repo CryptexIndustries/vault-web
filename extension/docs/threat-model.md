@@ -15,19 +15,21 @@ architecture docs under `extension/docs/`.
 
 ## Assets
 
-| Asset                         | Location while at risk                                  | Impact if exposed                                       |
-| ----------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
-| Master password               | Encrypted in Unlock envelope; ephemeral in popup memory | Full vault decryption                                   |
-| Vault DEK                     | `chrome.storage.session` `SESSION_DEK:*`                | Decrypt vault blob at rest                              |
-| Decrypted vault               | `chrome.storage.session` `UV`                           | All passwords, TOTP secrets, notes                      |
-| Credential secrets (autofill) | CS → SW → fill path; pending save in session            | Per-credential exposure                                 |
-| Credential form draft         | `chrome.storage.session` `DRAFT_SAVE` (SW-owned)        | Typed form data incl. new/changed password/other fields |
-| Online Services JWT           | `chrome.storage.session` `OS_SESSION`                   | API access as device                                    |
-| Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                    | Re-auth without user gesture                            |
-| ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                  | Decrypt captured envelopes                              |
-| Mnemonic (link receive)       | Link page memory during flow                            | Decrypt link package                                    |
-| Diagnostic logs               | `chrome.storage.local` `extLogs`                        | Metadata leakage (deviceId, vaultId, errors)            |
-| Clipboard                     | OS clipboard after copy actions                         | Credential field exposure                               |
+| Asset                         | Location while at risk                                            | Impact if exposed                                       |
+| ----------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------- |
+| Master password               | Encrypted in unlock/assertion envelope; ephemeral in popup memory | Full vault decryption                                   |
+| Vault DEK                     | `chrome.storage.session` `SESSION_DEK:*`                          | Decrypt vault blob at rest                              |
+| Decrypted vault               | `chrome.storage.session` `UV`                                     | All passwords, TOTP secrets, notes                      |
+| Credential secrets (autofill) | CS → SW → fill path; pending save in session                      | Per-credential exposure                                 |
+| Passkey private JWK           | Encrypted vault; briefly imported non-extractable in SW           | Authentication as that credential                       |
+| Assertion ceremony            | `chrome.storage.session` for at most 2 minutes                    | RP/challenge/candidate metadata; signing authorization  |
+| Credential form draft         | `chrome.storage.session` `DRAFT_SAVE` (SW-owned)                  | Typed form data incl. new/changed password/other fields |
+| Online Services JWT           | `chrome.storage.session` `OS_SESSION`                             | API access as device                                    |
+| Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                              | Re-auth without user gesture                            |
+| ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                            | Decrypt captured envelopes                              |
+| Mnemonic (link receive)       | Link page memory during flow                                      | Decrypt link package                                    |
+| Diagnostic logs               | `chrome.storage.local` `extLogs`                                  | Metadata leakage (deviceId, vaultId, errors)            |
+| Clipboard                     | OS clipboard after copy actions                                   | Credential field exposure                               |
 
 ## Trust boundaries
 
@@ -66,11 +68,18 @@ but shares the DOM.
 - Iframe bootstrap nonce registered in SW; host cannot learn nonce or hijack
   MessageChannel ([autofill/iframe-bootstrap.md](autofill/iframe-bootstrap.md))
 - Exact, domain, and wildcard credential release rules ([autofill/origin-matching.md](autofill/origin-matching.md))
+- WebAuthn RP IDs are sender-derived or validated registrable suffixes; public
+  suffixes and cross-site RP IDs are rejected
+- Assertion ceremonies bind the exact origin, RP ID, challenge, vault, eligible
+  authenticator IDs, tab, frame, and document; records expire, are capped, and
+  are consumed after signing
 - WAR limited to autofill HTML + assets (not popup/link/logs)
 
 **Residual:** Host can DoS autofill (mount-id race, remove iframes). Host can
 probe `GetState` (locked/unlocked). Host can trigger `SaveCredentialPrompt` with
-arbitrary data (user must confirm in save UI).
+arbitrary data (user must confirm in save UI). A host can invoke WebAuthn and
+cause the toolbar popup to open, but the popup is extension-controlled and the
+vault password never enters the host tab.
 
 ### B2 — Extension contexts ↔ service worker
 
@@ -85,6 +94,9 @@ arbitrary data (user must confirm in save UI).
 - Link origin restricted to proxy + OS only ([ui/README.md](ui/README.md))
 - ProxyFetch strips caller `Authorization`
 - Draft messages (`Get/Save/ClearCredentialDraft`) popup-allowlisted; SW shape-validates the untrusted form payload and staleness-checks edit drafts against the live vault (credential exists, not deleted, `Version` unchanged) before re-presentation
+- Passkey assertion messages are content-script-only; request sizes and active
+  ceremonies are bounded, exact sender/origin bindings are rechecked on completion,
+  and private key material never leaves the SW
 
 **Residual:** Full vault in session while unlocked — any SW bug or extension
 compromise is total loss. `worker` origin binding is weak (public key only).
@@ -141,15 +153,19 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 
 **Goals:** Steal credentials, probe vault state, inject saved logins, disrupt autofill.
 
-| Technique                                    | Control                    | Residual risk                                                   |
-| -------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
-| Request secrets outside configured URL rules | Shared URL rule matcher    | Low — blocked                                                   |
-| Abuse a broad domain or wildcard rule        | Explicit per-rule mode     | **Medium** - user-approved scope may include a compromised host |
-| Request secrets for an authorized phish host | Sender-derived URL recheck | **Medium** - works when a saved rule authorizes that host       |
-| Probe vault locked/unlocked                  | `GetState` from CS         | Low — metadata only                                             |
-| Hijack iframe MessageChannel                 | SW nonce bootstrap         | Low — blocked                                                   |
-| Stash fake login for save prompt             | `SaveCredentialPrompt`     | Low — user must confirm                                         |
-| Read extension bundle via WAR                | WAR exposes assets         | Low — fingerprinting, no secrets                                |
+| Technique                                    | Control                                        | Residual risk                                                   |
+| -------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| Request secrets outside configured URL rules | Shared URL rule matcher                        | Low - blocked                                                   |
+| Abuse a broad domain or wildcard rule        | Explicit per-rule mode                         | **Medium** - user-approved scope may include a compromised host |
+| Request secrets for an authorized phish host | Sender-derived URL recheck                     | **Medium** - works when a saved rule authorizes that host       |
+| Probe vault locked/unlocked                  | `GetState` from CS                             | Low - metadata only                                             |
+| Hijack iframe MessageChannel                 | SW nonce bootstrap                             | Low - blocked                                                   |
+| Stash fake login for save prompt             | `SaveCredentialPrompt`                         | Low - user must confirm                                         |
+| Read extension bundle via WAR                | WAR exposes assets                             | Low - fingerprinting, no secrets                                |
+| Request assertions for another RP            | RP/origin + PSL validation                     | Low - blocked                                                   |
+| Reuse or swap an eligible passkey            | Bound one-shot ceremony                        | Low - exact authenticator ID is rechecked                       |
+| Flood assertion ceremonies                   | Per-document serialization, TTL and global cap | Low - bounded availability impact                               |
+| Spoof password confirmation visually         | Password is accepted only in the toolbar popup | Low - a page lookalike cannot complete the ceremony             |
 
 ### A2 — Malicious website (subframe)
 
@@ -209,6 +225,8 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | Origin + capability ACL            | Unauthorized SW operations                | `security-utils.ts`, `background.ts`          |
 | Top-frame CS gate                  | Subframe autofill attacks                 | `autofill-cs.ts`, `security-utils.ts`         |
 | Iframe nonce bootstrap             | Host hijack of MessageChannel             | `autofill-frame-bootstrap.ts`                 |
+| RP-bound assertion ceremony        | Cross-origin/replay/passkey substitution  | `passkey-assertion-service.ts`                |
+| Vault-password assertion UV        | Signing without requested verification    | `session-dek-store.ts`                        |
 | Per-rule autofill release          | Credential theft outside saved URL rules  | `credential-url.ts`, `autofill-router.ts`     |
 | SW-owned JWT                       | UI token injection                        | `request-auth-interceptor.ts`                 |
 | tRPC allowlist                     | Arbitrary fetch from proxy                | `trpc-auth-url.ts`                            |
@@ -224,6 +242,7 @@ Logs persist device/vault metadata to `chrome.storage.local`.
 | -------- | --------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
 | P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window                                       |
 | P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation                           |
+| P1       | In-page vault-password prompt is visually spoofable | Fixed             | Confirmation now lives in the toolbar popup                                   |
 | P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`                                   |
 | P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens                                 |
 | P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required                                       |
@@ -276,6 +295,27 @@ sequenceDiagram
     SW->>SW: repeat sender URL match
     SW-->>CS: username, password
     CS->>Page: fill fields
+```
+
+### Passkey assertion
+
+```mermaid
+sequenceDiagram
+    participant Page as Host page
+    participant CS as isolated content script
+    participant UI as toolbar popup
+    participant SW as service worker
+
+    Page->>CS: navigator.credentials.get options
+    CS->>SW: Begin assertion (encrypted)
+    SW->>SW: validate RP/origin, filter passkeys, bind capped 2-minute ceremony
+    SW->>UI: eligible candidates (encrypted)
+    UI->>SW: selected vault item + vault password (encrypted)
+    SW->>SW: recheck sender/origin/vault/exact credential; verify password
+    SW->>SW: sign authenticatorData + clientData hash; consume ceremony
+    CS->>SW: poll bound ceremony
+    SW-->>CS: public assertion only
+    CS-->>Page: PublicKeyCredential assertion
 ```
 
 ### tRPC proxy

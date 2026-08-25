@@ -27,6 +27,8 @@
 import {
     ACTIVE_PAGE_ORIGIN_QUERY,
     MessageType,
+    type BeginPasskeyAssertionResponse,
+    type ConsumePasskeyAssertionResultResponse,
     type GenerateTOTPResponse,
     type GetCredentialsForOriginResponse,
     type GetCredentialSecretResponse,
@@ -36,6 +38,7 @@ import {
 import {
     sendEncryptedEnvelopeToSW,
     setEnvelopeOriginOverride,
+    type SwEnvelopeResult,
 } from "../utils/sw-envelope-client";
 import {
     createAutofillFrameBootstrap,
@@ -65,6 +68,12 @@ import {
     type PasskeyCreateRequest,
     type PasskeyCreateResult,
 } from "./passkey-registration";
+import {
+    encodeBase64Url,
+    type PasskeyGetCancel,
+    type PasskeyGetRequest,
+    type PasskeyGetResult,
+} from "./passkey-assertion";
 
 setEnvelopeOriginOverride("autofill-cs");
 
@@ -163,6 +172,8 @@ let savePort: MessagePort | null = null;
 let saveMountToken = 0;
 let saveOutcomeHandler: ((outcome: "saved" | "dismissed") => void) | null =
     null;
+let activePasskeyGet: { requestId: string; ceremonyId: string } | null = null;
+let pendingPasskeyGet: { requestId: string; cancelled: boolean } | null = null;
 let initialised = false;
 
 function shouldRun(): boolean {
@@ -824,6 +835,134 @@ function promptSaveCredential(payload: SaveCredentialPromptRequest): void {
     scheduleSavePromptOnSamePage();
 }
 
+function postPasskeyGetResult(result: Omit<PasskeyGetResult, "source">): void {
+    window.postMessage(
+        { ...result, source: PASSKEY_CONTENT_SOURCE },
+        window.location.origin,
+    );
+}
+
+async function cancelPasskeyCeremony(ceremonyId: string): Promise<void> {
+    await sendEncryptedEnvelopeToSW(MessageType.CancelPasskeyAssertion, {
+        ceremonyId,
+    });
+}
+
+async function pollPasskeyGet(requestId: string, ceremonyId: string) {
+    while (activePasskeyGet?.requestId === requestId) {
+        try {
+            const result =
+                await sendEncryptedEnvelopeToSW<ConsumePasskeyAssertionResultResponse>(
+                    MessageType.ConsumePasskeyAssertionResult,
+                    { ceremonyId },
+                );
+            if (result.ok && result.payload?.ok) {
+                if (result.payload.status === "pending") {
+                    await sleep(250);
+                    continue;
+                }
+                activePasskeyGet = null;
+                postPasskeyGetResult({
+                    type: "get-result",
+                    requestId,
+                    outcome: result.payload.status,
+                    assertion:
+                        result.payload.status === "authenticated"
+                            ? result.payload.assertion
+                            : undefined,
+                });
+                return;
+            }
+            if (result.ok && result.payload && !result.payload.ok) {
+                activePasskeyGet = null;
+                postPasskeyGetResult({
+                    type: "get-result",
+                    requestId,
+                    outcome: "fallback",
+                });
+                return;
+            }
+        } catch {
+            // The service worker can restart while the popup is open.
+        }
+        await sleep(500);
+    }
+}
+
+function serializePasskeyRequest(
+    request: PublicKeyCredentialRequestOptions,
+): import("../types/sw-messaging").PasskeyRequestOptionsDTO {
+    return {
+        challenge: encodeBase64Url(request.challenge),
+        rpId: request.rpId,
+        allowCredentials: (request.allowCredentials ?? []).map(
+            (descriptor) => ({
+                type: "public-key",
+                id: encodeBase64Url(descriptor.id),
+            }),
+        ),
+        userVerification: request.userVerification ?? "preferred",
+    };
+}
+
+async function handlePasskeyGetRequest(
+    request: PasskeyGetRequest,
+): Promise<void> {
+    if (activePasskeyGet || pendingPasskeyGet) {
+        postPasskeyGetResult({
+            type: "get-result",
+            requestId: request.requestId,
+            outcome: "fallback",
+        });
+        return;
+    }
+    const pending = { requestId: request.requestId, cancelled: false };
+    pendingPasskeyGet = pending;
+    let result: SwEnvelopeResult<BeginPasskeyAssertionResponse> | undefined;
+    try {
+        result = await sendEncryptedEnvelopeToSW<BeginPasskeyAssertionResponse>(
+            MessageType.BeginPasskeyAssertion,
+            {
+                publicKey: serializePasskeyRequest(request.publicKey),
+            },
+        );
+    } catch {
+        // The page bridge will retain native-authenticator fallback behavior.
+    } finally {
+        if (pendingPasskeyGet === pending) pendingPasskeyGet = null;
+    }
+    if (pending.cancelled) {
+        if (result?.ok && result.payload?.ok && result.payload.ceremonyId) {
+            await cancelPasskeyCeremony(result.payload.ceremonyId);
+        }
+        return;
+    }
+    if (!result?.ok || !result.payload?.ok || !result.payload.ceremonyId) {
+        postPasskeyGetResult({
+            type: "get-result",
+            requestId: request.requestId,
+            outcome: "fallback",
+        });
+        return;
+    }
+    activePasskeyGet = {
+        requestId: request.requestId,
+        ceremonyId: result.payload.ceremonyId,
+    };
+    void pollPasskeyGet(request.requestId, result.payload.ceremonyId);
+}
+
+function handlePasskeyGetCancel(request: PasskeyGetCancel): void {
+    if (pendingPasskeyGet?.requestId === request.requestId) {
+        pendingPasskeyGet.cancelled = true;
+        return;
+    }
+    if (activePasskeyGet?.requestId !== request.requestId) return;
+    const ceremonyId = activePasskeyGet.ceremonyId;
+    activePasskeyGet = null;
+    void cancelPasskeyCeremony(ceremonyId);
+}
+
 function postPasskeyResult(result: Omit<PasskeyCreateResult, "source">): void {
     window.postMessage(
         { ...result, source: PASSKEY_CONTENT_SOURCE },
@@ -847,6 +986,19 @@ async function handlePasskeyCreateRequest(
 
     const origin = getEffectiveOrigin();
     if (!origin) {
+        fallback();
+        return;
+    }
+    const pageUrl = new URL(origin.url);
+    const loopback =
+        origin.host === "localhost" ||
+        origin.host.endsWith(".localhost") ||
+        origin.host.startsWith("127.") ||
+        origin.host === "[::1]";
+    if (
+        pageUrl.protocol !== "https:" &&
+        !(pageUrl.protocol === "http:" && loopback)
+    ) {
         fallback();
         return;
     }
@@ -910,16 +1062,23 @@ async function handlePasskeyCreateRequest(
 window.addEventListener("message", (event: MessageEvent) => {
     if (event.source !== window || event.origin !== window.location.origin)
         return;
-    const request = event.data as PasskeyCreateRequest | undefined;
+    const request = event.data as
+        | PasskeyCreateRequest
+        | PasskeyGetRequest
+        | PasskeyGetCancel
+        | undefined;
     if (
         request?.source !== PASSKEY_PAGE_SOURCE ||
-        request.type !== "create-request" ||
-        typeof request.requestId !== "string" ||
-        !request.publicKey
-    ) {
+        typeof request.requestId !== "string"
+    )
         return;
+    if (request.type === "create-request" && request.publicKey) {
+        void handlePasskeyCreateRequest(request);
+    } else if (request.type === "get-request" && request.publicKey) {
+        void handlePasskeyGetRequest(request);
+    } else if (request.type === "get-cancel") {
+        handlePasskeyGetCancel(request);
     }
-    void handlePasskeyCreateRequest(request);
 });
 
 /* -------------------------------------------------------------------------- */

@@ -131,6 +131,24 @@ export enum MessageType {
 
     /** Trusted save UI: attach newly generated passkey material to a login. */
     AttachPasskey = 36,
+
+    /** Content script: discover vault passkeys eligible for a WebAuthn get. */
+    BeginPasskeyAssertion = 37,
+
+    /** Popup: verify the vault password and complete an assertion. */
+    CompletePasskeyAssertion = 38,
+
+    /** Content script: cancel a pending assertion ceremony. */
+    CancelPasskeyAssertion = 39,
+
+    /** Popup: read the assertion waiting for user confirmation. */
+    GetPendingPasskeyAssertion = 40,
+
+    /** Content script: check whether popup confirmation has finished. */
+    ConsumePasskeyAssertionResult = 41,
+
+    /** Popup: decline the assertion and return to the native authenticator. */
+    DeclinePasskeyAssertion = 42,
 }
 
 /**
@@ -309,6 +327,65 @@ export interface AttachPasskeyRequest {
     credentialId: string;
     passkey: PasskeyData;
 }
+
+export type PasskeyRequestOptionsDTO = {
+    challenge: string;
+    rpId?: string;
+    allowCredentials: Array<{
+        type: "public-key";
+        id: string;
+    }>;
+    userVerification: UserVerificationRequirement;
+};
+
+export type PasskeyAssertionCandidate = {
+    credentialId: string;
+    userName: string;
+    userDisplayName: string;
+};
+
+export interface BeginPasskeyAssertionRequest {
+    publicKey: PasskeyRequestOptionsDTO;
+}
+
+export type BeginPasskeyAssertionResponse =
+    | { ok: true; ceremonyId: string | null }
+    | { ok: false; error: string };
+
+export interface CompletePasskeyAssertionRequest {
+    ceremonyId: string;
+    credentialId: string;
+    vaultPassword?: string;
+}
+
+export type CompletePasskeyAssertionResponse =
+    | { ok: true }
+    | { ok: false; error: string };
+
+export interface CancelPasskeyAssertionRequest {
+    ceremonyId: string;
+}
+
+export type PendingPasskeyAssertion = {
+    ceremonyId: string;
+    rpId: string;
+    candidates: PasskeyAssertionCandidate[];
+    requiresPassword: boolean;
+};
+
+export type GetPendingPasskeyAssertionResponse =
+    | { ok: true; pending: PendingPasskeyAssertion | null }
+    | { ok: false; error: string };
+
+export type ConsumePasskeyAssertionResultResponse =
+    | { ok: true; status: "pending" }
+    | {
+          ok: true;
+          status: "authenticated";
+          assertion: import("../content/passkey-assertion").SerializedPasskeyAssertion;
+      }
+    | { ok: true; status: "fallback" }
+    | { ok: false; error: string };
 
 export type CredentialDraftMode = "create" | "edit";
 

@@ -140,6 +140,22 @@ export async function setSessionDEKFromVaultMetadata(
     await setSessionDEK(vaultDbIndex, dek);
 }
 
+/** Re-derives the primary DEK to confirm the current vault password. */
+export async function verifyVaultMasterPassword(
+    metadata: VaultMetadata | VaultUtilTypes.VaultMetadata,
+    masterPassword: string,
+): Promise<boolean> {
+    if (!masterPassword) return false;
+    try {
+        await deriveExtractableSessionDEK(metadata as VaultMetadata, {
+            masterPassword,
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export async function getSessionDEK(
     vaultDbIndex: number,
 ): Promise<CryptoKey | null> {

@@ -88,6 +88,11 @@ function normalizedHostname(url: URL): string {
     return url.hostname.toLowerCase().replace(/\.$/, "").replaceAll("%2a", "*");
 }
 
+/** True when a hostname contains a registrable domain under the PSL. */
+export function isRegistrableDomain(hostname: string): boolean {
+    return psl.get(hostname.toLowerCase().replace(/\.$/u, "")) !== null;
+}
+
 function escapeRegex(value: string): string {
     return value.replace(REGEX_SPECIAL, "\\$&");
 }

@@ -39,11 +39,29 @@ byte-layout tests live in `extension/tests/passkey-authenticator-data.test.ts`.
 
 ## User verification
 
-The current software-authenticator policy treats an authenticated, unlocked
-vault session as establishing the user's identity and the explicit **Save
-passkey** action as fresh user presence. The returned UV flag is set only after
-that action succeeds. A locked vault falls back to the native browser
-authenticator.
+Registration treats the explicit **Save passkey** action in an unlocked vault
+as user presence. Authentication requests with `userVerification` set to
+`preferred` or `required` require the current vault password before setting the
+UV (User Verification) flag. `discouraged` requests set UP (User Presence) without UV. A locked vault or a request
+with no matching credential falls back to the native browser authenticator.
+
+## Authentication boundaries
+
+1. The main-world bridge intercepts `navigator.credentials.get()` and preserves
+   the native call for fallback.
+2. The isolated content script serializes BufferSources, then asks the service
+   worker to bind a short-lived ceremony to the top-frame sender, origin, RP ID,
+   challenge, vault, and eligible credential IDs.
+3. The toolbar popup displays eligible passkeys and collects the vault password
+   when UV is requested. The password goes directly from the popup to the service
+   worker and never enters the host tab or content script.
+4. The service worker revalidates the ceremony and password, signs
+   `authenticatorData || SHA-256(clientDataJSON)` with the stored ES256 key, and
+   consumes the ceremony.
+5. The content script consumes the public result and the page bridge reconstructs
+   an `AuthenticatorAssertionResponse`. ES256 signatures are returned as ASN.1
+   DER, as required by WebAuthn. The counter remains zero because a synchronized
+   passkey cannot (won't) maintain one reliable monotonic count across devices.
 
 This is close to Proton Pass's extension flow, where passkey creation is gated by
 its unlocked client session and save confirmation. Bitwarden has a more granular
@@ -65,6 +83,6 @@ support is added.
 
 ## Remaining production parity - a TODO list, if you will...
 
-Registration currently supports ES256. Full authenticator parity still requires
-`navigator.credentials.get()` assertions, exclusion-list checks, related-origin
-validation, WebAuthn extensions, and a dedicated fresh user-verification flow.
+Registration and authentication currently support ES256. Full authenticator
+parity still requires exclusion-list checks, related-origin validation, and
+WebAuthn extension processing.

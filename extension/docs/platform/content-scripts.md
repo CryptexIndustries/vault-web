@@ -1,13 +1,14 @@
 # Content Scripts
 
-The extension injects one content script bundle on all `http:` and `https:` pages.
+The extension injects an isolated-world autofill bundle and a small main-world
+WebAuthn bridge on all `http:` and `https:` pages.
 
 ## Manifest injection
 
 ```
 js: assets/autofill-cs.js (IIFE, vite.config.content.ts)
 matches: http://*/*, https://*/*
-run_at: document_idle
+run_at: document_start
 all_frames: false
 match_about_blank: false
 ```

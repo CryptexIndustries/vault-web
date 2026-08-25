@@ -16,6 +16,8 @@ import { Toaster } from "@/components/ui/sonner";
 import {
     EncryptedEnvelope,
     MessageType,
+    type GetPendingPasskeyAssertionResponse,
+    type PendingPasskeyAssertion,
     type PendingSavePrompt,
     type PlaintextEnvelope,
 } from "./types/sw-messaging";
@@ -28,6 +30,7 @@ import {
 import { generalLog, uiLog, vaultLog } from "./utils/ext-logging";
 import PopupUnlock from "./components/popup-unlock";
 import PopupSaveCredential from "./components/popup-save-credential";
+import PopupPasskeyAssertion from "./components/popup-passkey-assertion";
 import VaultView from "./vault-view";
 import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 
@@ -77,6 +80,8 @@ const App = () => {
     const [pendingSave, setPendingSave] = useState<PendingSavePrompt | null>(
         null,
     );
+    const [pendingPasskey, setPendingPasskey] =
+        useState<PendingPasskeyAssertion | null>(null);
 
     const rawVaults = useLiveQuery(() => Storage.db.vaults.toArray());
     const hasVaults = (rawVaults?.length ?? 0) > 0;
@@ -215,13 +220,25 @@ const App = () => {
         }
         let cancelled = false;
         (async () => {
-            const res = await sendEncryptedEnvelopeToSW<{
-                ok: true;
-                prompt: PendingSavePrompt | null;
-            }>(MessageType.GetPendingSavePrompt, null);
+            const [saveResult, passkeyResult] = await Promise.all([
+                sendEncryptedEnvelopeToSW<{
+                    ok: true;
+                    prompt: PendingSavePrompt | null;
+                }>(MessageType.GetPendingSavePrompt, null),
+                isFullPageView
+                    ? null
+                    : sendEncryptedEnvelopeToSW<GetPendingPasskeyAssertionResponse>(
+                          MessageType.GetPendingPasskeyAssertion,
+                          null,
+                      ),
+            ]);
             if (cancelled) return;
-            if (!res.ok || !res.payload?.ok) return;
-            setPendingSave(res.payload.prompt);
+            if (saveResult.ok && saveResult.payload?.ok) {
+                setPendingSave(saveResult.payload.prompt);
+            }
+            if (passkeyResult?.ok && passkeyResult.payload?.ok) {
+                setPendingPasskey(passkeyResult.payload.pending);
+            }
         })();
         return () => {
             cancelled = true;
@@ -416,6 +433,9 @@ const App = () => {
         }
 
         if (bg.unlocked && bg.metadata) {
+            if (pendingPasskey) {
+                return <PopupPasskeyAssertion pending={pendingPasskey} />;
+            }
             if (pendingSave) {
                 return (
                     <PopupSaveCredential

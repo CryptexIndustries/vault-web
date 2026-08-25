@@ -71,12 +71,42 @@ import {
     getActivePageOrigin,
     recordPageOrigin,
 } from "./background/page-origin-context";
+import {
+    beginPasskeyAssertion,
+    cancelPasskeyAssertion,
+    completePasskeyAssertion,
+    consumePasskeyAssertionResult,
+    declinePasskeyAssertion,
+    getPendingPasskeyAssertion,
+} from "./background/passkey-assertion-service";
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
 const ACTIVE_VAULT_DB_INDEX_KEY = "AVI";
 
 registerVaultActionStateIndicator();
+
+const passkeyConfirmationPorts = new Map<string, Set<chrome.runtime.Port>>();
+
+chrome.runtime.onConnect.addListener((port) => {
+    const prefix = "passkey-confirmation:";
+    if (
+        !port.name.startsWith(prefix) ||
+        !port.sender?.url?.startsWith(chrome.runtime.getURL("/popup.html"))
+    ) {
+        return;
+    }
+    const ceremonyId = port.name.slice(prefix.length);
+    const ports = passkeyConfirmationPorts.get(ceremonyId) ?? new Set();
+    ports.add(port);
+    passkeyConfirmationPorts.set(ceremonyId, ports);
+    port.onDisconnect.addListener(() => {
+        ports.delete(port);
+        if (ports.size) return;
+        passkeyConfirmationPorts.delete(ceremonyId);
+        void declinePasskeyAssertion({ ceremonyId });
+    });
+});
 
 type LegacyMessage = {
     type: -1;
@@ -111,6 +141,9 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.SaveCredentialDraft,
     MessageType.ClearCredentialDraft,
     MessageType.AttachPasskey,
+    MessageType.CompletePasskeyAssertion,
+    MessageType.GetPendingPasskeyAssertion,
+    MessageType.DeclinePasskeyAssertion,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -136,6 +169,9 @@ const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
         MessageType.OpenPopup,
         MessageType.RegisterAutofillFrame,
         MessageType.ReportPageOrigin,
+        MessageType.BeginPasskeyAssertion,
+        MessageType.CancelPasskeyAssertion,
+        MessageType.ConsumePasskeyAssertionResult,
     ]),
     "autofill-menu": new Set<MessageType>([MessageType.ClaimAutofillFrame]),
     "autofill-generator": new Set<MessageType>([
@@ -1088,6 +1124,56 @@ async function processMessageUncoordinated(
                     requestOrigin,
                 );
             }
+
+            case MessageType.BeginPasskeyAssertion: {
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const requestOrigin = getAutofillRequestOrigin(sender);
+                if (!requestOrigin) {
+                    return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
+                }
+                const result = await beginPasskeyAssertion(
+                    payload,
+                    vault,
+                    metadata?.DBIndex,
+                    requestOrigin,
+                    sender,
+                );
+                if (result.ok && result.ceremonyId) {
+                    void handleOpenPopup();
+                }
+                return result;
+            }
+
+            case MessageType.CompletePasskeyAssertion: {
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                return completePasskeyAssertion(payload, vault, metadata);
+            }
+
+            case MessageType.CancelPasskeyAssertion:
+                return cancelPasskeyAssertion(payload, sender);
+
+            case MessageType.GetPendingPasskeyAssertion: {
+                const vault = await getVaultFromSessionStorage();
+                return getPendingPasskeyAssertion(vault);
+            }
+
+            case MessageType.ConsumePasskeyAssertionResult: {
+                const requestOrigin = getAutofillRequestOrigin(sender);
+                if (!requestOrigin) {
+                    return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
+                }
+                return consumePasskeyAssertionResult(
+                    payload,
+                    await getActiveVaultDbIndex(),
+                    requestOrigin,
+                    sender,
+                );
+            }
+
+            case MessageType.DeclinePasskeyAssertion:
+                return declinePasskeyAssertion(payload);
 
             case MessageType.GetActivePageOrigin: {
                 return {

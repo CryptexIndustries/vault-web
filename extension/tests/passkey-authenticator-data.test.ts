@@ -4,6 +4,7 @@
 import { describe, expect, it } from "@jest/globals";
 
 import {
+    buildAssertionAuthenticatorData,
     buildNoneAttestationObject,
     buildRegistrationAuthenticatorData,
     CRYPTEX_VAULT_SYNCED_SOFTWARE_AUTHENTICATOR_AAGUID,
@@ -92,5 +93,25 @@ describe("passkey authenticator-data encoding", () => {
             0x61, 0x74, 0x74, 0x53, 0x74, 0x6d, 0x74, 0xa0, 0x68, 0x61, 0x75,
             0x74, 0x68, 0x44, 0x61, 0x74, 0x61, 0x43, 0x01, 0x02, 0x03,
         ]);
+    });
+
+    it("encodes assertion data without attested credential material", async () => {
+        const data = await buildAssertionAuthenticatorData({
+            rpId: "example.com",
+            signCount: 0,
+            userVerified: true,
+        });
+
+        expect(data).toHaveLength(37);
+        expect(data[32]).toBe(0x1d); // UP | UV | BE | BS
+        expect(data.slice(33)).toEqual(Uint8Array.of(0, 0, 0, 0));
+        expect(data.slice(0, 32)).toEqual(
+            new Uint8Array(
+                await crypto.subtle.digest(
+                    "SHA-256",
+                    new TextEncoder().encode("example.com"),
+                ),
+            ),
+        );
     });
 });

@@ -63,7 +63,9 @@ Encrypted messages are rejected with `MESSAGE_TYPE_NOT_ALLOWED` when
 `CreateCredential`, `UpdateCredential`, `DeleteCredential`, `GetLinkedDevices`,
 `SyncGetItemCredentials`, `SyncGetItemVersionVectors`, `SyncGetConfiguration`,
 `SyncUpdateCredentials`, `ProxyFetch`, `GetPendingSavePrompt`,
-`ConsumePendingSavePrompt`, `GetActivePageOrigin`, `AttachPasskey`
+`ConsumePendingSavePrompt`, `GetActivePageOrigin`, `AttachPasskey`,
+`GetPendingPasskeyAssertion`, `CompletePasskeyAssertion`,
+`DeclinePasskeyAssertion`
 
 ### `link`
 
@@ -77,7 +79,8 @@ None (empty allowlist)
 
 `GetState`, `GetCredentialsForOrigin`, `GetCredentialSecret`, `GenerateTOTP`,
 `SaveCredentialPrompt`, `GetPendingSavePrompt`, `OpenPopup`,
-`RegisterAutofillFrame`, `ReportPageOrigin`
+`RegisterAutofillFrame`, `ReportPageOrigin`, `BeginPasskeyAssertion`,
+`ConsumePasskeyAssertionResult`, `CancelPasskeyAssertion`
 
 ### `autofill-menu`
 

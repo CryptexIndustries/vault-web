@@ -51,7 +51,62 @@ test("creates, saves, and reopens a passkey from the relying-party page", async 
     await expect(
         relyingParty.locator('iframe[data-cryptex-autofill="save"]'),
     ).toHaveCount(0);
-    await expect(relyingParty.getByRole("status")).toContainText("Registered");
+    await expect(relyingParty.locator("#registration-status")).toContainText(
+        "Registered",
+    );
+
+    await relyingParty
+        .getByRole("button", { name: "Use saved passkey" })
+        .click();
+    await relyingParty.waitForTimeout(250);
+    const confirmationPage = await context.newPage();
+    await confirmationPage.goto(`chrome-extension://${extensionId}/popup.html`);
+    await expect(
+        confirmationPage.getByRole("heading", { name: "Use a passkey" }),
+    ).toBeVisible();
+    await expect(confirmationPage.getByText("Example Person")).toBeVisible();
+    await confirmationPage.getByLabel("Vault password").fill("wrong");
+    await confirmationPage.getByRole("button", { name: "Continue" }).click();
+    await expect(confirmationPage.getByRole("alert")).toContainText(
+        "Incorrect vault password",
+    );
+    await confirmationPage.getByLabel("Vault password").fill(VAULT_PASSWORD);
+    await Promise.all([
+        confirmationPage.waitForEvent("close"),
+        confirmationPage.getByRole("button", { name: "Continue" }).click(),
+    ]);
+    await expect(relyingParty.locator("#authentication-status")).toContainText(
+        "Authenticated",
+    );
+    await expect(relyingParty.locator("#authentication-status")).toContainText(
+        "verified ES256 signature",
+    );
+
+    await relyingParty
+        .getByRole("button", { name: "Use discoverable passkey" })
+        .click();
+    await relyingParty.waitForTimeout(250);
+    const discoverableConfirmation = await context.newPage();
+    await discoverableConfirmation.goto(
+        `chrome-extension://${extensionId}/popup.html`,
+    );
+    await expect(
+        discoverableConfirmation.getByRole("heading", {
+            name: "Use a passkey",
+        }),
+    ).toBeVisible();
+    await discoverableConfirmation
+        .getByLabel("Vault password")
+        .fill(VAULT_PASSWORD);
+    await discoverableConfirmation
+        .getByRole("button", { name: "Continue" })
+        .click();
+    await expect(relyingParty.locator("#authentication-status")).toContainText(
+        "Discoverable authenticated",
+    );
+    await expect(relyingParty.locator("#authentication-status")).toContainText(
+        "verified ES256 signature",
+    );
 
     await vaultPage.reload();
     const savedPasskey = vaultPage.getByRole("button", {

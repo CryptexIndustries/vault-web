@@ -4,3 +4,11 @@ pre-commit:
       glob: "{web,extension,packages}/**.{js,jsx,ts,tsx,json,jsonc,md,mdx,html,css,cjs,mjs,toml}"
       run: pnpm exec oxfmt --write {staged_files}
       stage_fixed: true
+    verify-lockfile:
+      glob: "{package.json,pnpm-lock.yaml,pnpm-workspace.yaml,**/package.json}"
+      run: touch -c pnpm-lock.yaml && pnpm exec true
+
+pre-push:
+  commands:
+    verify-lockfile:
+      run: touch -c pnpm-lock.yaml && pnpm exec true

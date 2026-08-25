@@ -229,7 +229,7 @@ const AppIndex: React.FC = () => {
         <>
             <HTMLHeader
                 title="Cryptex Vault"
-                description="Decentralized Password Manager"
+                description="Local-first password manager"
             />
 
             <HTMLMain additionalClasses="content flex h-svh grow flex-col overflow-hidden">

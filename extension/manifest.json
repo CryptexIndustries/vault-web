@@ -1,9 +1,9 @@
 {
     "manifest_version": 3,
     "minimum_chrome_version": "127",
-    "name": "Cryptex Vault: Decentralized password manager",
+    "name": "Cryptex Vault - Local-first password manager",
     "version": "1.0.0",
-    "description": "A decentralized password manager for the modern web. Keeping your credentials secure and private.",
+    "description": "Open-source password manager with browser autofill and peer-to-peer sync. Keep your vault local, private, and under your control",
     "icons": {
         "16": "assets/icons/icon-16.png",
         "32": "assets/icons/icon-32.png",

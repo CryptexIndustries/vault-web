@@ -149,6 +149,15 @@ export enum MessageType {
 
     /** Popup: decline the assertion and return to the native authenticator. */
     DeclinePasskeyAssertion = 42,
+
+    /** Popup: create a directory in the unlocked vault. */
+    CreateDirectory = 43,
+
+    /** Popup: rename a directory in the unlocked vault. */
+    UpdateDirectory = 44,
+
+    /** Popup: delete a directory and every credential it contains. */
+    DeleteDirectory = 45,
 }
 
 /**
@@ -238,6 +247,19 @@ export type LiteCredential = {
     type: ItemType;
     passkey?: Pick<PasskeyData, "RPID" | "UserName" | "UserDisplayName">;
 };
+
+export interface CreateDirectoryRequest {
+    name: string;
+}
+
+export interface UpdateDirectoryRequest {
+    id: string;
+    name: string;
+}
+
+export interface DeleteDirectoryRequest {
+    id: string;
+}
 
 export interface ActivePageOrigin {
     tabId: number;

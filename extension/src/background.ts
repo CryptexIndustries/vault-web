@@ -124,6 +124,9 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.CreateCredential,
     MessageType.UpdateCredential,
     MessageType.DeleteCredential,
+    MessageType.CreateDirectory,
+    MessageType.UpdateDirectory,
+    MessageType.DeleteDirectory,
     MessageType.GetLinkedDevices,
     MessageType.GetDirectories,
     MessageType.SyncGetItems,
@@ -436,6 +439,9 @@ const VAULT_WRITE_MESSAGE_TYPES: Partial<Record<MessageType, VaultWriteKind>> =
         [MessageType.UpdateCredential]: "credential.upsert",
         [MessageType.AttachPasskey]: "credential.upsert",
         [MessageType.DeleteCredential]: "credential.delete",
+        [MessageType.CreateDirectory]: "directory.create",
+        [MessageType.UpdateDirectory]: "directory.rename",
+        [MessageType.DeleteDirectory]: "directory.delete",
         [MessageType.SyncUpdateItems]: "synchronization.apply",
     };
 
@@ -791,6 +797,102 @@ async function processMessageUncoordinated(
                 );
 
                 return { ok: true };
+            }
+
+            case MessageType.CreateDirectory: {
+                if (!payload || typeof payload.name !== "string") {
+                    return { ok: false, error: "INVALID_DIRECTORY_PAYLOAD" };
+                }
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                const directory = await Vault.createDirectory(
+                    vault.Directories,
+                    { ID: null, Name: payload.name },
+                );
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
+
+                return { ok: true, directory };
+            }
+
+            case MessageType.UpdateDirectory: {
+                if (
+                    !payload ||
+                    typeof payload.id !== "string" ||
+                    typeof payload.name !== "string"
+                ) {
+                    return { ok: false, error: "INVALID_DIRECTORY_PAYLOAD" };
+                }
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                const directory = await Vault.updateDirectory(
+                    vault.Directories,
+                    payload.id,
+                    { Name: payload.name },
+                );
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
+
+                return { ok: true, directory };
+            }
+
+            case MessageType.DeleteDirectory: {
+                if (!payload || typeof payload.id !== "string") {
+                    return { ok: false, error: "INVALID_DIRECTORY_PAYLOAD" };
+                }
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+
+                const result = await Vault.deleteDirectory(
+                    vault.Directories,
+                    vault.Credentials,
+                    payload.id,
+                );
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
+
+                return { ok: true, ...result };
             }
 
             case MessageType.GetLinkedDevices: {

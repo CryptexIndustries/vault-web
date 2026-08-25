@@ -11,6 +11,7 @@ import { CredentialDetail } from "@/components/vault-dashboard/credential-detail
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     Copy,
+    ChevronDown,
     Edit,
     ExternalLink,
     Eye,
@@ -20,6 +21,9 @@ import {
     Globe,
     GripVertical,
     Key,
+    Folder,
+    FolderRoot,
+    LayoutList,
     Loader2,
     LockKeyhole,
     MoreVertical,
@@ -27,6 +31,7 @@ import {
     PlusCircle,
     RefreshCw,
     Search,
+    Settings2,
     Shield,
     Trash2,
     User,
@@ -37,7 +42,9 @@ import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
     ActivePageOrigin,
+    CreateDirectoryRequest,
     CredentialDraft,
+    DeleteDirectoryRequest,
     EncryptedEnvelope,
     GetActivePageOriginResponse,
     GetCredentialDraftResponse,
@@ -46,6 +53,7 @@ import {
     PlaintextEnvelope,
     SaveCredentialDraftRequest,
     SyncSetLastSyncRequest,
+    UpdateDirectoryRequest,
 } from "./types/sw-messaging";
 import {
     createEncryptedEnvelope,
@@ -69,6 +77,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -98,6 +107,11 @@ import {
 } from "@/components/dialog/warning";
 import { CredentialConstants, TOTPConstants } from "@/utils/consts";
 import { CredentialURLRulesEditor } from "@/components/vault-dashboard/credential-url-rules";
+import {
+    DirectoryEditorDialog,
+    DirectoryManagerDialog,
+    DirectoryPicker,
+} from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
@@ -157,6 +171,13 @@ const VaultView: React.FC<VaultViewProps> = ({
         formModalOpenRef.current = credentialModalVisible[0];
     });
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
+    const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
+    const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
+    const [editingDirectory, setEditingDirectory] =
+        useState<Vault.Directory | null>(null);
+    const [directoryEditorContext, setDirectoryEditorContext] = useState<
+        "browser" | "credential-form"
+    >("browser");
 
     // Loading states for CRUD operations
     const [isCreating, setIsCreating] = useState(false);
@@ -331,6 +352,34 @@ const VaultView: React.FC<VaultViewProps> = ({
               ),
           )
         : [];
+
+    const sortedDirectories = Vault.sortDirectories(
+        directories.filter((directory) => !directory.Deleted),
+    );
+    const credentialCounts = credentials.reduce<Record<string, number>>(
+        (counts, credential) => {
+            counts.all = (counts.all ?? 0) + 1;
+            const key = credential.directoryId || "root";
+            counts[key] = (counts[key] ?? 0) + 1;
+            return counts;
+        },
+        { all: 0, root: 0 },
+    );
+    const selectedDirectory = directories.find(
+        (directory) => directory.ID === selectedDirectoryID,
+    );
+    const selectedDirectoryLabel =
+        selectedDirectoryID === "all"
+            ? "All credentials"
+            : selectedDirectoryID === ""
+              ? "Root"
+              : (selectedDirectory?.Name ?? "All credentials");
+    const selectedDirectoryCount =
+        selectedDirectoryID === "all"
+            ? (credentialCounts.all ?? 0)
+            : selectedDirectoryID === ""
+              ? (credentialCounts.root ?? 0)
+              : (credentialCounts[selectedDirectoryID] ?? 0);
 
     const requestActivePageOrigin = useCallback(async () => {
         // A toolbar click normally exposes Tab.url through activeTab. Keep this
@@ -1225,6 +1274,133 @@ const VaultView: React.FC<VaultViewProps> = ({
         refreshCredentialsRef.current = refreshCredentials;
     }, [refreshCredentials]);
 
+    const mutateDirectory = useCallback(
+        async <T,>(
+            type:
+                | MessageType.CreateDirectory
+                | MessageType.UpdateDirectory
+                | MessageType.DeleteDirectory,
+            payload:
+                | CreateDirectoryRequest
+                | UpdateDirectoryRequest
+                | DeleteDirectoryRequest,
+        ): Promise<Result<T, string>> => {
+            const response = await sendEncryptedEnvelopeToSW<
+                ({ ok: true } & T) | { ok: false; error: string }
+            >(type, payload);
+            if (!response.ok) return err(response.error);
+            if (!response.payload.ok) {
+                return err(response.payload.error);
+            }
+            return ok(response.payload);
+        },
+        [],
+    );
+
+    const openDirectoryEditor = useCallback(
+        (directory: Vault.Directory | null) => {
+            setDirectoryEditorContext("browser");
+            setEditingDirectory(directory);
+            setDirectoryEditorOpen(true);
+        },
+        [],
+    );
+
+    const openCredentialFormDirectoryEditor = useCallback(() => {
+        setDirectoryEditorContext("credential-form");
+        setEditingDirectory(null);
+        setDirectoryEditorOpen(true);
+    }, []);
+
+    const handleCreateDirectory = useCallback(
+        async (name: string) => {
+            const result = await mutateDirectory<{
+                directory: VaultUtilTypes.Directory;
+            }>(MessageType.CreateDirectory, { name });
+            if (result.isErr()) throw new Error(result.error);
+
+            setDirectories((current) => [...current, result.value.directory]);
+            await refreshDirectories();
+            setSelectedDirectoryID(result.value.directory.ID);
+            toast.success("Directory created.");
+            return result.value.directory.ID;
+        },
+        [mutateDirectory, refreshDirectories],
+    );
+
+    const handleRenameDirectory = useCallback(
+        async (directoryID: string, name: string) => {
+            const result = await mutateDirectory<{
+                directory: VaultUtilTypes.Directory;
+            }>(MessageType.UpdateDirectory, { id: directoryID, name });
+            if (result.isErr()) throw new Error(result.error);
+
+            setDirectories((current) =>
+                current.map((directory) =>
+                    directory.ID === directoryID
+                        ? result.value.directory
+                        : directory,
+                ),
+            );
+            await refreshDirectories();
+            toast.success("Directory renamed.");
+        },
+        [mutateDirectory, refreshDirectories],
+    );
+
+    const handleDeleteDirectory = useCallback(
+        (directoryID: string) => {
+            const directory = directories.find(
+                (entry) => entry.ID === directoryID && !entry.Deleted,
+            );
+            if (!directory) return;
+
+            const count = credentials.filter(
+                (credential) => credential.directoryId === directoryID,
+            ).length;
+            showWarningDialogFnRef.current?.(
+                `Delete “${directory.Name}” and ${count} credential${count === 1 ? "" : "s"}? This permanently deletes every credential in the directory.`,
+                async () => {
+                    const result = await mutateDirectory(
+                        MessageType.DeleteDirectory,
+                        { id: directoryID },
+                    );
+                    if (result.isErr()) {
+                        toast.error(result.error);
+                        return;
+                    }
+
+                    setDirectories((current) =>
+                        current.filter(
+                            (directory) => directory.ID !== directoryID,
+                        ),
+                    );
+                    setCredentials((current) =>
+                        current.filter(
+                            (credential) =>
+                                credential.directoryId !== directoryID,
+                        ),
+                    );
+                    await refreshCredentials();
+                    if (selectedCredential?.DirectoryID === directoryID) {
+                        setSelectedCredential(null);
+                    }
+                    setSelectedDirectoryID("all");
+                    toast.success("Directory and credentials deleted.");
+                },
+                () => undefined,
+                "Delete directory",
+            );
+        },
+        [
+            credentials,
+            directories,
+            mutateDirectory,
+            refreshCredentials,
+            selectedCredential,
+        ],
+    );
+
     const _getSyncConfig = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
@@ -1916,9 +2092,6 @@ const VaultView: React.FC<VaultViewProps> = ({
             {/* Brand, primary actions, and search share one compact top bar. */}
             <header className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-background via-background to-primary/[0.05] px-3 py-2">
                 <div className="flex shrink-0 items-center gap-2.5 pr-1">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 shadow-sm shadow-primary/10">
-                        <Shield className="h-4 w-4 text-primary" />
-                    </span>
                     <span className="whitespace-nowrap text-sm font-semibold tracking-wide text-foreground">
                         Cryptex <span className="text-primary">Vault</span>
                     </span>
@@ -2044,38 +2217,112 @@ const VaultView: React.FC<VaultViewProps> = ({
                 {/* Left pane: directory + credential list */}
                 <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
                     <div className="border-b border-border bg-background/50 px-3 py-2">
-                        <Select
-                            value={selectedDirectoryID || "root"}
-                            onValueChange={(value) =>
-                                setSelectedDirectoryID(
-                                    value === "root" ? "" : value,
-                                )
-                            }
-                        >
-                            <SelectTrigger
-                                className="h-8 bg-secondary/30 text-xs"
-                                aria-label="Browse directory"
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full justify-between gap-2 bg-card"
+                                    aria-label="Browse directories"
+                                >
+                                    <span className="flex min-w-0 items-center gap-2">
+                                        {selectedDirectoryID === "all" ? (
+                                            <LayoutList className="h-4 w-4 shrink-0" />
+                                        ) : selectedDirectoryID === "" ? (
+                                            <FolderRoot className="h-4 w-4 shrink-0" />
+                                        ) : (
+                                            <Folder className="h-4 w-4 shrink-0" />
+                                        )}
+                                        <span className="truncate">
+                                            {selectedDirectoryLabel}
+                                        </span>
+                                    </span>
+                                    <span className="ml-auto flex shrink-0 items-center gap-1.5 text-muted-foreground">
+                                        <span className="text-xs">
+                                            {selectedDirectoryCount}
+                                        </span>
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                    </span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align="start"
+                                className="w-64"
+                                onCloseAutoFocus={(event) =>
+                                    event.preventDefault()
+                                }
                             >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                <SelectItem value="root">Root</SelectItem>
-                                {directories
-                                    .filter((directory) => !directory.Deleted)
-                                    .sort((a, b) =>
-                                        a.Name.localeCompare(b.Name),
-                                    )
-                                    .map((directory) => (
-                                        <SelectItem
-                                            key={directory.ID}
-                                            value={directory.ID}
-                                        >
+                                <DropdownMenuItem
+                                    className={cn(
+                                        selectedDirectoryID === "all" &&
+                                            "bg-accent",
+                                    )}
+                                    onSelect={() =>
+                                        setSelectedDirectoryID("all")
+                                    }
+                                >
+                                    <LayoutList className="mr-2 h-4 w-4" />
+                                    <span className="flex-1">
+                                        All credentials
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {credentialCounts.all ?? 0}
+                                    </span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className={cn(
+                                        selectedDirectoryID === "" &&
+                                            "bg-accent",
+                                    )}
+                                    onSelect={() => setSelectedDirectoryID("")}
+                                >
+                                    <FolderRoot className="mr-2 h-4 w-4" />
+                                    <span className="flex-1">Root</span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {credentialCounts.root ?? 0}
+                                    </span>
+                                </DropdownMenuItem>
+                                {sortedDirectories.length > 0 ? (
+                                    <DropdownMenuSeparator />
+                                ) : null}
+                                {sortedDirectories.map((directory) => (
+                                    <DropdownMenuItem
+                                        key={directory.ID}
+                                        className={cn(
+                                            selectedDirectoryID ===
+                                                directory.ID && "bg-accent",
+                                        )}
+                                        onSelect={() =>
+                                            setSelectedDirectoryID(directory.ID)
+                                        }
+                                    >
+                                        <Folder className="mr-2 h-4 w-4" />
+                                        <span className="flex-1 truncate">
                                             {directory.Name}
-                                        </SelectItem>
-                                    ))}
-                            </SelectContent>
-                        </Select>
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {credentialCounts[directory.ID] ??
+                                                0}
+                                        </span>
+                                    </DropdownMenuItem>
+                                ))}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onSelect={() => openDirectoryEditor(null)}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    New directory
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        setDirectoryManagerOpen(true)
+                                    }
+                                >
+                                    <Settings2 className="mr-2 h-4 w-4" />
+                                    Manage directories
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -2585,58 +2832,25 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             control={control}
                                             name="DirectoryID"
                                             render={({ field }) => (
-                                                <Select
-                                                    value={
-                                                        field.value || "root"
-                                                    }
-                                                    onValueChange={(value) =>
-                                                        field.onChange(
-                                                            value === "root"
-                                                                ? ""
-                                                                : value,
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        className="h-9 text-sm"
-                                                        aria-label="Directory"
-                                                    >
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="root">
-                                                            Root
-                                                        </SelectItem>
-                                                        {directories
-                                                            .filter(
-                                                                (directory) =>
-                                                                    !directory.Deleted,
-                                                            )
-                                                            .sort((a, b) =>
-                                                                a.Name.localeCompare(
-                                                                    b.Name,
-                                                                ),
-                                                            )
-                                                            .map(
-                                                                (directory) => (
-                                                                    <SelectItem
-                                                                        key={
-                                                                            directory.ID
-                                                                        }
-                                                                        value={
-                                                                            directory.ID
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            directory.Name
-                                                                        }
-                                                                    </SelectItem>
-                                                                ),
-                                                            )}
-                                                    </SelectContent>
-                                                </Select>
+                                                <DirectoryPicker
+                                                    directories={directories}
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                />
                                             )}
                                         />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full gap-1.5"
+                                            onClick={
+                                                openCredentialFormDirectoryEditor
+                                            }
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            New directory
+                                        </Button>
                                     </div>
 
                                     {!isPasskeyOnly && (
@@ -3335,6 +3549,33 @@ const VaultView: React.FC<VaultViewProps> = ({
                 open={showPasswordGenerator}
                 onOpenChange={setShowPasswordGenerator}
                 onPasswordSelect={handleGeneratedPasswordSelect}
+            />
+
+            <DirectoryEditorDialog
+                open={directoryEditorOpen}
+                onOpenChange={setDirectoryEditorOpen}
+                directory={editingDirectory}
+                onCreate={async (name) => {
+                    const directoryID = await handleCreateDirectory(name);
+                    if (directoryEditorContext === "credential-form") {
+                        setValue("DirectoryID", directoryID, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                        });
+                    }
+                    return directoryID;
+                }}
+                onRename={handleRenameDirectory}
+            />
+
+            <DirectoryManagerDialog
+                open={directoryManagerOpen}
+                onOpenChange={setDirectoryManagerOpen}
+                directories={directories}
+                credentialCounts={credentialCounts}
+                onDelete={handleDeleteDirectory}
+                onEditDirectory={openDirectoryEditor}
+                onCreateDirectory={() => openDirectoryEditor(null)}
             />
 
             <WarningDialog showFnRef={showWarningDialogFnRef} />

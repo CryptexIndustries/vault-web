@@ -223,9 +223,10 @@ const VaultManager: React.FC<{
     return (
         <Card className="rounded-none border-none shadow-none sm:rounded-md sm:border-solid sm:shadow-xl">
             <CardHeader>
-                <div className="flex items-center space-x-2">
-                    <Shield className="h-6 w-6 text-primary" />
-                    <CardTitle>Vault Manager</CardTitle>
+                <div className="flex items-center text-2xl">
+                    <CardTitle>
+                        Cryptex <span className="text-primary">Vault</span>
+                    </CardTitle>
                 </div>
                 <CardDescription>
                     Securely manage your encrypted vaults

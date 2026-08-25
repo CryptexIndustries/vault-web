@@ -239,6 +239,9 @@ export type LiteCredential = {
     id: string;
     name: string;
     username: string;
+    /** Search-only metadata returned to privileged extension views. */
+    tags?: string;
+    notes?: string;
     url: string;
     urlMatchMode: CredentialURLMatchMode;
     additionalUrls: CredentialURL[];

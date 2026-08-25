@@ -12,6 +12,7 @@ import {
     handleGetCredentialSecret,
     matchCredentialsForOrigin,
     toLiteCredential,
+    toSearchableLiteCredential,
     type AutofillRequestOrigin,
 } from "../src/background/autofill-router";
 
@@ -75,6 +76,22 @@ describe("autofill origin matching", () => {
         });
         expect(JSON.stringify(lite)).not.toContain("private-jwk");
         expect(JSON.stringify(lite)).not.toContain("credential-id");
+    });
+
+    it("only includes tags and notes in the privileged searchable projection", () => {
+        const source = credential({
+            Tags: "work,|.|,admin",
+            Notes: "Recovery contact is Alice",
+        });
+
+        expect(toLiteCredential(source)).not.toMatchObject({
+            tags: expect.anything(),
+            notes: expect.anything(),
+        });
+        expect(toSearchableLiteCredential(source)).toMatchObject({
+            tags: "work,|.|,admin",
+            notes: "Recovery contact is Alice",
+        });
     });
 
     it("returns only credentials authorized for the page URL", () => {

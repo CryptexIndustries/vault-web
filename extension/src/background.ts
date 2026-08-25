@@ -41,6 +41,7 @@ import {
     handleOpenPopup,
     handleSaveCredentialPrompt,
     toLiteCredential,
+    toSearchableLiteCredential,
 } from "./background/autofill-router";
 import type { AutofillRequestOrigin } from "./background/autofill-router";
 import {
@@ -570,7 +571,9 @@ async function processMessageUncoordinated(
 
                 const list: LiteCredential[] = (vault?.Credentials ?? [])
                     .filter((c) => !c.Deleted)
-                    .map((credential) => toLiteCredential(credential));
+                    .map((credential) =>
+                        toSearchableLiteCredential(credential),
+                    );
                 return { ok: true, credentials: list };
             }
 

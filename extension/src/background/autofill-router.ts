@@ -67,6 +67,17 @@ export function toLiteCredential(
     };
 }
 
+/** Adds non-secret search fields for privileged extension UI surfaces. */
+export function toSearchableLiteCredential(
+    credential: VaultUtilTypes.Credential,
+): LiteCredential {
+    return {
+        ...toLiteCredential(credential),
+        tags: credential.Tags ?? "",
+        notes: credential.Notes ?? "",
+    };
+}
+
 /** Matches every active credential against the sender-derived page URL. */
 export function matchCredentialsForOrigin(
     credentials: VaultUtilTypes.Credential[] | undefined,

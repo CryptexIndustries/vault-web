@@ -15,12 +15,12 @@ export function CredentialListIcon({
     return (
         <div
             aria-hidden="true"
-            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted"
+            className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted"
         >
             {type === ItemType.Passkey ? (
-                <Fingerprint className="h-4 w-4 text-primary" />
+                <Fingerprint className="h-5 w-5 text-primary" />
             ) : (
-                <Globe className="h-4 w-4" />
+                <Globe className="h-5 w-5 text-muted-foreground" />
             )}
             {type !== ItemType.Passkey && hasPasskey ? (
                 <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-background p-0.5 text-primary">

@@ -27,7 +27,7 @@ test("creates, saves, and reopens a passkey from the relying-party page", async 
         .getByRole("button", { name: "Unlock", exact: true })
         .click();
     await expect(
-        vaultPage.getByRole("button", { name: "Lock vault" }),
+        vaultPage.getByRole("button", { name: "Vault actions" }),
     ).toBeVisible();
 
     const relyingParty = await context.newPage();
@@ -123,7 +123,8 @@ test("creates, saves, and reopens a passkey from the relying-party page", async 
             .getByText("Example Person", { exact: true }),
     ).toBeVisible();
 
-    await vaultPage.getByRole("button", { name: "Lock vault" }).click();
+    await vaultPage.getByRole("button", { name: "Vault actions" }).click();
+    await vaultPage.getByRole("menuitem", { name: /Lock vault/ }).click();
     await vaultPage
         .getByRole("textbox", { name: "Password", exact: true })
         .fill(VAULT_PASSWORD);

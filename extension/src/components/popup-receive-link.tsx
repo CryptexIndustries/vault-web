@@ -75,7 +75,7 @@ import BarcodeScanner from "./qr-scanner";
 import type { ChunkedQRCodeProgress } from "@ui/lib/chunked-qr";
 import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
-import { PasswordGeneratorDialog } from "@/components/ui/password-generator";
+import { PopupPasswordGeneratorDialog } from "./popup-password-generator-dialog";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
 import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 
@@ -1305,7 +1305,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                     </div>
                 </div>
             )}
-            <PasswordGeneratorDialog
+            <PopupPasswordGeneratorDialog
                 open={isPasswordGeneratorOpen}
                 onOpenChange={setIsPasswordGeneratorOpen}
                 onPasswordSelect={handleGeneratedPassphrase}

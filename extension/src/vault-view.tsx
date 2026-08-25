@@ -8,6 +8,7 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { credentialMatchesPageUrl } from "@cryptex-industries/vault-core/credential-url";
 import { CredentialDetail } from "@/components/vault-dashboard/credential-detail";
+import { CredentialSearch } from "@/components/vault-dashboard/credential-search";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     Copy,
@@ -26,7 +27,7 @@ import {
     LayoutList,
     Loader2,
     LockKeyhole,
-    MoreVertical,
+    MoreHorizontal,
     Plus,
     PlusCircle,
     RefreshCw,
@@ -65,6 +66,7 @@ import {
 import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import { createVaultOperations } from "./vault-operations";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
     DialogContent,
@@ -77,12 +79,12 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PasswordGeneratorDialog } from "@/components/ui/password-generator";
 import {
     Select,
     SelectContent,
@@ -113,10 +115,12 @@ import {
     DirectoryPicker,
 } from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialListIcon } from "./components/credential-list-icon";
+import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
 import { uiLog } from "./utils/ext-logging";
 import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
+import { credentialMatchesSearch } from "./utils/credential-search";
 
 type VaultViewProps = {
     lockVaultFn: () => void;
@@ -334,10 +338,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         (cred) =>
             (selectedDirectoryID === "all" ||
                 cred.directoryId === selectedDirectoryID) &&
-            (cred.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                cred.username
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase())),
+            credentialMatchesSearch(cred, searchQuery),
     );
 
     const currentSiteCredentials = currentSiteUrl
@@ -725,7 +726,11 @@ const VaultView: React.FC<VaultViewProps> = ({
         };
 
         return (
-            <DropdownMenu open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <DropdownMenu
+                open={detailsOpen}
+                onOpenChange={setDetailsOpen}
+                modal={false}
+            >
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
@@ -1043,10 +1048,6 @@ const VaultView: React.FC<VaultViewProps> = ({
     };
 
     const deleteCredential = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this credential?")) {
-            return;
-        }
-
         if (!serverPublicKey) {
             console.error(
                 "CREDENTIAL_DELETE_FAILED: No server public key available for encrypted messaging",
@@ -1074,6 +1075,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                     "Failed to delete credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
+                setIsDeleting(false);
                 return err("FAILED_TO_DELETE_CREDENTIAL_STALE_KEY");
             }
 
@@ -1098,6 +1100,28 @@ const VaultView: React.FC<VaultViewProps> = ({
         setIsDeleting(false);
 
         return err("FAILED_TO_DELETE_CREDENTIAL");
+    };
+
+    const requestDeleteCredential = (id: string, name: string) => {
+        showWarningDialogFnRef.current?.(
+            `You are about to remove the "${name}" credential.`,
+            async () => {
+                const toastId = toast.loading("Removing credential...");
+                const result = await deleteCredential(id);
+
+                if (result?.isOk()) {
+                    toast.success("Credential removed.", {
+                        id: toastId,
+                        duration: 3000,
+                    });
+                    return;
+                }
+
+                toast.error("Failed to remove credential.", { id: toastId });
+            },
+            () => undefined,
+            "Remove credential",
+        );
     };
 
     const _deleteCredential = async (id: string) => {
@@ -2083,8 +2107,8 @@ const VaultView: React.FC<VaultViewProps> = ({
         window.open(fullUrl, "_blank", "noopener,noreferrer");
     };
 
-    const handleDeleteSelected = async (cred: VaultCredential) => {
-        await deleteCredential(cred.ID);
+    const handleDeleteSelected = (cred: VaultCredential) => {
+        requestDeleteCredential(cred.ID, cred.Name);
     };
 
     return (
@@ -2098,17 +2122,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                 </div>
 
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="relative min-w-[180px] flex-1">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            autoFocus
-                            placeholder="Search credentials..."
-                            aria-label="Search credentials"
+                    <div className="min-w-[180px] flex-1">
+                        <CredentialSearch
                             value={searchQuery}
-                            onChange={(
-                                e: React.ChangeEvent<HTMLInputElement>,
-                            ) => setSearchQuery(e.target.value)}
-                            className="h-8 border-border/80 bg-secondary/60 pl-9 text-sm text-foreground shadow-inner placeholder:text-muted-foreground focus:border-primary/60 focus:ring-primary/20"
+                            onChange={setSearchQuery}
+                            className="[&_input]:h-8 [&_input]:border-border/80 [&_input]:bg-secondary/60 [&_input]:shadow-inner [&_input]:focus:border-primary/60 [&_input]:focus:ring-primary/20"
                         />
                     </div>
                     <TooltipProvider delayDuration={250}>
@@ -2147,25 +2165,6 @@ const VaultView: React.FC<VaultViewProps> = ({
                     ) : null}
 
                     <TooltipProvider delayDuration={250}>
-                        {openFullPageFn ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                        onClick={openFullPageFn}
-                                        aria-label="Open vault in a browser tab"
-                                    >
-                                        <ExternalLink className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    Open in browser tab
-                                </TooltipContent>
-                            </Tooltip>
-                        ) : null}
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
@@ -2187,36 +2186,105 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </TooltipTrigger>
                             <TooltipContent>Sync now</TooltipContent>
                         </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                    onClick={lockVaultFn}
-                                    disabled={
-                                        isCreating ||
-                                        isUpdating ||
-                                        isDeleting ||
-                                        isRefreshing
-                                    }
-                                    aria-label="Lock vault"
-                                >
-                                    <LockKeyhole className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Lock vault</TooltipContent>
-                        </Tooltip>
                     </TooltipProvider>
+
+                    <DropdownMenu modal={false}>
+                        <TooltipProvider delayDuration={250}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary data-[state=open]:bg-primary/10 data-[state=open]:text-primary"
+                                            aria-label="Vault actions"
+                                        >
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent>Vault actions</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                                Vault actions
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    // Let the modal menu release its focus and
+                                    // aria guards before opening the dialog.
+                                    requestAnimationFrame(() =>
+                                        setShowPasswordGenerator(true),
+                                    );
+                                }}
+                                disabled={
+                                    isCreating ||
+                                    isUpdating ||
+                                    isDeleting ||
+                                    isRefreshing
+                                }
+                                className="items-start py-2"
+                            >
+                                <Key className="mt-0.5 text-primary" />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        Password generator
+                                    </span>
+                                    <span className="block text-[11px] text-muted-foreground">
+                                        Create a secure password
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                            {openFullPageFn ? (
+                                <DropdownMenuItem
+                                    onSelect={openFullPageFn}
+                                    className="items-start py-2"
+                                >
+                                    <ExternalLink className="mt-0.5" />
+                                    <span className="min-w-0">
+                                        <span className="block font-medium">
+                                            Open in browser tab
+                                        </span>
+                                        <span className="block text-[11px] text-muted-foreground">
+                                            Use the full-page vault
+                                        </span>
+                                    </span>
+                                </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onSelect={() => lockVaultFn()}
+                                disabled={
+                                    isCreating ||
+                                    isUpdating ||
+                                    isDeleting ||
+                                    isRefreshing
+                                }
+                                className="items-start py-2 text-destructive focus:text-destructive"
+                            >
+                                <LockKeyhole className="mt-0.5" />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        Lock vault
+                                    </span>
+                                    <span className="block text-[11px] text-muted-foreground">
+                                        Clear the unlocked session
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </header>
 
             {/* Body: split pane */}
             <div className="flex min-h-0 flex-1">
                 {/* Left pane: directory + credential list */}
-                <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-background/40">
-                    <div className="border-b border-border bg-background/50 px-3 py-2">
+                <aside className="flex w-[320px] flex-shrink-0 flex-col border-r border-border bg-background">
+                    <div className="border-b border-border p-2">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
@@ -2328,7 +2396,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         {currentSiteHost &&
                         currentSiteCredentials.length > 0 ? (
-                            <section className="border-b border-primary/25 bg-primary/[0.06] p-2.5">
+                            <section className="border-b border-primary/20 bg-primary/[0.04] p-2">
                                 <div className="mb-2 flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
@@ -2353,7 +2421,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             <div
                                                 key={credential.id}
                                                 className={cn(
-                                                    "flex items-center gap-1 rounded-md border bg-background/80 p-1 transition-colors",
+                                                    "flex items-center gap-1 rounded-lg border bg-card p-1.5 transition-colors",
                                                     selectedCredential?.ID ===
                                                         credential.id
                                                         ? "border-primary/60"
@@ -2362,7 +2430,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             >
                                                 <button
                                                     type="button"
-                                                    className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                                     onClick={() => {
                                                         if (isRefreshing)
                                                             return;
@@ -2380,10 +2448,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                         )}
                                                     />
                                                     <span className="min-w-0 flex-1">
-                                                        <span className="block truncate text-[11px] font-medium leading-tight text-foreground">
+                                                        <span className="block truncate text-sm font-medium leading-tight text-foreground">
                                                             {credential.name}
                                                         </span>
-                                                        <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+                                                        <span className="mt-1 block truncate text-xs leading-tight text-muted-foreground">
                                                             {credential.type ===
                                                             VaultUtilTypes
                                                                 .ItemType
@@ -2509,12 +2577,19 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </section>
                         ) : null}
                         {filteredCredentials.length === 0 ? (
-                            <div className="flex h-full flex-col items-center justify-center px-3 text-center text-muted-foreground">
-                                <Shield className="mb-2 h-6 w-6 opacity-50" />
-                                <p className="text-xs">No credentials found</p>
+                            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                                    <Search className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    No credentials found
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Try a different search term
+                                </p>
                             </div>
                         ) : (
-                            <div className="space-y-0 p-1">
+                            <div className="space-y-2 p-2">
                                 {filteredCredentials.map((credential) => {
                                     const isSelected =
                                         selectedCredential?.ID ===
@@ -2524,10 +2599,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             key={credential.id}
                                             role="button"
                                             tabIndex={0}
-                                            className={`group cursor-pointer rounded-md border transition-all duration-150 ${
+                                            className={`group cursor-pointer rounded-lg border bg-card transition-all duration-150 ${
                                                 isSelected
-                                                    ? "border-primary bg-primary/10"
-                                                    : "border-transparent hover:border-border hover:bg-muted/50"
+                                                    ? "border-primary bg-primary/5"
+                                                    : "border-border hover:border-primary/50"
                                             }`}
                                             onClick={async () => {
                                                 if (isRefreshing) return;
@@ -2550,8 +2625,8 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                 }
                                             }}
                                         >
-                                            <div className="flex items-center justify-between p-2">
-                                                <div className="flex min-w-0 flex-1 items-center gap-2">
+                                            <div className="flex items-center justify-between gap-2 p-3">
+                                                <div className="flex min-w-0 flex-1 items-center gap-3">
                                                     <CredentialListIcon
                                                         type={credential.type}
                                                         hasPasskey={Boolean(
@@ -2559,10 +2634,32 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                         )}
                                                     />
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="truncate text-xs font-medium leading-tight text-foreground">
-                                                            {credential.name}
+                                                        <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                                                            <span className="block min-w-0 truncate text-sm font-medium leading-tight text-foreground">
+                                                                {
+                                                                    credential.name
+                                                                }
+                                                            </span>
+                                                            {credential.hasTOTP ? (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="h-5 shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-[10px] text-primary"
+                                                                >
+                                                                    <Key className="mr-1 h-3 w-3" />
+                                                                    2FA
+                                                                </Badge>
+                                                            ) : null}
+                                                            {credential.passkey ? (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="h-5 shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-[10px] text-primary"
+                                                                >
+                                                                    <Fingerprint className="mr-1 h-3 w-3" />
+                                                                    Passkey
+                                                                </Badge>
+                                                            ) : null}
                                                         </div>
-                                                        <div className="-mt-0.5 truncate text-xs leading-tight text-muted-foreground">
+                                                        <div className="truncate text-xs leading-tight text-muted-foreground">
                                                             {credential.type ===
                                                             VaultUtilTypes
                                                                 .ItemType
@@ -2589,10 +2686,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                     >
                                                         <Button
                                                             variant="ghost"
-                                                            size="sm"
-                                                            className="h-5 w-5 p-0 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                                                            size="icon"
+                                                            className="h-9 w-9 shrink-0"
+                                                            aria-label={`Actions for ${credential.name}`}
                                                         >
-                                                            <MoreVertical className="h-3 w-3 text-muted-foreground" />
+                                                            <MoreHorizontal className="h-4 w-4" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent
@@ -2608,29 +2706,29 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                     credential.id,
                                                                 );
                                                             }}
-                                                            className="text-xs"
                                                         >
-                                                            <Edit className="mr-2 h-3 w-3" />
+                                                            <Edit className="mr-2 h-4 w-4" />
                                                             Edit
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
-                                                            onClick={async (
+                                                            onClick={(
                                                                 e: React.MouseEvent,
                                                             ) => {
                                                                 e.stopPropagation();
-                                                                await deleteCredential(
+                                                                requestDeleteCredential(
                                                                     credential.id,
+                                                                    credential.name,
                                                                 );
                                                             }}
-                                                            className="text-xs text-destructive"
+                                                            className="text-destructive"
                                                             disabled={
                                                                 isDeleting
                                                             }
                                                         >
                                                             {isDeleting ? (
-                                                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                             ) : (
-                                                                <Trash2 className="mr-2 h-3 w-3" />
+                                                                <Trash2 className="mr-2 h-4 w-4" />
                                                             )}
                                                             {isDeleting
                                                                 ? "Deleting..."
@@ -2645,10 +2743,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                     credential.username,
                                                                 );
                                                             }}
-                                                            className="text-xs"
                                                         >
-                                                            <Copy className="mr-2 h-3 w-3" />
-                                                            Copy Username
+                                                            <Copy className="mr-2 h-4 w-4" />
+                                                            Copy username
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -3545,7 +3642,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 </DialogContent>
             </Dialog>
 
-            <PasswordGeneratorDialog
+            <PopupPasswordGeneratorDialog
                 open={showPasswordGenerator}
                 onOpenChange={setShowPasswordGenerator}
                 onPasswordSelect={handleGeneratedPasswordSelect}

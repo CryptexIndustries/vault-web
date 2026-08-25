@@ -186,11 +186,17 @@ export function EditDrawer({
         Record<string, boolean>
     >({});
 
+    // Sample the selected directory only when seeding a new form. Creating a
+    // directory updates the parent selection, and that must not rebuild these
+    // defaults while the drawer is already open with in-progress edits.
+    const initialDirectoryIDRef = useRef(initialDirectoryID);
+    initialDirectoryIDRef.current = initialDirectoryID;
+
     const buildDefaultValues = useCallback(
         (): CredentialFormSchemaType => ({
             ID: null,
             Type: ItemType.Credentials,
-            DirectoryID: initialDirectoryID,
+            DirectoryID: initialDirectoryIDRef.current,
             Name: "",
             Username: "",
             Password: "",
@@ -202,7 +208,7 @@ export function EditDrawer({
             Notes: "",
             CustomFields: [],
         }),
-        [initialDirectoryID],
+        [],
     );
 
     const {

@@ -34,6 +34,8 @@ import PopupPasskeyAssertion from "./components/popup-passkey-assertion";
 import VaultView from "./vault-view";
 import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
 
+const WEBSITE_URL = "https://cryptex-vault.com";
+
 const openLinkTab = () => {
     if (typeof chrome === "undefined" || !chrome.runtime || !chrome.tabs) {
         uiLog.warn("Cannot open link tab outside the extension context");
@@ -468,10 +470,18 @@ const App = () => {
                                 No vault on this device
                             </h1>
                             <p className="text-[11px] leading-snug text-muted-foreground">
-                                Link this browser to an existing vault from
-                                another device. Linking opens in a new tab so
-                                the QR scanner and progress view have enough
-                                room.
+                                Create a vault on the mobile app or the web app
+                                at{" "}
+                                <a
+                                    href={WEBSITE_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-foreground underline underline-offset-2"
+                                >
+                                    cryptex-vault.com
+                                </a>
+                                , then link it to this extension. Linking opens
+                                in a new tab.
                             </p>
                         </div>
                         <Button

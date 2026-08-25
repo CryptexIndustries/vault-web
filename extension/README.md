@@ -6,7 +6,9 @@ web client.
 
 ### Popup flow
 
-1. **No vault present:** the popup shows a "Link this device" call to action.
+1. **No vault present:** the popup explains that a vault can be created on the
+   mobile app or the web app at [cryptex-vault.com](https://cryptex-vault.com),
+   then linked here. The primary action is "Link this device".
    Clicking it opens [`extension/link.html`](link.html) as a full browser tab so
    the QR scanner, mnemonic input, and progress view get the room they need.
    The tab renders [`extension/src/components/popup-receive-link.tsx`](src/components/popup-receive-link.tsx);

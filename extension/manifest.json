@@ -4,6 +4,7 @@
     "name": "Cryptex Vault - Local-first password manager",
     "version": "1.0.0",
     "description": "Open-source password manager with browser autofill and peer-to-peer sync. Keep your vault local, private, and under your control",
+    "homepage_url": "https://cryptex-vault.com",
     "icons": {
         "16": "assets/icons/icon-16.png",
         "32": "assets/icons/icon-32.png",

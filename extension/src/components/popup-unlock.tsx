@@ -202,7 +202,7 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
                             {selectedVault?.Name || "Vault"}
                         </h1>
                         <p className="text-[11px] text-muted-foreground">
-                            Linked · this browser
+                            Vault locked. Unlock to access credentials.
                         </p>
                     </div>
                 </div>

@@ -9,7 +9,7 @@ export type HTMLHeaderProps = {
 const HTMLHeader: React.FC<HTMLHeaderProps> = ({
     title,
     description,
-    favicon = "/favicon.ico",
+    favicon = "/images/cryptex-vault-logo.svg",
 }) => {
     return (
         <Head>
@@ -20,7 +20,7 @@ const HTMLHeader: React.FC<HTMLHeaderProps> = ({
             <meta charSet="utf-8" />
             <title>{title}</title>
             <meta name="description" content={description} />
-            <link rel="icon" href={favicon} />
+            <link rel="icon" type="image/svg+xml" href={favicon} />
         </Head>
     );
 };

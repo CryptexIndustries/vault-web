@@ -1,16 +1,9 @@
 const VAULT_METADATA_SESSION_KEY = "UVM";
 
 const ICON_PATHS = {
-    locked: {
-        16: "assets/icons/icon-locked-16.png",
-        32: "assets/icons/icon-locked-32.png",
-        48: "assets/icons/icon-locked-48.png",
-    },
-    unlocked: {
-        16: "assets/icons/icon-unlocked-16.png",
-        32: "assets/icons/icon-unlocked-32.png",
-        48: "assets/icons/icon-unlocked-48.png",
-    },
+    16: "assets/icons/icon-16.png",
+    32: "assets/icons/icon-32.png",
+    48: "assets/icons/icon-48.png",
 } as const;
 
 export async function setVaultActionState(unlocked: boolean): Promise<void> {
@@ -18,9 +11,9 @@ export async function setVaultActionState(unlocked: boolean): Promise<void> {
     const state = unlocked ? "unlocked" : "locked";
 
     await Promise.all([
-        chrome.action.setIcon({ path: ICON_PATHS[state] }),
+        chrome.action.setIcon({ path: ICON_PATHS }),
         chrome.action.setTitle({
-            title: `${extensionName} — Vault ${state}`,
+            title: `${extensionName} - Vault ${state}`,
         }),
     ]);
 }

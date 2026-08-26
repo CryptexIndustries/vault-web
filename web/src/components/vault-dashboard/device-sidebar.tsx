@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import {
     Monitor,
     Smartphone,
@@ -6,7 +7,6 @@ import {
     Globe,
     RefreshCw,
     MoreVertical,
-    Shield,
     ShieldCheck,
     Plus,
     KeyRound,
@@ -877,7 +877,14 @@ export function DeviceSidebar({
             <div className="border-sidebar-border border-b p-4">
                 <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
-                        <Shield className="h-5 w-5 text-primary" />
+                        <Image
+                            src="/images/cryptex-vault-logo.svg"
+                            alt=""
+                            aria-hidden="true"
+                            width={20}
+                            height={20}
+                            className="h-5 w-5"
+                        />
                     </div>
                     <div>
                         <h1 className="text-sm font-semibold text-foreground">

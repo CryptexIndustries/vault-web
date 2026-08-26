@@ -44,9 +44,9 @@ describe("vault action state indicator", () => {
 
         expect(setIcon).toHaveBeenCalledWith({
             path: {
-                16: "assets/icons/icon-locked-16.png",
-                32: "assets/icons/icon-locked-32.png",
-                48: "assets/icons/icon-locked-48.png",
+                16: "assets/icons/icon-16.png",
+                32: "assets/icons/icon-32.png",
+                48: "assets/icons/icon-48.png",
             },
         });
         expect(setTitle).toHaveBeenCalledWith({
@@ -62,7 +62,7 @@ describe("vault action state indicator", () => {
 
         expect(setIcon).toHaveBeenLastCalledWith({
             path: expect.objectContaining({
-                16: "assets/icons/icon-unlocked-16.png",
+                16: "assets/icons/icon-16.png",
             }),
         });
 
@@ -74,7 +74,7 @@ describe("vault action state indicator", () => {
 
         expect(setIcon).toHaveBeenLastCalledWith({
             path: expect.objectContaining({
-                16: "assets/icons/icon-locked-16.png",
+                16: "assets/icons/icon-16.png",
             }),
         });
     });

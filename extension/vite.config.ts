@@ -1,7 +1,69 @@
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+
+const require = createRequire(import.meta.url);
+
+const ZXING_READER_WASM_DEST = "wasm-libs/zxing_reader.wasm";
+const ZXING_JSDELIVR_NEEDLE = "https://fastly.jsdelivr.net/npm/zxing-wasm@";
+
+function resolveZxingReaderWasmPath(): string {
+    const qrScannerEntry = require.resolve("@yudiel/react-qr-scanner");
+    const barcodeDetectorEntry = require.resolve("barcode-detector/ponyfill", {
+        paths: [path.dirname(qrScannerEntry)],
+    });
+    return require.resolve("zxing-wasm/reader/zxing_reader.wasm", {
+        paths: [path.dirname(barcodeDetectorEntry)],
+    });
+}
+
+function stripRemoteZxingWasmUrls(code: string): string {
+    return code.replaceAll(ZXING_JSDELIVR_NEEDLE, "");
+}
+
+function packageZxingWasm(): Plugin {
+    return {
+        name: "package-zxing-wasm",
+        transform(code, id) {
+            if (
+                !id.includes("zxing-wasm") ||
+                !code.includes(ZXING_JSDELIVR_NEEDLE)
+            ) {
+                return;
+            }
+            return { code: stripRemoteZxingWasmUrls(code), map: null };
+        },
+        renderChunk(code) {
+            if (!code.includes(ZXING_JSDELIVR_NEEDLE)) return;
+            return { code: stripRemoteZxingWasmUrls(code), map: null };
+        },
+        generateBundle(_options, bundle) {
+            for (const [fileName, output] of Object.entries(bundle)) {
+                if (output.type !== "chunk") continue;
+                if (output.code.includes("jsdelivr.net/npm/zxing-wasm")) {
+                    throw new Error(
+                        `Remote ZXing Wasm URL leaked into ${fileName}. ` +
+                            "The QR scanner must load packaged wasm only.",
+                    );
+                }
+            }
+        },
+        writeBundle(options) {
+            const outDir = options.dir ?? path.resolve(__dirname, "dist");
+            const source = resolveZxingReaderWasmPath();
+            if (!fs.existsSync(source)) {
+                throw new Error(
+                    `Missing packaged ZXing reader Wasm at ${source}`,
+                );
+            }
+            const dest = path.join(outDir, ZXING_READER_WASM_DEST);
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.copyFileSync(source, dest);
+        },
+    };
+}
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, __dirname, ["VITE_"]);
@@ -71,7 +133,7 @@ export default defineConfig(({ mode }) => {
     };
 
     return {
-        plugins: [react()],
+        plugins: [react(), packageZxingWasm()],
         resolve: {
             alias: {
                 // Use extension env shim when importing web env

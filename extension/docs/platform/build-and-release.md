@@ -62,3 +62,4 @@ See `.env.development.example` and `.env.production.example`.
 3. Load `dist/` as unpacked extension or publish to store.
 4. Verify `dist/manifest.json` has narrowed `host_permissions`.
 5. Confirm no `*.map` files in production artifact.
+6. Confirm `dist/wasm-libs/zxing_reader.wasm` is present and no `jsdelivr.net/npm/zxing-wasm` URL remains in JS.

@@ -7,13 +7,19 @@ import {
     type ChunkedQRCodeProgress,
     type ChunkedQRCodeScanResult,
 } from "@ui/lib/chunked-qr";
+import { locateZXingWasmFile } from "../utils/zxing-wasm";
 
 const QR_SCAN_FORMATS = ["qr_code"] as NonNullable<IScannerProps["formats"]>;
 
 const LazyScanner = lazy(() =>
-    import("@yudiel/react-qr-scanner").then((module) => ({
-        default: module.Scanner,
-    })),
+    import("@yudiel/react-qr-scanner").then((module) => {
+        module.prepareZXingModule({
+            overrides: {
+                locateFile: locateZXingWasmFile,
+            },
+        });
+        return { default: module.Scanner };
+    }),
 );
 
 type QRScannerResult = ChunkedQRCodeScanResult;

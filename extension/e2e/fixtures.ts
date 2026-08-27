@@ -20,19 +20,27 @@ export const test = base.extend<ExtensionFixtures>({
         const userDataDir = await fs.mkdtemp(
             path.join(os.tmpdir(), "cryptex-vault-e2e-"),
         );
-        const context = await chromium.launchPersistentContext(userDataDir, {
-            channel: "chromium",
-            headless: !process.env.PWDEBUG,
-            args: [
-                `--disable-extensions-except=${extensionPath}`,
-                `--load-extension=${extensionPath}`,
-            ],
-        });
-
-        await use(context);
-
-        await context.close();
-        await fs.rm(userDataDir, { recursive: true, force: true });
+        let context: BrowserContext | undefined;
+        try {
+            context = await chromium.launchPersistentContext(userDataDir, {
+                channel: "chromium",
+                headless: process.env.CRYPTEX_E2E_HEADED !== "1",
+                args: [
+                    `--disable-extensions-except=${extensionPath}`,
+                    `--load-extension=${extensionPath}`,
+                ],
+            });
+            await use(context);
+        } finally {
+            if (context) {
+                try {
+                    await context.close();
+                } catch {
+                    // The test or browser process may have already closed it.
+                }
+            }
+            await fs.rm(userDataDir, { recursive: true, force: true });
+        }
     },
 
     extensionId: async ({ context }, use) => {

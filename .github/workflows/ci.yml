@@ -34,7 +34,7 @@ jobs:
     needs: lockfile
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    disabled: true
+    if: ${{ false }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -52,4 +52,64 @@ jobs:
           path: |
             test-results/web-e2e
             playwright-report/web-e2e
+          if-no-files-found: ignore
+
+  # Temporarily disabled
+  extension-e2e:
+    name: Extension end-to-end
+    needs: lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ false }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.16.0
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.8.0 --activate
+      - name: Install frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run deterministic extension end-to-end tests
+        run: pnpm test:e2e:extension
+      - name: Upload extension end-to-end artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: extension-e2e
+          path: |
+            test-results/e2e
+            playwright-report/extension-e2e
+          if-no-files-found: ignore
+
+  # Temporarily disabled
+  extension-live-e2e:
+    name: Extension live Autofill smoke
+    needs: lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ false }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.16.0
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.8.0 --activate
+      - name: Install frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run live Autofill smoke test
+        run: pnpm test:e2e:extension:live
+      - name: Upload live Autofill smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: extension-live-e2e
+          path: |
+            test-results/e2e
+            playwright-report/extension-e2e
           if-no-files-found: ignore

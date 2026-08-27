@@ -156,6 +156,10 @@ server.listen(port, "127.0.0.1", () => {
     );
 });
 
-const close = () => server.close(() => process.exit(0));
-process.on("SIGINT", close);
-process.on("SIGTERM", close);
+const close = () => {
+    server.close(() => process.exit(0));
+    server.closeAllConnections();
+    setTimeout(() => process.exit(1), 2_000).unref();
+};
+process.once("SIGINT", close);
+process.once("SIGTERM", close);

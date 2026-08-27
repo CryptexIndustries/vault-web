@@ -15,6 +15,7 @@ import {
     Globe,
     GripVertical,
     Fingerprint,
+    QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ import {
     CredentialFormSchema,
     CredentialFormSchemaType,
     Directory,
+    parseTOTPURI,
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
@@ -69,6 +71,7 @@ import {
     DirectoryPicker,
 } from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialURLRulesEditor } from "@/components/vault-dashboard/credential-url-rules";
+import BarcodeScanner from "@/components/general/qr-scanner";
 
 interface EditDrawerProps {
     credential: VaultCredential | null;
@@ -185,6 +188,8 @@ export function EditDrawer({
     const [revealedCustomFieldIds, setRevealedCustomFieldIds] = useState<
         Record<string, boolean>
     >({});
+    const [isTotpScanning, setIsTotpScanning] = useState(false);
+    const [totpScanError, setTotpScanError] = useState("");
 
     // Sample the selected directory only when seeding a new form. Creating a
     // directory updates the parent selection, and that must not rebuild these
@@ -264,6 +269,8 @@ export function EditDrawer({
 
         setShowPassword(false);
         setRevealedCustomFieldIds({});
+        setIsTotpScanning(false);
+        setTotpScanError("");
     }, [buildDefaultValues, credential, isOpen, reset]);
 
     const handleAddCustomField = () => {
@@ -290,7 +297,34 @@ export function EditDrawer({
         setShowPassword(true);
     };
 
+    const handleTotpScan = (value: string) => {
+        try {
+            const totp = parseTOTPURI(value);
+            setValue(
+                "TOTP",
+                {
+                    Label: totp.Label,
+                    Secret: totp.Secret,
+                    Period: totp.Period,
+                    Digits: totp.Digits,
+                    Algorithm: totp.Algorithm,
+                },
+                {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                },
+            );
+            setTotpScanError("");
+            setIsTotpScanning(false);
+        } catch {
+            setTotpScanError("This QR code does not contain a valid TOTP URI.");
+        }
+    };
+
     const handleTotpToggle = (enabled: boolean) => {
+        setIsTotpScanning(false);
+        setTotpScanError("");
+
         if (!enabled) {
             setValue("TOTP", null, {
                 shouldDirty: true,
@@ -665,6 +699,7 @@ export function EditDrawer({
                                     </p>
                                 </div>
                                 <Switch
+                                    aria-label="Enable TOTP"
                                     checked={!!watchedTotp}
                                     onCheckedChange={handleTotpToggle}
                                 />
@@ -672,17 +707,59 @@ export function EditDrawer({
                             {watchedTotp && (
                                 <div className="space-y-3 rounded-lg border p-3">
                                     <div className="space-y-2">
-                                        <Label htmlFor="totp-label">
-                                            TOTP Label
-                                        </Label>
-                                        <Input
-                                            id="totp-label"
-                                            placeholder="Credential"
-                                            {...register("TOTP.Label")}
-                                        />
-                                        {errors.TOTP?.Label && (
-                                            <p className="text-xs text-destructive">
-                                                {errors.TOTP.Label.message}
+                                        <div className="flex items-center justify-between gap-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Enter the secret or scan the QR
+                                                code from the service.
+                                            </p>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setTotpScanError("");
+                                                    setIsTotpScanning(
+                                                        (scanning) => !scanning,
+                                                    );
+                                                }}
+                                            >
+                                                {isTotpScanning ? (
+                                                    <X className="mr-2 h-4 w-4" />
+                                                ) : (
+                                                    <QrCode className="mr-2 h-4 w-4" />
+                                                )}
+                                                {isTotpScanning
+                                                    ? "Stop scanning"
+                                                    : "Scan QR code"}
+                                            </Button>
+                                        </div>
+                                        {isTotpScanning && (
+                                            <div className="overflow-hidden rounded-md border bg-muted/20">
+                                                <BarcodeScanner
+                                                    onUpdate={(_, result) => {
+                                                        if (result) {
+                                                            handleTotpScan(
+                                                                result.getText(),
+                                                            );
+                                                        }
+                                                    }}
+                                                    onError={() => {
+                                                        setTotpScanError(
+                                                            "Camera unavailable. Enter the TOTP secret manually.",
+                                                        );
+                                                        setIsTotpScanning(
+                                                            false,
+                                                        );
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                        {totpScanError && (
+                                            <p
+                                                className="text-xs text-destructive"
+                                                role="alert"
+                                            >
+                                                {totpScanError}
                                             </p>
                                         )}
                                     </div>

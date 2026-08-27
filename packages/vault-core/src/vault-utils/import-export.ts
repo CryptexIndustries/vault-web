@@ -1,6 +1,5 @@
 import Papa from "papaparse";
 import JSZip from "jszip";
-import * as OTPAuth from "otpauth";
 import { z } from "zod";
 
 import { CredentialConstants } from "../consts";
@@ -11,13 +10,13 @@ import {
     type CredentialURL,
     CustomFieldType,
     ItemType,
-    TOTPAlgorithm,
 } from "../proto/vault";
 import {
     assimilateImportedCredential,
     CustomField,
     Directory,
     TOTP,
+    parseTOTPURI,
     createDirectory,
     Vault,
     VaultCredential,
@@ -398,42 +397,27 @@ const makeCredential = (data: {
     };
 };
 
-const mapTotpAlgorithm = (algorithm: string): TOTPAlgorithm => {
-    const normalized = algorithm.toUpperCase();
-    if (normalized in TOTPAlgorithm) {
-        return TOTPAlgorithm[normalized as keyof typeof TOTPAlgorithm];
-    }
-    return TOTPAlgorithm.SHA1;
-};
-
 const normalizeTotp = (raw: unknown): TOTP | undefined => {
     const value = asString(raw);
     if (!value) return undefined;
 
-    const totp = new TOTP();
     if (!value.toLowerCase().startsWith("otpauth://")) {
+        const totp = new TOTP();
         totp.Secret = value;
         return totp;
     }
 
-    try {
-        const parsed = OTPAuth.URI.parse(value);
-        if (!(parsed instanceof OTPAuth.TOTP)) {
-            return undefined;
-        }
-
-        totp.Secret = parsed.secret.base32;
-        totp.Label = parsed.issuer
-            ? `${parsed.issuer}:${parsed.label}`
-            : parsed.label;
-        totp.Period = parsed.period;
-        totp.Digits = parsed.digits;
-        totp.Algorithm = mapTotpAlgorithm(parsed.algorithm);
-    } catch {
-        totp.Secret = value;
+    if (value.toLowerCase().startsWith("otpauth://hotp/")) {
+        return undefined;
     }
 
-    return totp;
+    try {
+        return parseTOTPURI(value);
+    } catch {
+        const totp = new TOTP();
+        totp.Secret = value;
+        return totp;
+    }
 };
 
 const appendNotes = (...parts: Array<string | undefined>): string =>

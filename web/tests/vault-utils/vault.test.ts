@@ -56,6 +56,7 @@ import {
     VaultCredential,
     assimilateImportedCredential,
     calculateTOTP,
+    parseTOTPURI,
     createCredential,
     createDirectory,
     deleteCredential,
@@ -261,6 +262,29 @@ describe("vault-utils/vault", () => {
 
         expect(result.code).toBe("123456");
         expect(result.timeRemaining).toBe(10);
+    });
+
+    it("parses TOTP URIs into vault settings", () => {
+        const totp = parseTOTPURI(
+            "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=60&digits=8&algorithm=SHA256",
+        );
+
+        expect(totp).toMatchObject({
+            Label: "Example:alice",
+            Secret: "JBSWY3DPEHPK3PXP",
+            Period: 60,
+            Digits: 8,
+            Algorithm: TOTPAlgorithm.SHA256,
+        });
+    });
+
+    it("rejects non-TOTP and malformed OTP URIs", () => {
+        expect(() =>
+            parseTOTPURI(
+                "otpauth://hotp/Example:alice?secret=JBSWY3DPEHPK3PXP&counter=1",
+            ),
+        ).toThrow("does not contain a TOTP configuration");
+        expect(() => parseTOTPURI("not-an-otp-uri")).toThrow("Invalid OTP URI");
     });
 
     it("initializes custom fields with default values", () => {

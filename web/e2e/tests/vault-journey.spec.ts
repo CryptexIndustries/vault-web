@@ -54,6 +54,12 @@ test("creates a vault and manages a credential through lock and unlock", async (
     await createDrawer
         .getByLabel("Notes")
         .fill("Initial Playwright credential");
+    await createDrawer.getByRole("switch", { name: "Enable TOTP" }).click();
+    await expect(createDrawer.getByLabel("TOTP Label")).toHaveCount(0);
+    await expect(
+        createDrawer.getByRole("button", { name: "Scan QR code" }),
+    ).toBeVisible();
+    await createDrawer.getByLabel("TOTP Secret").fill("JBSWY3DPEHPK3PXP");
     await createDrawer
         .getByRole("button", { name: "Create Credential" })
         .click();
@@ -68,6 +74,9 @@ test("creates a vault and manages a credential through lock and unlock", async (
     await search.clear();
 
     await page.getByText(credentialName, { exact: true }).click();
+    await expect(
+        page.getByText("Two-Factor Code", { exact: true }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
 
     const editDrawer = page.getByRole("dialog", { name: "Edit Credential" });

@@ -21,49 +21,57 @@ import {
     CredentialURLMatchMode,
     ItemType,
 } from "@cryptex-industries/vault-core/proto";
-jest.mock("@cryptex-industries/vault-core/vault-utils/vault", () => ({
-    __esModule: true,
-    assimilateImportedCredential: jest.fn(async (credential: any) => ({
-        ...credential,
-        ID: `assimilated-${credential.Name}`,
-        Hash: `hash-${credential.Name}`,
-    })),
-    createDirectory: jest.fn(async (directories: any[], form: any) => {
-        const directory = {
-            ...form,
-            ID: form.ID ?? `directory-${form.Name}`,
-            Version: 0,
-            Hash: `hash-${form.Name}`,
-            DateModifiedTimestamp: 1,
-            Deleted: false,
-        };
-        directories.push(directory);
-        return directory;
-    }),
-    Directory: class {},
-    Vault: class {
-        Directories: any[] = [];
-        Credentials: any[] = [];
-    },
-    VaultCredential: class {
-        ID = "";
-        Name = "";
-        Hash = "";
-    },
-    TOTP: class {
-        Label = "";
-        Secret = "";
-        Period = 30;
-        Digits = 6;
-        Algorithm = 0;
-    },
-    CustomField: class {
-        ID = "-1";
-        Name = "";
-        Type = 0;
-        Value = "";
-    },
-}));
+import type { parseTOTPURI } from "@cryptex-industries/vault-core/vault-utils/vault";
+jest.mock("@cryptex-industries/vault-core/vault-utils/vault", () => {
+    const actualVaultUtils = jest.requireActual<{
+        parseTOTPURI: typeof parseTOTPURI;
+    }>("@cryptex-industries/vault-core/vault-utils/vault");
+
+    return {
+        __esModule: true,
+        parseTOTPURI: actualVaultUtils.parseTOTPURI,
+        assimilateImportedCredential: jest.fn(async (credential: any) => ({
+            ...credential,
+            ID: `assimilated-${credential.Name}`,
+            Hash: `hash-${credential.Name}`,
+        })),
+        createDirectory: jest.fn(async (directories: any[], form: any) => {
+            const directory = {
+                ...form,
+                ID: form.ID ?? `directory-${form.Name}`,
+                Version: 0,
+                Hash: `hash-${form.Name}`,
+                DateModifiedTimestamp: 1,
+                Deleted: false,
+            };
+            directories.push(directory);
+            return directory;
+        }),
+        Directory: class {},
+        Vault: class {
+            Directories: any[] = [];
+            Credentials: any[] = [];
+        },
+        VaultCredential: class {
+            ID = "";
+            Name = "";
+            Hash = "";
+        },
+        TOTP: class {
+            Label = "";
+            Secret = "";
+            Period = 30;
+            Digits = 6;
+            Algorithm = 0;
+        },
+        CustomField: class {
+            ID = "-1";
+            Name = "";
+            Type = 0;
+            Value = "";
+        },
+    };
+});
 import {
     BitwardenJSON,
     CSV,

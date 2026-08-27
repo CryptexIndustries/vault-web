@@ -428,6 +428,33 @@ export class TOTP implements VaultUtilTypes.TOTP, TOTPFormSchemaType {
     }
 }
 
+export const parseTOTPURI = (value: string): TOTP => {
+    let parsed: OTPAuth.HOTP | OTPAuth.TOTP;
+    try {
+        parsed = OTPAuth.URI.parse(value);
+    } catch {
+        throw new Error("Invalid OTP URI");
+    }
+
+    if (!(parsed instanceof OTPAuth.TOTP)) {
+        throw new Error("OTP URI does not contain a TOTP configuration");
+    }
+
+    const algorithm =
+        VaultUtilTypes.TOTPAlgorithm[
+            parsed.algorithm.toUpperCase() as keyof typeof VaultUtilTypes.TOTPAlgorithm
+        ];
+    const totp = new TOTP();
+    totp.Label = parsed.issuer
+        ? `${parsed.issuer}:${parsed.label}`
+        : parsed.label;
+    totp.Secret = parsed.secret.base32;
+    totp.Period = parsed.period;
+    totp.Digits = parsed.digits;
+    totp.Algorithm = algorithm ?? VaultUtilTypes.TOTPAlgorithm.SHA1;
+    return totp;
+};
+
 export const calculateTOTP = (
     data: TOTP,
 ): {

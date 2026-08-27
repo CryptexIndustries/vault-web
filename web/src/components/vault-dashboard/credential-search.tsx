@@ -106,9 +106,11 @@ export function CredentialSearch({
     const inputRef = useRef<HTMLInputElement | null>(null);
     const [focused, setFocused] = useState(false);
     const [dismissed, setDismissed] = useState(false);
+    const [hasUserInput, setHasUserInput] = useState(false);
     const [active, setActive] = useState(0);
 
-    const token = focused && !dismissed ? autocompleteToken(value) : null;
+    const token =
+        focused && hasUserInput && !dismissed ? autocompleteToken(value) : null;
     const suggestions =
         token === null
             ? []
@@ -163,14 +165,15 @@ export function CredentialSearch({
                 className="bg-card pl-9 text-sm"
                 onChange={(event) => {
                     setDismissed(false);
+                    setHasUserInput(true);
                     setActive(0);
                     onChange(event.target.value);
                 }}
-                onFocus={() => {
-                    setFocused(true);
-                    setDismissed(false);
+                onFocus={() => setFocused(true)}
+                onBlur={() => {
+                    setFocused(false);
+                    setHasUserInput(false);
                 }}
-                onBlur={() => setFocused(false)}
                 onKeyDown={(event) => {
                     if (open) {
                         if (event.key === "ArrowDown") {

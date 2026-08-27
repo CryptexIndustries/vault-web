@@ -28,6 +28,9 @@ test("creates, renames, and deletes a directory", async ({
     await expect(
         vaultPage.getByRole("button", { name: "Browse directories" }),
     ).toBeVisible();
+    await expect(
+        vaultPage.getByRole("listbox", { name: "Search fields" }),
+    ).toBeHidden();
 
     await vaultPage.getByRole("button", { name: "Browse directories" }).click();
     await vaultPage.getByRole("menuitem", { name: "New directory" }).click();

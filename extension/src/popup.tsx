@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useLiveQuery } from "dexie-react-hooks";
 import { err, ok } from "neverthrow";
-import { LoaderCircle, Link2, Shield } from "lucide-react";
+import { LoaderCircle, Link2 } from "lucide-react";
 
 import "./popup.css";
 import { type EncryptionFormGroupSchemaType } from "@cryptex-industries/vault-core/vault-utils/form-schemas";
@@ -12,6 +12,7 @@ import * as Storage from "@/app_lib/vault-utils/storage";
 
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { CryptexLogoMark } from "./components/cryptex-logo-mark";
 
 import {
     EncryptedEnvelope,
@@ -463,7 +464,7 @@ const App = () => {
                 <div className="flex h-full items-center justify-center p-4">
                     <div className="flex w-full max-w-sm flex-col items-stretch gap-4 text-center">
                         <span className="mx-auto rounded-md bg-primary/15 p-2 text-primary">
-                            <Shield className="h-5 w-5" />
+                            <CryptexLogoMark className="h-5 w-5" />
                         </span>
                         <div className="space-y-1">
                             <h1 className="text-sm font-semibold">

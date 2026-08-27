@@ -21,9 +21,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Key, Loader2, Lock, ShieldCheck } from "lucide-react";
+import { Key, Loader2, Lock } from "lucide-react";
 
 import "./autofill-menu.css";
+import { CryptexLogoMark } from "./components/cryptex-logo-mark";
 
 import {
     type GetCredentialsForOriginResponse,
@@ -185,7 +186,7 @@ const App = () => {
                     onClick={() => postToParent({ kind: "unlock-request" })}
                     className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <CryptexLogoMark className="h-3.5 w-3.5" />
                     Open vault
                 </button>
             </div>
@@ -198,7 +199,7 @@ const App = () => {
         <div className="dark flex h-full max-h-[320px] flex-col overflow-hidden rounded-md border bg-popover/95 text-popover-foreground shadow-xl">
             <header className="flex items-center gap-2 border-b px-3 py-2">
                 <span className="rounded-md bg-primary/15 p-1 text-primary">
-                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <CryptexLogoMark className="h-3.5 w-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
                     <h1 className="truncate text-xs font-semibold">

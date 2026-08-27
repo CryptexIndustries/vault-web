@@ -1,7 +1,7 @@
 import "./vault-core-runtime";
 
 import { createRoot } from "react-dom/client";
-import { Shield, ShieldCheck } from "lucide-react";
+import { CryptexLogoMark } from "./components/cryptex-logo-mark";
 
 import "./link.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -28,7 +28,7 @@ const LinkPage = () => {
                 <header className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <span className="rounded-md bg-primary/15 p-2 text-primary">
-                            <Shield className="h-5 w-5" />
+                            <CryptexLogoMark className="h-5 w-5" />
                         </span>
                         <div>
                             <h1 className="text-base font-semibold">
@@ -40,7 +40,7 @@ const LinkPage = () => {
                         </div>
                     </div>
                     <span className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground sm:flex">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                        <CryptexLogoMark className="h-3.5 w-3.5" />
                         End-to-end encrypted
                     </span>
                 </header>

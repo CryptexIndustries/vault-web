@@ -19,7 +19,9 @@ const ICON_PADDING_PX = 8;
 const MIN_FIELD_WIDTH_PX = 100;
 const MAX_COLLISION_WIDTH_RATIO = 0.5;
 
-const SHIELD_PATH = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />';
+const LOGO_MARK =
+    '<path fill="#283148" stroke="#ff5668" stroke-linejoin="miter" stroke-width="4" d="M32 3 59 18v28L32 61 5 46V18L32 3Z" />' +
+    '<g fill="#ff5668" stroke="none" opacity="0.62"><circle cx="32" cy="28" r="4" /><path d="M29 31 27 39h10l-2-8Z" /></g>';
 const KEY_PATH =
     '<circle cx="7.5" cy="15.5" r="5.5" /><path d="m11.5 11.5 9-9M15 8l3 3M18 5l3 3" />';
 
@@ -118,9 +120,6 @@ export function createInlineIcon({
             pointer-events: auto;
             outline: none;
         }
-        button:hover, button:focus-visible {
-            background: hsl(224.21 28.36% 13.14% / 0.92);
-        }
         button:active { transform: translateY(1px); }
         svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; }
         @media (prefers-reduced-motion: no-preference) {
@@ -136,7 +135,10 @@ export function createInlineIcon({
         "aria-label",
         mode === "generator" ? "Generate password" : "Open Cryptex Vault",
     );
-    button.innerHTML = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${mode === "generator" ? KEY_PATH : SHIELD_PATH}</svg>`;
+    button.innerHTML =
+        mode === "generator"
+            ? `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KEY_PATH}</svg>`
+            : `<svg viewBox="0 0 64 64" aria-hidden="true">${LOGO_MARK}</svg>`;
     shadow.append(style, button);
     document.documentElement.appendChild(host);
 

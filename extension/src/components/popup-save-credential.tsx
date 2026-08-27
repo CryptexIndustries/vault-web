@@ -17,7 +17,6 @@ import {
     Loader2,
     Save,
     Search,
-    ShieldCheck,
     X,
 } from "lucide-react";
 
@@ -25,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { CryptexLogoMark } from "./cryptex-logo-mark";
 
 import {
     MessageType,
@@ -255,7 +255,7 @@ const PopupSaveCredential: React.FC<PopupSaveCredentialProps> = ({
                     {isPasskey ? (
                         <Fingerprint className="h-4 w-4" />
                     ) : (
-                        <ShieldCheck className="h-4 w-4" />
+                        <CryptexLogoMark className="h-4 w-4" />
                     )}
                 </span>
                 <div className="min-w-0 flex-1">

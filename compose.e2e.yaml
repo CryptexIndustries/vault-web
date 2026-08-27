@@ -27,12 +27,14 @@ services:
       context: .
       dockerfile: web/e2e/Dockerfile
     init: true
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
     ipc: host
     depends_on:
       web:
         condition: service_healthy
     environment:
       CI: "true"
+      HOME: /tmp
       E2E_BASE_URL: http://127.0.0.1:4174
       E2E_UPSTREAM_URL: http://web:3000
     volumes:

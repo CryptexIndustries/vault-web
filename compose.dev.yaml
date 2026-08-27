@@ -20,13 +20,6 @@
 
 name: cryptex-vault-client
 
-x-dev-volumes: &dev-volumes
-  - ./package.json:/app/package.json:ro
-  - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
-  - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
-  - ./web:/app/web
-  - ./packages:/app/packages
-  - cryptex_dev_node_modules:/app/web/node_modules
 
 x-dev-env: &dev-env
   NODE_ENV: development
@@ -64,7 +57,14 @@ services:
     build:
       context: .
       dockerfile: web/dev.Dockerfile
-    volumes: *dev-volumes
+    volumes:
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./web:/app/web
+      - ./packages:/app/packages
+      - cryptex_dev_node_modules:/app/web/node_modules
+      - cryptex_dev_next_local:/app/web/.next
     ports:
       - "127.0.0.1:${CLIENT_WEB_PORT:-3000}:3000"
     environment:
@@ -78,7 +78,14 @@ services:
     build:
       context: .
       dockerfile: web/dev.Dockerfile
-    volumes: *dev-volumes
+    volumes:
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./web:/app/web
+      - ./packages:/app/packages
+      - cryptex_dev_node_modules:/app/web/node_modules
+      - cryptex_dev_next_cloud:/app/web/.next
     ports:
       - "127.0.0.1:${CLIENT_WEB_PORT:-3000}:3000"
     environment:
@@ -94,7 +101,14 @@ services:
     build:
       context: .
       dockerfile: web/dev.Dockerfile
-    volumes: *dev-volumes
+    volumes:
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./web:/app/web
+      - ./packages:/app/packages
+      - cryptex_dev_node_modules:/app/web/node_modules
+      - cryptex_dev_next_lan:/app/web/.next
     ports:
       - "0.0.0.0:${CLIENT_WEB_PORT:-3000}:3000"
     environment:
@@ -109,7 +123,14 @@ services:
     build:
       context: .
       dockerfile: web/dev.Dockerfile
-    volumes: *dev-volumes
+    volumes:
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./web:/app/web
+      - ./packages:/app/packages
+      - cryptex_dev_node_modules:/app/web/node_modules
+      - cryptex_dev_next_lan_cloud:/app/web/.next
     ports:
       - "0.0.0.0:${CLIENT_WEB_PORT:-3000}:3000"
     environment:
@@ -122,3 +143,7 @@ services:
 
 volumes:
   cryptex_dev_node_modules:
+  cryptex_dev_next_local:
+  cryptex_dev_next_cloud:
+  cryptex_dev_next_lan:
+  cryptex_dev_next_lan_cloud:

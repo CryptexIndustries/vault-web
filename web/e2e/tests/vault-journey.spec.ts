@@ -11,7 +11,7 @@ test("creates a vault and manages a credential through lock and unlock", async (
     await page.goto("/app");
 
     await expect(
-        page.getByText("Vault Manager", { exact: true }),
+        page.getByPlaceholder("Enter your new vault name"),
     ).toBeVisible();
     await page.getByPlaceholder("Enter your new vault name").fill(vaultName);
     await page

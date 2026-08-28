@@ -183,10 +183,9 @@ const CreateVaultTab: React.FC<{
                         }}
                     />
                     <p className="text-xs text-muted-foreground">
-                        A second factor adds a separate key on top of your
-                        secret key, so an attacker who learns or guesses your
-                        secret still cannot open the vault. Recommended if your
-                        vault holds high-value credentials.
+                        Add an independent key to your master password. Both are
+                        combined to protect the vault&apos;s encryption key,
+                        making an exported or stolen vault harder to unlock.
                     </p>
                 </div>
 

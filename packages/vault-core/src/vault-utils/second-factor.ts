@@ -201,7 +201,7 @@ async function enrollWebAuthnPrf(
         user: {
             id: crypto.getRandomValues(new Uint8Array(16)),
             name: `vault-${vaultId}`,
-            displayName: "Cryptex Vault 2FA",
+            displayName: "Cryptex Vault Additional Key",
         },
         pubKeyCredParams: [{ alg: -7, type: "public-key" }],
         authenticatorSelection: {

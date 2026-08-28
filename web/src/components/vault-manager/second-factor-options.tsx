@@ -40,55 +40,58 @@ type Props = {
 
 export function SecondFactorOptions({ value, onChange }: Props) {
     return (
-        <div className="flex gap-2 space-y-2">
-            <Select
-                value={value}
-                onValueChange={(v) => {
-                    const choice = v as SecondFactorChoice;
-                    onChange(choice, choiceToSource(choice));
-                }}
-            >
-                <SelectTrigger>
-                    <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="none">None (secret only)</SelectItem>
-                    <SelectItem value="passphrase128">
-                        Generated passphrase (128-bit)
-                    </SelectItem>
-                    <SelectItem value="passphrase256">
-                        Generated passphrase (256-bit)
-                    </SelectItem>
-                    <SelectItem value="webauthn">
-                        Security key (WebAuthn PRF)
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-            <Popover>
-                <PopoverTrigger asChild>
-                    <Info
-                        className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
-                        strokeWidth={1.5}
-                    />
-                </PopoverTrigger>
-                <PopoverContent
-                    className="w-80 space-y-2 text-xs"
-                    side="top"
-                    align="start"
+        <div className="space-y-2">
+            <p className="text-sm font-medium">Additional key protection</p>
+            <div className="flex items-center gap-2">
+                <Select
+                    value={value}
+                    onValueChange={(v) => {
+                        const choice = v as SecondFactorChoice;
+                        onChange(choice, choiceToSource(choice));
+                    }}
                 >
-                    <p>
-                        Generated passphrases are derived from your backup
-                        secret, so they will be regenerated automatically after
-                        a backup restore.
-                    </p>
-                    <p>
-                        If you write one down and restore from a different
-                        device, the regenerated passphrase will not match and
-                        you will need to re-enroll. WebAuthn is device-bound and
-                        stays bound to the enrolled security key and browser.
-                    </p>
-                </PopoverContent>
-            </Popover>
+                    <SelectTrigger aria-label="Additional key protection">
+                        <SelectValue placeholder="Password only" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">Password only</SelectItem>
+                        <SelectItem value="passphrase128">
+                            Generated protection phrase (128-bit)
+                        </SelectItem>
+                        <SelectItem value="passphrase256">
+                            Generated protection phrase (256-bit)
+                        </SelectItem>
+                        <SelectItem value="webauthn">
+                            Security key (WebAuthn PRF)
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Info
+                            className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
+                            strokeWidth={1.5}
+                        />
+                    </PopoverTrigger>
+                    <PopoverContent
+                        className="w-80 space-y-2 text-xs"
+                        side="top"
+                        align="start"
+                    >
+                        <p>
+                            A generated protection phrase is created at random.
+                            Its derived key is cached on this device for
+                            convenient unlocks.
+                        </p>
+                        <p>
+                            Save the phrase when it is shown. You will need it
+                            after restoring a backup or on a device without the
+                            cached key. WebAuthn stays bound to the enrolled
+                            security key and browser.
+                        </p>
+                    </PopoverContent>
+                </Popover>
+            </div>
         </div>
     );
 }

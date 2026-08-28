@@ -80,7 +80,7 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "added",
                 description:
-                    "Vault protection now includes password-strength guidance, optional recovery passphrases and second-factor credentials, safer secret handling, and clearer setup and recovery controls.",
+                    "Vault protection now includes password-strength guidance, optional recovery phrases and additional protection keys, safer secret handling, and clearer setup and recovery controls.",
             },
             {
                 type: "added",

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added refresh-token storage and rotation to the web and extension Online Services clients, including single-flight refreshes, stale-session generation guards, and server-side session revocation during logout and vault locking.
 - Added embedded Stripe checkout, monthly and yearly Premium options, billing portal access, and dedicated account, upgrade, billing, and recovery flows.
 - Added end-to-end encrypted linking and synchronization with compact QR exchange, dynamic TURN credentials, post-quantum message signing, and improved retry and signaling behavior.
-- Added password-strength guidance and optional vault unlock protection with recovery passphrases and second-factor credentials, including OWASP Argon2id acknowledgment gates.
+- Added password-strength guidance and optional additional key protection with recovery phrases and WebAuthn security keys, including OWASP Argon2id acknowledgment gates.
 - Added vault onboarding and account-recovery guidance, including an empty-state guide, signup/signin prompts, recovery phrase peek controls, and user ID display.
 - Added a shared API contracts package and API contract stub generator.
 - Refreshed vault importing with guided previews, warnings and result counts, optional import during vault creation, and support for Cryptex Vault JSON, Bitwarden JSON, 1Password CSV/1PUX, KeePass CSV/XML, LastPass CSV, Chrome CSV, and Firefox CSV.
@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Browser extension security uses authenticated autofill iframe bootstraps, exact-host credential release, sender-origin binding, explicit per-origin message allowlists, restricted proxy destinations, and safe credential URL schemes; production builds also strip debug console output.
-- Vault encryption moved toward a KEK-DEK strategy; vault secrets are confined to session storage, recovery metadata is hidden from linked devices, deleted second-factor data is cleared, and copied-secret warnings reduce accidental exposure.
+- Vault encryption moved toward a KEK-DEK strategy; vault secrets are confined to session storage, recovery metadata is hidden from linked devices, deleted additional-protection key data is cleared, and copied-secret warnings reduce accidental exposure.
 - Link and sync transport no longer logs plaintext credentials.
 - Web security headers were added, and external links now use `noopener`.
 - Payment API hardening added duplicate-checkout guards, customer ID validation, idempotency keys, premium product validation, rate limiting, and Stripe CSP updates.

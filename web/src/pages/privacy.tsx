@@ -71,12 +71,12 @@ const PrivacyPolicy: NextPage = () => {
                                 and operational metadata such as upload time,
                                 encrypted size, source device identifier, and
                                 access timing. Vault passwords, vault recovery
-                                codes, encryption keys, second-factor secrets,
-                                and plaintext vault contents are never sent to
-                                the backup service. Disabling backups pauses new
-                                uploads; users may download or delete retained
-                                restore points according to the displayed
-                                retention policy.
+                                codes, encryption keys, additional protection
+                                keys, and plaintext vault contents are never
+                                sent to the backup service. Disabling backups
+                                pauses new uploads; users may download or delete
+                                retained restore points according to the
+                                displayed retention policy.
                             </p>
                         </div>
                     </div>

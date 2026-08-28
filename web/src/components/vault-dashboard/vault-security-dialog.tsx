@@ -63,13 +63,13 @@ function kindToChoice(kind: SecondFactorKind | undefined): SecondFactorChoice {
 function describeKind(kind: SecondFactorKind | undefined): string {
     switch (kind) {
         case SecondFactorKind.PASSPHRASE_128:
-            return "Generated passphrase (128-bit)";
+            return "Generated protection phrase (128-bit)";
         case SecondFactorKind.PASSPHRASE_256:
-            return "Generated passphrase (256-bit)";
+            return "Generated protection phrase (256-bit)";
         case SecondFactorKind.WEBAUTHN_PRF:
             return "Security key (WebAuthn PRF)";
         default:
-            return "None (master password only)";
+            return "Password only";
     }
 }
 
@@ -297,8 +297,9 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                         Encryption &amp; Security
                     </DialogTitle>
                     <DialogDescription>
-                        Change your master password, second factor, and recovery
-                        code. The vault data itself is not re-encrypted.
+                        Change your master password, additional key protection,
+                        and recovery code. The vault data itself is not
+                        re-encrypted.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -335,7 +336,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                     {isPassphraseKind(currentKind) && (
                         <div className="space-y-2">
                             <Label htmlFor="current-second-factor-passphrase">
-                                Current second-factor passphrase
+                                Current protection phrase
                             </Label>
                             <Input
                                 id="current-second-factor-passphrase"
@@ -359,7 +360,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                         <div className="flex items-center gap-2">
                             <KeyRound className="h-4 w-4" />
                             <p className="text-sm font-medium">
-                                Master password &amp; second factor
+                                Master password &amp; additional key protection
                             </p>
                         </div>
 
@@ -411,7 +412,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             }}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Current second factor:{" "}
+                            Current protection:{" "}
                             <span className="font-medium">
                                 {describeKind(currentKind)}
                             </span>
@@ -486,9 +487,9 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             <Alert>
                                 <AlertDescription className="space-y-2">
                                     <SecretReveal
-                                        label="New second-factor passphrase"
+                                        label="New protection phrase"
                                         value={revealPassphrase}
-                                        helper="Shown once. Write it down: it is required after backup restore or on devices without a local cache."
+                                        helper="Shown once. Save it: it is required after a backup restore or on devices without a cached key."
                                     />
                                 </AlertDescription>
                             </Alert>
@@ -511,7 +512,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                                     Updating...
                                 </span>
                             ) : (
-                                "Save password & 2FA"
+                                "Save protection settings"
                             )}
                         </Button>
                     </div>

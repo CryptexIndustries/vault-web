@@ -264,8 +264,8 @@ export function VaultSettingsDialog({
                                         Encryption &amp; Security
                                     </CardTitle>
                                     <CardDescription>
-                                        Master password, second factor, and
-                                        recovery code.
+                                        Master password, additional key
+                                        protection, and recovery code.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>

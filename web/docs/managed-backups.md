@@ -17,8 +17,8 @@ but keeps the Online Services device binding inside the encrypted vault. That
 binding is needed when a restored vault signs back in.
 
 Cryptex Vault Online Services receives encrypted bytes, their size, and a SHA-256 checksum. It never
-receives the vault password, vault recovery code, second-factor secret, DEK, or
-plaintext vault contents.
+receives the vault password, vault recovery code, additional protection key,
+DEK, or plaintext vault contents.
 
 An upload happens in three steps:
 
@@ -144,8 +144,8 @@ separate proofs:
 1. The Online Services User ID, Recovery Kit phrase, and captcha prove control
    of the Online Services account and allow the browser to find eligible
    restore points
-2. The vault password or recovery code, plus any required second factor,
-   decrypts the selected vault locally
+2. The vault password or recovery code, plus any configured additional
+   protection key, decrypts the selected vault locally
 
 The Recovery Kit can find the encrypted backup but cannot decrypt it. The vault
 secret can decrypt the backup but cannot find the account's cloud restore
@@ -160,8 +160,8 @@ points. Both are required.
 5. Select a restore point; the newest eligible one is recommended
 6. Give the restored vault a name and optional description
 7. Choose **Restore Vault**
-8. Unlock the restored vault with its password or recovery code and any required
-   second factor
+8. Unlock the restored vault with its password or recovery code and any
+   configured additional protection key
 
 The browser checks the encrypted download's size and checksum before using it as
 the selected backup. It does not decrypt the vault during that step.
@@ -211,4 +211,4 @@ error and let the current root device complete a new backup.
   points may have been deleted.
 - **The cloud download succeeds but the vault will not unlock:** Cloud recovery
   authorizes access to the encrypted backup; it does not replace the vault
-  password, recovery code, or second factor.
+  password, recovery code, or additional protection key.

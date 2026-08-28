@@ -45,7 +45,7 @@ recovery code does not recover an Online Services account.
 | Vault password                                | Normal local vault unlock                         | Browser only               |
 | Vault recovery code                           | Fallback local vault unlock                       | Browser only               |
 | Online Services User ID + Recovery Kit phrase | Account recovery and fresh-device backup recovery | Entered in the recovery UI |
-| Second-factor passphrase or WebAuthn factor   | Additional local vault unlock protection          | Browser during unlock      |
+| Protection phrase or WebAuthn security key    | Additional local vault key protection             | Browser during unlock      |
 
 ## What is stored where
 
@@ -350,7 +350,7 @@ may need to be set up again, and the user should create and save a new kit from
 Backup restoration does not bypass either authentication layer. An Online
 Services Recovery Kit can authorize access to an eligible managed restore
 point, but it cannot decrypt the vault. The vault password or recovery code,
-plus any second factor, is still required locally.
+plus any configured additional protection key, is still required locally.
 
 Fresh-device lookup uses a random recovery-session value rather than a normal
 bearer session. The value is kept in memory, is never written into the vault,

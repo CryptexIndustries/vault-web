@@ -579,12 +579,12 @@ const UnlockTab: React.FC<UnlockTabProps> = (props) => {
                             htmlFor="second-factor-passphrase"
                             className="text-xs text-muted-foreground"
                         >
-                            Second-factor passphrase
+                            Protection phrase
                         </Label>
                         <Input
                             id="second-factor-passphrase"
                             type="password"
-                            placeholder="Optional on this device, required after restore"
+                            placeholder="Optional here; required after restore"
                             value={ctrl.secondFactorPassphrase}
                             onChange={(e) =>
                                 ctrl.setSecondFactorPassphrase(e.target.value)

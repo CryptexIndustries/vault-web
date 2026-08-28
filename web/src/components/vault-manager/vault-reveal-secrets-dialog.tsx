@@ -79,9 +79,7 @@ export function VaultRevealSecretsDialog({
                         </div>
                         {secrets?.secondFactorPassphrase ? (
                             <div>
-                                <p className="font-medium">
-                                    Second-factor passphrase
-                                </p>
+                                <p className="font-medium">Protection phrase</p>
                                 <code className="mt-1 block rounded bg-muted p-2 text-xs">
                                     {secrets.secondFactorPassphrase}
                                 </code>
@@ -93,8 +91,7 @@ export function VaultRevealSecretsDialog({
                                             setAckSecondFactor(e.target.checked)
                                         }
                                     />
-                                    I have written down the second-factor
-                                    passphrase
+                                    I have written down the protection phrase
                                 </label>
                             </div>
                         ) : null}

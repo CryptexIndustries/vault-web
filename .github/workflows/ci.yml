@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 24.16.0
       - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.8.0 --activate
+        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
       - name: Install frozen lockfile
         run: pnpm install --frozen-lockfile
       - name: Verify lockfile specifiers
@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: 24.16.0
       - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.8.0 --activate
+        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
       - name: Run web end-to-end tests
         run: pnpm test:e2e:web
       - name: Upload web end-to-end artifacts
@@ -67,7 +67,7 @@ jobs:
         with:
           node-version: 24.16.0
       - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.8.0 --activate
+        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
       - name: Install frozen lockfile
         run: pnpm install --frozen-lockfile
       - name: Install Chromium
@@ -97,7 +97,7 @@ jobs:
         with:
           node-version: 24.16.0
       - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.8.0 --activate
+        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
       - name: Install frozen lockfile
         run: pnpm install --frozen-lockfile
       - name: Install Chromium

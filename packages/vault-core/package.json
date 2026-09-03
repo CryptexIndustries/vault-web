@@ -22,7 +22,7 @@
         "./online-services-session/protocol": "./src/online-services-session/protocol.ts",
         "./vault-utils/*": "./src/vault-utils/*.ts"
     },
-    "packageManager": "pnpm@11.8.0",
+    "packageManager": "pnpm@11.25.0",
     "scripts": {
         "protogen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=. src/proto/vault.proto --ts_proto_opt=oneof=unions,unrecognizedEnum=false,useOptionals=none,initializeFieldsAsUndefined=false,esModuleInterop=true,useDate=false,stringEnums=false,outputEncodeMethods=true,outputJsonMethods=false",
         "lint-tsc": "tsgo --noEmit --strict",

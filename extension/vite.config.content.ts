@@ -22,9 +22,9 @@ export default defineConfig(({ mode }) => {
         },
         resolve: {
             alias: {
-                "@/env/client.mjs": path.resolve(__dirname, "src/env.ts"),
-                "../../env/client.mjs": path.resolve(__dirname, "src/env.ts"),
-                "../env/client.mjs": path.resolve(__dirname, "src/env.ts"),
+                "@/env/public": path.resolve(__dirname, "src/env.ts"),
+                "../../env/public": path.resolve(__dirname, "src/env.ts"),
+                "../env/public": path.resolve(__dirname, "src/env.ts"),
                 "@": path.resolve(__dirname, "../web/src"),
                 "@ui": path.resolve(__dirname, "../packages/shared-ui/src"),
                 "@cryptex-industries/shared-ui": path.resolve(

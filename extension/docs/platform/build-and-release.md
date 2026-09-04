@@ -41,12 +41,12 @@ bucket already allows `chrome-extension://<id>` or `*`.
 
 ## Aliases
 
-| Alias              | Target                      |
-| ------------------ | --------------------------- |
-| `@`                | `../web/src`                |
-| `@/env/client.mjs` | `extension/src/env.ts`      |
-| `@/utils/trpc`     | `extension/src/trpc-ext.ts` |
-| `pusher-js`        | `pusher-js/worker`          |
+| Alias          | Target                      |
+| -------------- | --------------------------- |
+| `@`            | `../web/src`                |
+| `@/env/public` | `extension/src/env.ts`      |
+| `@/utils/trpc` | `extension/src/trpc-ext.ts` |
+| `pusher-js`    | `pusher-js/worker`          |
 
 Shared vault, encryption, sync, and UI code come from the web package.
 

@@ -31,7 +31,7 @@ jest.mock("next/head", () => ({
 jest.mock("next/router", () => ({
     useRouter: () => mockRouter,
 }));
-jest.mock("@/env/client.mjs", () => ({
+jest.mock("@/env/public", () => ({
     env: { NEXT_PUBLIC_TURNSTILE_SITE_KEY: "site-key" },
 }));
 jest.mock("@marsidev/react-turnstile", () => {

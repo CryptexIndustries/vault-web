@@ -19,9 +19,9 @@
             "@cryptex-industries/vault-core/*": [
                 "../packages/vault-core/src/*"
             ],
-            "../env/client.mjs": ["./src/env.ts"],
-            "../../env/client.mjs": ["./src/env.ts"],
-            "@/env/client.mjs": ["./src/env.ts"],
+            "../env/public": ["./src/env.ts"],
+            "../../env/public": ["./src/env.ts"],
+            "@/env/public": ["./src/env.ts"],
             "../utils/trpc": ["./src/trpc-ext.ts"],
             "@/utils/trpc": ["./src/trpc-ext.ts"],
             "@/app_lib/online-services-session/port": [

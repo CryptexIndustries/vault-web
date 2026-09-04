@@ -137,9 +137,9 @@ export default defineConfig(({ mode }) => {
         resolve: {
             alias: {
                 // Use extension env shim when importing web env
-                "@/env/client.mjs": path.resolve(__dirname, "src/env.ts"),
-                "../../env/client.mjs": path.resolve(__dirname, "src/env.ts"),
-                "../env/client.mjs": path.resolve(__dirname, "src/env.ts"),
+                "@/env/public": path.resolve(__dirname, "src/env.ts"),
+                "../../env/public": path.resolve(__dirname, "src/env.ts"),
+                "../env/public": path.resolve(__dirname, "src/env.ts"),
                 // Route web tRPC imports to the extension shim before the broad @ alias.
                 "@/utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),
                 "../utils/trpc": path.resolve(__dirname, "src/trpc-ext.ts"),

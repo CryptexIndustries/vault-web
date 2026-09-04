@@ -1,43 +1,42 @@
 name: cryptex-vault-e2e
 
 services:
-  web:
-    build:
-      context: .
-      dockerfile: web/prod.Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: http://web:3000
-        NEXT_PUBLIC_CLOUD_ENABLED: "false"
-    environment:
-      HOSTNAME: "0.0.0.0"
-      PORT: "3000"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://0.0.0.0:3000/app || exit 1",
-        ]
-      interval: 2s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
+    web:
+        build:
+            context: .
+            dockerfile: web/prod.Dockerfile
+        environment:
+            HOSTNAME: "0.0.0.0"
+            PORT: "3000"
+            NEXT_PUBLIC_APP_URL: http://web:3000
+            NEXT_PUBLIC_CLOUD_ENABLED: "false"
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget --no-verbose --tries=1 --spider http://0.0.0.0:3000/app || exit 1",
+                ]
+            interval: 2s
+            timeout: 5s
+            retries: 30
+            start_period: 5s
 
-  web-e2e:
-    build:
-      context: .
-      dockerfile: web/e2e/Dockerfile
-    init: true
-    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
-    ipc: host
-    depends_on:
-      web:
-        condition: service_healthy
-    environment:
-      CI: "true"
-      HOME: /tmp
-      E2E_BASE_URL: http://127.0.0.1:4174
-      E2E_UPSTREAM_URL: http://web:3000
-    volumes:
-      - ./web/e2e:/app/web/e2e:ro
-      - ./test-results:/app/test-results
-      - ./playwright-report:/app/playwright-report
+    web-e2e:
+        build:
+            context: .
+            dockerfile: web/e2e/Dockerfile
+        init: true
+        user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+        ipc: host
+        depends_on:
+            web:
+                condition: service_healthy
+        environment:
+            CI: "true"
+            HOME: /tmp
+            E2E_BASE_URL: http://127.0.0.1:4174
+            E2E_UPSTREAM_URL: http://web:3000
+        volumes:
+            - ./web/e2e:/app/web/e2e:ro
+            - ./test-results:/app/test-results
+            - ./playwright-report:/app/playwright-report

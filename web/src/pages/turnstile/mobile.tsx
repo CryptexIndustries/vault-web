@@ -4,7 +4,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
-import { env } from "@/env/client.mjs";
+import { env } from "@/env/public";
 
 /**
  * Minimal hosted Turnstile bridge for the native mobile WebView.

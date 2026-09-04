@@ -12,82 +12,6 @@ function defineNextConfig(config) {
     return config;
 }
 
-const onlineServicesApiOrigin = (() => {
-    if (process.env.NEXT_PUBLIC_CLOUD_ENABLED === "false") {
-        return null;
-    }
-
-    const rawApiUrl =
-        process.env.NEXT_PUBLIC_ONLINE_SERVICES_API_URL ||
-        process.env.NEXT_PUBLIC_APP_URL;
-    if (!rawApiUrl) {
-        return null;
-    }
-
-    try {
-        const apiOrigin = new URL(rawApiUrl).origin;
-        const appOrigin = process.env.NEXT_PUBLIC_APP_URL
-            ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
-            : null;
-        return apiOrigin === appOrigin ? null : apiOrigin;
-    } catch {
-        return null;
-    }
-})();
-
-const backupStorageOrigin = (() => {
-    const raw = process.env.NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN;
-    if (!raw) return null;
-    try {
-        return new URL(raw).origin;
-    } catch {
-        return null;
-    }
-})();
-
-const connectSrc = [
-    "connect-src 'self' ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
-    onlineServicesApiOrigin,
-    backupStorageOrigin,
-]
-    .filter(Boolean)
-    .join(" ");
-
-const contentSecurityPolicy = [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://js.stripe.com",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self' data:",
-    connectSrc,
-    "frame-src https://challenges.cloudflare.com https://js.stripe.com",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-].join("; ");
-
-/** Narrow CSP for the native Turnstile WebView bridge only — no Stripe/app APIs. */
-const turnstileMobileContentSecurityPolicy = [
-    "default-src 'none'",
-    "base-uri 'none'",
-    "object-src 'none'",
-    // Next Pages emits small inline bootstrap scripts; keep this exception
-    // isolated to the bridge route.
-    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://challenges.cloudflare.com",
-    "font-src 'self' data:",
-    "connect-src 'self' https://challenges.cloudflare.com",
-    "frame-src https://challenges.cloudflare.com about:blank about:srcdoc",
-    "child-src https://challenges.cloudflare.com about:blank about:srcdoc",
-    "worker-src 'none'",
-    "manifest-src 'none'",
-    "media-src 'none'",
-    "frame-ancestors 'none'",
-    "form-action 'none'",
-].join("; ");
-
 const securityHeadersBase = [
     {
         key: "Strict-Transport-Security",
@@ -122,35 +46,8 @@ const securityHeadersBase = [
 const headers = () => {
     return [
         {
-            source: "/turnstile/mobile",
-            headers: [
-                {
-                    key: "Content-Security-Policy",
-                    value: turnstileMobileContentSecurityPolicy,
-                },
-                ...securityHeadersBase,
-            ],
-        },
-        {
-            source: "/turnstile/mobile/",
-            headers: [
-                {
-                    key: "Content-Security-Policy",
-                    value: turnstileMobileContentSecurityPolicy,
-                },
-                ...securityHeadersBase,
-            ],
-        },
-        {
-            // Exclude the Turnstile bridge so its narrow CSP is not merged with app CSP.
-            source: "/((?!turnstile/mobile(?:/)?$).*)",
-            headers: [
-                {
-                    key: "Content-Security-Policy",
-                    value: contentSecurityPolicy,
-                },
-                ...securityHeadersBase,
-            ],
+            source: "/(.*)",
+            headers: securityHeadersBase,
         },
     ];
 };

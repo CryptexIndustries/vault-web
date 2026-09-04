@@ -1,115 +1,221 @@
 name: CI
 
 on:
-  push:
-    branches: [master, development]
-  pull_request:
+    push:
+        branches: [master, development]
+        tags: ["**"]
+    pull_request:
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    # Preserve every master/tag build because each can publish an immutable image.
+    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/development' }}
 
 jobs:
-  lockfile:
-    name: Lockfile specifiers
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24.16.0
-      - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
-      - name: Install frozen lockfile
-        run: pnpm install --frozen-lockfile
-      - name: Verify lockfile specifiers
-        run: touch -c pnpm-lock.yaml && pnpm exec true
+    lockfile:
+        name: Lockfile specifiers
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Verify lockfile specifiers
+              run: touch -c pnpm-lock.yaml && pnpm exec true
 
-  # Temporarily disabled
-  web-e2e:
-    name: Web end-to-end
-    needs: lockfile
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: ${{ false }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24.16.0
-      - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
-      - name: Run web end-to-end tests
-        run: pnpm test:e2e:web
-      - name: Upload web end-to-end artifacts
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: web-e2e
-          path: |
-            test-results/web-e2e
-            playwright-report/web-e2e
-          if-no-files-found: ignore
+    web-quality:
+        name: Web quality
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Lint web client
+              run: pnpm lint:web
+            - name: Type-check web client
+              run: pnpm lint-tsc:web
+            - name: Test web client
+              run: pnpm exec jest web/tests --runInBand
 
-  # Temporarily disabled
-  extension-e2e:
-    name: Extension end-to-end
-    needs: lockfile
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: ${{ false }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24.16.0
-      - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
-      - name: Install frozen lockfile
-        run: pnpm install --frozen-lockfile
-      - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Run deterministic extension end-to-end tests
-        run: pnpm test:e2e:extension
-      - name: Upload extension end-to-end artifacts
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: extension-e2e
-          path: |
-            test-results/e2e
-            playwright-report/extension-e2e
-          if-no-files-found: ignore
+    extension-quality:
+        name: Extension quality
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Lint extension
+              run: pnpm lint:ext
+            - name: Type-check extension
+              run: pnpm --filter extension lint-tsc
 
-  # Temporarily disabled
-  extension-live-e2e:
-    name: Extension live Autofill smoke
-    needs: lockfile
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: ${{ false }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24.16.0
-      - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11.25.0 --activate
-      - name: Install frozen lockfile
-        run: pnpm install --frozen-lockfile
-      - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Run live Autofill smoke test
-        run: pnpm test:e2e:extension:live
-      - name: Upload live Autofill smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: extension-live-e2e
-          path: |
-            test-results/e2e
-            playwright-report/extension-e2e
-          if-no-files-found: ignore
+    # Temporarily disabled
+    web-e2e:
+        name: Web end-to-end
+        needs: [lockfile, web-quality]
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        if: ${{ false }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Run web end-to-end tests
+              run: pnpm test:e2e:web
+            - name: Upload web end-to-end artifacts
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: web-e2e
+                  path: |
+                      test-results/web-e2e
+                      playwright-report/web-e2e
+                  if-no-files-found: ignore
+
+    # Temporarily disabled
+    extension-e2e:
+        name: Extension end-to-end
+        needs: lockfile
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        if: ${{ false }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Install Chromium
+              run: pnpm exec playwright install --with-deps chromium
+            - name: Run deterministic extension end-to-end tests
+              run: pnpm test:e2e:extension
+            - name: Upload extension end-to-end artifacts
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: extension-e2e
+                  path: |
+                      test-results/e2e
+                      playwright-report/extension-e2e
+                  if-no-files-found: ignore
+
+    # Temporarily disabled
+    extension-live-e2e:
+        name: Extension live Autofill smoke
+        needs: lockfile
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        if: ${{ false }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Install Chromium
+              run: pnpm exec playwright install --with-deps chromium
+            - name: Run live Autofill smoke test
+              run: pnpm test:e2e:extension:live
+            - name: Upload live Autofill smoke artifacts
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: extension-live-e2e
+                  path: |
+                      test-results/e2e
+                      playwright-report/extension-e2e
+                  if-no-files-found: ignore
+
+    container-image:
+        name: Production container image
+        needs: [lockfile, web-quality]
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref_type == 'tag')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Derive lowercase GHCR image name and tags
+              id: image
+              shell: bash
+              run: |
+                  repository="${GITHUB_REPOSITORY,,}"
+                  image="ghcr.io/${repository}"
+
+                  {
+                    echo "name=${image}"
+                    echo "tags<<EOF"
+                    echo "${image}:${GITHUB_SHA}"
+                    if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+                      tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
+                      tag="${tag:0:128}"
+                      if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
+                        tag="tag-${tag:0:124}"
+                      fi
+                      echo "${image}:${tag}"
+                    fi
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Validate Docker Swarm stack
+              env:
+                  APP_IMAGE: ${{ steps.image.outputs.name }}:${{ github.sha }}
+              run: |
+                  if env -u APP_IMAGE docker stack config -c compose.swarm.yaml >/dev/null 2>&1; then
+                    echo "compose.swarm.yaml must reject a missing APP_IMAGE" >&2
+                    exit 1
+                  fi
+                  docker stack config -c compose.swarm.yaml >/dev/null
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and publish web image
+              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              with:
+                  context: .
+                  file: web/prod.Dockerfile
+                  push: true
+                  tags: ${{ steps.image.outputs.tags }}
+                  labels: |
+                      org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                  cache-from: type=gha,scope=web-production
+                  cache-to: type=gha,mode=max,scope=web-production

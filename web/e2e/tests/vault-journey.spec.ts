@@ -5,6 +5,51 @@ const vaultSecret = "e2e-correct-horse-battery-staple-42!";
 const credentialName = "Example account";
 const editedCredentialName = "Example account (edited)";
 
+test("loads validated runtime configuration under the document CSP", async ({
+    page,
+    request,
+}) => {
+    const configResponse = await request.get("/runtime-config.js");
+    expect(configResponse.status()).toBe(200);
+    expect(configResponse.headers()["cache-control"]).toBe(
+        "no-store, max-age=0",
+    );
+    expect(configResponse.headers()["content-type"]).toBe(
+        "application/javascript; charset=utf-8",
+    );
+    expect(configResponse.headers()["cross-origin-resource-policy"]).toBe(
+        "same-origin",
+    );
+
+    const rejectedMutation = await request.post("/runtime-config.js");
+    expect(rejectedMutation.status()).toBe(405);
+    expect(rejectedMutation.headers().allow).toBe("GET, HEAD");
+
+    const pageResponse = await page.goto("/app");
+    expect(pageResponse?.headers()["content-security-policy"]).toContain(
+        "default-src 'self'",
+    );
+    await expect(page.locator('script[src="/runtime-config.js"]')).toHaveCount(
+        1,
+    );
+
+    const runtimeConfig = await page.evaluate(
+        () =>
+            (
+                globalThis as typeof globalThis & {
+                    __CRYPTEX_RUNTIME_CONFIG__?: {
+                        NEXT_PUBLIC_APP_URL?: string;
+                        NEXT_PUBLIC_CLOUD_ENABLED?: boolean;
+                    };
+                }
+            ).__CRYPTEX_RUNTIME_CONFIG__,
+    );
+    expect(runtimeConfig).toMatchObject({
+        NEXT_PUBLIC_CLOUD_ENABLED: false,
+    });
+    expect(runtimeConfig?.NEXT_PUBLIC_APP_URL).toMatch(/^https?:\/\//);
+});
+
 test("creates a vault and manages a credential through lock and unlock", async ({
     page,
 }) => {

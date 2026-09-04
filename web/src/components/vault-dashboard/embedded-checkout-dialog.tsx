@@ -13,7 +13,7 @@ import {
     fetchCheckoutClientSecret,
     type CheckoutTier,
 } from "@/app_lib/online-services";
-import { env } from "@/env/client.mjs";
+import { env } from "@/env/public";
 import {
     Dialog,
     DialogContent,

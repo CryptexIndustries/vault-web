@@ -1,0 +1,62 @@
+services:
+    web:
+        image: ${APP_IMAGE:?APP_IMAGE must reference an exact published image tag}
+        environment:
+            NODE_ENV: production
+            HOSTNAME: "0.0.0.0"
+            PORT: "3000"
+            NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+            NEXT_PUBLIC_CLOUD_ENABLED: ${NEXT_PUBLIC_CLOUD_ENABLED:-false}
+            NEXT_PUBLIC_ONLINE_SERVICES_API_URL: ${NEXT_PUBLIC_ONLINE_SERVICES_API_URL:-}
+            NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: ${NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN:-}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
+            NEXT_PUBLIC_PUSHER_APP_ID: ${NEXT_PUBLIC_PUSHER_APP_ID:-local-disabled}
+            NEXT_PUBLIC_PUSHER_APP_KEY: ${NEXT_PUBLIC_PUSHER_APP_KEY:-local-disabled}
+            NEXT_PUBLIC_PUSHER_APP_HOST: ${NEXT_PUBLIC_PUSHER_APP_HOST:-localhost}
+            NEXT_PUBLIC_PUSHER_APP_PORT: ${NEXT_PUBLIC_PUSHER_APP_PORT:-6004}
+            NEXT_PUBLIC_PUSHER_APP_TLS: ${NEXT_PUBLIC_PUSHER_APP_TLS:-false}
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-pk_test_local}
+            NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:-prod_local000000000000}
+            NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:-price_local0000000000}
+            NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:-price_local0000000001}
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1",
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+        labels:
+            cryptex.logging.app: ${CRYPTEX_LOGGING_APP:-cryptex-vault-web}
+            cryptex.logging.service: web
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+        ports:
+            - target: 3000
+              published: 3000
+              protocol: tcp
+              mode: ingress
+        deploy:
+            replicas: ${APP_REPLICAS:-1}
+            restart_policy:
+                condition: any
+                delay: 5s
+            update_config:
+                parallelism: 1
+                order: start-first
+                failure_action: rollback
+                monitor: 30s
+            rollback_config:
+                parallelism: 1
+                order: start-first
+                monitor: 30s
+            resources:
+                limits:
+                    memory: 512M
+                    cpus: "0.5"

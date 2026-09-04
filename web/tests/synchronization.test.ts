@@ -25,7 +25,7 @@ Object.defineProperty(globalThis, "TextDecoder", {
     writable: true,
 });
 
-jest.mock("../src/env/client.mjs", () => ({
+jest.mock("../src/env/public", () => ({
     env: {
         NEXT_PUBLIC_PUSHER_APP_KEY: "test-key",
         NEXT_PUBLIC_PUSHER_APP_HOST: "localhost",

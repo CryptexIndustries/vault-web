@@ -6,7 +6,7 @@ import {
     configureVaultCoreRuntime,
     createWebCryptoEnvelopeCrypto,
 } from "@cryptex-industries/vault-core/runtime";
-import { env } from "@/env/client.mjs";
+import { env } from "@/env/public";
 import { onlineServicesSessionPort } from "@/app_lib/online-services-session";
 import {
     getDeviceSecondFactorKey,

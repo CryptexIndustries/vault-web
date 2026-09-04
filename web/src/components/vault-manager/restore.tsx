@@ -26,7 +26,7 @@ import {
     sortSnapshotsNewestFirst,
     type BackupSnapshot,
 } from "@/app_lib/managed-backups";
-import { env } from "@/env/client.mjs";
+import { env } from "@/env/public";
 import { cn } from "@/lib/utils";
 import { BACKUP_FILE_EXTENSION } from "@/utils/consts";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";

@@ -52,7 +52,7 @@ jest.mock("@marsidev/react-turnstile", () => {
     };
 });
 
-jest.mock("@/env/client.mjs", () => ({
+jest.mock("@/env/public", () => ({
     env: { NEXT_PUBLIC_TURNSTILE_SITE_KEY: "site-key" },
 }));
 

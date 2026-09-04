@@ -13,7 +13,8 @@ The **hosted Cryptex Cloud backend** (auth, device linking, billing, signaling/T
 - Extension background/content scripts
 - Client behavior and API contract types (`packages/api-contract/`)
 
-This repo ships **client-only** Docker (`compose.prod.yaml` / `compose.dev.yaml`) — vault UI with no backend containers.
+This repo ships **client-only** Docker (`compose.prod.yaml` / `compose.dev.yaml`)
+and a Docker Swarm stack (`compose.swarm.yaml`).
 
 See [THREAT_MODEL.md](THREAT_MODEL.md) for what the cloud service can and cannot learn.
 
@@ -61,6 +62,12 @@ docker compose -f compose.prod.yaml --profile cloud --env-file web/.env.client.c
 ```
 
 Image build: `web/prod.Dockerfile`
+
+## Container images and Docker Swarm
+
+The Swarm stack serves the web UI on port `3000`. See the
+[Docker Swarm deployment guide](docs/swarm-deployment.md) for configuration,
+registry login, deployment, and updates.
 
 ## Docker dev (hot reload, no server stack)
 
@@ -112,7 +119,8 @@ NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN=http://garage.localhost:3900
 
 When the UI and API run on different ports/origins, set `NEXT_PUBLIC_APP_URL` to the UI and `NEXT_PUBLIC_ONLINE_SERVICES_API_URL` to the cloud service.
 The cloud API development Compose stack exposes its private Garage bucket at
-`garage.localhost:3900`; this exact origin must be present at client build time for the backup transfer CSP.
+`garage.localhost:3900`; this exact origin must be present in the web container
+environment so the runtime Content Security Policy permits backup transfers.
 
 Extension builds use the same split via `VITE_APP_URL` and optional `VITE_ONLINE_SERVICES_API_URL` in `extension/.env.development`.
 

@@ -256,7 +256,7 @@ export function ManagedBackupsSettingsCard({
         (!backupStatus.data.graceExpiresAt ||
             new Date(backupStatus.data.graceExpiresAt) <= new Date())
     )
-        managedStateLabel = "Premium required";
+        managedStateLabel = "Subscription required";
     else if (backupStatus.data.enabled) managedStateLabel = "Active";
 
     let loadMoreLabel = "Load older backups";
@@ -345,8 +345,8 @@ export function ManagedBackupsSettingsCard({
                           new Date()) ? (
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="text-sm text-muted-foreground">
-                            Managed encrypted backups are available with
-                            Premium.
+                            Managed encrypted backups are available with Online
+                            Services.
                         </p>
                         <Button size="sm" onClick={onAccountAction}>
                             Upgrade
@@ -405,7 +405,8 @@ export function ManagedBackupsSettingsCard({
                             </>
                         ) : !backupStatus.data.entitled ? (
                             <p className="text-sm text-amber-700 dark:text-amber-300">
-                                Premium ended. Downloads remain available until{" "}
+                                Your subscription ended. Downloads remain
+                                available until{" "}
                                 {new Date(
                                     backupStatus.data.graceExpiresAt!,
                                 ).toLocaleDateString()}

@@ -493,8 +493,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         deleteChallengeMut.isPending ||
         removeLocalBindingPending;
 
-    const tierName =
-        subscription?.productName ?? (hasSession ? "STANDARD" : "Free");
+    const tierName = subscription?.nonFree ? "Online Services" : "Free";
     const subscriptionStatus = subscription?.status ?? "No active subscription";
     const currentServerDeviceId =
         vault.OnlineServices?.DeviceId ?? onlineServicesData?.deviceId;

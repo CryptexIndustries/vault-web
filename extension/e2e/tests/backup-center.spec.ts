@@ -171,12 +171,22 @@ test("uploads, lists, downloads, and deletes managed restore points", async ({
         backupDialog.getByText("No restore points yet."),
     ).toBeVisible();
 
+    await expect(
+        backupDialog.getByText("No completed backup yet", { exact: true }),
+    ).toBeVisible();
+    await expect(
+        backupDialog.getByText("Your backup coverage is current"),
+    ).toHaveCount(0);
+
     await backupDialog.getByRole("button", { name: "Backup Now" }).click();
     await expect(
         vaultPage.getByText("Encrypted restore point uploaded."),
     ).toBeVisible();
     await expect(backupDialog.getByText("Root device")).toBeVisible();
     expect(backupApi.state.snapshots).toHaveLength(1);
+    await expect(
+        backupDialog.getByText("Your backup coverage is current"),
+    ).toBeVisible();
 
     const cloudDownload = vaultPage.waitForEvent("download");
     await backupDialog

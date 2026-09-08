@@ -55,6 +55,7 @@ import { trpc } from "../src/utils/trpc";
 configureTestVaultCoreRuntime({ trpc });
 
 type SyncHandle = {
+    clearPendingSyncDataRequests(deviceID: string): void;
     transmitSyncHello(
         deviceID: string,
         dataChannel: RTCDataChannel,
@@ -192,6 +193,80 @@ function createPair() {
 }
 
 describe("VaultItemSynchronization encrypted transport", () => {
+    it("converges on one session when both devices sync concurrently", async () => {
+        const pair = createPair();
+        const localError = jest.spyOn(
+            pair.localController,
+            "broadcastWebRTCSyncErrorEvent",
+        );
+        const remoteError = jest.spyOn(
+            pair.remoteController,
+            "broadcastWebRTCSyncErrorEvent",
+        );
+        await Promise.all([
+            pair.localSync.transmitSyncHello(
+                "remote-device",
+                pair.localChannel,
+            ),
+            pair.remoteSync.transmitSyncHello(
+                "local-device",
+                pair.remoteChannel,
+            ),
+            pair.localSync.transmitSyncHello(
+                "remote-device",
+                pair.localChannel,
+            ),
+        ]);
+        await pair.flush();
+        const messages = [
+            ...pair.localSend.mock.calls,
+            ...pair.remoteSend.mock.calls,
+        ]
+            .map((call) =>
+                VaultUtilTypes.SynchronizationEnvelope.decode(
+                    new Uint8Array(call[0] as ArrayBuffer),
+                ),
+            )
+            .filter(
+                (message) =>
+                    message.Command ===
+                    VaultUtilTypes.SyncWireMessageCommand.SyncEncryptedMessage,
+            );
+        expect(messages.length).toBeGreaterThanOrEqual(6);
+        expect(new Set(messages.map((message) => message.SessionID)).size).toBe(
+            1,
+        );
+        expect(localError).not.toHaveBeenCalled();
+        expect(remoteError).not.toHaveBeenCalled();
+    });
+
+    it("starts a fresh session after the previous connection is cleared", async () => {
+        const pair = createPair();
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        const firstSession = VaultUtilTypes.SynchronizationEnvelope.decode(
+            new Uint8Array(pair.localSend.mock.calls[0]![0] as ArrayBuffer),
+        ).SessionID;
+        pair.localSync.clearPendingSyncDataRequests("remote-device");
+        pair.remoteSync.clearPendingSyncDataRequests("local-device");
+        pair.localSend.mockClear();
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        const nextSession = VaultUtilTypes.SynchronizationEnvelope.decode(
+            new Uint8Array(pair.localSend.mock.calls[0]![0] as ArrayBuffer),
+        );
+        expect(nextSession.Command).toBe(
+            VaultUtilTypes.SyncWireMessageCommand.SyncSessionInit,
+        );
+        expect(nextSession.SessionID).not.toBe(firstSession);
+    });
+
     it("starts an authenticated ML-KEM session before sending sync data", async () => {
         const { localSync, localChannel, localSend } = createPair();
 

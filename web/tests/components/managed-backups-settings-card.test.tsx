@@ -302,7 +302,7 @@ describe("managed backup settings card", () => {
         expect(onAccountActionMock).toHaveBeenCalledTimes(1);
     });
 
-    it("distinguishes expired Premium access from a downloadable grace period", () => {
+    it("distinguishes expired subscription access from a downloadable grace period", () => {
         mockStatusQuery.data = status({
             enabled: false,
             entitled: false,
@@ -310,7 +310,7 @@ describe("managed backup settings card", () => {
         });
         renderCard();
 
-        expect(container.textContent).toContain("Premium required");
+        expect(container.textContent).toContain("Subscription required");
         expect(findButton(container, "Upgrade")).toBeDefined();
 
         mockStatusQuery.data = status({
@@ -320,7 +320,7 @@ describe("managed backup settings card", () => {
         });
         renderCard();
 
-        expect(container.textContent).toContain("Premium ended");
+        expect(container.textContent).toContain("Your subscription ended");
         expect(container.textContent).toContain("Retained restore points");
         expect(container.querySelector(".lucide-download")).not.toBeNull();
     });

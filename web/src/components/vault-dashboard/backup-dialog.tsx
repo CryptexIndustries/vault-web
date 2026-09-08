@@ -246,10 +246,9 @@ export function BackupDialog({
         managedEntitled: managedStatus.data?.entitled === true,
     });
     const hasCurrentCoverage =
-        managedStatus.data?.enabled === true ||
-        (!overview.isStale &&
-            overview.latestSource === "local" &&
-            localBackup?.isCurrent);
+        !overview.isStale &&
+        (overview.latestSource === "managed" ||
+            (overview.latestSource === "local" && localBackup?.isCurrent));
     const handleAccountAction = () => {
         onOpenChange(false);
         onOpenAccountDialog();
@@ -371,7 +370,9 @@ export function BackupDialog({
                                             ? "Your vault needs a fresh backup"
                                             : hasCurrentCoverage
                                               ? "Your backup coverage is current"
-                                              : "Backup status"}
+                                              : !overview.latestBackupAt
+                                                ? "No completed backup yet"
+                                                : "Backup status"}
                                     </p>
                                     {managedStatus.data?.enabled ? (
                                         <Badge className="bg-emerald-600 hover:bg-emerald-600">

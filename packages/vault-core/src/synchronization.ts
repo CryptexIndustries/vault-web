@@ -1371,6 +1371,25 @@ class VaultItemSynchronization {
         Map<string, number>
     >();
     private readonly syncSessions = new Map<string, SyncSessionState>();
+    private readonly outgoingMessages = new Map<string, Promise<unknown>>();
+    private readonly incomingMessages = new Map<string, Promise<unknown>>();
+
+    private queueMessage<T>(
+        queue: Map<string, Promise<unknown>>,
+        deviceID: string,
+        action: () => Promise<T>,
+    ): Promise<T> {
+        const pending = (queue.get(deviceID) ?? Promise.resolve())
+            .catch(() => undefined)
+            .then(action);
+        queue.set(deviceID, pending);
+        void pending
+            .finally(() => {
+                if (queue.get(deviceID) === pending) queue.delete(deviceID);
+            })
+            .catch(() => undefined);
+        return pending;
+    }
 
     constructor(
         vaultOperations: VaultOperations,
@@ -1382,6 +1401,9 @@ class VaultItemSynchronization {
 
     public clearPendingSyncDataRequests(linkedDeviceId: string): void {
         this.pendingSyncDataRequests.delete(linkedDeviceId);
+        const session = this.syncSessions.get(linkedDeviceId);
+        this.syncSessions.delete(linkedDeviceId);
+        session?.resolveReady?.();
     }
 
     private prunePendingSyncDataRequests(
@@ -1496,12 +1518,9 @@ class VaultItemSynchronization {
         dataChannel: RTCDataChannel,
     ): Promise<SyncSessionState | null> {
         const current = this.syncSessions.get(remoteDeviceID);
-        if (current?.ready) {
-            return current;
-        }
-        if (current?.readyPromise) {
+        if (current) {
             await current.readyPromise;
-            return current;
+            return this.syncSessions.get(remoteDeviceID) ?? null;
         }
 
         const localKeys = await this.getLocalKeyMaterial();
@@ -1539,6 +1558,13 @@ class VaultItemSynchronization {
         );
         const key = await deriveAeadKey(sharedSecret, initTranscript);
 
+        // An inbound handshake may have completed while we prepared our keys.
+        const inbound = this.syncSessions.get(remoteDeviceID);
+        if (inbound) {
+            await inbound.readyPromise;
+            return this.syncSessions.get(remoteDeviceID) ?? null;
+        }
+
         let resolveReady: (() => void) | undefined;
         let rejectReady: ((error: Error) => void) | undefined;
         const readyPromise = new Promise<void>((resolve, reject) => {
@@ -1574,22 +1600,49 @@ class VaultItemSynchronization {
             KemCiphertext: kemCiphertext,
             HandshakeSignature: handshakeSignature,
         }).finish();
-        dataChannel.send(this.toArrayBuffer(envelope));
+        let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+        try {
+            dataChannel.send(this.toArrayBuffer(envelope));
+            await Promise.race([
+                readyPromise,
+                new Promise<never>((_, reject) => {
+                    timeout = globalThis.setTimeout(
+                        () => reject(new Error("SYNC_SESSION_ACCEPT_TIMEOUT")),
+                        SYNC_SESSION_ACCEPT_TIMEOUT_MS,
+                    );
+                }),
+            ]);
+        } catch (error) {
+            if (this.syncSessions.get(remoteDeviceID) === session) {
+                this.syncSessions.delete(remoteDeviceID);
+            }
+            throw error;
+        } finally {
+            globalThis.clearTimeout(timeout);
+        }
 
-        await Promise.race([
-            readyPromise,
-            new Promise<never>((_, reject) =>
-                globalThis.setTimeout(
-                    () => reject(new Error("SYNC_SESSION_ACCEPT_TIMEOUT")),
-                    SYNC_SESSION_ACCEPT_TIMEOUT_MS,
-                ),
-            ),
-        ]);
-
-        return session;
+        return this.syncSessions.get(remoteDeviceID) ?? null;
     }
 
-    private async sendEncryptedPlaintextMessage(
+    private sendEncryptedPlaintextMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelopeID: string,
+        command: VaultUtilTypes.VaultItemSynchronizationMessageCommand,
+        plaintext: Uint8Array,
+    ): Promise<boolean> {
+        return this.queueMessage(this.outgoingMessages, remoteDeviceID, () =>
+            this.sendEncryptedMessage(
+                remoteDeviceID,
+                dataChannel,
+                envelopeID,
+                command,
+                plaintext,
+            ),
+        );
+    }
+
+    private async sendEncryptedMessage(
         remoteDeviceID: string,
         dataChannel: RTCDataChannel,
         envelopeID: string,
@@ -1603,7 +1656,6 @@ class VaultItemSynchronization {
                 dataChannel,
             );
         } catch (error) {
-            this.syncSessions.delete(remoteDeviceID);
             syncLog.info("Encrypted sync session setup failed", {
                 deviceId: remoteDeviceID,
                 error,
@@ -1702,7 +1754,6 @@ class VaultItemSynchronization {
             kemCiphertext: envelope.KemCiphertext,
             transcriptHash: initTranscriptHash,
         };
-        this.syncSessions.set(remoteDeviceID, session);
 
         const acceptTranscript = syncSessionAcceptTranscript(
             envelope.SessionID,
@@ -1725,7 +1776,14 @@ class VaultItemSynchronization {
             KemCiphertext: envelope.KemCiphertext,
             HandshakeSignature: signature,
         }).finish();
+        const current = this.syncSessions.get(remoteDeviceID);
+        // Both peers keep the lower ID when their authenticated handshakes cross.
+        if (current && current.sessionID <= session.sessionID) {
+            return;
+        }
+        this.syncSessions.set(remoteDeviceID, session);
         dataChannel.send(this.toArrayBuffer(accept));
+        current?.resolveReady?.();
 
         syncLog.debug("Sent sync session accept", {
             deviceId: remoteDeviceID,
@@ -1759,7 +1817,9 @@ class VaultItemSynchronization {
         );
         if (!valid) {
             session.rejectReady?.(new Error("SYNC_SESSION_ACCEPT_INVALID"));
-            this.syncSessions.delete(remoteDeviceID);
+            if (this.syncSessions.get(remoteDeviceID) === session) {
+                this.syncSessions.delete(remoteDeviceID);
+            }
 
             syncLog.info("Dropped sync session accept - invalid signature", {
                 deviceId: remoteDeviceID,
@@ -1935,6 +1995,18 @@ class VaultItemSynchronization {
             return;
         }
 
+        // Handshake messages above must bypass this queue: a queued reply can
+        // itself be waiting for the peer's session acceptance.
+        return this.queueMessage(this.incomingMessages, remoteDeviceID, () =>
+            this.handleEncryptedMessage(remoteDeviceID, dataChannel, envelope),
+        );
+    }
+
+    private async handleEncryptedMessage(
+        remoteDeviceID: string,
+        dataChannel: RTCDataChannel,
+        envelope: VaultUtilTypes.SynchronizationEnvelope,
+    ): Promise<void> {
         const plaintext = await this.openEncryptedMessage(
             remoteDeviceID,
             envelope,

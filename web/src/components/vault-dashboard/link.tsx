@@ -1788,7 +1788,7 @@ export function SendLinkRequestDialog({
         }
         if (onlineServicesIssue === "plan-sync") {
             setFormError(
-                "Your premium plan is still syncing. Refresh plan status and try again.",
+                "Your subscription status is still updating. Refresh plan status and try again.",
             );
             return;
         }

@@ -1,6 +1,6 @@
 import "./vault-core-runtime";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useLiveQuery } from "dexie-react-hooks";
 import { err, ok } from "neverthrow";
@@ -94,7 +94,7 @@ const App = () => {
      * Requests the server's public key for encrypted messaging.
      * @returns An error if the public key request fails, otherwise ok.
      */
-    const requestServerPublicKey = async () => {
+    const requestServerPublicKey = useCallback(async () => {
         const envelope = createPlaintextEnvelope(
             MessageType.GetPublicKey,
             null,
@@ -117,13 +117,13 @@ const App = () => {
         });
 
         return ok();
-    };
+    }, []);
 
     /**
      * Handles STALE_KEY error by refreshing the public key.
      * @returns An error if the public key refresh fails, otherwise ok.
      */
-    const handleStaleKeyError = async () => {
+    const handleStaleKeyError = useCallback(async () => {
         generalLog.debug("Stale key handler called, refreshing public key");
 
         const res = await requestServerPublicKey();
@@ -133,7 +133,7 @@ const App = () => {
         }
 
         return ok();
-    };
+    }, [requestServerPublicKey]);
 
     useEffect(() => {
         (async () => {
@@ -214,7 +214,7 @@ const App = () => {
 
             await fetchState();
         })();
-    }, [serverPublicKey]);
+    }, [serverPublicKey, requestServerPublicKey, handleStaleKeyError]);
 
     useEffect(() => {
         if (!bg.unlocked) {

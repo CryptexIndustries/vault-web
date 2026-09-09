@@ -394,7 +394,7 @@ describe("SyncConnectionController orchestration", () => {
                 };
             }
         )._vaultItemSynchronization;
-        sync.transmitSyncHello = jest.fn();
+        sync.transmitSyncHello = jest.fn(async () => undefined);
 
         controller.transmitSyncHello("missing");
         expect(sync.transmitSyncHello).not.toHaveBeenCalled();
@@ -424,6 +424,52 @@ describe("SyncConnectionController orchestration", () => {
             "device-1",
             dataChannel,
         );
+    });
+
+    it("deduplicates connection setup and cancels pending config reads on teardown", async () => {
+        const vaultOps = buildVaultOps();
+        let release!: (
+            config: Awaited<ReturnType<VaultOps["getSynchronizationConfig"]>>,
+        ) => void;
+        const pending = new Promise<
+            Awaited<ReturnType<VaultOps["getSynchronizationConfig"]>>
+        >((resolve) => {
+            release = resolve;
+        });
+        const config = await vaultOps.getSynchronizationConfig();
+        vaultOps.getSynchronizationConfig = jest.fn(() => pending);
+        const controller = new SyncConnectionController(vaultOps);
+        const first = controller.connectDevice("device-1");
+        expect(controller.connectDevice("device-1")).toBe(first);
+        controller.teardown();
+        release(config);
+        await expect(first).resolves.toBe(false);
+        expect(vaultOps.getSynchronizationConfig).toHaveBeenCalledTimes(1);
+        expect(pusherConstructorMock).not.toHaveBeenCalled();
+    });
+
+    it("manual sync uses an already-open channel", async () => {
+        const controller = new SyncConnectionController(buildVaultOps());
+        injectInternalState(controller, {
+            webRTConnections: new Map([
+                [
+                    "device-1",
+                    {
+                        connection: makeFakePeer(),
+                        dataChannel: { readyState: "open" } as RTCDataChannel,
+                    },
+                ],
+            ]),
+        });
+        jest.spyOn(controller, "connectDevice").mockResolvedValue(false);
+        const hello = jest
+            .spyOn(controller, "transmitSyncHello")
+            .mockImplementation(() => {});
+        await expect(controller.synchronizeDevice("device-1")).resolves.toBe(
+            true,
+        );
+        expect(hello).toHaveBeenCalledTimes(1);
+        expect(hello).toHaveBeenCalledWith("device-1");
     });
 
     it("connectDevice returns false when device not found in config", async () => {
@@ -1031,7 +1077,7 @@ describe("SyncConnectionController orchestration", () => {
                 };
             }
         )._vaultItemSynchronization;
-        sync.onDataChannelMessage = jest.fn();
+        sync.onDataChannelMessage = jest.fn(async () => undefined);
 
         // Track the data channel created in _setupWebRTCConnection so we can assert
         // its onmessage gets wired (for the locally-created data channel branch).

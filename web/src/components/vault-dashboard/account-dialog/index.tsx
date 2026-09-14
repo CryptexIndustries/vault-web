@@ -57,6 +57,8 @@ import { onlineServicesLog } from "@/utils/logging";
 import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import { AccountAuth } from "./account-auth";
+import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
+import { removeLocalDeviceRecords } from "../use-device-actions";
 import { AccountDevices } from "./account-devices";
 import { AccountSecurity } from "./account-security";
 import { AccountSummary } from "./account-summary";
@@ -100,13 +102,27 @@ async function persistAccountMutation(mutate: AccountVaultMutation) {
     return false;
 }
 
-export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
+export function AccountDialog({
+    open,
+    onOpenChange,
+    deviceControls,
+    deviceRequest,
+}: AccountDialogProps) {
     const vault = useAtomValue(unlockedVaultAtom);
     const onlineServicesData = useOnlineServicesData();
     const onlineServicesBound = Vault.isOnlineServicesBound(vault);
-    const hasSession = !!onlineServicesData?.sessionToken?.length;
+    const hasSession =
+        isCloudServicesEnabled() && !!onlineServicesData?.sessionToken?.length;
 
     const [accountTab, setAccountTab] = useState<AccountDialogTab>("account");
+    const [devicesExpanded, setDevicesExpanded] = useState(false);
+    useEffect(() => {
+        if (open && deviceRequest)
+            setAccountTab(deviceRequest.tab ?? "devices");
+    }, [open, deviceRequest]);
+    useEffect(() => {
+        if (!open) setDevicesExpanded(false);
+    }, [open]);
     const [authMode, setAuthMode] = useState<AuthMode>("register");
     const [registerCaptcha, setRegisterCaptcha] = useState("");
     const [recoverCaptcha, setRecoverCaptcha] = useState("");
@@ -168,10 +184,14 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
     const recoveryGenerationNeeded =
         onlineServicesData?.remoteData?.recoveryGenerationNeeded === true;
 
-    const { data: remoteConfig, refetch: refetchConfig } =
-        trpcReact.v1.user.configuration.useQuery(undefined, {
-            enabled: hasSession && open,
-        });
+    const {
+        data: remoteConfig,
+        refetch: refetchConfig,
+        isFetching: configLoading,
+        isError: configError,
+    } = trpcReact.v1.user.configuration.useQuery(undefined, {
+        enabled: hasSession && open,
+    });
 
     const recoveryPhraseAlreadyOnServer =
         remoteConfig !== undefined
@@ -187,29 +207,66 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
 
     const trpcUtils = trpcReact.useUtils();
 
-    const { data: linkedDeviceTopology, refetch: refetchDeviceTopology } =
-        trpcReact.v1.device.topology.useQuery(undefined, {
-            enabled:
-                open &&
-                hasSession &&
-                !!remoteConfig?.root &&
-                !!onlineServicesData?.remoteData,
-        });
-
-    const removeDevice = trpcReact.v1.device.remove.useMutation({
-        onSuccess: () => {
-            void refetchDeviceTopology();
-            toast.success("Device removed.");
-        },
+    const {
+        data: linkedDeviceTopology,
+        refetch: refetchDeviceTopology,
+        isFetching: topologyLoading,
+        isError: topologyError,
+        isSuccess: topologySuccess,
+    } = trpcReact.v1.device.topology.useQuery(undefined, {
+        enabled:
+            open &&
+            hasSession &&
+            !!remoteConfig?.root &&
+            !!onlineServicesData?.remoteData,
     });
 
+    const removeDevice = trpcReact.v1.device.remove.useMutation({
+        onMutate: (input) => ({
+            localIds:
+                deviceRelationshipMap.nodes
+                    .find((n) => n.serverId === input.id)
+                    ?.localDevices.map((d) => d.ID) ?? [],
+        }),
+        onSuccess: async (_, _input, context) => {
+            // Keep the pre-request matches even if topology refreshes while removal is pending.
+            const ids = context?.localIds ?? [];
+            try {
+                if (ids.length) await removeLocalDeviceRecords(ids);
+                toast.success("Device removed from Online Services.");
+            } catch (error) {
+                toast.error(
+                    `Account device removed. ${error instanceof Error ? error.message : "Remove the remaining saved links from device details."}`,
+                );
+            } finally {
+                await Promise.all([
+                    trpcUtils.v1.device.invalidate(),
+                    trpcUtils.v1.payment.subscription.invalidate(),
+                ]);
+            }
+        },
+        onError: (error) =>
+            toast.error(
+                error.message || "Could not remove the account device.",
+            ),
+    });
     const setRootDevice = trpcReact.v1.device.setRoot.useMutation({
         onSuccess: async () => {
-            void refetchDeviceTopology();
-            await syncOnlineServicesRemoteConfiguration();
-            void refetchConfig();
-            toast.success("Updated root device.");
+            try {
+                await Promise.all([
+                    trpcUtils.v1.device.invalidate(),
+                    syncOnlineServicesRemoteConfiguration(),
+                    refetchConfig(),
+                ]);
+                toast.success("Root access updated.");
+            } catch {
+                toast.error(
+                    "Root access changed, but account information could not be refreshed. Refresh to verify the current permissions.",
+                );
+            }
         },
+        onError: (error) =>
+            toast.error(error.message || "Could not update root access."),
     });
 
     const persistSessionAndRefresh = async () => {
@@ -499,23 +556,40 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
         vault.OnlineServices?.DeviceId ?? onlineServicesData?.deviceId;
     const userId = vault.OnlineServices?.UserID ?? null;
     const isConnected = hasSession;
-    const isRoot = !!remoteConfig?.root;
+    const isRoot = hasSession && !!remoteConfig?.root;
 
     const deviceRelationshipMap = useMemo(
         () =>
             buildDeviceRelationshipMap(
-                linkedDeviceTopology,
+                isRoot &&
+                    linkedDeviceTopology?.devices.some(
+                        (d) => d.id === currentServerDeviceId,
+                    )
+                    ? linkedDeviceTopology
+                    : undefined,
                 vault.LinkedDevices?.Devices ?? [],
                 currentServerDeviceId,
+                {
+                    topologyVerified:
+                        isRoot &&
+                        topologySuccess &&
+                        !topologyError &&
+                        !topologyLoading,
+                    currentRoot: isRoot,
+                },
             ),
         [
             currentServerDeviceId,
+            isRoot,
+            topologySuccess,
+            topologyError,
+            topologyLoading,
             linkedDeviceTopology,
             vault.LinkedDevices?.Devices,
         ],
     );
 
-    const isDevicesTab = onlineServicesBound && accountTab === "devices";
+    const isDevicesTab = accountTab === "devices";
 
     const handleCheckoutComplete = async () => {
         checkoutFinalizeAbortRef.current?.abort();
@@ -536,7 +610,11 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                 <DialogContent
                     className={cn(
                         "grid max-h-[min(90vh,100dvh)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0",
-                        isDevicesTab ? "sm:max-w-4xl" : "sm:max-w-2xl",
+                        isDevicesTab
+                            ? devicesExpanded
+                                ? "h-[95dvh] w-[96vw] max-w-none sm:max-w-none"
+                                : "h-[90dvh] sm:max-w-5xl"
+                            : "sm:max-w-2xl",
                     )}
                 >
                     <DialogHeader className="border-b border-border px-6 py-4">
@@ -551,28 +629,43 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="min-h-0 overflow-y-auto overscroll-contain px-6 py-4">
-                        {onlineServicesBound ? (
-                            <Tabs
-                                value={accountTab}
-                                onValueChange={(value) =>
-                                    setAccountTab(value as AccountDialogTab)
-                                }
-                                className="w-full"
-                            >
-                                <TabsList className="mb-4 grid h-auto min-h-9 w-full grid-cols-3">
-                                    <TabsTrigger value="account">
-                                        Account
-                                    </TabsTrigger>
-                                    <TabsTrigger value="devices">
-                                        Devices
-                                    </TabsTrigger>
-                                    <TabsTrigger value="security">
-                                        Security
-                                    </TabsTrigger>
-                                </TabsList>
+                    <div
+                        className={cn(
+                            "min-h-0 overflow-y-auto overscroll-contain px-6 py-4",
+                            isDevicesTab && "lg:overflow-hidden",
+                        )}
+                    >
+                        <Tabs
+                            value={accountTab}
+                            onValueChange={(value) =>
+                                setAccountTab(value as AccountDialogTab)
+                            }
+                            className={cn(
+                                "w-full",
+                                isDevicesTab &&
+                                    "flex min-h-0 flex-col lg:h-full",
+                            )}
+                        >
+                            <TabsList className="mb-4 grid h-auto min-h-9 w-full shrink-0 grid-cols-3">
+                                <TabsTrigger
+                                    value="account"
+                                    disabled={!isCloudServicesEnabled()}
+                                >
+                                    Account
+                                </TabsTrigger>
+                                <TabsTrigger value="devices">
+                                    Devices
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="security"
+                                    disabled={!onlineServicesBound}
+                                >
+                                    Security
+                                </TabsTrigger>
+                            </TabsList>
 
-                                <TabsContent value="account">
+                            <TabsContent value="account">
+                                {onlineServicesBound ? (
                                     <AccountSummary
                                         tierName={tierName}
                                         subscriptionStatus={subscriptionStatus}
@@ -589,82 +682,102 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
                                             void handleCheckoutComplete()
                                         }
                                     />
-                                </TabsContent>
-
-                                <TabsContent value="devices">
-                                    <AccountDevices
-                                        hasDevices={
-                                            !!linkedDeviceTopology?.devices
-                                                .length
-                                        }
-                                        deviceRelationshipMap={
-                                            deviceRelationshipMap
-                                        }
-                                        isRoot={isRoot}
-                                        canPromote={
-                                            !!remoteConfig?.canPromoteDevices
-                                        }
-                                        removing={removeDevice.isPending}
-                                        promoting={setRootDevice.isPending}
-                                        onRemove={(id) =>
-                                            removeDevice.mutate({ id })
-                                        }
-                                        onToggleRoot={(id, root) =>
-                                            setRootDevice.mutate({ id, root })
-                                        }
-                                    />
-                                </TabsContent>
-
-                                <TabsContent value="security">
-                                    <AccountSecurity
-                                        isRoot={isRoot}
-                                        onlineServicesBound={
-                                            onlineServicesBound
-                                        }
+                                ) : (
+                                    <AccountAuth
+                                        authMode={authMode}
+                                        onAuthModeChange={setAuthMode}
+                                        registerCaptcha={registerCaptcha}
+                                        onRegisterCaptcha={setRegisterCaptcha}
+                                        recoverCaptcha={recoverCaptcha}
+                                        onRecoverCaptcha={setRecoverCaptcha}
+                                        recoverUserId={recoverUserId}
+                                        onRecoverUserIdChange={setRecoverUserId}
+                                        recoverPhrase={recoverPhrase}
+                                        onRecoverPhraseChange={setRecoverPhrase}
+                                        onRegister={() => void handleRegister()}
+                                        onRecover={() => void handleRecover()}
+                                        registerPending={registerMut.isPending}
+                                        recoverPending={recoverMut.isPending}
                                         busy={busy}
-                                        recoveryPhraseAlreadyOnServer={
-                                            recoveryPhraseAlreadyOnServer
-                                        }
-                                        genRecoveryPending={
-                                            genRecoveryMut.isPending
-                                        }
-                                        rotateRecoveryPending={
-                                            rotateRecoveryMut.isPending
-                                        }
-                                        onGenerateRecovery={() =>
-                                            void createRecoveryPackage()
-                                        }
-                                        onRotateRecovery={() =>
-                                            setRotateRecoveryOpen(true)
-                                        }
-                                        onRemoveLocalBinding={() => {
-                                            setRemoveLocalBindingOpen(true);
-                                        }}
-                                        onDeleteAccount={() =>
-                                            setDeleteAccountOpen(true)
-                                        }
                                     />
-                                </TabsContent>
-                            </Tabs>
-                        ) : (
-                            <AccountAuth
-                                authMode={authMode}
-                                onAuthModeChange={setAuthMode}
-                                registerCaptcha={registerCaptcha}
-                                onRegisterCaptcha={setRegisterCaptcha}
-                                recoverCaptcha={recoverCaptcha}
-                                onRecoverCaptcha={setRecoverCaptcha}
-                                recoverUserId={recoverUserId}
-                                onRecoverUserIdChange={setRecoverUserId}
-                                recoverPhrase={recoverPhrase}
-                                onRecoverPhraseChange={setRecoverPhrase}
-                                onRegister={() => void handleRegister()}
-                                onRecover={() => void handleRecover()}
-                                registerPending={registerMut.isPending}
-                                recoverPending={recoverMut.isPending}
-                                busy={busy}
-                            />
-                        )}
+                                )}
+                            </TabsContent>
+
+                            <TabsContent
+                                value="devices"
+                                className="min-h-0 lg:flex-1"
+                            >
+                                <AccountDevices
+                                    map={deviceRelationshipMap}
+                                    controls={deviceControls}
+                                    selectedLocalId={deviceRequest?.localId}
+                                    selectionToken={deviceRequest?.token}
+                                    requestedSection={deviceRequest?.section}
+                                    isRoot={isRoot}
+                                    canPromote={
+                                        !!remoteConfig?.canPromoteDevices
+                                    }
+                                    busy={
+                                        removeDevice.isPending ||
+                                        setRootDevice.isPending
+                                    }
+                                    loading={configLoading || topologyLoading}
+                                    error={configError || topologyError}
+                                    hasSession={hasSession}
+                                    onRefresh={() => {
+                                        void refetchConfig();
+                                        if (isRoot)
+                                            void refetchDeviceTopology();
+                                    }}
+                                    expanded={devicesExpanded}
+                                    onExpand={() =>
+                                        setDevicesExpanded((v) => !v)
+                                    }
+                                    onRemove={async (id) => {
+                                        if (isRoot)
+                                            await removeDevice.mutateAsync({
+                                                id,
+                                            });
+                                    }}
+                                    onToggleRoot={async (id, root) => {
+                                        if (isRoot)
+                                            await setRootDevice.mutateAsync({
+                                                id,
+                                                root,
+                                            });
+                                    }}
+                                />
+                            </TabsContent>
+
+                            <TabsContent value="security">
+                                <AccountSecurity
+                                    isRoot={isRoot}
+                                    onlineServicesBound={onlineServicesBound}
+                                    busy={busy}
+                                    recoveryPhraseAlreadyOnServer={
+                                        recoveryPhraseAlreadyOnServer
+                                    }
+                                    genRecoveryPending={
+                                        genRecoveryMut.isPending
+                                    }
+                                    rotateRecoveryPending={
+                                        rotateRecoveryMut.isPending
+                                    }
+                                    onGenerateRecovery={() =>
+                                        void createRecoveryPackage()
+                                    }
+                                    onRotateRecovery={() =>
+                                        setRotateRecoveryOpen(true)
+                                    }
+                                    onRemoveLocalBinding={() => {
+                                        setRemoveLocalBindingOpen(true);
+                                    }}
+                                    onDeleteAccount={() =>
+                                        setDeleteAccountOpen(true)
+                                    }
+                                />
+                            </TabsContent>
+                        </Tabs>
                     </div>
                 </DialogContent>
             </Dialog>

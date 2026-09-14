@@ -159,4 +159,80 @@ test("creates a vault and manages a credential through lock and unlock", async (
     await expect(
         page.getByText("There are no credentials in this directory."),
     ).toBeVisible();
+
+    // Local device management stays available without an Online Services account.
+    await page.getByRole("button", { name: "Manage", exact: true }).click();
+    const account = page.getByRole("dialog", { name: "Account", exact: true });
+    await expect(
+        account.getByRole("tab", { name: "Devices", exact: true }),
+    ).toHaveAttribute("data-state", "active");
+    await expect(
+        account.getByText("You can still manage this vault's sync links.", {
+            exact: false,
+        }),
+    ).toBeVisible();
+    await expect(
+        account.getByRole("button", { name: "Allow root access", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+        account.getByRole("button", { name: "View device list" }),
+    ).toBeVisible();
+    await expect(account.locator("svg.device-network")).toBeVisible();
+    const mapBounds = await account.locator("svg.device-network").boundingBox();
+    expect(mapBounds!.height).toBeGreaterThan(100);
+    const nestedScroll = await account
+        .locator("svg.device-network")
+        .evaluate((svg) => {
+            let parent = svg.parentElement;
+            while (parent && parent.getAttribute("role") !== "dialog") {
+                if (
+                    ["auto", "scroll"].includes(
+                        getComputedStyle(parent).overflowY,
+                    ) &&
+                    parent.scrollHeight > parent.clientHeight + 1
+                )
+                    return true;
+                parent = parent.parentElement;
+            }
+            return false;
+        });
+    expect(nestedScroll).toBe(false);
+
+    await account.getByRole("button", { name: "View device list" }).click();
+    await expect(
+        account.getByRole("button", { name: "Next devices" }),
+    ).toBeVisible();
+    await account.getByRole("button", { name: "View connection map" }).click();
+    await expect(account.locator("svg.device-network")).toBeVisible();
+    await account.getByRole("button", { name: "Expand map" }).click();
+    await expect(
+        account.getByRole("button", { name: "Collapse", exact: true }),
+    ).toBeVisible();
+    await account
+        .getByRole("button", { name: "Collapse", exact: true })
+        .click();
+    await account
+        .getByRole("button", { name: "Link device", exact: true })
+        .click();
+    const choice = page.getByRole("dialog", {
+        name: "Link a device",
+        exact: true,
+    });
+    await expect(
+        choice.getByText(
+            "Name the device, choose a transfer method, then start linking.",
+        ),
+    ).toBeVisible();
+    await choice.getByRole("button", { name: /^Create invitation/ }).click();
+    await expect(
+        page.getByRole("dialog", { name: "Link new device", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await account
+        .getByRole("button", { name: "Link device", exact: true })
+        .click();
+    await choice.getByRole("button", { name: /^Receive invitation/ }).click();
+    await expect(
+        page.getByRole("dialog", { name: "Receive vault data", exact: true }),
+    ).toBeVisible();
 });

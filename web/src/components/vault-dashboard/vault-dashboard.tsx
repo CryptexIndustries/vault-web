@@ -70,6 +70,7 @@ import { CredentialDetail } from "./credential-detail";
 import { CredentialsList } from "./credentials-list";
 import {
     DeviceSidebar,
+    DeviceConfigurationDialog,
     type DeviceConfigurationDraft,
     type DeviceConnectionStatus,
 } from "./device-sidebar";
@@ -77,7 +78,15 @@ import { EditDrawer } from "./edit-drawer";
 import { SecurityReport } from "./security-report";
 import { useSecurityAnalysis } from "./use-security-analysis";
 import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
-import type { VaultSignalingConfig } from "./link";
+import {
+    SendLinkRequestDialog,
+    ReceiveLinkRequestDialog,
+    type VaultSignalingConfig,
+} from "./link";
+import { getDeviceConnectionDisplay } from "./device-status";
+import { useDeviceActions } from "./use-device-actions";
+import { trpcReact } from "@/utils/trpc";
+import type { DeviceControls } from "./device-controls";
 import {
     shouldAutoReconnectAfterWebRTCStatus,
     useSyncConnectionController,
@@ -417,6 +426,32 @@ export function VaultDashboard() {
     const [isVaultSettingsOpen, setIsVaultSettingsOpen] = useState(false);
     const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
     const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+    const [deviceRequest, setDeviceRequest] = useState<{
+        localId?: string;
+        token: number;
+        tab?: "account" | "devices";
+        section?: "remove";
+    }>();
+    const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+    const [invitation, setInvitation] = useState<"create" | "receive" | null>(
+        null,
+    );
+    const deviceActions = useDeviceActions();
+    const deviceQueryUtils = trpcReact.useUtils();
+    const manageDevices = (localId?: string, section?: "remove") => {
+        setDeviceRequest((previous) => ({
+            localId,
+            section,
+            token: (previous?.token ?? 0) + 1,
+        }));
+        setIsAccountDialogOpen(true);
+    };
+    const closeInvitation = (open: boolean) => {
+        if (open) return;
+        setInvitation(null);
+        void deviceQueryUtils.v1.device.invalidate();
+        void deviceQueryUtils.v1.payment.subscription.invalidate();
+    };
     const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] =
         useState(false);
     const [searchFocusRequestToken, setSearchFocusRequestToken] = useState(0);
@@ -1031,7 +1066,49 @@ export function VaultDashboard() {
         setIsBackupDialogOpen(true);
     }, []);
 
+    const deviceControls: DeviceControls = {
+        signalingConfig: vaultSignalingConfig,
+        statuses: deviceConnectionStatuses,
+        unlinkingId: deviceActions.pendingId,
+        onUnlink: deviceActions.unlink,
+        onConnect: async (device) => {
+            try {
+                await syncConnectionController.connectDevice(device.ID);
+            } catch {
+                toast.error("Could not connect to the device.");
+            }
+        },
+        onSync: (device) => {
+            try {
+                syncConnectionController.transmitSyncHello(device.ID);
+            } catch {
+                toast.error("Could not start syncing with the device.");
+            }
+        },
+        onEdit: (device) => setEditingDeviceId(device.ID),
+        onCreateInvitation: () => setInvitation("create"),
+        onReceiveInvitation: () => setInvitation("receive"),
+    };
+    const editingDevice =
+        linkedDevices.find((d) => d.ID === editingDeviceId) ?? null;
+    const editingStatus = editingDeviceId
+        ? deviceConnectionStatuses[editingDeviceId]
+        : undefined;
+
+    const editingDisplay = editingStatus
+        ? getDeviceConnectionDisplay({
+              ...editingStatus,
+              lastSyncLabel: editingStatus.lastSync
+                  ? `synced ${editingStatus.lastSync.toLocaleString()}`
+                  : "never synced",
+          })
+        : { tone: "idle" as const, label: "Live status unknown" };
+
     const handleOpenAccountDialog = useCallback(() => {
+        setDeviceRequest((previous) => ({
+            token: (previous?.token ?? 0) + 1,
+            tab: "account",
+        }));
         setIsAccountDialogOpen(true);
     }, []);
 
@@ -1429,8 +1506,11 @@ export function VaultDashboard() {
                         vaultName={unlockedVaultName}
                         vaultDescription={unlockedVaultDescription}
                         devices={linkedDevices}
-                        onSaveDeviceConfig={handleSaveDeviceConfig}
+                        onEditDevice={deviceControls.onEdit}
                         onOpenAccountDialog={handleOpenAccountDialog}
+                        onManageDevices={manageDevices}
+                        onCreateInvitation={deviceControls.onCreateInvitation}
+                        onReceiveInvitation={deviceControls.onReceiveInvitation}
                         accountButtonLabel={accountButtonLabel}
                         accountButtonClassName={accountButtonClassName}
                         showSubscriptionCta={showSubscriptionCta}
@@ -1449,7 +1529,6 @@ export function VaultDashboard() {
                         onSaveSignalingConfig={handleSaveSignalingConfig}
                         syncConnectionController={syncConnectionController}
                         deviceConnectionStatuses={deviceConnectionStatuses}
-                        showWarningDialog={showWarningDialog}
                         isMobile
                         onClose={() => setIsSidebarOpen(false)}
                     />
@@ -1462,8 +1541,11 @@ export function VaultDashboard() {
                     vaultName={unlockedVaultName}
                     vaultDescription={unlockedVaultDescription}
                     devices={linkedDevices}
-                    onSaveDeviceConfig={handleSaveDeviceConfig}
+                    onEditDevice={deviceControls.onEdit}
                     onOpenAccountDialog={handleOpenAccountDialog}
+                    onManageDevices={manageDevices}
+                    onCreateInvitation={deviceControls.onCreateInvitation}
+                    onReceiveInvitation={deviceControls.onReceiveInvitation}
                     accountButtonLabel={accountButtonLabel}
                     accountButtonClassName={accountButtonClassName}
                     showSubscriptionCta={showSubscriptionCta}
@@ -1482,7 +1564,6 @@ export function VaultDashboard() {
                     onSaveSignalingConfig={handleSaveSignalingConfig}
                     syncConnectionController={syncConnectionController}
                     deviceConnectionStatuses={deviceConnectionStatuses}
-                    showWarningDialog={showWarningDialog}
                 />
             </div>
 
@@ -1603,12 +1684,34 @@ export function VaultDashboard() {
                 onOpenChange={setIsBackupDialogOpen}
                 onOpenAccountDialog={handleOpenAccountDialog}
             />
-            {cloudServicesEnabled ? (
-                <AccountDialog
-                    open={isAccountDialogOpen}
-                    onOpenChange={setIsAccountDialogOpen}
-                />
-            ) : null}
+            <AccountDialog
+                open={isAccountDialogOpen}
+                onOpenChange={setIsAccountDialogOpen}
+                deviceControls={deviceControls}
+                deviceRequest={deviceRequest}
+            />
+            <SendLinkRequestDialog
+                open={invitation === "create"}
+                onOpenChange={closeInvitation}
+                onRequireOnlineServicesSignIn={handleOpenAccountDialog}
+            />
+            <ReceiveLinkRequestDialog
+                open={invitation === "receive"}
+                onOpenChange={closeInvitation}
+                showWarningDialog={showWarningDialog}
+            />
+            <DeviceConfigurationDialog
+                device={editingDevice}
+                open={!!editingDevice}
+                onOpenChange={(open) => {
+                    if (!open) setEditingDeviceId(null);
+                }}
+                onSave={handleSaveDeviceConfig}
+                syncStatus={{
+                    state: editingDisplay.tone,
+                    label: editingDisplay.label,
+                }}
+            />
             <LogInspectorDialog showDialogFnRef={showLogInspectorDialogRef} />
             <WarningDialog showFnRef={showWarningDialogFnRef} />
             {/* TODO: Remove VaultMigrationNoticeDialog after December 31, 2026. */}

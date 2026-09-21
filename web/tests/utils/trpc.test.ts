@@ -9,11 +9,15 @@ import {
 
 const ensureFreshOnlineServicesSessionMock = jest.fn(async () => true);
 const createBareAuthHeaderMock = jest.fn(() => ({ Authorization: "" }));
+const createAccountBoundAuthHeaderMock = jest.fn((deviceId: string) => ({
+    Authorization: `Bearer token-for-${deviceId}`,
+}));
 const loggerLinkMock = jest.fn((options: unknown) => ({ loggerLink: options }));
 
 jest.mock("../../src/app_lib/auth-session", () => ({
     ensureFreshOnlineServicesSession: ensureFreshOnlineServicesSessionMock,
     createBareAuthHeader: createBareAuthHeaderMock,
+    createAccountBoundAuthHeader: createAccountBoundAuthHeaderMock,
 }));
 
 jest.mock("@trpc/client", () => ({
@@ -27,7 +31,10 @@ jest.mock("@trpc/react-query", () => ({
 }));
 
 import { httpBatchLink } from "@trpc/client";
-import { reactQueryClientConfig } from "../../src/utils/trpc";
+import {
+    createAccountBoundTrpcClient,
+    reactQueryClientConfig,
+} from "../../src/utils/trpc";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const setNodeEnv = (value: string | undefined) => {
@@ -66,6 +73,19 @@ const getLoggerOptions = (): LoggerOptions => {
 
 const getHeadersFn = () => {
     reactQueryClientConfig("http://example.test");
+    const mockHttpBatchLink = httpBatchLink as unknown as jest.Mock;
+    const lastCall = mockHttpBatchLink.mock.calls[
+        mockHttpBatchLink.mock.calls.length - 1
+    ]![0] as {
+        headers: (args: {
+            opList: FakeOp[];
+        }) => Promise<Record<string, string>>;
+    };
+    return lastCall.headers;
+};
+
+const getAccountBoundHeadersFn = (deviceId: string) => {
+    createAccountBoundTrpcClient(deviceId);
     const mockHttpBatchLink = httpBatchLink as unknown as jest.Mock;
     const lastCall = mockHttpBatchLink.mock.calls[
         mockHttpBatchLink.mock.calls.length - 1
@@ -127,6 +147,22 @@ describe("utils/trpc - createHeadersWithFreshSession", () => {
         });
 
         expect(result).toEqual({ Authorization: "Bearer token-123" });
+    });
+
+    it("binds a dedicated client to its expected device", async () => {
+        const headersFn = getAccountBoundHeadersFn("device_1");
+
+        const result = await headersFn({
+            opList: [buildOp("v1.backup.delete")],
+        });
+
+        expect(ensureFreshOnlineServicesSessionMock).toHaveBeenCalledTimes(1);
+        expect(createAccountBoundAuthHeaderMock).toHaveBeenCalledWith(
+            "device_1",
+        );
+        expect(result).toEqual({
+            Authorization: "Bearer token-for-device_1",
+        });
     });
 
     it("keeps the full payload in development", () => {

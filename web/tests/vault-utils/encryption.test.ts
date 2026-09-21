@@ -714,7 +714,8 @@ describe("vault-utils/encryption", () => {
             Version: 3,
             DEKAlgo: "AES-GCM-256",
             Slots: [],
-            PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+            PrimaryProtectionKind:
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             VaultID: "vault-1",
         };
 

@@ -140,6 +140,22 @@ function createDirectAuthTrpcClient(
 
 const authTrpcClient = createDirectAuthTrpcClient(createBareAuthHeader);
 
+/** SW-only client whose every request stays bound to one vault identity. */
+export function createDirectOnlineServicesTrpcClient(
+    expectedDeviceId: string,
+): any {
+    return createDirectAuthTrpcClient(async () => {
+        if (!(await ensureFreshOnlineServicesSession())) {
+            throw new Error("ONLINE_SERVICES_SESSION_UNAVAILABLE");
+        }
+        const session = await getOnlineServicesSession();
+        if (session.deviceId !== expectedDeviceId || !session.sessionToken) {
+            throw new Error("ONLINE_SERVICES_SESSION_CHANGED");
+        }
+        return { Authorization: `Bearer ${session.sessionToken}` };
+    });
+}
+
 function createSessionBoundAuthTrpcClient(sessionToken: string) {
     return createDirectAuthTrpcClient(async () => ({
         Authorization: `Bearer ${sessionToken}`,

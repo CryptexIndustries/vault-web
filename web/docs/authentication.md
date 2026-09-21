@@ -47,6 +47,18 @@ recovery code does not recover an Online Services account.
 | Online Services User ID + Recovery Kit phrase | Account recovery and fresh-device backup recovery | Entered in the recovery UI |
 | Protection phrase or WebAuthn security key    | Additional local vault key protection             | Browser during unlock      |
 
+A generated protection phrase has two forms on a configured browser profile:
+the displayed phrase, which the user must save, and a derived key cached on the
+device. Ordinary lock/unlock can use the cached key and ask only for the vault
+password. Restoring a backup, clearing site or extension data, or moving the
+encrypted vault to a profile without that cache requires the saved protection
+phrase again. Neither the phrase nor its derived key syncs to linked devices.
+
+Changing protection normally rewraps the existing vault DEK. The optional
+local DEK rotation re-encrypts the vault and necessarily generates a new vault
+recovery code. This recovery code remains distinct from the Online Services
+Recovery Kit described below.
+
 ## What is stored where
 
 ### Inside the vault

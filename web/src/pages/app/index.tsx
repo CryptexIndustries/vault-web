@@ -26,12 +26,12 @@ import {
     setVaultDEKInSessionForMetadata,
 } from "@/utils/vault-session";
 import type {
-    VaultCreateSecondFactorOptions,
+    VaultCreateAdditionalKeyProtectionOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
 } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
-import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
+import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import {
     establishPremiumSession,
     syncOnlineServicesRemoteConfiguration,
@@ -73,7 +73,7 @@ const AppIndex: React.FC = () => {
         unlockExtras?: {
             useRecovery?: boolean;
             recoveryCode?: string;
-            secondFactorPassphrase?: string;
+            protectionPhrase?: string;
         },
     ) => {
         // WebAuthn unlock is resolved inside decryptVault from the synced
@@ -87,7 +87,7 @@ const AppIndex: React.FC = () => {
                 masterPassword: formData.Secret,
                 useRecovery: unlockExtras?.useRecovery,
                 recoveryCode: unlockExtras?.recoveryCode,
-                secondFactorPassphrase: unlockExtras?.secondFactorPassphrase,
+                protectionPhrase: unlockExtras?.protectionPhrase,
             },
         );
 
@@ -137,7 +137,7 @@ const AppIndex: React.FC = () => {
     const tryCreateVault = async (
         formData: FormSchemas.NewVaultFormSchemaType &
             FormSchemas.EncryptionFormGroupSchemaType,
-        secondFactorOptions?: VaultCreateSecondFactorOptions,
+        additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
     ): Promise<
         | false
@@ -153,18 +153,19 @@ const AppIndex: React.FC = () => {
                 formData,
                 false,
                 0,
-                secondFactorOptions,
+                additionalKeyProtectionOptions,
                 initialImport,
             );
 
             await created.metadata.save(null, created.dek);
 
             if (
-                secondFactorOptions?.secondFactor &&
-                secondFactorOptions.secondFactor.kind !== SecondFactorKind.NONE
+                additionalKeyProtectionOptions?.additionalKeyProtection &&
+                additionalKeyProtectionOptions.additionalKeyProtection.kind !==
+                    AdditionalKeyProtectionKind.NONE
             ) {
-                await created.metadata.persistSecondFactorEnrollment(
-                    created.enrolledFactor,
+                await created.metadata.persistAdditionalKeyProtectionEnrollment(
+                    created.enrolledProtection,
                 );
             }
 

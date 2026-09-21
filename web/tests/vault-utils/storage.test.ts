@@ -110,7 +110,7 @@ type ReencryptVaultBytesWithDEKFn = (
     import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob
 >;
 
-type ReconfigurePrimaryFactorFn = (
+type ReconfigureAdditionalKeyProtectionFn = (
     blob: import("@cryptex-industries/vault-core/vault-utils/encryption").EncryptedBlob,
     vaultId: string,
     currentCreds: unknown,
@@ -143,7 +143,7 @@ const mockDecryptDataBlob: jest.MockedFunction<DecryptDataBlobFn> = jest.fn();
 const mockOpenEnvelopeBlob: jest.MockedFunction<OpenEnvelopeBlobFn> = jest.fn();
 const mockReencryptVaultBytesWithDEK: jest.MockedFunction<ReencryptVaultBytesWithDEKFn> =
     jest.fn();
-const mockReconfigurePrimaryFactor: jest.MockedFunction<ReconfigurePrimaryFactorFn> =
+const mockReconfigureAdditionalKeyProtection: jest.MockedFunction<ReconfigureAdditionalKeyProtectionFn> =
     jest.fn();
 const mockRotateRecoveryCode: jest.MockedFunction<RotateRecoveryCodeFn> =
     jest.fn();
@@ -152,10 +152,10 @@ const mockHashSecret: jest.MockedFunction<
 > = jest.fn();
 
 jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
-    setDeviceSecondFactorKey: jest.fn(async () => undefined),
-    getDeviceSecondFactorKey: jest.fn(async () => null),
-    getDeviceSecondFactorKind: jest.fn(async () => null),
-    clearDeviceSecondFactor: jest.fn(async () => undefined),
+    setDeviceAdditionalKeyProtectionKey: jest.fn(async () => undefined),
+    getDeviceAdditionalKeyProtectionKey: jest.fn(async () => null),
+    getDeviceAdditionalKeyProtectionKind: jest.fn(async () => null),
+    clearDeviceAdditionalKeyProtection: jest.fn(async () => undefined),
 }));
 
 import { configureTestVaultCoreRuntime } from "../helpers/vault-core-runtime";
@@ -176,13 +176,14 @@ jest.mock(
                     Version: 3,
                     DEKAlgo: "AES-GCM-256",
                     Slots: [],
-                    PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+                    PrimaryProtectionKind:
+                        VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                     VaultID: "test-vault",
                 };
                 return {
                     blob,
                     recoveryCode: "deadbeef",
-                    secondFactorDisplaySecret: undefined,
+                    protectionPhrase: undefined,
                 };
             }),
             openEnvelopeBlob: (...args: Parameters<OpenEnvelopeBlobFn>) =>
@@ -190,9 +191,9 @@ jest.mock(
             reencryptVaultBytesWithDEK: (
                 ...args: Parameters<ReencryptVaultBytesWithDEKFn>
             ) => mockReencryptVaultBytesWithDEK(...args),
-            reconfigurePrimaryFactor: (
-                ...args: Parameters<ReconfigurePrimaryFactorFn>
-            ) => mockReconfigurePrimaryFactor(...args),
+            reconfigureAdditionalKeyProtection: (
+                ...args: Parameters<ReconfigureAdditionalKeyProtectionFn>
+            ) => mockReconfigureAdditionalKeyProtection(...args),
             rotateRecoveryCode: (...args: Parameters<RotateRecoveryCodeFn>) =>
                 mockRotateRecoveryCode(...args),
             createEnvelopeEncryptedBlob: jest.fn(async () => {
@@ -201,13 +202,14 @@ jest.mock(
                     Version: 3,
                     DEKAlgo: "AES-GCM-256",
                     Slots: [],
-                    PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+                    PrimaryProtectionKind:
+                        VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                     VaultID: "test-vault",
                 };
                 return {
                     blob,
                     recoveryCode: "recovery-code",
-                    secondFactorDisplaySecret: undefined,
+                    protectionPhrase: undefined,
                 };
             }),
         };
@@ -304,7 +306,7 @@ const installWebAuthnMocks = () => {
 };
 
 const makeEnvelopeBlob = (
-    kind = VaultUtilTypes.SecondFactorKind.NONE,
+    kind = VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
 ): EncryptedBlob => {
     const blob = EncryptedBlob.CreateDefault();
     blob.Version = 3;
@@ -324,13 +326,13 @@ const makeEnvelopeBlob = (
                 },
                 HKDFSalt: Buffer.from([2]).toString("base64"),
                 HKDFInfo: "cryptex/kek/v1|test-vault",
-                FactorKind: kind,
+                ProtectionKind: kind,
                 WebauthnCredentialId: "",
                 WebauthnPrfSalt: "",
-                SecondFactorSalt: "",
+                ProtectionPhraseSalt: "",
             },
         ],
-        PrimaryFactorKind: kind,
+        PrimaryProtectionKind: kind,
         VaultID: "test-vault",
     };
     return blob;
@@ -366,8 +368,8 @@ describe("vault-utils/storage", () => {
         mockReencryptVaultBytesWithDEK.mockImplementation(
             async (_bytes, _dek, existing) => existing,
         );
-        mockReconfigurePrimaryFactor.mockImplementation(async (blob) =>
-            ok(blob),
+        mockReconfigureAdditionalKeyProtection.mockImplementation(
+            async (blob) => ok(blob),
         );
         mockRotateRecoveryCode.mockImplementation(async (blob) =>
             ok({ blob, recoveryCode: "rotated-recovery-code" }),
@@ -433,7 +435,8 @@ describe("vault-utils/storage", () => {
             Version: 3,
             DEKAlgo: "AES-GCM-256",
             Slots: [],
-            PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+            PrimaryProtectionKind:
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             VaultID: "test-vault",
         };
         const { update: updateMock } = getVaultTableMocks();
@@ -547,7 +550,8 @@ describe("vault-utils/storage", () => {
             Version: 3,
             DEKAlgo: "AES-GCM-256",
             Slots: [],
-            PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+            PrimaryProtectionKind:
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             VaultID: "test-vault",
         };
         metadata.Blob = blob;
@@ -670,7 +674,8 @@ describe("vault-utils/storage", () => {
             Version: 3,
             DEKAlgo: "AES-GCM-256",
             Slots: [],
-            PrimaryFactorKind: VaultUtilTypes.SecondFactorKind.NONE,
+            PrimaryProtectionKind:
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             VaultID: "test-vault",
         };
         const vault = new Vault();
@@ -711,34 +716,36 @@ describe("vault-utils/storage", () => {
         ).rejects.toThrow("Post-create unlock failed: UNLOCK_FAILED");
     });
 
-    it("persists second-factor enrollment only when local state requires it", async () => {
+    it("persists additional key protection only when local state requires it", async () => {
         const metadata = new VaultMetadata();
         const key = await importHkdfBaseKey(new Uint8Array(32));
 
-        await metadata.persistSecondFactorEnrollment({
-            kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        await metadata.persistAdditionalKeyProtectionEnrollment({
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                .PROTECTION_PHRASE_128,
             hkdfBaseKey: key,
         });
-        await metadata.persistSecondFactorEnrollment({
-            kind: VaultUtilTypes.SecondFactorKind.NONE,
+        await metadata.persistAdditionalKeyProtectionEnrollment({
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             hkdfBaseKey: null,
         });
 
         metadata.DBIndex = 5;
         await expect(
-            metadata.persistSecondFactorEnrollment({
-                kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            metadata.persistAdditionalKeyProtectionEnrollment({
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
                 hkdfBaseKey: null,
             }),
         ).rejects.toThrow("WEBAUTHN_ENROLLMENT_METADATA_MISSING");
-        await metadata.persistSecondFactorEnrollment({
-            kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        await metadata.persistAdditionalKeyProtectionEnrollment({
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
             hkdfBaseKey: null,
             webauthnCredentialId: "credential",
             webauthnPrfSalt: "salt",
         });
-        await metadata.persistSecondFactorEnrollment({
-            kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        await metadata.persistAdditionalKeyProtectionEnrollment({
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                .PROTECTION_PHRASE_128,
             hkdfBaseKey: null,
         });
 
@@ -751,7 +758,9 @@ describe("vault-utils/storage", () => {
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
             }),
         ).resolves.toMatchObject({ error: "NOT_ENVELOPE_BLOB" });
 
@@ -759,7 +768,9 @@ describe("vault-utils/storage", () => {
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
             }),
         ).resolves.toMatchObject({ error: "VAULT_DB_INDEX_MISSING" });
 
@@ -768,7 +779,9 @@ describe("vault-utils/storage", () => {
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
             }),
         ).rejects.toThrow("Vault ID is missing");
     });
@@ -803,23 +816,29 @@ describe("vault-utils/storage", () => {
         ).resolves.toMatchObject({ error: "ROTATE_FAILED" });
     });
 
-    it("reports current second-factor failures during reconfigure and recovery reset", async () => {
+    it("reports current additional key protection failures during reconfigure and recovery reset", async () => {
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
         metadata.Blob = makeEnvelopeBlob(
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         );
 
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
             }),
-        ).resolves.toMatchObject({ error: "CURRENT_SECOND_FACTOR_FAILED" });
+        ).resolves.toMatchObject({
+            error: "CURRENT_ADDITIONAL_KEY_PROTECTION_FAILED",
+        });
 
         await expect(
             metadata.resetRecoveryCode({ currentMasterPassword: "master" }),
-        ).resolves.toMatchObject({ error: "CURRENT_SECOND_FACTOR_FAILED" });
+        ).resolves.toMatchObject({
+            error: "CURRENT_ADDITIONAL_KEY_PROTECTION_FAILED",
+        });
     });
 
     it("throws when requireVaultID is called without a blob envelope", () => {
@@ -834,24 +853,24 @@ describe("vault-utils/storage", () => {
         ).toThrow("Vault blob or envelope is null");
     });
 
-    it("returns null when resolving current second factor without an envelope", async () => {
+    it("returns null when resolving current additional key protection without an envelope", async () => {
         const metadata = new VaultMetadata();
 
         await expect(
             (
                 metadata as unknown as {
-                    resolveCurrentSecondFactor: () => Promise<VaultHkdfKey | null>;
+                    resolveCurrentAdditionalKeyProtection: () => Promise<VaultHkdfKey | null>;
                 }
-            ).resolveCurrentSecondFactor(),
+            ).resolveCurrentAdditionalKeyProtection(),
         ).resolves.toBeNull();
     });
 
-    it("uses stored WebAuthn metadata for current-factor reconfiguration", async () => {
+    it("uses stored WebAuthn metadata for current-protection reconfiguration", async () => {
         installWebAuthnMocks();
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
         metadata.Blob = makeEnvelopeBlob(
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         );
         const primarySlot = metadata.Blob.Envelope!.Slots[0]!;
         primarySlot.WebauthnCredentialId = Buffer.from([1, 2, 3]).toString(
@@ -862,14 +881,23 @@ describe("vault-utils/storage", () => {
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
             }),
-        ).resolves.toMatchObject({ value: null });
-        expect(mockReconfigurePrimaryFactor).toHaveBeenCalledWith(
+        ).resolves.toMatchObject({
+            value: {
+                dataKeyRotated: false,
+                recoveryCode: "",
+                additionalKeyProtectionKind:
+                    VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+        });
+        expect(mockReconfigureAdditionalKeyProtection).toHaveBeenCalledWith(
             metadata.Blob,
             "test-vault",
             expect.objectContaining({
-                secondFactorHkdfBase: expect.anything(),
+                additionalKeyProtectionHkdfBase: expect.anything(),
             }),
             expect.anything(),
             expect.anything(),
@@ -884,24 +912,29 @@ describe("vault-utils/storage", () => {
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: {
-                    kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
                 },
             }),
-        ).resolves.toMatchObject({ error: "SECOND_FACTOR_ENROLL_FAILED" });
+        ).resolves.toMatchObject({
+            error: "ADDITIONAL_KEY_PROTECTION_ENROLL_FAILED",
+        });
 
         installWebAuthnMocks();
         await expect(
             metadata.reconfigureSecurity({
                 currentMasterPassword: "master",
-                secondFactor: {
-                    kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
                 },
             }),
         ).resolves.toMatchObject({
             value: {
                 recoveryCode: "",
-                secondFactorKind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+                additionalKeyProtectionKind:
+                    VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
             },
         });
     });
@@ -911,7 +944,7 @@ describe("vault-utils/storage", () => {
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
         metadata.Blob = makeEnvelopeBlob(
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         );
         const primarySlot = metadata.Blob.Envelope!.Slots[0]!;
         primarySlot.WebauthnCredentialId = Buffer.from([1, 2, 3]).toString(
@@ -930,9 +963,9 @@ describe("vault-utils/storage", () => {
                 expect(
                     (
                         options as {
-                            secondFactorHkdfBase?: VaultHkdfKey | null;
+                            additionalKeyProtectionHkdfBase?: VaultHkdfKey | null;
                         }
-                    ).secondFactorHkdfBase,
+                    ).additionalKeyProtectionHkdfBase,
                 ).toBeTruthy();
                 const dek = await webcrypto.subtle.generateKey(
                     { name: "AES-GCM", length: 256 },
@@ -962,7 +995,7 @@ describe("vault-utils/storage", () => {
         const metadata = new VaultMetadata();
         metadata.DBIndex = 1;
         metadata.Blob = makeEnvelopeBlob(
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         );
 
         const result = await metadata.decryptVault(

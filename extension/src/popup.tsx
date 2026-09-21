@@ -251,8 +251,13 @@ const App = () => {
     const tryDecryptVault = async (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
+        protectionPhrase?: string,
     ) => {
-        const res = await _tryDecryptVault(metadata, formData);
+        const res = await _tryDecryptVault(
+            metadata,
+            formData,
+            protectionPhrase,
+        );
 
         const recordSuccess = () => {
             setBg({
@@ -279,7 +284,11 @@ const App = () => {
                     );
                 }
 
-                const retryRes = await _tryDecryptVault(metadata, formData);
+                const retryRes = await _tryDecryptVault(
+                    metadata,
+                    formData,
+                    protectionPhrase,
+                );
                 if (retryRes.isErr()) {
                     vaultLog.error("Unlock retry failed", {
                         error: retryRes.error,
@@ -306,6 +315,7 @@ const App = () => {
     const _tryDecryptVault = async (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
+        protectionPhrase?: string,
     ) => {
         if (!serverPublicKey) {
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -316,6 +326,7 @@ const App = () => {
             {
                 index: metadata.DBIndex,
                 form: formData,
+                protectionPhrase,
             },
             serverPublicKey.publicKeyJwk,
             serverPublicKey.keyId,

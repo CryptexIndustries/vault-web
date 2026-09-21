@@ -9,8 +9,8 @@ import {
 import { env } from "@/env/public";
 import { onlineServicesSessionPort } from "@/app_lib/online-services-session";
 import {
-    getDeviceSecondFactorKey,
-    setDeviceSecondFactorKey,
+    getDeviceAdditionalKeyProtectionKey,
+    setDeviceAdditionalKeyProtectionKey,
 } from "@/app_lib/vault-utils/vault-key-store";
 import { syncLog, signalingLog, webrtcLog } from "@/utils/logging";
 import { trpc } from "@/utils/trpc";
@@ -40,9 +40,9 @@ export function ensureWebVaultCoreRuntime(): void {
         syncLog,
         signalingLog,
         webrtcLog,
-        secondFactorStore: {
-            setDeviceSecondFactorKey,
-            getDeviceSecondFactorKey,
+        additionalKeyProtectionStore: {
+            setDeviceAdditionalKeyProtectionKey,
+            getDeviceAdditionalKeyProtectionKey,
         },
     });
     configured = true;

@@ -48,7 +48,7 @@ jest.mock(
     { virtual: true },
 );
 
-const mockStoredFactors = new Map<
+const mockStoredProtections = new Map<
     number,
     {
         key: VaultHkdfKey | null;
@@ -58,7 +58,7 @@ const mockStoredFactors = new Map<
     }
 >();
 
-const mockSetDeviceSecondFactorKey = jest.fn(
+const mockSetDeviceAdditionalKeyProtectionKey = jest.fn(
     async (
         index: number,
         key: VaultHkdfKey | null,
@@ -66,20 +66,20 @@ const mockSetDeviceSecondFactorKey = jest.fn(
         credentialId?: string,
         prfSalt?: string,
     ) => {
-        mockStoredFactors.set(index, { key, kind, credentialId, prfSalt });
+        mockStoredProtections.set(index, { key, kind, credentialId, prfSalt });
     },
 );
-const mockGetDeviceSecondFactorKey = jest.fn(
-    async (index: number) => mockStoredFactors.get(index)?.key ?? null,
+const mockGetDeviceAdditionalKeyProtectionKey = jest.fn(
+    async (index: number) => mockStoredProtections.get(index)?.key ?? null,
 );
 
 jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
-    setDeviceSecondFactorKey: (
-        ...args: Parameters<typeof mockSetDeviceSecondFactorKey>
-    ) => mockSetDeviceSecondFactorKey(...args),
-    getDeviceSecondFactorKey: (
-        ...args: Parameters<typeof mockGetDeviceSecondFactorKey>
-    ) => mockGetDeviceSecondFactorKey(...args),
+    setDeviceAdditionalKeyProtectionKey: (
+        ...args: Parameters<typeof mockSetDeviceAdditionalKeyProtectionKey>
+    ) => mockSetDeviceAdditionalKeyProtectionKey(...args),
+    getDeviceAdditionalKeyProtectionKey: (
+        ...args: Parameters<typeof mockGetDeviceAdditionalKeyProtectionKey>
+    ) => mockGetDeviceAdditionalKeyProtectionKey(...args),
 }));
 
 import {
@@ -106,9 +106,11 @@ configureVaultCoreRuntime({
     syncLog: { debug() {}, info() {}, warn() {}, error() {} },
     signalingLog: { debug() {}, info() {}, warn() {}, error() {} },
     webrtcLog: { debug() {}, info() {}, warn() {}, error() {} },
-    secondFactorStore: {
-        setDeviceSecondFactorKey: mockSetDeviceSecondFactorKey,
-        getDeviceSecondFactorKey: mockGetDeviceSecondFactorKey,
+    additionalKeyProtectionStore: {
+        setDeviceAdditionalKeyProtectionKey:
+            mockSetDeviceAdditionalKeyProtectionKey,
+        getDeviceAdditionalKeyProtectionKey:
+            mockGetDeviceAdditionalKeyProtectionKey,
     },
 });
 
@@ -116,12 +118,12 @@ import sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
-    derivePassphraseSecondFactorKey,
-    enrollSecondFactor,
+    deriveProtectionPhraseKey,
+    enrollAdditionalKeyProtection,
     makeWebAuthnUnlockFromSlot,
-    resolveSecondFactorForUnlock,
+    resolveAdditionalKeyProtectionForUnlock,
     unlockWebAuthnPrf,
-} from "@cryptex-industries/vault-core/vault-utils/second-factor";
+} from "@cryptex-industries/vault-core/vault-utils/additional-key-protection";
 
 const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
 
@@ -193,14 +195,14 @@ function installWebAuthnMocks(options?: {
     return credentials;
 }
 
-describe("second-factor", () => {
+describe("additional key protection", () => {
     beforeAll(async () => {
         await sodium.ready;
     });
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockStoredFactors.clear();
+        mockStoredProtections.clear();
         MockPublicKeyCredential.capabilities = { "extension:prf": true };
         delete (globalThis as { window?: unknown }).window;
         delete (globalThis as { navigator?: unknown }).navigator;
@@ -210,97 +212,112 @@ describe("second-factor", () => {
 
     it("returns a null key for NONE enrollment and unlock", async () => {
         await expect(
-            enrollSecondFactor(
-                { kind: VaultUtilTypes.SecondFactorKind.NONE },
+            enrollAdditionalKeyProtection(
+                { kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE },
                 "vault-1",
                 undefined,
                 kdf,
             ),
         ).resolves.toEqual({
-            kind: VaultUtilTypes.SecondFactorKind.NONE,
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             hkdfBaseKey: null,
         });
 
         await expect(
-            resolveSecondFactorForUnlock(
+            resolveAdditionalKeyProtectionForUnlock(
                 undefined,
-                VaultUtilTypes.SecondFactorKind.NONE,
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             ),
         ).resolves.toBeNull();
     });
 
-    it("enrolls passphrase factors and persists device key only for valid DB ids", async () => {
-        const enrolled = await enrollSecondFactor(
-            { kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128 },
+    it("enrolls protection phrases and persists device keys only for valid DB ids", async () => {
+        const enrolled = await enrollAdditionalKeyProtection(
+            {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+            },
             "vault-1",
             7,
             kdf,
         );
 
         expect(enrolled.kind).toBe(
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
-        expect(enrolled.displaySecret).toBeTruthy();
-        expect(enrolled.passphraseSalt).toBeTruthy();
+        expect(enrolled.protectionPhrase).toBeTruthy();
+        expect(enrolled.protectionPhraseSalt).toBeTruthy();
         expect(enrolled.hkdfBaseKey).toBeTruthy();
-        expect(mockSetDeviceSecondFactorKey).toHaveBeenCalledWith(
+        expect(mockSetDeviceAdditionalKeyProtectionKey).toHaveBeenCalledWith(
             7,
             enrolled.hkdfBaseKey,
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
 
-        await enrollSecondFactor(
-            { kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_256 },
+        await enrollAdditionalKeyProtection(
+            {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_256,
+            },
             "vault-1",
             -1,
             kdf,
         );
-        expect(mockSetDeviceSecondFactorKey).toHaveBeenCalledTimes(1);
+        expect(mockSetDeviceAdditionalKeyProtectionKey).toHaveBeenCalledTimes(
+            1,
+        );
     });
 
-    it("derives passphrase unlock keys from entered secret or falls back to device storage", async () => {
-        const enrolled = await enrollSecondFactor(
-            { kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128 },
+    it("derives protection-phrase keys or falls back to device storage", async () => {
+        const enrolled = await enrollAdditionalKeyProtection(
+            {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+            },
             "vault-1",
             2,
             kdf,
         );
 
-        const fromPassphrase = await resolveSecondFactorForUnlock(
-            undefined,
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
-            {
-                passphrase: enrolled.displaySecret,
-                passphraseSaltB64: enrolled.passphraseSalt,
-                passphraseKdfConfig: kdf,
-            },
-        );
-        const direct = await derivePassphraseSecondFactorKey(
-            enrolled.displaySecret!,
-            enrolled.passphraseSalt!,
+        const fromProtectionPhrase =
+            await resolveAdditionalKeyProtectionForUnlock(
+                undefined,
+                VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+                {
+                    protectionPhrase: enrolled.protectionPhrase,
+                    protectionPhraseSaltB64: enrolled.protectionPhraseSalt,
+                    protectionPhraseKdfConfig: kdf,
+                },
+            );
+        const direct = await deriveProtectionPhraseKey(
+            enrolled.protectionPhrase!,
+            enrolled.protectionPhraseSalt!,
             kdf,
         );
-        const stored = await resolveSecondFactorForUnlock(
+        const stored = await resolveAdditionalKeyProtectionForUnlock(
             2,
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
 
-        expect(fromPassphrase).toBeInstanceOf(CryptoKey);
+        expect(fromProtectionPhrase).toBeInstanceOf(CryptoKey);
         expect(direct).toBeInstanceOf(CryptoKey);
         expect(stored).toBe(enrolled.hkdfBaseKey);
     });
 
-    it("requires a DB id for stored passphrase unlocks", async () => {
+    it("requires a DB id for cached protection-phrase unlocks", async () => {
         await expect(
-            resolveSecondFactorForUnlock(
+            resolveAdditionalKeyProtectionForUnlock(
                 undefined,
-                VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+                VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
             ),
         ).rejects.toThrow("VAULT_DB_INDEX_MISSING");
         await expect(
-            resolveSecondFactorForUnlock(
+            resolveAdditionalKeyProtectionForUnlock(
                 -1,
-                VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+                VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
             ),
         ).rejects.toThrow("VAULT_DB_INDEX_MISSING");
     });
@@ -309,15 +326,15 @@ describe("second-factor", () => {
         const prf = crypto.getRandomValues(new Uint8Array(32));
         const credentials = installWebAuthnMocks({ createPrf: prf });
 
-        const enrolled = await enrollSecondFactor(
-            { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+        const enrolled = await enrollAdditionalKeyProtection(
+            { kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF },
             "vault-1",
             undefined,
             kdf,
         );
 
         expect(enrolled.kind).toBe(
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         );
         expect(enrolled.hkdfBaseKey).toBeInstanceOf(CryptoKey);
         expect(enrolled.webauthnCredentialId).toBe(
@@ -332,8 +349,8 @@ describe("second-factor", () => {
         const prf = crypto.getRandomValues(new Uint8Array(32));
         const credentials = installWebAuthnMocks({ getPrf: prf });
 
-        const enrolled = await enrollSecondFactor(
-            { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+        const enrolled = await enrollAdditionalKeyProtection(
+            { kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF },
             "vault-2",
             undefined,
             kdf,
@@ -346,8 +363,11 @@ describe("second-factor", () => {
 
     it("surfaces WebAuthn enrollment availability and PRF errors", async () => {
         await expect(
-            enrollSecondFactor(
-                { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+            enrollAdditionalKeyProtection(
+                {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
+                },
                 "vault-1",
                 undefined,
                 kdf,
@@ -359,8 +379,11 @@ describe("second-factor", () => {
         });
         MockPublicKeyCredential.capabilities = { "extension:prf": false };
         await expect(
-            enrollSecondFactor(
-                { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+            enrollAdditionalKeyProtection(
+                {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
+                },
                 "vault-1",
                 undefined,
                 kdf,
@@ -370,8 +393,11 @@ describe("second-factor", () => {
         MockPublicKeyCredential.capabilities = { "extension:prf": true };
         installWebAuthnMocks({ createCredential: null });
         await expect(
-            enrollSecondFactor(
-                { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+            enrollAdditionalKeyProtection(
+                {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
+                },
                 "vault-1",
                 undefined,
                 kdf,
@@ -380,8 +406,11 @@ describe("second-factor", () => {
 
         installWebAuthnMocks({ getCredential: null });
         await expect(
-            enrollSecondFactor(
-                { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+            enrollAdditionalKeyProtection(
+                {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
+                },
                 "vault-1",
                 undefined,
                 kdf,
@@ -390,8 +419,11 @@ describe("second-factor", () => {
 
         installWebAuthnMocks();
         await expect(
-            enrollSecondFactor(
-                { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF },
+            enrollAdditionalKeyProtection(
+                {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                        .WEBAUTHN_PRF,
+                },
                 "vault-1",
                 undefined,
                 kdf,
@@ -399,7 +431,7 @@ describe("second-factor", () => {
         ).rejects.toThrow("WEBAUTHN_PRF_NO_OUTPUT");
     });
 
-    it("unlocks WebAuthn PRF factors from metadata", async () => {
+    it("unlocks WebAuthn PRF protections from metadata", async () => {
         const prf = crypto.getRandomValues(new Uint8Array(32));
         const credentials = installWebAuthnMocks({ getPrf: prf });
         const credentialId = Buffer.from([9, 8, 7]).toString("base64");
@@ -410,9 +442,9 @@ describe("second-factor", () => {
             credentialId,
             prfSalt,
         )();
-        const resolved = await resolveSecondFactorForUnlock(
+        const resolved = await resolveAdditionalKeyProtectionForUnlock(
             undefined,
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
             { webAuthnUnlock: async () => fromSlot },
         );
 
@@ -424,9 +456,9 @@ describe("second-factor", () => {
 
     it("requires WebAuthn callback and PRF output during unlock", async () => {
         await expect(
-            resolveSecondFactorForUnlock(
+            resolveAdditionalKeyProtectionForUnlock(
                 undefined,
-                VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+                VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
             ),
         ).rejects.toThrow("WEBAUTHN_UNLOCK_REQUIRED");
 
@@ -447,9 +479,17 @@ describe("second-factor", () => {
         ).rejects.toThrow("WEBAUTHN_PRF_NO_OUTPUT");
     });
 
-    it("returns null for unknown second-factor kinds", async () => {
+    it("rejects unknown additional key protection kinds", async () => {
         await expect(
-            resolveSecondFactorForUnlock(undefined, 999 as never),
-        ).resolves.toBeNull();
+            enrollAdditionalKeyProtection(
+                { kind: 999 } as never,
+                "vault-1",
+                undefined,
+                kdf,
+            ),
+        ).rejects.toThrow("ADDITIONAL_KEY_PROTECTION_UNSUPPORTED");
+        await expect(
+            resolveAdditionalKeyProtectionForUnlock(undefined, 999 as never),
+        ).rejects.toThrow("ADDITIONAL_KEY_PROTECTION_UNSUPPORTED");
     });
 });

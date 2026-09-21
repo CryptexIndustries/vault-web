@@ -1,63 +1,65 @@
-/**
- * Second-factor enrollment and unlock helpers.
- */
+/** Additional key protection enrollment and unlock helpers. */
 
 import * as VaultUtilTypes from "../proto/vault";
 import {
-    deriveSecondFactorKeyMaterial,
+    deriveAdditionalKeyProtectionKeyMaterial,
     importHkdfBaseKey,
 } from "./envelope-encryption";
 import { KeyDerivationConfig_Argon2ID } from "./encryption";
 import { generateRandomSalt } from "./envelope-encryption";
 import { base64ToUint8, uint8ToBase64 as b64 } from "../encoding";
-import { getSecondFactorStore } from "../runtime";
+import { getAdditionalKeyProtectionStore } from "../runtime";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { generateMnemonic } from "@scure/bip39";
 import type { VaultHkdfKey } from "../envelope-crypto";
 
-export type SecondFactorSource =
-    | { kind: VaultUtilTypes.SecondFactorKind.NONE }
+export type AdditionalKeyProtectionSource =
+    | { kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE }
     | {
           kind:
-              | VaultUtilTypes.SecondFactorKind.PASSPHRASE_128
-              | VaultUtilTypes.SecondFactorKind.PASSPHRASE_256;
+              | VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128
+              | VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_256;
       }
-    | { kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF };
+    | { kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF };
 
-export type SecondFactorEnrollmentResult = {
-    kind: VaultUtilTypes.SecondFactorKind;
-    /** Shown once at creation (passphrase sources only). */
-    displaySecret?: string;
+export type AdditionalKeyProtectionEnrollmentResult = {
+    kind: VaultUtilTypes.AdditionalKeyProtectionKind;
+    /** Shown once when the generated-phrase option is enrolled. */
+    protectionPhrase?: string;
     hkdfBaseKey: VaultHkdfKey | null;
-    /** Passphrase factors only: base64 KDF salt needed to reproduce key. */
-    passphraseSalt?: string;
+    /** Generated phrases only: base64 KDF salt needed to reproduce the key. */
+    protectionPhraseSalt?: string;
     /** WebAuthn PRF only: base64 credential id, needed to persist + unlock. */
     webauthnCredentialId?: string;
     /** WebAuthn PRF only: base64 PRF salt, needed to reproduce PRF on unlock. */
     webauthnPrfSalt?: string;
 };
 
-const PASSPHRASE_BYTE_LENGTH: Record<number, number> = {
-    [VaultUtilTypes.SecondFactorKind.PASSPHRASE_128]: 128,
-    [VaultUtilTypes.SecondFactorKind.PASSPHRASE_256]: 256,
+const PROTECTION_PHRASE_ENTROPY_BITS: Record<number, number> = {
+    [VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128]: 128,
+    [VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_256]: 256,
 };
 
-function isPassphraseKind(kind: VaultUtilTypes.SecondFactorKind): boolean {
+function isProtectionPhraseKind(
+    kind: VaultUtilTypes.AdditionalKeyProtectionKind,
+): boolean {
     return (
-        kind === VaultUtilTypes.SecondFactorKind.PASSPHRASE_128 ||
-        kind === VaultUtilTypes.SecondFactorKind.PASSPHRASE_256
+        kind ===
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128 ||
+        kind ===
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_256
     );
 }
 
-export async function derivePassphraseSecondFactorKey(
-    passphrase: string,
+export async function deriveProtectionPhraseKey(
+    protectionPhrase: string,
     saltB64: string,
     kdfConfig = new KeyDerivationConfig_Argon2ID(),
 ): Promise<VaultHkdfKey> {
-    const secretBytes = new TextEncoder().encode(passphrase);
+    const secretBytes = new TextEncoder().encode(protectionPhrase);
     let derived: Uint8Array | null = null;
     try {
-        derived = await deriveSecondFactorKeyMaterial(
+        derived = await deriveAdditionalKeyProtectionKeyMaterial(
             secretBytes,
             base64ToUint8(saltB64),
             kdfConfig,
@@ -69,23 +71,23 @@ export async function derivePassphraseSecondFactorKey(
     }
 }
 
-export async function enrollSecondFactor(
-    source: SecondFactorSource,
+export async function enrollAdditionalKeyProtection(
+    source: AdditionalKeyProtectionSource,
     vaultId: string,
     vaultDbIndex?: number,
     kdfConfig = new KeyDerivationConfig_Argon2ID(),
-): Promise<SecondFactorEnrollmentResult> {
-    if (source.kind === VaultUtilTypes.SecondFactorKind.NONE) {
+): Promise<AdditionalKeyProtectionEnrollmentResult> {
+    if (source.kind === VaultUtilTypes.AdditionalKeyProtectionKind.NONE) {
         return {
-            kind: VaultUtilTypes.SecondFactorKind.NONE,
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             hkdfBaseKey: null,
         };
     }
 
-    if (isPassphraseKind(source.kind)) {
+    if (isProtectionPhraseKind(source.kind)) {
         const secret = generateMnemonic(
             wordlist,
-            PASSPHRASE_BYTE_LENGTH[source.kind],
+            PROTECTION_PHRASE_ENTROPY_BITS[source.kind],
         );
         const secretBytes = new TextEncoder().encode(secret);
 
@@ -93,22 +95,22 @@ export async function enrollSecondFactor(
         const saltB64 = b64(salt);
         let derived: Uint8Array | null = null;
         try {
-            derived = await deriveSecondFactorKeyMaterial(
+            derived = await deriveAdditionalKeyProtectionKeyMaterial(
                 secretBytes,
                 salt,
                 kdfConfig,
             );
             const hkdfBaseKey = await importHkdfBaseKey(derived);
             if (vaultDbIndex != null && vaultDbIndex >= 0) {
-                const store = getSecondFactorStore();
-                if (store.setDeviceSecondFactorRawKey) {
-                    await store.setDeviceSecondFactorRawKey(
+                const store = getAdditionalKeyProtectionStore();
+                if (store.setDeviceAdditionalKeyProtectionRawKey) {
+                    await store.setDeviceAdditionalKeyProtectionRawKey(
                         vaultDbIndex,
                         derived,
                         source.kind,
                     );
                 } else {
-                    await store.setDeviceSecondFactorKey(
+                    await store.setDeviceAdditionalKeyProtectionKey(
                         vaultDbIndex,
                         hkdfBaseKey,
                         source.kind,
@@ -118,9 +120,9 @@ export async function enrollSecondFactor(
 
             return {
                 kind: source.kind,
-                displaySecret: secret,
+                protectionPhrase: secret,
                 hkdfBaseKey,
-                passphraseSalt: saltB64,
+                protectionPhraseSalt: saltB64,
             };
         } finally {
             secretBytes.fill(0);
@@ -128,56 +130,63 @@ export async function enrollSecondFactor(
         }
     }
 
-    // WebAuthn PRF enrollment (webapp)
-    const prfResult = await enrollWebAuthnPrf(vaultId);
-    return prfResult;
+    if (
+        source.kind !== VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF
+    ) {
+        throw new Error("ADDITIONAL_KEY_PROTECTION_UNSUPPORTED");
+    }
+    return enrollWebAuthnPrf(vaultId);
 }
 
-export async function resolveSecondFactorForUnlock(
+export async function resolveAdditionalKeyProtectionForUnlock(
     vaultDbIndex: number | undefined,
-    envelopeKind: VaultUtilTypes.SecondFactorKind,
+    envelopeKind: VaultUtilTypes.AdditionalKeyProtectionKind,
     options?: {
-        /** Passphrase factors: entered by user; lets backup/restore work. */
-        passphrase?: string;
-        /** Passphrase factors: non-secret salt stored in the primary slot. */
-        passphraseSaltB64?: string;
-        /** KDF config that was used when the passphrase factor was enrolled. */
-        passphraseKdfConfig?: KeyDerivationConfig_Argon2ID;
+        /** User-entered phrase, needed after backup restore or cache loss. */
+        protectionPhrase?: string;
+        /** Non-secret salt stored in the primary slot. */
+        protectionPhraseSaltB64?: string;
+        /** KDF config used when the protection phrase was enrolled. */
+        protectionPhraseKdfConfig?: KeyDerivationConfig_Argon2ID;
         /** Required for WebAuthn PRF each unlock. */
         webAuthnUnlock?: () => Promise<VaultHkdfKey>;
     },
 ): Promise<VaultHkdfKey | null> {
-    if (envelopeKind === VaultUtilTypes.SecondFactorKind.NONE) {
+    if (envelopeKind === VaultUtilTypes.AdditionalKeyProtectionKind.NONE) {
         return null;
     }
 
-    if (isPassphraseKind(envelopeKind)) {
-        if (options?.passphrase && options.passphraseSaltB64) {
-            return derivePassphraseSecondFactorKey(
-                options.passphrase,
-                options.passphraseSaltB64,
-                options.passphraseKdfConfig,
+    if (isProtectionPhraseKind(envelopeKind)) {
+        if (options?.protectionPhrase && options.protectionPhraseSaltB64) {
+            return deriveProtectionPhraseKey(
+                options.protectionPhrase,
+                options.protectionPhraseSaltB64,
+                options.protectionPhraseKdfConfig,
             );
         }
         if (vaultDbIndex == null || vaultDbIndex < 0) {
             throw new Error("VAULT_DB_INDEX_MISSING");
         }
-        return getSecondFactorStore().getDeviceSecondFactorKey(vaultDbIndex);
+        return getAdditionalKeyProtectionStore().getDeviceAdditionalKeyProtectionKey(
+            vaultDbIndex,
+        );
     }
 
-    if (envelopeKind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF) {
+    if (
+        envelopeKind === VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF
+    ) {
         if (!options?.webAuthnUnlock) {
             throw new Error("WEBAUTHN_UNLOCK_REQUIRED");
         }
         return options.webAuthnUnlock();
     }
 
-    return null;
+    throw new Error("ADDITIONAL_KEY_PROTECTION_UNSUPPORTED");
 }
 
 async function enrollWebAuthnPrf(
     vaultId: string,
-): Promise<SecondFactorEnrollmentResult> {
+): Promise<AdditionalKeyProtectionEnrollmentResult> {
     if (
         typeof window === "undefined" ||
         !window.PublicKeyCredential ||
@@ -271,7 +280,7 @@ async function enrollWebAuthnPrf(
     const prfSaltB64 = b64(prfSalt);
 
     return {
-        kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         hkdfBaseKey,
         webauthnCredentialId: credId,
         webauthnPrfSalt: prfSaltB64,

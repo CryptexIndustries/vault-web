@@ -50,6 +50,14 @@ const recoveryListMock =
             cursor?: string;
         }) => Promise<{ items: Snapshot[]; nextCursor: string | null }>
     >();
+const listMock =
+    jest.fn<
+        (input?: {
+            cursor?: string;
+        }) => Promise<{ items: Snapshot[]; nextCursor: string | null }>
+    >();
+const deleteMock =
+    jest.fn<(input: { snapshotId: string }) => Promise<boolean>>();
 
 jest.mock("../../src/utils/trpc", () => ({
     trpc: {
@@ -57,6 +65,8 @@ jest.mock("../../src/utils/trpc", () => ({
             backup: {
                 createUpload: { mutate: createUploadMock },
                 completeUpload: { mutate: completeUploadMock },
+                list: { query: listMock },
+                delete: { mutate: deleteMock },
                 recoveryDownload: { mutate: recoveryDownloadMock },
                 recoveryList: { mutate: recoveryListMock },
             },
@@ -66,6 +76,7 @@ jest.mock("../../src/utils/trpc", () => ({
 
 import {
     createBackupRecoverySessionToken,
+    deleteManagedBackupHistoryBefore,
     downloadRecoveryBackupBytes,
     listAllRecoverySnapshots,
     recommendNewestSnapshot,
@@ -292,5 +303,45 @@ describe("managed encrypted backup transfers", () => {
             sessionToken: "s".repeat(32),
             cursor: "snap-1",
         });
+    });
+
+    it("deletes only snapshots older than the completed replacement", async () => {
+        const replacement = {
+            ...snapshot,
+            id: "replacement",
+            createdAt: new Date("2026-08-15T00:00:00.000Z"),
+        };
+        const older = {
+            ...snapshot,
+            id: "older",
+            createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        };
+        const newer = {
+            ...snapshot,
+            id: "newer",
+            createdAt: new Date("2026-09-01T00:00:00.000Z"),
+        };
+        const concurrent = {
+            ...snapshot,
+            id: "same-time",
+            createdAt: replacement.createdAt,
+        };
+        listMock
+            .mockResolvedValueOnce({
+                items: [replacement, older],
+                nextCursor: "page-2",
+            })
+            .mockResolvedValueOnce({
+                items: [newer, concurrent],
+                nextCursor: null,
+            });
+        deleteMock.mockResolvedValue(true);
+
+        await deleteManagedBackupHistoryBefore(replacement);
+
+        expect(listMock).toHaveBeenNthCalledWith(1, undefined);
+        expect(listMock).toHaveBeenNthCalledWith(2, { cursor: "page-2" });
+        expect(deleteMock).toHaveBeenCalledTimes(1);
+        expect(deleteMock).toHaveBeenCalledWith({ snapshotId: "older" });
     });
 });

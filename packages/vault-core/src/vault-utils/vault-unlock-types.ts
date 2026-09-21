@@ -1,24 +1,24 @@
-import type { SecondFactorSource } from "./second-factor";
+import type { AdditionalKeyProtectionSource } from "./additional-key-protection";
 import type * as VaultUtilTypes from "../proto/vault";
 import type { Vault } from "./vault";
 
-export type VaultCreateSecondFactorOptions = {
-    secondFactor: SecondFactorSource;
+export type VaultCreateAdditionalKeyProtectionOptions = {
+    additionalKeyProtection: AdditionalKeyProtectionSource;
 };
 
 export type VaultUnlockParams = {
     masterPassword: string;
     useRecovery?: boolean;
     recoveryCode?: string;
-    secondFactorPassphrase?: string;
+    protectionPhrase?: string;
 };
 
 /** Shown once after create or migration. */
 export type VaultRevealSecrets = {
     recoveryCode: string;
-    secondFactorPassphrase?: string;
-    /** Primary 2FA kind, so the reveal UI can warn about device-bound factors. */
-    secondFactorKind?: VaultUtilTypes.SecondFactorKind;
+    protectionPhrase?: string;
+    /** Lets the reveal UI explain how the selected protection is restored. */
+    additionalKeyProtectionKind?: VaultUtilTypes.AdditionalKeyProtectionKind;
 };
 
 /** Unlock deferred until the reveal dialog is acknowledged. */

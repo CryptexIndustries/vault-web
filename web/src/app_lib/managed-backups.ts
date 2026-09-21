@@ -58,6 +58,40 @@ export async function listAllRecoverySnapshots(
     return items;
 }
 
+export async function listAllManagedBackupSnapshots(
+    client: typeof trpc = trpc,
+): Promise<BackupSnapshot[]> {
+    const items: BackupSnapshot[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+        const page = await client.v1.backup.list.query(
+            cursor ? { cursor } : undefined,
+        );
+        items.push(...page.items);
+        if (!page.nextCursor) break;
+        cursor = page.nextCursor;
+    }
+    return items;
+}
+
+/** Delete only snapshots older than a completed replacement. */
+export async function deleteManagedBackupHistoryBefore(
+    replacement: Pick<BackupSnapshot, "id" | "createdAt">,
+    client: typeof trpc = trpc,
+): Promise<void> {
+    const snapshots = await listAllManagedBackupSnapshots(client);
+    const replacementCreatedAt = replacement.createdAt.getTime();
+    for (const snapshot of snapshots) {
+        if (
+            snapshot.id === replacement.id ||
+            snapshot.createdAt.getTime() >= replacementCreatedAt
+        ) {
+            continue;
+        }
+        await client.v1.backup.delete.mutate({ snapshotId: snapshot.id });
+    }
+}
+
 export async function sha256Base64Url(bytes: Uint8Array): Promise<string> {
     const copy = new Uint8Array(bytes);
     return bytesToBase64Url(
@@ -119,9 +153,10 @@ async function fetchBackupTransfer(
 export async function uploadEncryptedBackup(
     bytes: Uint8Array,
     idempotencyKey = crypto.randomUUID(),
+    client: typeof trpc = trpc,
 ): Promise<BackupSnapshot> {
     const checksumSha256 = await sha256Base64Url(bytes);
-    const intent = await trpc.v1.backup.createUpload.mutate({
+    const intent = await client.v1.backup.createUpload.mutate({
         byteLength: bytes.byteLength,
         checksumSha256,
         idempotencyKey,
@@ -137,7 +172,7 @@ export async function uploadEncryptedBackup(
         },
         "upload",
     );
-    return trpc.v1.backup.completeUpload.mutate({
+    return client.v1.backup.completeUpload.mutate({
         snapshotId: intent.snapshotId,
     });
 }

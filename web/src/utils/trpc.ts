@@ -13,6 +13,7 @@ import {
     isCloudServicesEnabled,
 } from "./online-services-api-url";
 import {
+    createAccountBoundAuthHeader,
     createBareAuthHeader,
     ensureFreshOnlineServicesSession,
 } from "../app_lib/auth-session";
@@ -61,12 +62,17 @@ function shouldEnsureFreshSession(opList: Operation[]) {
     });
 }
 
-async function createHeadersWithFreshSession(opList: Operation[]) {
+async function createHeadersWithFreshSession(
+    opList: Operation[],
+    expectedDeviceId?: string,
+) {
     if (shouldEnsureFreshSession(opList)) {
         await ensureFreshOnlineServicesSession();
     }
 
-    return createBareAuthHeader();
+    return expectedDeviceId
+        ? createAccountBoundAuthHeader(expectedDeviceId)
+        : createBareAuthHeader();
 }
 
 export const reactQueryClientConfig = (baseUrl: string) => {
@@ -111,3 +117,20 @@ export const trpc = createTRPCClient<VersionedRouter>({
         }),
     ],
 });
+
+/** tRPC client whose requests remain bound to one Online Services device. */
+export function createAccountBoundTrpcClient(expectedDeviceId: string) {
+    return createTRPCClient<VersionedRouter>({
+        links: [
+            createTrpcLoggerLink(),
+            httpBatchLink({
+                url: isCloudServicesEnabled()
+                    ? getOnlineServicesTrpcUrl()
+                    : "/api/trpc",
+                headers: async ({ opList }) =>
+                    createHeadersWithFreshSession(opList, expectedDeviceId),
+                transformer: superjson,
+            }),
+        ],
+    });
+}

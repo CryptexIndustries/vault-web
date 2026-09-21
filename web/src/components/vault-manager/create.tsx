@@ -27,12 +27,12 @@ import {
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import {
-    SecondFactorOptions,
-    type SecondFactorChoice,
+    AdditionalKeyProtectionOptions,
+    type AdditionalKeyProtectionChoice,
     choiceToSource,
-} from "./second-factor-options";
+} from "./additional-key-protection-options";
 import type {
-    VaultCreateSecondFactorOptions,
+    VaultCreateAdditionalKeyProtectionOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
 } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
@@ -47,7 +47,7 @@ import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 const CreateVaultTab: React.FC<{
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-        secondFactorOptions?: VaultCreateSecondFactorOptions,
+        additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
     ) => Promise<
         | false
@@ -58,11 +58,10 @@ const CreateVaultTab: React.FC<{
           }
     >;
 }> = ({ executeCallback }) => {
-    const [secondFactorChoice, setSecondFactorChoice] =
-        useState<SecondFactorChoice>("none");
-    const [secondFactorSource, setSecondFactorSource] = useState(
-        choiceToSource("none"),
-    );
+    const [additionalKeyProtectionChoice, setAdditionalKeyProtectionChoice] =
+        useState<AdditionalKeyProtectionChoice>("none");
+    const [additionalKeyProtectionSource, setAdditionalKeyProtectionSource] =
+        useState(choiceToSource("none"));
     const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
     const [initialImport, setInitialImport] = useState<ImportResult | null>(
@@ -113,7 +112,7 @@ const CreateVaultTab: React.FC<{
         await executeCallback(
             formData,
             {
-                secondFactor: secondFactorSource,
+                additionalKeyProtection: additionalKeyProtectionSource,
             },
             initialImport ?? undefined,
         );
@@ -175,11 +174,11 @@ const CreateVaultTab: React.FC<{
                 </div>
 
                 <div className="space-y-2">
-                    <SecondFactorOptions
-                        value={secondFactorChoice}
+                    <AdditionalKeyProtectionOptions
+                        value={additionalKeyProtectionChoice}
                         onChange={(choice, source) => {
-                            setSecondFactorChoice(choice);
-                            setSecondFactorSource(source);
+                            setAdditionalKeyProtectionChoice(choice);
+                            setAdditionalKeyProtectionSource(source);
                         }}
                     />
                     <p className="text-xs text-muted-foreground">

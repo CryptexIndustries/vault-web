@@ -50,7 +50,7 @@ describe("vault action state indicator", () => {
             },
         });
         expect(setTitle).toHaveBeenCalledWith({
-            title: "Cryptex Vault — Vault locked",
+            title: "Cryptex Vault - Vault locked",
         });
     });
 

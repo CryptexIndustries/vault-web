@@ -15,6 +15,35 @@ The web adapter is `persistVaultMutation` in
 `web/src/utils/vault-mutations.ts`. The extension service worker uses the same
 coordinator around its IndexedDB/session-storage mutation handlers.
 
+## Security-setting writes
+
+Password, additional-protection, recovery-code, and optional data-key changes
+use the same writer through the explicit `vault.security.reconfigure` and
+`vault.recovery.rotate` kinds.
+
+The default is a rewrap: a password or additional-protection change rebuilds
+only the primary slot, while a recovery-code reset rebuilds only the recovery
+slot. The DEK, vault ciphertext, and IV do not change. Selecting **Rotate this
+device's vault encryption key** instead performs one candidate update:
+
+1. unwrap the current DEK and decrypt the current ciphertext;
+2. generate a fresh DEK and IV;
+3. encrypt the vault with the fresh DEK;
+4. rebuild both primary and recovery slots, generating a new recovery code;
+5. persist the complete candidate metadata record;
+6. only after persistence succeeds, publish the metadata and replace the
+   active session DEK.
+
+The candidate blob is cloned. A failed IndexedDB write therefore leaves both
+the published metadata and active session key unchanged. The encrypted blob,
+slots, KDF settings, and IV are committed as one IndexedDB record. The
+protection-phrase key is a separate device-local convenience cache. A cache
+failure is reported after the durable update, and the app still reveals the new
+phrase so the user cannot lose it behind a false failure result.
+
+Rotating a local DEK does not rotate DEKs on linked devices. Every linked vault
+has its own DEK and the user chooses rotation separately on each device.
+
 ## Adding a mutation
 
 - Add a narrowly named value to `VaultWriteKind`.

@@ -2,7 +2,8 @@
  * KEK/DEK envelope encryption (v3 vault blobs).
  *
  * - DEK: random AES-256-GCM key encrypts vault protobuf bytes.
- * - KEK: wraps DEK via AES-KW; derived from master password (+ optional 2FA).
+ * - KEK: wraps DEK via AES-KW; derived from the master password and optional
+ *   additional key protection.
  * - Recovery slot: separate KEK from recovery code only.
  */
 
@@ -85,8 +86,8 @@ export async function derivePasswordKey(
     }
 }
 
-/** Argon2id over raw second-factor secret bytes */
-export async function deriveSecondFactorKeyMaterial(
+/** Argon2id over raw additional key protection bytes. */
+export async function deriveAdditionalKeyProtectionKeyMaterial(
     secretBytes: Uint8Array,
     salt: Uint8Array,
     config: EnvelopeKdfConfig = defaultKdfConfig(),
@@ -122,14 +123,14 @@ export function buildKekInfo(vaultId: string): string {
 }
 
 /**
- * KEK with 2FA: HKDF(IKM = secondFactorKey, salt = pwKey).
- * KEK without 2FA: HKDF(IKM = imported pwKey, salt = stored random salt).
+ * With additional key protection, HKDF uses its key as IKM and the password
+ * key as salt. Without it, HKDF uses the password key and a stored random salt.
  */
 export async function deriveKEK(
     pwKey: Uint8Array,
     kekInfo: string,
-    secondFactorHkdfBase: VaultHkdfKey | null,
-    hkdfSaltWhenNoSecondFactor: Uint8Array | null,
+    additionalKeyProtectionHkdfBase: VaultHkdfKey | null,
+    hkdfSaltWhenNoAdditionalKeyProtection: Uint8Array | null,
 ): Promise<VaultKek> {
     assertByteLength(pwKey, AES_256_KEY_BYTES, "VAULT_PASSWORD_KEY_INVALID");
     const info = new TextEncoder().encode(kekInfo);
@@ -137,23 +138,25 @@ export async function deriveKEK(
         throw new Error("VAULT_HKDF_INFO_REQUIRED");
     }
 
-    if (secondFactorHkdfBase) {
+    if (additionalKeyProtectionHkdfBase) {
         return getEnvelopeCrypto().deriveKek(
-            secondFactorHkdfBase,
+            additionalKeyProtectionHkdfBase,
             new Uint8Array(pwKey),
             info,
         );
     }
 
-    if (!hkdfSaltWhenNoSecondFactor) {
-        throw new Error("HKDF salt required when second factor is absent");
+    if (!hkdfSaltWhenNoAdditionalKeyProtection) {
+        throw new Error(
+            "HKDF salt required when additional key protection is absent",
+        );
     }
 
     const pwHkdfBase = await importHkdfBaseKey(pwKey);
     try {
         return await getEnvelopeCrypto().deriveKek(
             pwHkdfBase,
-            new Uint8Array(hkdfSaltWhenNoSecondFactor),
+            new Uint8Array(hkdfSaltWhenNoAdditionalKeyProtection),
             info,
         );
     } finally {
@@ -279,7 +282,7 @@ export function generateRecoveryCode(): string {
 
 export function encodeSlot(
     kind: VaultUtilTypes.KeySlotKind,
-    factorKind: VaultUtilTypes.SecondFactorKind,
+    protectionKind: VaultUtilTypes.AdditionalKeyProtectionKind,
     wrapped: Uint8Array,
     salt: Uint8Array,
     kdfConfig: EnvelopeKdfConfig,
@@ -287,7 +290,7 @@ export function encodeSlot(
     vaultId: string,
     metadata?: {
         webauthn?: { credentialId: string; prfSalt: string };
-        secondFactorSalt?: string;
+        protectionPhraseSalt?: string;
     },
 ): VaultUtilTypes.KeySlot {
     assertByteLength(
@@ -306,23 +309,23 @@ export function encodeSlot(
         },
         HKDFSalt: hkdfSalt ? uint8ToBase64(hkdfSalt) : "",
         HKDFInfo: buildKekInfo(vaultId),
-        FactorKind: factorKind,
+        ProtectionKind: protectionKind,
         WebauthnCredentialId: metadata?.webauthn?.credentialId ?? "",
         WebauthnPrfSalt: metadata?.webauthn?.prfSalt ?? "",
-        SecondFactorSalt: metadata?.secondFactorSalt ?? "",
+        ProtectionPhraseSalt: metadata?.protectionPhraseSalt ?? "",
     };
 }
 
 export function buildKeyEnvelope(
     slots: VaultUtilTypes.KeySlot[],
-    primaryFactorKind: VaultUtilTypes.SecondFactorKind,
+    primaryProtectionKind: VaultUtilTypes.AdditionalKeyProtectionKind,
     vaultId: string,
 ): VaultUtilTypes.KeyEnvelope {
     return {
         Version: ENVELOPE_VERSION,
         DEKAlgo: DEK_ALGO,
         Slots: slots,
-        PrimaryFactorKind: primaryFactorKind,
+        PrimaryProtectionKind: primaryProtectionKind,
         VaultID: vaultId,
     };
 }
@@ -347,7 +350,7 @@ export async function openPrimarySlot(
     slot: VaultUtilTypes.KeySlot & { Kind: VaultUtilTypes.KeySlotKind.PRIMARY },
     masterPassword: string,
     vaultId: string,
-    secondFactorHkdfBase: VaultHkdfKey | null,
+    additionalKeyProtectionHkdfBase: VaultHkdfKey | null,
     extractable = false,
 ): Promise<Result<CryptoKey, string>> {
     const salt = base64ToUint8(slot.Salt);
@@ -373,7 +376,12 @@ export async function openPrimarySlot(
     const pwKey = await derivePasswordKey(masterPassword, salt, kdfConfig);
     let kek: VaultKek;
     try {
-        kek = await deriveKEK(pwKey, kekInfo, secondFactorHkdfBase, hkdfSalt);
+        kek = await deriveKEK(
+            pwKey,
+            kekInfo,
+            additionalKeyProtectionHkdfBase,
+            hkdfSalt,
+        );
     } catch (error) {
         if (isPlatformCryptoUnavailable(error)) {
             return err(PLATFORM_CRYPTO_UNAVAILABLE);

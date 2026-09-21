@@ -7,9 +7,10 @@ import {
 } from "@/utils/atoms";
 import { getVaultDEKFromSession } from "@/utils/vault-session";
 import { vaultLog } from "@/utils/logging";
-import { trpc } from "@/utils/trpc";
+import { createAccountBoundTrpcClient } from "@/utils/trpc";
 import {
     createEncryptedBackupBytes,
+    deleteManagedBackupHistoryBefore,
     sha256Base64Url,
     uploadEncryptedBackup,
 } from "./managed-backups";
@@ -43,35 +44,76 @@ class ManagedBackupCoordinator {
     private timer: ReturnType<typeof setTimeout> | null = null;
     private inFlight: Promise<void> | null = null;
     private retryMs = 5_000;
+    private lifecycle = 0;
+    private onlineServicesDeviceId: string | null = null;
     // Re-encryption changes the checksum, so retry the exact bytes with the same key.
     private uploadAttempt: {
         sourceHash: string | null;
         idempotencyKey: string;
         bytes: Uint8Array;
     } | null = null;
+    private deleteOlderSnapshotsAfterUpload = false;
+    private pendingHistoryPurgeSnapshot: {
+        id: string;
+        createdAt: Date;
+        onlineServicesDeviceId: string;
+    } | null = null;
 
     async start(): Promise<void> {
-        try {
-            const status = await trpc.v1.backup.status.query();
-            this.enabled = status.enabled && status.entitled;
-            if (this.enabled && (await this.sourceChanged())) this.markDirty();
-        } catch {
+        const lifecycle = ++this.lifecycle;
+        const vault = vaultStore.get(unlockedVaultAtom);
+        if (!vault.OnlineServices) {
             this.enabled = false;
+            this.onlineServicesDeviceId = null;
+            return;
+        }
+        const onlineServicesDeviceId = vault.OnlineServices.DeviceId;
+        this.onlineServicesDeviceId = onlineServicesDeviceId;
+        try {
+            const client = createAccountBoundTrpcClient(onlineServicesDeviceId);
+            const status = await client.v1.backup.status.query();
+            if (lifecycle !== this.lifecycle) return;
+            this.enabled = status.enabled && status.entitled;
+            const sourceChanged = this.enabled && (await this.sourceChanged());
+            if (lifecycle !== this.lifecycle) return;
+            if (sourceChanged) this.markDirty();
+        } catch {
+            if (lifecycle === this.lifecycle) this.enabled = false;
         }
     }
 
     stop(): void {
+        this.lifecycle += 1;
         this.enabled = false;
+        this.onlineServicesDeviceId = null;
         this.dirty = false;
         this.uploadAttempt = null;
+        this.deleteOlderSnapshotsAfterUpload = false;
+        this.pendingHistoryPurgeSnapshot = null;
         if (this.timer) clearTimeout(this.timer);
         this.timer = null;
     }
 
     setEnabled(enabled: boolean): void {
-        this.enabled = enabled;
-        if (enabled) this.markDirty();
-        else this.stop();
+        if (!enabled) {
+            this.stop();
+            return;
+        }
+        const vault = vaultStore.get(unlockedVaultAtom);
+        if (!vault.OnlineServices) {
+            this.stop();
+            return;
+        }
+        const nextDeviceId = vault.OnlineServices.DeviceId;
+        if (
+            this.onlineServicesDeviceId &&
+            this.onlineServicesDeviceId !== nextDeviceId
+        ) {
+            this.stop();
+        }
+        this.onlineServicesDeviceId = nextDeviceId;
+        this.enabled = true;
+        this.markDirty();
     }
 
     markDirty(): void {
@@ -82,10 +124,22 @@ class ManagedBackupCoordinator {
         this.scheduleFlush(DEBOUNCE_MS);
     }
 
-    async backupNow(): Promise<void> {
+    async backupNow(deleteOlderSnapshots = false): Promise<void> {
         if (!this.enabled) {
             throw new ManagedBackupError("BACKUP_NOT_ENABLED");
         }
+
+        // A security-change purge must belong to the replacement generated
+        // after that change. Let any older upload finish before arming the
+        // purge, otherwise the older upload could consume the flag and delete
+        // history before the post-change snapshot exists.
+        if (deleteOlderSnapshots && this.inFlight) {
+            await this.inFlight.catch(() => undefined);
+            if (!this.enabled) {
+                throw new ManagedBackupError("BACKUP_NOT_ENABLED");
+            }
+        }
+        if (deleteOlderSnapshots) this.deleteOlderSnapshotsAfterUpload = true;
         this.dirty = true;
         await this.flush();
     }
@@ -110,7 +164,7 @@ class ManagedBackupCoordinator {
             return;
         }
         this.dirty = false;
-        const upload = this.performUpload();
+        const upload = this.performUpload(this.lifecycle);
         this.inFlight = upload;
         try {
             await upload;
@@ -120,17 +174,36 @@ class ManagedBackupCoordinator {
         if (this.enabled && this.dirty) await this.flush();
     }
 
-    private async performUpload(): Promise<void> {
+    private async performUpload(lifecycle: number): Promise<void> {
         this.emit("uploading");
         try {
+            if (this.pendingHistoryPurgeSnapshot) {
+                const sourceChanged = await this.sourceChanged();
+                if (lifecycle !== this.lifecycle) return;
+                if (!sourceChanged) {
+                    await this.deletePendingHistory();
+                    if (lifecycle !== this.lifecycle) return;
+                    this.retryMs = 5_000;
+                    this.emit("success");
+                    return;
+                }
+            }
+
+            const purgeAfterUpload =
+                this.deleteOlderSnapshotsAfterUpload ||
+                this.pendingHistoryPurgeSnapshot != null;
+
             const metadata = vaultStore.get(unlockedVaultMetadataAtom);
             const vault = vaultStore.get(unlockedVaultAtom);
             const dek = getVaultDEKFromSession();
-            if (!metadata?.Blob || dek.isErr()) {
+            const onlineServicesDeviceId = this.onlineServicesDeviceId;
+            if (!metadata?.Blob || dek.isErr() || !onlineServicesDeviceId) {
                 throw new ManagedBackupError("BACKUP_VAULT_UNAVAILABLE");
             }
+            const client = createAccountBoundTrpcClient(onlineServicesDeviceId);
             const sourceStorageKey = this.storageKey();
             const sourceHash = await this.sourceHash();
+            if (lifecycle !== this.lifecycle) return;
             const uploadAttempt =
                 this.uploadAttempt?.sourceHash === sourceHash
                     ? this.uploadAttempt
@@ -143,18 +216,31 @@ class ManagedBackupCoordinator {
                               dek.value,
                           ),
                       };
+            if (lifecycle !== this.lifecycle) return;
             this.uploadAttempt = uploadAttempt;
-            await uploadEncryptedBackup(
+            const snapshot = await uploadEncryptedBackup(
                 uploadAttempt.bytes,
                 uploadAttempt.idempotencyKey,
+                client,
             );
+            if (lifecycle !== this.lifecycle) return;
             if (this.uploadAttempt === uploadAttempt) {
                 this.uploadAttempt = null;
             }
             if (sourceHash) localStorage.setItem(sourceStorageKey, sourceHash);
+            if (purgeAfterUpload) {
+                this.deleteOlderSnapshotsAfterUpload = false;
+                this.pendingHistoryPurgeSnapshot = {
+                    id: snapshot.id,
+                    createdAt: snapshot.createdAt,
+                    onlineServicesDeviceId,
+                };
+                await this.deletePendingHistory();
+            }
             this.retryMs = 5_000;
             this.emit("success");
         } catch (error) {
+            if (lifecycle !== this.lifecycle) return;
             const backupError = normalizeManagedBackupError(error);
             this.dirty = true;
             const retryInMs =
@@ -172,6 +258,31 @@ class ManagedBackupCoordinator {
                 this.retryMs = Math.min(MAX_RETRY_MS, this.retryMs * 2);
             }
             throw backupError;
+        }
+    }
+
+    private async deletePendingHistory(): Promise<void> {
+        const replacement = this.pendingHistoryPurgeSnapshot;
+        if (!replacement) return;
+        if (
+            replacement.onlineServicesDeviceId !== this.onlineServicesDeviceId
+        ) {
+            throw new ManagedBackupError("BACKUP_HISTORY_DELETE_FAILED");
+        }
+        try {
+            await deleteManagedBackupHistoryBefore(
+                { id: replacement.id, createdAt: replacement.createdAt },
+                createAccountBoundTrpcClient(
+                    replacement.onlineServicesDeviceId,
+                ),
+            );
+            if (this.pendingHistoryPurgeSnapshot === replacement) {
+                this.pendingHistoryPurgeSnapshot = null;
+            }
+        } catch (cause) {
+            throw new ManagedBackupError("BACKUP_HISTORY_DELETE_FAILED", {
+                cause,
+            });
         }
     }
 
@@ -228,6 +339,8 @@ class ManagedBackupCoordinator {
 export const managedBackupCoordinator = new ManagedBackupCoordinator();
 registerManagedBackupHooks({
     markDirty: () => managedBackupCoordinator.markDirty(),
+    backupNow: (deleteOlderSnapshots) =>
+        managedBackupCoordinator.backupNow(deleteOlderSnapshots),
     flushBeforeLock: () => managedBackupCoordinator.flushBeforeLock(),
     stop: () => managedBackupCoordinator.stop(),
 });

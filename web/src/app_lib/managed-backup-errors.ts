@@ -47,6 +47,10 @@ const BACKUP_ERRORS = {
         "The backup service could not complete the request. Try again in a moment.",
         true,
     ],
+    BACKUP_HISTORY_DELETE_FAILED: [
+        "The replacement backup succeeded, but older managed snapshots could not be deleted yet.",
+        true,
+    ],
 } as const;
 
 export type ManagedBackupErrorCode = keyof typeof BACKUP_ERRORS;

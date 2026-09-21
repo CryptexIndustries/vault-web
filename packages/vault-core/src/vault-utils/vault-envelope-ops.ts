@@ -28,7 +28,7 @@ import {
     wrapDEK,
     type EnvelopeKdfConfig,
 } from "./envelope-encryption";
-import type { SecondFactorEnrollmentResult } from "./second-factor";
+import type { AdditionalKeyProtectionEnrollmentResult } from "./additional-key-protection";
 import { uint8ToBase64 } from "../encoding";
 import type { VaultHkdfKey, VaultKek } from "../envelope-crypto";
 import { getEnvelopeCrypto } from "../runtime";
@@ -36,20 +36,27 @@ import { getEnvelopeCrypto } from "../runtime";
 export type EnvelopeCreateResult = {
     blob: EncryptedBlob;
     recoveryCode: string;
-    secondFactorDisplaySecret?: string;
+    protectionPhrase?: string;
+};
+
+export type EnvelopeDekRotationResult = {
+    blob: EncryptedBlob;
+    recoveryCode: string;
+    /** Fresh, non-extractable DEK to publish only after persistence succeeds. */
+    dek: CryptoKey;
 };
 
 export type VaultUnlockOptions = {
     masterPassword: string;
     useRecovery?: boolean;
     recoveryCode?: string;
-    secondFactorHkdfBase?: VaultHkdfKey | null;
+    additionalKeyProtectionHkdfBase?: VaultHkdfKey | null;
 };
 
 /** Current credentials needed to re-derive the (extractable) DEK before re-wrapping. */
 export type RewrapCredentials = {
     masterPassword: string;
-    secondFactorHkdfBase: VaultHkdfKey | null;
+    additionalKeyProtectionHkdfBase: VaultHkdfKey | null;
     useRecovery?: boolean;
     recoveryCode?: string;
 };
@@ -65,21 +72,40 @@ async function wrapAndDisposeKek(
     }
 }
 
-export async function createEnvelopeEncryptedBlob(
-    vaultBytes: Uint8Array,
+function cloneEncryptedBlob(blob: EncryptedBlob): EncryptedBlob {
+    return EncryptedBlob.fromBinary(
+        VaultUtilTypes.EncryptedBlob.encode(blob).finish(),
+    );
+}
+
+async function copyAsNonExtractableDEK(dek: CryptoKey): Promise<CryptoKey> {
+    const raw = new Uint8Array(await crypto.subtle.exportKey("raw", dek));
+    try {
+        return await crypto.subtle.importKey(
+            "raw",
+            raw,
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt", "decrypt"],
+        );
+    } finally {
+        raw.fill(0);
+    }
+}
+
+async function createPrimarySlot(
+    dek: CryptoKey,
     masterPassword: string,
     vaultId: string,
-    primaryFactor: SecondFactorEnrollmentResult,
-    kdfConfig: EnvelopeKdfConfig = new KeyDerivationConfig_Argon2ID(),
-): Promise<EnvelopeCreateResult> {
+    additionalKeyProtection: AdditionalKeyProtectionEnrollmentResult,
+    kdfConfig: EnvelopeKdfConfig,
+): Promise<{ slot: VaultUtilTypes.KeySlot; primarySalt: Uint8Array }> {
     const primarySalt = generateRandomSalt();
-    const recoverySalt = generateRandomSalt();
-    const hkdfSaltNo2fa =
-        primaryFactor.kind === VaultUtilTypes.SecondFactorKind.NONE
+    const hkdfSaltWithoutProtection =
+        additionalKeyProtection.kind ===
+        VaultUtilTypes.AdditionalKeyProtectionKind.NONE
             ? generateRandomSalt()
             : null;
-
-    const dekExtractable = await generateExtractableDEK();
     const pwKey = await derivePasswordKey(
         masterPassword,
         primarySalt,
@@ -90,63 +116,92 @@ export async function createEnvelopeEncryptedBlob(
         primaryKek = await deriveKEK(
             pwKey,
             buildKekInfo(vaultId),
-            primaryFactor.hkdfBaseKey,
-            hkdfSaltNo2fa,
+            additionalKeyProtection.hkdfBaseKey,
+            hkdfSaltWithoutProtection,
         );
     } finally {
         pwKey.fill(0);
     }
-    const wrappedPrimary = await wrapAndDisposeKek(dekExtractable, primaryKek);
 
+    const wrappedPrimary = await wrapAndDisposeKek(dek, primaryKek);
+    return {
+        primarySalt,
+        slot: encodeSlot(
+            VaultUtilTypes.KeySlotKind.PRIMARY,
+            additionalKeyProtection.kind,
+            wrappedPrimary,
+            primarySalt,
+            kdfConfig,
+            hkdfSaltWithoutProtection,
+            vaultId,
+            {
+                webauthn: webauthnSlotMetaFromProtection(
+                    additionalKeyProtection,
+                ),
+                protectionPhraseSalt:
+                    additionalKeyProtection.protectionPhraseSalt,
+            },
+        ),
+    };
+}
+
+async function createRecoverySlot(
+    dek: CryptoKey,
+    vaultId: string,
+    kdfConfig: EnvelopeKdfConfig,
+): Promise<{ slot: VaultUtilTypes.KeySlot; recoveryCode: string }> {
+    const recoverySalt = generateRandomSalt();
     const recoveryCode = generateRecoveryCode();
     const recoveryKek = await deriveRecoveryKEK(
         recoveryCode,
         recoverySalt,
         kdfConfig,
     );
-    const wrappedRecovery = await wrapAndDisposeKek(
-        dekExtractable,
-        recoveryKek,
-    );
+    const wrappedRecovery = await wrapAndDisposeKek(dek, recoveryKek);
 
-    const { ciphertext, iv } = await encryptWithDEK(dekExtractable, vaultBytes);
-
-    const webauthnSlotMeta =
-        primaryFactor.kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF &&
-        primaryFactor.webauthnCredentialId &&
-        primaryFactor.webauthnPrfSalt
-            ? {
-                  credentialId: primaryFactor.webauthnCredentialId,
-                  prfSalt: primaryFactor.webauthnPrfSalt,
-              }
-            : undefined;
-
-    const slots = [
-        encodeSlot(
-            VaultUtilTypes.KeySlotKind.PRIMARY,
-            primaryFactor.kind,
-            wrappedPrimary,
-            primarySalt,
-            kdfConfig,
-            hkdfSaltNo2fa,
-            vaultId,
-            {
-                webauthn: webauthnSlotMeta,
-                secondFactorSalt: primaryFactor.passphraseSalt,
-            },
-        ),
-        encodeSlot(
+    return {
+        recoveryCode,
+        slot: encodeSlot(
             VaultUtilTypes.KeySlotKind.RECOVERY,
-            VaultUtilTypes.SecondFactorKind.NONE,
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             wrappedRecovery,
             recoverySalt,
             kdfConfig,
             null,
             vaultId,
         ),
-    ];
+    };
+}
 
-    const envelope = buildKeyEnvelope(slots, primaryFactor.kind, vaultId);
+export async function createEnvelopeEncryptedBlob(
+    vaultBytes: Uint8Array,
+    masterPassword: string,
+    vaultId: string,
+    additionalKeyProtection: AdditionalKeyProtectionEnrollmentResult,
+    kdfConfig: EnvelopeKdfConfig = new KeyDerivationConfig_Argon2ID(),
+): Promise<EnvelopeCreateResult> {
+    const dekExtractable = await generateExtractableDEK();
+    const primary = await createPrimarySlot(
+        dekExtractable,
+        masterPassword,
+        vaultId,
+        additionalKeyProtection,
+        kdfConfig,
+    );
+    const recovery = await createRecoverySlot(
+        dekExtractable,
+        vaultId,
+        kdfConfig,
+    );
+
+    const { ciphertext, iv } = await encryptWithDEK(dekExtractable, vaultBytes);
+    const slots = [primary.slot, recovery.slot];
+
+    const envelope = buildKeyEnvelope(
+        slots,
+        additionalKeyProtection.kind,
+        vaultId,
+    );
 
     const blob = EncryptedBlob.CreateDefault();
     blob.Version = ENVELOPE_VERSION;
@@ -158,14 +213,14 @@ export async function createEnvelopeEncryptedBlob(
         opsLimit: kdfConfig.opsLimit,
     };
     blob.Blob = ciphertext;
-    blob.Salt = uint8ToBase64(primarySalt);
+    blob.Salt = uint8ToBase64(primary.primarySalt);
     blob.HeaderIV = iv;
     blob.Envelope = envelope;
 
     return {
         blob,
-        recoveryCode,
-        secondFactorDisplaySecret: primaryFactor.displaySecret,
+        recoveryCode: recovery.recoveryCode,
+        protectionPhrase: additionalKeyProtection.protectionPhrase,
     };
 }
 
@@ -193,7 +248,7 @@ export async function openEnvelopeBlob(
             primarySlot,
             options.masterPassword,
             fallbackVaultId,
-            options.secondFactorHkdfBase ?? null,
+            options.additionalKeyProtectionHkdfBase ?? null,
         );
     }
 
@@ -217,7 +272,7 @@ export async function reencryptVaultBytesWithDEK(
     kdfConfig: EnvelopeKdfConfig,
 ): Promise<EncryptedBlob> {
     const { ciphertext, iv } = await encryptWithDEK(dek, vaultBytes);
-    return Object.assign(existing, {
+    return Object.assign(cloneEncryptedBlob(existing), {
         Version: ENVELOPE_VERSION,
         CurrentVersion: ENVELOPE_VERSION,
         Algorithm: VaultUtilTypes.EncryptionAlgorithm.AES256,
@@ -253,36 +308,37 @@ async function openExtractableDEK(
         primarySlot,
         creds.masterPassword,
         fallbackVaultId,
-        creds.secondFactorHkdfBase,
+        creds.additionalKeyProtectionHkdfBase,
         true,
     );
 }
 
-function webauthnSlotMetaFromFactor(
-    factor: SecondFactorEnrollmentResult,
+function webauthnSlotMetaFromProtection(
+    protection: AdditionalKeyProtectionEnrollmentResult,
 ): { credentialId: string; prfSalt: string } | undefined {
-    return factor.kind === VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF &&
-        factor.webauthnCredentialId &&
-        factor.webauthnPrfSalt
+    return protection.kind ===
+        VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF &&
+        protection.webauthnCredentialId &&
+        protection.webauthnPrfSalt
         ? {
-              credentialId: factor.webauthnCredentialId,
-              prfSalt: factor.webauthnPrfSalt,
+              credentialId: protection.webauthnCredentialId,
+              prfSalt: protection.webauthnPrfSalt,
           }
         : undefined;
 }
 
 /**
- * Rebuilds the PRIMARY slot with a new master password and/or second factor.
+ * Rebuilds the PRIMARY slot with a new master password and/or additional key protection.
  * The DEK (and therefore the encrypted vault ciphertext) is unchanged; only the
  * key-wrapping changes. Requires current credentials to unwrap the DEK first.
  */
-export async function reconfigurePrimaryFactor(
+export async function reconfigureAdditionalKeyProtection(
     blob: EncryptedBlob,
     vaultId: string,
     currentCreds: RewrapCredentials,
     next: {
         masterPassword: string;
-        primaryFactor: SecondFactorEnrollmentResult;
+        additionalKeyProtection: AdditionalKeyProtectionEnrollmentResult;
     },
     kdfConfig: EnvelopeKdfConfig = new KeyDerivationConfig_Argon2ID(),
 ): Promise<Result<EncryptedBlob, string>> {
@@ -294,54 +350,26 @@ export async function reconfigurePrimaryFactor(
     if (dekRes.isErr()) return err(dekRes.error);
     const dek = dekRes.value;
 
-    const primarySalt = generateRandomSalt();
-    const hkdfSaltNo2fa =
-        next.primaryFactor.kind === VaultUtilTypes.SecondFactorKind.NONE
-            ? generateRandomSalt()
-            : null;
-
-    const pwKey = await derivePasswordKey(
+    const primary = await createPrimarySlot(
+        dek,
         next.masterPassword,
-        primarySalt,
-        kdfConfig,
-    );
-    let primaryKek: VaultKek;
-    try {
-        primaryKek = await deriveKEK(
-            pwKey,
-            buildKekInfo(vaultId),
-            next.primaryFactor.hkdfBaseKey,
-            hkdfSaltNo2fa,
-        );
-    } finally {
-        pwKey.fill(0);
-    }
-    const wrappedPrimary = await wrapAndDisposeKek(dek, primaryKek);
-
-    const newPrimarySlot = encodeSlot(
-        VaultUtilTypes.KeySlotKind.PRIMARY,
-        next.primaryFactor.kind,
-        wrappedPrimary,
-        primarySalt,
-        kdfConfig,
-        hkdfSaltNo2fa,
         vaultId,
-        {
-            webauthn: webauthnSlotMetaFromFactor(next.primaryFactor),
-            secondFactorSalt: next.primaryFactor.passphraseSalt,
-        },
+        next.additionalKeyProtection,
+        kdfConfig,
     );
 
     const slots = blob.Envelope.Slots.map((slot) =>
-        slot.Kind === VaultUtilTypes.KeySlotKind.PRIMARY
-            ? newPrimarySlot
-            : slot,
+        slot.Kind === VaultUtilTypes.KeySlotKind.PRIMARY ? primary.slot : slot,
     );
-    const envelope = buildKeyEnvelope(slots, next.primaryFactor.kind, vaultId);
+    const envelope = buildKeyEnvelope(
+        slots,
+        next.additionalKeyProtection.kind,
+        vaultId,
+    );
 
-    const updated = Object.assign(blob, {
+    const updated = Object.assign(cloneEncryptedBlob(blob), {
         Envelope: envelope,
-        Salt: uint8ToBase64(primarySalt),
+        Salt: uint8ToBase64(primary.primarySalt),
         KDFConfigArgon2ID: {
             memLimit: kdfConfig.memLimit,
             opsLimit: kdfConfig.opsLimit,
@@ -369,24 +397,7 @@ export async function rotateRecoveryCode(
     if (dekRes.isErr()) return err(dekRes.error);
     const dek = dekRes.value;
 
-    const recoverySalt = generateRandomSalt();
-    const recoveryCode = generateRecoveryCode();
-    const recoveryKek = await deriveRecoveryKEK(
-        recoveryCode,
-        recoverySalt,
-        kdfConfig,
-    );
-    const wrappedRecovery = await wrapAndDisposeKek(dek, recoveryKek);
-
-    const newRecoverySlot = encodeSlot(
-        VaultUtilTypes.KeySlotKind.RECOVERY,
-        VaultUtilTypes.SecondFactorKind.NONE,
-        wrappedRecovery,
-        recoverySalt,
-        kdfConfig,
-        null,
-        vaultId,
-    );
+    const recovery = await createRecoverySlot(dek, vaultId, kdfConfig);
 
     const hasRecovery = blob.Envelope.Slots.some(
         (slot) => slot.Kind === VaultUtilTypes.KeySlotKind.RECOVERY,
@@ -394,33 +405,106 @@ export async function rotateRecoveryCode(
     const slots = hasRecovery
         ? blob.Envelope.Slots.map((slot) =>
               slot.Kind === VaultUtilTypes.KeySlotKind.RECOVERY
-                  ? newRecoverySlot
+                  ? recovery.slot
                   : slot,
           )
-        : [...blob.Envelope.Slots, newRecoverySlot];
+        : [...blob.Envelope.Slots, recovery.slot];
 
     const envelope = buildKeyEnvelope(
         slots,
-        blob.Envelope.PrimaryFactorKind,
+        blob.Envelope.PrimaryProtectionKind,
         vaultId,
     );
-    const updated = Object.assign(blob, {
+    const updated = Object.assign(cloneEncryptedBlob(blob), {
         Envelope: envelope,
     }) as EncryptedBlob;
 
-    return ok({ blob: updated, recoveryCode });
+    return ok({ blob: updated, recoveryCode: recovery.recoveryCode });
+}
+
+/**
+ * Generates a fresh DEK, re-encrypts the vault bytes, and rebuilds both key
+ * slots. The returned DEK becomes active only after the caller persists the
+ * returned blob.
+ */
+export async function rotateVaultDataKey(
+    blob: EncryptedBlob,
+    vaultId: string,
+    currentCreds: RewrapCredentials,
+    next: {
+        masterPassword: string;
+        additionalKeyProtection: AdditionalKeyProtectionEnrollmentResult;
+    },
+    kdfConfig: EnvelopeKdfConfig = new KeyDerivationConfig_Argon2ID(),
+): Promise<Result<EnvelopeDekRotationResult, string>> {
+    if (!blob.Envelope || !isEnvelopeBlob(blob)) {
+        return err("NOT_ENVELOPE_BLOB");
+    }
+
+    const currentDekRes = await openExtractableDEK(blob, vaultId, currentCreds);
+    if (currentDekRes.isErr()) return err(currentDekRes.error);
+
+    const plaintextRes = await decryptWithDEK(
+        currentDekRes.value,
+        blob.Blob,
+        blob.HeaderIV,
+    );
+    if (plaintextRes.isErr()) return err(plaintextRes.error);
+
+    const plaintext = plaintextRes.value;
+    try {
+        const dek = await generateExtractableDEK();
+        const primary = await createPrimarySlot(
+            dek,
+            next.masterPassword,
+            vaultId,
+            next.additionalKeyProtection,
+            kdfConfig,
+        );
+        const recovery = await createRecoverySlot(dek, vaultId, kdfConfig);
+        const encrypted = await encryptWithDEK(dek, plaintext);
+        const envelope = buildKeyEnvelope(
+            [primary.slot, recovery.slot],
+            next.additionalKeyProtection.kind,
+            vaultId,
+        );
+
+        const updated = Object.assign(cloneEncryptedBlob(blob), {
+            Version: ENVELOPE_VERSION,
+            CurrentVersion: ENVELOPE_VERSION,
+            Algorithm: VaultUtilTypes.EncryptionAlgorithm.AES256,
+            KeyDerivationFunc: VaultUtilTypes.KeyDerivationFunction.Argon2ID,
+            KDFConfigArgon2ID: {
+                memLimit: kdfConfig.memLimit,
+                opsLimit: kdfConfig.opsLimit,
+            },
+            Blob: encrypted.ciphertext,
+            Salt: uint8ToBase64(primary.primarySalt),
+            HeaderIV: encrypted.iv,
+            Envelope: envelope,
+        }) as EncryptedBlob;
+        const sessionDek = await copyAsNonExtractableDEK(dek);
+
+        return ok({
+            blob: updated,
+            recoveryCode: recovery.recoveryCode,
+            dek: sessionDek,
+        });
+    } finally {
+        plaintext.fill(0);
+    }
 }
 
 export async function migrateLegacyBlobToEnvelope(
     vaultBytes: Uint8Array,
     masterPassword: string,
     vaultId: string,
-    primaryFactor: SecondFactorEnrollmentResult,
+    additionalKeyProtection: AdditionalKeyProtectionEnrollmentResult,
 ): Promise<EnvelopeCreateResult> {
     return createEnvelopeEncryptedBlob(
         vaultBytes,
         masterPassword,
         vaultId,
-        primaryFactor,
+        additionalKeyProtection,
     );
 }

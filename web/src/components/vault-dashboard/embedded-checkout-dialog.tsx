@@ -123,7 +123,7 @@ export function EmbeddedCheckoutDialog({
                 <DialogHeader className="shrink-0 border-b px-6 py-4">
                     <DialogTitle>Upgrade subscription</DialogTitle>
                     <DialogDescription>
-                        Complete checkout without leaving Cryptex.
+                        Complete checkout without leaving Cryptex Vault.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="min-h-0 overflow-y-auto overscroll-contain px-6 py-4">

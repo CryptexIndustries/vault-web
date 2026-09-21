@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AlertTriangle, FileUp, LoaderCircle } from "lucide-react";
 
 import {
+    getImportErrorMessage,
     ImportSourceLabels,
     ImportSources,
     parseImportFile,
@@ -10,6 +11,7 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/import-export";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
@@ -58,13 +60,21 @@ export function ImportWizard({
     const [error, setError] = useState("");
     const [isParsing, setIsParsing] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
+    const [acceptedUnsupportedData, setAcceptedUnsupportedData] =
+        useState(false);
+    const parseRequest = useRef(0);
+
+    const confirmationNotices =
+        result?.notices.filter((notice) => notice.requiresConfirmation) ?? [];
 
     const reset = () => {
+        parseRequest.current += 1;
         setFileName("");
         setResult(null);
         setError("");
         setIsParsing(false);
         setIsConfirming(false);
+        setAcceptedUnsupportedData(false);
     };
 
     const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = async (
@@ -74,22 +84,26 @@ export function ImportWizard({
         event.target.value = "";
         setResult(null);
         setError("");
+        setAcceptedUnsupportedData(false);
         if (!file) return;
 
         setFileName(file.name);
         setIsParsing(true);
+        const request = ++parseRequest.current;
         try {
-            setResult(await parseImportFile(source, file));
+            const parsed = await parseImportFile(source, file);
+            if (request === parseRequest.current) setResult(parsed);
         } catch (parseError) {
+            if (request !== parseRequest.current) return;
             importLog.error("Import parse failed", {
                 source,
                 fileName: file.name,
                 fileSize: file.size,
                 error: parseError,
             });
-            setError("Could not parse this export file.");
+            setError(getImportErrorMessage(parseError));
         } finally {
-            setIsParsing(false);
+            if (request === parseRequest.current) setIsParsing(false);
         }
     };
 
@@ -101,10 +115,18 @@ export function ImportWizard({
     const handleConfirm = async () => {
         if (!result) return;
         setIsConfirming(true);
+        setError("");
         try {
             await onConfirm(result);
             reset();
             onOpenChange(false);
+        } catch (confirmError) {
+            importLog.error("Import save failed", {
+                source: result.source,
+                itemCount: result.credentials.length,
+                error: confirmError,
+            });
+            setError("Could not save the imported data. Nothing was imported.");
         } finally {
             setIsConfirming(false);
         }
@@ -112,7 +134,7 @@ export function ImportWizard({
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="max-w-xl">
+            <DialogContent className="grid max-h-[calc(100dvh-2rem)] max-w-xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Import Passwords</DialogTitle>
                     <DialogDescription>
@@ -121,7 +143,7 @@ export function ImportWizard({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
                     <Alert>
                         <AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
@@ -135,10 +157,13 @@ export function ImportWizard({
                         <Select
                             value={source}
                             onValueChange={(value) => {
+                                parseRequest.current += 1;
                                 setSource(value as ImportSource);
                                 setResult(null);
                                 setError("");
                                 setFileName("");
+                                setIsParsing(false);
+                                setAcceptedUnsupportedData(false);
                             }}
                         >
                             <SelectTrigger>
@@ -185,47 +210,150 @@ export function ImportWizard({
 
                     {result ? (
                         <div className="space-y-3 rounded-md border p-3 text-sm">
-                            <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                    <p className="text-muted-foreground">
-                                        Items
-                                    </p>
-                                    <p className="font-semibold">
-                                        {result.credentials.length}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-muted-foreground">
-                                        Directories
-                                    </p>
-                                    <p className="font-semibold">
-                                        {result.directories.length}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-muted-foreground">
-                                        Skipped
-                                    </p>
-                                    <p className="font-semibold">
-                                        {result.skipped}
-                                    </p>
-                                </div>
+                            <p className="font-medium">Before you import</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    {
+                                        count:
+                                            result.credentials.length +
+                                            result.skippedItems,
+                                        label: "items found",
+                                    },
+                                    {
+                                        count: result.credentials.length,
+                                        label: "items will be added",
+                                    },
+                                    {
+                                        count: result.skippedItems,
+                                        label: "items will not be added",
+                                    },
+                                    {
+                                        count: result.directories.length,
+                                        label: "folders will be created",
+                                    },
+                                ].map(({ count, label }) => (
+                                    <div
+                                        key={label}
+                                        className="rounded-md bg-muted/50 p-2"
+                                    >
+                                        <p className="font-semibold">{count}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {label}
+                                        </p>
+                                    </div>
+                                ))}
                             </div>
 
-                            {result.warnings.length ? (
-                                <div className="space-y-1">
-                                    <p className="font-medium">Warnings</p>
-                                    <ul className="max-h-28 list-disc overflow-auto pl-5 text-xs text-muted-foreground">
-                                        {result.warnings
-                                            .slice(0, 8)
-                                            .map((warning, index) => (
-                                                <li
-                                                    key={`${warning.code}-${index}`}
+                            {result.credentials.length === 0 &&
+                            result.directories.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                    No importable items or folders were found.
+                                </p>
+                            ) : null}
+
+                            {[
+                                {
+                                    kind: "items-skipped" as const,
+                                    heading: "Items that won't be added",
+                                },
+                                {
+                                    kind: "saved-differently" as const,
+                                    heading:
+                                        "Information that will be saved differently",
+                                },
+                                {
+                                    kind: "not-imported" as const,
+                                    heading:
+                                        "Information that can't be carried over",
+                                },
+                            ].map(({ kind, heading }) => {
+                                const notices = result.notices.filter(
+                                    (notice) => notice.kind === kind,
+                                );
+                                if (!notices.length) return null;
+                                return (
+                                    <div key={kind} className="space-y-2">
+                                        <p className="font-medium">{heading}</p>
+                                        <div className="space-y-2">
+                                            {notices.map((notice) => (
+                                                <div
+                                                    key={notice.code}
+                                                    className="rounded-md bg-muted/50 p-2"
                                                 >
-                                                    {warning.message}
-                                                </li>
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="min-w-6 rounded bg-background px-1.5 py-0.5 text-center text-xs font-semibold">
+                                                            {notice.count}
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-medium">
+                                                                {notice.title}
+                                                            </p>
+                                                            {notice.detail ? (
+                                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                                    {
+                                                                        notice.detail
+                                                                    }
+                                                                </p>
+                                                            ) : null}
+                                                            {notice.itemNames
+                                                                .length ? (
+                                                                <details className="mt-1 text-xs text-muted-foreground">
+                                                                    <summary className="cursor-pointer">
+                                                                        Affected
+                                                                        items
+                                                                    </summary>
+                                                                    <ul className="mt-1 list-disc pl-5">
+                                                                        {notice.itemNames.map(
+                                                                            (
+                                                                                itemName,
+                                                                                index,
+                                                                            ) => (
+                                                                                <li
+                                                                                    key={`${itemName}-${index}`}
+                                                                                >
+                                                                                    {
+                                                                                        itemName
+                                                                                    }
+                                                                                </li>
+                                                                            ),
+                                                                        )}
+                                                                    </ul>
+                                                                </details>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             ))}
-                                    </ul>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            <p className="text-xs text-muted-foreground">
+                                Importing does not check for duplicates.
+                                Importing the same file again will add the items
+                                again.
+                            </p>
+
+                            {confirmationNotices.length ? (
+                                <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2">
+                                    <Checkbox
+                                        id="accept-unsupported-import-data"
+                                        checked={acceptedUnsupportedData}
+                                        onCheckedChange={(checked) =>
+                                            setAcceptedUnsupportedData(
+                                                checked === true,
+                                            )
+                                        }
+                                    />
+                                    <Label
+                                        htmlFor="accept-unsupported-import-data"
+                                        className="text-xs font-normal leading-snug"
+                                    >
+                                        I understand that the items and
+                                        information listed above will be skipped
+                                        or saved differently.
+                                    </Label>
                                 </div>
                             ) : null}
                         </div>
@@ -244,9 +372,12 @@ export function ImportWizard({
                         onClick={handleConfirm}
                         disabled={
                             !result ||
-                            result.credentials.length === 0 ||
+                            (result.credentials.length === 0 &&
+                                result.directories.length === 0) ||
                             isParsing ||
-                            isConfirming
+                            isConfirming ||
+                            (confirmationNotices.length > 0 &&
+                                !acceptedUnsupportedData)
                         }
                     >
                         {isConfirming ? (

@@ -12,6 +12,8 @@ import {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EditDrawer } from "@/components/vault-dashboard/edit-drawer";
+import { CustomFieldType } from "@cryptex-industries/vault-core/proto";
+import { VaultCredential } from "@cryptex-industries/vault-core/vault-utils/vault";
 
 (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
@@ -108,5 +110,66 @@ describe("EditDrawer", () => {
         expect(
             (document.getElementById("password") as HTMLInputElement).value,
         ).toBe("correct-horse");
+    });
+
+    it("edits Boolean custom fields with a checkbox without changing their type", async () => {
+        const onSave = jest.fn(async () => true);
+        const credential = Object.assign(new VaultCredential(), {
+            ID: "credential",
+            Name: "Archived import",
+            CustomFields: [
+                {
+                    ID: "archived",
+                    Name: "Archived",
+                    Type: CustomFieldType.Boolean,
+                    Value: "true",
+                },
+            ],
+        });
+
+        await act(async () => {
+            root.render(
+                <EditDrawer
+                    credential={credential}
+                    isOpen={true}
+                    onClose={jest.fn()}
+                    onSave={onSave}
+                    directories={[]}
+                    onCreateDirectory={jest.fn((_name: string) => undefined)}
+                />,
+            );
+        });
+
+        const checkbox = document.querySelector(
+            '[aria-label="Custom field value"]',
+        );
+        expect(checkbox).not.toBeNull();
+        expect(checkbox!.getAttribute("aria-checked")).toBe("true");
+
+        await act(async () => {
+            checkbox!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+        expect(checkbox!.getAttribute("aria-checked")).toBe("false");
+
+        const saveButton = Array.from(
+            document.querySelectorAll<HTMLButtonElement>("button"),
+        ).find((button) => button.textContent?.includes("Save Changes"));
+        expect(saveButton).toBeDefined();
+        await act(async () => {
+            saveButton!.click();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        });
+
+        expect(onSave).toHaveBeenCalledWith(
+            expect.objectContaining({
+                CustomFields: [
+                    expect.objectContaining({
+                        Name: "Archived",
+                        Type: CustomFieldType.Boolean,
+                        Value: "false",
+                    }),
+                ],
+            }),
+        );
     });
 });

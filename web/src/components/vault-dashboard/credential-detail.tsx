@@ -15,6 +15,7 @@ import {
     FileText,
     Plus,
     Fingerprint,
+    Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,7 +87,7 @@ function CopyableField({
                     {label}
                 </span>
             </div>
-            <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
+            <div className="group-hover:border-primary/30 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors">
                 <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <span
                     className={cn(
@@ -108,6 +109,7 @@ function CopyableField({
                                             setShowPassword(!showPassword)
                                         }
                                         className="h-7 w-7"
+                                        aria-label={`${showPassword ? "Hide" : "Show"} ${label.toLowerCase()}`}
                                     >
                                         {showPassword ? (
                                             <EyeOff className="h-3.5 w-3.5" />
@@ -150,6 +152,7 @@ function CopyableField({
                                         "h-7 w-7",
                                         isCopied && "text-primary",
                                     )}
+                                    aria-label={`Copy ${label.toLowerCase()}`}
                                 >
                                     <Copy className="h-3.5 w-3.5" />
                                 </Button>
@@ -634,11 +637,22 @@ export function CredentialDetail({
                                     <CopyableField
                                         key={field.ID}
                                         label={field.Name}
-                                        value={field.Value}
+                                        value={
+                                            field.Type ===
+                                            CustomFieldType.Boolean
+                                                ? field.Value === "true"
+                                                    ? "Yes"
+                                                    : "No"
+                                                : field.Value
+                                        }
                                         icon={
-                                            field.Type === CustomFieldType.Text
-                                                ? FileText
-                                                : Key
+                                            field.Type ===
+                                            CustomFieldType.MaskedText
+                                                ? Key
+                                                : field.Type ===
+                                                    CustomFieldType.Boolean
+                                                  ? Check
+                                                  : FileText
                                         }
                                         isPassword={
                                             field.Type ===

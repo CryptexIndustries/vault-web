@@ -920,60 +920,98 @@ export function EditDrawer({
                                                             className="h-8 text-sm"
                                                         />
                                                         <div className="flex items-start gap-2">
-                                                            <div className="relative min-w-0 flex-1">
-                                                                <Textarea
-                                                                    placeholder="Value"
-                                                                    rows={1}
-                                                                    {...register(
-                                                                        `CustomFields.${index}.Value`,
-                                                                    )}
-                                                                    className={cn(
-                                                                        "h-8 min-h-8 resize-y py-1 font-mono text-sm",
-                                                                        fieldType ===
-                                                                            CustomFieldType.MaskedText &&
-                                                                            cn(
-                                                                                "pr-8",
-                                                                                !isRevealed &&
-                                                                                    "secret-masked",
-                                                                            ),
+                                                            {fieldType ===
+                                                            CustomFieldType.Boolean ? (
+                                                                <Controller
+                                                                    control={
+                                                                        control
+                                                                    }
+                                                                    name={`CustomFields.${index}.Value`}
+                                                                    render={({
+                                                                        field: valueField,
+                                                                    }) => (
+                                                                        <div className="flex h-8 min-w-0 flex-1 items-center gap-2">
+                                                                            <Switch
+                                                                                checked={
+                                                                                    valueField.value ===
+                                                                                    "true"
+                                                                                }
+                                                                                onCheckedChange={(
+                                                                                    checked,
+                                                                                ) =>
+                                                                                    valueField.onChange(
+                                                                                        String(
+                                                                                            checked,
+                                                                                        ),
+                                                                                    )
+                                                                                }
+                                                                                aria-label="Custom field value"
+                                                                            />
+                                                                            <span className="text-sm text-muted-foreground">
+                                                                                {valueField.value ===
+                                                                                "true"
+                                                                                    ? "Yes"
+                                                                                    : "No"}
+                                                                            </span>
+                                                                        </div>
                                                                     )}
                                                                 />
-                                                                {fieldType ===
-                                                                    CustomFieldType.MaskedText && (
-                                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                                                                        <TooltipProvider>
-                                                                            <Tooltip>
-                                                                                <TooltipTrigger
-                                                                                    asChild
-                                                                                >
-                                                                                    <Button
-                                                                                        type="button"
-                                                                                        variant="ghost"
-                                                                                        size="icon"
-                                                                                        className="h-7 w-7"
-                                                                                        onClick={() =>
-                                                                                            toggleCustomFieldReveal(
-                                                                                                field.id,
-                                                                                            )
-                                                                                        }
+                                                            ) : (
+                                                                <div className="relative min-w-0 flex-1">
+                                                                    <Textarea
+                                                                        placeholder="Value"
+                                                                        rows={1}
+                                                                        {...register(
+                                                                            `CustomFields.${index}.Value`,
+                                                                        )}
+                                                                        className={cn(
+                                                                            "h-8 min-h-8 resize-y py-1 font-mono text-sm",
+                                                                            fieldType ===
+                                                                                CustomFieldType.MaskedText &&
+                                                                                cn(
+                                                                                    "pr-8",
+                                                                                    !isRevealed &&
+                                                                                        "secret-masked",
+                                                                                ),
+                                                                        )}
+                                                                    />
+                                                                    {fieldType ===
+                                                                        CustomFieldType.MaskedText && (
+                                                                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger
+                                                                                        asChild
                                                                                     >
-                                                                                        {isRevealed ? (
-                                                                                            <EyeOff className="h-3.5 w-3.5" />
-                                                                                        ) : (
-                                                                                            <Eye className="h-3.5 w-3.5" />
-                                                                                        )}
-                                                                                    </Button>
-                                                                                </TooltipTrigger>
-                                                                                <TooltipContent>
-                                                                                    {isRevealed
-                                                                                        ? "Hide"
-                                                                                        : "Show"}
-                                                                                </TooltipContent>
-                                                                            </Tooltip>
-                                                                        </TooltipProvider>
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="h-7 w-7"
+                                                                                            onClick={() =>
+                                                                                                toggleCustomFieldReveal(
+                                                                                                    field.id,
+                                                                                                )
+                                                                                            }
+                                                                                        >
+                                                                                            {isRevealed ? (
+                                                                                                <EyeOff className="h-3.5 w-3.5" />
+                                                                                            ) : (
+                                                                                                <Eye className="h-3.5 w-3.5" />
+                                                                                            )}
+                                                                                        </Button>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent>
+                                                                                        {isRevealed
+                                                                                            ? "Hide"
+                                                                                            : "Show"}
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                             <Controller
                                                                 control={
                                                                     control
@@ -989,13 +1027,32 @@ export function EditDrawer({
                                                                         )}
                                                                         onValueChange={(
                                                                             value,
-                                                                        ) =>
-                                                                            typeField.onChange(
+                                                                        ) => {
+                                                                            const nextType =
                                                                                 Number(
                                                                                     value,
-                                                                                ),
-                                                                            )
-                                                                        }
+                                                                                );
+                                                                            typeField.onChange(
+                                                                                nextType,
+                                                                            );
+                                                                            if (
+                                                                                nextType ===
+                                                                                CustomFieldType.Boolean
+                                                                            ) {
+                                                                                setValue(
+                                                                                    `CustomFields.${index}.Value`,
+                                                                                    watch(
+                                                                                        `CustomFields.${index}.Value`,
+                                                                                    ) ===
+                                                                                        "true"
+                                                                                        ? "true"
+                                                                                        : "false",
+                                                                                    {
+                                                                                        shouldDirty: true,
+                                                                                    },
+                                                                                );
+                                                                            }
+                                                                        }}
                                                                     >
                                                                         <SelectTrigger className="h-8 w-24">
                                                                             <SelectValue />
@@ -1014,6 +1071,13 @@ export function EditDrawer({
                                                                                 )}
                                                                             >
                                                                                 Hidden
+                                                                            </SelectItem>
+                                                                            <SelectItem
+                                                                                value={String(
+                                                                                    CustomFieldType.Boolean,
+                                                                                )}
+                                                                            >
+                                                                                Checkbox
                                                                             </SelectItem>
                                                                         </SelectContent>
                                                                     </Select>

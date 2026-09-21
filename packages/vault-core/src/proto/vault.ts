@@ -407,6 +407,8 @@ export interface LinkVaultTransfer {
     KemCiphertext: Uint8Array;
     Nonce: Uint8Array;
     Ciphertext: Uint8Array;
+    /** ML-DSA-65 signature over linkVaultTransferContext for this transfer. */
+    HandshakeSignature: Uint8Array;
 }
 
 export interface LinkingPackage {
@@ -4261,6 +4263,7 @@ function createBaseLinkVaultTransfer(): LinkVaultTransfer {
         KemCiphertext: new Uint8Array(0),
         Nonce: new Uint8Array(0),
         Ciphertext: new Uint8Array(0),
+        HandshakeSignature: new Uint8Array(0),
     };
 }
 
@@ -4277,6 +4280,9 @@ export const LinkVaultTransfer: MessageFns<LinkVaultTransfer> = {
         }
         if (message.Ciphertext.length !== 0) {
             writer.uint32(26).bytes(message.Ciphertext);
+        }
+        if (message.HandshakeSignature.length !== 0) {
+            writer.uint32(34).bytes(message.HandshakeSignature);
         }
         return writer;
     },
@@ -4316,6 +4322,14 @@ export const LinkVaultTransfer: MessageFns<LinkVaultTransfer> = {
                     message.Ciphertext = reader.bytes();
                     continue;
                 }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.HandshakeSignature = reader.bytes();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -4337,6 +4351,8 @@ export const LinkVaultTransfer: MessageFns<LinkVaultTransfer> = {
         message.KemCiphertext = object.KemCiphertext ?? new Uint8Array(0);
         message.Nonce = object.Nonce ?? new Uint8Array(0);
         message.Ciphertext = object.Ciphertext ?? new Uint8Array(0);
+        message.HandshakeSignature =
+            object.HandshakeSignature ?? new Uint8Array(0);
         return message;
     },
 };

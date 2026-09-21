@@ -80,7 +80,10 @@ import {
     sealAead,
     verifyLinkMac,
 } from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
-import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
+import {
+    ensureSyncSigningKeypair,
+    signSyncBytes,
+} from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
 import {
     constructLinkPresenceChannelName,
@@ -1585,6 +1588,10 @@ export function SendLinkRequestDialog({
                 new Uint8Array(serializedVault),
                 transferContext,
             );
+            const handshakeSignature = await signSyncBytes(
+                unlockedVault.LinkedDevices.SyncSigningPrivateKey,
+                transferContext,
+            );
             addToProgressLog("Sending encrypted vault transfer...", "info");
             webRTCDataChannel.send(
                 new Uint8Array(
@@ -1592,6 +1599,7 @@ export function SendLinkRequestDialog({
                         KemCiphertext: kemCiphertext,
                         Nonce: sealedVault.nonce,
                         Ciphertext: sealedVault.ciphertext,
+                        HandshakeSignature: handshakeSignature,
                     }).finish(),
                 ),
             );

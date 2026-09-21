@@ -426,6 +426,9 @@ message LinkVaultTransfer {
     bytes KemCiphertext = 1;
     bytes Nonce = 2;
     bytes Ciphertext = 3;
+
+    /** ML-DSA-65 signature over linkVaultTransferContext for this transfer. */
+    bytes HandshakeSignature = 4;
 }
 
 message LinkingPackage {

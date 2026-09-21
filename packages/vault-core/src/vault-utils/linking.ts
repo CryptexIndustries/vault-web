@@ -8,6 +8,7 @@ import { constructLinkPresenceChannelName } from "../presence";
 import Pusher, { Channel } from "pusher-js";
 import { base64ToUint8, uint8ToBase64 } from "../encoding";
 import { decapsulateSyncKem } from "./post-quantum-kem";
+import { verifySyncBytes } from "./sync-signing";
 import {
     buildSyncKeyBundle,
     createLinkMac,
@@ -646,6 +647,16 @@ export class LinkingProcessController {
                         receiverBundle,
                         transfer.KemCiphertext,
                     );
+                    const senderAuthenticated = await verifySyncBytes(
+                        this.senderKeyBundle.SyncSigningPublicKey,
+                        transfer.HandshakeSignature,
+                        transferContext,
+                    );
+                    if (!senderAuthenticated) {
+                        throw new Error(
+                            "LINK_VAULT_TRANSFER_SIGNATURE_INVALID",
+                        );
+                    }
                     const sharedSecret = decapsulateSyncKem(
                         transfer.KemCiphertext,
                         this.localKeyPair.kemPrivateKey,
@@ -686,11 +697,16 @@ export class LinkingProcessController {
                         },
                     });
                 } catch (e) {
+                    const signatureInvalid =
+                        e instanceof Error &&
+                        e.message === "LINK_VAULT_TRANSFER_SIGNATURE_INVALID";
                     this.onStatusChange({
-                        Step: LinkingProcessStep.VaultSave,
+                        Step: LinkingProcessStep.VaultTransfer,
                         State: LinkingProcessState.Error,
                         LogMessage: {
-                            message: "Failed to save vault data",
+                            message: signatureInvalid
+                                ? "Vault transfer could not be authenticated. Update the sending device and try again."
+                                : "Failed to decrypt vault transfer.",
                             timestamp: Date.now(),
                             type: "error",
                             details: {

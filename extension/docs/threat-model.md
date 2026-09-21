@@ -169,7 +169,7 @@ failure mode retains older restore points; the user must retry after unlock.
 **Controls:**
 
 - Pusher channel auth via proxied tRPC + JWT
-- PQ KEM + signing handshake on sync sessions
+- PQ KEM + ML-DSA handshake signatures on sync sessions and link vault transfers
 - AEAD on sync and link vault transfer payloads
 - Link package encrypted with mnemonic (never on wire)
 
@@ -255,10 +255,10 @@ elsewhere disappear.
 
 **Goals:** Inject credentials, exfiltrate vault during sync/link.
 
-| Technique                     | Control                           | Residual risk                                             |
-| ----------------------------- | --------------------------------- | --------------------------------------------------------- |
-| Send crafted sync credentials | Encrypted session + SW merge      | Medium — merge trusts peer ciphertext after crypto verify |
-| Impersonate link sender       | Link package needs mnemonic + MAC | Low — mnemonic out of band                                |
+| Technique                     | Control                                  | Residual risk                                                |
+| ----------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| Send crafted sync credentials | Encrypted session + SW merge             | Medium — merge trusts peer ciphertext after crypto verify    |
+| Impersonate link sender       | Mnemonic MAC + ML-DSA transfer signature | Low — transfer must match the sender key in the link package |
 
 ### A5 — Local attacker / shared machine
 
@@ -300,7 +300,7 @@ elsewhere disappear.
 | Lock + idle session clear           | Stale session exposure                    | `background.ts`                                 |
 | Draft shape + staleness validation  | Untrusted or stale form data re-presented | `credential-draft-store.ts`, `vault-view.tsx`   |
 | Link ACL restriction                | Link page vault unlock/CRUD               | `background.ts` allowlist                       |
-| AEAD sync/link wire                 | Network peer payload disclosure           | `synchronization.ts`, `linking.ts`              |
+| Signed KEM + AEAD sync/link wire    | Network peer disclosure or injection      | `synchronization.ts`, `linking.ts`              |
 | Argon2id vault sealing              | Offline vault blob cracking               | shared vault utils                              |
 | Popup-only backup messages          | CS/link cannot mint `.cryx` or receipts   | `background.ts`, `backup-service.ts`            |
 | IndexedDB backup staging            | Ciphertext not copied through envelopes   | `backup-staging.ts`                             |

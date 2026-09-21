@@ -14,12 +14,13 @@ build hardening.
 | Surface            | Dev                                           | Production                  |
 | ------------------ | --------------------------------------------- | --------------------------- |
 | `host_permissions` | `https://*/*`, `http://*/*`                   | API host + Pusher host only |
-| `permissions`      | `storage`, `idle`, `activeTab`, `scripting`   | Same                        |
+| `permissions`      | `storage`, `idle`, `activeTab`, `alarms`      | Same                        |
 | CSP                | `script-src 'self' 'wasm-unsafe-eval'`        | Same                        |
 | Content scripts    | `autofill-cs.js` on all http/https, top frame | Same                        |
 | WAR                | Three autofill panel pages + `assets/*`       | Same                        |
 
-`activeTab` and `scripting` are declared but unused in extension source.
+`activeTab` is declared but unused in extension source. `alarms` schedules the
+managed-backup job that follows a committed vault-security change.
 
 No `externally_connectable` — external websites cannot message the extension
 directly.
@@ -51,14 +52,14 @@ save-on-submit. See [content-scripts.md](content-scripts.md) and
 
 ## Persistence (summary)
 
-| Layer                              | Key examples                                        | Lifetime                        |
-| ---------------------------------- | --------------------------------------------------- | ------------------------------- |
-| IndexedDB `vaultDB`                | `vaults`, `keyPairs`                                | Persistent                      |
-| IndexedDB `cryptex-backup-staging` | one-shot `.cryx` blobs                              | Until take / next create / lock |
-| IndexedDB `vaultKeyStore`          | `deviceSecondFactors`                               | Persistent; cleared on lock     |
-| `chrome.storage.session`           | `UV`, `OS_SESSION`, `PENDING_SAVE`, `SESSION_DEK:*` | Browser session                 |
-| `chrome.storage.local`             | `extLogs`, `cryptex:local-backup-receipt:*`         | Persistent until cleared        |
-| `localStorage`                     | `extension-last-selected-vault`                     | Persistent; non-secret          |
+| Layer                              | Key examples                                        | Lifetime                                  |
+| ---------------------------------- | --------------------------------------------------- | ----------------------------------------- |
+| IndexedDB `vaultDB`                | `vaults`, `keyPairs`                                | Persistent                                |
+| IndexedDB `cryptex-backup-staging` | one-shot `.cryx` blobs                              | Until take / next create / lock           |
+| IndexedDB `vaultKeyStore`          | `deviceAdditionalKeyProtections`                    | Persistent; replaced on protection change |
+| `chrome.storage.session`           | `UV`, `OS_SESSION`, `PENDING_SAVE`, `SESSION_DEK:*` | Browser session                           |
+| `chrome.storage.local`             | `extLogs`, `cryptex:local-backup-receipt:*`         | Persistent until cleared                  |
+| `localStorage`                     | `extension-last-selected-vault`                     | Persistent; non-secret                    |
 
 See [persistence.md](persistence.md).
 

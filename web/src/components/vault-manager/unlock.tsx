@@ -25,7 +25,7 @@ import type { VaultUnlockFlowResult } from "@cryptex-industries/vault-core/vault
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
-    SecondFactorKind,
+    AdditionalKeyProtectionKind,
 } from "@cryptex-industries/vault-core/proto";
 import {
     KeyDerivationConfig_Argon2ID,
@@ -69,7 +69,7 @@ type UnlockTabProps = {
         unlockExtras?: {
             useRecovery?: boolean;
             recoveryCode?: string;
-            secondFactorPassphrase?: string;
+            protectionPhrase?: string;
         },
     ) => Promise<
         Err<never, string> | Ok<VaultUnlockFlowResult<VaultMetadata>, never>
@@ -97,7 +97,7 @@ function useUnlockController({
     const [isVaultUpdatingError, setIsVaultUpdatingError] = useState(false);
     const [useRecovery, setUseRecovery] = useState(false);
     const [recoveryCode, setRecoveryCode] = useState("");
-    const [secondFactorPassphrase, setSecondFactorPassphrase] = useState("");
+    const [protectionPhrase, setProtectionPhrase] = useState("");
 
     const form = useForm<EncryptionFormGroupSchemaType>({
         resolver: zodResolver(encryptionFormGroupSchema),
@@ -124,7 +124,7 @@ function useUnlockController({
 
     const setSelectedVault = (value: string) => {
         _setSelectedVault(value);
-        setSecondFactorPassphrase("");
+        setProtectionPhrase("");
         const data = findVault(value);
         if (!data) return;
 
@@ -189,9 +189,9 @@ function useUnlockController({
         const decryptRes = await executeCallback(data, formData, {
             useRecovery,
             recoveryCode: useRecovery ? recoveryCode.trim() : undefined,
-            secondFactorPassphrase:
-                !useRecovery && secondFactorPassphrase.trim().length > 0
-                    ? secondFactorPassphrase.trim()
+            protectionPhrase:
+                !useRecovery && protectionPhrase.trim().length > 0
+                    ? protectionPhrase.trim()
                     : undefined,
         });
         setIsDecrypting(false);
@@ -254,12 +254,12 @@ function useUnlockController({
     }, [vaults]);
 
     const selectedVaultData = findVault(selectedVault);
-    const selectedRequiresPassphrase =
+    const selectedRequiresProtectionPhrase =
         !useRecovery &&
-        (selectedVaultData?.Blob?.Envelope?.PrimaryFactorKind ===
-            SecondFactorKind.PASSPHRASE_128 ||
-            selectedVaultData?.Blob?.Envelope?.PrimaryFactorKind ===
-                SecondFactorKind.PASSPHRASE_256);
+        (selectedVaultData?.Blob?.Envelope?.PrimaryProtectionKind ===
+            AdditionalKeyProtectionKind.PROTECTION_PHRASE_128 ||
+            selectedVaultData?.Blob?.Envelope?.PrimaryProtectionKind ===
+                AdditionalKeyProtectionKind.PROTECTION_PHRASE_256);
 
     return {
         form,
@@ -278,9 +278,9 @@ function useUnlockController({
         setUseRecovery,
         recoveryCode,
         setRecoveryCode,
-        secondFactorPassphrase,
-        setSecondFactorPassphrase,
-        selectedRequiresPassphrase,
+        protectionPhrase,
+        setProtectionPhrase,
+        selectedRequiresProtectionPhrase,
         openEditDialog,
         handleVaultUpdate,
         handleVaultDelete,
@@ -573,21 +573,21 @@ const UnlockTab: React.FC<UnlockTabProps> = (props) => {
                     )}
                 </div>
 
-                {ctrl.selectedRequiresPassphrase && (
+                {ctrl.selectedRequiresProtectionPhrase && (
                     <div className="space-y-2">
                         <Label
-                            htmlFor="second-factor-passphrase"
+                            htmlFor="protection-phrase"
                             className="text-xs text-muted-foreground"
                         >
                             Protection phrase
                         </Label>
                         <Input
-                            id="second-factor-passphrase"
+                            id="protection-phrase"
                             type="password"
                             placeholder="Optional here; required after restore"
-                            value={ctrl.secondFactorPassphrase}
+                            value={ctrl.protectionPhrase}
                             onChange={(e) =>
-                                ctrl.setSecondFactorPassphrase(e.target.value)
+                                ctrl.setProtectionPhrase(e.target.value)
                             }
                             className="font-mono text-xs"
                         />

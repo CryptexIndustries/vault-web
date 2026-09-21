@@ -19,6 +19,7 @@ import {
 import {
     EncryptionAlgorithm,
     KeyDerivationFunction,
+    AdditionalKeyProtectionKind,
 } from "@cryptex-industries/vault-core/proto";
 import {
     KeyDerivationConfig_Argon2ID,
@@ -49,6 +50,7 @@ export type PopupUnlockProps = {
     onUnlock: (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
+        protectionPhrase?: string,
     ) => Promise<DecryptResult>;
 };
 
@@ -56,6 +58,8 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
     const [selectedVaultId, setSelectedVaultId] = useState<string>("");
     const [isDecrypting, setIsDecrypting] = useState(false);
     const [showSecret, setShowSecret] = useState(false);
+    const [protectionPhrase, setProtectionPhrase] = useState("");
+    const [showProtectionPhrase, setShowProtectionPhrase] = useState(false);
     const [decryptError, setDecryptError] = useState<string | null>(null);
 
     const rawVaults = useLiveQuery(() => Storage.db.vaults.toArray());
@@ -77,6 +81,11 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
     );
 
     const isSingleVault = (vaults?.length ?? 0) === 1;
+    const needsProtectionPhrase =
+        selectedVault?.Blob?.Envelope?.PrimaryProtectionKind ===
+            AdditionalKeyProtectionKind.PROTECTION_PHRASE_128 ||
+        selectedVault?.Blob?.Envelope?.PrimaryProtectionKind ===
+            AdditionalKeyProtectionKind.PROTECTION_PHRASE_256;
 
     const {
         register,
@@ -123,6 +132,8 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
         if (!selectedVault) return;
 
         setShowSecret(false);
+        setShowProtectionPhrase(false);
+        setProtectionPhrase("");
         localStorage.setItem(
             LAST_SELECTED_VAULT_KEY,
             selectedVault.DBIndex?.toString() ?? "",
@@ -159,7 +170,11 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
         setDecryptError(null);
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const result = await onUnlock(selectedVault, formData);
+        const result = await onUnlock(
+            selectedVault,
+            formData,
+            protectionPhrase.trim() || undefined,
+        );
         setIsDecrypting(false);
 
         if (result.isErr()) {
@@ -175,6 +190,8 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
 
         resetForm(undefined, { keepDefaultValues: true });
         setShowSecret(false);
+        setShowProtectionPhrase(false);
+        setProtectionPhrase("");
     };
 
     if (vaults == null) {
@@ -272,6 +289,33 @@ const PopupUnlock: React.FC<PopupUnlockProps> = ({ onUnlock }) => {
                     </p>
                 ) : null}
             </div>
+
+            {needsProtectionPhrase ? (
+                <div className="mt-3 space-y-1.5">
+                    <Label
+                        htmlFor="vault-protection-phrase"
+                        className="text-xs"
+                    >
+                        Protection phrase
+                    </Label>
+                    <PasswordInput
+                        id="vault-protection-phrase"
+                        revealed={showProtectionPhrase}
+                        onRevealedChange={setShowProtectionPhrase}
+                        autoComplete="off"
+                        className="font-mono text-xs"
+                        placeholder="Only needed after restore or cleared data"
+                        value={protectionPhrase}
+                        onChange={(event) =>
+                            setProtectionPhrase(event.target.value)
+                        }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                        Leave blank when this browser profile already has its
+                        device-local protection.
+                    </p>
+                </div>
+            ) : null}
 
             {decryptError ? (
                 <p className="pt-2 text-xs text-destructive" role="alert">

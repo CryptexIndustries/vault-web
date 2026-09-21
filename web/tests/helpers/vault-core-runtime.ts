@@ -88,9 +88,9 @@ export function configureTestVaultCoreRuntime(
         syncLog: noopLog,
         signalingLog: noopLog,
         webrtcLog: noopLog,
-        secondFactorStore: {
-            setDeviceSecondFactorKey: async () => undefined,
-            getDeviceSecondFactorKey: async () => null,
+        additionalKeyProtectionStore: {
+            setDeviceAdditionalKeyProtectionKey: async () => undefined,
+            getDeviceAdditionalKeyProtectionKey: async () => null,
         },
     });
 }

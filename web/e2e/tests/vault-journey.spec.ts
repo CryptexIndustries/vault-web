@@ -236,3 +236,102 @@ test("creates a vault and manages a credential through lock and unlock", async (
         page.getByRole("dialog", { name: "Receive vault data", exact: true }),
     ).toBeVisible();
 });
+
+test("rotates the web vault DEK only when explicitly selected", async ({
+    page,
+}) => {
+    const originalPassword = "e2e-original-vault-password-42!";
+    const rotatedPassword = "e2e-rotated-vault-password-84!";
+    await page.goto("/app");
+
+    await page
+        .getByPlaceholder("Enter your new vault name")
+        .fill("Rotation test vault");
+    await page.getByPlaceholder("Enter your secret key").fill(originalPassword);
+    await page.getByRole("button", { name: "Create Vault" }).click();
+
+    const initialReveal = page.getByRole("dialog", {
+        name: "Save these secrets now",
+    });
+    await initialReveal
+        .getByLabel("I have written down the recovery code")
+        .check();
+    await initialReveal.getByRole("button", { name: "Continue" }).click();
+
+    const migrationDialog = page.getByRole("dialog", {
+        name: "Action required",
+    });
+    const settingsButton = page.getByRole("button", {
+        name: "Vault Settings",
+        exact: true,
+    });
+    await expect(migrationDialog.or(settingsButton)).toBeVisible();
+    if (await migrationDialog.isVisible()) {
+        await migrationDialog.getByLabel("I understand these steps").check();
+        await migrationDialog.getByRole("button", { name: "Continue" }).click();
+    }
+
+    await settingsButton.click();
+    const settings = page.getByRole("dialog", {
+        name: "Vault Settings",
+        exact: true,
+    });
+    await settings
+        .getByRole("button", { name: "Manage Encryption & Security" })
+        .click();
+
+    const security = page.getByRole("dialog", {
+        name: "Encryption & Security",
+    });
+    const rotateDataKey = security
+        .getByLabel("Rotate this device's vault encryption key")
+        .first();
+    const deleteHistory = security
+        .getByLabel("Delete older managed backups after replacement")
+        .first();
+    await expect(rotateDataKey).not.toBeChecked();
+    await expect(deleteHistory).not.toBeChecked();
+
+    await security.getByLabel("Current master password").fill(originalPassword);
+    await security.getByLabel("New master password").fill(rotatedPassword);
+    await security.getByLabel("Confirm new password").fill(rotatedPassword);
+    await rotateDataKey.check();
+    await security
+        .getByRole("button", { name: "Save protection settings" })
+        .click();
+
+    await expect(
+        page.getByText("Security settings and vault encryption key updated."),
+    ).toBeVisible();
+    await expect(
+        security.getByText("New recovery code", { exact: true }),
+    ).toBeVisible();
+    const securityCloseButtons = security.getByRole("button", {
+        name: "Close",
+        exact: true,
+    });
+    const securityFooterClose = securityCloseButtons.first();
+    await expect(securityFooterClose).toBeDisabled();
+    await securityCloseButtons.last().click();
+    await expect(security).toBeVisible();
+    await security.getByLabel(/I saved the newly generated secrets/).check();
+    await securityFooterClose.click();
+    await settings
+        .getByRole("button", { name: "Close", exact: true })
+        .first()
+        .click();
+
+    await page.getByRole("button", { name: "Lock Vault", exact: true }).click();
+    const lockDialog = page.getByRole("dialog", { name: "Warning" });
+    await lockDialog
+        .getByRole("button", { name: /Lock Vault \(\d+s\)/ })
+        .click();
+
+    await page.getByPlaceholder("Enter your secret key").fill(originalPassword);
+    await page.getByRole("button", { name: "Unlock Vault" }).click();
+    await expect(page.getByText("Failed to decrypt vault")).toBeVisible();
+
+    await page.getByPlaceholder("Enter your secret key").fill(rotatedPassword);
+    await page.getByRole("button", { name: "Unlock Vault" }).click();
+    await expect(settingsButton).toBeVisible();
+});

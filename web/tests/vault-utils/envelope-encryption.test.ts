@@ -61,6 +61,25 @@ describe("envelope-encryption", () => {
         await sodium.ready;
     });
 
+    it("keeps existing envelope wire tags compatible after the terminology rename", () => {
+        const salt = new TextEncoder().encode("legacy-salt");
+        const slot = VaultUtilTypes.KeySlot.decode(
+            new Uint8Array([0x40, 0x02, 0x5a, salt.length, ...salt]),
+        );
+        const envelope = VaultUtilTypes.KeyEnvelope.decode(
+            new Uint8Array([0x08, 0x03, 0x20, 0x01]),
+        );
+
+        expect(slot.ProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_256,
+        );
+        expect(slot.ProtectionPhraseSalt).toBe("legacy-salt");
+        expect(envelope.Version).toBe(3);
+        expect(envelope.PrimaryProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
+        );
+    });
+
     it("wraps and unwraps DEK with password-only KEK", async () => {
         const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
         const salt = generateRandomSalt();
@@ -136,7 +155,7 @@ describe("envelope-encryption", () => {
             [
                 encodeSlot(
                     VaultUtilTypes.KeySlotKind.PRIMARY,
-                    VaultUtilTypes.SecondFactorKind.NONE,
+                    VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                     wrappedPrimary,
                     primarySalt,
                     kdf,
@@ -145,7 +164,7 @@ describe("envelope-encryption", () => {
                 ),
                 encodeSlot(
                     VaultUtilTypes.KeySlotKind.RECOVERY,
-                    VaultUtilTypes.SecondFactorKind.NONE,
+                    VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                     wrappedRecovery,
                     recoverySalt,
                     kdf,
@@ -153,7 +172,7 @@ describe("envelope-encryption", () => {
                     vaultId,
                 ),
             ],
-            VaultUtilTypes.SecondFactorKind.NONE,
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             vaultId,
         );
 
@@ -171,20 +190,29 @@ describe("envelope-encryption", () => {
         expect(viaRecovery.isOk()).toBe(true);
     });
 
-    it("requires second factor when configured", async () => {
+    it("requires additional key protection when configured", async () => {
         const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
         const vaultId = "99";
         const primarySalt = generateRandomSalt();
-        const sfSalt = generateRandomSalt();
-        const sfBytes = crypto.getRandomValues(new Uint8Array(16));
+        const protectionSalt = generateRandomSalt();
+        const protectionBytes = crypto.getRandomValues(new Uint8Array(16));
         const pwKey = await derivePasswordKey("master", primarySalt, kdf);
 
         await sodium.ready;
-        const sfDerived = await (
+        const derivedProtection = await (
             await import("@cryptex-industries/vault-core/vault-utils/envelope-encryption")
-        ).deriveSecondFactorKeyMaterial(sfBytes, sfSalt, kdf);
-        const sfKey = await importHkdfBaseKey(sfDerived);
-        const kek = await deriveKEK(pwKey, buildKekInfo(vaultId), sfKey, null);
+        ).deriveAdditionalKeyProtectionKeyMaterial(
+            protectionBytes,
+            protectionSalt,
+            kdf,
+        );
+        const protectionKey = await importHkdfBaseKey(derivedProtection);
+        const kek = await deriveKEK(
+            pwKey,
+            buildKekInfo(vaultId),
+            protectionKey,
+            null,
+        );
 
         const dekExtractable = await generateExtractableDEK();
         const wrapped = await wrapDEK(dekExtractable, kek);
@@ -193,7 +221,8 @@ describe("envelope-encryption", () => {
             [
                 encodeSlot(
                     VaultUtilTypes.KeySlotKind.PRIMARY,
-                    VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+                    VaultUtilTypes.AdditionalKeyProtectionKind
+                        .PROTECTION_PHRASE_128,
                     wrapped,
                     primarySalt,
                     kdf,
@@ -202,7 +231,7 @@ describe("envelope-encryption", () => {
                 ),
                 encodeSlot(
                     VaultUtilTypes.KeySlotKind.RECOVERY,
-                    VaultUtilTypes.SecondFactorKind.NONE,
+                    VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                     wrapped,
                     generateRandomSalt(),
                     kdf,
@@ -210,28 +239,28 @@ describe("envelope-encryption", () => {
                     vaultId,
                 ),
             ],
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
             vaultId,
         );
 
         const primarySlot = envelope.Slots[0] as VaultUtilTypes.KeySlot & {
             Kind: VaultUtilTypes.KeySlotKind.PRIMARY;
         };
-        const withoutSf = await openPrimarySlot(
+        const withoutProtection = await openPrimarySlot(
             primarySlot,
             "master",
             vaultId,
             null,
         );
-        const withSf = await openPrimarySlot(
+        const withProtection = await openPrimarySlot(
             primarySlot,
             "master",
             vaultId,
-            sfKey,
+            protectionKey,
         );
 
-        expect(withoutSf.isErr()).toBe(true);
-        expect(withSf.isOk()).toBe(true);
+        expect(withoutProtection.isErr()).toBe(true);
+        expect(withProtection.isOk()).toBe(true);
     });
 
     it("returns RECOVERY_KEK_FAILED when recovery KDF fails", async () => {
@@ -239,7 +268,7 @@ describe("envelope-encryption", () => {
             [
                 encodeSlot(
                     VaultUtilTypes.KeySlotKind.RECOVERY,
-                    VaultUtilTypes.SecondFactorKind.NONE,
+                    VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                     new Uint8Array(40),
                     new Uint8Array([1]),
                     new KeyDerivationConfig_Argon2ID(8, 1),
@@ -247,7 +276,7 @@ describe("envelope-encryption", () => {
                     "vault-1",
                 ),
             ],
-            VaultUtilTypes.SecondFactorKind.NONE,
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             "vault-1",
         );
 
@@ -288,7 +317,7 @@ describe("envelope-encryption", () => {
             cryptoPort.disposeKek(setupKek);
             const slot = encodeSlot(
                 VaultUtilTypes.KeySlotKind.PRIMARY,
-                VaultUtilTypes.SecondFactorKind.NONE,
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
                 wrapped,
                 salt,
                 kdf,
@@ -341,7 +370,7 @@ describe("envelope-encryption", () => {
         const wrapped = await wrapDEK(dek, kek);
         const slot = encodeSlot(
             VaultUtilTypes.KeySlotKind.PRIMARY,
-            VaultUtilTypes.SecondFactorKind.NONE,
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             wrapped,
             generateRandomSalt(),
             new KeyDerivationConfig_Argon2ID(8, 1),

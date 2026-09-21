@@ -67,15 +67,15 @@ describe("linked vault envelope", () => {
         expect(blob.KDFConfigPBKDF2).toBeUndefined();
 
         expect(blob.Envelope?.VaultID).toBe(vaultId);
-        expect(blob.Envelope?.PrimaryFactorKind).toBe(
-            VaultUtilTypes.SecondFactorKind.NONE,
+        expect(blob.Envelope?.PrimaryProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
         );
         expect(blob.Envelope?.Slots).toHaveLength(2);
 
         const [primarySlot, _recoverySlot] = blob.Envelope?.Slots ?? [];
         expect(primarySlot?.Kind).toBe(VaultUtilTypes.KeySlotKind.PRIMARY);
-        expect(primarySlot?.FactorKind).toBe(
-            VaultUtilTypes.SecondFactorKind.NONE,
+        expect(primarySlot?.ProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
         );
         expect(primarySlot?.HKDFSalt).not.toBe("");
         expect(primarySlot?.HKDFInfo).toContain(vaultId);

@@ -23,7 +23,7 @@ import * as Storage from "../../app_lib/vault-utils/storage";
 import CreateVaultTab from "./create";
 import { VaultRevealSecretsDialog } from "./vault-reveal-secrets-dialog";
 import type {
-    VaultCreateSecondFactorOptions,
+    VaultCreateAdditionalKeyProtectionOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
     VaultUnlockFlowResult,
@@ -33,7 +33,7 @@ import RestoreTab from "./restore";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
 import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
-import { clearDeviceSecondFactor } from "@/app_lib/vault-utils/vault-key-store";
+import { clearDeviceAdditionalKeyProtection } from "@/app_lib/vault-utils/vault-key-store";
 
 type OperationStatus = {
     status: "idle" | "loading" | "success" | "error";
@@ -47,7 +47,7 @@ const VaultManager: React.FC<{
         unlockExtras?: {
             useRecovery?: boolean;
             recoveryCode?: string;
-            secondFactorPassphrase?: string;
+            protectionPhrase?: string;
         },
     ) => Promise<
         | Err<never, string>
@@ -55,7 +55,7 @@ const VaultManager: React.FC<{
     >;
     tryCreateVaultCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-        secondFactorOptions?: VaultCreateSecondFactorOptions,
+        additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
     ) => Promise<
         | false
@@ -119,7 +119,7 @@ const VaultManager: React.FC<{
         unlockExtras?: {
             useRecovery?: boolean;
             recoveryCode?: string;
-            secondFactorPassphrase?: string;
+            protectionPhrase?: string;
         },
     ) => {
         const success = await tryDecryptVaultCallback(
@@ -152,12 +152,12 @@ const VaultManager: React.FC<{
 
     const createVaultCallback = async (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-        secondFactorOptions?: VaultCreateSecondFactorOptions,
+        additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
     ) => {
         const success = await tryCreateVaultCallback(
             formData,
-            secondFactorOptions,
+            additionalKeyProtectionOptions,
             initialImport,
         );
 
@@ -195,7 +195,7 @@ const VaultManager: React.FC<{
 
     const deleteVaultCallback = async (dbIndex: number) => {
         await Storage.db.vaults.delete(dbIndex);
-        await clearDeviceSecondFactor(dbIndex);
+        await clearDeviceAdditionalKeyProtection(dbIndex);
 
         const newVaultCount = await Storage.db.vaults.count();
 

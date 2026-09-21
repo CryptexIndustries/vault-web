@@ -40,6 +40,32 @@ after every click.
 Failed uploads retry while the unlocked session remains available. The user can
 also choose **Backup Now** to upload a restore point immediately.
 
+A successful password, additional-protection, recovery-code, or DEK change
+queues an immediate managed backup instead of waiting for the normal debounce.
+The local security write is already complete at that point: upload failures are
+reported separately and never roll back the vault.
+
+The security dialog also offers **Delete older managed backups after
+replacement**, off by default. When selected, the client first uploads and
+completes a replacement restore point, then deletes every older managed
+snapshot for the account, including linked-device snapshots (the current API
+does not expose a stable device/vault filter). A deletion failure is reported
+separately and retried by the web coordinator without uploading another
+replacement. User-downloaded `.cryx` files are outside managed storage and
+cannot be revoked or deleted by Cryptex Vault; they may continue to accept the
+credentials that protected them when they were created.
+
+Each replacement-and-delete operation stays bound to the Online Services
+device that requested it. Locking, opening another vault, or changing accounts
+invalidates stale coordinator work. Every authenticated upload, list, and
+delete request rechecks that device binding, so an old operation cannot purge
+another account's history.
+
+Closing the page or browser can interrupt a pending upload or history purge.
+That failure mode retains the older restore points rather than deleting them
+without a confirmed replacement. Unlock the vault and request the operation
+again if it was interrupted.
+
 When the vault locks, a final upload attempt gets up to five seconds to finish.
 The vault still locks when that time expires. Closing the browser, losing power,
 or terminating the device cannot guarantee one last upload.
@@ -128,8 +154,8 @@ requiring an unlocked vault:
 3. Give the restored vault a name and optional description
 4. Choose **Restore Vault**
 5. Select the new vault in the **Unlock** tab
-6. Unlock it with its vault password or recovery code and any required second
-   factor
+6. Unlock it with its vault password or recovery code and any required
+   additional key protection
 
 Restoring creates a new local vault; it does not overwrite an existing one. If
 the backup contains an Online Services binding, the dashboard can sign in with

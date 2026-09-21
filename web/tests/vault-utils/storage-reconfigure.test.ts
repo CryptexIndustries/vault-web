@@ -54,49 +54,50 @@ jest.mock("dexie", () => {
     return { __esModule: true, default: DexieMock };
 });
 
-type DeviceFactorRecord = {
+type DeviceKeyProtectionRecord = {
     kind: number;
-    factorHkdfKey: VaultHkdfKey | null;
+    protectionHkdfKey: VaultHkdfKey | null;
     webauthnCredentialId?: string;
     webauthnPrfSalt?: string;
 };
 
-const mockDeviceFactors = new Map<string, DeviceFactorRecord>();
+const mockDeviceKeyProtections = new Map<string, DeviceKeyProtectionRecord>();
 
 jest.mock("../../src/app_lib/vault-utils/vault-key-store", () => ({
-    setDeviceSecondFactorKey: jest.fn(
+    setDeviceAdditionalKeyProtectionKey: jest.fn(
         async (
             index: number,
-            factorHkdfKey: VaultHkdfKey | null,
+            protectionHkdfKey: VaultHkdfKey | null,
             kind: number,
             webauthnCredentialId?: string,
             webauthnPrfSalt?: string,
         ) => {
-            mockDeviceFactors.set(`sf:${index}`, {
+            mockDeviceKeyProtections.set(`akp:${index}`, {
                 kind,
-                factorHkdfKey,
+                protectionHkdfKey,
                 webauthnCredentialId,
                 webauthnPrfSalt,
             });
         },
     ),
-    getDeviceSecondFactorKey: jest.fn(
+    getDeviceAdditionalKeyProtectionKey: jest.fn(
         async (index: number) =>
-            mockDeviceFactors.get(`sf:${index}`)?.factorHkdfKey ?? null,
+            mockDeviceKeyProtections.get(`akp:${index}`)?.protectionHkdfKey ??
+            null,
     ),
-    getDeviceSecondFactorKind: jest.fn(
+    getDeviceAdditionalKeyProtectionKind: jest.fn(
         async (index: number) =>
-            mockDeviceFactors.get(`sf:${index}`)?.kind ?? null,
+            mockDeviceKeyProtections.get(`akp:${index}`)?.kind ?? null,
     ),
-    clearDeviceSecondFactor: jest.fn(async (index: number) => {
-        mockDeviceFactors.delete(`sf:${index}`);
+    clearDeviceAdditionalKeyProtection: jest.fn(async (index: number) => {
+        mockDeviceKeyProtections.delete(`akp:${index}`);
     }),
 }));
 
 import {
-    clearDeviceSecondFactor,
-    getDeviceSecondFactorKey,
-    setDeviceSecondFactorKey,
+    clearDeviceAdditionalKeyProtection,
+    getDeviceAdditionalKeyProtectionKey,
+    setDeviceAdditionalKeyProtectionKey,
 } from "../../src/app_lib/vault-utils/vault-key-store";
 import {
     configureVaultCoreRuntime,
@@ -122,9 +123,11 @@ configureVaultCoreRuntime({
     syncLog: { debug() {}, info() {}, warn() {}, error() {} },
     signalingLog: { debug() {}, info() {}, warn() {}, error() {} },
     webrtcLog: { debug() {}, info() {}, warn() {}, error() {} },
-    secondFactorStore: {
-        setDeviceSecondFactorKey: setDeviceSecondFactorKey as never,
-        getDeviceSecondFactorKey: getDeviceSecondFactorKey as never,
+    additionalKeyProtectionStore: {
+        setDeviceAdditionalKeyProtectionKey:
+            setDeviceAdditionalKeyProtectionKey as never,
+        getDeviceAdditionalKeyProtectionKey:
+            getDeviceAdditionalKeyProtectionKey as never,
     },
 });
 
@@ -164,7 +167,11 @@ async function buildVault(masterPassword: string): Promise<VaultMetadata> {
         encryptionForm(masterPassword),
         false,
         0,
-        { secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE } },
+        {
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+        },
     );
     // createNewVault does not persist; assign a DB index as save() would.
     created.metadata.DBIndex = 1;
@@ -177,6 +184,7 @@ async function unlock(
         masterPassword: string;
         useRecovery?: boolean;
         recoveryCode?: string;
+        protectionPhrase?: string;
     },
 ): Promise<boolean> {
     const res = await metadata.decryptVault(
@@ -196,7 +204,7 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockDeviceFactors.clear();
+        mockDeviceKeyProtections.clear();
         db.vaults = {
             update: jest.fn(async () => 1),
             add: jest.fn(async () => 1),
@@ -209,7 +217,9 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
         const res = await metadata.reconfigureSecurity({
             currentMasterPassword: "old-password",
             newMasterPassword: "new-password",
-            secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
         });
 
         expect(res.isOk()).toBe(true);
@@ -225,13 +235,34 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
         expect(updateMock).toHaveBeenCalledTimes(1);
     });
 
+    it("rejects out-of-range KDF settings before deriving a key", async () => {
+        const metadata = await buildVault("master");
+
+        const result = await metadata.reconfigureSecurity({
+            currentMasterPassword: "master",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+            kdfConfig: new KeyDerivationConfig_Argon2ID(
+                KeyDerivationConfig_Argon2ID.MAX_MEM_LIMIT + 1,
+                KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT,
+            ),
+        });
+
+        expect(result.isErr() && result.error).toBe("INVALID_KDF_CONFIG");
+        const vaultsMock = db.vaults as unknown as { update: jest.Mock };
+        expect(vaultsMock.update.mock.calls).toHaveLength(0);
+    });
+
     it("rejects an incorrect current password", async () => {
         const metadata = await buildVault("correct");
 
         const res = await metadata.reconfigureSecurity({
             currentMasterPassword: "wrong",
             newMasterPassword: "whatever",
-            secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
         });
 
         expect(res.isErr()).toBe(true);
@@ -242,79 +273,121 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
         );
     });
 
-    it("keeps existing device factor when reconfigure auth fails", async () => {
+    it("keeps existing device protection when reconfigure auth fails", async () => {
         const metadata = await buildVault("master");
         await metadata.reconfigureSecurity({
             currentMasterPassword: "master",
-            secondFactor: {
-                kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
             },
         });
-        expect(mockDeviceFactors.has("sf:1")).toBe(true);
+        expect(mockDeviceKeyProtections.has("akp:1")).toBe(true);
         jest.clearAllMocks();
 
         const res = await metadata.reconfigureSecurity({
             currentMasterPassword: "wrong",
-            secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
         });
 
         expect(res.isErr()).toBe(true);
-        expect(clearDeviceSecondFactor).not.toHaveBeenCalled();
-        expect(mockDeviceFactors.has("sf:1")).toBe(true);
+        expect(clearDeviceAdditionalKeyProtection).not.toHaveBeenCalled();
+        expect(mockDeviceKeyProtections.has("akp:1")).toBe(true);
         expect(await unlock(metadata, { masterPassword: "master" })).toBe(true);
     });
 
-    it("enrolls a passphrase second factor and reveals it once", async () => {
+    it("enrolls a protection phrase and reveals it once", async () => {
         const metadata = await buildVault("master");
 
         const res = await metadata.reconfigureSecurity({
             currentMasterPassword: "master",
-            secondFactor: {
-                kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
             },
         });
 
         expect(res.isOk()).toBe(true);
         const revealSecrets = res as {
             value: {
-                secondFactorKind?: number;
-                secondFactorPassphrase?: string;
+                additionalKeyProtectionKind?: number;
+                protectionPhrase?: string;
             };
         };
-        expect(revealSecrets.value?.secondFactorPassphrase).toBeTruthy();
-        expect(revealSecrets.value?.secondFactorKind).toBe(
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        expect(revealSecrets.value?.protectionPhrase).toBeTruthy();
+        expect(revealSecrets.value?.additionalKeyProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
-        expect(metadata.Blob?.Envelope?.PrimaryFactorKind).toBe(
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        expect(metadata.Blob?.Envelope?.PrimaryProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
-        // The freshly enrolled device factor lets this browser unlock with the
+        // The freshly enrolled device protection lets this browser unlock with the
         // master password alone.
         expect(await unlock(metadata, { masterPassword: "master" })).toBe(true);
     });
 
-    it("removes a second factor and clears the device key", async () => {
+    it("returns the new phrase when the device-local protection cache fails after persistence", async () => {
+        const metadata = await buildVault("master");
+        (
+            setDeviceAdditionalKeyProtectionKey as jest.Mock
+        ).mockRejectedValueOnce(new Error("key store unavailable") as never);
+
+        const result = await metadata.reconfigureSecurity({
+            currentMasterPassword: "master",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+            },
+        });
+
+        expect(result.isOk()).toBe(true);
+        if (result.isErr()) return;
+        expect(result.value.deviceKeyProtectionCached).toBe(false);
+        expect(result.value.protectionPhrase).toBeTruthy();
+        expect(await unlock(metadata, { masterPassword: "master" })).toBe(
+            false,
+        );
+        expect(
+            await unlock(metadata, {
+                masterPassword: "master",
+                protectionPhrase: result.value.protectionPhrase,
+            }),
+        ).toBe(true);
+        expect(await unlock(metadata, { masterPassword: "master" })).toBe(true);
+    });
+
+    it("removes additional key protection and clears the device key", async () => {
         const metadata = await buildVault("master");
         await metadata.reconfigureSecurity({
             currentMasterPassword: "master",
-            secondFactor: {
-                kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
             },
         });
-        expect(mockDeviceFactors.has("sf:1")).toBe(true);
+        expect(mockDeviceKeyProtections.has("akp:1")).toBe(true);
 
         const res = await metadata.reconfigureSecurity({
             currentMasterPassword: "master",
-            secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE },
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
         });
 
         expect(res.isOk()).toBe(true);
-        expect(res.isOk() && res.value).toBeNull();
-        expect(metadata.Blob?.Envelope?.PrimaryFactorKind).toBe(
-            VaultUtilTypes.SecondFactorKind.NONE,
+        expect(res.isOk() && res.value).toMatchObject({
+            dataKeyRotated: false,
+            recoveryCode: "",
+            additionalKeyProtectionKind:
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+        });
+        expect(metadata.Blob?.Envelope?.PrimaryProtectionKind).toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
         );
-        expect(clearDeviceSecondFactor).toHaveBeenLastCalledWith(1);
-        expect(mockDeviceFactors.has("sf:1")).toBe(false);
+        expect(clearDeviceAdditionalKeyProtection).toHaveBeenLastCalledWith(1);
+        expect(mockDeviceKeyProtections.has("akp:1")).toBe(false);
         expect(await unlock(metadata, { masterPassword: "master" })).toBe(true);
     });
 
@@ -326,7 +399,11 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
             encryptionForm("master"),
             false,
             0,
-            { secondFactor: { kind: VaultUtilTypes.SecondFactorKind.NONE } },
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
         );
         original.metadata.DBIndex = 1;
 
@@ -337,6 +414,7 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
 
         expect(res.isOk()).toBe(true);
         if (res.isErr()) return;
+        expect(res.value.dataKeyRotated).toBe(false);
         const newCode = res.value.recoveryCode;
         expect(newCode).not.toBe(oldCode);
 
@@ -361,6 +439,231 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
         // Silence unused-var lint for the throwaway vault.
         expect(metadata.DBIndex).toBe(1);
     });
+
+    it("rotates the DEK, ciphertext, IV, and recovery code as one persisted update", async () => {
+        const created = await VaultMetadata.createNewVault(
+            { Name: "Test", Description: "" },
+            encryptionForm("old-password"),
+            false,
+            0,
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
+        );
+        created.metadata.DBIndex = 1;
+        const oldRecoveryCode = created.revealSecrets.recoveryCode;
+        const oldCiphertext = new Uint8Array(created.metadata.Blob!.Blob);
+        const oldIv = created.metadata.Blob!.HeaderIV;
+
+        const result = await created.metadata.reconfigureSecurity({
+            currentMasterPassword: "old-password",
+            newMasterPassword: "new-password",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+            rotateDataKey: true,
+        });
+
+        expect(result.isOk()).toBe(true);
+        if (result.isErr()) return;
+        expect(result.value.dataKeyRotated).toBe(true);
+        expect(result.value.sessionDek).toBeInstanceOf(CryptoKey);
+        expect(result.value.sessionDek?.extractable).toBe(false);
+        expect(result.value.recoveryCode).not.toBe(oldRecoveryCode);
+        expect(created.metadata.Blob!.Blob).not.toEqual(oldCiphertext);
+        expect(created.metadata.Blob!.HeaderIV).not.toBe(oldIv);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "new-password",
+            }),
+        ).toBe(true);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "old-password",
+            }),
+        ).toBe(false);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: result.value.recoveryCode,
+            }),
+        ).toBe(true);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: oldRecoveryCode,
+            }),
+        ).toBe(false);
+        const vaultsMock = db.vaults as unknown as { update: jest.Mock };
+        const updateMock = vaultsMock.update;
+        expect(updateMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the published blob and old credentials when persistence fails", async () => {
+        const metadata = await buildVault("old-password");
+        const originalBlob = metadata.Blob;
+        (db.vaults.update as jest.Mock).mockRejectedValueOnce(
+            new Error("disk full") as never,
+        );
+
+        await expect(
+            metadata.reconfigureSecurity({
+                currentMasterPassword: "old-password",
+                newMasterPassword: "new-password",
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+                rotateDataKey: true,
+            }),
+        ).rejects.toThrow("disk full");
+
+        expect(metadata.Blob).toBe(originalBlob);
+        expect(await unlock(metadata, { masterPassword: "old-password" })).toBe(
+            true,
+        );
+        expect(await unlock(metadata, { masterPassword: "new-password" })).toBe(
+            false,
+        );
+        expect(clearDeviceAdditionalKeyProtection).not.toHaveBeenCalled();
+    });
+
+    it("can rotate the DEK while rotating only the recovery code", async () => {
+        const created = await VaultMetadata.createNewVault(
+            { Name: "Test", Description: "" },
+            encryptionForm("master"),
+            false,
+            0,
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
+        );
+        created.metadata.DBIndex = 1;
+        const oldRecoveryCode = created.revealSecrets.recoveryCode;
+        const oldCiphertext = new Uint8Array(created.metadata.Blob!.Blob);
+
+        const result = await created.metadata.resetRecoveryCode({
+            currentMasterPassword: "master",
+            rotateDataKey: true,
+        });
+
+        expect(result.isOk()).toBe(true);
+        if (result.isErr()) return;
+        expect(result.value.dataKeyRotated).toBe(true);
+        expect(result.value.sessionDek).toBeInstanceOf(CryptoKey);
+        expect(result.value.sessionDek?.extractable).toBe(false);
+        expect(created.metadata.Blob!.Blob).not.toEqual(oldCiphertext);
+        expect(
+            await unlock(created.metadata, { masterPassword: "master" }),
+        ).toBe(true);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: result.value.recoveryCode,
+            }),
+        ).toBe(true);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: oldRecoveryCode,
+            }),
+        ).toBe(false);
+    });
+
+    it("preserves a protection phrase during recovery-authenticated DEK rotation", async () => {
+        const created = await VaultMetadata.createNewVault(
+            { Name: "Test", Description: "" },
+            encryptionForm("master"),
+            false,
+            0,
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
+        );
+        created.metadata.DBIndex = 1;
+        const oldRecoveryCode = created.revealSecrets.recoveryCode;
+        const protectionResult = await created.metadata.reconfigureSecurity({
+            currentMasterPassword: "master",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+            },
+        });
+        expect(protectionResult.isOk()).toBe(true);
+        if (protectionResult.isErr()) return;
+        const phrase = protectionResult.value.protectionPhrase;
+        expect(phrase).toBeTruthy();
+        mockDeviceKeyProtections.clear();
+
+        const result = await created.metadata.resetRecoveryCode({
+            currentMasterPassword: "master",
+            currentRecoveryCode: oldRecoveryCode,
+            currentProtectionPhrase: phrase,
+            rotateDataKey: true,
+        });
+
+        expect(result.isOk()).toBe(true);
+        if (result.isErr()) return;
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "master",
+                protectionPhrase: phrase,
+            }),
+        ).toBe(true);
+        expect(
+            await unlock(created.metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: result.value.recoveryCode,
+            }),
+        ).toBe(true);
+    });
+
+    it("refuses recovery-authenticated DEK rotation without the current protection", async () => {
+        const created = await VaultMetadata.createNewVault(
+            { Name: "Test", Description: "" },
+            encryptionForm("master"),
+            false,
+            0,
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
+        );
+        created.metadata.DBIndex = 1;
+        const oldRecoveryCode = created.revealSecrets.recoveryCode;
+        const protectionResult = await created.metadata.reconfigureSecurity({
+            currentMasterPassword: "master",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+            },
+        });
+        expect(protectionResult.isOk()).toBe(true);
+        mockDeviceKeyProtections.clear();
+        const originalBlob = created.metadata.Blob;
+
+        const result = await created.metadata.resetRecoveryCode({
+            currentMasterPassword: "master",
+            currentRecoveryCode: oldRecoveryCode,
+            rotateDataKey: true,
+        });
+
+        expect(result.isErr() && result.error).toBe(
+            "CURRENT_ADDITIONAL_KEY_PROTECTION_FAILED",
+        );
+        expect(created.metadata.Blob).toBe(originalBlob);
+    });
 });
 
 describe("legacy V2 backup restore", () => {
@@ -370,7 +673,7 @@ describe("legacy V2 backup restore", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockDeviceFactors.clear();
+        mockDeviceKeyProtections.clear();
         db.vaults = {
             update: jest.fn(async () => 1),
             add: jest.fn(async () => 1),

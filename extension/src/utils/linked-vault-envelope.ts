@@ -20,7 +20,7 @@ export async function createLinkedVaultEnvelopeBlob(
         options.masterPassword,
         options.vaultId,
         {
-            kind: VaultUtilTypes.SecondFactorKind.NONE,
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             hkdfBaseKey: null,
         },
         options.kdfConfig,

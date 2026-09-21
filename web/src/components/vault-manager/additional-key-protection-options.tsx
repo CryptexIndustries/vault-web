@@ -11,34 +11,44 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
-import type { SecondFactorSource } from "@cryptex-industries/vault-core/vault-utils/second-factor";
+import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
+import type { AdditionalKeyProtectionSource } from "@cryptex-industries/vault-core/vault-utils/additional-key-protection";
 
-export type SecondFactorChoice =
+export type AdditionalKeyProtectionChoice =
     | "none"
-    | "passphrase128"
-    | "passphrase256"
+    | "protectionPhrase128"
+    | "protectionPhrase256"
     | "webauthn";
 
-const choiceToSource = (choice: SecondFactorChoice): SecondFactorSource => {
+const choiceToSource = (
+    choice: AdditionalKeyProtectionChoice,
+): AdditionalKeyProtectionSource => {
     switch (choice) {
-        case "passphrase128":
-            return { kind: SecondFactorKind.PASSPHRASE_128 };
-        case "passphrase256":
-            return { kind: SecondFactorKind.PASSPHRASE_256 };
+        case "protectionPhrase128":
+            return { kind: AdditionalKeyProtectionKind.PROTECTION_PHRASE_128 };
+        case "protectionPhrase256":
+            return { kind: AdditionalKeyProtectionKind.PROTECTION_PHRASE_256 };
         case "webauthn":
-            return { kind: SecondFactorKind.WEBAUTHN_PRF };
+            return { kind: AdditionalKeyProtectionKind.WEBAUTHN_PRF };
         default:
-            return { kind: SecondFactorKind.NONE };
+            return { kind: AdditionalKeyProtectionKind.NONE };
     }
 };
 
 type Props = {
-    value: SecondFactorChoice;
-    onChange: (choice: SecondFactorChoice, source: SecondFactorSource) => void;
+    value: AdditionalKeyProtectionChoice;
+    onChange: (
+        choice: AdditionalKeyProtectionChoice,
+        source: AdditionalKeyProtectionSource,
+    ) => void;
+    allowWebAuthn?: boolean;
 };
 
-export function SecondFactorOptions({ value, onChange }: Props) {
+export function AdditionalKeyProtectionOptions({
+    value,
+    onChange,
+    allowWebAuthn = true,
+}: Props) {
     return (
         <div className="space-y-2">
             <p className="text-sm font-medium">Additional key protection</p>
@@ -46,7 +56,7 @@ export function SecondFactorOptions({ value, onChange }: Props) {
                 <Select
                     value={value}
                     onValueChange={(v) => {
-                        const choice = v as SecondFactorChoice;
+                        const choice = v as AdditionalKeyProtectionChoice;
                         onChange(choice, choiceToSource(choice));
                     }}
                 >
@@ -55,15 +65,17 @@ export function SecondFactorOptions({ value, onChange }: Props) {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="none">Password only</SelectItem>
-                        <SelectItem value="passphrase128">
+                        <SelectItem value="protectionPhrase128">
                             Generated protection phrase (128-bit)
                         </SelectItem>
-                        <SelectItem value="passphrase256">
+                        <SelectItem value="protectionPhrase256">
                             Generated protection phrase (256-bit)
                         </SelectItem>
-                        <SelectItem value="webauthn">
-                            Security key (WebAuthn PRF)
-                        </SelectItem>
+                        {allowWebAuthn && (
+                            <SelectItem value="webauthn">
+                                Security key (WebAuthn PRF)
+                            </SelectItem>
+                        )}
                     </SelectContent>
                 </Select>
                 <Popover>
@@ -86,8 +98,9 @@ export function SecondFactorOptions({ value, onChange }: Props) {
                         <p>
                             Save the phrase when it is shown. You will need it
                             after restoring a backup or on a device without the
-                            cached key. WebAuthn stays bound to the enrolled
-                            security key and browser.
+                            cached key.
+                            {allowWebAuthn &&
+                                " WebAuthn stays bound to the enrolled security key and browser."}
                         </p>
                     </PopoverContent>
                 </Popover>

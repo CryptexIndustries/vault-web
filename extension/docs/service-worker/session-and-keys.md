@@ -32,10 +32,14 @@ export/import where possible.
 ## Unlock sequence (`MessageType.Unlock`)
 
 1. Load encrypted metadata from IndexedDB `vaults`.
-2. `metadata.decryptVault(masterPassword)` → decrypted `Vault` protobuf.
+2. `metadata.decryptVault(masterPassword, protectionPhrase?)` → decrypted
+   `Vault` protobuf. A vault with a protection phrase first uses the
+   device-local derived key. The saved phrase repopulates that cache after a
+   restore or cleared profile data.
 3. `setSessionDEKFromVaultMetadata`:
     - Opens primary envelope slot (extractable DEK).
-    - Rejects vaults with `PrimaryFactorKind !== NONE` → `EXTENSION_2FA_UNSUPPORTED`.
+    - Supports `NONE`, `PROTECTION_PHRASE_128`, and `PROTECTION_PHRASE_256`.
+    - Rejects `WEBAUTHN_PRF` as `EXTENSION_WEBAUTHN_UNSUPPORTED`.
     - Stores raw DEK in session storage.
 4. `setVaultInSessionStorage` writes `UVM`, `UV`, `AVI`.
 5. Fire-and-forget `ensureOnlineServicesSessionFromUnlockedVault()` seeds JWT
@@ -43,6 +47,38 @@ export/import where possible.
 
 Master password travels inside the encrypted envelope ciphertext, not in
 plaintext on the wire.
+
+## Vault security changes
+
+`GetVaultSecurity`, `ReconfigureVaultSecurity`, and
+`RotateVaultRecoveryCode` are popup-only encrypted messages. The popup sends
+authorization and choices but never receives the DEK, decrypted vault, or
+derived protection key. The service worker runs both mutations through the
+shared single-writer queue.
+
+DEK rotation is off by default. When selected, the worker persists a fresh
+DEK/IV/ciphertext plus rebuilt primary and recovery slots. After that commit,
+it reopens the new primary slot inside the service worker to replace
+`SESSION_DEK:{vaultDbIndex}`, then publishes the session metadata. The DEK
+returned by the shared rotation code is non-extractable and never crosses into
+the popup. The session stays unlocked on success. The one-time response may
+contain the new recovery code and protection phrase; the UI blocks dismissal
+until the user acknowledges saving them. WebAuthn PRF enrollment and mutation
+remain web-app-only.
+
+After the local commit, a vault with an Online Services binding queues a
+separate alarm-backed managed backup job. The job checks that managed backups
+are enabled, then prepares one consistent encrypted snapshot under the vault
+write coordinator. It releases the coordinator before network upload or
+old-history deletion. Backup jobs have a separate serial queue, preventing two
+replacement-and-purge requests from deleting each other's snapshots. Network
+failures are status results of the job and do not change the successful local
+mutation.
+
+An interrupted browser session can leave a queued backup or history purge
+unfinished. This fails safely by retaining older restore points; the local
+security change is not rolled back, and the user can request another backup or
+purge after unlocking again.
 
 ## Lock and idle teardown
 
@@ -57,8 +93,12 @@ Actions:
 - `clearSessionDEK(vaultDbIndex)` and `clearAllVaultKeyMaterial()`
 - `chrome.storage.session.clear()` (vault, metadata, OS session, pending save)
 - `clearOnlineServicesSessionInSW()`
-- `clearDeviceSecondFactor()` (IndexedDB `vaultKeyStore`)
 - Clear IndexedDB `cryptex-backup-staging` (one-shot `.cryx` blobs)
+
+The protection-phrase key in IndexedDB `vaultKeyStore` deliberately survives
+ordinary lock and idle teardown, so same-profile unlock needs only the master
+password. Protection changes replace or clear it. Clearing the extension or
+profile data removes it.
 
 Local backup receipts in `chrome.storage.local` are not cleared. They are
 DEK-authenticated metadata and are unreadable without a later unlock of the

@@ -1202,7 +1202,11 @@ export function VaultDashboard() {
         if (!cloudServicesEnabled || !onlineServicesData?.sessionToken) return;
         void managedBackupCoordinator.start();
         return () => managedBackupCoordinator.stop();
-    }, [cloudServicesEnabled, onlineServicesData?.sessionToken]);
+    }, [
+        cloudServicesEnabled,
+        onlineServicesData?.deviceId,
+        onlineServicesData?.sessionToken,
+    ]);
 
     const handleOpenPasswordGenerator = useCallback(() => {
         setIsPasswordGeneratorOpen(true);

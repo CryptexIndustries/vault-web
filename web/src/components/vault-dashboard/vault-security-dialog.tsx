@@ -211,6 +211,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
     const wasOpenRef = useRef(false);
 
     const [currentPassword, setCurrentPassword] = useState("");
+    const [currentRecoveryCode, setCurrentRecoveryCode] = useState("");
     const [currentProtectionPhrase, setCurrentProtectionPhrase] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -250,6 +251,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         wasOpenRef.current = open;
         if (!isOpening) return;
         setCurrentPassword("");
+        setCurrentRecoveryCode("");
         setCurrentProtectionPhrase("");
         setNewPassword("");
         setConfirmPassword("");
@@ -316,6 +318,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
 
     const clearCurrentAuthorization = () => {
         setCurrentPassword("");
+        setCurrentRecoveryCode("");
         setCurrentProtectionPhrase("");
     };
 
@@ -327,6 +330,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         if (!nextOpen && busy) return;
         if (!nextOpen) {
             setCurrentPassword("");
+            setCurrentRecoveryCode("");
             setCurrentProtectionPhrase("");
             setNewPassword("");
             setConfirmPassword("");
@@ -352,7 +356,14 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
             toast.error("Vault metadata is unavailable.");
             return;
         }
-        if (!requireCurrentPassword()) return;
+        const useRecovery = currentRecoveryCode.trim().length > 0;
+        if (!useRecovery && !requireCurrentPassword()) return;
+        if (useRecovery && !newPassword) {
+            toast.error(
+                "Enter a new master password when using a recovery code.",
+            );
+            return;
+        }
 
         const changingPassword = newPassword.length > 0;
         if (changingPassword && newPassword !== confirmPassword) {
@@ -367,7 +378,10 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         setSecretsAcknowledged(false);
         try {
             const res = await reconfigureUnlockedVaultSecurity({
-                currentMasterPassword: currentPassword,
+                currentMasterPassword: useRecovery ? "" : currentPassword,
+                currentRecoveryCode: useRecovery
+                    ? currentRecoveryCode.trim()
+                    : undefined,
                 currentProtectionPhrase:
                     currentProtectionPhrase.trim() || undefined,
                 newMasterPassword: changingPassword ? newPassword : undefined,
@@ -385,10 +399,13 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
             if (res.isErr()) {
                 if (
                     res.error === "DEK_UNWRAP_FAILED" ||
-                    res.error === "KEK_DERIVATION_FAILED"
+                    res.error === "KEK_DERIVATION_FAILED" ||
+                    (useRecovery && res.error === "RECOVERY_KEK_FAILED")
                 ) {
                     toast.error(
-                        "Current master password or protection phrase is incorrect.",
+                        useRecovery
+                            ? "Recovery code is incorrect."
+                            : "Current master password or protection phrase is incorrect.",
                     );
                     return;
                 }
@@ -421,6 +438,9 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                 toast.warning(
                     "Security settings were saved, but this device could not cache the new protection key. Save the protection phrase; it will be required on the next unlock.",
                 );
+            }
+            if (!reveal.protectionPhrase && !reveal.recoveryCode) {
+                onOpenChange(false);
             }
         } catch (error) {
             clearCurrentAuthorization();
@@ -521,7 +541,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             id="current-master-password"
                             type="password"
                             autoComplete="current-password"
-                            placeholder="Required to authorize changes"
+                            placeholder="Or use the recovery code below"
                             className="vault-settings-input"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
@@ -529,6 +549,27 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                         />
                         <p className="text-xs text-muted-foreground">
                             Proves ownership so the vault key can be re-wrapped.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="current-recovery-code">
+                            Recovery code to set a new master password
+                        </Label>
+                        <Input
+                            id="current-recovery-code"
+                            type="password"
+                            autoComplete="off"
+                            className="vault-settings-input font-mono text-xs"
+                            value={currentRecoveryCode}
+                            onChange={(e) =>
+                                setCurrentRecoveryCode(e.target.value)
+                            }
+                            disabled={!isEnvelope || busy}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Use this instead of the current master password.
+                            Enter and confirm a new one below.
                         </p>
                     </div>
 
@@ -748,7 +789,8 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             Generating a new recovery code immediately
                             invalidates the previous one. Store the new code
                             somewhere safe; it is the only backup if you lose
-                            your master password.
+                            your master password. This action requires the
+                            current master password.
                         </div>
 
                         {revealRecovery && (

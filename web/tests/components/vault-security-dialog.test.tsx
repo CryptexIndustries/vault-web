@@ -138,6 +138,14 @@ describe("VaultSecurityDialog", () => {
         }
     });
 
+    it("closes after saving settings without new secrets", async () => {
+        input("current-master-password", "current-password");
+        await click(button("Save protection settings"));
+
+        expect(reconfigureMock).toHaveBeenCalledTimes(1);
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
     it("passes explicit recovery options and blocks closing until the new code is acknowledged", async () => {
         input("current-master-password", "current-password");
         await click(document.getElementById("recovery-rotate-data-key")!);
@@ -166,6 +174,58 @@ describe("VaultSecurityDialog", () => {
         expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
+    it("accepts a recovery code for setting a new master password", async () => {
+        input("current-recovery-code", "  saved-recovery-code  ");
+        await click(button("Save protection settings"));
+        expect(reconfigureMock).not.toHaveBeenCalled();
+        expect(toastErrorMock).toHaveBeenCalledWith(
+            "Enter a new master password when using a recovery code.",
+        );
+
+        input("new-master-password", "new-password");
+        input("confirm-master-password", "new-password");
+        await click(button("Save protection settings"));
+
+        expect(reconfigureMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                currentMasterPassword: "",
+                currentRecoveryCode: "saved-recovery-code",
+                newMasterPassword: "new-password",
+            }),
+        );
+        expect(
+            (
+                document.getElementById(
+                    "current-recovery-code",
+                ) as HTMLInputElement
+            ).value,
+        ).toBe("");
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("clears an incorrect recovery code without losing the proposed password", async () => {
+        reconfigureMock.mockResolvedValue(err("DEK_UNWRAP_FAILED"));
+        input("current-recovery-code", "wrong-code");
+        input("new-master-password", "new-password");
+        input("confirm-master-password", "new-password");
+        await click(button("Save protection settings"));
+
+        expect(toastErrorMock).toHaveBeenCalledWith(
+            "Recovery code is incorrect.",
+        );
+        expect(
+            (
+                document.getElementById(
+                    "current-recovery-code",
+                ) as HTMLInputElement
+            ).value,
+        ).toBe("");
+        expect(
+            (document.getElementById("new-master-password") as HTMLInputElement)
+                .value,
+        ).toBe("new-password");
+    });
+
     it("keeps one-time secrets visible when committed metadata is published", async () => {
         reconfigureMock.mockImplementation(async () => {
             vaultStore.set(unlockedVaultMetadataAtom, {
@@ -191,6 +251,7 @@ describe("VaultSecurityDialog", () => {
         expect(document.body.textContent).toContain("New recovery code");
         expect(document.body.textContent).toContain("rotated-recovery-code");
         expect(button("Close").disabled).toBe(true);
+        expect(onOpenChange).not.toHaveBeenCalled();
     });
 
     it("clears authorization but keeps proposed options after a failed update", async () => {

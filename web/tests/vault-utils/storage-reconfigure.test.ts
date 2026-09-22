@@ -235,6 +235,141 @@ describe("VaultMetadata.reconfigureSecurity / resetRecoveryCode", () => {
         expect(updateMock).toHaveBeenCalledTimes(1);
     });
 
+    it("changes the master password with only the recovery code", async () => {
+        const created = await VaultMetadata.createNewVault(
+            { Name: "Test", Description: "" },
+            encryptionForm("old-password"),
+            false,
+            0,
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
+        );
+        const metadata = created.metadata;
+        metadata.DBIndex = 1;
+        const oldCode = created.revealSecrets.recoveryCode;
+        const protectedResult = await metadata.reconfigureSecurity({
+            currentMasterPassword: "old-password",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+            },
+        });
+        expect(protectedResult.isOk()).toBe(true);
+        mockDeviceKeyProtections.clear();
+
+        const res = await metadata.reconfigureSecurity({
+            currentMasterPassword: "",
+            currentRecoveryCode: oldCode,
+            newMasterPassword: "new-password",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+        });
+
+        expect(res.isOk()).toBe(true);
+        if (res.isErr()) return;
+        expect(res.value.recoveryCode).toBe("");
+        expect(await unlock(metadata, { masterPassword: "new-password" })).toBe(
+            true,
+        );
+        expect(await unlock(metadata, { masterPassword: "old-password" })).toBe(
+            false,
+        );
+        expect(
+            await unlock(metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: oldCode,
+            }),
+        ).toBe(true);
+    });
+
+    it("does not change the vault when recovery authorization fails", async () => {
+        const metadata = await buildVault("old-password");
+
+        const missingPassword = await metadata.reconfigureSecurity({
+            currentMasterPassword: "",
+            currentRecoveryCode: "wrong-code",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+        });
+        expect(missingPassword.isErr() && missingPassword.error).toBe(
+            "NEW_MASTER_PASSWORD_REQUIRED_FOR_RECOVERY",
+        );
+
+        const wrongCode = await metadata.reconfigureSecurity({
+            currentMasterPassword: "",
+            currentRecoveryCode: "wrong-code",
+            newMasterPassword: "new-password",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+        });
+        expect(wrongCode.isErr()).toBe(true);
+        expect(await unlock(metadata, { masterPassword: "old-password" })).toBe(
+            true,
+        );
+        expect(await unlock(metadata, { masterPassword: "new-password" })).toBe(
+            false,
+        );
+        expect(
+            (db.vaults as unknown as { update: jest.Mock }).update,
+        ).not.toHaveBeenCalled();
+    });
+
+    it("keeps optional data-key rotation behavior when changing a password with recovery", async () => {
+        const created = await VaultMetadata.createNewVault(
+            { Name: "Test", Description: "" },
+            encryptionForm("old-password"),
+            false,
+            0,
+            {
+                additionalKeyProtection: {
+                    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                },
+            },
+        );
+        const metadata = created.metadata;
+        metadata.DBIndex = 1;
+        const oldCode = created.revealSecrets.recoveryCode;
+
+        const res = await metadata.reconfigureSecurity({
+            currentMasterPassword: "",
+            currentRecoveryCode: oldCode,
+            newMasterPassword: "new-password",
+            additionalKeyProtection: {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            },
+            rotateDataKey: true,
+        });
+
+        expect(res.isOk()).toBe(true);
+        if (res.isErr()) return;
+        expect(res.value.dataKeyRotated).toBe(true);
+        expect(res.value.recoveryCode).not.toBe(oldCode);
+        expect(await unlock(metadata, { masterPassword: "new-password" })).toBe(
+            true,
+        );
+        expect(
+            await unlock(metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: oldCode,
+            }),
+        ).toBe(false);
+        expect(
+            await unlock(metadata, {
+                masterPassword: "",
+                useRecovery: true,
+                recoveryCode: res.value.recoveryCode,
+            }),
+        ).toBe(true);
+    });
+
     it("rejects out-of-range KDF settings before deriving a key", async () => {
         const metadata = await buildVault("master");
 

@@ -475,10 +475,12 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
      * Changes the master password and/or additional key protection. By default
      * this only
      * re-wraps the existing DEK. `rotateDataKey` opts into fresh ciphertext,
-     * IV, DEK, both slots, and recovery code.
+     * IV, DEK, both slots, and recovery code. A recovery code can authorize a
+     * new master password without the current primary credentials.
      */
     public async reconfigureSecurity(params: {
         currentMasterPassword: string;
+        currentRecoveryCode?: string;
         currentProtectionPhrase?: string;
         newMasterPassword?: string;
         additionalKeyProtection: AdditionalKeyProtectionSource;
@@ -501,15 +503,21 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
             return err("INVALID_KDF_CONFIG");
         }
         const vaultId = this.requireVaultID();
+        const useRecovery = !!params.currentRecoveryCode?.trim();
+        if (useRecovery && !params.newMasterPassword) {
+            return err("NEW_MASTER_PASSWORD_REQUIRED_FOR_RECOVERY");
+        }
 
-        let currentAdditionalKeyProtection: VaultHkdfKey | null;
-        try {
-            currentAdditionalKeyProtection =
-                await this.resolveCurrentAdditionalKeyProtection(
-                    params.currentProtectionPhrase,
-                );
-        } catch {
-            return err("CURRENT_ADDITIONAL_KEY_PROTECTION_FAILED");
+        let currentAdditionalKeyProtection: VaultHkdfKey | null = null;
+        if (!useRecovery) {
+            try {
+                currentAdditionalKeyProtection =
+                    await this.resolveCurrentAdditionalKeyProtection(
+                        params.currentProtectionPhrase,
+                    );
+            } catch {
+                return err("CURRENT_ADDITIONAL_KEY_PROTECTION_FAILED");
+            }
         }
 
         let enrolled: AdditionalKeyProtectionEnrollmentResult;
@@ -539,6 +547,8 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         const currentCreds = {
             masterPassword: params.currentMasterPassword,
             additionalKeyProtectionHkdfBase: currentAdditionalKeyProtection,
+            useRecovery,
+            recoveryCode: params.currentRecoveryCode?.trim(),
         };
         let candidate: EncryptedBlob;
         let recoveryCode = "";

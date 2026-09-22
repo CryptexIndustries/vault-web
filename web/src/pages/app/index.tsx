@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { toast } from "sonner";
 
 import { useAtomValue, useSetAtom } from "jotai";
 
@@ -131,6 +132,11 @@ const AppIndex: React.FC = () => {
         }
 
         finalizeVaultUnlock(metadata, vault, dek);
+        if (unlockExtras?.useRecovery) {
+            toast.info(
+                "Vault unlocked with a recovery code. Open Vault Settings > Encryption & Security to set a new master password.",
+            );
+        }
         return ok({});
     };
 

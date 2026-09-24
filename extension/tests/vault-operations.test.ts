@@ -1,7 +1,26 @@
 /**
  * @jest-environment node
  */
-import { describe, expect, it, jest } from "@jest/globals";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from "@jest/globals";
+import { err } from "neverthrow";
+
+jest.mock("../src/utils/session-utils", () => ({
+    createEncryptedEnvelope: jest.fn(async () => ({})),
+    isEncryptedEnvelope: jest.fn(() => true),
+    decryptResponseEnvelope: jest.fn(),
+}));
+
+import {
+    decryptResponseEnvelope,
+    isEncryptedEnvelope,
+} from "../src/utils/session-utils";
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 
@@ -82,5 +101,74 @@ describe("createVaultOperations", () => {
         ]);
         expect(loadConfig).toHaveBeenCalledTimes(1);
         expect(remote).toEqual(["remote-sign-pub", "remote-kem-pub"]);
+    });
+});
+
+describe("sync save acknowledgement", () => {
+    const originalChrome = Object.getOwnPropertyDescriptor(
+        globalThis,
+        "chrome",
+    );
+    const updated = jest.fn();
+    const ops = () =>
+        createVaultOperations(
+            { keyId: "kid", publicKeyJwk: { kty: "EC" } },
+            updated,
+        );
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        Object.defineProperty(globalThis, "chrome", {
+            configurable: true,
+            value: {
+                runtime: {
+                    sendMessage: jest.fn(async () => ({ payload: {} })),
+                },
+            },
+        });
+        jest.mocked(isEncryptedEnvelope).mockReturnValue(true);
+        jest.mocked(decryptResponseEnvelope).mockResolvedValue({
+            ok: true,
+            payload: { ok: true },
+        });
+        jest.spyOn(console, "error").mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+        if (originalChrome) {
+            Object.defineProperty(globalThis, "chrome", originalChrome);
+        } else {
+            Reflect.deleteProperty(globalThis, "chrome");
+        }
+    });
+
+    it("rejects background save failure without refreshing credentials", async () => {
+        jest.mocked(decryptResponseEnvelope).mockResolvedValueOnce({
+            ok: true,
+            payload: { ok: false, error: "SAVE_FAILED" },
+        });
+        await expect(ops().updateItems([], [])).rejects.toThrow("SAVE_FAILED");
+        expect(updated).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unauthenticated response", async () => {
+        jest.mocked(decryptResponseEnvelope).mockResolvedValueOnce({
+            ok: false,
+            error: err("DECRYPTION_FAILED"),
+        });
+        await expect(ops().updateItems([], [])).rejects.toThrow("authenticate");
+        expect(updated).not.toHaveBeenCalled();
+    });
+
+    it("rejects a plaintext response", async () => {
+        jest.mocked(isEncryptedEnvelope).mockReturnValueOnce(false);
+        await expect(ops().updateItems([], [])).rejects.toThrow("encrypted");
+        expect(updated).not.toHaveBeenCalled();
+    });
+
+    it("refreshes credentials after a successful save", async () => {
+        await ops().updateItems([], []);
+        expect(updated).toHaveBeenCalledTimes(1);
     });
 });

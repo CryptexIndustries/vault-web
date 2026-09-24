@@ -209,21 +209,25 @@ const updateItems = async (
         await chrome.runtime.sendMessage(envelope);
 
     if (isEncryptedEnvelope(res)) {
-        const decryptedPayload = await decryptResponseEnvelope<{ ok: boolean }>(
-            res,
-        );
+        const decryptedPayload = await decryptResponseEnvelope<
+            { ok: true } | { ok: false; error: string }
+        >(res);
         if (!decryptedPayload?.ok) {
             console.error(
                 "[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:",
                 decryptedPayload?.error,
             );
-            return;
+            throw new Error("Failed to authenticate the sync save response.");
+        }
+        if (!decryptedPayload.payload.ok) {
+            throw new Error(decryptedPayload.payload.error);
         }
     } else {
         console.error(
             "[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:",
             res.payload,
         );
+        throw new Error("Expected an encrypted sync save response.");
     }
 };
 

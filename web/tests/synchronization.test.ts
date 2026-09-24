@@ -140,12 +140,12 @@ function createOps(
 }
 
 function createPair() {
-    const localController = new SyncConnectionController(
-        createOps(keys.local, keys.remote, [versionVector("local")]),
-    );
-    const remoteController = new SyncConnectionController(
-        createOps(keys.remote, keys.local),
-    );
+    const localOps = createOps(keys.local, keys.remote, [
+        versionVector("local"),
+    ]);
+    const remoteOps = createOps(keys.remote, keys.local);
+    const localController = new SyncConnectionController(localOps);
+    const remoteController = new SyncConnectionController(remoteOps);
     const localSync = (
         localController as unknown as { _vaultItemSynchronization: SyncHandle }
     )._vaultItemSynchronization;
@@ -193,6 +193,8 @@ function createPair() {
     };
 
     return {
+        localOps,
+        remoteOps,
         localController,
         remoteController,
         localSync,
@@ -206,6 +208,37 @@ function createPair() {
 }
 
 describe("VaultItemSynchronization encrypted transport", () => {
+    it("does not record completion after a failed save and allows a later retry", async () => {
+        const pair = createPair();
+        const record = jest.fn(async () => undefined);
+        pair.remoteOps.recordSynchronization = record;
+        const completed = jest.spyOn(
+            pair.remoteController,
+            "broadcastWebRTCSynchronizedEvent",
+        );
+        jest.spyOn(pair.remoteOps, "updateItems").mockRejectedValueOnce(
+            new Error("Storage unavailable"),
+        );
+
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        expect(pair.remoteOps.updateItems).toHaveBeenCalledTimes(1);
+        expect(record).not.toHaveBeenCalled();
+        expect(completed).not.toHaveBeenCalled();
+
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        expect(pair.remoteOps.updateItems).toHaveBeenCalledTimes(2);
+        expect(record).toHaveBeenCalledTimes(1);
+        expect(completed).toHaveBeenCalledTimes(1);
+    });
+
     it("does not publish a handshake that finishes after disconnect", async () => {
         const pair = createPair();
         const entered = deferred();

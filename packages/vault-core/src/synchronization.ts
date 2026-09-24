@@ -102,6 +102,7 @@ export interface VaultOperations {
     getItems(
         items: VaultUtilTypes.SyncItemReference[],
     ): Promise<VaultUtilTypes.SyncDataResponseMessage>;
+    /** Resolve only after persistence succeeds; reject on an apply or save failure. */
     updateItems(
         directories: VaultUtilTypes.Directory[],
         credentials: VaultUtilTypes.Credential[],

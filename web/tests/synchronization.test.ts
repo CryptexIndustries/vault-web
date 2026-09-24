@@ -216,16 +216,16 @@ describe("VaultItemSynchronization encrypted transport", () => {
             pair.remoteController,
             "broadcastWebRTCSynchronizedEvent",
         );
-        jest.spyOn(pair.remoteOps, "updateItems").mockRejectedValueOnce(
-            new Error("Storage unavailable"),
-        );
+        const updateItems = jest
+            .spyOn(pair.remoteOps, "updateItems")
+            .mockRejectedValueOnce(new Error("Storage unavailable"));
 
         await pair.localSync.transmitSyncHello(
             "remote-device",
             pair.localChannel,
         );
         await pair.flush();
-        expect(pair.remoteOps.updateItems).toHaveBeenCalledTimes(1);
+        expect(updateItems).toHaveBeenCalledTimes(1);
         expect(record).not.toHaveBeenCalled();
         expect(completed).not.toHaveBeenCalled();
 
@@ -234,7 +234,7 @@ describe("VaultItemSynchronization encrypted transport", () => {
             pair.localChannel,
         );
         await pair.flush();
-        expect(pair.remoteOps.updateItems).toHaveBeenCalledTimes(2);
+        expect(updateItems).toHaveBeenCalledTimes(2);
         expect(record).toHaveBeenCalledTimes(1);
         expect(completed).toHaveBeenCalledTimes(1);
     });

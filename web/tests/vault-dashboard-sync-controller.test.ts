@@ -172,7 +172,7 @@ describe("vault dashboard sync controller helpers", () => {
 
         await expect(
             operations.updateItems([], [credential("from-sync")]),
-        ).rejects.toThrow();
+        ).rejects.toThrow("VAULT_SAVE_FAILED");
 
         expect(
             vaultStore.get(unlockedVaultAtom).Credentials.map((c) => c.ID),

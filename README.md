@@ -16,7 +16,7 @@ The **hosted Cryptex Cloud backend** (auth, device linking, billing, signaling/T
 This repo ships **client-only** Docker (`compose.prod.yaml` / `compose.dev.yaml`)
 and a Docker Swarm stack (`compose.swarm.yaml`).
 
-See [THREAT_MODEL.md](THREAT_MODEL.md) for what the cloud service can and cannot learn.
+See the [web app threat model](web/threat-model.md) for what the cloud service can and cannot learn.
 
 # Setting up a development environment
 

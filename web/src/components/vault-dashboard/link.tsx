@@ -4197,9 +4197,9 @@ export function VaultSignalingConfigDialog({
                                             />
                                             <Field
                                                 id={`turn-host-${server.ID}`}
-                                                label="Host"
+                                                label="Host or TURN URL"
                                                 value={server.Host}
-                                                placeholder="turn.example.com:3478"
+                                                placeholder="turns:turn.example.com:5349?transport=tcp"
                                                 onChange={(value) =>
                                                     setDraftTURNServers(
                                                         (servers) =>

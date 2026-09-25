@@ -24,6 +24,62 @@ interface ChangelogRelease {
 
 const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.4.1",
+        date: "2026-09-25",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "Manage your linked devices from Account or the vault sidebar. A connection map and searchable list show each device and its links, including direct links that do not use Online Services.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Device actions now make it clearer when you are connecting, syncing, unlinking, or removing a device. Sidebar quick actions also work with a long press on touch screens.",
+            },
+            {
+                type: "added",
+                description:
+                    "Change your master password and extra key protection, generate a new vault recovery code, or rotate this device's encryption key from Vault Security. Key rotation gives you a new recovery code. In the web app, your recovery code can also be used to set a new password.",
+            },
+            {
+                type: "changed",
+                description:
+                    "When managed backups are enabled, security changes start a fresh backup. You can opt to delete older account restore points, including linked-device copies, after the upload succeeds. Downloaded backups remain yours to delete and still use the password and recovery information they had when downloaded.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Imports now show what will be added, skipped, or saved differently before you confirm. More details from Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox exports are carried over, and invalid files show clearer errors.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Synchronization handles simultaneous connections and disconnects more reliably. A failed vault save no longer appears as a successful sync, and secure custom relay server addresses now work.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Backup Center now shows current coverage only after a backup has finished uploading.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Vault transfers now verify the sending device before accepting the encrypted vault. Update the sending device if a new link reports that its transfer could not be authenticated.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Boolean custom fields now have an on/off switch in the web credential editor.",
+            },
+            {
+                type: "added",
+                description:
+                    "Self-hosting templates are available for the web app and its device-linking services, including secure TURN setup.",
+            },
+        ],
+    },
+    {
         version: "v1.4.0",
         date: "2026-07-06",
         changes: [

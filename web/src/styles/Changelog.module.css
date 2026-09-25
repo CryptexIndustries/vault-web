@@ -1,0 +1,54 @@
+.website .release {
+    padding: 48px 5% 56px;
+    scroll-margin-top: 100px;
+}
+
+.website .releaseHeader {
+    position: static;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 20px;
+    max-width: 850px;
+    padding: 0 0 24px;
+    margin-bottom: 24px;
+    background: transparent;
+    border-color: var(--line);
+    color: var(--soft);
+}
+
+.website .version {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--coral);
+    font-family: inherit;
+    font-size: clamp(26px, 3vw, 36px);
+    font-weight: 400;
+    letter-spacing: -0.04em;
+}
+
+.website .releaseHeader time {
+    color: var(--soft);
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.website .change {
+    max-width: 850px;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.website .description {
+    margin: 0;
+    color: var(--soft);
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.website .separator {
+    display: none;
+}

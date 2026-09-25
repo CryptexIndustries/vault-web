@@ -11,6 +11,13 @@ import {
 import { Bug, Calendar, GitCommit, Plus, Zap } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "./ui/tooltip";
+import styles from "@/styles/Changelog.module.css";
 
 interface ChangelogRelease {
     version: string;
@@ -22,7 +29,17 @@ interface ChangelogRelease {
     }[];
 }
 
-const CHANGELOG_DATA: ChangelogRelease[] = [
+const CHANGE_LABELS: Record<
+    ChangelogRelease["changes"][number]["type"],
+    string
+> = {
+    added: "Added",
+    changed: "Changed",
+    fix: "Fixed",
+    removed: "Removed",
+};
+
+export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
         version: "v1.4.1",
         date: "2026-09-25",
@@ -91,7 +108,7 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "added",
                 description:
-                    "A new Backup Center provides encrypted downloads and optional Premium managed restore points with backup status, history, and management controls. Restore local files or recover on a fresh device without replacing an existing vault, and rotate or replace your Recovery Kit for future recovery.",
+                    "A new Backup Center provides encrypted downloads and optional Online Services managed restore points with backup status, history, and management controls. Restore local files or recover on a fresh device without replacing an existing vault, and rotate or replace your Recovery Kit for future recovery.",
             },
             {
                 type: "added",
@@ -111,7 +128,7 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "removed",
                 description:
-                    "Removed the unused Online Services feature-voting integration and Premium perk listing.",
+                    "Removed the unused Online Services feature-voting integration and outdated subscription perk listing.",
             },
             {
                 type: "fix",
@@ -378,8 +395,119 @@ const CHANGELOG_DATA: ChangelogRelease[] = [
     },
 ];
 
+/** Release content shared by the app dialog and the public changelog. */
+export function ChangelogEntries({ website = false }: { website?: boolean }) {
+    return (
+        <TooltipProvider>
+            <div className={website ? styles.website : "space-y-6"}>
+                {CHANGELOG_DATA.map((release) => (
+                    <section
+                        key={release.version}
+                        id={website ? release.version : undefined}
+                        className={`space-y-4 ${styles.release}`}
+                    >
+                        <div
+                            className={`sticky top-0 z-10 flex items-center justify-between border-b bg-background py-2 ${styles.releaseHeader}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Badge
+                                    role="heading"
+                                    aria-level={2}
+                                    variant={
+                                        release.version ===
+                                        CHANGELOG_DATA[0]?.version
+                                            ? "default"
+                                            : "secondary"
+                                    }
+                                    className={`font-mono ${styles.version}`}
+                                >
+                                    {release.version}
+                                </Badge>
+                                {release.initialVersion && (
+                                    <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                    >
+                                        Initial Release
+                                    </Badge>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                <time dateTime={release.date}>
+                                    {release.date}
+                                </time>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {release.changes.map((change, index) => (
+                                <div
+                                    key={index}
+                                    className={`flex items-start gap-3 ${styles.change}`}
+                                >
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div
+                                                className="mt-0.5 flex-shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                                role="img"
+                                                aria-label={
+                                                    CHANGE_LABELS[change.type]
+                                                }
+                                                tabIndex={0}
+                                            >
+                                                {change.type === "added" && (
+                                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                                                        <Plus className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                                    </div>
+                                                )}
+                                                {change.type === "changed" && (
+                                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+                                                        <Zap className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                                    </div>
+                                                )}
+                                                {change.type === "fix" && (
+                                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                                                        <Bug className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                                                    </div>
+                                                )}
+                                                {change.type === "removed" && (
+                                                    <div className="bg-destructive-100 dark:bg-destructive-900/30 flex h-5 w-5 items-center justify-center rounded-full">
+                                                        <Zap className="text-destructive-600 dark:text-destructive-400 h-3 w-3" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            {CHANGE_LABELS[change.type]}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <div className="flex-1">
+                                        <p
+                                            className={`text-sm leading-relaxed ${styles.description}`}
+                                        >
+                                            {change.description}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {release !==
+                            CHANGELOG_DATA[CHANGELOG_DATA.length - 1] && (
+                            <Separator className={`mt-6 ${styles.separator}`} />
+                        )}
+                    </section>
+                ))}
+            </div>
+        </TooltipProvider>
+    );
+}
+
 export const ChangelogDialog: React.FC = () => {
-    const currentVersion = CHANGELOG_DATA[0]?.version ?? "";
+    const currentVersion =
+        CHANGELOG_DATA.find((release) => release.version !== "Unreleased")
+            ?.version ?? "";
     const storageKey = "changelog:lastSeenVersion";
 
     const [open, setOpen] = useState(false);
@@ -454,81 +582,7 @@ export const ChangelogDialog: React.FC = () => {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex-1 overflow-y-auto pr-2">
-                    <div className="space-y-6">
-                        {CHANGELOG_DATA.map((release) => (
-                            <div key={release.version} className="space-y-4">
-                                <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background py-2">
-                                    <div className="flex items-center gap-3">
-                                        <Badge
-                                            variant={
-                                                release.version ===
-                                                CHANGELOG_DATA[0]?.version
-                                                    ? "default"
-                                                    : "secondary"
-                                            }
-                                            className="font-mono"
-                                        >
-                                            {release.version}
-                                        </Badge>
-                                        {release.initialVersion && (
-                                            <Badge
-                                                variant="outline"
-                                                className="text-xs"
-                                            >
-                                                Initial Release
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        <span>{release.date}</span>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    {release.changes.map((change, index) => (
-                                        <div
-                                            key={index}
-                                            className="flex items-start gap-3"
-                                        >
-                                            <div className="mt-0.5 flex-shrink-0">
-                                                {change.type === "added" && (
-                                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-                                                        <Plus className="h-3 w-3 text-green-600 dark:text-green-400" />
-                                                    </div>
-                                                )}
-                                                {change.type === "changed" && (
-                                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-                                                        <Zap className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                                                    </div>
-                                                )}
-                                                {change.type === "fix" && (
-                                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                                                        <Bug className="h-3 w-3 text-orange-600 dark:text-orange-400" />
-                                                    </div>
-                                                )}
-                                                {change.type === "removed" && (
-                                                    <div className="bg-destructive-100 dark:bg-destructive-900/30 flex h-5 w-5 items-center justify-center rounded-full">
-                                                        <Zap className="text-destructive-600 dark:text-destructive-400 h-3 w-3" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-sm leading-relaxed">
-                                                    {change.description}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {release !==
-                                    CHANGELOG_DATA[
-                                        CHANGELOG_DATA.length - 1
-                                    ] && <Separator className="mt-6" />}
-                            </div>
-                        ))}
-                    </div>
+                    <ChangelogEntries />
                 </div>
             </DialogContent>
         </Dialog>

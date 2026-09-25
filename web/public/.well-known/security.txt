@@ -1,0 +1,6 @@
+Contact: mailto:security@cryptex-vault.com
+Expires: 2027-03-08T00:00:00Z
+Preferred-Languages: en
+Policy: https://cryptex-vault.com/security/responsible-disclosure
+Encryption: https://cryptex-vault.com/security/publickey.security@cryptex-vault.com.asc
+Canonical: https://cryptex-vault.com/.well-known/security.txt

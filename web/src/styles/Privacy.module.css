@@ -1,0 +1,32 @@
+.content > h2 {
+    max-width: 850px;
+    margin: 0 0 24px;
+    font-size: clamp(28px, 3vw, 42px);
+}
+
+.content > h3 {
+    margin: 30px 0 16px;
+}
+
+.content > p {
+    max-width: 850px;
+    margin: 0 0 20px;
+}
+
+.content > p:last-child {
+    margin-bottom: 0;
+}
+
+.content p a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.content p a:hover {
+    color: var(--coral);
+}
+
+.content table {
+    min-width: 540px;
+}

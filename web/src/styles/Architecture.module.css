@@ -1,0 +1,129 @@
+.overview {
+    margin: 26px 0;
+    container-type: inline-size;
+}
+.scrollHint {
+    display: none;
+    align-items: center;
+    gap: 7px;
+    margin-top: 12px;
+    color: var(--soft);
+    font-size: 11px;
+}
+@container (width < 620px) {
+    .scrollHint {
+        display: flex;
+    }
+}
+.selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    border-bottom: 1px solid var(--line);
+}
+.selector button {
+    padding: 10px 0;
+    border-bottom: 2px solid transparent;
+    color: var(--soft);
+    font-size: 12px;
+    cursor: pointer;
+}
+.selector button[aria-pressed="true"] {
+    color: var(--ink);
+    border-color: var(--coral);
+}
+.selector button:hover {
+    color: var(--ink);
+}
+.selector button:focus-visible,
+.scroll:focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: 3px;
+}
+.figure,
+.clientFigure {
+    margin: 0;
+}
+.diagram {
+    display: block;
+    width: 100%;
+    min-width: 620px;
+    color: var(--coral);
+}
+.box {
+    fill: var(--navy);
+    stroke: var(--line);
+}
+.device {
+    fill: rgba(252, 248, 236, 0.025);
+    stroke: var(--line);
+    stroke-dasharray: 4 4;
+}
+.title {
+    fill: var(--ink);
+    font:
+        14px Arial,
+        sans-serif;
+}
+.detail {
+    fill: var(--soft);
+    font:
+        12px Arial,
+        sans-serif;
+}
+.transfer,
+.setup {
+    fill: none;
+    stroke-width: 1.5;
+    marker-start: url(#architecture-arrow);
+    marker-end: url(#architecture-arrow);
+}
+.transfer {
+    stroke: var(--coral);
+}
+.setup {
+    stroke: var(--soft);
+    stroke-dasharray: 5 5;
+}
+.figure figcaption,
+.clientFigure figcaption {
+    color: var(--soft);
+    font-size: 13px;
+    line-height: 1.7;
+    margin-top: 14px;
+}
+.clientFigure {
+    margin: 26px 0;
+}
+.clientNode {
+    text-align: center;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(252, 248, 236, 0.025);
+}
+.clientNode strong {
+    display: block;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 400;
+}
+.clientNode span {
+    display: block;
+    margin-top: 4px;
+    color: var(--soft);
+    font-size: 12px;
+}
+.connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 0;
+    color: var(--soft);
+    font-size: 11px;
+}
+.connector span {
+    color: var(--coral);
+    font-size: 20px;
+}

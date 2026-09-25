@@ -1,0 +1,59 @@
+name: Report a problem
+description: Report a reproducible problem in Cryptex Vault, its documentation, or its deployment files.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [existing issues](https://github.com/CryptexIndustries/vault-web/issues) first. For questions and ideas, use [GitHub Discussions](https://github.com/CryptexIndustries/vault-web/discussions).
+        Report security vulnerabilities privately using the [security policy](https://cryptex-vault.com/security/responsible-disclosure). Do not include passwords, recovery codes, vault files, tokens, or personal data in this issue.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did it happen?
+      options:
+        - Web app
+        - Website
+        - Chromium Extension
+        - Self-hosted deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Describe the problem and any error message you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Give the smallest set of steps you can. If it happens intermittently, describe when it last happened and how often.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Include what you know, such as release or commit, browser, operating system, and deployment method.
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Remove secrets, vault contents, private URLs, and personal information first.
+    validations:
+      required: false

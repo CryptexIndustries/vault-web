@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { useAtomValue, useSetAtom } from "jotai";
@@ -39,6 +39,11 @@ import {
 } from "src/app_lib/auth-session";
 import { onlineServicesLog } from "src/utils/logging";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
+import {
+    consumePurchasePlanUrl,
+    readPurchasePlan,
+    type PurchasePlan,
+} from "@/utils/purchase-onboarding";
 
 dayjs.extend(RelativeTime);
 
@@ -46,6 +51,15 @@ const AppIndex: React.FC = () => {
     const isVaultUnlocked = useAtomValue(isVaultUnlockedAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
+    const [purchasePlan, setPurchasePlan] = useState<PurchasePlan | null>(null);
+
+    useEffect(() => {
+        if (isCloudServicesEnabled()) {
+            setPurchasePlan(readPurchasePlan(window.location.search));
+        } else {
+            consumePurchasePlanUrl();
+        }
+    }, []);
 
     // Register the beforeunload event handler
     useEffect(() => {
@@ -246,6 +260,7 @@ const AppIndex: React.FC = () => {
                         <>
                             <div className="flex grow flex-col items-center justify-center">
                                 <VaultManager
+                                    purchasePlan={purchasePlan}
                                     tryDecryptVaultCallback={tryVaultDecrypt}
                                     tryCreateVaultCallback={tryCreateVault}
                                     finalizeVaultUnlockCallback={
@@ -258,7 +273,12 @@ const AppIndex: React.FC = () => {
                     )
                 }
 
-                {isVaultUnlocked && <VaultDashboard />}
+                {isVaultUnlocked && (
+                    <VaultDashboard
+                        purchasePlan={purchasePlan}
+                        onPurchaseConsumed={() => setPurchasePlan(null)}
+                    />
+                )}
             </HTMLMain>
         </>
     );

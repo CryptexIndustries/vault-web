@@ -105,6 +105,10 @@ import {
     WebRTCStatus,
 } from "@cryptex-industries/vault-core/synchronization-utils";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
+import {
+    consumePurchasePlanUrl,
+    type PurchasePlan,
+} from "@/utils/purchase-onboarding";
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
 
@@ -386,7 +390,13 @@ function useIsDesktop() {
     return isDesktop;
 }
 
-export function VaultDashboard() {
+export function VaultDashboard({
+    purchasePlan,
+    onPurchaseConsumed,
+}: {
+    purchasePlan?: PurchasePlan | null;
+    onPurchaseConsumed?: () => void;
+}) {
     const isDesktop = useIsDesktop();
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     /** Session + remote flags live in `onlineServicesStore` (same store tRPC / auth-session use). */
@@ -426,6 +436,16 @@ export function VaultDashboard() {
     const [isVaultSettingsOpen, setIsVaultSettingsOpen] = useState(false);
     const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
     const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+    useEffect(() => {
+        if (!purchasePlan || !cloudServicesEnabled) return;
+        consumePurchasePlanUrl();
+        setIsAccountDialogOpen(true);
+    }, [purchasePlan, cloudServicesEnabled]);
+
+    const handleAccountDialogOpenChange = (nextOpen: boolean) => {
+        setIsAccountDialogOpen(nextOpen);
+        if (!nextOpen && purchasePlan) onPurchaseConsumed?.();
+    };
     const [deviceRequest, setDeviceRequest] = useState<{
         localId?: string;
         token: number;
@@ -1121,7 +1141,10 @@ export function VaultDashboard() {
         !!remoteOnlineServicesData &&
         !remoteOnlineServicesData.canLink;
     const showSubscriptionCta =
-        cloudServicesEnabled && (!hasOnlineAuth || isFreeOnlineServicesTier);
+        cloudServicesEnabled &&
+        !purchasePlan &&
+        !isAccountDialogOpen &&
+        (!hasOnlineAuth || isFreeOnlineServicesTier);
     const subscriptionCtaVariant = isFreeOnlineServicesTier
         ? "upgrade"
         : onlineServicesBound
@@ -1690,7 +1713,9 @@ export function VaultDashboard() {
             />
             <AccountDialog
                 open={isAccountDialogOpen}
-                onOpenChange={setIsAccountDialogOpen}
+                onOpenChange={handleAccountDialogOpenChange}
+                purchasePlan={purchasePlan}
+                onPurchaseConsumed={onPurchaseConsumed}
                 deviceControls={deviceControls}
                 deviceRequest={deviceRequest}
             />
@@ -1719,7 +1744,7 @@ export function VaultDashboard() {
             <LogInspectorDialog showDialogFnRef={showLogInspectorDialogRef} />
             <WarningDialog showFnRef={showWarningDialogFnRef} />
             {/* TODO: Remove VaultMigrationNoticeDialog after December 31, 2026. */}
-            <VaultMigrationNoticeDialog />
+            {!isAccountDialogOpen && <VaultMigrationNoticeDialog />}
             <KeyboardShortcutsDialog
                 open={isKeyboardShortcutsOpen}
                 onOpenChange={setIsKeyboardShortcutsOpen}

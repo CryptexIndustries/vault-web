@@ -28,6 +28,10 @@ type AccountAuthProps = {
     registerPending: boolean;
     recoverPending: boolean;
     busy: boolean;
+    purchaseAutoRegister?: boolean;
+    registrationRetryRequired?: boolean;
+    registerChallengeKey?: number;
+    onRetryRegistration?: () => void;
 };
 
 export function AccountAuth({
@@ -46,6 +50,10 @@ export function AccountAuth({
     registerPending,
     recoverPending,
     busy,
+    purchaseAutoRegister,
+    registrationRetryRequired,
+    registerChallengeKey,
+    onRetryRegistration,
 }: AccountAuthProps) {
     return (
         <div className="space-y-5">
@@ -75,24 +83,45 @@ export function AccountAuth({
             {authMode === "register" ? (
                 <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        Create an Online Services account for sync, billing, and
-                        device linking. Keys stay in this vault.
+                        {purchaseAutoRegister
+                            ? "Completing verification creates an Online Services account for sync and billing. Your keys stay in this vault."
+                            : "Create an Online Services account for sync, billing, and device linking. Keys stay in this vault."}
                     </p>
                     <Turnstile
+                        key={registerChallengeKey}
                         siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                         options={{ action: "auth_register" }}
                         onSuccess={onRegisterCaptcha}
+                        onExpire={() => onRegisterCaptcha("")}
+                        onError={() => onRegisterCaptcha("")}
                     />
-                    <Button
-                        className="w-full sm:w-auto"
-                        onClick={onRegister}
-                        disabled={busy || !registerCaptcha}
-                    >
-                        {registerPending ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        Register & sign in
-                    </Button>
+                    {purchaseAutoRegister ? (
+                        registrationRetryRequired ? (
+                            <Button
+                                className="w-full sm:w-auto"
+                                onClick={onRetryRegistration}
+                                disabled={busy}
+                            >
+                                Retry with fresh verification
+                            </Button>
+                        ) : registerPending ? (
+                            <p className="flex items-center gap-2 text-sm">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Creating account...
+                            </p>
+                        ) : null
+                    ) : (
+                        <Button
+                            className="w-full sm:w-auto"
+                            onClick={onRegister}
+                            disabled={busy || !registerCaptcha}
+                        >
+                            {registerPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Register & sign in
+                        </Button>
+                    )}
                 </div>
             ) : (
                 <div className="space-y-4">

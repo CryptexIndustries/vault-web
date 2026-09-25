@@ -34,6 +34,7 @@ import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
 import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
 import { clearDeviceAdditionalKeyProtection } from "@/app_lib/vault-utils/vault-key-store";
+import type { PurchasePlan } from "@/utils/purchase-onboarding";
 
 type OperationStatus = {
     status: "idle" | "loading" | "success" | "error";
@@ -41,6 +42,7 @@ type OperationStatus = {
 };
 
 const VaultManager: React.FC<{
+    purchasePlan?: PurchasePlan | null;
     tryDecryptVaultCallback: (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
@@ -74,6 +76,7 @@ const VaultManager: React.FC<{
         formData: VaultRestoreFormSchema,
     ) => Promise<{ dbIndex: number } | false>;
 }> = ({
+    purchasePlan,
     tryDecryptVaultCallback,
     tryCreateVaultCallback,
     finalizeVaultUnlockCallback,
@@ -293,7 +296,12 @@ const VaultManager: React.FC<{
 
                     {/* Create Vault Tab */}
                     <TabsContent value="create">
-                        <CreateVaultTab executeCallback={createVaultCallback} />
+                        <CreateVaultTab
+                            executeCallback={createVaultCallback}
+                            suggestedName={
+                                purchasePlan ? "Main vault" : undefined
+                            }
+                        />
                     </TabsContent>
 
                     {/* Restore Vault Tab */}

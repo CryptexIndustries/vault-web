@@ -30,3 +30,15 @@ network after Playwright exits while preserving the test exit code.
 
 The suite deliberately uses the public UI and a fresh IndexedDB database. It
 does not seed vault state or enable test-only code in the web bundle.
+
+To run the purchase journey against a web server with Online Services enabled
+on port 3000:
+
+```sh
+E2E_BASE_URL=http://127.0.0.1:3000 E2E_EXTERNAL_SERVER=1 \
+  pnpm exec playwright test --config web/e2e/playwright.config.ts purchase-onboarding.spec.ts
+```
+
+This test uses a real browser and local vault creation. It intercepts the
+Online Services API on port 3001, Turnstile, and Stripe, so it creates no real
+account or checkout session.

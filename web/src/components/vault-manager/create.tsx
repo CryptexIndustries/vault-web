@@ -45,6 +45,7 @@ import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/im
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 
 const CreateVaultTab: React.FC<{
+    suggestedName?: string;
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
@@ -57,7 +58,7 @@ const CreateVaultTab: React.FC<{
               pendingUnlock: VaultPendingUnlock<VaultMetadata>;
           }
     >;
-}> = ({ executeCallback }) => {
+}> = ({ executeCallback, suggestedName }) => {
     const [additionalKeyProtectionChoice, setAdditionalKeyProtectionChoice] =
         useState<AdditionalKeyProtectionChoice>("none");
     const [additionalKeyProtectionSource, setAdditionalKeyProtectionSource] =
@@ -71,6 +72,7 @@ const CreateVaultTab: React.FC<{
         handleSubmit,
         register,
         setValue,
+        getValues,
         watch,
         formState: { errors, isSubmitting },
     } = useForm<NewVaultFormSchemaType & EncryptionFormGroupSchemaType>({
@@ -78,7 +80,7 @@ const CreateVaultTab: React.FC<{
             newVaultFormSchema.merge(encryptionFormGroupSchema),
         ),
         defaultValues: {
-            Name: "",
+            Name: suggestedName ?? "",
             Description: "",
             Secret: "",
             Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
@@ -90,6 +92,12 @@ const CreateVaultTab: React.FC<{
             },
         },
     });
+
+    useEffect(() => {
+        if (suggestedName && !getValues("Name")) {
+            setValue("Name", suggestedName);
+        }
+    }, [getValues, setValue, suggestedName]);
 
     const secret = watch("Secret");
     const memLimit = watch("EncryptionConfig.memLimit");

@@ -72,6 +72,7 @@ import {
 } from "./recovery-kit-utils";
 import type { AccountDialogProps, AccountDialogTab, AuthMode } from "./types";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
+import { PurchaseRegistrationGate } from "@/utils/purchase-onboarding";
 
 export {
     buildDeviceRelationshipMap,
@@ -81,6 +82,14 @@ export {
 export type { AccountDialogProps } from "./types";
 
 type AccountVaultMutation = (currentVault: Vault) => Vault | Promise<Vault>;
+type RegistrationKeyPair = { publicKey: string; privateKey: string };
+type PendingRegistration = {
+    deviceId: string;
+    userId: string;
+    publicKey: string;
+    privateKey: string;
+    bound: boolean;
+};
 
 async function persistAccountMutation(mutate: AccountVaultMutation) {
     const result = await persistVaultMutation(
@@ -105,6 +114,8 @@ async function persistAccountMutation(mutate: AccountVaultMutation) {
 export function AccountDialog({
     open,
     onOpenChange,
+    purchasePlan,
+    onPurchaseConsumed,
     deviceControls,
     deviceRequest,
 }: AccountDialogProps) {
@@ -125,6 +136,16 @@ export function AccountDialog({
     }, [open]);
     const [authMode, setAuthMode] = useState<AuthMode>("register");
     const [registerCaptcha, setRegisterCaptcha] = useState("");
+    const [registerChallengeKey, setRegisterChallengeKey] = useState(0);
+    const [registrationRetryRequired, setRegistrationRetryRequired] =
+        useState(false);
+    const [registrationSetupError, setRegistrationSetupError] = useState(false);
+    const [registrationSetupPending, setRegistrationSetupPending] =
+        useState(false);
+    const [recoveryRetryNeeded, setRecoveryRetryNeeded] = useState(false);
+    const [purchaseRecovery, setPurchaseRecovery] = useState<
+        "existing" | "needed" | "saved"
+    >("existing");
     const [recoverCaptcha, setRecoverCaptcha] = useState("");
     const [recoverUserId, setRecoverUserId] = useState("");
     const [recoverPhrase, setRecoverPhrase] = useState("");
@@ -152,6 +173,25 @@ export function AccountDialog({
 
     const checkoutFinalizeAbortRef = useRef<AbortController | null>(null);
     const recoveryGenerationStartedRef = useRef(false);
+    const recoveryOperationInFlightRef = useRef(false);
+    const registrationGateRef = useRef(new PurchaseRegistrationGate());
+    const bindingInFlightRef = useRef(false);
+    const purchaseActiveRef = useRef(false);
+    const registrationKeyPairRef = useRef<RegistrationKeyPair | null>(null);
+    const pendingRegistrationRef = useRef<PendingRegistration | null>(null);
+
+    useEffect(() => {
+        purchaseActiveRef.current = !!(open && purchasePlan);
+        if (open && purchasePlan) registrationGateRef.current.activate();
+    }, [open, purchasePlan]);
+
+    const changeOpen = (nextOpen: boolean) => {
+        if (!nextOpen) {
+            purchaseActiveRef.current = false;
+            registrationGateRef.current.cancel();
+        }
+        onOpenChange(nextOpen);
+    };
 
     useEffect(() => {
         if (!open) {
@@ -178,6 +218,7 @@ export function AccountDialog({
         if (recoveryKitFromRegistration) {
             toast.success("Account registered. Recovery Kit saved.");
             setRecoveryKitFromRegistration(false);
+            if (purchaseActiveRef.current) setPurchaseRecovery("saved");
         }
     };
 
@@ -198,12 +239,15 @@ export function AccountDialog({
             ? !!remoteConfig.recoveryTokenCreatedAt
             : !!onlineServicesData?.remoteData?.recoveryTokenCreatedAt;
 
-    const { data: subscription } = trpcReact.v1.payment.subscription.useQuery(
-        undefined,
-        {
-            enabled: open && hasSession && !!onlineServicesData?.remoteData,
-        },
-    );
+    const {
+        data: subscription,
+        isFetchedAfterMount: subscriptionFetchedAfterMount,
+        isFetching: subscriptionFetching,
+        isError: subscriptionError,
+    } = trpcReact.v1.payment.subscription.useQuery(undefined, {
+        enabled: open && hasSession && !!onlineServicesData?.remoteData,
+        refetchOnMount: "always",
+    });
 
     const trpcUtils = trpcReact.useUtils();
 
@@ -274,64 +318,100 @@ export function AccountDialog({
         await refetchConfig();
     };
 
-    const handleRegister = async () => {
-        if (!registerCaptcha.trim()) {
-            toast.error("Complete the captcha.");
-            return;
-        }
+    const finishRegistration = async () => {
+        const binding = pendingRegistrationRef.current;
+        if (!binding) return;
+        if (bindingInFlightRef.current) return;
+        bindingInFlightRef.current = true;
+        setRegistrationSetupPending(true);
         try {
-            const { publicKey, privateKey } = await generateKeyPair();
-            const pub = publicKeyJwkToString(publicKey);
-            const priv = privateKeyJwkToString(privateKey);
-
-            const { deviceId: serverDeviceId, userId } =
-                await registerMut.mutateAsync({
-                    publicKeyJWK: pub,
-                    captchaToken: registerCaptcha,
-                });
-
-            if (
-                await persistAccountMutation((currentVault) => {
+            if (!binding.bound) {
+                const saved = await persistAccountMutation((currentVault) => {
                     const next = Object.assign(new Vault(), currentVault);
                     Vault.bindOnlineServices(
                         next,
-                        new OnlineServices(serverDeviceId, userId, pub, priv),
+                        new OnlineServices(
+                            binding.deviceId,
+                            binding.userId,
+                            binding.publicKey,
+                            binding.privateKey,
+                        ),
                     );
                     return next;
-                })
-            ) {
-                setOnlineServicesData({
-                    deviceId: serverDeviceId,
-                    sessionToken: null,
-                    sessionExpiresAt: null,
-                    remoteData: null,
                 });
-                await establishPremiumSession({
-                    deviceId: serverDeviceId,
-                    privateKeyJWK: priv,
-                });
-                await persistSessionAndRefresh();
-                setRegisterCaptcha("");
-                try {
-                    const recovery = await genRecoveryMut.mutateAsync();
-                    await refetchConfig();
-                    showRecoveryKit(
-                        {
-                            userId: recovery.userId,
-                            recoveryPhrase: recovery.token,
-                        },
-                        { fromRegistration: true },
-                    );
-                } catch (recoveryError) {
-                    onlineServicesLog.error(
-                        "Recovery phrase generation failed after registration",
-                        { error: recoveryError },
-                    );
-                    toast.success(
-                        "Account registered. Generate a recovery phrase in Security.",
-                    );
+                if (!saved) {
+                    setRegistrationSetupError(true);
+                    return;
                 }
+                binding.bound = true;
             }
+            setOnlineServicesData({
+                deviceId: binding.deviceId,
+                sessionToken: null,
+                sessionExpiresAt: null,
+                remoteData: null,
+            });
+            await establishPremiumSession({
+                deviceId: binding.deviceId,
+                privateKeyJWK: binding.privateKey,
+            });
+            await persistSessionAndRefresh();
+            pendingRegistrationRef.current = null;
+            setRegistrationSetupError(false);
+            if (purchasePlan && !purchaseActiveRef.current) return;
+            await createRecoveryPackage("generate", "registration");
+        } catch (error) {
+            setRegistrationSetupError(true);
+            onlineServicesLog.error("Could not finish account setup", {
+                error,
+            });
+            toast.error(
+                "Account created, but setup did not finish. Retry account setup.",
+            );
+        } finally {
+            bindingInFlightRef.current = false;
+            setRegistrationSetupPending(false);
+        }
+    };
+
+    const handleRegister = async (captchaToken = registerCaptcha) => {
+        if (onlineServicesBound) return;
+        if (!captchaToken.trim()) {
+            toast.error("Complete the captcha.");
+            return;
+        }
+        if (!registrationGateRef.current.start(captchaToken, !!purchasePlan))
+            return;
+        setRegisterCaptcha("");
+        try {
+            // Reuse the public key so the API's unique constraint rejects a
+            // retry if the first request succeeded but its response was lost.
+            let keys = registrationKeyPairRef.current;
+            if (!keys) {
+                const { publicKey, privateKey } = await generateKeyPair();
+                keys = {
+                    publicKey: publicKeyJwkToString(publicKey),
+                    privateKey: privateKeyJwkToString(privateKey),
+                };
+                registrationKeyPairRef.current = keys;
+            }
+
+            const { deviceId: serverDeviceId, userId } =
+                await registerMut.mutateAsync({
+                    publicKeyJWK: keys.publicKey,
+                    captchaToken,
+                });
+            registrationGateRef.current.markRegistered();
+            if (purchasePlan) setPurchaseRecovery("needed");
+            pendingRegistrationRef.current = {
+                deviceId: serverDeviceId,
+                userId,
+                publicKey: keys.publicKey,
+                privateKey: keys.privateKey,
+                bound: false,
+            };
+            registrationKeyPairRef.current = null;
+            await finishRegistration();
         } catch (e) {
             onlineServicesLog.error(
                 "Online Services account registration failed",
@@ -340,6 +420,13 @@ export function AccountDialog({
             toast.error(
                 e instanceof Error ? e.message : "Registration failed.",
             );
+            if (purchasePlan && purchaseActiveRef.current) {
+                setRegistrationRetryRequired(true);
+            } else if (!purchasePlan) {
+                setRegisterChallengeKey((key) => key + 1);
+            }
+        } finally {
+            registrationGateRef.current.finish();
         }
     };
 
@@ -504,34 +591,63 @@ export function AccountDialog({
 
     const createRecoveryPackage = async (
         mode: "generate" | "rotate" = "generate",
+        origin: "account" | "registration" = "account",
     ) => {
+        if (recoveryOperationInFlightRef.current) return;
+        recoveryOperationInFlightRef.current = true;
         try {
             const res =
                 mode === "rotate"
                     ? await rotateRecoveryMut.mutateAsync()
                     : await genRecoveryMut.mutateAsync();
             if (mode === "rotate") setRotateRecoveryOpen(false);
-            showRecoveryKit({
-                userId: res.userId,
-                recoveryPhrase: res.token,
-            });
-            await Promise.all([
+            setRecoveryRetryNeeded(false);
+            showRecoveryKit(
+                { userId: res.userId, recoveryPhrase: res.token },
+                { fromRegistration: origin === "registration" },
+            );
+            void Promise.all([
                 syncOnlineServicesRemoteConfiguration(),
                 refetchConfig(),
-            ]);
-        } catch (e) {
-            toast.error(
-                e instanceof Error
-                    ? e.message
-                    : mode === "rotate"
-                      ? "Could not rotate the Recovery Kit."
-                      : "Could not generate a Recovery Kit.",
+            ]).catch((error) =>
+                onlineServicesLog.error("Could not refresh recovery status", {
+                    error,
+                }),
             );
+        } catch (e) {
+            if (
+                origin === "registration" &&
+                purchasePlan &&
+                purchaseActiveRef.current
+            ) {
+                setRecoveryRetryNeeded(true);
+                toast.error("Account created. Recovery Kit generation failed.");
+            } else if (origin === "registration") {
+                toast.success(
+                    "Account registered. Generate a recovery phrase in Security.",
+                );
+            } else {
+                toast.error(
+                    e instanceof Error
+                        ? e.message
+                        : mode === "rotate"
+                          ? "Could not rotate the Recovery Kit."
+                          : "Could not generate a Recovery Kit.",
+                );
+            }
+        } finally {
+            recoveryOperationInFlightRef.current = false;
         }
     };
 
     useEffect(() => {
-        if (!hasSession || !recoveryGenerationNeeded) {
+        if (
+            !open ||
+            !hasSession ||
+            !recoveryGenerationNeeded ||
+            !!purchasePlan ||
+            purchaseRecovery !== "existing"
+        ) {
             recoveryGenerationStartedRef.current = false;
             return;
         }
@@ -541,7 +657,14 @@ export function AccountDialog({
         recoveryGenerationStartedRef.current = true;
         void createRecoveryPackage();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasSession, recoveryGenerationNeeded, recoveryKitOpen]);
+    }, [
+        open,
+        hasSession,
+        recoveryGenerationNeeded,
+        recoveryKitOpen,
+        purchasePlan,
+        purchaseRecovery,
+    ]);
 
     const busy =
         registerMut.isPending ||
@@ -606,7 +729,7 @@ export function AccountDialog({
 
     return (
         <>
-            <Dialog open={open} onOpenChange={onOpenChange}>
+            <Dialog open={open} onOpenChange={changeOpen}>
                 <DialogContent
                     className={cn(
                         "grid max-h-[min(90vh,100dvh)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0",
@@ -665,29 +788,107 @@ export function AccountDialog({
                             </TabsList>
 
                             <TabsContent value="account">
+                                {registrationSetupError &&
+                                    pendingRegistrationRef.current && (
+                                        <div className="mb-4 space-y-2 rounded-md border border-amber-500 p-3 text-sm">
+                                            <p>
+                                                Your Online Services account was
+                                                created, but setup didn&apos;t
+                                                finish. You can keep using this
+                                                vault.
+                                            </p>
+                                            <Button
+                                                onClick={() =>
+                                                    void finishRegistration()
+                                                }
+                                                disabled={
+                                                    registrationSetupPending
+                                                }
+                                            >
+                                                Retry account setup
+                                            </Button>
+                                        </div>
+                                    )}
                                 {onlineServicesBound ? (
-                                    <AccountSummary
-                                        tierName={tierName}
-                                        subscriptionStatus={subscriptionStatus}
-                                        subscription={subscription}
-                                        remoteConfig={remoteConfig}
-                                        hasSession={hasSession}
-                                        deviceId={currentServerDeviceId}
-                                        userId={userId}
-                                        onlineServicesBound={
-                                            onlineServicesBound
-                                        }
-                                        isConnected={isConnected}
-                                        onCheckoutComplete={() =>
-                                            void handleCheckoutComplete()
-                                        }
-                                    />
-                                ) : (
+                                    <>
+                                        {recoveryRetryNeeded &&
+                                            purchasePlan && (
+                                                <div className="mb-4 space-y-2 rounded-md border border-amber-500 p-3 text-sm">
+                                                    <p>
+                                                        We couldn&apos;t
+                                                        generate your Recovery
+                                                        Kit. Retry and save it
+                                                        before checkout.
+                                                    </p>
+                                                    <Button
+                                                        onClick={() =>
+                                                            void createRecoveryPackage(
+                                                                "generate",
+                                                                "registration",
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            genRecoveryMut.isPending
+                                                        }
+                                                    >
+                                                        Retry Recovery Kit
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        <AccountSummary
+                                            tierName={tierName}
+                                            subscriptionStatus={
+                                                subscriptionStatus
+                                            }
+                                            subscription={subscription}
+                                            subscriptionReady={
+                                                subscriptionFetchedAfterMount &&
+                                                !subscriptionFetching &&
+                                                !subscriptionError
+                                            }
+                                            remoteConfig={remoteConfig}
+                                            hasSession={hasSession}
+                                            deviceId={currentServerDeviceId}
+                                            userId={userId}
+                                            onlineServicesBound={
+                                                onlineServicesBound
+                                            }
+                                            isConnected={isConnected}
+                                            onCheckoutComplete={() =>
+                                                void handleCheckoutComplete()
+                                            }
+                                            checkoutPlan={
+                                                purchaseRecovery === "needed"
+                                                    ? null
+                                                    : purchasePlan
+                                            }
+                                            checkoutBlocked={
+                                                !!purchasePlan &&
+                                                purchaseRecovery === "needed"
+                                            }
+                                            onPurchaseHandled={
+                                                onPurchaseConsumed
+                                            }
+                                        />
+                                    </>
+                                ) : pendingRegistrationRef.current ? null : (
                                     <AccountAuth
                                         authMode={authMode}
                                         onAuthModeChange={setAuthMode}
                                         registerCaptcha={registerCaptcha}
-                                        onRegisterCaptcha={setRegisterCaptcha}
+                                        onRegisterCaptcha={(token) => {
+                                            if (purchasePlan) {
+                                                if (
+                                                    token &&
+                                                    purchaseActiveRef.current &&
+                                                    registrationGateRef.current.canAutoRegister()
+                                                ) {
+                                                    void handleRegister(token);
+                                                }
+                                            } else {
+                                                setRegisterCaptcha(token);
+                                            }
+                                        }}
                                         recoverCaptcha={recoverCaptcha}
                                         onRecoverCaptcha={setRecoverCaptcha}
                                         recoverUserId={recoverUserId}
@@ -699,6 +900,23 @@ export function AccountDialog({
                                         registerPending={registerMut.isPending}
                                         recoverPending={recoverMut.isPending}
                                         busy={busy}
+                                        purchaseAutoRegister={!!purchasePlan}
+                                        registrationRetryRequired={
+                                            registrationRetryRequired
+                                        }
+                                        registerChallengeKey={
+                                            registerChallengeKey
+                                        }
+                                        onRetryRegistration={() => {
+                                            setRegistrationRetryRequired(false);
+                                            if (
+                                                registrationGateRef.current.retryWithFreshVerification()
+                                            ) {
+                                                setRegisterChallengeKey(
+                                                    (key) => key + 1,
+                                                );
+                                            }
+                                        }}
                                     />
                                 )}
                             </TabsContent>

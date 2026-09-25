@@ -725,7 +725,9 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         Your vault stays yours. We run the supporting
                         infrastructure.
                     </p>
-                    <Action href="/app">Review plans in the vault</Action>
+                    <Action href={`/app?plan=${annual ? "yearly" : "monthly"}`}>
+                        Continue with {annual ? "yearly" : "monthly"} plan
+                    </Action>
                     <small className={s.purchaseNote}>
                         New to Online Services? Start with monthly billing
                         before committing to a year.

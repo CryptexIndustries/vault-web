@@ -15,6 +15,7 @@ import {
 import { unlockedVaultMetadataAtom } from "@/utils/atoms";
 import {
     isVaultMigrationNoticeAcknowledged,
+    needsVaultMigrationNotice,
     rememberVaultMigrationNoticeAcknowledged,
 } from "@/utils/vault-migration-notice-storage";
 
@@ -22,19 +23,20 @@ import {
 export function VaultMigrationNoticeDialog() {
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const dbIndex = vaultMetadata?.DBIndex;
+    const createdAt = vaultMetadata?.CreatedAt;
 
     const [open, setOpen] = useState(false);
     const [acknowledged, setAcknowledged] = useState(false);
 
     useEffect(() => {
-        if (dbIndex == null) {
+        if (dbIndex == null || !needsVaultMigrationNotice(createdAt)) {
             setOpen(false);
             return;
         }
 
         setAcknowledged(false);
         setOpen(!isVaultMigrationNoticeAcknowledged(dbIndex));
-    }, [dbIndex]);
+    }, [dbIndex, createdAt]);
 
     const handleContinue = () => {
         if (dbIndex != null) {

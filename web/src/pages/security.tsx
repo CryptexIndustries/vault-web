@@ -36,10 +36,10 @@ const SecurityPolicy: NextPage = () => {
                             <p className="pt-2 text-justify">
                                 Email{" "}
                                 <a
-                                    href="mailto:security@cryptexindustries.com"
+                                    href="mailto:security@cryptex-vault.com"
                                     className="font-bold underline"
                                 >
-                                    security@cryptexindustries.com
+                                    security@cryptex-vault.com
                                 </a>
                                 . Do not open a public GitHub issue for security
                                 vulnerabilities.
@@ -47,7 +47,7 @@ const SecurityPolicy: NextPage = () => {
                             <p className="pt-2 text-justify">
                                 Prefer encrypted mail. Download our{" "}
                                 <Link
-                                    href="/security/publickey.security@cryptexindustries.com.asc"
+                                    href="/security/publickey.security@cryptex-vault.com.asc"
                                     className="font-bold underline"
                                 >
                                     PGP public key
@@ -55,8 +55,8 @@ const SecurityPolicy: NextPage = () => {
                                 . Fingerprint:
                             </p>
                             <p className="break-all pt-2 font-mono text-sm">
-                                3560 85F2 EC1F 7ED0 723A CB4A EEE2 3909 90F4
-                                6ACF
+                                732E 0452 ECFC 9975 43D0 5469 3D03 FF8D 6356
+                                96EA
                             </p>
                             <p className="pt-2 text-justify">
                                 You should receive a first response within 3
@@ -213,10 +213,10 @@ const SecurityPolicy: NextPage = () => {
                                 Cryptex Industries d.o.o.
                                 <br />
                                 <a
-                                    href="mailto:security@cryptexindustries.com"
+                                    href="mailto:security@cryptex-vault.com"
                                     className="font-bold underline"
                                 >
-                                    security@cryptexindustries.com
+                                    security@cryptex-vault.com
                                 </a>
                             </p>
                             <p className="pt-4 text-sm text-slate-400">

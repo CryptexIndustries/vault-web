@@ -150,7 +150,7 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
             return false;
         }
 
-        // Revoked access JWTs may still be within expiry — rotate via refresh first.
+        // Revoked access JWTs may still be within expiry - rotate via refresh first.
         if (await refreshOnlineServicesSession()) {
             return true;
         }

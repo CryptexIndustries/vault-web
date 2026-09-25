@@ -44,7 +44,7 @@ export function RecoveryKitDialog({
     kit,
     onComplete,
     title = "Save your Recovery Kit",
-    description = "Without your User ID and recovery phrase you cannot recover your Online Services account. Store them offline — this is the only time the phrase is shown.",
+    description = "Without your User ID and recovery phrase you cannot recover your Online Services account. Store them offline - this is the only time the phrase is shown.",
 }: RecoveryKitDialogProps) {
     const [acknowledged, setAcknowledged] = useState(false);
     const [savedActionTaken, setSavedActionTaken] = useState(false);

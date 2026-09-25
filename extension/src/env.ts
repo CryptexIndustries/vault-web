@@ -70,7 +70,7 @@ export const env = {
     NEXT_PUBLIC_PUSHER_APP_TLS:
         (e.VITE_PUSHER_APP_TLS ?? "false").toLowerCase() === "true",
 
-    /** Optional Cryptex Cloud API origin (tRPC). Defaults to app URL. */
+    /** Optional Cryptex Vault Cloud API origin (tRPC). Defaults to app URL. */
     NEXT_PUBLIC_ONLINE_SERVICES_API_URL: e.VITE_ONLINE_SERVICES_API_URL ?? "",
 
     /** When false, online-services UI and tRPC calls are disabled. */

@@ -459,7 +459,7 @@ function emitFieldDetectionDiagnostics(
     ).length;
 
     console.groupCollapsed(
-        `[Cryptex autofill] field scan: ${iconCount} icon(s), ` +
+        `[Cryptex Vault autofill] field scan: ${iconCount} icon(s), ` +
             `${accepted.length - iconCount} accepted without icon, ` +
             `${rejected.length} rejected`,
     );

@@ -154,7 +154,7 @@ function ReuseFinding({
     group?: SecurityFindingIdentity[];
 }) {
     if (!group || group.length < 2) {
-        return <span className="text-xs text-foreground/60">—</span>;
+        return <span className="text-xs text-foreground/60">-</span>;
     }
 
     const otherCount = group.length - 1;
@@ -186,7 +186,7 @@ function ReuseFinding({
                             return null;
                         const context = [credential.username, credential.domain]
                             .filter(Boolean)
-                            .join(" · ");
+                            .join(" - ");
 
                         return (
                             <div
@@ -219,7 +219,7 @@ function SecurityFindingGridRow({
     onEditCredential: (credentialId: string) => void;
     onOpenCredentialUrl: (credentialId: string) => void;
 }) {
-    const context = [row.username, row.domain].filter(Boolean).join(" · ");
+    const context = [row.username, row.domain].filter(Boolean).join(" - ");
 
     return (
         <div className="border-b border-border px-3 py-3 sm:px-4">
@@ -241,7 +241,7 @@ function SecurityFindingGridRow({
                 />
                 <span className="text-sm text-foreground/75">
                     {row.passwordAgeDays === undefined
-                        ? "—"
+                        ? "-"
                         : formatPasswordAge(row.passwordAgeDays)}
                 </span>
                 <div className="flex items-center justify-end gap-1">

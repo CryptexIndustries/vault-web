@@ -835,19 +835,29 @@ export function DeviceSidebar({
                                 </Tooltip>
                                 <DropdownMenuContent
                                     align="end"
-                                    className="w-52"
+                                    className="w-80 max-w-[calc(100vw-2rem)]"
                                     // Avoid focus moving back to the trigger while we open a Dialog; fights Radix focus/scroll-lock.
                                     onCloseAutoFocus={(e) => e.preventDefault()}
                                 >
                                     <DropdownMenuItem
                                         onSelect={onCreateInvitation}
+                                        className="flex-col items-start gap-0.5 py-2"
                                     >
-                                        Send link request
+                                        <span>Create invitation</span>
+                                        <span className="text-xs leading-relaxed text-muted-foreground">
+                                            Show a QR code or save an invitation
+                                            file.
+                                        </span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                         onSelect={onReceiveInvitation}
+                                        className="flex-col items-start gap-0.5 py-2"
                                     >
-                                        Receive link request
+                                        <span>Use invitation</span>
+                                        <span className="text-xs leading-relaxed text-muted-foreground">
+                                            Scan a QR code or open an invitation
+                                            file.
+                                        </span>
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>

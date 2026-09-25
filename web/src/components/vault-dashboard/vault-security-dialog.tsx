@@ -523,6 +523,17 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                 </DialogHeader>
 
                 <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+                    <Alert>
+                        <AlertDescription className="text-xs">
+                            Changing your master password, additional key
+                            protection, or recovery code does not update
+                            existing backups. Older copies still use their
+                            original password, protection, and recovery code.
+                            Download and check a fresh backup after saving
+                            changes, then remove older copies you no longer
+                            need, including managed backups.
+                        </AlertDescription>
+                    </Alert>
                     {!isEnvelope && (
                         <Alert>
                             <AlertDescription className="text-xs">

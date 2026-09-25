@@ -9,7 +9,7 @@ import { ONLINE_SERVICES_SELECTION_ID } from "@/utils/consts";
  * and no STUN server is therefore spec-valid. STUN is optional in both modes.
  *
  * In non-cloud mode a custom TURN server is required because the runtime
- * (`initWebRTC`) falls back to Cryptex Online Services for relay credentials
+ * (`initWebRTC`) falls back to Online Services for relay credentials
  * when no custom TURN server is configured, which is unavailable when Online
  * Services is not bound.
  */

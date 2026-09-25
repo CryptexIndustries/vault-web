@@ -17,9 +17,9 @@ export function SubscriptionLegalNotice({
                 className,
             )}
         >
-            Premium is a recurring subscription that auto-renews each billing
-            period until you cancel. You will be charged the price shown at
-            checkout. Cancel anytime from{" "}
+            Online Services is a recurring subscription that auto-renews each
+            billing period until you cancel. You will be charged the price shown
+            at checkout. Cancel anytime from{" "}
             <span className="font-medium text-foreground">Manage billing</span>{" "}
             (Stripe Customer Portal). Payment processing is handled by{" "}
             <a

@@ -1,5 +1,5 @@
 /**
- * WebAuthn/CTAP protocol encoding for Cryptex's software authenticator.
+ * WebAuthn/CTAP protocol encoding for Cryptex Vault's software authenticator.
  *
  * These byte layouts are required by WebAuthn; they are not an extension-side
  * wire format we control. Keep them isolated from UI and vault orchestration.
@@ -275,7 +275,7 @@ export async function buildRegistrationAuthenticatorData({
     const flags = encodeAuthenticatorFlags({
         userPresent: true,
         userVerified,
-        // Cryptex passkeys live in the encrypted vault saved on the user's device.
+        // Cryptex Vault passkeys live in the encrypted vault saved on the user's device.
         backupEligible: true,
         backedUp: true,
         includesAttestedCredentialData: true,

@@ -2,7 +2,7 @@ import { env } from "../env";
 import { buildTrpcUrl } from "@cryptex-industries/api-contract";
 
 /**
- * Base URL for Cryptex Cloud tRPC. Uses VITE_ONLINE_SERVICES_API_URL when set,
+ * Base URL for Cryptex Vault Cloud tRPC. Uses VITE_ONLINE_SERVICES_API_URL when set,
  * otherwise the web app URL (same-origin combined deploy).
  */
 export function getExtensionOnlineServicesApiBaseUrl(): string {

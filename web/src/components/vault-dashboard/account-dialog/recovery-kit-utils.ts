@@ -36,7 +36,7 @@ export function buildRecoveryKitCopyText(
     recoveryPhrase: string,
 ): string {
     return [
-        "Cryptex Vault — Online Services Recovery Kit",
+        "Cryptex Vault - Online Services Recovery Kit",
         "",
         "Store offline. Recovery requires BOTH fields below.",
         "",

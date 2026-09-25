@@ -83,8 +83,8 @@ function buildLockedPerks(
 
     if (!remoteConfig?.canLink) {
         perks.push({
-            label: "Online Services sync",
-            detail: "Upgrade to unlock encrypted synchronization.",
+            label: "Managed sync infrastructure",
+            detail: "Use managed signaling and relay infrastructure.",
         });
     }
     if (!canLinkDevices) {

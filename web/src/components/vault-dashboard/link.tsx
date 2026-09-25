@@ -522,7 +522,7 @@ function ServerSelect({
                         placeholder={
                             cloudServicesEnabled &&
                             value === ONLINE_SERVICES_SELECTION_ID
-                                ? "Cryptex Online Services"
+                                ? "Online Services"
                                 : servers.length > 0
                                   ? undefined
                                   : "No servers configured"
@@ -532,7 +532,7 @@ function ServerSelect({
                 <SelectContent>
                     {cloudServicesEnabled ? (
                         <SelectItem value={ONLINE_SERVICES_SELECTION_ID}>
-                            Cryptex Online Services
+                            Online Services
                         </SelectItem>
                     ) : null}
                     {servers.map((server) => (
@@ -569,7 +569,7 @@ function ServerMultiSelect({
     const usesOnlineServices =
         cloudServicesEnabled && value.includes(ONLINE_SERVICES_SELECTION_ID);
     const selectedLabel = usesOnlineServices
-        ? "Cryptex Online Services"
+        ? "Online Services"
         : selectedServers.length === 1
           ? selectedServers[0]?.Name ||
             selectedServers[0]?.Host ||
@@ -577,7 +577,7 @@ function ServerMultiSelect({
           : selectedServers.length > 1
             ? `${selectedServers.length} servers selected`
             : cloudServicesEnabled
-              ? "Cryptex Online Services"
+              ? "Online Services"
               : selectedServers.length === 0
                 ? "Select servers"
                 : "Unnamed server";
@@ -631,7 +631,7 @@ function ServerMultiSelect({
                             }
                             onSelect={(event) => event.preventDefault()}
                         >
-                            Cryptex Online Services
+                            Online Services
                         </DropdownMenuCheckboxItem>
                     ) : null}
                     {servers.map((server) => (
@@ -1787,11 +1787,11 @@ export function SendLinkRequestDialog({
             return;
         }
         if (onlineServicesIssue === "signin") {
-            setFormError("Sign in to use Cryptex Online Services.");
+            setFormError("Sign in to use Online Services.");
             return;
         }
         if (onlineServicesIssue === "upgrade") {
-            setFormError("Upgrade to use Cryptex Online Services for linking.");
+            setFormError("Upgrade to use Online Services for linking.");
             return;
         }
         if (onlineServicesIssue === "plan-sync") {
@@ -2099,7 +2099,7 @@ export function SendLinkRequestDialog({
                                         <Alert variant="destructive">
                                             <ShieldCheck className="h-4 w-4" />
                                             <AlertTitle>
-                                                Cryptex Online Services
+                                                Online Services
                                             </AlertTitle>
                                             <AlertDescription className="space-y-3">
                                                 <p>
@@ -3831,10 +3831,9 @@ function countLabel(count: number, singular: string) {
 
 function EmptyServerState({ kind }: { kind: ServerKind }) {
     const labels: Record<ServerKind, string> = {
-        stun: "No custom STUN servers. Vault uses Cryptex Online Services.",
-        turn: "No custom TURN servers. Vault uses Cryptex Online Services.",
-        signaling:
-            "No custom signaling servers. Vault uses Cryptex Online Services.",
+        stun: "No custom STUN servers. Vault uses Online Services.",
+        turn: "No custom TURN servers. Vault uses Online Services.",
+        signaling: "No custom signaling servers. Vault uses Online Services.",
     };
 
     return (
@@ -4004,7 +4003,7 @@ export function VaultSignalingConfigDialog({
                     <DialogDescription>
                         Configure custom signaling, STUN, and TURN servers for
                         device linking and synchronization. Leave sections empty
-                        to use Cryptex Online Services.
+                        to use Online Services.
                     </DialogDescription>
                 </DialogHeader>
 

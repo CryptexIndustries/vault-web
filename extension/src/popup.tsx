@@ -505,7 +505,7 @@ const App = () => {
                             }}
                         >
                             <Link2 className="mr-1 h-3.5 w-3.5" />
-                            Link this device
+                            Use invitation
                         </Button>
                         <p className="text-[10px] text-muted-foreground">
                             Once the linked vault is saved, this popup will

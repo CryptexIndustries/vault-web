@@ -151,8 +151,12 @@ const CreateVaultTab: React.FC<{
                 </div>
 
                 <div className="space-y-2">
+                    <Label htmlFor="secret-key">
+                        Master password (secret key)
+                    </Label>
                     <FormInput
                         id="secret-key"
+                        aria-describedby="new-vault-password-help"
                         type="password"
                         placeholder="Enter your secret key"
                         className="pr-10"
@@ -170,6 +174,14 @@ const CreateVaultTab: React.FC<{
                             {errors.Secret.message}
                         </p>
                     )}
+                    <p
+                        id="new-vault-password-help"
+                        className="text-sm text-muted-foreground"
+                    >
+                        Choose the password you’ll use to unlock this vault. The
+                        app calls it your secret key. It is separate from the
+                        recovery information you’ll save after creation.
+                    </p>
                     <PasswordStrengthMeter password={secret} />
                 </div>
 
@@ -245,6 +257,13 @@ const CreateVaultTab: React.FC<{
                                 Encryption Configuration
                             </AccordionTrigger>
                             <AccordionContent className="space-y-4 px-4 pb-4">
+                                <p className="text-sm text-muted-foreground">
+                                    These advanced settings control the memory
+                                    and work used to derive a key from your
+                                    password. Keep the defaults unless you
+                                    understand the tradeoff between unlock speed
+                                    and resistance to password guessing.
+                                </p>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="memory-limit">

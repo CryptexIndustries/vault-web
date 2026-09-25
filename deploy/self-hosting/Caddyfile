@@ -1,0 +1,25 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$VAULT_DOMAIN} {
+	reverse_proxy web:3000
+}
+
+{$SIGNAL_DOMAIN} {
+	# Only the WebSocket endpoint is public, not Soketi's publishing API.
+	@websocket path /app/*
+	reverse_proxy @websocket soketi:6001
+	respond 404
+}
+
+# Certbot HTTP-01 validation only. TURN TLS terminates in coturn on 5349.
+http://{$TURN_DOMAIN} {
+	handle /.well-known/acme-challenge/* {
+		root * /var/www/acme
+		file_server
+	}
+	handle {
+		respond 404
+	}
+}

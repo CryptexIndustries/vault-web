@@ -12,6 +12,7 @@ export type AccountDialogProps = {
         section?: "remove";
     };
     onOpenChange: (open: boolean) => void;
+    onRegistered: () => void;
 };
 
 export type AccountDialogTab = "account" | "devices" | "security";

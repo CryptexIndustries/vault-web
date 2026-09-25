@@ -116,6 +116,7 @@ export function AccountDialog({
     onOpenChange,
     purchasePlan,
     onPurchaseConsumed,
+    onRegistered,
     deviceControls,
     deviceRequest,
 }: AccountDialogProps) {
@@ -344,6 +345,7 @@ export function AccountDialog({
                     return;
                 }
                 binding.bound = true;
+                onRegistered();
             }
             setOnlineServicesData({
                 deviceId: binding.deviceId,

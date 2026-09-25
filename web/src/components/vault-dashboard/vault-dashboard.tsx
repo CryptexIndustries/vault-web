@@ -436,6 +436,10 @@ export function VaultDashboard({
     const [isVaultSettingsOpen, setIsVaultSettingsOpen] = useState(false);
     const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
     const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+    const [
+        deferSubscriptionCtaUntilNextUnlock,
+        setDeferSubscriptionCtaUntilNextUnlock,
+    ] = useState(false);
     useEffect(() => {
         if (!purchasePlan || !cloudServicesEnabled) return;
         consumePurchasePlanUrl();
@@ -1140,11 +1144,14 @@ export function VaultDashboard({
         hasOnlineAuth &&
         !!remoteOnlineServicesData &&
         !remoteOnlineServicesData.canLink;
-    const showSubscriptionCta =
-        cloudServicesEnabled &&
-        !purchasePlan &&
-        !isAccountDialogOpen &&
-        (!hasOnlineAuth || isFreeOnlineServicesTier);
+    const showSubscriptionCta = (() => {
+        if (!cloudServicesEnabled) return false;
+        if (purchasePlan) return false;
+        if (isAccountDialogOpen) return false;
+        if (deferSubscriptionCtaUntilNextUnlock) return false;
+        if (!hasOnlineAuth) return true;
+        return isFreeOnlineServicesTier;
+    })();
     const subscriptionCtaVariant = isFreeOnlineServicesTier
         ? "upgrade"
         : onlineServicesBound
@@ -1716,6 +1723,9 @@ export function VaultDashboard({
                 onOpenChange={handleAccountDialogOpenChange}
                 purchasePlan={purchasePlan}
                 onPurchaseConsumed={onPurchaseConsumed}
+                onRegistered={() =>
+                    setDeferSubscriptionCtaUntilNextUnlock(true)
+                }
                 deviceControls={deviceControls}
                 deviceRequest={deviceRequest}
             />

@@ -276,7 +276,7 @@ const faqs = [
 export default function Home() {
     return (
         <Site
-            title="Your password vault lives on your devices"
+            title="Cryptex Vault"
             description="A local-first password manager with browser autofill and peer-to-peer synchronization. Free forever, with optional Online Services."
         >
             <section className={s.hero}>

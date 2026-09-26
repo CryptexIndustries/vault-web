@@ -156,7 +156,11 @@ export function Site({
     return (
         <div className={`dark ${s.site}`}>
             <HTMLHeader
-                title={`${title} - Cryptex Vault`}
+                title={
+                    title === "Cryptex Vault"
+                        ? title
+                        : `${title} - Cryptex Vault`
+                }
                 description={description}
             />
             <a className={s.skip} href="#main">

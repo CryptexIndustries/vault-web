@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added sorting to the unlocked web vault credential list by name in either direction, recently updated, or newest created. The selected order is remembered in this browser.
 - Unified device management in Account and the vault sidebar. The Devices screen has a connection map, searchable list, link details, and separate actions for unlinking devices, removing an Online Services registration, and clearing a saved link. Custom-signaling links remain manageable without an Online Services session or root access.
 - Added Vault Security controls in the web app and Chromium extension for changing the master password and additional key protection, generating a new vault recovery code, and optionally rotating this device's vault encryption key. Key rotation generates a new recovery code and does not rotate linked-device keys. The web app can also set a new master password using the vault recovery code.
 - Security changes now queue a fresh managed backup when that service is enabled. An optional setting removes older account restore points, including linked-device snapshots, only after the replacement upload succeeds. Existing backups retain their original credentials, and downloaded backup files must still be managed separately.

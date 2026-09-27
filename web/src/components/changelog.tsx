@@ -47,6 +47,11 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "added",
                 description:
+                    "Sort vault credentials by name in either direction, recently updated, or newest created. The web app remembers your choice in this browser.",
+            },
+            {
+                type: "added",
+                description:
                     "Manage your linked devices from Account or the vault sidebar. A connection map and searchable list show each device and its links, including direct links that do not use Online Services.",
             },
             {

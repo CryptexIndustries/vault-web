@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Search,
     Plus,
@@ -15,6 +15,8 @@ import {
     LayoutList,
     Settings2,
     Fingerprint,
+    ArrowUpDown,
+    LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +83,53 @@ interface CredentialsListProps {
 }
 
 const MAX_VISIBLE_TAGS = 2;
+const SORT_STORAGE_KEY = "cryptex-vault-credentials-sort";
+const SORT_SETTLE_DELAY_MS = 180;
+const SORT_OPTIONS = [
+    { value: "name-asc", label: "Name A–Z" },
+    { value: "name-desc", label: "Name Z–A" },
+    { value: "modified-desc", label: "Recently updated" },
+    { value: "created-desc", label: "Newest created" },
+] as const;
+type CredentialSort = (typeof SORT_OPTIONS)[number]["value"];
+
+// Local storage is untrusted. Only a known option may enter sort state.
+function parseStoredSort(value: unknown): CredentialSort | null {
+    return SORT_OPTIONS.find((option) => option.value === value)?.value ?? null;
+}
+
+const nameCollator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: "base",
+});
+
+function compareCredentials(
+    a: VaultCredential,
+    b: VaultCredential,
+    sort: CredentialSort,
+): number {
+    if (sort === "name-asc" || sort === "name-desc") {
+        const byName = nameCollator.compare(a.Name, b.Name);
+        return (
+            (sort === "name-desc" ? -byName : byName) ||
+            a.ID.localeCompare(b.ID)
+        );
+    }
+
+    const aDate =
+        sort === "modified-desc"
+            ? a.DateModifiedTimestamp || a.DateCreatedTimestamp
+            : a.DateCreatedTimestamp;
+    const bDate =
+        sort === "modified-desc"
+            ? b.DateModifiedTimestamp || b.DateCreatedTimestamp
+            : b.DateCreatedTimestamp;
+    return (
+        bDate - aDate ||
+        nameCollator.compare(a.Name, b.Name) ||
+        a.ID.localeCompare(b.ID)
+    );
+}
 
 function VaultEmptyState() {
     return (
@@ -155,6 +204,9 @@ export function CredentialsList({
     onMoveCredentials,
 }: CredentialsListProps) {
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedSort, setSelectedSort] =
+        useState<CredentialSort>("name-asc");
+    const [appliedSort, setAppliedSort] = useState<CredentialSort>("name-asc");
     const [selectedIDs, setSelectedIDs] = useState<Set<string>>(new Set());
     const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
     const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
@@ -163,9 +215,53 @@ export function CredentialsList({
     );
     const virtuosoRef = useRef<VirtuosoHandle | null>(null);
 
-    const filteredCredentials = credentials.filter((credential) =>
-        credentialMatchesSearch(credential, searchQuery),
+    const filteredCredentials = useMemo(
+        () =>
+            credentials
+                .filter((credential) =>
+                    credentialMatchesSearch(credential, searchQuery),
+                )
+                .sort((a, b) => compareCredentials(a, b, appliedSort)),
+        [credentials, searchQuery, appliedSort],
     );
+
+    const isSorting = selectedSort !== appliedSort;
+    const sortIndex = SORT_OPTIONS.findIndex(
+        (option) => option.value === selectedSort,
+    );
+    const currentSort = SORT_OPTIONS[sortIndex]!;
+    const nextSort = SORT_OPTIONS[(sortIndex + 1) % SORT_OPTIONS.length]!;
+
+    useEffect(() => {
+        try {
+            const saved = parseStoredSort(
+                window.localStorage.getItem(SORT_STORAGE_KEY),
+            );
+            if (saved === null) return;
+            setSelectedSort(saved);
+            setAppliedSort(saved);
+        } catch {
+            // Browser storage may be unavailable.
+        }
+    }, []);
+
+    useEffect(() => {
+        if (selectedSort === appliedSort) return;
+        const timeout = window.setTimeout(
+            () => setAppliedSort(selectedSort),
+            SORT_SETTLE_DELAY_MS,
+        );
+        return () => window.clearTimeout(timeout);
+    }, [selectedSort, appliedSort]);
+
+    const cycleSort = () => {
+        setSelectedSort(nextSort.value);
+        try {
+            window.localStorage.setItem(SORT_STORAGE_KEY, nextSort.value);
+        } catch {
+            // Sorting still works for this session if storage is unavailable.
+        }
+    };
 
     useEffect(() => {
         onFilteredCredentialsChange?.(filteredCredentials);
@@ -379,7 +475,7 @@ export function CredentialsList({
                         </Button>
                     </div>
                 </div>
-                <div className="flex items-center justify-between px-2 sm:pt-2">
+                <div className="flex items-center justify-between gap-3 px-2 pt-2">
                     <p className="hidden text-xs text-muted-foreground sm:block">
                         Press{" "}
                         <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
@@ -387,9 +483,29 @@ export function CredentialsList({
                         </kbd>{" "}
                         for shortcuts
                     </p>
-                    <p className="text-xs text-muted-foreground sm:text-sm">
-                        {filteredCredentials.length} rows
-                    </p>
+                    <div className="flex flex-1 items-center justify-between gap-2 sm:ml-auto sm:flex-none">
+                        <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                            {filteredCredentials.length} rows
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                                "min-w-[152px] gap-2 rounded-full border-border/80 bg-card px-2.5 text-xs shadow-sm hover:border-primary/40 hover:bg-accent/60",
+                                isSorting && "border-primary/40 bg-primary/5",
+                            )}
+                            onClick={cycleSort}
+                            aria-label={`${isSorting ? "Sorting" : "Sort"} credentials: ${currentSort.label}. Activate for ${nextSort.label}`}
+                            title={`${isSorting ? "Sorting" : "Sort"}: ${currentSort.label}. Next: ${nextSort.label}`}
+                        >
+                            {isSorting ? (
+                                <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                            ) : (
+                                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span aria-live="polite">{currentSort.label}</span>
+                        </Button>
+                    </div>
                 </div>
                 {selectedIDs.size > 0 ? (
                     <div className="mt-2 flex items-center gap-2 rounded-md bg-muted p-2">

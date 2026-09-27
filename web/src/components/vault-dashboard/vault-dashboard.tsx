@@ -61,7 +61,7 @@ import { lockUnlockedVault } from "@/utils/vault-lock";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { Menu } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import type { VaultWriteKind } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
@@ -488,10 +488,15 @@ export function VaultDashboard({
     const syncConnectionController = useSyncConnectionController(
         unlockedVaultMetadata,
     );
-    const credentials = allCredentials.filter(
-        (credential) =>
-            selectedDirectoryID === "all" ||
-            credential.DirectoryID === selectedDirectoryID,
+    const credentials = useMemo(
+        () =>
+            vaultCredentials.filter(
+                (credential) =>
+                    !credential.Deleted &&
+                    (selectedDirectoryID === "all" ||
+                        credential.DirectoryID === selectedDirectoryID),
+            ),
+        [vaultCredentials, selectedDirectoryID],
     );
     const credentialCounts = allCredentials.reduce<Record<string, number>>(
         (counts, credential) => {

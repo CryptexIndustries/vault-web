@@ -642,21 +642,21 @@ export function EditDrawer({
 
                                 {hasPasskey && credential?.Passkey && (
                                     <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
-                                        <div>
+                                        <div className="min-w-0">
                                             <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                                                 Account
                                             </Label>
-                                            <p className="mt-1 text-sm">
+                                            <p className="mt-1 break-all text-sm">
                                                 {credential.Passkey
                                                     .UserDisplayName ||
                                                     credential.Passkey.UserName}
                                             </p>
                                         </div>
-                                        <div>
+                                        <div className="min-w-0">
                                             <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                                                 Relying party
                                             </Label>
-                                            <p className="mt-1 font-mono text-sm">
+                                            <p className="mt-1 break-all font-mono text-sm">
                                                 {credential.Passkey.RPID}
                                             </p>
                                         </div>

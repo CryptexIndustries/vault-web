@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Password, secret, and generated-password fields no longer let text run underneath the show, copy, and generate icons.
 - Resolved simultaneous sync handshakes, duplicate connection attempts, encrypted-message ordering, and work continuing after a device disconnects. Manual synchronization also works over an already-open connection.
 - Failed vault saves no longer report a successful synchronization in the web app or Chromium extension; the extension requires an authenticated success response before confirming a sync save.
 - Custom TURN settings now accept explicit `turn:` and `turns:` URLs, including TLS and transport parameters.

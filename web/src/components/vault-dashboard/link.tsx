@@ -8,6 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+    ControlWithActions,
+    plainFieldClassName,
+} from "@/components/ui/control-with-actions";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -3624,7 +3628,47 @@ export function ReceiveLinkRequestDialog({
                                         <Label htmlFor="receive-link-secret">
                                             Mnemonic
                                         </Label>
-                                        <div className="relative">
+                                        <ControlWithActions
+                                            actions={
+                                                <div className="pr-1">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() =>
+                                                                        setShowSecret(
+                                                                            !showSecret,
+                                                                        )
+                                                                    }
+                                                                    className="h-7 w-7"
+                                                                    aria-label={
+                                                                        showSecret
+                                                                            ? "Hide mnemonic"
+                                                                            : "Show mnemonic"
+                                                                    }
+                                                                >
+                                                                    {showSecret ? (
+                                                                        <EyeOff className="h-3.5 w-3.5" />
+                                                                    ) : (
+                                                                        <Eye className="h-3.5 w-3.5" />
+                                                                    )}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                {showSecret
+                                                                    ? "Hide"
+                                                                    : "Show"}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                </div>
+                                            }
+                                        >
                                             <Input
                                                 id="receive-link-secret"
                                                 type={
@@ -3644,45 +3688,13 @@ export function ReceiveLinkRequestDialog({
                                                         void startReceiving();
                                                     }
                                                 }}
-                                                className="pr-10"
+                                                className={cn(
+                                                    plainFieldClassName,
+                                                    "h-full w-full px-3",
+                                                )}
                                                 autoFocus
                                             />
-                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() =>
-                                                                    setShowSecret(
-                                                                        !showSecret,
-                                                                    )
-                                                                }
-                                                                className="h-7 w-7"
-                                                                aria-label={
-                                                                    showSecret
-                                                                        ? "Hide mnemonic"
-                                                                        : "Show mnemonic"
-                                                                }
-                                                            >
-                                                                {showSecret ? (
-                                                                    <EyeOff className="h-3.5 w-3.5" />
-                                                                ) : (
-                                                                    <Eye className="h-3.5 w-3.5" />
-                                                                )}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            {showSecret
-                                                                ? "Hide"
-                                                                : "Show"}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </div>
+                                        </ControlWithActions>
                                     </div>
                                 )}
 

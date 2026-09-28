@@ -2,6 +2,10 @@ import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+    ControlWithActions,
+    plainFieldClassName,
+} from "@/components/ui/control-with-actions";
 import { Input } from "@/components/ui/input";
 
 export type PasswordInputAction = {
@@ -50,55 +54,54 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
         };
 
         return (
-            <div className="relative">
+            <ControlWithActions
+                actions={
+                    <>
+                        {actions.map((action) => (
+                            <button
+                                key={action.label}
+                                type="button"
+                                onClick={action.onClick}
+                                disabled={action.disabled}
+                                className={cn(
+                                    "flex h-full w-9 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+                                    action.className,
+                                )}
+                                aria-label={action.label}
+                                title={action.title ?? action.label}
+                            >
+                                {action.icon}
+                            </button>
+                        ))}
+                        <button
+                            type="button"
+                            onClick={toggleRevealed}
+                            className="flex h-full w-9 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                            aria-pressed={isRevealed}
+                            aria-label={toggleLabel}
+                            title={toggleLabel}
+                        >
+                            {isRevealed ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                            ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                            )}
+                        </button>
+                    </>
+                }
+            >
                 <Input
                     {...props}
                     ref={ref}
                     type={isRevealed ? "text" : "password"}
                     className={cn(
-                        "pr-[var(--password-input-padding)]",
+                        plainFieldClassName,
+                        "h-full w-full px-3",
                         className,
                     )}
-                    style={
-                        {
-                            "--password-input-padding": `${(actions.length + 1) * 2.25}rem`,
-                            ...style,
-                        } as React.CSSProperties
-                    }
+                    style={style}
                 />
-                <div className="absolute inset-y-0 right-0 flex">
-                    {actions.map((action) => (
-                        <button
-                            key={action.label}
-                            type="button"
-                            onClick={action.onClick}
-                            disabled={action.disabled}
-                            className={cn(
-                                "flex w-9 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-                                action.className,
-                            )}
-                            aria-label={action.label}
-                            title={action.title ?? action.label}
-                        >
-                            {action.icon}
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        onClick={toggleRevealed}
-                        className="flex w-9 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                        aria-pressed={isRevealed}
-                        aria-label={toggleLabel}
-                        title={toggleLabel}
-                    >
-                        {isRevealed ? (
-                            <EyeOff className="h-3.5 w-3.5" />
-                        ) : (
-                            <Eye className="h-3.5 w-3.5" />
-                        )}
-                    </button>
-                </div>
-            </div>
+            </ControlWithActions>
         );
     },
 );

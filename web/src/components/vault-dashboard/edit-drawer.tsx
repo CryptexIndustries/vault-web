@@ -19,6 +19,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+    ControlWithActions,
+    plainFieldClassName,
+} from "@/components/ui/control-with-actions";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -533,81 +537,97 @@ export function EditDrawer({
                                                     *
                                                 </span>
                                             </Label>
-                                            <div className="relative">
-                                                <Key className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                                <Input
-                                                    id="password"
-                                                    type={
-                                                        showPassword
-                                                            ? "text"
-                                                            : "password"
-                                                    }
-                                                    placeholder="Enter password"
-                                                    {...register("Password")}
-                                                    className={cn(
-                                                        "pl-10 pr-20 font-mono",
-                                                        errors.Password &&
-                                                            "border-destructive",
-                                                    )}
-                                                />
-                                                <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
-                                                            >
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() =>
-                                                                        setShowPassword(
-                                                                            !showPassword,
-                                                                        )
-                                                                    }
-                                                                    className="h-7 w-7"
+                                            <ControlWithActions
+                                                className={cn(
+                                                    errors.Password &&
+                                                        "border-destructive",
+                                                )}
+                                                actions={
+                                                    <div className="flex items-center gap-1 pr-1">
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger
+                                                                    asChild
                                                                 >
-                                                                    {showPassword ? (
-                                                                        <EyeOff className="h-3.5 w-3.5" />
-                                                                    ) : (
-                                                                        <Eye className="h-3.5 w-3.5" />
-                                                                    )}
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                {showPassword
-                                                                    ? "Hide"
-                                                                    : "Show"}
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
-                                                            >
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() =>
-                                                                        setIsPasswordGeneratorOpen(
-                                                                            true,
-                                                                        )
-                                                                    }
-                                                                    className="h-7 w-7"
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() =>
+                                                                            setShowPassword(
+                                                                                !showPassword,
+                                                                            )
+                                                                        }
+                                                                        className="h-7 w-7"
+                                                                        aria-label={
+                                                                            showPassword
+                                                                                ? "Hide password"
+                                                                                : "Show password"
+                                                                        }
+                                                                    >
+                                                                        {showPassword ? (
+                                                                            <EyeOff className="h-3.5 w-3.5" />
+                                                                        ) : (
+                                                                            <Eye className="h-3.5 w-3.5" />
+                                                                        )}
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    {showPassword
+                                                                        ? "Hide"
+                                                                        : "Show"}
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger
+                                                                    asChild
                                                                 >
-                                                                    <RefreshCw className="h-3.5 w-3.5" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                Generate
-                                                                password
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() =>
+                                                                            setIsPasswordGeneratorOpen(
+                                                                                true,
+                                                                            )
+                                                                        }
+                                                                        className="h-7 w-7"
+                                                                        aria-label="Generate password"
+                                                                    >
+                                                                        <RefreshCw className="h-3.5 w-3.5" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    Generate
+                                                                    password
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    </div>
+                                                }
+                                            >
+                                                <div className="flex h-full min-w-0 items-center">
+                                                    <Key className="ml-3 h-4 w-4 shrink-0 text-muted-foreground" />
+                                                    <Input
+                                                        id="password"
+                                                        type={
+                                                            showPassword
+                                                                ? "text"
+                                                                : "password"
+                                                        }
+                                                        placeholder="Enter password"
+                                                        {...register(
+                                                            "Password",
+                                                        )}
+                                                        className={cn(
+                                                            plainFieldClassName,
+                                                            "h-full w-auto min-w-0 flex-1 pl-3 font-mono",
+                                                        )}
+                                                    />
                                                 </div>
-                                            </div>
+                                            </ControlWithActions>
                                             {errors.Password && (
                                                 <p className="text-xs text-destructive">
                                                     {errors.Password.message}
@@ -905,6 +925,29 @@ export function EditDrawer({
                                                 !!revealedCustomFieldIds[
                                                     field.id
                                                 ];
+                                            const isMasked =
+                                                fieldType ===
+                                                CustomFieldType.MaskedText;
+                                            const valueInput = (
+                                                <Textarea
+                                                    placeholder="Value"
+                                                    rows={1}
+                                                    {...register(
+                                                        `CustomFields.${index}.Value`,
+                                                    )}
+                                                    className={cn(
+                                                        "h-8 min-h-8 resize-y py-1 font-mono text-sm",
+                                                        isMasked
+                                                            ? cn(
+                                                                  plainFieldClassName,
+                                                                  "w-full",
+                                                                  !isRevealed &&
+                                                                      "secret-masked",
+                                                              )
+                                                            : "min-w-0 flex-1",
+                                                    )}
+                                                />
+                                            );
                                             return (
                                                 <div
                                                     key={field.id}
@@ -956,28 +999,12 @@ export function EditDrawer({
                                                                         </div>
                                                                     )}
                                                                 />
-                                                            ) : (
-                                                                <div className="relative min-w-0 flex-1">
-                                                                    <Textarea
-                                                                        placeholder="Value"
-                                                                        rows={1}
-                                                                        {...register(
-                                                                            `CustomFields.${index}.Value`,
-                                                                        )}
-                                                                        className={cn(
-                                                                            "h-8 min-h-8 resize-y py-1 font-mono text-sm",
-                                                                            fieldType ===
-                                                                                CustomFieldType.MaskedText &&
-                                                                                cn(
-                                                                                    "pr-8",
-                                                                                    !isRevealed &&
-                                                                                        "secret-masked",
-                                                                                ),
-                                                                        )}
-                                                                    />
-                                                                    {fieldType ===
-                                                                        CustomFieldType.MaskedText && (
-                                                                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                            ) : isMasked ? (
+                                                                <ControlWithActions
+                                                                    align="start"
+                                                                    className="min-w-0 flex-1 items-center"
+                                                                    actions={
+                                                                        <div className="pr-0.5">
                                                                             <TooltipProvider>
                                                                                 <Tooltip>
                                                                                     <TooltipTrigger
@@ -988,6 +1015,11 @@ export function EditDrawer({
                                                                                             variant="ghost"
                                                                                             size="icon"
                                                                                             className="h-7 w-7"
+                                                                                            aria-label={
+                                                                                                isRevealed
+                                                                                                    ? "Hide value"
+                                                                                                    : "Show value"
+                                                                                            }
                                                                                             onClick={() =>
                                                                                                 toggleCustomFieldReveal(
                                                                                                     field.id,
@@ -1009,8 +1041,12 @@ export function EditDrawer({
                                                                                 </Tooltip>
                                                                             </TooltipProvider>
                                                                         </div>
-                                                                    )}
-                                                                </div>
+                                                                    }
+                                                                >
+                                                                    {valueInput}
+                                                                </ControlWithActions>
+                                                            ) : (
+                                                                valueInput
                                                             )}
                                                             <Controller
                                                                 control={

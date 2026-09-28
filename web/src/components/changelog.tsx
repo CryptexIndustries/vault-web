@@ -45,6 +45,11 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
         date: "2026-09-25",
         changes: [
             {
+                type: "fix",
+                description:
+                    "Text in password and secret fields now stops before the show, copy, and generate icons instead of running underneath them.",
+            },
+            {
                 type: "added",
                 description:
                     "Sort vault credentials by name in either direction, recently updated, or newest created. The web app remembers your choice in this browser.",

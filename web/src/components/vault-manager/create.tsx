@@ -167,7 +167,6 @@ const CreateVaultTab: React.FC<{
                         aria-describedby="new-vault-password-help"
                         type="password"
                         placeholder="Enter your secret key"
-                        className="pr-10"
                         showPasswordGenerator={true}
                         {...register("Secret")}
                         setValue={(value) => setValue("Secret", value)}

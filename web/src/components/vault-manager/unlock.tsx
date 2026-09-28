@@ -458,7 +458,6 @@ const SecretField: React.FC<{ ctrl: Controller; id: string }> = ({
                         ? "Optional when using recovery"
                         : "Enter your secret key"
                 }
-                className="pr-16"
                 {...register("Secret", { required: !ctrl.useRecovery })}
                 setValue={(value) => setValue("Secret", value)}
                 onKeyDown={(e) => {

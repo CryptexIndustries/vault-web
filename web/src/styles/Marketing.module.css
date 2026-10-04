@@ -700,9 +700,6 @@
 .trustLinks > a:first-child {
     border-top: 1px solid var(--line);
 }
-.trustLinks > a svg {
-    color: var(--coral);
-}
 .trustLinks > a:hover {
     color: var(--coral);
 }
@@ -791,13 +788,6 @@
     display: grid;
     grid-template-columns: 1.4fr 1fr;
     gap: 0 50px;
-}
-.finalCta .eyebrow {
-    grid-column: 1/-1;
-    color: var(--navy) !important;
-}
-.finalCta .eyebrow > span {
-    background: var(--navy);
 }
 .finalCta h2 {
     font-size: clamp(65px, 8vw, 115px);
@@ -1490,19 +1480,9 @@
     .packet {
         animation: connectionPacket 2200ms linear infinite;
     }
-    .button > svg,
-    .secondary > svg,
-    .navCta > svg,
     .textLink > svg,
-    .trustLinks > a > svg,
     .networkBottom button > svg {
         transition: transform 200ms ease;
-    }
-    .button:is(:hover, :focus-visible) > svg,
-    .secondary:is(:hover, :focus-visible) > svg,
-    .navCta:is(:hover, :focus-visible) > svg,
-    .trustLinks > a:is(:hover, :focus-visible) > svg {
-        transform: translate(3px, -3px);
     }
     .textLink:is(:hover, :focus-visible) > svg,
     .networkBottom button:is(:hover, :focus-visible) > svg {

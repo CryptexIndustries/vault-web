@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
     ArrowRight,
-    ArrowUpRight,
     Check,
     Menu,
     X,
@@ -33,11 +32,10 @@ export function Action({
 }) {
     return (
         <Link
-            className={`${secondary ? s.secondary : s.button} inline-flex min-h-[50px] items-center justify-between gap-[28px] px-[23px] py-[16px] text-[13px] font-medium leading-[1.4]`}
+            className={`${secondary ? s.secondary : s.button} inline-flex min-h-[50px] items-center justify-center px-[23px] py-[16px] text-[13px] font-medium leading-[1.4]`}
             href={href}
         >
             {children}
-            <ArrowUpRight size={17} aria-hidden="true" />
         </Link>
     );
 }
@@ -131,12 +129,12 @@ function SiteHeader() {
                     {pathname !== "/" && (
                         <Link
                             href="/app"
-                            className={`${s.navCta} flex items-center gap-[16px]`}
+                            className={s.navCta}
                             onClick={() => {
                                 if (open) closeMenu();
                             }}
                         >
-                            Open Vault <ArrowUpRight size={15} />
+                            Open Vault
                         </Link>
                     )}
                 </nav>
@@ -341,7 +339,6 @@ export function FinalCTA() {
     const entranceRef = useSectionEntrance();
     return (
         <section ref={entranceRef} className={s.finalCta}>
-            <Label>START WITH YOUR OWN DEVICE</Label>
             <h2>
                 Make yourself
                 <br />

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import {
     Site,
     Label,
@@ -31,7 +30,7 @@ export default function Security() {
                         Read the architecture
                     </Action>
                     <Link href="#disclosure" className={s.textLink}>
-                        Report a vulnerability <ArrowUpRight size={16} />
+                        Report a vulnerability
                     </Link>
                 </div>
             </section>
@@ -153,7 +152,7 @@ export default function Security() {
                     </article>
                 </div>
                 <Link className={s.textLink} href="/docs/threat-model">
-                    Read the product threat model <ArrowUpRight size={16} />
+                    Read the product threat model
                 </Link>
             </Section>
             <Section number="03" label="INFRASTRUCTURE VISIBILITY">
@@ -201,7 +200,7 @@ export default function Security() {
                     ))}
                 </div>
                 <Link className={s.textLink} href="/privacy">
-                    Read the Privacy Policy <ArrowUpRight size={16} />
+                    Read the Privacy Policy
                 </Link>
             </Section>
             <Section id="disclosure" number="04" label="RESPONSIBLE DISCLOSURE">
@@ -233,9 +232,9 @@ export default function Security() {
                             disclosure and recognition.
                         </p>
                         <Link href="/security/responsible-disclosure">
-                            Full disclosure policy ↗
+                            Full disclosure policy
                         </Link>
-                        <a href={REPO}>Inspect the source code on GitHub ↗</a>
+                        <a href={REPO}>Inspect the source code on GitHub</a>
                     </div>
                 </div>
             </Section>

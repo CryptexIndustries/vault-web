@@ -2,14 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import {
-    ArrowRight,
-    ArrowLeft,
-    ArrowDown,
-    ArrowUpRight,
-    Expand,
-    X,
-} from "lucide-react";
+import { ArrowRight, ArrowLeft, ArrowDown, Expand, X } from "lucide-react";
 import {
     Site,
     Label,
@@ -315,6 +308,29 @@ export default function Home() {
                     </a>
                 </div>
             </section>
+            <aside
+                className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 border-y border-[color-mix(in_srgb,var(--coral)_25%,transparent)] bg-[color-mix(in_srgb,var(--coral)_5%,transparent)] px-[5%] py-6"
+                aria-labelledby="company-story-title"
+            >
+                <div>
+                    <h2
+                        id="company-story-title"
+                        className="m-0 !text-lg !leading-[1.4] !tracking-[-0.02em]"
+                    >
+                        The company behind Cryptex Vault.
+                    </h2>
+                    <p className="mb-0 mt-1 !text-sm !leading-[1.7]">
+                        Why we started Cryptex Industries and what we want to
+                        build.
+                    </p>
+                </div>
+                <a
+                    href="https://cryptexindustries.com/blog/2026/10/04/why-oh-why-cryptex-industries"
+                    className="inline-flex min-h-11 shrink-0 items-center border border-[color-mix(in_srgb,var(--coral)_45%,transparent)] px-4 py-2.5 text-[13px] font-medium text-[var(--coral)] hover:border-[var(--coral)] hover:bg-[color-mix(in_srgb,var(--coral)_10%,transparent)] focus-visible:border-[var(--coral)] focus-visible:bg-[color-mix(in_srgb,var(--coral)_10%,transparent)]"
+                >
+                    Read our story
+                </a>
+            </aside>
             <div className={s.importStrip}>
                 <span>BRING YOUR PASSWORDS FROM</span>
                 <div>
@@ -359,7 +375,6 @@ export default function Home() {
                         ],
                     ].map(([title, text]) => (
                         <article key={title}>
-                            <ArrowUpRight size={20} />
                             <h3>{title}</h3>
                             <p>{text}</p>
                         </article>
@@ -499,7 +514,6 @@ export default function Home() {
                         ].map(([label, href]) => (
                             <Link key={label} href={href!}>
                                 {label}
-                                <ArrowUpRight size={20} />
                             </Link>
                         ))}
                         <p className={s.audit}>
@@ -534,18 +548,21 @@ export default function Home() {
                     </article>
                     <article>
                         <Label>IN DEVELOPMENT</Label>
-                        <h3>Beyond the browser.</h3>
+                        <h3>Android and link sharing.</h3>
                         <p>
-                            Android and granular credential sharing are in
-                            development. A Firefox extension is planned.
+                            An Android app and credential sharing via a URL are
+                            in development. Links will let you share with people
+                            who do not use Cryptex Vault.
                         </p>
                     </article>
                     <article>
-                        <Label>LOOKING AHEAD</Label>
-                        <h3>Follow the work.</h3>
+                        <Label>PLANNED</Label>
+                        <h3>What comes next.</h3>
                         <p>
-                            Development updates will live on the roadmap. Plans
-                            can change as the product and security model evolve.
+                            Advanced Security Report, custom backup
+                            destinations, Firefox and iOS support, and granular
+                            device-linking permissions. Priorities and version
+                            targets may change.
                         </p>
                     </article>
                 </div>

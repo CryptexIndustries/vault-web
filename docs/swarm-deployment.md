@@ -20,9 +20,20 @@ or reverse-proxy layer.
 
 ## Image tags
 
-Production images are built and published only for pushes to `master` and Git
-tags. A `master` push publishes an image tagged with the full commit SHA. A Git
-tag push publishes both the SHA tag and a matching release tag.
+Production images are built and published only when you push a `web-v*` Git tag.
+Use `web-vMAJOR.MINOR.PATCH`, such as `web-v1.4.2`, or a prerelease tag such as
+`web-v1.4.2-rc1`. Each release publishes both the full commit SHA tag and the
+matching release tag. Branch pushes and `extension-*` tags do not publish web
+images.
+
+After checking out the commit you want to release, create and push its tag:
+
+```bash
+git tag -a web-v1.4.2 -m "Web release 1.4.2"
+git push origin web-v1.4.2
+```
+
+The CI lockfile and web quality checks must pass before the image is published.
 
 ```text
 ghcr.io/cryptexindustries/vault-web:<commit-sha-or-release-tag>

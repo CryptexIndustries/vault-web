@@ -325,7 +325,7 @@ export default function Home() {
                     </p>
                 </div>
                 <a
-                    href="https://cryptexindustries.com/blog/2026/10/04/why-oh-why-cryptex-industries"
+                    href="https://cryptexindustries.com/blog/2026/10/04/having-a-way-to-stay"
                     className="inline-flex min-h-11 shrink-0 items-center border border-[color-mix(in_srgb,var(--coral)_45%,transparent)] px-4 py-2.5 text-[13px] font-medium text-[var(--coral)] hover:border-[var(--coral)] hover:bg-[color-mix(in_srgb,var(--coral)_10%,transparent)] focus-visible:border-[var(--coral)] focus-visible:bg-[color-mix(in_srgb,var(--coral)_10%,transparent)]"
                 >
                     Read our story

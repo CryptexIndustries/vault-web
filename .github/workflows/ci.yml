@@ -72,6 +72,7 @@ jobs:
 
     extension-package:
         name: Chromium extension package
+        environment: Browser extension - Production
         needs: [lockfile, extension-quality]
         if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'extension-')
         runs-on: ubuntu-latest

@@ -9,6 +9,8 @@ Object.defineProperty(globalThis, "crypto", {
     writable: true,
 });
 
+const registeredUpgrades: Array<(transaction: unknown) => Promise<void>> = [];
+
 jest.mock("dexie", () => {
     class DexieMock {
         public name: string;
@@ -18,7 +20,13 @@ jest.mock("dexie", () => {
         }
 
         public version() {
-            return { stores: () => undefined };
+            return {
+                stores: () => ({
+                    upgrade: (
+                        callback: (transaction: unknown) => Promise<void>,
+                    ) => registeredUpgrades.push(callback),
+                }),
+            };
         }
     }
 
@@ -34,20 +42,20 @@ jest.mock("../../src/app_lib/vault-utils/storage", () => ({
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { createWebCryptoEnvelopeCrypto } from "@cryptex-industries/vault-core/runtime";
 import {
-    clearDeviceSecondFactor,
-    getDeviceSecondFactorKey,
-    getDeviceSecondFactorKind,
+    clearDeviceAdditionalKeyProtection,
+    getDeviceAdditionalKeyProtectionKey,
+    getDeviceAdditionalKeyProtectionKind,
     keyStoreDb,
-    setDeviceSecondFactorKey,
+    setDeviceAdditionalKeyProtectionKey,
     vaultDb,
     VaultKeyStoreDatabase,
-    type DeviceSecondFactorRecord,
+    type DeviceAdditionalKeyProtectionRecord,
 } from "../../src/app_lib/vault-utils/vault-key-store";
 
 describe("vault-key-store", () => {
-    const records = new Map<string, DeviceSecondFactorRecord>();
+    const records = new Map<string, DeviceAdditionalKeyProtectionRecord>();
     const table = {
-        put: jest.fn(async (record: DeviceSecondFactorRecord) => {
+        put: jest.fn(async (record: DeviceAdditionalKeyProtectionRecord) => {
             records.set(record.id, record);
         }),
         get: jest.fn(async (id: string) => records.get(id)),
@@ -60,8 +68,10 @@ describe("vault-key-store", () => {
         jest.clearAllMocks();
         records.clear();
         (
-            keyStoreDb as unknown as { deviceSecondFactors: typeof table }
-        ).deviceSecondFactors = table;
+            keyStoreDb as unknown as {
+                deviceAdditionalKeyProtections: typeof table;
+            }
+        ).deviceAdditionalKeyProtections = table;
     });
 
     it("constructs the key-store database and re-exports the vault database", () => {
@@ -71,55 +81,103 @@ describe("vault-key-store", () => {
         expect(vaultDb).toBe(mockVaultDb);
     });
 
-    it("stores, reads, and clears passphrase second-factor keys by vault DB index", async () => {
+    it("stores, reads, and clears protection-phrase keys by vault DB index", async () => {
         const key = await createWebCryptoEnvelopeCrypto().importHkdfKey(
             new Uint8Array(32),
         );
 
-        await setDeviceSecondFactorKey(
+        await setDeviceAdditionalKeyProtectionKey(
             42,
             key,
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
 
         expect(table.put).toHaveBeenCalledWith({
-            id: "sf:42",
+            id: "akp:42",
             vaultDbIndex: 42,
-            kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
-            factorHkdfKey: key,
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                .PROTECTION_PHRASE_128,
+            protectionHkdfKey: key,
             webauthnCredentialId: undefined,
             webauthnPrfSalt: undefined,
         });
-        await expect(getDeviceSecondFactorKey(42)).resolves.toBe(key);
-        await expect(getDeviceSecondFactorKind(42)).resolves.toBe(
-            VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        await expect(getDeviceAdditionalKeyProtectionKey(42)).resolves.toBe(
+            key,
+        );
+        await expect(getDeviceAdditionalKeyProtectionKind(42)).resolves.toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         );
 
-        await clearDeviceSecondFactor(42);
-        await expect(getDeviceSecondFactorKey(42)).resolves.toBeNull();
-        await expect(getDeviceSecondFactorKind(42)).resolves.toBeNull();
+        await clearDeviceAdditionalKeyProtection(42);
+        await expect(
+            getDeviceAdditionalKeyProtectionKey(42),
+        ).resolves.toBeNull();
+        await expect(
+            getDeviceAdditionalKeyProtectionKind(42),
+        ).resolves.toBeNull();
     });
 
     it("stores WebAuthn metadata with a null local key", async () => {
-        await setDeviceSecondFactorKey(
+        await setDeviceAdditionalKeyProtectionKey(
             9,
             null,
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
             "credential-id",
             "prf-salt",
         );
 
-        expect(records.get("sf:9")).toEqual({
-            id: "sf:9",
+        expect(records.get("akp:9")).toEqual({
+            id: "akp:9",
             vaultDbIndex: 9,
-            kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
-            factorHkdfKey: null,
+            kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
+            protectionHkdfKey: null,
             webauthnCredentialId: "credential-id",
             webauthnPrfSalt: "prf-salt",
         });
-        await expect(getDeviceSecondFactorKey(9)).resolves.toBeNull();
-        await expect(getDeviceSecondFactorKind(9)).resolves.toBe(
-            VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+        await expect(
+            getDeviceAdditionalKeyProtectionKey(9),
+        ).resolves.toBeNull();
+        await expect(getDeviceAdditionalKeyProtectionKind(9)).resolves.toBe(
+            VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
         );
+    });
+
+    it("migrates existing device protection keys into the renamed store", async () => {
+        const key = await createWebCryptoEnvelopeCrypto().importHkdfKey(
+            new Uint8Array(32),
+        );
+        const bulkPut = jest.fn(async () => undefined);
+        const transaction = {
+            table: jest.fn((name: string) =>
+                name === "deviceSecondFactors"
+                    ? {
+                          toArray: async () => [
+                              {
+                                  id: "sf:7",
+                                  vaultDbIndex: 7,
+                                  kind: VaultUtilTypes
+                                      .AdditionalKeyProtectionKind
+                                      .PROTECTION_PHRASE_128,
+                                  factorHkdfKey: key,
+                              },
+                          ],
+                      }
+                    : { bulkPut },
+            ),
+        };
+
+        const migration = registeredUpgrades[0];
+        expect(migration).toBeDefined();
+        await migration!(transaction);
+
+        expect(bulkPut).toHaveBeenCalledWith([
+            {
+                id: "akp:7",
+                vaultDbIndex: 7,
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
+                protectionHkdfKey: key,
+            },
+        ]);
     });
 });

@@ -1,10 +1,14 @@
 import React from "react";
 import { toast } from "sonner";
 import { ClipboardDocumentIcon } from "@heroicons/react/20/solid";
-import clsx from "clsx";
 import { Input } from "../ui/input";
+import {
+    ControlWithActions,
+    plainFieldClassName,
+} from "../ui/control-with-actions";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { PasswordGeneratorDialog } from "../ui/password-generator";
+import { cn } from "@/lib/utils";
 
 export const ClipboardButton = ({ value }: { value?: string }) => {
     const saveToClipboard = async (value?: string) => {
@@ -388,13 +392,6 @@ export const FormInput = React.forwardRef<
         const [showGeneratorDialog, setShowGeneratorDialog] =
             React.useState(false);
 
-        const classes = React.useMemo(() => {
-            return clsx(className, {
-                "font-mono": type === "password" && showPassword,
-                "pr-16": type === "password", // Extra padding for two buttons (eye + generator)
-            });
-        }, [type, className, showPassword]);
-
         const handlePasswordSelect = (password: string) => {
             if (setValue) {
                 // Use setValue if provided (React Hook Form)
@@ -417,55 +414,72 @@ export const FormInput = React.forwardRef<
         //     toast.info("Copied to clipboard");
         // };
 
+        const field = (
+            <Input
+                className={cn(
+                    type === "password" && plainFieldClassName,
+                    type === "password" && "h-full w-full px-3",
+                    type === "password" && showPassword && "font-mono",
+                    className,
+                )}
+                type={showPassword ? "text" : type}
+                ref={ref}
+                value={value}
+                onChange={onChange}
+                {...props}
+            />
+        );
+
         return (
             <>
-                <div className="relative">
-                    <Input
-                        className={classes}
-                        type={showPassword ? "text" : type}
-                        ref={ref}
-                        value={value}
-                        onChange={onChange}
-                        {...props}
-                    />
-                    {type === "password" && (
-                        <>
-                            <button
-                                className="absolute right-2 top-2"
-                                onClick={() => setShowPassword(!showPassword)}
-                                type="button"
-                            >
-                                {showPassword ? (
-                                    <EyeOff className="h-5 w-5 text-muted-foreground hover:text-foreground" />
-                                ) : (
-                                    <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                {type === "password" ? (
+                    <ControlWithActions
+                        actions={
+                            <div className="flex h-full items-center pr-1">
+                                {showPasswordGenerator && (
+                                    <button
+                                        className="inline-flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-primary"
+                                        onClick={() =>
+                                            setShowGeneratorDialog(true)
+                                        }
+                                        type="button"
+                                        title="Generate password"
+                                        aria-label="Generate password"
+                                    >
+                                        <Shield className="h-5 w-5" />
+                                    </button>
                                 )}
-                            </button>
-                            {showPasswordGenerator && (
                                 <button
-                                    className="absolute right-8 top-2"
-                                    onClick={() => setShowGeneratorDialog(true)}
+                                    className="inline-flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground"
+                                    onClick={() =>
+                                        setShowPassword(!showPassword)
+                                    }
                                     type="button"
-                                    title="Generate password"
+                                    aria-label={
+                                        showPassword
+                                            ? "Hide password"
+                                            : "Show password"
+                                    }
+                                    title={
+                                        showPassword
+                                            ? "Hide password"
+                                            : "Show password"
+                                    }
                                 >
-                                    <Shield className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                                    {showPassword ? (
+                                        <EyeOff className="h-5 w-5" />
+                                    ) : (
+                                        <Eye className="h-5 w-5" />
+                                    )}
                                 </button>
-                            )}
-                            {/* {showClipboardButton && (
-                            <button
-                                    className="absolute right-14 top-2"
-                                    aria-hidden="true"
-                                    title="Copy to clipboard"
-                                    onClick={() => saveToClipboard()}
-                            >
-                                <ClipboardCopy
-                                    className="h-5 w-5 text-slate-400 hover:text-slate-500 disabled:text-slate-300 disabled:hover:text-slate-300"
-                                />
-                            </button>
-                        )} */}
-                        </>
-                    )}
-                </div>
+                            </div>
+                        }
+                    >
+                        {field}
+                    </ControlWithActions>
+                ) : (
+                    field
+                )}
                 {type === "password" && (
                     <PasswordGeneratorDialog
                         open={showGeneratorDialog}

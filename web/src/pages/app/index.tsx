@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { useAtomValue, useSetAtom } from "jotai";
 
@@ -26,18 +27,23 @@ import {
     setVaultDEKInSessionForMetadata,
 } from "@/utils/vault-session";
 import type {
-    VaultCreateSecondFactorOptions,
+    VaultCreateAdditionalKeyProtectionOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
 } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
-import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
+import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import {
     establishPremiumSession,
     syncOnlineServicesRemoteConfiguration,
 } from "src/app_lib/auth-session";
 import { onlineServicesLog } from "src/utils/logging";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
+import {
+    consumePurchasePlanUrl,
+    readPurchasePlan,
+    type PurchasePlan,
+} from "@/utils/purchase-onboarding";
 
 dayjs.extend(RelativeTime);
 
@@ -45,6 +51,15 @@ const AppIndex: React.FC = () => {
     const isVaultUnlocked = useAtomValue(isVaultUnlockedAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
+    const [purchasePlan, setPurchasePlan] = useState<PurchasePlan | null>(null);
+
+    useEffect(() => {
+        if (isCloudServicesEnabled()) {
+            setPurchasePlan(readPurchasePlan(window.location.search));
+        } else {
+            consumePurchasePlanUrl();
+        }
+    }, []);
 
     // Register the beforeunload event handler
     useEffect(() => {
@@ -73,7 +88,7 @@ const AppIndex: React.FC = () => {
         unlockExtras?: {
             useRecovery?: boolean;
             recoveryCode?: string;
-            secondFactorPassphrase?: string;
+            protectionPhrase?: string;
         },
     ) => {
         // WebAuthn unlock is resolved inside decryptVault from the synced
@@ -87,7 +102,7 @@ const AppIndex: React.FC = () => {
                 masterPassword: formData.Secret,
                 useRecovery: unlockExtras?.useRecovery,
                 recoveryCode: unlockExtras?.recoveryCode,
-                secondFactorPassphrase: unlockExtras?.secondFactorPassphrase,
+                protectionPhrase: unlockExtras?.protectionPhrase,
             },
         );
 
@@ -131,13 +146,18 @@ const AppIndex: React.FC = () => {
         }
 
         finalizeVaultUnlock(metadata, vault, dek);
+        if (unlockExtras?.useRecovery) {
+            toast.info(
+                "Vault unlocked with a recovery code. Open Vault Settings > Encryption & Security to set a new master password.",
+            );
+        }
         return ok({});
     };
 
     const tryCreateVault = async (
         formData: FormSchemas.NewVaultFormSchemaType &
             FormSchemas.EncryptionFormGroupSchemaType,
-        secondFactorOptions?: VaultCreateSecondFactorOptions,
+        additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
     ): Promise<
         | false
@@ -153,18 +173,19 @@ const AppIndex: React.FC = () => {
                 formData,
                 false,
                 0,
-                secondFactorOptions,
+                additionalKeyProtectionOptions,
                 initialImport,
             );
 
             await created.metadata.save(null, created.dek);
 
             if (
-                secondFactorOptions?.secondFactor &&
-                secondFactorOptions.secondFactor.kind !== SecondFactorKind.NONE
+                additionalKeyProtectionOptions?.additionalKeyProtection &&
+                additionalKeyProtectionOptions.additionalKeyProtection.kind !==
+                    AdditionalKeyProtectionKind.NONE
             ) {
-                await created.metadata.persistSecondFactorEnrollment(
-                    created.enrolledFactor,
+                await created.metadata.persistAdditionalKeyProtectionEnrollment(
+                    created.enrolledProtection,
                 );
             }
 
@@ -239,6 +260,7 @@ const AppIndex: React.FC = () => {
                         <>
                             <div className="flex grow flex-col items-center justify-center">
                                 <VaultManager
+                                    purchasePlan={purchasePlan}
                                     tryDecryptVaultCallback={tryVaultDecrypt}
                                     tryCreateVaultCallback={tryCreateVault}
                                     finalizeVaultUnlockCallback={
@@ -251,7 +273,12 @@ const AppIndex: React.FC = () => {
                     )
                 }
 
-                {isVaultUnlocked && <VaultDashboard />}
+                {isVaultUnlocked && (
+                    <VaultDashboard
+                        purchasePlan={purchasePlan}
+                        onPurchaseConsumed={() => setPurchasePlan(null)}
+                    />
+                )}
             </HTMLMain>
         </>
     );

@@ -22,27 +22,35 @@ a UUID `stagingId`. Take is read-and-delete. Lock and idle clear the store.
 
 ## IndexedDB `vaultKeyStore`
 
-| Store                 | Contents              | Cleared on lock?                |
-| --------------------- | --------------------- | ------------------------------- |
-| `deviceSecondFactors` | Device-bound 2FA keys | Yes (`clearDeviceSecondFactor`) |
+| Store                            | Contents                             | Cleared on lock?                  |
+| -------------------------------- | ------------------------------------ | --------------------------------- |
+| `deviceAdditionalKeyProtections` | Device-local derived protection keys | No; replaced on protection change |
 
-Extension vaults with non-`NONE` primary factor cannot unlock DEK
-(`EXTENSION_2FA_UNSUPPORTED`).
+The extension supports generated 128- and 256-bit protection phrases. Their
+derived key survives lock so a normal same-profile unlock needs only the
+master password. A restore or cleared profile requires the saved phrase.
+WebAuthn PRF remains unsupported in the extension.
+
+The schema upgrade copies keys from the legacy store into
+`deviceAdditionalKeyProtections` before removing the old store, so the
+terminology change does not discard an existing same-profile unlock cache.
 
 ## `chrome.storage.session`
 
 Memory-backed. Cleared on browser shutdown, `Lock`, system idle, or explicit
 `session.clear()`.
 
-| Key               | Owner                                | Contents                                                     |
-| ----------------- | ------------------------------------ | ------------------------------------------------------------ |
-| `UV`              | `background.ts`                      | Full decrypted `Vault` protobuf                              |
-| `UVM`             | `background.ts`                      | Base64-encoded vault metadata                                |
-| `AVI`             | `background.ts`                      | Active vault DB index                                        |
-| `SESSION_DEK:{n}` | `session-dek-store.ts`               | Raw vault DEK (base64); `TRUSTED_CONTEXTS`                   |
-| `OS_SESSION`      | `online-services-session-storage.ts` | JWT, expiry, deviceId, privateKeyJWK                         |
-| `PENDING_SAVE`    | `autofill-router.ts`                 | Captured login incl. password (5 min TTL)                    |
-| `DRAFT_SAVE`      | `credential-draft-store.ts`          | In-flight credential form draft (mode, form data, stashedAt) |
+| Key                          | Owner                                | Contents                                                     |
+| ---------------------------- | ------------------------------------ | ------------------------------------------------------------ |
+| `UV`                         | `background.ts`                      | Full decrypted `Vault` protobuf                              |
+| `UVM`                        | `background.ts`                      | Base64-encoded vault metadata                                |
+| `AVI`                        | `background.ts`                      | Active vault DB index                                        |
+| `SESSION_DEK:{n}`            | `session-dek-store.ts`               | Raw vault DEK (base64); `TRUSTED_CONTEXTS`                   |
+| `OS_SESSION`                 | `online-services-session-storage.ts` | JWT, expiry, deviceId, privateKeyJWK                         |
+| `PENDING_SAVE`               | `autofill-router.ts`                 | Captured login incl. password (5 min TTL)                    |
+| `DRAFT_SAVE`                 | `credential-draft-store.ts`          | In-flight credential form draft (mode, form data, stashedAt) |
+| `SECURITY_BACKUP_JOB:{id}`   | `security-backup-job.ts`             | Non-secret status for a post-security-change backup job      |
+| `LATEST_SECURITY_BACKUP_JOB` | `security-backup-job.ts`             | Latest security backup job id                                |
 
 `UV` is the highest-sensitivity session key: all credential secrets while
 unlocked.

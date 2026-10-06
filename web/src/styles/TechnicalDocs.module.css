@@ -1,0 +1,120 @@
+.tableWrap {
+    margin: 24px 0;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    color: var(--soft);
+}
+
+.table th,
+.table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.table th {
+    color: var(--ink);
+    font: 10px/1.4 monospace;
+    letter-spacing: 0.08em;
+}
+
+.table tr:last-child td {
+    border-bottom: 0;
+}
+
+.commandToolbar button {
+    margin-left: auto;
+    min-width: 54px;
+    height: 24px;
+    padding: 2px 7px;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    cursor: pointer;
+}
+.commandToolbar button:hover {
+    background: rgba(255, 86, 104, 0.12);
+}
+.commandToolbar button:focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: 2px;
+}
+.numberedCode {
+    font: 12px/1.8 monospace;
+    white-space: pre;
+}
+.commandComment {
+    color: var(--soft);
+}
+
+.definition {
+    display: grid;
+    grid-template-columns: minmax(130px, 0.35fr) 1fr;
+    gap: 16px;
+    margin: 0;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+}
+
+.protocolFlow {
+    list-style: none;
+    counter-reset: protocol-step;
+    margin: 28px 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+}
+
+.protocolFlow > li {
+    counter-increment: protocol-step;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 6px 14px;
+    margin: 0;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.protocolFlow > li::before {
+    content: counter(protocol-step, decimal-leading-zero);
+    grid-row: 1 / 3;
+    padding-top: 3px;
+    color: var(--coral);
+    font: 11px/1.6 monospace;
+}
+
+.protocolFlow strong {
+    grid-column: 2;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 400;
+}
+
+.protocolFlow li p {
+    grid-column: 2;
+    margin: 0;
+    font-size: 14px;
+}
+
+.definition dt {
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.definition dd {
+    margin: 0;
+    color: var(--soft);
+    font-size: 14px;
+}
+
+@media (max-width: 640px) {
+    .definition {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+}

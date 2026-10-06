@@ -9,6 +9,7 @@ import { SynchronizationEnvelope } from "@cryptex-industries/vault-core/synchron
 import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
 import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
+import * as syncCrypto from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
 
 if (!globalThis.crypto?.subtle) {
     Object.defineProperty(globalThis, "crypto", {
@@ -55,6 +56,11 @@ import { trpc } from "../src/utils/trpc";
 configureTestVaultCoreRuntime({ trpc });
 
 type SyncHandle = {
+    resetPeer(deviceID: string): void;
+    ensureOutboundSession(
+        deviceID: string,
+        channel: RTCDataChannel,
+    ): Promise<unknown>;
     transmitSyncHello(
         deviceID: string,
         dataChannel: RTCDataChannel,
@@ -65,6 +71,14 @@ type SyncHandle = {
         event: MessageEvent,
     ): Promise<void>;
 };
+
+function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((done) => {
+        resolve = done;
+    });
+    return { promise, resolve };
+}
 
 type KeySet = {
     local: LinkedDevices;
@@ -126,12 +140,12 @@ function createOps(
 }
 
 function createPair() {
-    const localController = new SyncConnectionController(
-        createOps(keys.local, keys.remote, [versionVector("local")]),
-    );
-    const remoteController = new SyncConnectionController(
-        createOps(keys.remote, keys.local),
-    );
+    const localOps = createOps(keys.local, keys.remote, [
+        versionVector("local"),
+    ]);
+    const remoteOps = createOps(keys.remote, keys.local);
+    const localController = new SyncConnectionController(localOps);
+    const remoteController = new SyncConnectionController(remoteOps);
     const localSync = (
         localController as unknown as { _vaultItemSynchronization: SyncHandle }
     )._vaultItemSynchronization;
@@ -179,6 +193,8 @@ function createPair() {
     };
 
     return {
+        localOps,
+        remoteOps,
         localController,
         remoteController,
         localSync,
@@ -192,6 +208,211 @@ function createPair() {
 }
 
 describe("VaultItemSynchronization encrypted transport", () => {
+    it("does not record completion after a failed save and allows a later retry", async () => {
+        const pair = createPair();
+        const record = jest.fn(async () => undefined);
+        pair.remoteOps.recordSynchronization = record;
+        const completed = jest.spyOn(
+            pair.remoteController,
+            "broadcastWebRTCSynchronizedEvent",
+        );
+        const updateItems = jest
+            .spyOn(pair.remoteOps, "updateItems")
+            .mockRejectedValueOnce(new Error("Storage unavailable"));
+
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        expect(updateItems).toHaveBeenCalledTimes(1);
+        expect(record).not.toHaveBeenCalled();
+        expect(completed).not.toHaveBeenCalled();
+
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        expect(updateItems).toHaveBeenCalledTimes(2);
+        expect(record).toHaveBeenCalledTimes(1);
+        expect(completed).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not publish a handshake that finishes after disconnect", async () => {
+        const pair = createPair();
+        const entered = deferred();
+        const release = deferred();
+        const derive = syncCrypto.deriveAeadKey;
+        const spy = jest
+            .spyOn(syncCrypto, "deriveAeadKey")
+            .mockImplementationOnce(async (...args) => {
+                entered.resolve();
+                await release.promise;
+                return derive(...args);
+            });
+        try {
+            const pending = pair.localSync.ensureOutboundSession(
+                "remote-device",
+                pair.localChannel,
+            );
+            expect(
+                pair.localSync.ensureOutboundSession(
+                    "remote-device",
+                    pair.localChannel,
+                ),
+            ).toBe(pending);
+            await entered.promise;
+            pair.localSync.resetPeer("remote-device");
+            release.resolve();
+            await expect(pending).resolves.toBeNull();
+            expect(pair.localSend).not.toHaveBeenCalled();
+        } finally {
+            release.resolve();
+            spy.mockRestore();
+        }
+    });
+
+    it("drops in-flight and queued ciphertext after disconnect", async () => {
+        const pair = createPair();
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        pair.localSend.mockClear();
+        const entered = deferred();
+        const release = deferred();
+        const seal = syncCrypto.sealAead;
+        const spy = jest
+            .spyOn(syncCrypto, "sealAead")
+            .mockImplementationOnce(async (...args) => {
+                entered.resolve();
+                await release.promise;
+                return seal(...args);
+            });
+        try {
+            const sends = [
+                pair.localSync.transmitSyncHello(
+                    "remote-device",
+                    pair.localChannel,
+                ),
+                pair.localSync.transmitSyncHello(
+                    "remote-device",
+                    pair.localChannel,
+                ),
+            ];
+            await entered.promise;
+            pair.localSync.resetPeer("remote-device");
+            pair.remoteSync.resetPeer("local-device");
+            release.resolve();
+            await Promise.all(sends);
+            expect(pair.localSend).not.toHaveBeenCalled();
+            await pair.localSync.transmitSyncHello(
+                "remote-device",
+                pair.localChannel,
+            );
+            await pair.flush();
+            expect(pair.localSend).toHaveBeenCalled();
+        } finally {
+            release.resolve();
+            spy.mockRestore();
+        }
+    });
+
+    it("recovers from a synchronous handshake send failure", async () => {
+        const pair = createPair();
+        pair.localSend.mockImplementationOnce(() => {
+            throw new Error("channel closed");
+        });
+        await expect(
+            pair.localSync.ensureOutboundSession(
+                "remote-device",
+                pair.localChannel,
+            ),
+        ).rejects.toThrow("channel closed");
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        expect(pair.localSend.mock.calls.length).toBeGreaterThan(2);
+    });
+
+    it("converges on one session when both devices sync concurrently", async () => {
+        const pair = createPair();
+        const localError = jest.spyOn(
+            pair.localController,
+            "broadcastWebRTCSyncErrorEvent",
+        );
+        const remoteError = jest.spyOn(
+            pair.remoteController,
+            "broadcastWebRTCSyncErrorEvent",
+        );
+        await Promise.all([
+            pair.localSync.transmitSyncHello(
+                "remote-device",
+                pair.localChannel,
+            ),
+            pair.remoteSync.transmitSyncHello(
+                "local-device",
+                pair.remoteChannel,
+            ),
+            pair.localSync.transmitSyncHello(
+                "remote-device",
+                pair.localChannel,
+            ),
+        ]);
+        await pair.flush();
+        const messages = [
+            ...pair.localSend.mock.calls,
+            ...pair.remoteSend.mock.calls,
+        ]
+            .map((call) =>
+                VaultUtilTypes.SynchronizationEnvelope.decode(
+                    new Uint8Array(call[0] as ArrayBuffer),
+                ),
+            )
+            .filter(
+                (message) =>
+                    message.Command ===
+                    VaultUtilTypes.SyncWireMessageCommand.SyncEncryptedMessage,
+            );
+        expect(messages.length).toBeGreaterThanOrEqual(6);
+        expect(new Set(messages.map((message) => message.SessionID)).size).toBe(
+            1,
+        );
+        expect(localError).not.toHaveBeenCalled();
+        expect(remoteError).not.toHaveBeenCalled();
+    });
+
+    it("starts a fresh session after the previous connection is cleared", async () => {
+        const pair = createPair();
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        const firstSession = VaultUtilTypes.SynchronizationEnvelope.decode(
+            new Uint8Array(pair.localSend.mock.calls[0]![0] as ArrayBuffer),
+        ).SessionID;
+        pair.localSync.resetPeer("remote-device");
+        pair.remoteSync.resetPeer("local-device");
+        pair.localSend.mockClear();
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+        const nextSession = VaultUtilTypes.SynchronizationEnvelope.decode(
+            new Uint8Array(pair.localSend.mock.calls[0]![0] as ArrayBuffer),
+        );
+        expect(nextSession.Command).toBe(
+            VaultUtilTypes.SyncWireMessageCommand.SyncSessionInit,
+        );
+        expect(nextSession.SessionID).not.toBe(firstSession);
+    });
+
     it("starts an authenticated ML-KEM session before sending sync data", async () => {
         const { localSync, localChannel, localSend } = createPair();
 

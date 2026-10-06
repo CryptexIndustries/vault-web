@@ -3,6 +3,7 @@ import type {
     CredentialURLMatchMode,
     ItemType,
     PasskeyData,
+    AdditionalKeyProtectionKind,
 } from "@cryptex-industries/vault-core/proto";
 import { type CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
 
@@ -171,6 +172,18 @@ export enum MessageType {
      * exists. Does not return tokens or vault secrets.
      */
     GetBackupContext = 47,
+
+    /** Popup: inspect envelope protection settings without exposing key data. */
+    GetVaultSecurity = 48,
+
+    /** Popup: change password/additional protection, optionally rotating the DEK. */
+    ReconfigureVaultSecurity = 49,
+
+    /** Popup: generate a recovery code, optionally rotating the DEK. */
+    RotateVaultRecoveryCode = 50,
+
+    /** Popup: read the separate managed-backup job spawned by a security change. */
+    GetSecurityBackupJob = 51,
 }
 
 /**
@@ -506,6 +519,76 @@ export type GetBackupContextResponse =
           hasOnlineServicesSession: boolean;
           localReceipt: BackupContextLocalReceipt | null;
       }
+    | { ok: false; error: string };
+
+export type ExtensionVaultAdditionalKeyProtectionKind =
+    | AdditionalKeyProtectionKind.NONE
+    | AdditionalKeyProtectionKind.PROTECTION_PHRASE_128
+    | AdditionalKeyProtectionKind.PROTECTION_PHRASE_256;
+
+export type VaultSecurityStateResponse =
+    | {
+          ok: true;
+          additionalKeyProtectionKind: AdditionalKeyProtectionKind;
+          kdf: { memLimit: number; opsLimit: number };
+          webAuthnUnsupported: boolean;
+          latestBackupJobId?: string;
+      }
+    | { ok: false; error: string };
+
+export type VaultSecurityAuthorization = {
+    currentMasterPassword: string;
+    currentProtectionPhrase?: string;
+};
+
+export type ReconfigureVaultSecurityRequest = VaultSecurityAuthorization & {
+    newMasterPassword?: string;
+    additionalKeyProtectionKind: ExtensionVaultAdditionalKeyProtectionKind;
+    kdf: { memLimit: number; opsLimit: number };
+    rotateDataKey: boolean;
+    deleteOlderManagedBackups: boolean;
+};
+
+export type RotateVaultRecoveryCodeRequest = VaultSecurityAuthorization & {
+    rotateDataKey: boolean;
+    deleteOlderManagedBackups: boolean;
+};
+
+export type VaultSecurityMutationResponse =
+    | {
+          ok: true;
+          dataKeyRotated: boolean;
+          recoveryCode?: string;
+          protectionPhrase?: string;
+          additionalKeyProtectionKind: AdditionalKeyProtectionKind;
+          deviceKeyProtectionCached: boolean;
+          sessionContinued: boolean;
+          backupJobId?: string;
+          backupError?: string;
+      }
+    | { ok: false; error: string };
+
+export type SecurityBackupJobStatus =
+    | "queued"
+    | "preparing"
+    | "uploading"
+    | "deleting"
+    | "success"
+    | "skipped"
+    | "error";
+
+export type SecurityBackupJob = {
+    id: string;
+    status: SecurityBackupJobStatus;
+    deleteOlderSnapshots: boolean;
+    onlineServicesDeviceId: string;
+    vaultId: string;
+    updatedAt: number;
+    error?: string;
+};
+
+export type GetSecurityBackupJobResponse =
+    | { ok: true; job: SecurityBackupJob | null }
     | { ok: false; error: string };
 
 // type MessageResponsePayload = {

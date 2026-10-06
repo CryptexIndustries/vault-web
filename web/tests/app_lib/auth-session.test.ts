@@ -88,6 +88,7 @@ jest.mock(
 );
 
 import {
+    createAccountBoundAuthHeader,
     createBareAuthHeader,
     ensureFreshOnlineServicesSession,
     establishPremiumSession,
@@ -541,6 +542,38 @@ describe("createBareAuthHeader", () => {
         expect(createBareAuthHeader()).toEqual({
             Authorization: "Bearer abc.def.ghi",
         });
+    });
+});
+
+describe("createAccountBoundAuthHeader", () => {
+    beforeEach(() => {
+        setOnlineServicesData(null);
+    });
+
+    it("returns the token only for the expected device", () => {
+        setOnlineServicesData({
+            deviceId: "device_1",
+            sessionToken: "abc.def.ghi",
+            remoteData: null,
+        });
+
+        expect(createAccountBoundAuthHeader("device_1")).toEqual({
+            Authorization: "Bearer abc.def.ghi",
+        });
+    });
+
+    it("rejects a missing or different device session", () => {
+        expect(() => createAccountBoundAuthHeader("device_1")).toThrow(
+            "ONLINE_SERVICES_SESSION_CHANGED",
+        );
+        setOnlineServicesData({
+            deviceId: "device_2",
+            sessionToken: "other-token",
+            remoteData: null,
+        });
+        expect(() => createAccountBoundAuthHeader("device_1")).toThrow(
+            "ONLINE_SERVICES_SESSION_CHANGED",
+        );
     });
 });
 

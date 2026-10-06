@@ -8,6 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+    ControlWithActions,
+    plainFieldClassName,
+} from "@/components/ui/control-with-actions";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -80,7 +84,10 @@ import {
     sealAead,
     verifyLinkMac,
 } from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
-import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
+import {
+    ensureSyncSigningKeypair,
+    signSyncBytes,
+} from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
 import {
     constructLinkPresenceChannelName,
@@ -519,7 +526,7 @@ function ServerSelect({
                         placeholder={
                             cloudServicesEnabled &&
                             value === ONLINE_SERVICES_SELECTION_ID
-                                ? "Cryptex Online Services"
+                                ? "Online Services"
                                 : servers.length > 0
                                   ? undefined
                                   : "No servers configured"
@@ -529,7 +536,7 @@ function ServerSelect({
                 <SelectContent>
                     {cloudServicesEnabled ? (
                         <SelectItem value={ONLINE_SERVICES_SELECTION_ID}>
-                            Cryptex Online Services
+                            Online Services
                         </SelectItem>
                     ) : null}
                     {servers.map((server) => (
@@ -566,7 +573,7 @@ function ServerMultiSelect({
     const usesOnlineServices =
         cloudServicesEnabled && value.includes(ONLINE_SERVICES_SELECTION_ID);
     const selectedLabel = usesOnlineServices
-        ? "Cryptex Online Services"
+        ? "Online Services"
         : selectedServers.length === 1
           ? selectedServers[0]?.Name ||
             selectedServers[0]?.Host ||
@@ -574,7 +581,7 @@ function ServerMultiSelect({
           : selectedServers.length > 1
             ? `${selectedServers.length} servers selected`
             : cloudServicesEnabled
-              ? "Cryptex Online Services"
+              ? "Online Services"
               : selectedServers.length === 0
                 ? "Select servers"
                 : "Unnamed server";
@@ -628,7 +635,7 @@ function ServerMultiSelect({
                             }
                             onSelect={(event) => event.preventDefault()}
                         >
-                            Cryptex Online Services
+                            Online Services
                         </DropdownMenuCheckboxItem>
                     ) : null}
                     {servers.map((server) => (
@@ -1585,6 +1592,10 @@ export function SendLinkRequestDialog({
                 new Uint8Array(serializedVault),
                 transferContext,
             );
+            const handshakeSignature = await signSyncBytes(
+                unlockedVault.LinkedDevices.SyncSigningPrivateKey,
+                transferContext,
+            );
             addToProgressLog("Sending encrypted vault transfer...", "info");
             webRTCDataChannel.send(
                 new Uint8Array(
@@ -1592,6 +1603,7 @@ export function SendLinkRequestDialog({
                         KemCiphertext: kemCiphertext,
                         Nonce: sealedVault.nonce,
                         Ciphertext: sealedVault.ciphertext,
+                        HandshakeSignature: handshakeSignature,
                     }).finish(),
                 ),
             );
@@ -1779,16 +1791,16 @@ export function SendLinkRequestDialog({
             return;
         }
         if (onlineServicesIssue === "signin") {
-            setFormError("Sign in to use Cryptex Online Services.");
+            setFormError("Sign in to use Online Services.");
             return;
         }
         if (onlineServicesIssue === "upgrade") {
-            setFormError("Upgrade to use Cryptex Online Services for linking.");
+            setFormError("Upgrade to use Online Services for linking.");
             return;
         }
         if (onlineServicesIssue === "plan-sync") {
             setFormError(
-                "Your premium plan is still syncing. Refresh plan status and try again.",
+                "Your subscription status is still updating. Refresh plan status and try again.",
             );
             return;
         }
@@ -2091,7 +2103,7 @@ export function SendLinkRequestDialog({
                                         <Alert variant="destructive">
                                             <ShieldCheck className="h-4 w-4" />
                                             <AlertTitle>
-                                                Cryptex Online Services
+                                                Online Services
                                             </AlertTitle>
                                             <AlertDescription className="space-y-3">
                                                 <p>
@@ -3616,7 +3628,47 @@ export function ReceiveLinkRequestDialog({
                                         <Label htmlFor="receive-link-secret">
                                             Mnemonic
                                         </Label>
-                                        <div className="relative">
+                                        <ControlWithActions
+                                            actions={
+                                                <div className="pr-1">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() =>
+                                                                        setShowSecret(
+                                                                            !showSecret,
+                                                                        )
+                                                                    }
+                                                                    className="h-7 w-7"
+                                                                    aria-label={
+                                                                        showSecret
+                                                                            ? "Hide mnemonic"
+                                                                            : "Show mnemonic"
+                                                                    }
+                                                                >
+                                                                    {showSecret ? (
+                                                                        <EyeOff className="h-3.5 w-3.5" />
+                                                                    ) : (
+                                                                        <Eye className="h-3.5 w-3.5" />
+                                                                    )}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                {showSecret
+                                                                    ? "Hide"
+                                                                    : "Show"}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                </div>
+                                            }
+                                        >
                                             <Input
                                                 id="receive-link-secret"
                                                 type={
@@ -3636,45 +3688,13 @@ export function ReceiveLinkRequestDialog({
                                                         void startReceiving();
                                                     }
                                                 }}
-                                                className="pr-10"
+                                                className={cn(
+                                                    plainFieldClassName,
+                                                    "h-full w-full px-3",
+                                                )}
                                                 autoFocus
                                             />
-                                            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() =>
-                                                                    setShowSecret(
-                                                                        !showSecret,
-                                                                    )
-                                                                }
-                                                                className="h-7 w-7"
-                                                                aria-label={
-                                                                    showSecret
-                                                                        ? "Hide mnemonic"
-                                                                        : "Show mnemonic"
-                                                                }
-                                                            >
-                                                                {showSecret ? (
-                                                                    <EyeOff className="h-3.5 w-3.5" />
-                                                                ) : (
-                                                                    <Eye className="h-3.5 w-3.5" />
-                                                                )}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            {showSecret
-                                                                ? "Hide"
-                                                                : "Show"}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </div>
+                                        </ControlWithActions>
                                     </div>
                                 )}
 
@@ -3823,10 +3843,9 @@ function countLabel(count: number, singular: string) {
 
 function EmptyServerState({ kind }: { kind: ServerKind }) {
     const labels: Record<ServerKind, string> = {
-        stun: "No custom STUN servers. Vault uses Cryptex Online Services.",
-        turn: "No custom TURN servers. Vault uses Cryptex Online Services.",
-        signaling:
-            "No custom signaling servers. Vault uses Cryptex Online Services.",
+        stun: "No custom STUN servers. Vault uses Online Services.",
+        turn: "No custom TURN servers. Vault uses Online Services.",
+        signaling: "No custom signaling servers. Vault uses Online Services.",
     };
 
     return (
@@ -3996,7 +4015,7 @@ export function VaultSignalingConfigDialog({
                     <DialogDescription>
                         Configure custom signaling, STUN, and TURN servers for
                         device linking and synchronization. Leave sections empty
-                        to use Cryptex Online Services.
+                        to use Online Services.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -4189,9 +4208,9 @@ export function VaultSignalingConfigDialog({
                                             />
                                             <Field
                                                 id={`turn-host-${server.ID}`}
-                                                label="Host"
+                                                label="Host or TURN URL"
                                                 value={server.Host}
-                                                placeholder="turn.example.com:3478"
+                                                placeholder="turns:turn.example.com:5349?transport=tcp"
                                                 onChange={(value) =>
                                                     setDraftTURNServers(
                                                         (servers) =>

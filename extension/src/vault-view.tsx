@@ -118,6 +118,7 @@ import {
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
 import { PopupBackupDialog } from "./components/popup-backup-dialog";
+import { PopupVaultSecurityDialog } from "./components/popup-vault-security-dialog";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
 import { uiLog } from "./utils/ext-logging";
@@ -178,6 +179,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     });
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
     const [showBackupCenter, setShowBackupCenter] = useState(false);
+    const [showVaultSecurity, setShowVaultSecurity] = useState(false);
     const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
     const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
     const [editingDirectory, setEditingDirectory] =
@@ -687,7 +689,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             (signaling === "connected" || signaling === "completed") &&
             webrtc === "idle"
         ) {
-            return { label: "Connecting", tone: "yellow" };
+            return { label: "Ready to connect", tone: "yellow" };
         }
         if (signaling === "disconnected" && webrtc === "idle") {
             return { label: "Disconnected", tone: "red" };
@@ -1812,14 +1814,24 @@ const VaultView: React.FC<VaultViewProps> = ({
         setShowFormPassword(true);
     };
 
-    const handleSyncNow = () => {
+    const handleConnectOrSync = async () => {
+        const controller = GlobalSyncConnectionController;
+        const device = linkedDevicesRef.current[0];
+        if (!controller || !device) return;
+
         if (
-            GlobalSyncConnectionController &&
-            linkedDevicesRef.current.length > 0
+            controller.getWebRTCStatus(device.ID) ===
+            SynchronizationUtils.WebRTCStatus.Connected
         ) {
-            GlobalSyncConnectionController.transmitSyncHello(
-                linkedDevicesRef.current[0].ID,
-            );
+            controller.transmitSyncHello(device.ID);
+        } else {
+            try {
+                await controller.connectDevice(device.ID);
+            } catch {
+                toast.error(
+                    "Could not connect. Keep the other vault open and try again.",
+                );
+            }
         }
     };
 
@@ -2175,19 +2187,33 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                    onClick={handleSyncNow}
+                                    onClick={() => void handleConnectOrSync()}
                                     disabled={
                                         isCreating ||
                                         isUpdating ||
                                         isDeleting ||
-                                        isRefreshing
+                                        isRefreshing ||
+                                        webRTCStatus ===
+                                            SynchronizationUtils.WebRTCStatus
+                                                .Connecting
                                     }
-                                    aria-label="Sync now"
+                                    aria-label={
+                                        webRTCStatus ===
+                                        SynchronizationUtils.WebRTCStatus
+                                            .Connected
+                                            ? "Sync now"
+                                            : "Connect"
+                                    }
                                 >
                                     <RefreshCw className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Sync now</TooltipContent>
+                            <TooltipContent>
+                                {webRTCStatus ===
+                                SynchronizationUtils.WebRTCStatus.Connected
+                                    ? "Sync now"
+                                    : "Connect to your other device. Keep its vault open and unlocked."}
+                            </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
 
@@ -2262,6 +2288,30 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     </span>
                                     <span className="block text-[11px] text-muted-foreground">
                                         Local and managed backups
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    requestAnimationFrame(() =>
+                                        setShowVaultSecurity(true),
+                                    );
+                                }}
+                                disabled={
+                                    isCreating ||
+                                    isUpdating ||
+                                    isDeleting ||
+                                    isRefreshing
+                                }
+                                className="items-start py-2"
+                            >
+                                <Shield className="mt-0.5 text-primary" />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        Vault Settings
+                                    </span>
+                                    <span className="block text-[11px] text-muted-foreground">
+                                        Encryption &amp; Security
                                     </span>
                                 </span>
                             </DropdownMenuItem>
@@ -3677,6 +3727,11 @@ const VaultView: React.FC<VaultViewProps> = ({
             <PopupBackupDialog
                 open={showBackupCenter}
                 onOpenChange={setShowBackupCenter}
+            />
+            <PopupVaultSecurityDialog
+                open={showVaultSecurity}
+                onOpenChange={setShowVaultSecurity}
+                onSessionInvalidated={lockVaultFn}
             />
 
             <DirectoryEditorDialog

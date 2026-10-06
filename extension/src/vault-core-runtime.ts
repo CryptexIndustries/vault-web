@@ -8,8 +8,8 @@ import {
 import { env } from "./env";
 import { onlineServicesSessionPort } from "./app_lib/online-services-session/extension";
 import {
-    getDeviceSecondFactorKey,
-    setDeviceSecondFactorKey,
+    getDeviceAdditionalKeyProtectionKey,
+    setDeviceAdditionalKeyProtectionKey,
 } from "@/app_lib/vault-utils/vault-key-store";
 import { syncLog, signalingLog, webrtcLog } from "./utils/ext-logging";
 import { trpc } from "./trpc-ext";
@@ -39,9 +39,9 @@ export function ensureExtensionVaultCoreRuntime(): void {
         syncLog,
         signalingLog,
         webrtcLog,
-        secondFactorStore: {
-            setDeviceSecondFactorKey,
-            getDeviceSecondFactorKey,
+        additionalKeyProtectionStore: {
+            setDeviceAdditionalKeyProtectionKey,
+            getDeviceAdditionalKeyProtectionKey,
         },
     });
     configured = true;

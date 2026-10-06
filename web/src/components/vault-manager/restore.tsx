@@ -137,7 +137,7 @@ function FileDropzone({
                                 {file.name || "Unnamed backup"}
                             </p>
                             <p className="mt-0.5 text-xs text-muted-foreground">
-                                {formatBytes(file.size)} · Ready to restore
+                                {formatBytes(file.size)} - Ready to restore
                             </p>
                         </div>
                         <Button

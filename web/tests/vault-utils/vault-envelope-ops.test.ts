@@ -37,19 +37,22 @@ import sodium from "libsodium-wrappers-sumo";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
-    deriveSecondFactorKeyMaterial,
+    decryptWithDEK,
+    deriveAdditionalKeyProtectionKeyMaterial,
     generateRandomSalt,
     importHkdfBaseKey,
+    openRecoverySlot,
 } from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
 import {
     createEnvelopeEncryptedBlob,
     migrateLegacyBlobToEnvelope,
     openEnvelopeBlob,
-    reconfigurePrimaryFactor,
+    reconfigureAdditionalKeyProtection,
     reencryptVaultBytesWithDEK,
     rotateRecoveryCode,
+    rotateVaultDataKey,
 } from "@cryptex-industries/vault-core/vault-utils/vault-envelope-ops";
-import type { SecondFactorEnrollmentResult } from "@cryptex-industries/vault-core/vault-utils/second-factor";
+import type { AdditionalKeyProtectionEnrollmentResult } from "@cryptex-industries/vault-core/vault-utils/additional-key-protection";
 import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { configureTestVaultCoreRuntime } from "../helpers/vault-core-runtime";
@@ -61,32 +64,36 @@ const kdf = new KeyDerivationConfig_Argon2ID(8, 1);
 const VAULT_ID = "vault-1";
 const PLAINTEXT = new TextEncoder().encode("top secret vault bytes");
 
-const noneFactor: SecondFactorEnrollmentResult = {
-    kind: VaultUtilTypes.SecondFactorKind.NONE,
+const noAdditionalProtection: AdditionalKeyProtectionEnrollmentResult = {
+    kind: VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
     hkdfBaseKey: null,
 };
 
-async function makePassphraseFactor(
-    passphrase = "correct horse battery staple",
-): Promise<SecondFactorEnrollmentResult> {
-    const secretBytes = new TextEncoder().encode(passphrase);
+async function makeProtectionPhrase(
+    protectionPhrase = "correct horse battery staple",
+): Promise<AdditionalKeyProtectionEnrollmentResult> {
+    const secretBytes = new TextEncoder().encode(protectionPhrase);
     const salt = generateRandomSalt();
-    const derived = await deriveSecondFactorKeyMaterial(secretBytes, salt, kdf);
+    const derived = await deriveAdditionalKeyProtectionKeyMaterial(
+        secretBytes,
+        salt,
+        kdf,
+    );
     const hkdfBaseKey = await importHkdfBaseKey(derived);
     return {
-        kind: VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+        kind: VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128,
         hkdfBaseKey,
-        displaySecret: passphrase,
-        passphraseSalt: Buffer.from(salt).toString("base64"),
+        protectionPhrase,
+        protectionPhraseSalt: Buffer.from(salt).toString("base64"),
     };
 }
 
-async function deriveFactorFromDisplayedPassphrase(
-    passphrase: string,
+async function deriveProtectionFromDisplayedPhrase(
+    protectionPhrase: string,
     saltB64: string,
 ): Promise<VaultHkdfKey> {
-    const derived = await deriveSecondFactorKeyMaterial(
-        new TextEncoder().encode(passphrase),
+    const derived = await deriveAdditionalKeyProtectionKeyMaterial(
+        new TextEncoder().encode(protectionPhrase),
         new Uint8Array(Buffer.from(saltB64, "base64")),
         kdf,
     );
@@ -107,22 +114,28 @@ describe("vault-envelope-ops re-keying", () => {
         await sodium.ready;
     });
 
-    describe("reconfigurePrimaryFactor", () => {
+    describe("reconfigureAdditionalKeyProtection", () => {
         it("changes the master password without re-encrypting the vault", async () => {
             const created = await createEnvelopeEncryptedBlob(
                 PLAINTEXT,
                 "old-password",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             const originalCiphertext = created.blob.Blob;
 
-            const res = await reconfigurePrimaryFactor(
+            const res = await reconfigureAdditionalKeyProtection(
                 created.blob,
                 VAULT_ID,
-                { masterPassword: "old-password", secondFactorHkdfBase: null },
-                { masterPassword: "new-password", primaryFactor: noneFactor },
+                {
+                    masterPassword: "old-password",
+                    additionalKeyProtectionHkdfBase: null,
+                },
+                {
+                    masterPassword: "new-password",
+                    additionalKeyProtection: noAdditionalProtection,
+                },
                 kdf,
             );
             expect(res.isOk()).toBe(true);
@@ -130,7 +143,8 @@ describe("vault-envelope-ops re-keying", () => {
             const blob = res.value;
 
             // DEK unchanged: ciphertext bytes are untouched.
-            expect(blob.Blob).toBe(originalCiphertext);
+            expect(blob.Blob).toEqual(originalCiphertext);
+            expect(blob.Blob).not.toBe(originalCiphertext);
 
             expect(
                 await decryptedText(blob, { masterPassword: "new-password" }),
@@ -145,15 +159,21 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "old-password",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
 
-            const res = await reconfigurePrimaryFactor(
+            const res = await reconfigureAdditionalKeyProtection(
                 created.blob,
                 VAULT_ID,
-                { masterPassword: "old-password", secondFactorHkdfBase: null },
-                { masterPassword: "new-password", primaryFactor: noneFactor },
+                {
+                    masterPassword: "old-password",
+                    additionalKeyProtectionHkdfBase: null,
+                },
+                {
+                    masterPassword: "new-password",
+                    additionalKeyProtection: noAdditionalProtection,
+                },
                 kdf,
             );
             expect(res.isOk()).toBe(true);
@@ -168,69 +188,81 @@ describe("vault-envelope-ops re-keying", () => {
             ).toBe("top secret vault bytes");
         });
 
-        it("adds a second factor and requires it on unlock", async () => {
+        it("adds additional key protection and requires it on unlock", async () => {
             const created = await createEnvelopeEncryptedBlob(
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
 
-            const factor = await makePassphraseFactor();
-            const res = await reconfigurePrimaryFactor(
+            const protection = await makeProtectionPhrase();
+            const res = await reconfigureAdditionalKeyProtection(
                 created.blob,
                 VAULT_ID,
-                { masterPassword: "master", secondFactorHkdfBase: null },
-                { masterPassword: "master", primaryFactor: factor },
+                {
+                    masterPassword: "master",
+                    additionalKeyProtectionHkdfBase: null,
+                },
+                {
+                    masterPassword: "master",
+                    additionalKeyProtection: protection,
+                },
                 kdf,
             );
             expect(res.isOk()).toBe(true);
             if (res.isErr()) return;
             const blob = res.value;
 
-            expect(blob.Envelope?.PrimaryFactorKind).toBe(
-                VaultUtilTypes.SecondFactorKind.PASSPHRASE_128,
+            expect(blob.Envelope?.PrimaryProtectionKind).toBe(
+                VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_128,
             );
 
             // Password alone no longer unlocks.
             expect(
                 await decryptedText(blob, { masterPassword: "master" }),
             ).toBeNull();
-            // Password + the enrolled factor unlocks.
+            // Password + the enrolled protection unlocks.
             expect(
                 await decryptedText(blob, {
                     masterPassword: "master",
-                    secondFactorHkdfBase: factor.hkdfBaseKey,
+                    additionalKeyProtectionHkdfBase: protection.hkdfBaseKey,
                 }),
             ).toBe("top secret vault bytes");
         });
 
-        it("stores passphrase salt and survives restore with a different local id", async () => {
-            const factor = await makePassphraseFactor("restore passphrase");
+        it("stores the protection-phrase salt and survives restore with a different local id", async () => {
+            const protection = await makeProtectionPhrase(
+                "restore protection phrase",
+            );
             const created = await createEnvelopeEncryptedBlob(
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                factor,
+                protection,
                 kdf,
             );
             const primarySlot = created.blob.Envelope?.Slots.find(
                 (slot) => slot.Kind === VaultUtilTypes.KeySlotKind.PRIMARY,
             );
             expect(created.blob.Envelope?.VaultID).toBe(VAULT_ID);
-            expect(primarySlot?.SecondFactorSalt).toBe(factor.passphraseSalt);
-
-            const restoredFactor = await deriveFactorFromDisplayedPassphrase(
-                factor.displaySecret!,
-                primarySlot!.SecondFactorSalt,
+            expect(primarySlot?.ProtectionPhraseSalt).toBe(
+                protection.protectionPhraseSalt,
             );
+
+            const restoredProtection =
+                await deriveProtectionFromDisplayedPhrase(
+                    protection.protectionPhrase!,
+                    primarySlot!.ProtectionPhraseSalt,
+                );
             const restored = await openEnvelopeBlob(
                 created.blob,
                 "different-restored-local-id",
                 {
                     masterPassword: "master",
-                    secondFactorHkdfBase: restoredFactor,
+                    additionalKeyProtectionHkdfBase: restoredProtection,
                 },
             );
 
@@ -241,32 +273,35 @@ describe("vault-envelope-ops re-keying", () => {
             );
         });
 
-        it("removes a second factor", async () => {
-            const factor = await makePassphraseFactor();
+        it("removes additional key protection", async () => {
+            const protection = await makeProtectionPhrase();
             const created = await createEnvelopeEncryptedBlob(
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                factor,
+                protection,
                 kdf,
             );
 
-            const res = await reconfigurePrimaryFactor(
+            const res = await reconfigureAdditionalKeyProtection(
                 created.blob,
                 VAULT_ID,
                 {
                     masterPassword: "master",
-                    secondFactorHkdfBase: factor.hkdfBaseKey,
+                    additionalKeyProtectionHkdfBase: protection.hkdfBaseKey,
                 },
-                { masterPassword: "master", primaryFactor: noneFactor },
+                {
+                    masterPassword: "master",
+                    additionalKeyProtection: noAdditionalProtection,
+                },
                 kdf,
             );
             expect(res.isOk()).toBe(true);
             if (res.isErr()) return;
             const blob = res.value;
 
-            expect(blob.Envelope?.PrimaryFactorKind).toBe(
-                VaultUtilTypes.SecondFactorKind.NONE,
+            expect(blob.Envelope?.PrimaryProtectionKind).toBe(
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
             );
             expect(
                 await decryptedText(blob, { masterPassword: "master" }),
@@ -278,15 +313,21 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "correct",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
 
-            const res = await reconfigurePrimaryFactor(
+            const res = await reconfigureAdditionalKeyProtection(
                 created.blob,
                 VAULT_ID,
-                { masterPassword: "wrong", secondFactorHkdfBase: null },
-                { masterPassword: "new", primaryFactor: noneFactor },
+                {
+                    masterPassword: "wrong",
+                    additionalKeyProtectionHkdfBase: null,
+                },
+                {
+                    masterPassword: "new",
+                    additionalKeyProtection: noAdditionalProtection,
+                },
                 kdf,
             );
             expect(res.isErr()).toBe(true);
@@ -302,14 +343,18 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
+            const originalCiphertext = created.blob.Blob;
 
             const res = await rotateRecoveryCode(
                 created.blob,
                 VAULT_ID,
-                { masterPassword: "master", secondFactorHkdfBase: null },
+                {
+                    masterPassword: "master",
+                    additionalKeyProtectionHkdfBase: null,
+                },
                 kdf,
             );
             expect(res.isOk()).toBe(true);
@@ -317,6 +362,8 @@ describe("vault-envelope-ops re-keying", () => {
 
             const { blob, recoveryCode } = res.value;
             expect(recoveryCode).not.toBe(created.recoveryCode);
+            expect(blob.Blob).toEqual(originalCiphertext);
+            expect(blob.Blob).not.toBe(originalCiphertext);
 
             // New code unlocks.
             expect(
@@ -345,7 +392,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
 
@@ -354,7 +401,7 @@ describe("vault-envelope-ops re-keying", () => {
                 VAULT_ID,
                 {
                     masterPassword: "",
-                    secondFactorHkdfBase: null,
+                    additionalKeyProtectionHkdfBase: null,
                     useRecovery: true,
                     recoveryCode: created.recoveryCode,
                 },
@@ -373,6 +420,140 @@ describe("vault-envelope-ops re-keying", () => {
         });
     });
 
+    describe("rotateVaultDataKey", () => {
+        it("re-encrypts with a new DEK and replaces both key slots", async () => {
+            const created = await createEnvelopeEncryptedBlob(
+                PLAINTEXT,
+                "old-password",
+                VAULT_ID,
+                noAdditionalProtection,
+                kdf,
+            );
+            const originalCiphertext = new Uint8Array(created.blob.Blob);
+            const originalIv = created.blob.HeaderIV;
+            const oldDek = await openRecoverySlot(
+                created.blob.Envelope!,
+                created.recoveryCode,
+                true,
+            );
+            expect(oldDek.isOk()).toBe(true);
+            if (oldDek.isErr()) return;
+
+            const res = await rotateVaultDataKey(
+                created.blob,
+                VAULT_ID,
+                {
+                    masterPassword: "old-password",
+                    additionalKeyProtectionHkdfBase: null,
+                },
+                {
+                    masterPassword: "new-password",
+                    additionalKeyProtection: noAdditionalProtection,
+                },
+                kdf,
+            );
+            expect(res.isOk()).toBe(true);
+            if (res.isErr()) return;
+
+            const oldRaw = new Uint8Array(
+                await crypto.subtle.exportKey("raw", oldDek.value),
+            );
+            const candidateDek = await openRecoverySlot(
+                res.value.blob.Envelope!,
+                res.value.recoveryCode,
+                true,
+            );
+            expect(candidateDek.isOk()).toBe(true);
+            if (candidateDek.isErr()) return;
+            const newRaw = new Uint8Array(
+                await crypto.subtle.exportKey("raw", candidateDek.value),
+            );
+            expect(newRaw).not.toEqual(oldRaw);
+            expect(res.value.dek.extractable).toBe(false);
+            const sessionPlaintext = await decryptWithDEK(
+                res.value.dek,
+                res.value.blob.Blob,
+                res.value.blob.HeaderIV,
+            );
+            expect(sessionPlaintext.isOk()).toBe(true);
+            if (sessionPlaintext.isOk()) {
+                expect(new TextDecoder().decode(sessionPlaintext.value)).toBe(
+                    "top secret vault bytes",
+                );
+            }
+            expect(res.value.blob.Blob).not.toEqual(originalCiphertext);
+            expect(res.value.blob.HeaderIV).not.toBe(originalIv);
+            expect(res.value.recoveryCode).not.toBe(created.recoveryCode);
+
+            expect(
+                await decryptedText(res.value.blob, {
+                    masterPassword: "new-password",
+                }),
+            ).toBe("top secret vault bytes");
+            expect(
+                await decryptedText(res.value.blob, {
+                    masterPassword: "old-password",
+                }),
+            ).toBeNull();
+            expect(
+                await decryptedText(res.value.blob, {
+                    masterPassword: "",
+                    useRecovery: true,
+                    recoveryCode: res.value.recoveryCode,
+                }),
+            ).toBe("top secret vault bytes");
+            expect(
+                await decryptedText(res.value.blob, {
+                    masterPassword: "",
+                    useRecovery: true,
+                    recoveryCode: created.recoveryCode,
+                }),
+            ).toBeNull();
+
+            // Candidate generation never mutates the active blob.
+            expect(created.blob.Blob).toEqual(originalCiphertext);
+            expect(created.blob.HeaderIV).toBe(originalIv);
+            expect(
+                await decryptedText(created.blob, {
+                    masterPassword: "old-password",
+                }),
+            ).toBe("top secret vault bytes");
+        });
+
+        it("rejects incorrect current credentials without changing the blob", async () => {
+            const created = await createEnvelopeEncryptedBlob(
+                PLAINTEXT,
+                "master",
+                VAULT_ID,
+                noAdditionalProtection,
+                kdf,
+            );
+            const original = VaultUtilTypes.EncryptedBlob.encode(
+                created.blob,
+            ).finish();
+
+            const res = await rotateVaultDataKey(
+                created.blob,
+                VAULT_ID,
+                {
+                    masterPassword: "wrong",
+                    additionalKeyProtectionHkdfBase: null,
+                },
+                {
+                    masterPassword: "next",
+                    additionalKeyProtection: noAdditionalProtection,
+                },
+                kdf,
+            );
+
+            expect(res.isErr()).toBe(true);
+            expect(res.isErr() && res.error).toBe("DEK_UNWRAP_FAILED");
+            expect(
+                VaultUtilTypes.EncryptedBlob.encode(created.blob).finish(),
+            ).toEqual(original);
+        });
+    });
+
     describe("envelope operation edge cases", () => {
         it("rejects non-envelope and malformed envelope blobs", async () => {
             const plainBlob = EncryptedBlob.CreateDefault();
@@ -386,7 +567,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             created.blob.Envelope!.Version = 2;
@@ -402,7 +583,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             created.blob.Envelope!.Slots = created.blob.Envelope!.Slots.filter(
@@ -418,7 +599,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             missingId.blob.Envelope!.VaultID = "";
@@ -434,7 +615,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             created.blob.Envelope!.Slots = created.blob.Envelope!.Slots.filter(
@@ -455,7 +636,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             created.blob.Blob = new Uint8Array([1, 2, 3]);
@@ -472,7 +653,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             const opened = await openEnvelopeBlob(created.blob, VAULT_ID, {
@@ -503,11 +684,17 @@ describe("vault-envelope-ops re-keying", () => {
 
         it("rejects malformed blobs while reconfiguring and rotating", async () => {
             await expect(
-                reconfigurePrimaryFactor(
+                reconfigureAdditionalKeyProtection(
                     EncryptedBlob.CreateDefault(),
                     VAULT_ID,
-                    { masterPassword: "master", secondFactorHkdfBase: null },
-                    { masterPassword: "next", primaryFactor: noneFactor },
+                    {
+                        masterPassword: "master",
+                        additionalKeyProtectionHkdfBase: null,
+                    },
+                    {
+                        masterPassword: "next",
+                        additionalKeyProtection: noAdditionalProtection,
+                    },
                     kdf,
                 ),
             ).resolves.toMatchObject({ error: "NOT_ENVELOPE_BLOB" });
@@ -515,7 +702,10 @@ describe("vault-envelope-ops re-keying", () => {
                 rotateRecoveryCode(
                     EncryptedBlob.CreateDefault(),
                     VAULT_ID,
-                    { masterPassword: "master", secondFactorHkdfBase: null },
+                    {
+                        masterPassword: "master",
+                        additionalKeyProtectionHkdfBase: null,
+                    },
                     kdf,
                 ),
             ).resolves.toMatchObject({ error: "NOT_ENVELOPE_BLOB" });
@@ -524,7 +714,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             missingPrimary.blob.Envelope!.Slots =
@@ -532,11 +722,17 @@ describe("vault-envelope-ops re-keying", () => {
                     (slot) => slot.Kind !== VaultUtilTypes.KeySlotKind.PRIMARY,
                 );
             await expect(
-                reconfigurePrimaryFactor(
+                reconfigureAdditionalKeyProtection(
                     missingPrimary.blob,
                     VAULT_ID,
-                    { masterPassword: "master", secondFactorHkdfBase: null },
-                    { masterPassword: "next", primaryFactor: noneFactor },
+                    {
+                        masterPassword: "master",
+                        additionalKeyProtectionHkdfBase: null,
+                    },
+                    {
+                        masterPassword: "next",
+                        additionalKeyProtection: noAdditionalProtection,
+                    },
                     kdf,
                 ),
             ).resolves.toMatchObject({ error: "PRIMARY_SLOT_MISSING" });
@@ -545,16 +741,22 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             missingVaultId.blob.Envelope!.VaultID = "";
             await expect(
-                reconfigurePrimaryFactor(
+                reconfigureAdditionalKeyProtection(
                     missingVaultId.blob,
                     "",
-                    { masterPassword: "master", secondFactorHkdfBase: null },
-                    { masterPassword: "next", primaryFactor: noneFactor },
+                    {
+                        masterPassword: "master",
+                        additionalKeyProtectionHkdfBase: null,
+                    },
+                    {
+                        masterPassword: "next",
+                        additionalKeyProtection: noAdditionalProtection,
+                    },
                     kdf,
                 ),
             ).resolves.toMatchObject({ error: "VAULT_ID_MISSING" });
@@ -565,7 +767,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
 
@@ -573,7 +775,10 @@ describe("vault-envelope-ops re-keying", () => {
                 rotateRecoveryCode(
                     created.blob,
                     VAULT_ID,
-                    { masterPassword: "wrong", secondFactorHkdfBase: null },
+                    {
+                        masterPassword: "wrong",
+                        additionalKeyProtectionHkdfBase: null,
+                    },
                     kdf,
                 ),
             ).resolves.toMatchObject({ error: "DEK_UNWRAP_FAILED" });
@@ -584,7 +789,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
                 kdf,
             );
             created.blob.Envelope!.Slots = created.blob.Envelope!.Slots.filter(
@@ -593,7 +798,10 @@ describe("vault-envelope-ops re-keying", () => {
             const res = await rotateRecoveryCode(
                 created.blob,
                 VAULT_ID,
-                { masterPassword: "master", secondFactorHkdfBase: null },
+                {
+                    masterPassword: "master",
+                    additionalKeyProtectionHkdfBase: null,
+                },
                 kdf,
             );
 
@@ -611,7 +819,7 @@ describe("vault-envelope-ops re-keying", () => {
                 PLAINTEXT,
                 "master",
                 VAULT_ID,
-                noneFactor,
+                noAdditionalProtection,
             );
 
             expect(migrated.blob.Envelope?.Version).toBe(3);
@@ -622,13 +830,13 @@ describe("vault-envelope-ops re-keying", () => {
             const key = await importHkdfBaseKey(
                 crypto.getRandomValues(new Uint8Array(32)),
             );
-            const missingMeta: SecondFactorEnrollmentResult = {
-                kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            const missingMeta: AdditionalKeyProtectionEnrollmentResult = {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
                 hkdfBaseKey: key,
                 webauthnCredentialId: "credential",
             };
-            const completeMeta: SecondFactorEnrollmentResult = {
-                kind: VaultUtilTypes.SecondFactorKind.WEBAUTHN_PRF,
+            const completeMeta: AdditionalKeyProtectionEnrollmentResult = {
+                kind: VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
                 hkdfBaseKey: key,
                 webauthnCredentialId: "credential",
                 webauthnPrfSalt: "salt",

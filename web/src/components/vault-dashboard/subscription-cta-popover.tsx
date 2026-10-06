@@ -23,21 +23,21 @@ const CTA_COPY: Record<
     { title: string; description: string; action: string }
 > = {
     signup: {
-        title: "Unlock zero-worry vault features",
+        title: "Optional Online Services",
         description:
-            "Sign up to sync, back up, get security insights, and securely share vault items.",
+            "Create an account to subscribe to managed P2P infrastructure and encrypted backups. Local vault use does not require an account.",
         action: "Sign up",
     },
     signin: {
-        title: "Unlock zero-worry vault features",
+        title: "Optional Online Services",
         description:
-            "Sign in to subscribe, sync, back up, get security insights, and securely share vault items.",
+            "Sign in to manage your Online Services subscription, synchronization infrastructure and encrypted backups.",
         action: "Sign in",
     },
     upgrade: {
-        title: "Upgrade for zero-worry vault features",
+        title: "Managed sync and backups",
         description:
-            "Subscribe to unlock encrypted sync, secure backups, security insights, and vault item sharing.",
+            "Subscribe for managed P2P infrastructure and encrypted backups. Both devices must still be online to synchronize.",
         action: "Upgrade",
     },
 };

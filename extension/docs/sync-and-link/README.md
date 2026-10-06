@@ -66,9 +66,11 @@ fetch serves the full encrypted sync handshake for that popup session.
 3. **Online Services bootstrap** (if package includes OS creds):
    `establishOnlineServicesSessionViaSW` → SW device signing key challenge/verify → JWT in
    `OS_SESSION`. On failure: warn and continue without OS.
-4. **Linking** — `LinkingProcessController` (`web/src/app_lib/vault-utils/linking.ts`):
-   Pusher presence channel, WebRTC, sync key exchange, encrypted vault transfer
-   (`LinkVaultTransfer` AEAD).
+4. **Linking** — `LinkingProcessController` (`packages/vault-core/src/vault-utils/linking.ts`):
+   Pusher presence channel, WebRTC, sync key exchange, and sender-authenticated
+   vault transfer. `LinkVaultTransfer` carries an ML-DSA signature over its KEM
+   context and AEAD-encrypted vault bytes. The receiver verifies the signature
+   before KEM decapsulation.
 5. **Passphrase** — user sets local Argon2id params;
    `createLinkedVaultEnvelopeBlob()` → `saveVault()` to IndexedDB.
 6. **Done** — tab closes; user unlocks from popup.
@@ -82,7 +84,7 @@ credentials from SW.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Extension page ↔ SW     | ECDH envelopes, origin ACL, replay protection                                                                             |
 | SW ↔ Cryptex API        | tRPC allowlist, JWT injection, `credentials: omit`                                                                        |
-| Pusher / WebRTC ↔ peers | Channel auth via proxied tRPC; app-layer AEAD on payloads                                                                 |
+| Pusher / WebRTC ↔ peers | Channel auth via proxied tRPC; ML-DSA-authenticated KEM context and app-layer AEAD on payloads                            |
 | Signaling MITM          | WebRTC identity brokered through signaling; mitigated by PQ KEM + signing handshake on sync/link payloads, not eliminated |
 
 ## Data crossing boundaries
@@ -110,4 +112,4 @@ credentials from SW.
 | `src/utils/sw-proxy-fetch.ts`                      | fetch shim → ProxyFetch                 |
 | `web/src/app_lib/online-services-session/`         | Shared session port + auth protocol     |
 | `web/src/app_lib/synchronization.ts`               | Sync wire protocol                      |
-| `web/src/app_lib/vault-utils/linking.ts`           | Link package + process controller       |
+| `packages/vault-core/src/vault-utils/linking.ts`   | Link package + process controller       |

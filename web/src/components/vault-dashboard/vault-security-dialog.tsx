@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
 import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
+import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -22,6 +22,7 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
@@ -34,49 +35,61 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
-    SecondFactorOptions,
-    type SecondFactorChoice,
+    AdditionalKeyProtectionOptions,
+    type AdditionalKeyProtectionChoice,
     choiceToSource,
-} from "@/components/vault-manager/second-factor-options";
+} from "@/components/vault-manager/additional-key-protection-options";
 import { unlockedVaultMetadataAtom } from "@/utils/atoms";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { vaultLog } from "@/utils/logging";
+import {
+    VAULT_SECURITY_BACKUP_EVENT,
+    type VaultSecurityBackupEventDetail,
+} from "@/app_lib/managed-backup-hooks";
+import {
+    reconfigureUnlockedVaultSecurity,
+    rotateUnlockedVaultRecoveryCode,
+} from "@/utils/vault-security-mutations";
 
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
 
-function kindToChoice(kind: SecondFactorKind | undefined): SecondFactorChoice {
+function kindToChoice(
+    kind: AdditionalKeyProtectionKind | undefined,
+): AdditionalKeyProtectionChoice {
     switch (kind) {
-        case SecondFactorKind.PASSPHRASE_128:
-            return "passphrase128";
-        case SecondFactorKind.PASSPHRASE_256:
-            return "passphrase256";
-        case SecondFactorKind.WEBAUTHN_PRF:
+        case AdditionalKeyProtectionKind.PROTECTION_PHRASE_128:
+            return "protectionPhrase128";
+        case AdditionalKeyProtectionKind.PROTECTION_PHRASE_256:
+            return "protectionPhrase256";
+        case AdditionalKeyProtectionKind.WEBAUTHN_PRF:
             return "webauthn";
         default:
             return "none";
     }
 }
 
-function describeKind(kind: SecondFactorKind | undefined): string {
+function describeKind(kind: AdditionalKeyProtectionKind | undefined): string {
     switch (kind) {
-        case SecondFactorKind.PASSPHRASE_128:
+        case AdditionalKeyProtectionKind.PROTECTION_PHRASE_128:
             return "Generated protection phrase (128-bit)";
-        case SecondFactorKind.PASSPHRASE_256:
+        case AdditionalKeyProtectionKind.PROTECTION_PHRASE_256:
             return "Generated protection phrase (256-bit)";
-        case SecondFactorKind.WEBAUTHN_PRF:
+        case AdditionalKeyProtectionKind.WEBAUTHN_PRF:
             return "Security key (WebAuthn PRF)";
         default:
             return "Password only";
     }
 }
 
-function isPassphraseKind(kind: SecondFactorKind | undefined): boolean {
+function isProtectionPhraseKind(
+    kind: AdditionalKeyProtectionKind | undefined,
+): boolean {
     return (
-        kind === SecondFactorKind.PASSPHRASE_128 ||
-        kind === SecondFactorKind.PASSPHRASE_256
+        kind === AdditionalKeyProtectionKind.PROTECTION_PHRASE_128 ||
+        kind === AdditionalKeyProtectionKind.PROTECTION_PHRASE_256
     );
 }
 
@@ -114,18 +127,99 @@ const SecretReveal: React.FC<{
     );
 };
 
+const KeyRotationOptions: React.FC<{
+    idPrefix: string;
+    rotateDataKey: boolean;
+    onRotateDataKeyChange: (checked: boolean) => void;
+    deleteOlderManagedBackups: boolean;
+    onDeleteOlderManagedBackupsChange: (checked: boolean) => void;
+    disabled: boolean;
+}> = ({
+    idPrefix,
+    rotateDataKey,
+    onRotateDataKeyChange,
+    deleteOlderManagedBackups,
+    onDeleteOlderManagedBackupsChange,
+    disabled,
+}) => (
+    <div className="space-y-3 rounded-md border p-3">
+        <div className="flex items-start gap-2">
+            <Checkbox
+                id={`${idPrefix}-rotate-data-key`}
+                checked={rotateDataKey}
+                onCheckedChange={(checked) =>
+                    onRotateDataKeyChange(checked === true)
+                }
+                disabled={disabled}
+            />
+            <Label
+                htmlFor={`${idPrefix}-rotate-data-key`}
+                className="space-y-1 font-normal"
+            >
+                <span className="block font-medium">
+                    Rotate this device&apos;s vault encryption key
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                    Off by default. When enabled, the vault is re-encrypted with
+                    a fresh data key and a new recovery code is generated.
+                </span>
+            </Label>
+        </div>
+
+        {rotateDataKey && (
+            <div className="vault-settings-warning rounded-md border p-3 text-xs">
+                This replaces this device&apos;s vault key and recovery code. It
+                does not rotate keys on linked devices.
+            </div>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+            Downloaded backup files are independent copies: they cannot be
+            revoked and may still open with the credentials that protected them
+            when downloaded.
+        </p>
+
+        <div className="flex items-start gap-2">
+            <Checkbox
+                id={`${idPrefix}-delete-old-backups`}
+                checked={deleteOlderManagedBackups}
+                onCheckedChange={(checked) =>
+                    onDeleteOlderManagedBackupsChange(checked === true)
+                }
+                disabled={disabled}
+            />
+            <Label
+                htmlFor={`${idPrefix}-delete-old-backups`}
+                className="space-y-1 font-normal"
+            >
+                <span className="block font-medium">
+                    Delete older managed backups after replacement
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                    If managed backups are enabled, all older restore points for
+                    this account—including linked-device snapshots—are deleted
+                    only after the new encrypted backup succeeds.
+                </span>
+            </Label>
+        </div>
+    </div>
+);
+
 export function VaultSecurityDialog({ open, onOpenChange }: Props) {
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
-    const currentKind = vaultMetadata?.Blob?.Envelope?.PrimaryFactorKind;
+    const currentKind = vaultMetadata?.Blob?.Envelope?.PrimaryProtectionKind;
+    const wasOpenRef = useRef(false);
 
     const [currentPassword, setCurrentPassword] = useState("");
-    const [currentSecondFactorPassphrase, setCurrentSecondFactorPassphrase] =
-        useState("");
+    const [currentRecoveryCode, setCurrentRecoveryCode] = useState("");
+    const [currentProtectionPhrase, setCurrentProtectionPhrase] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [factorChoice, setFactorChoice] =
-        useState<SecondFactorChoice>("none");
-    const [factorSource, setFactorSource] = useState(choiceToSource("none"));
+    const [protectionChoice, setProtectionChoice] =
+        useState<AdditionalKeyProtectionChoice>("none");
+    const [protectionSource, setProtectionSource] = useState(
+        choiceToSource("none"),
+    );
     const [memLimit, setMemLimit] = useState(
         KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
     );
@@ -135,22 +229,34 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
 
     const [isSaving, setIsSaving] = useState(false);
     const [isRotating, setIsRotating] = useState(false);
-    const [revealPassphrase, setRevealPassphrase] = useState<string | null>(
-        null,
-    );
+    const [revealProtectionPhrase, setRevealProtectionPhrase] = useState<
+        string | null
+    >(null);
     const [revealRecovery, setRevealRecovery] = useState<string | null>(null);
     const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
+    const [rotateDataKeyOnProtection, setRotateDataKeyOnProtection] =
+        useState(false);
+    const [deleteOldBackupsOnProtection, setDeleteOldBackupsOnProtection] =
+        useState(false);
+    const [rotateDataKeyOnRecovery, setRotateDataKeyOnRecovery] =
+        useState(false);
+    const [deleteOldBackupsOnRecovery, setDeleteOldBackupsOnRecovery] =
+        useState(false);
+    const [secretsAcknowledged, setSecretsAcknowledged] = useState(false);
 
     // Reset local state to the vault's current configuration whenever the
     // dialog opens, so stale input never leaks across sessions.
     useEffect(() => {
-        if (!open) return;
+        const isOpening = open && !wasOpenRef.current;
+        wasOpenRef.current = open;
+        if (!isOpening) return;
         setCurrentPassword("");
-        setCurrentSecondFactorPassphrase("");
+        setCurrentRecoveryCode("");
+        setCurrentProtectionPhrase("");
         setNewPassword("");
         setConfirmPassword("");
-        setFactorChoice(kindToChoice(currentKind));
-        setFactorSource(choiceToSource(kindToChoice(currentKind)));
+        setProtectionChoice(kindToChoice(currentKind));
+        setProtectionSource(choiceToSource(kindToChoice(currentKind)));
         setMemLimit(
             vaultMetadata?.Blob?.KDFConfigArgon2ID?.memLimit ??
                 KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
@@ -159,23 +265,84 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
             vaultMetadata?.Blob?.KDFConfigArgon2ID?.opsLimit ??
                 KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
         );
-        setRevealPassphrase(null);
+        setRevealProtectionPhrase(null);
         setRevealRecovery(null);
         setKdfRiskAcknowledged(false);
+        setRotateDataKeyOnProtection(false);
+        setDeleteOldBackupsOnProtection(false);
+        setRotateDataKeyOnRecovery(false);
+        setDeleteOldBackupsOnRecovery(false);
+        setSecretsAcknowledged(false);
     }, [open, currentKind, vaultMetadata]);
 
     useEffect(() => {
         setKdfRiskAcknowledged(false);
     }, [memLimit, opsLimit]);
 
+    useEffect(() => {
+        const listener = (event: Event) => {
+            const detail = (
+                event as CustomEvent<VaultSecurityBackupEventDetail>
+            ).detail;
+            if (detail.status === "skipped") {
+                toast.info(
+                    "Managed backups are not enabled; the local security change is complete.",
+                );
+                return;
+            }
+            toast.error(
+                `The local security change succeeded, but its managed backup did not complete. ${detail.message}`,
+            );
+        };
+        window.addEventListener(VAULT_SECURITY_BACKUP_EVENT, listener);
+        return () =>
+            window.removeEventListener(VAULT_SECURITY_BACKUP_EVENT, listener);
+    }, []);
+
     const belowRecommendedKdf = isBelowOwaspRecommendedArgon2id(
         Number(memLimit),
         Number(opsLimit),
     );
-    const submitBlockedByKdf = belowRecommendedKdf && !kdfRiskAcknowledged;
+    const invalidKdf =
+        !Number.isInteger(Number(memLimit)) ||
+        !Number.isInteger(Number(opsLimit)) ||
+        Number(memLimit) < KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT ||
+        Number(memLimit) > KeyDerivationConfig_Argon2ID.MAX_MEM_LIMIT ||
+        Number(opsLimit) < KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT ||
+        Number(opsLimit) > KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT;
+    const submitBlockedByKdf =
+        invalidKdf || (belowRecommendedKdf && !kdfRiskAcknowledged);
+    const busy = isSaving || isRotating;
+    const hasRevealedSecrets = !!revealProtectionPhrase || !!revealRecovery;
+    const hasUnacknowledgedSecrets = hasRevealedSecrets && !secretsAcknowledged;
+
+    const clearCurrentAuthorization = () => {
+        setCurrentPassword("");
+        setCurrentRecoveryCode("");
+        setCurrentProtectionPhrase("");
+    };
+
+    const handleOpenChange = (nextOpen: boolean) => {
+        if (!nextOpen && hasUnacknowledgedSecrets) {
+            toast.error("Confirm that you saved the newly generated secrets.");
+            return;
+        }
+        if (!nextOpen && busy) return;
+        if (!nextOpen) {
+            setCurrentPassword("");
+            setCurrentRecoveryCode("");
+            setCurrentProtectionPhrase("");
+            setNewPassword("");
+            setConfirmPassword("");
+            setRevealProtectionPhrase(null);
+            setRevealRecovery(null);
+            setSecretsAcknowledged(false);
+        }
+        onOpenChange(nextOpen);
+    };
 
     const requireCurrentPassword = (): boolean => {
-        if (currentPassword.trim().length === 0) {
+        if (currentPassword.length === 0) {
             toast.error(
                 "Enter your current master password to authorize this change.",
             );
@@ -189,35 +356,57 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
             toast.error("Vault metadata is unavailable.");
             return;
         }
-        if (!requireCurrentPassword()) return;
+        const useRecovery = currentRecoveryCode.trim().length > 0;
+        if (!useRecovery && !requireCurrentPassword()) return;
+        if (useRecovery && !newPassword) {
+            toast.error(
+                "Enter a new master password when using a recovery code.",
+            );
+            return;
+        }
 
         const changingPassword = newPassword.length > 0;
         if (changingPassword && newPassword !== confirmPassword) {
+            clearCurrentAuthorization();
             toast.error("New password and confirmation do not match.");
             return;
         }
 
         setIsSaving(true);
-        setRevealPassphrase(null);
+        setRevealProtectionPhrase(null);
+        setRevealRecovery(null);
+        setSecretsAcknowledged(false);
         try {
-            const res = await vaultMetadata.reconfigureSecurity({
-                currentMasterPassword: currentPassword,
-                currentSecondFactorPassphrase:
-                    currentSecondFactorPassphrase.trim() || undefined,
+            const res = await reconfigureUnlockedVaultSecurity({
+                currentMasterPassword: useRecovery ? "" : currentPassword,
+                currentRecoveryCode: useRecovery
+                    ? currentRecoveryCode.trim()
+                    : undefined,
+                currentProtectionPhrase:
+                    currentProtectionPhrase.trim() || undefined,
                 newMasterPassword: changingPassword ? newPassword : undefined,
-                secondFactor: factorSource,
+                additionalKeyProtection: protectionSource,
                 kdfConfig: new KeyDerivationConfig_Argon2ID(
                     Number(memLimit),
                     Number(opsLimit),
                 ),
+                rotateDataKey: rotateDataKeyOnProtection,
+                deleteOlderManagedBackups: deleteOldBackupsOnProtection,
             });
+
+            clearCurrentAuthorization();
 
             if (res.isErr()) {
                 if (
                     res.error === "DEK_UNWRAP_FAILED" ||
-                    res.error === "KEK_DERIVATION_FAILED"
+                    res.error === "KEK_DERIVATION_FAILED" ||
+                    (useRecovery && res.error === "RECOVERY_KEK_FAILED")
                 ) {
-                    toast.error("Incorrect current master password.");
+                    toast.error(
+                        useRecovery
+                            ? "Recovery code is incorrect."
+                            : "Current master password or protection phrase is incorrect.",
+                    );
                     return;
                 }
                 vaultLog.error("reconfigureSecurity failed", {
@@ -227,16 +416,34 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                 return;
             }
 
-            toast.success("Security settings updated.");
-            setCurrentPassword("");
+            toast.success(
+                res.value.dataKeyRotated
+                    ? "Security settings and vault encryption key updated."
+                    : "Security settings updated.",
+            );
             setNewPassword("");
             setConfirmPassword("");
 
             const reveal = res.value;
-            if (reveal?.secondFactorPassphrase) {
-                setRevealPassphrase(reveal.secondFactorPassphrase);
+            if (reveal.protectionPhrase) {
+                setRevealProtectionPhrase(reveal.protectionPhrase);
+            }
+            if (reveal.recoveryCode) {
+                setRevealRecovery(reveal.recoveryCode);
+            }
+            setSecretsAcknowledged(
+                !reveal.protectionPhrase && !reveal.recoveryCode,
+            );
+            if (reveal.deviceKeyProtectionCached === false) {
+                toast.warning(
+                    "Security settings were saved, but this device could not cache the new protection key. Save the protection phrase; it will be required on the next unlock.",
+                );
+            }
+            if (!reveal.protectionPhrase && !reveal.recoveryCode) {
+                onOpenChange(false);
             }
         } catch (error) {
+            clearCurrentAuthorization();
             vaultLog.error("reconfigureSecurity threw", { error });
             toast.error("Failed to update security settings.");
         } finally {
@@ -252,20 +459,28 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         if (!requireCurrentPassword()) return;
 
         setIsRotating(true);
+        setRevealProtectionPhrase(null);
         setRevealRecovery(null);
+        setSecretsAcknowledged(false);
         try {
-            const res = await vaultMetadata.resetRecoveryCode({
+            const res = await rotateUnlockedVaultRecoveryCode({
                 currentMasterPassword: currentPassword,
-                currentSecondFactorPassphrase:
-                    currentSecondFactorPassphrase.trim() || undefined,
+                currentProtectionPhrase:
+                    currentProtectionPhrase.trim() || undefined,
+                rotateDataKey: rotateDataKeyOnRecovery,
+                deleteOlderManagedBackups: deleteOldBackupsOnRecovery,
             });
+
+            clearCurrentAuthorization();
 
             if (res.isErr()) {
                 if (
                     res.error === "DEK_UNWRAP_FAILED" ||
                     res.error === "KEK_DERIVATION_FAILED"
                 ) {
-                    toast.error("Incorrect current master password.");
+                    toast.error(
+                        "Current master password or protection phrase is incorrect.",
+                    );
                     return;
                 }
                 vaultLog.error("resetRecoveryCode failed", {
@@ -276,8 +491,14 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
             }
 
             setRevealRecovery(res.value.recoveryCode);
-            toast.success("New recovery code generated.");
+            setSecretsAcknowledged(false);
+            toast.success(
+                res.value.dataKeyRotated
+                    ? "Vault encryption key and recovery code rotated."
+                    : "New recovery code generated.",
+            );
         } catch (error) {
+            clearCurrentAuthorization();
             vaultLog.error("resetRecoveryCode threw", { error });
             toast.error("Failed to reset recovery code.");
         } finally {
@@ -286,10 +507,8 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
     };
 
     const isEnvelope = !!vaultMetadata?.Blob?.Envelope;
-    const busy = isSaving || isRotating;
-
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="vault-settings-dialog flex max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
                 <DialogHeader className="border-b px-5 py-4">
                     <DialogTitle className="flex items-center gap-2">
@@ -298,12 +517,23 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                     </DialogTitle>
                     <DialogDescription>
                         Change your master password, additional key protection,
-                        and recovery code. The vault data itself is not
-                        re-encrypted.
+                        recovery code, and—optionally—this device&apos;s vault
+                        encryption key.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+                    <Alert>
+                        <AlertDescription className="text-xs">
+                            Changing your master password, additional key
+                            protection, or recovery code does not update
+                            existing backups. Older copies still use their
+                            original password, protection, and recovery code.
+                            Download and check a fresh backup after saving
+                            changes, then remove older copies you no longer
+                            need, including managed backups.
+                        </AlertDescription>
+                    </Alert>
                     {!isEnvelope && (
                         <Alert>
                             <AlertDescription className="text-xs">
@@ -322,7 +552,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             id="current-master-password"
                             type="password"
                             autoComplete="current-password"
-                            placeholder="Required to authorize changes"
+                            placeholder="Or use the recovery code below"
                             className="vault-settings-input"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
@@ -333,21 +563,40 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                         </p>
                     </div>
 
-                    {isPassphraseKind(currentKind) && (
+                    <div className="space-y-2">
+                        <Label htmlFor="current-recovery-code">
+                            Recovery code to set a new master password
+                        </Label>
+                        <Input
+                            id="current-recovery-code"
+                            type="password"
+                            autoComplete="off"
+                            className="vault-settings-input font-mono text-xs"
+                            value={currentRecoveryCode}
+                            onChange={(e) =>
+                                setCurrentRecoveryCode(e.target.value)
+                            }
+                            disabled={!isEnvelope || busy}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Use this instead of the current master password.
+                            Enter and confirm a new one below.
+                        </p>
+                    </div>
+
+                    {isProtectionPhraseKind(currentKind) && (
                         <div className="space-y-2">
-                            <Label htmlFor="current-second-factor-passphrase">
+                            <Label htmlFor="current-protection-phrase">
                                 Current protection phrase
                             </Label>
                             <Input
-                                id="current-second-factor-passphrase"
+                                id="current-protection-phrase"
                                 type="password"
                                 placeholder="Optional on this device, required after restore"
                                 className="vault-settings-input font-mono text-xs"
-                                value={currentSecondFactorPassphrase}
+                                value={currentProtectionPhrase}
                                 onChange={(e) =>
-                                    setCurrentSecondFactorPassphrase(
-                                        e.target.value,
-                                    )
+                                    setCurrentProtectionPhrase(e.target.value)
                                 }
                                 disabled={!isEnvelope || busy}
                             />
@@ -404,11 +653,11 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             <PasswordStrengthMeter password={newPassword} />
                         )}
 
-                        <SecondFactorOptions
-                            value={factorChoice}
+                        <AdditionalKeyProtectionOptions
+                            value={protectionChoice}
                             onChange={(choice, source) => {
-                                setFactorChoice(choice);
-                                setFactorSource(source);
+                                setProtectionChoice(choice);
+                                setProtectionSource(source);
                             }}
                         />
                         <p className="text-xs text-muted-foreground">
@@ -437,6 +686,9 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                                             type="number"
                                             min={
                                                 KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT
+                                            }
+                                            max={
+                                                KeyDerivationConfig_Argon2ID.MAX_MEM_LIMIT
                                             }
                                             className="vault-settings-input"
                                             value={memLimit}
@@ -483,28 +735,48 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             </AccordionItem>
                         </Accordion>
 
-                        {revealPassphrase && (
+                        {revealProtectionPhrase && (
                             <Alert>
                                 <AlertDescription className="space-y-2">
                                     <SecretReveal
                                         label="New protection phrase"
-                                        value={revealPassphrase}
+                                        value={revealProtectionPhrase}
                                         helper="Shown once. Save it: it is required after a backup restore or on devices without a cached key."
                                     />
                                 </AlertDescription>
                             </Alert>
                         )}
-                        {factorChoice === "webauthn" && (
+                        {protectionChoice === "webauthn" && (
                             <p className="text-xs text-muted-foreground">
                                 You will be prompted for your security key when
                                 you save.
                             </p>
                         )}
 
+                        <KeyRotationOptions
+                            idPrefix="protection"
+                            rotateDataKey={rotateDataKeyOnProtection}
+                            onRotateDataKeyChange={setRotateDataKeyOnProtection}
+                            deleteOlderManagedBackups={
+                                deleteOldBackupsOnProtection
+                            }
+                            onDeleteOlderManagedBackupsChange={
+                                setDeleteOldBackupsOnProtection
+                            }
+                            disabled={
+                                !isEnvelope || busy || hasUnacknowledgedSecrets
+                            }
+                        />
+
                         <Button
                             className="vault-settings-primary-button w-full"
                             onClick={handleSaveSecurity}
-                            disabled={!isEnvelope || busy || submitBlockedByKdf}
+                            disabled={
+                                !isEnvelope ||
+                                busy ||
+                                submitBlockedByKdf ||
+                                hasUnacknowledgedSecrets
+                            }
                         >
                             {isSaving ? (
                                 <span className="flex items-center">
@@ -528,7 +800,8 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             Generating a new recovery code immediately
                             invalidates the previous one. Store the new code
                             somewhere safe; it is the only backup if you lose
-                            your master password.
+                            your master password. This action requires the
+                            current master password.
                         </div>
 
                         {revealRecovery && (
@@ -543,11 +816,28 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             </Alert>
                         )}
 
+                        <KeyRotationOptions
+                            idPrefix="recovery"
+                            rotateDataKey={rotateDataKeyOnRecovery}
+                            onRotateDataKeyChange={setRotateDataKeyOnRecovery}
+                            deleteOlderManagedBackups={
+                                deleteOldBackupsOnRecovery
+                            }
+                            onDeleteOlderManagedBackupsChange={
+                                setDeleteOldBackupsOnRecovery
+                            }
+                            disabled={
+                                !isEnvelope || busy || hasUnacknowledgedSecrets
+                            }
+                        />
+
                         <Button
                             variant="outline"
                             className="vault-settings-action-button w-full"
                             onClick={handleResetRecovery}
-                            disabled={!isEnvelope || busy}
+                            disabled={
+                                !isEnvelope || busy || hasUnacknowledgedSecrets
+                            }
                         >
                             {isRotating ? (
                                 <span className="flex items-center">
@@ -562,11 +852,31 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                 </div>
 
                 <DialogFooter className="vault-settings-footer border-t px-5 py-4">
+                    {hasRevealedSecrets && (
+                        <div className="mr-auto flex items-start gap-2 text-left">
+                            <Checkbox
+                                id="vault-security-secrets-saved"
+                                checked={secretsAcknowledged}
+                                onCheckedChange={(checked) =>
+                                    setSecretsAcknowledged(checked === true)
+                                }
+                                disabled={busy}
+                            />
+                            <Label
+                                htmlFor="vault-security-secrets-saved"
+                                className="max-w-xs text-xs font-normal"
+                            >
+                                I saved the newly generated secrets and
+                                understand that older downloaded backups may
+                                still use their previous credentials.
+                            </Label>
+                        </div>
+                    )}
                     <Button
                         variant="outline"
                         className="vault-settings-action-button"
-                        onClick={() => onOpenChange(false)}
-                        disabled={busy}
+                        onClick={() => handleOpenChange(false)}
+                        disabled={busy || hasUnacknowledgedSecrets}
                     >
                         Close
                     </Button>

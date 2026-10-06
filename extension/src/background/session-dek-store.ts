@@ -7,12 +7,19 @@
  */
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import {
+    base64ToUint8,
+    uint8ToBase64,
+} from "@cryptex-industries/vault-core/encoding";
 import { isPrimarySlot } from "@cryptex-industries/vault-core/vault-utils/encryption";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     isEnvelopeBlob,
     openPrimarySlot,
 } from "@cryptex-industries/vault-core/vault-utils/envelope-encryption";
+import { resolveAdditionalKeyProtectionForUnlock } from "@cryptex-industries/vault-core/vault-utils/additional-key-protection";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
+import { setDeviceAdditionalKeyProtectionKey } from "@/app_lib/vault-utils/vault-key-store";
 
 const STORAGE_PREFIX = "SESSION_DEK:";
 const AES_GCM_256_BYTES = 32;
@@ -32,6 +39,7 @@ type SessionStorageWithAccessLevel = chrome.storage.StorageArea & {
 
 type SessionDEKUnlockParams = {
     masterPassword: string;
+    protectionPhrase?: string;
 };
 
 let accessLevelPromise: Promise<void> | null = null;
@@ -50,9 +58,6 @@ const isStoredSessionDEK = (value: unknown): value is StoredSessionDEK => {
     );
 };
 
-const bytesToBase64 = (bytes: Uint8Array) => bytes.toBase64();
-const base64ToBytes = (base64: string) => Uint8Array.fromBase64(base64);
-
 async function ensureTrustedContextOnly(): Promise<void> {
     if (!accessLevelPromise) {
         accessLevelPromise = (async () => {
@@ -67,6 +72,7 @@ async function ensureTrustedContextOnly(): Promise<void> {
 }
 
 async function deriveExtractableSessionDEK(
+    vaultDbIndex: number,
     metadata: VaultMetadata,
     params: SessionDEKUnlockParams,
 ): Promise<CryptoKey> {
@@ -86,20 +92,56 @@ async function deriveExtractableSessionDEK(
     }
 
     if (
-        blob.Envelope.PrimaryFactorKind !== VaultUtilTypes.SecondFactorKind.NONE
+        blob.Envelope.PrimaryProtectionKind ===
+        VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF
     ) {
-        throw new Error("EXTENSION_2FA_UNSUPPORTED");
+        throw new Error("EXTENSION_WEBAUTHN_UNSUPPORTED");
     }
+
+    const protectionKind = blob.Envelope.PrimaryProtectionKind;
+    const enteredProtectionPhrase = params.protectionPhrase?.trim();
+    const additionalKeyProtectionHkdfBase =
+        await resolveAdditionalKeyProtectionForUnlock(
+            vaultDbIndex,
+            protectionKind,
+            {
+                protectionPhrase: enteredProtectionPhrase || undefined,
+                protectionPhraseSaltB64:
+                    primarySlot.ProtectionPhraseSalt || undefined,
+                protectionPhraseKdfConfig: new KeyDerivationConfig_Argon2ID(
+                    primarySlot.KDFConfigArgon2ID?.memLimit ??
+                        KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+                    primarySlot.KDFConfigArgon2ID?.opsLimit ??
+                        KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+                ),
+            },
+        );
 
     const dek = await openPrimarySlot(
         primarySlot,
         params.masterPassword,
         vaultId,
-        null,
+        additionalKeyProtectionHkdfBase,
         true,
     );
     if (dek.isErr()) {
         throw new Error(dek.error);
+    }
+
+    if (
+        enteredProtectionPhrase &&
+        additionalKeyProtectionHkdfBase &&
+        (protectionKind ===
+            VaultUtilTypes.AdditionalKeyProtectionKind.PROTECTION_PHRASE_128 ||
+            protectionKind ===
+                VaultUtilTypes.AdditionalKeyProtectionKind
+                    .PROTECTION_PHRASE_256)
+    ) {
+        await setDeviceAdditionalKeyProtectionKey(
+            vaultDbIndex,
+            additionalKeyProtectionHkdfBase,
+            protectionKind,
+        ).catch(() => undefined);
     }
 
     return dek.value;
@@ -122,7 +164,7 @@ async function setSessionDEK(
             [storageKey(vaultDbIndex)]: {
                 v: 1,
                 alg: "AES-GCM-256",
-                rawB64: bytesToBase64(raw),
+                rawB64: uint8ToBase64(raw),
                 storedAt: Date.now(),
             } satisfies StoredSessionDEK,
         });
@@ -136,7 +178,11 @@ export async function setSessionDEKFromVaultMetadata(
     metadata: VaultMetadata,
     params: SessionDEKUnlockParams,
 ): Promise<void> {
-    const dek = await deriveExtractableSessionDEK(metadata, params);
+    const dek = await deriveExtractableSessionDEK(
+        vaultDbIndex,
+        metadata,
+        params,
+    );
     await setSessionDEK(vaultDbIndex, dek);
 }
 
@@ -147,7 +193,9 @@ export async function verifyVaultMasterPassword(
 ): Promise<boolean> {
     if (!masterPassword) return false;
     try {
-        await deriveExtractableSessionDEK(metadata as VaultMetadata, {
+        const index = (metadata as VaultMetadata).DBIndex;
+        if (index == null) return false;
+        await deriveExtractableSessionDEK(index, metadata as VaultMetadata, {
             masterPassword,
         });
         return true;
@@ -165,18 +213,23 @@ export async function getSessionDEK(
     const stored = result[storageKey(vaultDbIndex)];
     if (!isStoredSessionDEK(stored)) return null;
 
-    const raw = base64ToBytes(stored.rawB64);
+    const raw = base64ToUint8(stored.rawB64);
+    if (raw.byteLength !== AES_GCM_256_BYTES) {
+        raw.fill(0);
+        return null;
+    }
+    const importBytes = Uint8Array.from(raw);
     try {
-        if (raw.byteLength !== AES_GCM_256_BYTES) return null;
         return await crypto.subtle.importKey(
             "raw",
-            raw,
+            importBytes,
             { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"],
         );
     } finally {
         raw.fill(0);
+        importBytes.fill(0);
     }
 }
 

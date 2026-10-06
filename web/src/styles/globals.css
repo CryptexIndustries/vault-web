@@ -128,3 +128,50 @@ html {
 .secret-masked {
     -webkit-text-security: disc;
 }
+
+/* Connection activity is independent of graph layout and device provider. */
+.device-network-flow {
+    animation: device-connection-flow 1.8s linear infinite;
+    pointer-events: none;
+}
+@keyframes device-connection-flow {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -48;
+    }
+}
+.device-network-node:hover .device-network-label,
+.device-network-node:focus-visible .device-network-label {
+    opacity: 1;
+}
+.device-network-node:focus-visible .device-network-dot {
+    stroke-width: 4;
+}
+.device-network-edge:focus-visible .device-network-line {
+    stroke-width: 4;
+}
+/* Keep the selected node stationary while its outer ring gently breathes. */
+.device-network-selection {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: device-selection-pulse 2.8s ease-in-out infinite;
+}
+@keyframes device-selection-pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.12);
+        opacity: 0.55;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .device-network-flow,
+    .device-network-selection {
+        animation: none;
+    }
+}

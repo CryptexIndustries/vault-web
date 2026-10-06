@@ -32,6 +32,10 @@ import {
     SelectValue,
 } from "./select";
 import { Textarea } from "./textarea";
+import {
+    ControlWithActions,
+    plainFieldClassName,
+} from "./control-with-actions";
 import { copySecretToClipboard } from "@/utils/clipboard";
 
 const passwordGeneratorSchema = z.object({
@@ -377,53 +381,58 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
                     <Label className={compact ? "text-xs" : undefined}>
                         Generated Password
                     </Label>
-                    <div className="relative">
+                    <ControlWithActions
+                        align="start"
+                        actions={
+                            <div
+                                className={cn(
+                                    "flex gap-1",
+                                    compact ? "p-1" : "p-1.5",
+                                )}
+                            >
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => void copyToClipboard()}
+                                    disabled={!generatedPassword}
+                                    className={compact ? "h-5 w-5" : "h-6 w-6"}
+                                >
+                                    <Copy
+                                        className={
+                                            compact ? "h-2.5 w-2.5" : "h-3 w-3"
+                                        }
+                                    />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={regeneratePassword}
+                                    className={compact ? "h-5 w-5" : "h-6 w-6"}
+                                >
+                                    <RefreshCw
+                                        className={
+                                            compact ? "h-2.5 w-2.5" : "h-3 w-3"
+                                        }
+                                    />
+                                </Button>
+                            </div>
+                        }
+                    >
                         <Textarea
                             value={generatedPassword}
                             readOnly
                             className={cn(
-                                "resize-none font-mono",
+                                plainFieldClassName,
+                                "w-full resize-none font-mono",
                                 compact
-                                    ? "min-h-[56px] px-2 py-2 pr-12 text-[11px]"
-                                    : "min-h-[80px] px-3 py-3 pr-14 text-sm",
+                                    ? "min-h-[56px] px-2 py-2 text-[11px]"
+                                    : "min-h-[80px] px-3 py-3 text-sm",
                             )}
                             placeholder="Click generate to create a password"
                         />
-                        <div
-                            className={cn(
-                                "absolute flex gap-1",
-                                compact ? "right-2 top-1.5" : "right-5 top-2",
-                            )}
-                        >
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => void copyToClipboard()}
-                                disabled={!generatedPassword}
-                                className={compact ? "h-5 w-5" : "h-6 w-6"}
-                            >
-                                <Copy
-                                    className={
-                                        compact ? "h-2.5 w-2.5" : "h-3 w-3"
-                                    }
-                                />
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={regeneratePassword}
-                                className={compact ? "h-5 w-5" : "h-6 w-6"}
-                            >
-                                <RefreshCw
-                                    className={
-                                        compact ? "h-2.5 w-2.5" : "h-3 w-3"
-                                    }
-                                />
-                            </Button>
-                        </div>
-                    </div>
+                    </ControlWithActions>
                 </div>
 
                 <div className={compact ? "space-y-1.5" : "space-y-2"}>

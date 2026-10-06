@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { getDeviceConnectionDisplay } from "./device-status";
+import { isCustomSignaling } from "./account-dialog/device-topology";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import {
     Monitor,
+    Server,
     Smartphone,
     Tablet,
     Globe,
@@ -42,34 +45,23 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-    LinkedDevice,
-    LinkedDevices,
-} from "@cryptex-industries/vault-core/vault-utils/vault";
+import { LinkedDevice } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
-import {
-    ReceiveLinkRequestDialog,
-    SendLinkRequestDialog,
-    type VaultSignalingConfig,
-    VaultSignalingConfigDialog,
-} from "./link";
+import { type VaultSignalingConfig, VaultSignalingConfigDialog } from "./link";
 import {
     SubscriptionCtaPopover,
     type SubscriptionCtaVariant,
 } from "./subscription-cta-popover";
-import type { WarningDialogShowFn } from "@/components/dialog/warning";
 import {
     SignalingStatus,
     WebRTCStatus,
 } from "@cryptex-industries/vault-core/synchronization-utils";
 import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
-import { useSetAtom } from "jotai";
-import { linkedDevicesAtom } from "src/utils/atoms";
-import { toast } from "sonner";
-import { trpcReact } from "src/utils/trpc";
+import { useDeviceLongPress } from "./use-device-long-press";
+
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
-import { onlineServicesLog } from "src/utils/logging";
+
 import { BackupSidebarEntry } from "./backup-dialog";
 
 // TODO: Remove this type
@@ -100,11 +92,12 @@ interface DeviceSidebarProps {
     vaultName: string;
     vaultDescription?: string;
     devices: LinkedDevice[];
-    onSaveDeviceConfig: (
-        config: DeviceConfigurationDraft,
-    ) => Promise<void> | void;
+    onEditDevice: (device: LinkedDevice) => void;
     onOpenVaultSettings?: () => void;
     onOpenAccountDialog?: () => void;
+    onManageDevices: (localId?: string, section?: "remove") => void;
+    onCreateInvitation: () => void;
+    onReceiveInvitation: () => void;
     accountButtonLabel?: string;
     accountButtonClassName?: string;
     showSubscriptionCta?: boolean;
@@ -122,7 +115,6 @@ interface DeviceSidebarProps {
     ) => Promise<void> | void;
     syncConnectionController: SyncConnectionController;
     deviceConnectionStatuses: Record<string, DeviceConnectionStatus>;
-    showWarningDialog: WarningDialogShowFn;
     isMobile?: boolean;
     onClose?: () => void;
 }
@@ -145,16 +137,6 @@ function inferDeviceType(name: string): DeviceIconKey {
     return "desktop";
 }
 
-function getLastSyncDate(device: LinkedDevice): Date {
-    if (device.LastSync) return new Date(device.LastSync);
-    return new Date(device.LinkedAtTimestamp);
-}
-
-function isDeviceOnline(device: LinkedDevice): boolean {
-    const onlineWindowMs = 2 * 60 * 1000;
-    return Date.now() - getLastSyncDate(device).getTime() < onlineWindowMs;
-}
-
 function formatLastSync(date: Date): string {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -173,87 +155,6 @@ function formatDateTime(date: Date): string {
         dateStyle: "medium",
         timeStyle: "short",
     });
-}
-
-type DeviceConnectionTone = "connected" | "connecting" | "error" | "idle";
-
-type DeviceConnectionDisplay = {
-    label: string;
-    title: string;
-    tone: DeviceConnectionTone;
-};
-
-function getDeviceConnectionDisplay({
-    webRTCStatus,
-    signalingServerStatus,
-    lastSyncLabel,
-}: {
-    webRTCStatus: WebRTCStatus;
-    signalingServerStatus: SignalingStatus;
-    lastSyncLabel: string;
-}): DeviceConnectionDisplay {
-    if (
-        webRTCStatus === WebRTCStatus.Failed ||
-        signalingServerStatus === SignalingStatus.Failed
-    ) {
-        return {
-            label:
-                signalingServerStatus === SignalingStatus.Failed
-                    ? "Signaling failed"
-                    : "Connection failed",
-            title:
-                signalingServerStatus === SignalingStatus.Failed
-                    ? "Signaling server connection failed"
-                    : "WebRTC device connection failed",
-            tone: "error",
-        };
-    }
-
-    if (webRTCStatus === WebRTCStatus.Connected) {
-        return {
-            label: `Connected - ${lastSyncLabel}`,
-            title: "Device connection active",
-            tone: "connected",
-        };
-    }
-
-    if (webRTCStatus === WebRTCStatus.Connecting) {
-        return {
-            label: "Connecting...",
-            title: "Opening device connection",
-            tone: "connecting",
-        };
-    }
-
-    if (signalingServerStatus === SignalingStatus.Connecting) {
-        return {
-            label: "Connecting to signaling...",
-            title: "Connecting to signaling server",
-            tone: "connecting",
-        };
-    }
-
-    if (signalingServerStatus === SignalingStatus.Connected) {
-        return {
-            label: "Ready to connect",
-            title: "Signaling connected; device connection not active",
-            tone: "connecting",
-        };
-    }
-
-    if (signalingServerStatus === SignalingStatus.Unavailable) {
-        return {
-            label: "Signaling unavailable",
-            title: "Signaling server unavailable",
-            tone: "idle",
-        };
-    }
-
-    return {
-        label: `Disconnected - ${lastSyncLabel}`,
-        title: "Device connection closed",
-        tone: "idle",
-    };
 }
 
 function DeviceField({
@@ -319,7 +220,7 @@ function DeviceToggleRow({
     );
 }
 
-function DeviceConfigurationDialog({
+export function DeviceConfigurationDialog({
     device,
     syncStatus,
     open,
@@ -408,14 +309,7 @@ function DeviceConfigurationDialog({
         }
     };
 
-    const statusLabel =
-        syncStatus && syncStatus.state !== "idle"
-            ? syncStatus.label
-            : device
-              ? isDeviceOnline(device)
-                  ? "Online"
-                  : formatLastSync(getLastSyncDate(device))
-              : "Unknown";
+    const statusLabel = syncStatus?.label ?? "Live status unknown";
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -559,7 +453,13 @@ function DeviceConfigurationDialog({
                                 <p className="text-muted-foreground">
                                     Last sync
                                 </p>
-                                <p>{formatDateTime(getLastSyncDate(device))}</p>
+                                <p>
+                                    {device.LastSync
+                                        ? formatDateTime(
+                                              new Date(device.LastSync),
+                                          )
+                                        : "Never synced"}
+                                </p>
                             </div>
                         </section>
 
@@ -602,17 +502,19 @@ function DeviceItem({
     device,
     syncConnectionController,
     connectionStatus,
-    setSelectedDevice,
-    setDeviceConfigOpen,
-    unlinkDevice,
+    onEditDevice,
+    onRemoveDevice,
+    onViewDetails,
 }: {
     device: LinkedDevice;
     syncConnectionController: SyncConnectionController;
     connectionStatus: DeviceConnectionStatus;
-    setSelectedDevice: (device: LinkedDevice) => void;
-    setDeviceConfigOpen: (open: boolean) => void;
-    unlinkDevice: (device: LinkedDevice) => Promise<void>;
+    onEditDevice: () => void;
+    onRemoveDevice: () => void;
+    onViewDetails: () => void;
 }) {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const longPress = useDeviceLongPress(() => setMenuOpen(true));
     const Icon = deviceIcons[inferDeviceType(device.Name)];
     const { signalingServerStatus, webRTCStatus, lastSync } = connectionStatus;
 
@@ -632,7 +534,12 @@ function DeviceItem({
     return (
         <div
             key={device.ID}
-            className="hover:bg-sidebar-accent group grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2.5 transition-colors"
+            {...longPress}
+            onContextMenu={(event) => {
+                event.preventDefault();
+                setMenuOpen(true);
+            }}
+            className="hover:bg-sidebar-accent group grid cursor-pointer select-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2.5 transition-colors"
         >
             <div className="relative">
                 <div
@@ -649,6 +556,17 @@ function DeviceItem({
                 >
                     <Icon className="h-4 w-4" />
                 </div>
+                {isCustomSignaling(device) && (
+                    <span
+                        title="Uses custom signaling"
+                        className="bg-sidebar absolute -right-1 -top-1 rounded-sm p-0.5"
+                    >
+                        <Server
+                            className="h-3 w-3 text-muted-foreground"
+                            aria-label="Uses custom signaling"
+                        />
+                    </span>
+                )}
                 <div
                     className={cn(
                         "border-sidebar absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2",
@@ -664,12 +582,18 @@ function DeviceItem({
             </div>
 
             <div className="min-w-0 flex-1">
-                <p
-                    className="truncate text-sm font-medium text-foreground"
-                    title={device.Name || "Unnamed Device"}
+                <button
+                    type="button"
+                    onClick={onViewDetails}
+                    className="block max-w-full text-left"
                 >
-                    {device.Name || "Unnamed Device"}
-                </p>
+                    <p
+                        className="truncate text-sm font-medium text-foreground"
+                        title={device.Name || "Unnamed Device"}
+                    >
+                        {device.Name || "Unnamed Device"}
+                    </p>
+                </button>
                 <p
                     className={cn(
                         "text-xs",
@@ -687,12 +611,14 @@ function DeviceItem({
                 </p>
             </div>
 
-            <DropdownMenu>
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 justify-self-end opacity-0 transition-opacity group-hover:opacity-100"
+                        className="h-6 w-6 justify-self-end opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+                        data-device-menu-trigger
+                        aria-label={`Actions for ${device.Name || "device"}`}
                     >
                         <MoreVertical className="h-3.5 w-3.5" />
                     </Button>
@@ -733,22 +659,18 @@ function DeviceItem({
                         />
                         Sync now
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                        onSelect={() => {
-                            setSelectedDevice(device);
-                            setDeviceConfigOpen(true);
-                        }}
-                    >
+                    <DropdownMenuItem onSelect={onViewDetails}>
                         View details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={onEditDevice}>
+                        Edit name and sync settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() => {
-                            void unlinkDevice(device);
-                        }}
+                        onSelect={onRemoveDevice}
                     >
-                        Unlink device
+                        Remove device…
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -760,10 +682,12 @@ export function DeviceSidebar({
     vaultName,
     vaultDescription,
     devices,
-    // onSyncDevice,
-    onSaveDeviceConfig,
+    onEditDevice,
     onOpenVaultSettings,
     onOpenAccountDialog,
+    onManageDevices,
+    onCreateInvitation,
+    onReceiveInvitation,
     accountButtonLabel = "Account",
     accountButtonClassName,
     showSubscriptionCta = false,
@@ -779,22 +703,12 @@ export function DeviceSidebar({
     onSaveSignalingConfig,
     syncConnectionController,
     deviceConnectionStatuses,
-    showWarningDialog,
     isMobile,
     onClose,
 }: DeviceSidebarProps) {
-    const [sendLinkOpen, setSendLinkOpen] = useState(false);
-    const [receiveLinkOpen, setReceiveLinkOpen] = useState(false);
     const [signalingConfigOpen, setSignalingConfigOpen] = useState(false);
-    const [selectedDevice, setSelectedDevice] = useState<LinkedDevice | null>(
-        null,
-    );
-    const [deviceConfigOpen, setDeviceConfigOpen] = useState(false);
 
-    const setLinkedDevices = useSetAtom(linkedDevicesAtom);
     const cloudServicesEnabled = isCloudServicesEnabled();
-    const { mutateAsync: breakLink } =
-        trpcReact.v1.device.breakLink.useMutation();
 
     const handleSidebarAction = (action?: () => void) => {
         if (!action) return;
@@ -805,66 +719,6 @@ export function DeviceSidebar({
     const handleAccountAction = () => {
         handleSidebarAction(onOpenAccountDialog);
     };
-
-    const confirmUnlinkDevice = useCallback(
-        (device: LinkedDevice) =>
-            new Promise<boolean>((resolve) => {
-                showWarningDialog(
-                    `Are you sure you want to unlink "${device.Name}"?`,
-                    () => {
-                        resolve(true);
-                    },
-                    () => {
-                        resolve(false);
-                    },
-                    "Unlink Device",
-                );
-            }),
-        [showWarningDialog],
-    );
-
-    const unlinkDevice = useCallback(
-        async (device: LinkedDevice) => {
-            const confirmed = await confirmUnlinkDevice(device);
-            if (!confirmed) return;
-
-            const newList = LinkedDevices.removeLinkedDevice(
-                devices,
-                device.ID,
-            );
-            setLinkedDevices(newList);
-            toast.success("Device unlinked successfully.");
-
-            if (
-                cloudServicesEnabled &&
-                LinkedDevices.isUsingOnlineServices(device)
-            ) {
-                try {
-                    await breakLink({ syncId: device.SyncID });
-                } catch (error) {
-                    onlineServicesLog.error(
-                        "Failed to remove device from Online Services.",
-                        {
-                            deviceId: device.ID,
-                            deviceName: device.Name,
-                            syncId: device.SyncID,
-                            error,
-                        },
-                    );
-                    toast.error(
-                        "Failed to remove device from Online Services.",
-                    );
-                }
-            }
-        },
-        [
-            breakLink,
-            cloudServicesEnabled,
-            confirmUnlinkDevice,
-            devices,
-            setLinkedDevices,
-        ],
-    );
 
     return (
         <aside
@@ -933,6 +787,16 @@ export function DeviceSidebar({
                     </span>
                     <TooltipProvider>
                         <div className="flex items-center gap-1">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-1 text-[10px]"
+                                onClick={() =>
+                                    handleSidebarAction(() => onManageDevices())
+                                }
+                            >
+                                Manage
+                            </Button>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
@@ -971,21 +835,29 @@ export function DeviceSidebar({
                                 </Tooltip>
                                 <DropdownMenuContent
                                     align="end"
-                                    className="w-52"
+                                    className="w-80 max-w-[calc(100vw-2rem)]"
                                     // Avoid focus moving back to the trigger while we open a Dialog; fights Radix focus/scroll-lock.
                                     onCloseAutoFocus={(e) => e.preventDefault()}
                                 >
                                     <DropdownMenuItem
-                                        onSelect={() => setSendLinkOpen(true)}
+                                        onSelect={onCreateInvitation}
+                                        className="flex-col items-start gap-0.5 py-2"
                                     >
-                                        Send link request
+                                        <span>Create invitation</span>
+                                        <span className="text-xs leading-relaxed text-muted-foreground">
+                                            Show a QR code or save an invitation
+                                            file.
+                                        </span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                        onSelect={() =>
-                                            setReceiveLinkOpen(true)
-                                        }
+                                        onSelect={onReceiveInvitation}
+                                        className="flex-col items-start gap-0.5 py-2"
                                     >
-                                        Receive link request
+                                        <span>Use invitation</span>
+                                        <span className="text-xs leading-relaxed text-muted-foreground">
+                                            Scan a QR code or open an invitation
+                                            file.
+                                        </span>
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -1020,9 +892,24 @@ export function DeviceSidebar({
                                         syncConnectionController
                                     }
                                     connectionStatus={connectionStatus}
-                                    setSelectedDevice={setSelectedDevice}
-                                    setDeviceConfigOpen={setDeviceConfigOpen}
-                                    unlinkDevice={unlinkDevice}
+                                    onEditDevice={() =>
+                                        handleSidebarAction(() =>
+                                            onEditDevice(device),
+                                        )
+                                    }
+                                    onRemoveDevice={() =>
+                                        handleSidebarAction(() =>
+                                            onManageDevices(
+                                                device.ID,
+                                                "remove",
+                                            ),
+                                        )
+                                    }
+                                    onViewDetails={() =>
+                                        handleSidebarAction(() =>
+                                            onManageDevices(device.ID),
+                                        )
+                                    }
                                 />
                             );
                         })}
@@ -1066,16 +953,6 @@ export function DeviceSidebar({
                     Lock Vault
                 </Button>
             </div>
-            <SendLinkRequestDialog
-                open={sendLinkOpen}
-                onOpenChange={setSendLinkOpen}
-                onRequireOnlineServicesSignIn={onOpenAccountDialog}
-            />
-            <ReceiveLinkRequestDialog
-                open={receiveLinkOpen}
-                onOpenChange={setReceiveLinkOpen}
-                showWarningDialog={showWarningDialog}
-            />
             <VaultSignalingConfigDialog
                 open={signalingConfigOpen}
                 onOpenChange={setSignalingConfigOpen}
@@ -1083,16 +960,6 @@ export function DeviceSidebar({
                 turnServers={signalingConfig.turnServers}
                 signalingServers={signalingConfig.signalingServers}
                 onSave={onSaveSignalingConfig}
-            />
-            <DeviceConfigurationDialog
-                open={deviceConfigOpen}
-                onOpenChange={setDeviceConfigOpen}
-                device={selectedDevice}
-                syncStatus={
-                    // selectedDevice ? syncStatuses[selectedDevice.ID] : undefined
-                    undefined
-                }
-                onSave={onSaveDeviceConfig}
             />
         </aside>
     );

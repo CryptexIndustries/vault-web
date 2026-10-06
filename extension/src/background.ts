@@ -6,10 +6,14 @@ import type {
     AttachPasskeyRequest,
     EncryptedEnvelope,
     EnvelopeOrigin,
+    GetSecurityBackupJobResponse,
     LiteCredential,
     PlaintextEnvelope,
+    VaultSecurityMutationResponse,
+    VaultSecurityStateResponse,
 } from "./types/sw-messaging";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     type VaultWriteKind,
     vaultWriteCoordinator,
@@ -82,13 +86,26 @@ import {
     getPendingPasskeyAssertion,
 } from "./background/passkey-assertion-service";
 import {
+    createEncryptedBackupBytes,
     createChromeLocalBackupReceiptStore,
     handleCreateEncryptedBackupRequest,
     handleGetBackupContextRequest,
     parseCreateEncryptedBackupRequest,
-    redactBackupHandlerResult,
 } from "./background/backup-service";
 import { createIndexedDbBackupBlobStore } from "./utils/backup-staging";
+import {
+    getLatestSecurityBackupJobId,
+    getSecurityBackupJob,
+    queueSecurityManagedBackup,
+    runSecurityManagedBackup,
+    SECURITY_BACKUP_ALARM_PREFIX,
+} from "./background/security-backup-job";
+import {
+    parseReconfigureVaultSecurityRequest,
+    parseRotateVaultRecoveryCodeRequest,
+    reconfigureExtensionVaultSecurity,
+    rotateExtensionVaultRecoveryCode,
+} from "./background/vault-security-service";
 
 const UNLOCKED_VAULT_METADATA_KEY = "UVM";
 const UNLOCKED_VAULT_KEY = "UV";
@@ -97,6 +114,37 @@ const ACTIVE_VAULT_DB_INDEX_KEY = "AVI";
 const backupBlobStore = createIndexedDbBackupBlobStore();
 
 registerVaultActionStateIndicator();
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (!alarm.name.startsWith(SECURITY_BACKUP_ALARM_PREFIX)) return;
+    const jobId = alarm.name.slice(SECURITY_BACKUP_ALARM_PREFIX.length);
+    void (async () => {
+        await runSecurityManagedBackup({
+            jobId,
+            prepareBackup: (onlineServicesDeviceId, vaultId) =>
+                vaultWriteCoordinator.runSnapshot(async () => {
+                    const metadata = await getVaultMetadataFromSessionStorage();
+                    const vault = await getVaultFromSessionStorage();
+                    const dek = await getVaultDEKFromSessionStorage();
+                    if (
+                        !metadata?.Blob ||
+                        metadata.Blob.Envelope?.VaultID !== vaultId ||
+                        !vault ||
+                        vault.OnlineServices?.DeviceId !==
+                            onlineServicesDeviceId ||
+                        !dek
+                    ) {
+                        return null;
+                    }
+                    return createEncryptedBackupBytes(
+                        vault,
+                        metadata.Blob,
+                        dek,
+                    );
+                }),
+        });
+    })();
+});
 
 const passkeyConfirmationPorts = new Map<string, Set<chrome.runtime.Port>>();
 
@@ -161,6 +209,10 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.DeclinePasskeyAssertion,
     MessageType.CreateEncryptedBackup,
     MessageType.GetBackupContext,
+    MessageType.GetVaultSecurity,
+    MessageType.ReconfigureVaultSecurity,
+    MessageType.RotateVaultRecoveryCode,
+    MessageType.GetSecurityBackupJob,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -402,11 +454,11 @@ async function processEnvelope(
 
     // NOTE: Here on out, we know that the envelope is an encrypted envelope and that we have a valid session key
 
+    // Never log decrypted envelope payloads. Unlock/security requests contain
+    // passwords and one-time secrets; credential responses contain vault data.
     console.debug(
-        "[SW] Previewing the decrypted/plaintext message before processing:",
+        "[SW] Processing encrypted message:",
         MessageType[envelope.type],
-        "payload:",
-        decryptedPayload,
     );
 
     // Process the message based on type
@@ -417,10 +469,11 @@ async function processEnvelope(
     );
 
     console.debug(
-        "[SW] Previewing the response after processing:",
+        "[SW] Processed encrypted message:",
         MessageType[envelope.type],
-        "result:",
-        redactBackupHandlerResult(envelope.type, result),
+        typeof result === "object" && result !== null && "ok" in result
+            ? { ok: result.ok }
+            : undefined,
     );
 
     // Re-encrypt the response envelope
@@ -457,6 +510,8 @@ const VAULT_WRITE_MESSAGE_TYPES: Partial<Record<MessageType, VaultWriteKind>> =
         [MessageType.UpdateDirectory]: "directory.rename",
         [MessageType.DeleteDirectory]: "directory.delete",
         [MessageType.SyncUpdateItems]: "synchronization.apply",
+        [MessageType.ReconfigureVaultSecurity]: "vault.security.reconfigure",
+        [MessageType.RotateVaultRecoveryCode]: "vault.recovery.rotate",
     };
 
 async function processMessageUncoordinated(
@@ -477,6 +532,16 @@ async function processMessageUncoordinated(
                 if (!payload.index) {
                     return { ok: false, error: "METADATA_INDEX_NULL" };
                 }
+                if (
+                    payload.protectionPhrase !== undefined &&
+                    (typeof payload.protectionPhrase !== "string" ||
+                        payload.protectionPhrase.length > 8_192)
+                ) {
+                    return {
+                        ok: false,
+                        error: "INVALID_PROTECTION_PHRASE",
+                    };
+                }
 
                 const rec = await Storage.db.vaults.get(payload.index);
                 if (!rec) {
@@ -494,6 +559,13 @@ async function processMessageUncoordinated(
                     payload.form.Encryption,
                     payload.form.EncryptionKeyDerivationFunction,
                     payload.form.EncryptionConfig,
+                    {
+                        masterPassword: payload.form.Secret,
+                        protectionPhrase:
+                            typeof payload.protectionPhrase === "string"
+                                ? payload.protectionPhrase
+                                : undefined,
+                    },
                 );
 
                 if (res.isErr()) {
@@ -511,6 +583,10 @@ async function processMessageUncoordinated(
                     metadata,
                     {
                         masterPassword: payload.form.Secret,
+                        protectionPhrase:
+                            typeof payload.protectionPhrase === "string"
+                                ? payload.protectionPhrase
+                                : undefined,
                     },
                 );
                 await setVaultInSessionStorage(
@@ -1445,6 +1521,189 @@ async function processMessageUncoordinated(
                 });
             }
 
+            case MessageType.GetVaultSecurity: {
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const envelope = metadata?.Blob?.Envelope;
+                if (!metadata || !envelope) {
+                    return {
+                        ok: false,
+                        error: "VAULT_NOT_UNLOCKED",
+                    } satisfies VaultSecurityStateResponse;
+                }
+                return {
+                    ok: true,
+                    additionalKeyProtectionKind: envelope.PrimaryProtectionKind,
+                    kdf: {
+                        memLimit:
+                            metadata.Blob?.KDFConfigArgon2ID?.memLimit ??
+                            KeyDerivationConfig_Argon2ID.DEFAULT_MEM_LIMIT,
+                        opsLimit:
+                            metadata.Blob?.KDFConfigArgon2ID?.opsLimit ??
+                            KeyDerivationConfig_Argon2ID.DEFAULT_OPS_LIMIT,
+                    },
+                    webAuthnUnsupported:
+                        envelope.PrimaryProtectionKind ===
+                        VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
+                    latestBackupJobId: await getLatestSecurityBackupJobId(
+                        envelope.VaultID,
+                    ),
+                } satisfies VaultSecurityStateResponse;
+            }
+
+            case MessageType.ReconfigureVaultSecurity:
+            case MessageType.RotateVaultRecoveryCode: {
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const vault = await getVaultFromSessionStorage();
+                const vaultDbIndex = await getActiveVaultDbIndex();
+                if (!metadata || !vault || vaultDbIndex == null) {
+                    return {
+                        ok: false,
+                        error: "VAULT_NOT_UNLOCKED",
+                    } satisfies VaultSecurityMutationResponse;
+                }
+
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                    { DBIndex: vaultDbIndex },
+                );
+                let sessionMasterPassword: string;
+                let currentProtectionPhrase: string | undefined;
+                let deleteOlderManagedBackups: boolean;
+                let mutation: Awaited<
+                    ReturnType<typeof reconfigureExtensionVaultSecurity>
+                >;
+                if (type === MessageType.ReconfigureVaultSecurity) {
+                    const request =
+                        parseReconfigureVaultSecurityRequest(payload);
+                    if (!request.ok) {
+                        return {
+                            ok: false,
+                            error: request.error,
+                        } satisfies VaultSecurityMutationResponse;
+                    }
+                    mutation = await reconfigureExtensionVaultSecurity(
+                        metadataInstance,
+                        request.value,
+                    );
+                    sessionMasterPassword =
+                        request.value.newMasterPassword ??
+                        request.value.currentMasterPassword;
+                    currentProtectionPhrase =
+                        request.value.currentProtectionPhrase;
+                    deleteOlderManagedBackups =
+                        request.value.deleteOlderManagedBackups;
+                } else {
+                    const request =
+                        parseRotateVaultRecoveryCodeRequest(payload);
+                    if (!request.ok) {
+                        return {
+                            ok: false,
+                            error: request.error,
+                        } satisfies VaultSecurityMutationResponse;
+                    }
+                    mutation = await rotateExtensionVaultRecoveryCode(
+                        metadataInstance,
+                        request.value,
+                    );
+                    sessionMasterPassword = request.value.currentMasterPassword;
+                    currentProtectionPhrase =
+                        request.value.currentProtectionPhrase;
+                    deleteOlderManagedBackups =
+                        request.value.deleteOlderManagedBackups;
+                }
+                if (!mutation.ok) {
+                    return {
+                        ok: false,
+                        error: mutation.error,
+                    } satisfies VaultSecurityMutationResponse;
+                }
+
+                let sessionContinued = true;
+                try {
+                    if (mutation.value.sessionDek) {
+                        await setSessionDEKFromVaultMetadata(
+                            vaultDbIndex,
+                            metadataInstance,
+                            {
+                                masterPassword: sessionMasterPassword,
+                                protectionPhrase:
+                                    mutation.value.protectionPhrase ??
+                                    currentProtectionPhrase,
+                            },
+                        );
+                    }
+                    await setVaultInSessionStorage(
+                        metadataInstance,
+                        vault,
+                        vaultDbIndex,
+                    );
+                } catch {
+                    sessionContinued = false;
+                    await clearSessionStorage().catch(() => undefined);
+                }
+
+                let backupJobId: string | undefined;
+                let backupError: string | undefined;
+                const hasOnlineServicesBinding = Boolean(
+                    vault.OnlineServices?.DeviceId &&
+                    vault.OnlineServices.PrivateKeyJWK,
+                );
+                if (sessionContinued && hasOnlineServicesBinding) {
+                    try {
+                        backupJobId = await queueSecurityManagedBackup(
+                            deleteOlderManagedBackups,
+                            vault.OnlineServices!.DeviceId,
+                            metadataInstance.Blob!.Envelope!.VaultID,
+                        );
+                    } catch {
+                        backupError = "BACKUP_QUEUE_FAILED";
+                    }
+                } else if (!sessionContinued) {
+                    backupError = "BACKUP_VAULT_UNAVAILABLE";
+                }
+
+                return {
+                    ok: true,
+                    dataKeyRotated: mutation.value.dataKeyRotated,
+                    ...(mutation.value.recoveryCode
+                        ? { recoveryCode: mutation.value.recoveryCode }
+                        : {}),
+                    ...(mutation.value.protectionPhrase
+                        ? {
+                              protectionPhrase: mutation.value.protectionPhrase,
+                          }
+                        : {}),
+                    additionalKeyProtectionKind:
+                        mutation.value.additionalKeyProtectionKind ??
+                        metadataInstance.Blob?.Envelope
+                            ?.PrimaryProtectionKind ??
+                        VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+                    deviceKeyProtectionCached:
+                        mutation.value.deviceKeyProtectionCached,
+                    sessionContinued,
+                    ...(backupJobId ? { backupJobId } : {}),
+                    ...(backupError ? { backupError } : {}),
+                } satisfies VaultSecurityMutationResponse;
+            }
+
+            case MessageType.GetSecurityBackupJob: {
+                if (
+                    !payload ||
+                    typeof payload !== "object" ||
+                    typeof payload.id !== "string"
+                ) {
+                    return {
+                        ok: false,
+                        error: "INVALID_BACKUP_JOB_REQUEST",
+                    } satisfies GetSecurityBackupJobResponse;
+                }
+                return {
+                    ok: true,
+                    job: await getSecurityBackupJob(payload.id),
+                } satisfies GetSecurityBackupJobResponse;
+            }
+
             default:
                 return { ok: false, error: "UNKNOWN_ENCRYPTED_MESSAGE_TYPE" };
         }
@@ -1605,8 +1864,10 @@ async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.Vaul
     ]);
     const encodedMetadata = _metadata[UNLOCKED_VAULT_METADATA_KEY];
     if (encodedMetadata == null) return null;
+    const vaultDbIndex = await getActiveVaultDbIndex();
     return Storage.VaultMetadata.deserializeMetadataBinary(
         Uint8Array.fromBase64(encodedMetadata),
+        vaultDbIndex ?? undefined,
     );
 }
 

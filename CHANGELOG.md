@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.4.1] - 2026-09-25
+
+### Added
+
+- Added sorting to the unlocked web vault credential list by name in either direction, recently updated, or newest created. The selected order is remembered in this browser.
+- Unified device management in Account and the vault sidebar. The Devices screen has a connection map, searchable list, link details, and separate actions for unlinking devices, removing an Online Services registration, and clearing a saved link. Custom-signaling links remain manageable without an Online Services session or root access.
+- Added Vault Security controls in the web app and Chromium extension for changing the master password and additional key protection, generating a new vault recovery code, and optionally rotating this device's vault encryption key. Key rotation generates a new recovery code and does not rotate linked-device keys. The web app can also set a new master password using the vault recovery code.
+- Security changes now queue a fresh managed backup when that service is enabled. An optional setting removes older account restore points, including linked-device snapshots, only after the replacement upload succeeds. Existing backups retain their original credentials, and downloaded backup files must still be managed separately.
+- Added client-only self-hosting templates for the web app, Caddy, Soketi, and coturn, with TURN certificate deployment and renewal support.
+- Added an internal web app threat model covering local vault storage, Online Services, linking, synchronization, and recovery.
+
+### Changed
+
+- Improved imports from Bitwarden, 1Password, KeePass, LastPass, Chrome, Firefox, and Cryptex Vault. The importer maps more supported fields and folders, shows counts and specific notices before import, and requires acknowledgment when data cannot be carried over or must be saved differently. Invalid or oversized exports now fail with clearer errors instead of appearing to import successfully.
+- Device controls distinguish connecting from synchronizing an existing connection. The sidebar has touch long-press actions, and backup coverage is shown as current only after a completed backup.
+- Clarified vault setup, device linking, recovery, and optional Online Services wording. The Chromium extension version is now `1.0.1`.
+- Boolean custom fields now use a switch in the web credential editor.
+- Bumped the `web` package version to `1.4.1`.
+
+### Fixed
+
+- Password, secret, and generated-password fields no longer let text run underneath the show, copy, and generate icons.
+- Resolved simultaneous sync handshakes, duplicate connection attempts, encrypted-message ordering, and work continuing after a device disconnects. Manual synchronization also works over an already-open connection.
+- Failed vault saves no longer report a successful synchronization in the web app or Chromium extension; the extension requires an authenticated success response before confirming a sync save.
+- Custom TURN settings now accept explicit `turn:` and `turns:` URLs, including TLS and transport parameters.
+
+### Security
+
+- Link vault transfers now carry an ML-DSA signature over the KEM transfer context. Receivers verify the sender before KEM decapsulation and reject unsigned transfers from older senders.
+- Security reports now use `security@cryptex-vault.com` and its updated public PGP key.
+
 ## [1.4.0] - 2026-07-06
 
 ### Added

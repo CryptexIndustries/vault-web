@@ -1,0 +1,94 @@
+name: cryptex-self-hosted
+
+x-logging: &logging
+    driver: json-file
+    options:
+        max-size: "10m"
+        max-file: "3"
+
+services:
+    web:
+        image: ${VAULT_IMAGE:?Set VAULT_IMAGE in .env}
+        environment:
+            NEXT_PUBLIC_APP_URL: https://${VAULT_DOMAIN:?Set VAULT_DOMAIN in .env}
+            NEXT_PUBLIC_CLOUD_ENABLED: "false"
+            HOSTNAME: 0.0.0.0
+            PORT: "3000"
+        restart: unless-stopped
+        logging: *logging
+        healthcheck:
+            test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/app"]
+            interval: 30s
+            timeout: 5s
+            start_period: 60s
+            retries: 3
+
+    caddy:
+        image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+        environment:
+            VAULT_DOMAIN: ${VAULT_DOMAIN:?Set VAULT_DOMAIN in .env}
+            SIGNAL_DOMAIN: ${SIGNAL_DOMAIN:?Set SIGNAL_DOMAIN in .env}
+            TURN_DOMAIN: ${TURN_DOMAIN:?Set TURN_DOMAIN in .env}
+            ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+        ports:
+            - "80:80/tcp"
+            - "443:443/tcp"
+        volumes:
+            - type: bind
+              source: ./Caddyfile
+              target: /etc/caddy/Caddyfile
+              read_only: true
+              bind:
+                  create_host_path: false
+            - type: bind
+              source: /var/lib/cryptex-acme
+              target: /var/www/acme
+              read_only: true
+              bind:
+                  create_host_path: false
+            - caddy_data:/data
+            - caddy_config:/config
+        depends_on:
+            - web
+            - soketi
+        restart: unless-stopped
+        logging: *logging
+
+    soketi:
+        image: quay.io/soketi/soketi:1.6-16-alpine@sha256:5e45fe1adbf2d4ef8022d0126a3c7e4371b7b08f35784b76a2dc353954ee885c
+        environment:
+            SOKETI_DEFAULT_APP_ID: ${SOKETI_APP_ID:?Set SOKETI_APP_ID in .env}
+            SOKETI_DEFAULT_APP_KEY: ${SOKETI_APP_KEY:?Set SOKETI_APP_KEY in .env}
+            SOKETI_DEFAULT_APP_SECRET: ${SOKETI_APP_SECRET:?Set SOKETI_APP_SECRET in .env}
+            SOKETI_DEFAULT_APP_ENABLE_CLIENT_MESSAGES: "true"
+            SOKETI_DEFAULT_APP_MAX_CONNS: "100"
+            SOKETI_DEFAULT_APP_MAX_CLIENT_EVENTS_PER_SEC: "100"
+            SOKETI_DEBUG: "false"
+        restart: unless-stopped
+        logging: *logging
+
+    coturn:
+        image: coturn/coturn:4.6.3@sha256:71c3c990283385567f11794ee692e3a47b66fd9b0bb39e42afbe776e331dd888
+        user: "${TURN_UID:?Set TURN_UID to id -u}:${TURN_GID:?Set TURN_GID to id -g}"
+        # Linux host networking avoids Docker NAT across the relay port range.
+        network_mode: host
+        command: ["-c", "/etc/coturn/turnserver.conf"]
+        volumes:
+            - type: bind
+              source: ./turnserver.conf
+              target: /etc/coturn/turnserver.conf
+              read_only: true
+              bind:
+                  create_host_path: false
+            - type: bind
+              source: /etc/cryptex-turn/tls
+              target: /etc/coturn/tls
+              read_only: true
+              bind:
+                  create_host_path: false
+        restart: unless-stopped
+        logging: *logging
+
+volumes:
+    caddy_data:
+    caddy_config:

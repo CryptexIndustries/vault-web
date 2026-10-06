@@ -42,12 +42,12 @@ export type VaultCoreOnlineServicesApi = {
     }>;
 };
 
-/** Platform local key store for device-bound second-factor HKDF keys. */
-export type VaultCoreSecondFactorStore = {
-    setDeviceSecondFactorKey: (
+/** Platform-local store for device-bound additional key protection keys. */
+export type VaultCoreAdditionalKeyProtectionStore = {
+    setDeviceAdditionalKeyProtectionKey: (
         vaultDbIndex: number,
-        factorHkdfKey: VaultHkdfKey | null,
-        kind: VaultUtilTypes.SecondFactorKind,
+        protectionHkdfKey: VaultHkdfKey | null,
+        kind: VaultUtilTypes.AdditionalKeyProtectionKind,
         webauthnCredentialId?: string,
         webauthnPrfSalt?: string,
     ) => Promise<void>;
@@ -55,14 +55,14 @@ export type VaultCoreSecondFactorStore = {
      * Native stores should prefer raw IKM because HKDF CryptoKeys are
      * deliberately imported as non-extractable.
      */
-    setDeviceSecondFactorRawKey?: (
+    setDeviceAdditionalKeyProtectionRawKey?: (
         vaultDbIndex: number,
-        factorIkm: Uint8Array,
-        kind: VaultUtilTypes.SecondFactorKind,
+        protectionIkm: Uint8Array,
+        kind: VaultUtilTypes.AdditionalKeyProtectionKind,
         webauthnCredentialId?: string,
         webauthnPrfSalt?: string,
     ) => Promise<void>;
-    getDeviceSecondFactorKey: (
+    getDeviceAdditionalKeyProtectionKey: (
         vaultDbIndex: number,
     ) => Promise<VaultHkdfKey | null>;
 };
@@ -75,8 +75,8 @@ export type VaultCoreRuntime = {
     signalingLog: VaultCoreLogger;
     webrtcLog: VaultCoreLogger;
     envelopeCrypto: VaultEnvelopeCrypto;
-    /** Optional until a vault unlock/create path needs device 2FA cache. */
-    secondFactorStore?: VaultCoreSecondFactorStore;
+    /** Optional until vault creation or unlock needs the device-local cache. */
+    additionalKeyProtectionStore?: VaultCoreAdditionalKeyProtectionStore;
 };
 
 let runtime: VaultCoreRuntime | null = null;
@@ -94,11 +94,11 @@ export function getVaultCoreRuntime(): VaultCoreRuntime {
     return runtime;
 }
 
-export function getSecondFactorStore(): VaultCoreSecondFactorStore {
-    const store = getVaultCoreRuntime().secondFactorStore;
+export function getAdditionalKeyProtectionStore(): VaultCoreAdditionalKeyProtectionStore {
+    const store = getVaultCoreRuntime().additionalKeyProtectionStore;
     if (!store) {
         throw new Error(
-            "Vault core second-factor store is not configured on this platform runtime.",
+            "Vault core additional key protection store is not configured on this platform runtime.",
         );
     }
     return store;

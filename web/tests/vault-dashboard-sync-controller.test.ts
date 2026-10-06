@@ -25,6 +25,7 @@ jest.mock("@cryptex-industries/vault-core/synchronization", () => ({
 }));
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { toast } from "sonner";
 import type { VaultMetadata } from "../src/app_lib/vault-utils/storage";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
@@ -159,6 +160,31 @@ describe("vault dashboard sync controller helpers", () => {
             }),
             sessionDEK,
         );
+    });
+
+    it("rejects a failed sync save without publishing the received records", async () => {
+        const activeMetadata = metadata(1, "vault-a");
+        activeMetadata.save.mockImplementationOnce(async () => {
+            throw new Error("Storage unavailable");
+        });
+        vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
+        const operations = createVaultOperations();
+
+        await expect(
+            operations.updateItems([], [credential("from-sync")]),
+        ).rejects.toThrow("VAULT_SAVE_FAILED");
+
+        expect(
+            vaultStore.get(unlockedVaultAtom).Credentials.map((c) => c.ID),
+        ).toEqual(["existing"]);
+        expect(toast.error).toHaveBeenCalled();
+        expect(toast.success).not.toHaveBeenCalled();
+
+        await operations.updateItems([], [credential("from-sync")]);
+        expect(
+            vaultStore.get(unlockedVaultAtom).Credentials.map((c) => c.ID),
+        ).toContain("from-sync");
+        expect(toast.success).toHaveBeenCalledTimes(1);
     });
 
     it("persists empty synchronized directories", async () => {

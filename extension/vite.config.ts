@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { validateProductionEnv } from "./src/utils/production-env.ts";
 
 const require = createRequire(import.meta.url);
 
@@ -71,23 +72,7 @@ export default defineConfig(({ mode }) => {
     const isE2E = process.env.CRYPTEX_E2E === "1";
 
     if (isProduction) {
-        if (!env.VITE_APP_URL) {
-            throw new Error(
-                "Missing VITE_APP_URL for production build. " +
-                    "Set it in extension/.env.production (or .env.production.local).",
-            );
-        }
-        if (env.VITE_APP_URL.includes("REPLACE_ME")) {
-            throw new Error(
-                "VITE_APP_URL still contains the REPLACE_ME placeholder. " +
-                    "Replace it in extension/.env.production before shipping.",
-            );
-        }
-        if (!env.VITE_APP_URL.startsWith("https://")) {
-            throw new Error(
-                `VITE_APP_URL must use https:// in production builds. Got "${env.VITE_APP_URL}".`,
-            );
-        }
+        validateProductionEnv(env);
     }
 
     const withExtensionNamePrefix = (
@@ -108,7 +93,7 @@ export default defineConfig(({ mode }) => {
                 const parsed = new URL(url);
                 hosts.add(`${parsed.protocol}//${parsed.host}/*`);
             } catch {
-                // Ignore malformed values; build-time env checks above catch the rest.
+                // Production values are validated before generating permissions.
             }
         };
 

@@ -1,247 +1,243 @@
-import { NextPage } from "next/types";
 import Link from "next/link";
-
-import HTMLHeader from "@/components/html-header";
-import HTMLMain from "@/components/html-main";
-import NavBar from "@/components/navbar";
-
-const SecurityPolicy: NextPage = () => {
+import {
+    Site,
+    Label,
+    Section,
+    Action,
+    REPO,
+    s,
+} from "@/components/marketing/site";
+export default function Security() {
     return (
-        <>
-            <HTMLHeader
-                title="Cryptex Vault - Responsible Disclosure Policy"
-                description="How to report security issues in Cryptex Vault."
-            />
-
-            <HTMLMain>
-                <NavBar />
-
-                <div className="content">
-                    <div className="mt-0 flex w-full flex-col items-center px-5 text-slate-200 md:mt-10 md:px-0">
-                        <h1 className="text-4xl font-bold">
-                            Responsible Disclosure Policy
-                        </h1>
-                        <div className="mb-5 max-w-2xl">
-                            <p className="pt-6 text-justify">
-                                Cryptex Industries d.o.o. welcomes responsible
-                                reports of security issues in Cryptex Vault. At
-                                the moment we do not offer a paid bug bounty,
-                                but we will do our best to thank researchers and
-                                credit them when a fix ships.
-                            </p>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                1. How to report
-                            </h2>
-                            <p className="pt-2 text-justify">
-                                Email{" "}
-                                <a
-                                    href="mailto:security@cryptexindustries.com"
-                                    className="font-bold underline"
-                                >
-                                    security@cryptexindustries.com
-                                </a>
-                                . Do not open a public GitHub issue for security
-                                vulnerabilities.
-                            </p>
-                            <p className="pt-2 text-justify">
-                                Prefer encrypted mail. Download our{" "}
-                                <Link
-                                    href="/security/publickey.security@cryptexindustries.com.asc"
-                                    className="font-bold underline"
-                                >
-                                    PGP public key
-                                </Link>
-                                . Fingerprint:
-                            </p>
-                            <p className="break-all pt-2 font-mono text-sm">
-                                3560 85F2 EC1F 7ED0 723A CB4A EEE2 3909 90F4
-                                6ACF
-                            </p>
-                            <p className="pt-2 text-justify">
-                                You should receive a first response within 3
-                                working days.
-                            </p>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                2. What to include
-                            </h2>
-                            <ul className="list-disc pl-5 pt-2 text-justify">
-                                <li className="pt-1">
-                                    Short summary of the issue and its impact
-                                </li>
-                                <li className="pt-1">
-                                    Affected product or surface (web app,
-                                    extension, desktop client, API, or
-                                    infrastructure) and version or commit if
-                                    known
-                                </li>
-                                <li className="pt-1">
-                                    Step-by-step reproduction with your own test
-                                    accounts and data only
-                                </li>
-                                <li className="pt-1">
-                                    Proof of concept (commands, screenshots, or
-                                    a minimal patch) sufficient to verify the
-                                    issue
-                                </li>
-                                <li className="pt-1">
-                                    Any suggested fix (optional)
-                                </li>
-                                <li className="pt-1">
-                                    How you want to be credited when a fix ships
-                                    (name, handle, or anonymous)
-                                </li>
-                            </ul>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                3. Scope
-                            </h2>
-                            <p className="pt-2 text-justify">
-                                In scope: Cryptex Vault web application, browser
-                                extensions, desktop clients, APIs, and
-                                infrastructure operated by Cryptex Industries
-                                d.o.o.
-                            </p>
-                            <p className="pt-2 text-justify">
-                                Out of scope (non-exhaustive):
-                            </p>
-                            <ul className="list-disc pl-5 pt-2 text-justify">
-                                <li className="pt-1">
-                                    Social engineering, phishing, or physical
-                                    attacks
-                                </li>
-                                <li className="pt-1">
-                                    Denial of service, volumetric flooding, or
-                                    resource exhaustion without a distinct
-                                    security flaw
-                                </li>
-                                <li className="pt-1">
-                                    Issues in third-party services we rely on
-                                    (for example Stripe, email providers, CDNs,
-                                    browsers, or operating systems) unless
-                                    Cryptex Vault misuses them in a way that
-                                    creates a clear vulnerability
-                                </li>
-                                <li className="pt-1">
-                                    Findings that require prior access to an
-                                    unlocked device or already-decrypted vault
-                                    data with no further bypass
-                                </li>
-                                <li className="pt-1">
-                                    Automated scanner output without a working
-                                    proof of concept
-                                </li>
-                                <li className="pt-1">
-                                    Missing recommended security headers or
-                                    other hardening suggestions that do not
-                                    demonstrate a real vulnerability
-                                </li>
-                            </ul>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                4. Rules of engagement
-                            </h2>
-                            <ul className="list-disc pl-5 pt-2 text-justify">
-                                <li className="pt-1">
-                                    Use only accounts and vault data you own or
-                                    create for testing
-                                </li>
-                                <li className="pt-1">
-                                    Do not access, modify, or exfiltrate other
-                                    users&apos; data
-                                </li>
-                                <li className="pt-1">
-                                    Do not degrade service availability for
-                                    others
-                                </li>
-                                <li className="pt-1">
-                                    Stop and report promptly if you encounter
-                                    sensitive data that is not yours
-                                </li>
-                                <li className="pt-1">
-                                    Keep vulnerability details private until
-                                    coordinated disclosure (see below)
-                                </li>
-                            </ul>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                5. Safe harbor
-                            </h2>
-                            <p className="pt-2 text-justify">
-                                If you make a good-faith effort to follow this
-                                policy, Cryptex Industries d.o.o. will not
-                                pursue legal action against you for researching
-                                or reporting a security issue covered by this
-                                policy. We consider such research authorized
-                                under applicable anti-hacking laws to the extent
-                                the activity stays within these rules.
-                            </p>
-                            <p className="pt-2 text-justify">
-                                Safe harbor does not cover activity outside this
-                                policy, intentional harm, privacy violations, or
-                                extortion.
-                            </p>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                6. Disclosure timeline
-                            </h2>
-                            <p className="pt-2 text-justify">
-                                Please wait before public disclosure. We aim to
-                                fix issues as quickly as we can. Unless we agree
-                                otherwise, you may disclose 30 days after your
-                                initial report, or earlier once we confirm a fix
-                                is available.
-                            </p>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                7. Recognition
-                            </h2>
-                            <p className="pt-2 text-justify">
-                                At the moment there is no monetary reward. When
-                                a valid issue is fixed, we will credit the
-                                reporter as a thank you for their efforts unless
-                                they ask to remain anonymous. Duplicate or
-                                out-of-scope reports may receive a short reply
-                                or none beyond acknowledgment.
-                            </p>
-
-                            <h2 className="mt-10 text-2xl font-bold">
-                                8. Contact
-                            </h2>
-                            <p className="pt-2 text-justify">
-                                Cryptex Industries d.o.o.
-                                <br />
-                                <a
-                                    href="mailto:security@cryptexindustries.com"
-                                    className="font-bold underline"
-                                >
-                                    security@cryptexindustries.com
-                                </a>
-                            </p>
-                            <p className="pt-4 text-sm text-slate-400">
-                                Also see our{" "}
-                                <Link
-                                    href="/privacy"
-                                    className="font-bold underline"
-                                >
-                                    Privacy Policy
-                                </Link>{" "}
-                                and{" "}
-                                <Link
-                                    href="/terms"
-                                    className="font-bold underline"
-                                >
-                                    Terms of Service
-                                </Link>
-                                .
-                            </p>
+        <Site
+            title="Security and its limits"
+            description="Cryptex Vault’s security architecture, audit status, threat boundaries, infrastructure visibility and responsible disclosure policy."
+        >
+            <section className={s.pageHero}>
+                <Label>SECURITY / TRUST THROUGH TRANSPARENCY</Label>
+                <h1>
+                    Trust needs
+                    <br />
+                    <em>something to stand on.</em>
+                </h1>
+                <p>
+                    See how Cryptex Vault protects your data, where that
+                    protection ends, and what we&apos;re doing to improve its
+                    security.
+                </p>
+                <div className={s.actions}>
+                    <Action href="/docs/architecture" secondary>
+                        Read the architecture
+                    </Action>
+                    <Link href="#disclosure" className={s.textLink}>
+                        Report a vulnerability
+                    </Link>
+                </div>
+            </section>
+            <Section id="source-release" number="01" label="SECURITY STATUS">
+                <div className={s.sectionHeading}>
+                    <h2>The current picture.</h2>
+                    <p>
+                        Algorithm names are only part of the story.
+                        Implementation, protocol design and independent scrutiny
+                        matter.
+                    </p>
+                </div>
+                <div className={s.statusTable}>
+                    {[
+                        [
+                            "Independent security audit",
+                            "Not yet completed",
+                            "Independent review is part of the security roadmap.",
+                            undefined,
+                        ],
+                        [
+                            "Internal red-team testing",
+                            "Performed",
+                            "We have conducted thorough internal red-team testing, and we recognize that it does not replace an independent audit.",
+                            undefined,
+                        ],
+                        [
+                            "Source code",
+                            "Public repository - AGPL-3.0",
+                            "The source code is public. You can inspect the implementation, build the software, and follow development on GitHub.",
+                            REPO,
+                        ],
+                        [
+                            "Threat model",
+                            "Web app and extension documented",
+                            "Read the published threat model for product-wide threats, trust boundaries, and assumptions.",
+                            "/docs/threat-model",
+                        ],
+                        [
+                            "Responsible disclosure",
+                            "Public policy",
+                            "Private reports receive a first response within 3 working days.",
+                            "/security/responsible-disclosure",
+                        ],
+                    ].map(([label, status, text, href]) => (
+                        <div key={label}>
+                            <h3>{label}</h3>
+                            <strong>
+                                {href ? (
+                                    <Link href={href}>{status}</Link>
+                                ) : (
+                                    status
+                                )}
+                            </strong>
+                            <p>{text}</p>
                         </div>
+                    ))}
+                </div>
+            </Section>
+            <Section number="02" label="THE SECURITY BOUNDARY">
+                <div className={s.sectionHeading}>
+                    <h2>
+                        Encryption has a boundary.
+                        <br />
+                        Your device is part of it.
+                    </h2>
+                    <p>
+                        Cryptex Vault protects stored and synchronized data. It
+                        cannot secure an unlocked vault on a compromised device.
+                    </p>
+                </div>
+                <div className={s.twoColumns}>
+                    <article>
+                        <Label>WHAT THE DESIGN PROTECTS</Label>
+                        <h3>Vault storage and data in transit.</h3>
+                        <p>
+                            Your vault is encrypted on your device before it is
+                            stored or backed up. When linked devices sync,
+                            post-quantum cryptography helps them confirm each
+                            other&apos;s identity and establish a secure
+                            session. Vault data then travels between them in
+                            end-to-end encrypted messages, even when a TURN
+                            server relays the connection.
+                        </p>
+                        <p>
+                            Cryptex Vault&apos;s signaling servers and TURN
+                            relays help devices connect. Managed backup storage
+                            holds encrypted vault copies. None of these services
+                            receives plaintext passwords, plaintext vault
+                            contents or decryption keys.
+                        </p>
+                        <p className={s.referenceLinks}>
+                            Read the{" "}
+                            <Link href="/docs/synchronization">sync guide</Link>{" "}
+                            for the connection flow and the{" "}
+                            <Link href="/docs/cryptography">
+                                cryptography guide
+                            </Link>{" "}
+                            for the algorithms and keys.
+                        </p>
+                    </article>
+                    <article className={s.boundary}>
+                        <Label>WHAT IT DOES NOT PROTECT</Label>
+                        <h3>A compromised, unlocked device.</h3>
+                        <p>
+                            While the vault is unlocked, your browser and
+                            operating system need access to its data. A
+                            compromised device may expose that unlocked data, so
+                            keeping your device, browser and extensions up to
+                            date remains important.
+                        </p>
+                        <p>
+                            Revoking Online Services permissions does not
+                            remotely erase a local vault. Keep a backup and its
+                            recovery information somewhere safe and separate
+                            from your devices. If every device is lost or wiped,
+                            you will need both to restore your vault.
+                        </p>
+                    </article>
+                </div>
+                <Link className={s.textLink} href="/docs/threat-model">
+                    Read the product threat model
+                </Link>
+            </Section>
+            <Section number="03" label="INFRASTRUCTURE VISIBILITY">
+                <div className={s.sectionHeading}>
+                    <h2>
+                        Encrypted content.
+                        <br />
+                        Observable connections.
+                    </h2>
+                    <p>
+                        If you use only the local vault, Cryptex Industries does
+                        not receive connection setup metadata. If you choose
+                        Online Services, its synchronization, backup and account
+                        systems process the limited service data listed below.
+                    </p>
+                </div>
+                <div className={s.statusTable}>
+                    {[
+                        [
+                            "Signaling",
+                            "Connection setup",
+                            "Opaque SyncIDs, channel names, presence identifiers, connection timing and WebRTC SDP/ICE information, including IP addresses, ports and network paths.",
+                        ],
+                        [
+                            "STUN / TURN",
+                            "Network metadata",
+                            "Network addresses, connection metadata and, for relayed connections, encrypted traffic.",
+                        ],
+                        [
+                            "Managed backups",
+                            "Encrypted copies",
+                            "An encrypted vault copy in managed storage. Backup retrieval and vault recovery are separate mechanisms.",
+                        ],
+                        [
+                            "Business operations",
+                            "Service-related data",
+                            "Payment, subscription, support and operational data are handled separately from encrypted vault contents.",
+                        ],
+                    ].map(([label, status, text]) => (
+                        <div key={label}>
+                            <h3>{label}</h3>
+                            <strong>{status}</strong>
+                            <p>{text}</p>
+                        </div>
+                    ))}
+                </div>
+                <Link className={s.textLink} href="/privacy">
+                    Read the Privacy Policy
+                </Link>
+            </Section>
+            <Section id="disclosure" number="04" label="RESPONSIBLE DISCLOSURE">
+                <div className={s.twoColumns}>
+                    <div>
+                        <h2>
+                            Found something?
+                            <br />
+                            Tell us privately.
+                        </h2>
+                        <p>
+                            Send a summary, affected version, reproduction steps
+                            and a minimal proof of concept using your own test
+                            data. Please don’t publish vulnerabilities in GitHub
+                            Issues.
+                        </p>
+                        <Action
+                            href="mailto:security@cryptex-vault.com"
+                            secondary
+                        >
+                            Email the security team
+                        </Action>
+                    </div>
+                    <div className={s.disclosure}>
+                        <h3>security@cryptex-vault.com</h3>
+                        <p>
+                            First response within 3 working days. The full
+                            policy describes scope, safe harbor, coordinated
+                            disclosure and recognition.
+                        </p>
+                        <Link href="/security/responsible-disclosure">
+                            Full disclosure policy
+                        </Link>
+                        <a href={REPO}>Inspect the source code on GitHub</a>
                     </div>
                 </div>
-            </HTMLMain>
-        </>
+            </Section>
+        </Site>
     );
-};
-
-export default SecurityPolicy;
+}

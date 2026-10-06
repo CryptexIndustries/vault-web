@@ -180,7 +180,7 @@ function managedStateLabel(view: ManagedBackupView, compact: boolean): string {
     if (view.kind === "error") {
         return compact ? "Status unavailable" : "Managed status unavailable";
     }
-    if (!hasBackupHistoryAccess(view.status)) return "Premium required";
+    if (!hasBackupHistoryAccess(view.status)) return "Subscription required";
     if (view.status.enabled) {
         return compact ? "Active" : "Managed backups on";
     }
@@ -397,10 +397,9 @@ export function PopupBackupDialog({
         managedEntitled: readyStatus?.entitled === true,
     });
     const hasCurrentCoverage =
-        readyStatus?.enabled === true ||
-        (!overview.isStale &&
-            overview.latestSource === "local" &&
-            localReceipt?.isCurrent);
+        !overview.isStale &&
+        (overview.latestSource === "managed" ||
+            (overview.latestSource === "local" && localReceipt?.isCurrent));
 
     let latestBackupLabel = "No completed backup recorded";
     if (overview.latestBackupAt) {
@@ -454,7 +453,9 @@ export function PopupBackupDialog({
                                             ? "Your vault needs a fresh backup"
                                             : hasCurrentCoverage
                                               ? "Your backup coverage is current"
-                                              : "Backup status"}
+                                              : !overview.latestBackupAt
+                                                ? "No completed backup yet"
+                                                : "Backup status"}
                                     </p>
                                     {readyStatus?.enabled ? (
                                         <Badge className="bg-emerald-600 hover:bg-emerald-600">
@@ -640,8 +641,8 @@ function ManagedBackupsPanel({
                     </p>
                 ) : !hasBackupHistoryAccess(view.status) ? (
                     <p className="text-sm text-muted-foreground">
-                        Managed encrypted backups are available with Premium in
-                        the web app.
+                        Managed encrypted backups are available with Online
+                        Services in the web app.
                     </p>
                 ) : !view.status.enabled ? (
                     <PausedManagedBackups
@@ -734,7 +735,7 @@ function PausedManagedBackups({
                 </>
             ) : !view.status.entitled && view.status.graceExpiresAt ? (
                 <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Premium ended. Downloads remain available until{" "}
+                    Your subscription ended. Downloads remain available until{" "}
                     {new Date(view.status.graceExpiresAt).toLocaleDateString()}.
                 </p>
             ) : (

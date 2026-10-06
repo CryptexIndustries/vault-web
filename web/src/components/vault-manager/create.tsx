@@ -27,12 +27,12 @@ import {
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import {
-    SecondFactorOptions,
-    type SecondFactorChoice,
+    AdditionalKeyProtectionOptions,
+    type AdditionalKeyProtectionChoice,
     choiceToSource,
-} from "./second-factor-options";
+} from "./additional-key-protection-options";
 import type {
-    VaultCreateSecondFactorOptions,
+    VaultCreateAdditionalKeyProtectionOptions,
     VaultPendingUnlock,
     VaultRevealSecrets,
 } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
@@ -45,9 +45,10 @@ import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/im
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 
 const CreateVaultTab: React.FC<{
+    suggestedName?: string;
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
-        secondFactorOptions?: VaultCreateSecondFactorOptions,
+        additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
     ) => Promise<
         | false
@@ -57,12 +58,11 @@ const CreateVaultTab: React.FC<{
               pendingUnlock: VaultPendingUnlock<VaultMetadata>;
           }
     >;
-}> = ({ executeCallback }) => {
-    const [secondFactorChoice, setSecondFactorChoice] =
-        useState<SecondFactorChoice>("none");
-    const [secondFactorSource, setSecondFactorSource] = useState(
-        choiceToSource("none"),
-    );
+}> = ({ executeCallback, suggestedName }) => {
+    const [additionalKeyProtectionChoice, setAdditionalKeyProtectionChoice] =
+        useState<AdditionalKeyProtectionChoice>("none");
+    const [additionalKeyProtectionSource, setAdditionalKeyProtectionSource] =
+        useState(choiceToSource("none"));
     const [kdfRiskAcknowledged, setKdfRiskAcknowledged] = useState(false);
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
     const [initialImport, setInitialImport] = useState<ImportResult | null>(
@@ -72,6 +72,7 @@ const CreateVaultTab: React.FC<{
         handleSubmit,
         register,
         setValue,
+        getValues,
         watch,
         formState: { errors, isSubmitting },
     } = useForm<NewVaultFormSchemaType & EncryptionFormGroupSchemaType>({
@@ -79,7 +80,7 @@ const CreateVaultTab: React.FC<{
             newVaultFormSchema.merge(encryptionFormGroupSchema),
         ),
         defaultValues: {
-            Name: "",
+            Name: suggestedName ?? "",
             Description: "",
             Secret: "",
             Encryption: EncryptionAlgorithm.XChaCha20Poly1305,
@@ -91,6 +92,12 @@ const CreateVaultTab: React.FC<{
             },
         },
     });
+
+    useEffect(() => {
+        if (suggestedName && !getValues("Name")) {
+            setValue("Name", suggestedName);
+        }
+    }, [getValues, setValue, suggestedName]);
 
     const secret = watch("Secret");
     const memLimit = watch("EncryptionConfig.memLimit");
@@ -113,7 +120,7 @@ const CreateVaultTab: React.FC<{
         await executeCallback(
             formData,
             {
-                secondFactor: secondFactorSource,
+                additionalKeyProtection: additionalKeyProtectionSource,
             },
             initialImport ?? undefined,
         );
@@ -152,11 +159,14 @@ const CreateVaultTab: React.FC<{
                 </div>
 
                 <div className="space-y-2">
+                    <Label htmlFor="secret-key">
+                        Master password (secret key)
+                    </Label>
                     <FormInput
                         id="secret-key"
+                        aria-describedby="new-vault-password-help"
                         type="password"
                         placeholder="Enter your secret key"
-                        className="pr-10"
                         showPasswordGenerator={true}
                         {...register("Secret")}
                         setValue={(value) => setValue("Secret", value)}
@@ -171,15 +181,23 @@ const CreateVaultTab: React.FC<{
                             {errors.Secret.message}
                         </p>
                     )}
+                    <p
+                        id="new-vault-password-help"
+                        className="text-sm text-muted-foreground"
+                    >
+                        Choose the password you’ll use to unlock this vault. The
+                        app calls it your secret key. It is separate from the
+                        recovery information you’ll save after creation.
+                    </p>
                     <PasswordStrengthMeter password={secret} />
                 </div>
 
                 <div className="space-y-2">
-                    <SecondFactorOptions
-                        value={secondFactorChoice}
+                    <AdditionalKeyProtectionOptions
+                        value={additionalKeyProtectionChoice}
                         onChange={(choice, source) => {
-                            setSecondFactorChoice(choice);
-                            setSecondFactorSource(source);
+                            setAdditionalKeyProtectionChoice(choice);
+                            setAdditionalKeyProtectionSource(source);
                         }}
                     />
                     <p className="text-xs text-muted-foreground">
@@ -216,9 +234,9 @@ const CreateVaultTab: React.FC<{
                         <div className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-xs">
                             <span>
                                 {initialImport.credentials.length} items,{" "}
-                                {initialImport.directories.length} directories
-                                {initialImport.warnings.length
-                                    ? `, ${initialImport.warnings.length} warnings`
+                                {initialImport.directories.length} folders
+                                {initialImport.skippedItems
+                                    ? `, ${initialImport.skippedItems} items not added`
                                     : ""}
                             </span>
                             <Button
@@ -246,6 +264,13 @@ const CreateVaultTab: React.FC<{
                                 Encryption Configuration
                             </AccordionTrigger>
                             <AccordionContent className="space-y-4 px-4 pb-4">
+                                <p className="text-sm text-muted-foreground">
+                                    These advanced settings control the memory
+                                    and work used to derive a key from your
+                                    password. Keep the defaults unless you
+                                    understand the tradeoff between unlock speed
+                                    and resistance to password guessing.
+                                </p>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="memory-limit">

@@ -77,7 +77,11 @@ Autofill / save: `GetPendingSavePrompt`, `ConsumePendingSavePrompt`,
 Passkeys: `AttachPasskey`, `GetPendingPasskeyAssertion`,
 `CompletePasskeyAssertion`, `DeclinePasskeyAssertion`
 
-Backups: `CreateEncryptedBackup`, `GetBackupContext`
+Backups: `CreateEncryptedBackup`, `GetBackupContext`,
+`GetSecurityBackupJob`
+
+Vault security: `GetVaultSecurity`, `ReconfigureVaultSecurity`,
+`RotateVaultRecoveryCode`
 
 ### `link`
 
@@ -149,6 +153,24 @@ completedAt }`.
   signed URL from that response via native `fetch` in the popup and must not
   go through `ProxyFetch` (that interceptor would attach the JWT to a non-tRPC
   origin).
+
+### Vault security (`vault-security-service.ts`)
+
+- Popup-only request payloads are shape/range validated before any KDF work.
+- Supported protection choices are password-only and generated 128/256-bit
+  protection phrases. WebAuthn PRF returns `EXTENSION_WEBAUTHN_UNSUPPORTED`.
+- `ReconfigureVaultSecurity` and `RotateVaultRecoveryCode` are mapped to
+  dedicated single-writer kinds.
+- The popup receives only display secrets and status. The DEK and derived
+  protection key remain in the service worker.
+- A successful local commit with an Online Services binding queues
+  `security-backup-job.ts` using `chrome.alarms`. The job skips upload when
+  managed backups are disabled. `GetSecurityBackupJob` exposes only non-secret
+  progress and distinguishes upload failure from old-history deletion failure.
+- The job records the originating vault ID and Online Services device ID. Its
+  snapshot must still match both, and every authenticated request rechecks the
+  device ID before upload completion, listing, or deletion.
+- Decrypted request and response payloads are never written to debug logs.
 
 ## Client call sites
 

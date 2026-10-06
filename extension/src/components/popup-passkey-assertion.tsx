@@ -50,7 +50,7 @@ export default function PopupPasskeyAssertion({
             setError(
                 response?.error === "INVALID_VAULT_PASSWORD"
                     ? "Incorrect vault password. Try again."
-                    : "Cryptex could not use this passkey.",
+                    : "Cryptex Vault could not use this passkey.",
             );
             return;
         }

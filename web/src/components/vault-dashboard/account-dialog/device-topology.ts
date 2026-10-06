@@ -1,156 +1,176 @@
-import {
-    LinkedDevices,
-    type LinkedDevice,
-} from "@cryptex-industries/vault-core/vault-utils/vault";
+import { ONLINE_SERVICES_SELECTION_ID } from "@cryptex-industries/vault-core/consts";
+import { type LinkedDevice } from "@cryptex-industries/vault-core/vault-utils/vault";
 
-type DeviceTopologyDevice = {
-    id: string;
-    createdAt: Date;
-    lastSeen: Date | null;
-    root: boolean;
-    current: boolean;
+export const isCustomSignaling = (
+    device: Pick<LinkedDevice, "SignalingServerID">,
+) => device.SignalingServerID !== ONLINE_SERVICES_SELECTION_ID;
+
+export type DeviceTopology = {
+    devices: {
+        id: string;
+        createdAt: Date;
+        lastSeen: Date | null;
+        root: boolean;
+        current: boolean;
+    }[];
+    relationships: {
+        syncId: string;
+        fromDeviceId: string;
+        toDeviceId: string;
+        createdAt: Date;
+    }[];
 };
-
-type DeviceTopologyRelationship = {
+export type DeviceNode = {
+    id: string;
+    serverId?: string;
+    displayName: string;
+    current: boolean;
+    root: boolean;
+    lastSeen: Date | null;
+    localDevices: LinkedDevice[];
+};
+export type DeviceRelationship = {
+    id: string;
     syncId: string;
     fromDeviceId: string;
     toDeviceId: string;
-    createdAt: Date;
+    recordedOnServer: boolean;
+    localDevice?: LinkedDevice;
+    custom: boolean;
+    missingOnServer: boolean;
 };
-
-type DeviceTopology = {
-    devices: DeviceTopologyDevice[];
-    relationships: DeviceTopologyRelationship[];
+export type DeviceRelationshipMap = {
+    nodes: DeviceNode[];
+    relationships: DeviceRelationship[];
+    currentDeviceId: string;
+    rootCount: number;
+    topologyVerified: boolean;
 };
-
-function inferAccountDeviceKind(name: string) {
-    const normalized = name.toLowerCase();
-    if (/iphone|android|phone|pixel/.test(normalized)) return "Mobile";
-    if (/ipad|tablet/.test(normalized)) return "Tablet";
-    if (/chrome|firefox|safari|edge|browser/.test(normalized)) return "Browser";
-    return "Desktop";
-}
-
 export function formatRelativeAccountDate(
     value?: Date | string | number | null,
 ) {
-    if (!value) return "-";
+    if (value === null || value === undefined) return "Not available";
     const timestamp = new Date(value).getTime();
-    const diffMs = Date.now() - timestamp;
-    const minutes = Math.floor(diffMs / (1000 * 60));
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (Number.isNaN(timestamp)) return "-";
+    if (!Number.isFinite(timestamp)) return "Not available";
+    const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
     if (minutes < 1) return "Just now";
     if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    return `${days}d ago`;
+    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+    return `${Math.floor(minutes / 1440)}d ago`;
+}
+export function formatSyncId(id?: string | null) {
+    if (!id) return "Not available";
+    return id.length > 18 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id;
 }
 
-export function formatSyncId(syncId?: string | null) {
-    if (!syncId) return "No sync ID";
-    if (syncId.length <= 18) return syncId;
-    return `${syncId.slice(0, 8)}...${syncId.slice(-6)}`;
-}
-
+/** A local name describes the peer, never both endpoints of a sync relationship. */
 export function buildDeviceRelationshipMap(
     topology: DeviceTopology | undefined,
     localDevices: LinkedDevice[],
-    currentDeviceId?: string | null,
-) {
-    const localBySyncId = new Map(
-        localDevices
-            .filter((device) => !!device.SyncID)
-            .map((device) => [device.SyncID, device]),
-    );
-    const relationshipsByDeviceId = new Map<
-        string,
-        DeviceTopologyRelationship[]
-    >();
-
-    for (const relationship of topology?.relationships ?? []) {
-        for (const id of [relationship.fromDeviceId, relationship.toDeviceId]) {
-            relationshipsByDeviceId.set(id, [
-                ...(relationshipsByDeviceId.get(id) ?? []),
-                relationship,
-            ]);
+    currentServerId?: string | null,
+    options: { topologyVerified?: boolean; currentRoot?: boolean } = {},
+): DeviceRelationshipMap {
+    const serverCurrent =
+        currentServerId ?? topology?.devices.find((d) => d.current)?.id;
+    const currentDeviceId = serverCurrent
+        ? `account:${serverCurrent}`
+        : "current:local";
+    const nodes = new Map<string, DeviceNode>();
+    for (const device of topology?.devices ?? []) {
+        const id = `account:${device.id}`;
+        nodes.set(id, {
+            id,
+            serverId: device.id,
+            current: id === currentDeviceId,
+            root: device.root,
+            displayName:
+                id === currentDeviceId
+                    ? "This device"
+                    : formatSyncId(device.id),
+            lastSeen: device.lastSeen,
+            localDevices: [],
+        });
+    }
+    if (!nodes.has(currentDeviceId))
+        nodes.set(currentDeviceId, {
+            id: currentDeviceId,
+            serverId: serverCurrent ?? undefined,
+            displayName: "This device",
+            current: true,
+            root: options.currentRoot ?? false,
+            lastSeen: null,
+            localDevices: [],
+        });
+    const relationships: DeviceRelationship[] = [];
+    for (const r of topology?.relationships ?? []) {
+        const fromDeviceId = `account:${r.fromDeviceId}`,
+            toDeviceId = `account:${r.toDeviceId}`;
+        // Do not invent devices for incomplete responses.
+        if (!nodes.has(fromDeviceId) || !nodes.has(toDeviceId)) continue;
+        relationships.push({
+            id: `server:${r.syncId}`,
+            syncId: r.syncId,
+            fromDeviceId,
+            toDeviceId,
+            recordedOnServer: true,
+            custom: false,
+            missingOnServer: false,
+        });
+    }
+    const verified =
+        topology !== undefined && options.topologyVerified === true;
+    for (const local of localDevices) {
+        const custom = isCustomSignaling(local);
+        const match = local.SyncID
+            ? relationships.find(
+                  (r) =>
+                      r.syncId === local.SyncID &&
+                      (r.fromDeviceId === currentDeviceId ||
+                          r.toDeviceId === currentDeviceId) &&
+                      !r.localDevice,
+              )
+            : undefined;
+        if (match) {
+            match.localDevice = local;
+            match.custom = custom;
+            const peer = nodes.get(
+                match.fromDeviceId === currentDeviceId
+                    ? match.toDeviceId
+                    : match.fromDeviceId,
+            )!;
+            // A malformed self-link must not rename the current device.
+            if (!peer.current) {
+                peer.localDevices.push(local);
+                peer.displayName =
+                    local.Name.trim() || formatSyncId(peer.serverId);
+            }
+        } else {
+            const id = `local:${local.ID}`;
+            nodes.set(id, {
+                id,
+                displayName: local.Name.trim() || "Unnamed linked device",
+                current: false,
+                root: false,
+                lastSeen: null,
+                localDevices: [local],
+            });
+            relationships.push({
+                id: `local-link:${local.ID}`,
+                syncId: local.SyncID,
+                fromDeviceId: currentDeviceId,
+                toDeviceId: id,
+                recordedOnServer: false,
+                localDevice: local,
+                custom,
+                missingOnServer: !custom && verified,
+            });
         }
     }
-
-    const devices = topology?.devices ?? [];
-    const current =
-        devices.find((device) => device.current) ??
-        devices.find((device) => device.id === currentDeviceId) ??
-        devices.find((device) => device.root) ??
-        devices[0];
-
-    const serverSyncIds = new Set(
-        (topology?.relationships ?? []).map((r) => r.syncId),
-    );
-    const orphanLocalDevices = localDevices.filter(
-        (device) =>
-            !!device.SyncID &&
-            !serverSyncIds.has(device.SyncID) &&
-            LinkedDevices.isUsingOnlineServices(device),
-    );
-
-    const nodes = devices.map((device) => {
-        const relationships = relationshipsByDeviceId.get(device.id) ?? [];
-        const preferredRelationship =
-            relationships.find((relationship) =>
-                localBySyncId.has(relationship.syncId),
-            ) ?? relationships[0];
-        const localDevice = preferredRelationship
-            ? localBySyncId.get(preferredRelationship.syncId)
-            : undefined;
-        const isCurrent = device.current || device.id === currentDeviceId;
-        const syncIds = relationships.map(
-            (relationship) => relationship.syncId,
-        );
-
-        return {
-            ...device,
-            displayName: isCurrent
-                ? (localDevice?.Name ?? "This device")
-                : (localDevice?.Name ?? "Unknown device"),
-            deviceKind: inferAccountDeviceKind(localDevice?.Name ?? ""),
-            localDevice,
-            matched: !!localDevice,
-            current: isCurrent,
-            syncIds,
-            lastActivity:
-                localDevice?.LastSync ??
-                localDevice?.LinkedAtTimestamp ??
-                device.lastSeen ??
-                device.createdAt,
-        };
-    });
-
-    const nodeById = new Map(nodes.map((node) => [node.id, node]));
-    const relationships = (topology?.relationships ?? []).map(
-        (relationship) => ({
-            ...relationship,
-            localDevice: localBySyncId.get(relationship.syncId),
-            from: nodeById.get(relationship.fromDeviceId),
-            to: nodeById.get(relationship.toDeviceId),
-        }),
-    );
-
-    const orphanGhosts = orphanLocalDevices.map((device) => ({
-        id: `orphan:${device.ID}`,
-        syncId: device.SyncID,
-        displayName: device.Name || "Unknown device",
-        deviceKind: inferAccountDeviceKind(device.Name ?? ""),
-        localDevice: device,
-        lastActivity: device.LastSync ?? device.LinkedAtTimestamp,
-    }));
-
     return {
-        nodes,
+        nodes: [...nodes.values()],
         relationships,
-        orphanGhosts,
-        currentDeviceId: current?.id ?? null,
-        rootCount: nodes.filter((node) => node.root).length,
+        currentDeviceId,
+        rootCount: [...nodes.values()].filter((d) => d.root).length,
+        topologyVerified: verified,
     };
 }

@@ -1,0 +1,74 @@
+# Replace this with the IPv4 address assigned to the VPS network interface.
+listening-ip=REPLACE_WITH_SERVER_IPV4
+relay-ip=REPLACE_WITH_SERVER_IPV4
+# Only behind provider NAT: uncomment and replace both addresses.
+# external-ip=PUBLIC_IPV4/PRIVATE_INTERFACE_IPV4
+# Recommended: TLS-only client connections on TCP 5349.
+# no-udp/no-tcp disable the plain listeners, not UDP relay allocations.
+listening-port=3478
+no-udp
+no-tcp
+tls-listening-port=5349
+cert=/etc/coturn/tls/fullchain.pem
+pkey=/etc/coturn/tls/privkey.pem
+no-tlsv1
+no-tlsv1_1
+# Match this allocation range to the UDP ports opened in both firewalls.
+min-port=49160
+max-port=49260
+# Authentication realm and server identity; use your TURN hostname.
+realm=turn.example.com
+server-name=turn.example.com
+# Include STUN fingerprints and require long-term username/password authentication.
+fingerprint
+lt-cred-mech
+# Choose your own username. Generate the password with: openssl rand -hex 32
+# Enter the same username and password in each client TURN entry.
+user=REPLACE_WITH_USERNAME:REPLACE_WITH_RANDOM_HEX
+# Keep DTLS disabled; the recommended client URL uses TLS over TCP.
+# Plain TURN alternative: remove no-udp, no-tcp, tls-listening-port, cert,
+# pkey, no-tlsv1 and no-tlsv1_1 above, then add no-tls here.
+no-dtls
+# WebRTC peers use UDP relay allocations, even over a TCP client connection.
+no-tcp-relay
+# Disable the administration CLI and prevent multicast relay destinations.
+no-cli
+no-multicast-peers
+# Small-deployment limits: allocations per username, allocations overall,
+# then bytes/second per session. Increase deliberately if legitimate use needs it.
+user-quota=12
+total-quota=100
+max-bps=1000000
+# A TURN client chooses its peer address. Without these restrictions, someone
+# with valid credentials could relay traffic into networks reachable by the VPS,
+# including internal services and cloud metadata endpoints.
+# These are destination restrictions, not a ban on clients behind home NAT.
+# Unspecified/current-network addresses.
+denied-peer-ip=0.0.0.0-0.255.255.255
+# Private networks, carrier-grade NAT, loopback, and link-local/metadata endpoints.
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+# IETF special-use and documentation addresses.
+denied-peer-ip=192.0.0.0-192.0.0.255
+denied-peer-ip=192.0.2.0-192.0.2.255
+# Private LAN addresses.
+denied-peer-ip=192.168.0.0-192.168.255.255
+# Benchmarking and documentation ranges.
+denied-peer-ip=198.18.0.0-198.19.255.255
+denied-peer-ip=198.51.100.0-198.51.100.255
+denied-peer-ip=203.0.113.0-203.0.113.255
+# Multicast and reserved/broadcast addresses.
+denied-peer-ip=224.0.0.0-255.255.255.255
+# Block IPv6 loopback, unique-local, link-local and multicast destinations.
+denied-peer-ip=::1
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=ff00::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+# Send logs to Docker; compose.yaml bounds log size and retained files.
+# Upstream option reference:
+# https://github.com/coturn/coturn/blob/master/examples/etc/turnserver.conf
+log-file=stdout
+simple-log

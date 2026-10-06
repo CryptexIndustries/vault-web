@@ -17,6 +17,8 @@ export type VaultWriteKind =
     | "link.merge"
     | "vault.configuration"
     | "vault.account"
+    | "vault.security.reconfigure"
+    | "vault.recovery.rotate"
     | "vault.unlock"
     | "vault.lock";
 
@@ -31,6 +33,15 @@ export class VaultWriteCoordinator {
         _kind: VaultWriteKind,
         operation: () => Promise<T>,
     ): Promise<T> {
+        return this.enqueue(operation);
+    }
+
+    /** Capture a consistent read while excluding queued vault writes. */
+    public runSnapshot<T>(operation: () => Promise<T>): Promise<T> {
+        return this.enqueue(operation);
+    }
+
+    private enqueue<T>(operation: () => Promise<T>): Promise<T> {
         const result = this.tail.then(operation);
         this.tail = result.then(
             () => undefined,

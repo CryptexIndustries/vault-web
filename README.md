@@ -1,149 +1,53 @@
-# Note
+# Cryptex Vault
 
-This repository contains the **auditable Cryptex Vault client**: browser extension, web vault UI, and all vault/sync **cryptography**. It is open source under the [GNU Affero General Public License v3.0](LICENSE.md) (`AGPL-3.0-only`).
+Cryptex Vault is an open source password manager that keeps an encrypted vault on each of your devices. Use the web app and Chromium Extension to manage and fill passwords, then sync between linked devices. You can run the connection services yourself or use optional Online Services for managed connections and encrypted backups.
 
-The **hosted Cryptex Cloud backend** (auth, device linking, billing, signaling/TURN infra) lives in the private **`cryptex-vault-cloud`** repository and is not part of this tree.
+The web app, extension, and shared vault and sync cryptography are in this repository under the [AGPL-3.0 license](LICENSE.md). You can inspect the code and build the software yourself. The hosted Online Services backend is private and lives in a separate repository.
 
-## What you can verify here
+## Start here
 
-- Vault encryption, envelopes, device signing keys, import/export (`web/src/app_lib/vault-utils/`)
-- End-to-end sync crypto and linking (`sync-crypto.ts`, `linking.ts`)
-- Serialized vault mutation and persistence rules ([web/docs/vault-persistence.md](web/docs/vault-persistence.md))
-- Managed zero-knowledge backup behavior and root-only Recovery Kit restore ([web/docs/managed-backups.md](web/docs/managed-backups.md))
-- Extension background/content scripts
-- Client behavior and API contract types (`packages/api-contract/`)
+- **Exploring?** [See how Cryptex Vault works](https://cryptex-vault.com/) or [open a local vault](https://cryptex-vault.com/app). Local use needs no account.
+- **Setting up your own server?** Follow the [self-hosting guide](https://cryptex-vault.com/docs/self-hosting). The [deployment files](deploy/self-hosting/) include the web app, signaling, and STUN/TURN services.
+- **Checking the design?** Read the [architecture](https://cryptex-vault.com/docs/architecture), [web app threat model](web/threat-model.md), or [security overview](https://cryptex-vault.com/security).
+- **Want to contribute?** Read the [contributor guide](CONTRIBUTING.md), then jump to [local development](#develop-locally).
+- **Have a question or idea?** Join [GitHub Discussions](https://github.com/CryptexIndustries/vault-web/discussions).
 
-This repo ships **client-only** Docker (`compose.prod.yaml` / `compose.dev.yaml`)
-and a Docker Swarm stack (`compose.swarm.yaml`).
+New links connect and sync automatically by default when both vaults are open, unlocked, and reachable. You can change those settings or sync manually. Devices connect directly where possible; otherwise a TURN server relays end-to-end encrypted traffic. The self-hosted stack does not include managed backups, so keep a separate encrypted backup of your vault.
 
-See [THREAT_MODEL.md](THREAT_MODEL.md) for what the cloud service can and cannot learn.
+## What's in this repository
 
-# Setting up a development environment
+- [`web/`](web/) contains the web vault, public website, and user guides.
+- [`extension/`](extension/) contains the Chromium Extension and its [developer notes](extension/README.md).
+- [`packages/vault-core/`](packages/vault-core/) holds the shared vault format, encryption, imports and exports, device linking, and synchronization code.
+- [`packages/api-contract/`](packages/api-contract/) and [`packages/shared-ui/`](packages/shared-ui/) hold client API types and shared interface code.
+- [`deploy/self-hosting/`](deploy/self-hosting/) has the Compose stack and configuration for running the web app and connection services yourself. The root `compose.*.yaml` files cover client development and deployment; [Docker Swarm instructions](docs/swarm-deployment.md) live in `docs/`.
+- [`docs/`](docs/) and [`web/docs/`](web/docs/) contain deployment and implementation notes. The [website documentation](https://cryptex-vault.com/docs) covers day-to-day use and the security model.
 
-## Required steps
+## Contributing
 
-- Install NodeJS >= 24 (`nodejs-lts-iron` or newer)
-- Install pnpm (`pacman -S pnpm` on Arch)
-- `pnpm install`
-- Copy `web/.env.default` → `web/.env` and set client variables
+Bug reports, documentation fixes, and code changes are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to file a useful issue and what to include in a pull request. Bring questions, self-hosting help, and early ideas to [GitHub Discussions](https://github.com/CryptexIndustries/vault-web/discussions). Please report security problems privately through the [security policy](SECURITY.md).
 
-## Local vault only (no cloud)
+## Develop locally
 
-Set in `web/.env`:
-
-```env
-NEXT_PUBLIC_CLOUD_ENABLED=false
-```
-
-Run the web UI:
+Run the web app directly with Node.js 24.16 or later and pnpm 11.25 or later:
 
 ```bash
-pnpm run dev:web
+pnpm install
+cp web/.env.default web/.env
+pnpm dev:web
 ```
 
-## Docker (client only, no server stack)
-
-Run the vault UI in a container. Vault data stays in **your browser** (IndexedDB); no Postgres or API is started.
-
-**Local-only vault** (default):
-
-```bash
-docker compose -f compose.prod.yaml --profile local --env-file web/.env.client.default up --build
-```
-
-Open [http://localhost:3000/app](http://localhost:3000/app).
-
-**Self-hosted UI + external Cryptex Cloud API** (`cloud` profile):
-
-```bash
-cp web/.env.client.cloud-ui.default web/.env.client.cloud-ui
-# Set NEXT_PUBLIC_ONLINE_SERVICES_API_URL and cloud client keys in that file
-docker compose -f compose.prod.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build
-```
-
-Image build: `web/prod.Dockerfile`
-
-## Container images and Docker Swarm
-
-The Swarm stack serves the web UI on port `3000`. See the
-[Docker Swarm deployment guide](docs/swarm-deployment.md) for configuration,
-registry login, deployment, and updates.
-
-## Docker dev (hot reload, no server stack)
-
-Run the vault UI in a container with Next.js dev server and bind-mounted sources, so edits to `web/` and `packages/` reload without rebuilding the image. No Postgres, Redis, or API is started - same client-only constraints as the prod client compose.
-
-**Local-only vault** (default):
+Or use the development container. It mounts `web/` and `packages/` so your changes reload without rebuilding:
 
 ```bash
 docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build
 ```
 
-**Self-hosted UI + external Cryptex Cloud API** (`cloud` profile):
+Both options open the local vault at [http://localhost:3000/app](http://localhost:3000/app) without Online Services. To work on the extension, run `pnpm dev:ext` in another terminal and see its [setup notes](extension/README.md).
 
-```bash
-cp web/.env.client.cloud-ui.default web/.env.client.cloud-ui
-# Set NEXT_PUBLIC_ONLINE_SERVICES_API_URL and cloud client keys in that file
-docker compose -f compose.dev.yaml --profile cloud --env-file web/.env.client.cloud-ui up --build
-```
+When you run `pnpm install` in a Git checkout, the `prepare` script installs [Lefthook](lefthook.yml). It runs two Git hooks:
 
-**LAN** (`lan` / `lan-cloud` — phone or other devices on the same network):
+- `pre-commit` formats supported staged files in `web/`, `extension/`, and `packages/` with oxfmt and stages any fixes. It also runs `verify-lockfile` if `package.json`, `pnpm-workspace.yaml`, or `pnpm-lock.yaml` is staged.
+- `pre-push` runs `verify-lockfile` on every push.
 
-```bash
-export LAN_HOST=$(hostname -I | awk '{print $1}')   # host LAN IP
-docker compose -f compose.dev.yaml --profile lan --env-file web/.env.client.default up --build
-# or cloud UI on LAN:
-# docker compose -f compose.dev.yaml --profile lan-cloud --env-file web/.env.client.cloud-ui up --build
-```
-
-Open `https://$LAN_HOST:3000/app`. Allow host firewall TCP `${CLIENT_WEB_PORT:-3000}`. Optional: `ALLOWED_DEV_ORIGINS=100.*.*.*` (etc.) for non-RFC1918 ranges (e.g. Tailscale).
-
-`allowedDevOrigins` defaults to RFC1918 wildcards (`192.168.*.*`, `10.*.*.*`, `172.16–31.*.*`) so HMR works without hardcoding an IP.
-
-Or via pnpm scripts: `pnpm run docker:dev` / `pnpm run docker:dev:cloud-ui` / `pnpm run docker:dev:lan` / `pnpm run docker:dev:lan-cloud`.
-
-Image build: `web/dev.Dockerfile`. `web/node_modules` is a named volume (`cryptex_dev_node_modules`); `pnpm install` re-runs on container start to keep the bind-mounted manifests in sync. Profiles are mutually exclusive: `local`/`cloud` bind `127.0.0.1:3000` (HTTP); `lan`/`lan-cloud` bind `0.0.0.0:3000` (HTTPS).
-
-## With Cryptex Cloud (Online Services)
-
-Run **`cryptex-vault-cloud`** separately (Postgres, Redis, API — see that repo's README).
-
-Point this client at the cloud API:
-
-```env
-NEXT_PUBLIC_CLOUD_ENABLED=true
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_ONLINE_SERVICES_API_URL=http://localhost:3001
-NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN=http://garage.localhost:3900
-```
-
-When the UI and API run on different ports/origins, set `NEXT_PUBLIC_APP_URL` to the UI and `NEXT_PUBLIC_ONLINE_SERVICES_API_URL` to the cloud service.
-The cloud API development Compose stack exposes its private Garage bucket at
-`garage.localhost:3900`; this exact origin must be present in the web container
-environment so the runtime Content Security Policy permits backup transfers.
-
-Extension builds use the same split via `VITE_APP_URL` and optional `VITE_ONLINE_SERVICES_API_URL` in `extension/.env.development`.
-
-## API contract
-
-After changing tRPC routers in **cryptex-vault-cloud**, regenerate public stub types:
-
-```bash
-pnpm run generate:api-contract
-pnpm --filter @cryptex-industries/api-contract lint-tsc
-```
-
-The generator fails if stubs keep server-only imports or omit output typing.
-
-# Running in a dev environment
-
-```bash
-pnpm run dev:web    # web vault UI
-pnpm run dev:ext    # browser extension
-```
-
-## Useful commands
-
-- Typecheck (watch): `pnpm run lint-tsc:web`
-- Lint: `pnpm run lint:web`
-- Tests: `pnpm test`
+Despite its name, `verify-lockfile` currently only invokes pnpm and updates the lockfile timestamp. It does not check whether the lockfile matches the manifests. Run `pnpm lint` and `pnpm test` before contributing changes; the hooks do not run them.

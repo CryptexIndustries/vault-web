@@ -12,13 +12,15 @@ architecture docs under `extension/docs/`.
 | Local vault storage and session                                                   | Backend API compromise (assumed honest tRPC + TLS)         |
 | Autofill on host pages                                                            | Physical device compromise (assumed out of band)           |
 | Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome)            |
-| Backup Center: local `.cryx` create/download; managed list/upload/download/delete | Fresh-device restore and Recovery Kit flows (web app only) |
+| Backup Center and Vault Settings security mutations                               | Fresh-device restore and Recovery Kit flows (web app only) |
 
 ## Assets
 
 | Asset                         | Location while at risk                                                          | Impact if exposed                                       |
 | ----------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | Master password               | Encrypted in unlock/assertion envelope; ephemeral in popup memory               | Full vault decryption                                   |
+| Protection phrase/key         | Phrase in encrypted UI request; derived key in local IndexedDB                  | Completes primary-slot key derivation                   |
+| Vault recovery code           | One-time encrypted response and dialog memory after rotation                    | Fallback vault decryption                               |
 | Vault DEK                     | `chrome.storage.session` `SESSION_DEK:*`                                        | Decrypt vault blob at rest                              |
 | Decrypted vault               | `chrome.storage.session` `UV`                                                   | All passwords, TOTP secrets, notes                      |
 | Credential secrets (autofill) | CS → SW → fill path; pending save in session                                    | Per-credential exposure                                 |
@@ -108,6 +110,15 @@ vault password never enters the host tab.
   used as receipt keys are bounded (`[A-Za-z0-9_-]{1,64}`). Staged blobs above
   128 MiB are refused. Debug logs redact `stagingId`. `GetBackupContext` returns
   a session-presence boolean and the opened receipt — not JWTs or vault secrets
+- Vault security messages are popup-only, encrypted, shape/range validated,
+  and serialized with every other vault write. Passwords and optional phrases
+  reach only the SW mutation handler. The popup receives one-time display
+  secrets, but never the DEK, derived protection key, or decrypted vault. DEK
+  rotation rebuilds both slots, returns only a non-extractable session key from
+  shared code, and reopens the committed primary slot inside the SW before
+  replacing session storage
+- Decrypted envelope payloads and handler results are not logged. Only message
+  type and a boolean `ok` summary may reach debug output
 
 **Residual:** Full vault in session while unlocked — any SW bug or extension
 compromise is total loss. `worker` origin binding is weak (public key only).
@@ -131,6 +142,15 @@ staging row lasts until lock/idle or the next create (which clears the store).
   go through `ProxyFetch`, which would attach the Online Services JWT to a
   non-tRPC origin. Download checks byte length and SHA-256 against the snapshot
   metadata before the file is saved
+- A security-setting commit with an Online Services binding queues an
+  alarm-backed SW upload. Optional history deletion starts only after
+  replacement completion. Backup bytes are captured as one
+  coordinator-exclusive snapshot, while network work happens after the queue
+  is released. The job binds that snapshot to its vault ID and Online Services
+  device ID; every authenticated request rechecks the device identity. Backup
+  jobs are serialized separately so concurrent purge requests cannot delete
+  each other's replacements. Their status is separate from the local mutation,
+  so network/delete errors cannot roll back the vault
 
 **Residual:** Compromised API or DNS hijack on dev wildcard host permissions.
 Mitigated in production by narrowed `host_permissions`. Object-store PUT/GET
@@ -138,7 +158,9 @@ from the popup is a CORS request from `chrome-extension://<id>`, not a
 `host_permissions` fetch. It works when the bucket already allows that origin
 (or `*`) — the same CORS the web vault uses for signed URLs. Adding the object
 store to production `host_permissions` would bypass CORS and widen the install
-warning; do not add it unless CORS cannot include the extension origin.
+warning; do not add it unless CORS cannot include the extension origin. A
+browser shutdown can interrupt an alarm-backed upload or purge. The safe
+failure mode retains older restore points; the user must retry after unlock.
 
 ### B4 — Extension ↔ sync/link peer (Pusher + WebRTC)
 
@@ -147,7 +169,7 @@ warning; do not add it unless CORS cannot include the extension origin.
 **Controls:**
 
 - Pusher channel auth via proxied tRPC + JWT
-- PQ KEM + signing handshake on sync sessions
+- PQ KEM + ML-DSA handshake signatures on sync sessions and link vault transfers
 - AEAD on sync and link vault transfer payloads
 - Link package encrypted with mnemonic (never on wire)
 
@@ -164,6 +186,9 @@ crypto mitigates payload disclosure but does not remove signaling trust.
 - Lock + idle clear all session keys
 - DEK `TRUSTED_CONTEXTS` access level
 - Vault encrypted at rest in IndexedDB
+- Generated-phrase keys persist device-locally across lock so the
+  normal profile needs only the master password. They are never synced; a
+  restore or cleared profile needs the saved phrase
 - Credential form draft (`DRAFT_SAVE`) session-scoped: cleared on lock, idle lock, browser shutdown, successful save, and explicit user discard
 - Local backup receipts are DEK-authenticated AES-GCM with vault-id AAD, size-bounded
   (`<=512` stored chars), and treated as hostile on read. Lock does not delete them;
@@ -177,6 +202,14 @@ Logs persist device/vault metadata to `chrome.storage.local`. Receipts persist
 across lock and restart; they do not contain vault plaintext. A local `.cryx`
 download lives in the user's Downloads folder — encrypted, user-held, and not
 proven to still exist by the receipt.
+
+Old downloaded or retained backups are independent encrypted artifacts. A
+password, recovery-code, or DEK change to the current vault cannot revoke a
+file already in Downloads; that file may still open with its previous
+credentials. Managed history deletion is an explicit account-wide operation,
+including older linked-device snapshots, because the API exposes no stable
+device/vault filter. It reduces hosted exposure but cannot make copies held
+elsewhere disappear.
 
 ## Attacker models
 
@@ -222,10 +255,10 @@ proven to still exist by the receipt.
 
 **Goals:** Inject credentials, exfiltrate vault during sync/link.
 
-| Technique                     | Control                           | Residual risk                                             |
-| ----------------------------- | --------------------------------- | --------------------------------------------------------- |
-| Send crafted sync credentials | Encrypted session + SW merge      | Medium — merge trusts peer ciphertext after crypto verify |
-| Impersonate link sender       | Link package needs mnemonic + MAC | Low — mnemonic out of band                                |
+| Technique                     | Control                                  | Residual risk                                                |
+| ----------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| Send crafted sync credentials | Encrypted session + SW merge             | Medium — merge trusts peer ciphertext after crypto verify    |
+| Impersonate link sender       | Mnemonic MAC + ML-DSA transfer signature | Low — transfer must match the sender key in the link package |
 
 ### A5 — Local attacker / shared machine
 
@@ -245,34 +278,38 @@ proven to still exist by the receipt.
 
 **Goals:** N/A — integrity failure.
 
-| Technique                             | Control                                                    | Residual risk                                        |
-| ------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
-| Dev wildcard host_permissions shipped | Prod manifest rewrite                                      | Low if checklist followed                            |
-| Debug logging of decrypted payloads   | Terser drops log/debug in prod; backup ciphertext redacted | Medium in dev builds for other message types         |
-| Incomplete VaultOperations            | Missing KEM/signing key getters                            | **Mitigated** — full bridge in `vault-operations.ts` |
+| Technique                             | Control                                   | Residual risk                                        |
+| ------------------------------------- | ----------------------------------------- | ---------------------------------------------------- |
+| Dev wildcard host_permissions shipped | Prod manifest rewrite                     | Low if checklist followed                            |
+| Debug logging of decrypted payloads   | SW logs message type/boolean outcome only | Low; contributor rule still required                 |
+| Incomplete VaultOperations            | Missing KEM/signing key getters           | **Mitigated** — full bridge in `vault-operations.ts` |
 
 ## Controls matrix
 
-| Control                            | Protects against                          | Location                                      |
-| ---------------------------------- | ----------------------------------------- | --------------------------------------------- |
-| ECDH envelope encryption           | Eavesdropping on extension message bus    | `session-utils.ts`                            |
-| Origin + capability ACL            | Unauthorized SW operations                | `security-utils.ts`, `background.ts`          |
-| Top-frame CS gate                  | Subframe autofill attacks                 | `autofill-cs.ts`, `security-utils.ts`         |
-| Iframe nonce bootstrap             | Host hijack of MessageChannel             | `autofill-frame-bootstrap.ts`                 |
-| RP-bound assertion ceremony        | Cross-origin/replay/passkey substitution  | `passkey-assertion-service.ts`                |
-| Vault-password assertion UV        | Signing without requested verification    | `session-dek-store.ts`                        |
-| Per-rule autofill release          | Credential theft outside saved URL rules  | `credential-url.ts`, `autofill-router.ts`     |
-| SW-owned JWT                       | UI token injection                        | `request-auth-interceptor.ts`                 |
-| tRPC allowlist                     | Arbitrary fetch from proxy                | `trpc-auth-url.ts`                            |
-| Lock + idle session clear          | Stale session exposure                    | `background.ts`                               |
-| Draft shape + staleness validation | Untrusted or stale form data re-presented | `credential-draft-store.ts`, `vault-view.tsx` |
-| Link ACL restriction               | Link page vault unlock/CRUD               | `background.ts` allowlist                     |
-| AEAD sync/link wire                | Network peer payload disclosure           | `synchronization.ts`, `linking.ts`            |
-| Argon2id vault sealing             | Offline vault blob cracking               | shared vault utils                            |
-| Popup-only backup messages         | CS/link cannot mint `.cryx` or receipts   | `background.ts`, `backup-service.ts`          |
-| IndexedDB backup staging           | Ciphertext not copied through envelopes   | `backup-staging.ts`                           |
-| DEK-sealed local backup receipts   | Forged coverage / cross-vault receipt use | `backup-status.ts`, `backup-service.ts`       |
-| Signed-URL fetch off ProxyFetch    | JWT sent to object-store origin           | `managed-backups.ts`                          |
+| Control                             | Protects against                          | Location                                        |
+| ----------------------------------- | ----------------------------------------- | ----------------------------------------------- |
+| ECDH envelope encryption            | Eavesdropping on extension message bus    | `session-utils.ts`                              |
+| Origin + capability ACL             | Unauthorized SW operations                | `security-utils.ts`, `background.ts`            |
+| Top-frame CS gate                   | Subframe autofill attacks                 | `autofill-cs.ts`, `security-utils.ts`           |
+| Iframe nonce bootstrap              | Host hijack of MessageChannel             | `autofill-frame-bootstrap.ts`                   |
+| RP-bound assertion ceremony         | Cross-origin/replay/passkey substitution  | `passkey-assertion-service.ts`                  |
+| Vault-password assertion UV         | Signing without requested verification    | `session-dek-store.ts`                          |
+| Per-rule autofill release           | Credential theft outside saved URL rules  | `credential-url.ts`, `autofill-router.ts`       |
+| SW-owned JWT                        | UI token injection                        | `request-auth-interceptor.ts`                   |
+| tRPC allowlist                      | Arbitrary fetch from proxy                | `trpc-auth-url.ts`                              |
+| Lock + idle session clear           | Stale session exposure                    | `background.ts`                                 |
+| Draft shape + staleness validation  | Untrusted or stale form data re-presented | `credential-draft-store.ts`, `vault-view.tsx`   |
+| Link ACL restriction                | Link page vault unlock/CRUD               | `background.ts` allowlist                       |
+| Signed KEM + AEAD sync/link wire    | Network peer disclosure or injection      | `synchronization.ts`, `linking.ts`              |
+| Argon2id vault sealing              | Offline vault blob cracking               | shared vault utils                              |
+| Popup-only backup messages          | CS/link cannot mint `.cryx` or receipts   | `background.ts`, `backup-service.ts`            |
+| IndexedDB backup staging            | Ciphertext not copied through envelopes   | `backup-staging.ts`                             |
+| DEK-sealed local backup receipts    | Forged coverage / cross-vault receipt use | `backup-status.ts`, `backup-service.ts`         |
+| Signed-URL fetch off ProxyFetch     | JWT sent to object-store origin           | `managed-backups.ts`                            |
+| Queued SW security mutations        | Key/state races and popup key exposure    | `background.ts`, `vault-security-service.ts`    |
+| Persist-then-session DEK reopen     | Publishing an uncommitted rotated key     | `storage.ts`, `session-dek-store.ts`            |
+| Replacement-before-delete backup    | Losing all managed recovery points        | `security-backup-job.ts`                        |
+| Account- and vault-bound backup job | Cross-vault upload or history deletion    | `security-backup-job.ts`, `auth-session-ext.ts` |
 
 ## Residual risks (prioritized)
 
@@ -296,7 +333,7 @@ proven to still exist by the receipt.
 | P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                                                |
 | P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                                      |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    |
-| P4       | Extension 2FA unsupported                           | Accepted          | `EXTENSION_2FA_UNSUPPORTED`                                                                        |
+| P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      |
 
 ## Data flow diagrams
 
@@ -336,6 +373,34 @@ sequenceDiagram
     SW->>SW: repeat sender URL match
     SW-->>CS: username, password
     CS->>Page: fill fields
+```
+
+### Vault security / optional DEK rotation
+
+```mermaid
+sequenceDiagram
+    participant Popup
+    participant SW
+    participant IDB as IndexedDB
+    participant Session as storage.session
+    participant Backup as Managed backup job
+
+    Popup->>SW: Reconfigure/rotate (encrypted current credentials + choices)
+    SW->>SW: enter single-writer queue; unwrap current DEK
+    alt rewrap only (default)
+        SW->>SW: rebuild requested key slot(s)
+    else rotate local DEK
+        SW->>SW: fresh DEK + IV; re-encrypt; rebuild both slots
+    end
+    SW->>IDB: persist complete candidate metadata
+    IDB-->>SW: committed
+    SW->>SW: reopen committed primary slot
+    SW->>Session: replace metadata and rotated DEK bytes
+    SW-->>Popup: display secrets + status (encrypted; no DEK)
+    SW->>Backup: queue independent replacement upload
+    opt delete older managed history
+        Backup->>Backup: delete only after replacement completes
+    end
 ```
 
 ### Passkey assertion

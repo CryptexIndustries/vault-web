@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
-    # Preserve every master/tag build because each can publish an immutable image.
+    # Preserve tag builds so concurrent release pushes do not cancel publishing.
     cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/development' }}
 
 jobs:
@@ -67,6 +67,61 @@ jobs:
               run: pnpm lint:ext
             - name: Type-check extension
               run: pnpm --filter extension lint-tsc
+            - name: Test production configuration validation
+              run: pnpm exec jest extension/tests/production-env.test.ts --runInBand
+
+    extension-package:
+        name: Chromium extension package
+        needs: [lockfile, extension-quality]
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'extension-')
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Build production extension
+              env:
+                  VITE_APP_URL: ${{ vars.VITE_APP_URL }}
+                  VITE_PUSHER_APP_ID: ${{ vars.VITE_PUSHER_APP_ID }}
+                  VITE_PUSHER_APP_KEY: ${{ vars.VITE_PUSHER_APP_KEY }}
+                  VITE_PUSHER_APP_HOST: ${{ vars.VITE_PUSHER_APP_HOST }}
+                  VITE_PUSHER_APP_PORT: ${{ vars.VITE_PUSHER_APP_PORT || '443' }}
+                  VITE_PUSHER_APP_TLS: ${{ vars.VITE_PUSHER_APP_TLS || 'true' }}
+                  VITE_ONLINE_SERVICES_API_URL: ${{ vars.VITE_ONLINE_SERVICES_API_URL }}
+                  VITE_CLOUD_ENABLED: ${{ vars.VITE_CLOUD_ENABLED || 'true' }}
+                  VITE_EXTENSION_NAME_PREFIX: ${{ vars.VITE_EXTENSION_NAME_PREFIX }}
+              run: pnpm build:ext
+            - name: Create extension ZIP
+              id: package
+              working-directory: extension/dist
+              shell: bash
+              run: |
+                  test -f manifest.json
+                  if find . -name '*.map' -print -quit | grep -q .; then
+                    echo "Production extension must not contain source maps" >&2
+                    exit 1
+                  fi
+                  tag="${GITHUB_REF_NAME//[^a-zA-Z0-9._-]/-}"
+                  name="cryptex-vault-chromium-${tag}"
+                  archive="${RUNNER_TEMP}/${name}.zip"
+                  zip -X -q -r "$archive" .
+                  unzip -tq "$archive"
+                  echo "name=${name}" >> "$GITHUB_OUTPUT"
+                  echo "path=${archive}" >> "$GITHUB_OUTPUT"
+            - name: Upload extension ZIP
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ${{ steps.package.outputs.name }}
+                  path: ${{ steps.package.outputs.path }}
+                  if-no-files-found: error
+                  compression-level: 0
+                  retention-days: 30
 
     # Temporarily disabled
     web-e2e:
@@ -157,7 +212,7 @@ jobs:
     container-image:
         name: Production container image
         needs: [lockfile, web-quality]
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref_type == 'tag')
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'web-v')
         runs-on: ubuntu-latest
         permissions:
             contents: read

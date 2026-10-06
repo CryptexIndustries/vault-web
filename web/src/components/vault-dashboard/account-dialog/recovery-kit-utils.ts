@@ -36,7 +36,7 @@ export function buildRecoveryKitCopyText(
     recoveryPhrase: string,
 ): string {
     return [
-        "Cryptex Vault — Online Services Recovery Kit",
+        "Cryptex Vault - Online Services Recovery Kit",
         "",
         "Store offline. Recovery requires BOTH fields below.",
         "",
@@ -155,7 +155,7 @@ export function buildRecoveryKitPrintHtml(
   <div class="warn">
     <strong>Important:</strong> Store this document offline in a safe place.
     Account recovery requires <strong>both</strong> your User ID and recovery phrase.
-    Shown once — Cryptex cannot retrieve these for you.
+    Cryptex Vault shows this once and cannot retrieve it for you later.
   </div>
   <label>User ID</label>
   <div class="userid">${escapeHtml(userId)}</div>

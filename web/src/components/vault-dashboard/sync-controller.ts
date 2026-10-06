@@ -236,7 +236,7 @@ export const createVaultOperations = (): VaultOperations => {
                         duration: 3000,
                     },
                 );
-                return;
+                throw new Error(mutationResult.error);
             }
 
             toast.success("Vault data saved.", {

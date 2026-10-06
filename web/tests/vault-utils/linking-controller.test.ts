@@ -8,7 +8,11 @@ import {
     encapsulateSyncKem,
     ensureSyncKemKeypair,
 } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
-import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
+import {
+    ensureSyncSigningKeypair,
+    signSyncBytes,
+    verifySyncBytes,
+} from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import {
     buildSyncKeyBundle,
     createLinkMac,
@@ -21,6 +25,12 @@ import {
     sealAead,
     verifyLinkMac,
 } from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
+import {
+    LinkingProcessController,
+    LinkingProcessState,
+    LinkingProcessStep,
+    type LinkingProcessStatus,
+} from "@cryptex-industries/vault-core/vault-utils/linking";
 import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
 
 if (!globalThis.crypto?.subtle) {
@@ -90,7 +100,7 @@ describe("encrypted link protocol", () => {
         expect(mac).not.toEqual(swappedMac);
     });
 
-    it("encrypts vault transfer with ML-KEM-derived AEAD key", async () => {
+    it("authenticates and encrypts the vault transfer", async () => {
         const syncID = "sync-id";
         const senderBundle = buildSyncKeyBundle(
             sender.SyncSigningPublicKey,
@@ -120,14 +130,40 @@ describe("encrypted link protocol", () => {
         );
         const senderKey = await deriveAeadKey(sharedSecret, context);
         const sealed = await sealAead(senderKey, plaintext, context);
+        const handshakeSignature = await signSyncBytes(
+            sender.SyncSigningPrivateKey,
+            context,
+        );
+        const transfer = VaultUtilTypes.LinkVaultTransfer.decode(
+            VaultUtilTypes.LinkVaultTransfer.encode({
+                KemCiphertext: kemCiphertext,
+                Nonce: sealed.nonce,
+                Ciphertext: sealed.ciphertext,
+                HandshakeSignature: handshakeSignature,
+            }).finish(),
+        );
 
         const receiverSecret = decapsulateSyncKem(
-            kemCiphertext,
+            transfer.KemCiphertext,
             receiver.SyncKemPrivateKey,
         );
         const receiverKey = await deriveAeadKey(receiverSecret, context);
-        const opened = await openAead(receiverKey, sealed, context);
+        const opened = await openAead(
+            receiverKey,
+            {
+                nonce: transfer.Nonce,
+                ciphertext: transfer.Ciphertext,
+            },
+            context,
+        );
 
+        await expect(
+            verifySyncBytes(
+                sender.SyncSigningPublicKey,
+                transfer.HandshakeSignature,
+                context,
+            ),
+        ).resolves.toBe(true);
         expect(Array.from(opened)).toEqual(Array.from(plaintext));
         const tamperedCiphertext = new Uint8Array(sealed.ciphertext);
         tamperedCiphertext[0] = (tamperedCiphertext[0] ?? 0) ^ 1;
@@ -155,6 +191,93 @@ describe("encrypted link protocol", () => {
         await expect(
             openAead(receiverKey, sealed, wrongContext),
         ).rejects.toHaveProperty("name", "OperationError");
+
+        const forgedSignature = await signSyncBytes(
+            receiver.SyncSigningPrivateKey,
+            context,
+        );
+        await expect(
+            verifySyncBytes(
+                sender.SyncSigningPublicKey,
+                forgedSignature,
+                context,
+            ),
+        ).resolves.toBe(false);
+    });
+
+    it("rejects an unsigned vault transfer before exposing vault data", async () => {
+        const syncID = "sync-id";
+        const senderBundle = buildSyncKeyBundle(
+            sender.SyncSigningPublicKey,
+            sender.SyncKemPublicKey,
+        );
+        const statuses: LinkingProcessStatus[] = [];
+        const webRTCConnection = {
+            close: () => undefined,
+        } as unknown as RTCPeerConnection;
+        const controller = Reflect.construct(LinkingProcessController, [
+            {
+                SyncID: syncID,
+                OnlineServices: undefined,
+                STUNServers: [],
+                TURNServers: [],
+                SignalingServer: undefined,
+                SenderKeyBundle: senderBundle,
+            },
+            false,
+            {
+                signingPublicKey: receiver.SyncSigningPublicKey,
+                signingPrivateKey: receiver.SyncSigningPrivateKey,
+                kemPublicKey: receiver.SyncKemPublicKey,
+                kemPrivateKey: receiver.SyncKemPrivateKey,
+            },
+            "test mnemonic",
+            async (status: LinkingProcessStatus) => {
+                statuses.push(status);
+            },
+            { disconnect: () => undefined, unbind: () => undefined },
+            {},
+            webRTCConnection,
+        ]);
+        Reflect.set(controller, "receiverKeyBundleSent", true);
+        Reflect.set(controller, "senderKeyBundle", senderBundle);
+        Reflect.apply(
+            Reflect.get(controller, "bindWebRTCConnection"),
+            controller,
+            [],
+        );
+
+        const receiveChannel = {
+            send: () => undefined,
+        } as unknown as RTCDataChannel;
+        webRTCConnection.ondatachannel!.call(webRTCConnection, {
+            channel: receiveChannel,
+        } as RTCDataChannelEvent);
+        await receiveChannel.onmessage!.call(receiveChannel, {
+            data: VaultUtilTypes.LinkVaultTransfer.encode({
+                KemCiphertext: createNonce(),
+                Nonce: createNonce(),
+                Ciphertext: createNonce(),
+                HandshakeSignature: new Uint8Array(),
+            }).finish(),
+        } as MessageEvent);
+
+        expect(statuses).toContainEqual(
+            expect.objectContaining({
+                Step: LinkingProcessStep.VaultTransfer,
+                State: LinkingProcessState.Error,
+                LogMessage: expect.objectContaining({
+                    message:
+                        "Vault transfer could not be authenticated. Update the sending device and try again.",
+                }),
+            }),
+        );
+        expect(statuses.some((status) => status.VaultBinaryData)).toBe(false);
+        expect(
+            statuses.some(
+                (status) => status.Step === LinkingProcessStep.VaultSave,
+            ),
+        ).toBe(false);
     });
 
     it("authenticates sender hello with mnemonic MAC", async () => {

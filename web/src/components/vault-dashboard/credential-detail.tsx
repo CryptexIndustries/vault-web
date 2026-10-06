@@ -15,6 +15,7 @@ import {
     FileText,
     Plus,
     Fingerprint,
+    Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,11 +87,11 @@ function CopyableField({
                     {label}
                 </span>
             </div>
-            <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
+            <div className="group-hover:border-primary/30 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors">
                 <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <span
                     className={cn(
-                        "block min-w-0 flex-1 font-mono text-sm text-foreground",
+                        "block min-w-0 flex-1 overflow-hidden break-all font-mono text-sm text-foreground",
                         isPassword && !showPassword && "tracking-[0.25em]",
                     )}
                 >
@@ -108,6 +109,7 @@ function CopyableField({
                                             setShowPassword(!showPassword)
                                         }
                                         className="h-7 w-7"
+                                        aria-label={`${showPassword ? "Hide" : "Show"} ${label.toLowerCase()}`}
                                     >
                                         {showPassword ? (
                                             <EyeOff className="h-3.5 w-3.5" />
@@ -150,6 +152,7 @@ function CopyableField({
                                         "h-7 w-7",
                                         isCopied && "text-primary",
                                     )}
+                                    aria-label={`Copy ${label.toLowerCase()}`}
                                 >
                                     <Copy className="h-3.5 w-3.5" />
                                 </Button>
@@ -236,9 +239,9 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
                     </span>
                 </div>
             </div>
-            <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-center gap-2 overflow-hidden rounded-lg border border-primary/20 bg-primary/5 p-3">
                 <Shield className="h-4 w-4 flex-shrink-0 text-primary" />
-                <span className="flex-1 font-mono text-lg font-semibold tracking-[0.25em] text-primary">
+                <span className="min-w-0 flex-1 overflow-hidden font-mono text-lg font-semibold tracking-[0.25em] text-primary">
                     {totpCode.slice(0, 3)} {totpCode.slice(3)}
                 </span>
                 <div className="flex items-center gap-2">
@@ -310,11 +313,11 @@ function PasskeyDetails({
 }) {
     return (
         <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
-            <div className="flex items-start gap-3">
-                <Fingerprint className="mt-0.5 h-5 w-5 text-primary" />
-                <div>
+            <div className="flex min-w-0 items-start gap-3">
+                <Fingerprint className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <div className="min-w-0">
                     <p className="text-sm font-medium">Passwordless sign-in</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    <p className="mt-1 break-all text-xs leading-relaxed text-muted-foreground">
                         Cryptex Vault will offer this passkey when{" "}
                         {credential.Passkey.RPID} requests it.
                     </p>
@@ -403,20 +406,20 @@ export function CredentialDetail({
         >
             {/* Header */}
             <div className="border-b border-border p-4">
-                <div className="mb-4 flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="hidden h-12 w-12 items-center justify-center rounded-lg bg-muted sm:flex">
+                <div className="mb-4 flex min-w-0 items-start justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted sm:flex">
                             {isPasskeyOnly ? (
                                 <Fingerprint className="h-6 w-6 text-primary" />
                             ) : (
                                 <Globe className="h-6 w-6 text-muted-foreground" />
                             )}
                         </div>
-                        <div>
-                            <h3 className="line-clamp-2 font-semibold text-foreground">
+                        <div className="min-w-0">
+                            <h3 className="line-clamp-2 break-all font-semibold text-foreground">
                                 {credential.Name}
                             </h3>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                 Directory: {directoryName}
                             </p>
                             {hasPasskey && (
@@ -609,8 +612,8 @@ export function CredentialDetail({
                             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
                                 Notes
                             </span>
-                            <div className="rounded-lg border border-border bg-muted/50 p-3">
-                                <p className="text-sm text-foreground">
+                            <div className="overflow-hidden rounded-lg border border-border bg-muted/50 p-3">
+                                <p className="break-all text-sm text-foreground">
                                     {credential.Notes}
                                 </p>
                             </div>
@@ -634,11 +637,22 @@ export function CredentialDetail({
                                     <CopyableField
                                         key={field.ID}
                                         label={field.Name}
-                                        value={field.Value}
+                                        value={
+                                            field.Type ===
+                                            CustomFieldType.Boolean
+                                                ? field.Value === "true"
+                                                    ? "Yes"
+                                                    : "No"
+                                                : field.Value
+                                        }
                                         icon={
-                                            field.Type === CustomFieldType.Text
-                                                ? FileText
-                                                : Key
+                                            field.Type ===
+                                            CustomFieldType.MaskedText
+                                                ? Key
+                                                : field.Type ===
+                                                    CustomFieldType.Boolean
+                                                  ? Check
+                                                  : FileText
                                         }
                                         isPassword={
                                             field.Type ===

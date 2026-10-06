@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Lock } from "lucide-react";
 
 import { openCustomerPortal } from "@/app_lib/online-services";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { copyToClipboard, formatAccountDate } from "./utils";
 import { SubscriptionLegalNotice } from "@/components/vault-dashboard/subscription-legal-notice";
 import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
+import type { PurchasePlan } from "@/utils/purchase-onboarding";
 
 const EmbeddedCheckoutDialog = dynamic(
     () =>
@@ -57,6 +58,7 @@ type AccountSummaryProps = {
     tierName: string;
     subscriptionStatus: string;
     subscription: Subscription | null | undefined;
+    subscriptionReady?: boolean;
     remoteConfig: RemoteConfig | null | undefined;
     hasSession: boolean;
     deviceId: string | null | undefined;
@@ -64,6 +66,9 @@ type AccountSummaryProps = {
     onlineServicesBound: boolean;
     isConnected: boolean;
     onCheckoutComplete?: () => void | Promise<void>;
+    checkoutPlan?: PurchasePlan | null;
+    checkoutBlocked?: boolean;
+    onPurchaseHandled?: () => void;
 };
 
 type LockedPerk = {
@@ -83,8 +88,8 @@ function buildLockedPerks(
 
     if (!remoteConfig?.canLink) {
         perks.push({
-            label: "Online Services sync",
-            detail: "Upgrade to unlock encrypted synchronization.",
+            label: "Managed sync infrastructure",
+            detail: "Use managed signaling and relay infrastructure.",
         });
     }
     if (!canLinkDevices) {
@@ -135,6 +140,7 @@ export function AccountSummary({
     tierName,
     subscriptionStatus,
     subscription,
+    subscriptionReady = true,
     remoteConfig,
     hasSession,
     deviceId,
@@ -142,11 +148,44 @@ export function AccountSummary({
     onlineServicesBound,
     isConnected,
     onCheckoutComplete,
+    checkoutPlan,
+    checkoutBlocked = false,
+    onPurchaseHandled,
 }: AccountSummaryProps) {
     const [checkoutOpen, setCheckoutOpen] = useState(false);
     const [checkoutTier, setCheckoutTier] =
         useState<CheckoutTier>("premiumMonthly");
-    const canUpgrade = hasSession && !subscription?.nonFree;
+    const canUpgrade =
+        hasSession &&
+        subscriptionReady &&
+        !!subscription &&
+        !subscription.nonFree &&
+        !checkoutBlocked;
+    const purchasePlanHandledRef = useRef(false);
+    useEffect(() => {
+        if (
+            !checkoutPlan ||
+            !hasSession ||
+            !subscriptionReady ||
+            !subscription ||
+            purchasePlanHandledRef.current
+        )
+            return;
+        purchasePlanHandledRef.current = true;
+        if (!subscription.nonFree) {
+            setCheckoutTier(
+                checkoutPlan === "yearly" ? "premiumYearly" : "premiumMonthly",
+            );
+            setCheckoutOpen(true);
+        }
+        onPurchaseHandled?.();
+    }, [
+        checkoutPlan,
+        hasSession,
+        subscriptionReady,
+        subscription,
+        onPurchaseHandled,
+    ]);
     const tierAccessLoaded = !!remoteConfig;
     const linkedDeviceCount = subscription?.resourceStatus?.linkedDevices ?? 0;
     const linkedDeviceLimit = remoteConfig?.maxLinks ?? 0;

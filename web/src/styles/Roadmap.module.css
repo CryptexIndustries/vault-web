@@ -1,0 +1,23 @@
+.group > h2 {
+    margin: 0 0 32px;
+    font-size: clamp(28px, 3vw, 42px);
+}
+
+.group h3 {
+    margin: 0;
+    font-size: 21px;
+}
+
+.group > p {
+    margin: 0 0 24px;
+}
+
+.changelog a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.changelog a:hover {
+    color: var(--coral);
+}

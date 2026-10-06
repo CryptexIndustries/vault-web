@@ -1,0 +1,7 @@
+# Source-build override. Enable with COMPOSE_FILE in .env.
+services:
+    web:
+        build:
+            context: ../..
+            dockerfile: web/prod.Dockerfile
+        pull_policy: never

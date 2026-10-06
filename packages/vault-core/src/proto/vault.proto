@@ -21,10 +21,10 @@ enum KeyDerivationFunction {
     Argon2ID = 1;
 }
 
-enum SecondFactorKind {
+enum AdditionalKeyProtectionKind {
     NONE = 0;
-    PASSPHRASE_128 = 1;
-    PASSPHRASE_256 = 2;
+    PROTECTION_PHRASE_128 = 1;
+    PROTECTION_PHRASE_256 = 2;
     WEBAUTHN_PRF = 3;
 }
 
@@ -41,23 +41,23 @@ message KeySlot {
     KeyDerivationConfig_Argon2ID KDFConfigArgon2ID = 5;
     string HKDFSalt = 6;
     string HKDFInfo = 7;
-    SecondFactorKind FactorKind = 8;
+    AdditionalKeyProtectionKind ProtectionKind = 8;
 
-    // WebAuthn PRF factor metadata (non-secret). Stored in the synced envelope
-    // so the factor does not depend on device-local IndexedDB state.
+    // WebAuthn PRF protection metadata (non-secret). Stored in the synced
+    // envelope so protection does not depend on device-local IndexedDB state.
     // Base64 credential id, needed for the assertion allowCredentials list.
     string WebauthnCredentialId = 9;
     // Base64 PRF eval salt, needed to reproduce the PRF output on unlock.
     string WebauthnPrfSalt = 10;
-    // Base64 salt used to derive reproducible passphrase second-factor material.
-    string SecondFactorSalt = 11;
+    // Base64 salt used to derive reproducible protection-phrase key material.
+    string ProtectionPhraseSalt = 11;
 }
 
 message KeyEnvelope {
     int32 Version = 1;
     string DEKAlgo = 2;
     repeated KeySlot Slots = 3;
-    SecondFactorKind PrimaryFactorKind = 4;
+    AdditionalKeyProtectionKind PrimaryProtectionKind = 4;
     // Stable vault identifier used for KEK context.
     string VaultID = 5;
 }
@@ -426,6 +426,9 @@ message LinkVaultTransfer {
     bytes KemCiphertext = 1;
     bytes Nonce = 2;
     bytes Ciphertext = 3;
+
+    /** ML-DSA-65 signature over linkVaultTransferContext for this transfer. */
+    bytes HandshakeSignature = 4;
 }
 
 message LinkingPackage {

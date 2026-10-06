@@ -41,6 +41,20 @@ export function createBareAuthHeader() {
     return headers;
 }
 
+/** Refuse to send one vault's backup request under another vault's session. */
+export function createAccountBoundAuthHeader(expectedDeviceId: string) {
+    const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
+    if (
+        onlineServicesData?.deviceId !== expectedDeviceId ||
+        !onlineServicesData.sessionToken
+    ) {
+        throw new Error("ONLINE_SERVICES_SESSION_CHANGED");
+    }
+    return {
+        Authorization: `Bearer ${onlineServicesData.sessionToken}`,
+    };
+}
+
 const authSessionClient = createTRPCClient<VersionedRouter>({
     links: [
         httpBatchLink({
@@ -136,7 +150,7 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
             return false;
         }
 
-        // Revoked access JWTs may still be within expiry — rotate via refresh first.
+        // Revoked access JWTs may still be within expiry - rotate via refresh first.
         if (await refreshOnlineServicesSession()) {
             return true;
         }

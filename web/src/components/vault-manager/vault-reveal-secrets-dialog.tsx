@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { VaultRevealSecrets } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
-import { SecondFactorKind } from "@cryptex-industries/vault-core/proto";
+import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import { useEffect, useState } from "react";
 
 type Props = {
@@ -24,24 +24,24 @@ export function VaultRevealSecretsDialog({
     onAcknowledge,
 }: Props) {
     const isWebAuthn =
-        secrets?.secondFactorKind === SecondFactorKind.WEBAUTHN_PRF;
+        secrets?.additionalKeyProtectionKind ===
+        AdditionalKeyProtectionKind.WEBAUTHN_PRF;
 
     const [ackRecovery, setAckRecovery] = useState(false);
-    const [ackSecondFactor, setAckSecondFactor] = useState(
-        !secrets?.secondFactorPassphrase,
-    );
+    const [ackAdditionalKeyProtection, setAckAdditionalKeyProtection] =
+        useState(!secrets?.protectionPhrase);
     const [ackWebAuthn, setAckWebAuthn] = useState(false);
 
     useEffect(() => {
         if (!open) return;
         setAckRecovery(false);
-        setAckSecondFactor(!secrets?.secondFactorPassphrase);
+        setAckAdditionalKeyProtection(!secrets?.protectionPhrase);
         setAckWebAuthn(false);
     }, [open, secrets]);
 
     const canClose =
         ackRecovery &&
-        (!secrets?.secondFactorPassphrase || ackSecondFactor) &&
+        (!secrets?.protectionPhrase || ackAdditionalKeyProtection) &&
         (!isWebAuthn || ackWebAuthn);
 
     return (
@@ -77,18 +77,20 @@ export function VaultRevealSecretsDialog({
                                 I have written down the recovery code
                             </label>
                         </div>
-                        {secrets?.secondFactorPassphrase ? (
+                        {secrets?.protectionPhrase ? (
                             <div>
                                 <p className="font-medium">Protection phrase</p>
                                 <code className="mt-1 block rounded bg-muted p-2 text-xs">
-                                    {secrets.secondFactorPassphrase}
+                                    {secrets.protectionPhrase}
                                 </code>
                                 <label className="mt-2 flex items-center gap-2 text-xs">
                                     <input
                                         type="checkbox"
-                                        checked={ackSecondFactor}
+                                        checked={ackAdditionalKeyProtection}
                                         onChange={(e) =>
-                                            setAckSecondFactor(e.target.checked)
+                                            setAckAdditionalKeyProtection(
+                                                e.target.checked,
+                                            )
                                         }
                                     />
                                     I have written down the protection phrase

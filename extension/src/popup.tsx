@@ -1,6 +1,6 @@
 import "./vault-core-runtime";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useLiveQuery } from "dexie-react-hooks";
 import { err, ok } from "neverthrow";
@@ -94,7 +94,7 @@ const App = () => {
      * Requests the server's public key for encrypted messaging.
      * @returns An error if the public key request fails, otherwise ok.
      */
-    const requestServerPublicKey = async () => {
+    const requestServerPublicKey = useCallback(async () => {
         const envelope = createPlaintextEnvelope(
             MessageType.GetPublicKey,
             null,
@@ -117,13 +117,13 @@ const App = () => {
         });
 
         return ok();
-    };
+    }, []);
 
     /**
      * Handles STALE_KEY error by refreshing the public key.
      * @returns An error if the public key refresh fails, otherwise ok.
      */
-    const handleStaleKeyError = async () => {
+    const handleStaleKeyError = useCallback(async () => {
         generalLog.debug("Stale key handler called, refreshing public key");
 
         const res = await requestServerPublicKey();
@@ -133,7 +133,7 @@ const App = () => {
         }
 
         return ok();
-    };
+    }, [requestServerPublicKey]);
 
     useEffect(() => {
         (async () => {
@@ -214,7 +214,7 @@ const App = () => {
 
             await fetchState();
         })();
-    }, [serverPublicKey]);
+    }, [serverPublicKey, requestServerPublicKey, handleStaleKeyError]);
 
     useEffect(() => {
         if (!bg.unlocked) {
@@ -251,8 +251,13 @@ const App = () => {
     const tryDecryptVault = async (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
+        protectionPhrase?: string,
     ) => {
-        const res = await _tryDecryptVault(metadata, formData);
+        const res = await _tryDecryptVault(
+            metadata,
+            formData,
+            protectionPhrase,
+        );
 
         const recordSuccess = () => {
             setBg({
@@ -279,7 +284,11 @@ const App = () => {
                     );
                 }
 
-                const retryRes = await _tryDecryptVault(metadata, formData);
+                const retryRes = await _tryDecryptVault(
+                    metadata,
+                    formData,
+                    protectionPhrase,
+                );
                 if (retryRes.isErr()) {
                     vaultLog.error("Unlock retry failed", {
                         error: retryRes.error,
@@ -306,6 +315,7 @@ const App = () => {
     const _tryDecryptVault = async (
         metadata: Storage.VaultMetadata,
         formData: EncryptionFormGroupSchemaType,
+        protectionPhrase?: string,
     ) => {
         if (!serverPublicKey) {
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -316,6 +326,7 @@ const App = () => {
             {
                 index: metadata.DBIndex,
                 form: formData,
+                protectionPhrase,
             },
             serverPublicKey.publicKeyJwk,
             serverPublicKey.keyId,
@@ -494,7 +505,7 @@ const App = () => {
                             }}
                         >
                             <Link2 className="mr-1 h-3.5 w-3.5" />
-                            Link this device
+                            Use invitation
                         </Button>
                         <p className="text-[10px] text-muted-foreground">
                             Once the linked vault is saved, this popup will

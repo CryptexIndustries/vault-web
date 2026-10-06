@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/CryptexIndustries/vault-web/discussions
+    about: Ask for help, discuss self-hosting, or suggest a feature.
+  - name: Report a security vulnerability
+    url: https://cryptex-vault.com/security/responsible-disclosure
+    about: Use the private disclosure process instead of a public issue.

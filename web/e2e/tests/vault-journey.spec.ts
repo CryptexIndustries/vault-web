@@ -159,4 +159,179 @@ test("creates a vault and manages a credential through lock and unlock", async (
     await expect(
         page.getByText("There are no credentials in this directory."),
     ).toBeVisible();
+
+    // Local device management stays available without an Online Services account.
+    await page.getByRole("button", { name: "Manage", exact: true }).click();
+    const account = page.getByRole("dialog", { name: "Account", exact: true });
+    await expect(
+        account.getByRole("tab", { name: "Devices", exact: true }),
+    ).toHaveAttribute("data-state", "active");
+    await expect(
+        account.getByText("You can still manage this vault's sync links.", {
+            exact: false,
+        }),
+    ).toBeVisible();
+    await expect(
+        account.getByRole("button", { name: "Allow root access", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+        account.getByRole("button", { name: "View device list" }),
+    ).toBeVisible();
+    await expect(account.locator("svg.device-network")).toBeVisible();
+    const mapBounds = await account.locator("svg.device-network").boundingBox();
+    expect(mapBounds!.height).toBeGreaterThan(100);
+    const nestedScroll = await account
+        .locator("svg.device-network")
+        .evaluate((svg) => {
+            let parent = svg.parentElement;
+            while (parent && parent.getAttribute("role") !== "dialog") {
+                if (
+                    ["auto", "scroll"].includes(
+                        getComputedStyle(parent).overflowY,
+                    ) &&
+                    parent.scrollHeight > parent.clientHeight + 1
+                )
+                    return true;
+                parent = parent.parentElement;
+            }
+            return false;
+        });
+    expect(nestedScroll).toBe(false);
+
+    await account.getByRole("button", { name: "View device list" }).click();
+    await expect(
+        account.getByRole("button", { name: "Next devices" }),
+    ).toBeVisible();
+    await account.getByRole("button", { name: "View connection map" }).click();
+    await expect(account.locator("svg.device-network")).toBeVisible();
+    await account.getByRole("button", { name: "Expand map" }).click();
+    await expect(
+        account.getByRole("button", { name: "Collapse", exact: true }),
+    ).toBeVisible();
+    await account
+        .getByRole("button", { name: "Collapse", exact: true })
+        .click();
+    await account
+        .getByRole("button", { name: "Link device", exact: true })
+        .click();
+    const choice = page.getByRole("dialog", {
+        name: "Link a device",
+        exact: true,
+    });
+    await expect(
+        choice.getByText(
+            "Name the device, choose a transfer method, then start linking.",
+        ),
+    ).toBeVisible();
+    await choice.getByRole("button", { name: /^Create invitation/ }).click();
+    await expect(
+        page.getByRole("dialog", { name: "Link new device", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await account
+        .getByRole("button", { name: "Link device", exact: true })
+        .click();
+    await choice.getByRole("button", { name: /^Receive invitation/ }).click();
+    await expect(
+        page.getByRole("dialog", { name: "Receive vault data", exact: true }),
+    ).toBeVisible();
+});
+
+test("rotates the web vault DEK only when explicitly selected", async ({
+    page,
+}) => {
+    const originalPassword = "e2e-original-vault-password-42!";
+    const rotatedPassword = "e2e-rotated-vault-password-84!";
+    await page.goto("/app");
+
+    await page
+        .getByPlaceholder("Enter your new vault name")
+        .fill("Rotation test vault");
+    await page.getByPlaceholder("Enter your secret key").fill(originalPassword);
+    await page.getByRole("button", { name: "Create Vault" }).click();
+
+    const initialReveal = page.getByRole("dialog", {
+        name: "Save these secrets now",
+    });
+    await initialReveal
+        .getByLabel("I have written down the recovery code")
+        .check();
+    await initialReveal.getByRole("button", { name: "Continue" }).click();
+
+    const migrationDialog = page.getByRole("dialog", {
+        name: "Action required",
+    });
+    const settingsButton = page.getByRole("button", {
+        name: "Vault Settings",
+        exact: true,
+    });
+    await expect(migrationDialog.or(settingsButton)).toBeVisible();
+    if (await migrationDialog.isVisible()) {
+        await migrationDialog.getByLabel("I understand these steps").check();
+        await migrationDialog.getByRole("button", { name: "Continue" }).click();
+    }
+
+    await settingsButton.click();
+    const settings = page.getByRole("dialog", {
+        name: "Vault Settings",
+        exact: true,
+    });
+    await settings
+        .getByRole("button", { name: "Manage Encryption & Security" })
+        .click();
+
+    const security = page.getByRole("dialog", {
+        name: "Encryption & Security",
+    });
+    const rotateDataKey = security
+        .getByLabel("Rotate this device's vault encryption key")
+        .first();
+    const deleteHistory = security
+        .getByLabel("Delete older managed backups after replacement")
+        .first();
+    await expect(rotateDataKey).not.toBeChecked();
+    await expect(deleteHistory).not.toBeChecked();
+
+    await security.getByLabel("Current master password").fill(originalPassword);
+    await security.getByLabel("New master password").fill(rotatedPassword);
+    await security.getByLabel("Confirm new password").fill(rotatedPassword);
+    await rotateDataKey.check();
+    await security
+        .getByRole("button", { name: "Save protection settings" })
+        .click();
+
+    await expect(
+        page.getByText("Security settings and vault encryption key updated."),
+    ).toBeVisible();
+    await expect(
+        security.getByText("New recovery code", { exact: true }),
+    ).toBeVisible();
+    const securityCloseButtons = security.getByRole("button", {
+        name: "Close",
+        exact: true,
+    });
+    const securityFooterClose = securityCloseButtons.first();
+    await expect(securityFooterClose).toBeDisabled();
+    await securityCloseButtons.last().click();
+    await expect(security).toBeVisible();
+    await security.getByLabel(/I saved the newly generated secrets/).check();
+    await securityFooterClose.click();
+    await settings
+        .getByRole("button", { name: "Close", exact: true })
+        .first()
+        .click();
+
+    await page.getByRole("button", { name: "Lock Vault", exact: true }).click();
+    const lockDialog = page.getByRole("dialog", { name: "Warning" });
+    await lockDialog
+        .getByRole("button", { name: /Lock Vault \(\d+s\)/ })
+        .click();
+
+    await page.getByPlaceholder("Enter your secret key").fill(originalPassword);
+    await page.getByRole("button", { name: "Unlock Vault" }).click();
+    await expect(page.getByText("Failed to decrypt vault")).toBeVisible();
+
+    await page.getByPlaceholder("Enter your secret key").fill(rotatedPassword);
+    await page.getByRole("button", { name: "Unlock Vault" }).click();
+    await expect(settingsButton).toBeVisible();
 });

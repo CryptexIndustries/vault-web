@@ -134,7 +134,7 @@ const TurnstileMobileBridgePage: NextPage = () => {
     return (
         <>
             <Head>
-                <title>Cryptex Vault — Verification</title>
+                <title>Cryptex Vault - Verification</title>
                 <meta name="robots" content="noindex,nofollow" />
                 <meta
                     name="viewport"

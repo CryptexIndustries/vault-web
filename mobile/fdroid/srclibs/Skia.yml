@@ -1,2 +1,3 @@
 RepoType: git
 Repo: https://chromium.googlesource.com/skia.git
+Prepare: rm -rf platform_tools

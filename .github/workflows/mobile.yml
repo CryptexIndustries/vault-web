@@ -189,6 +189,12 @@ jobs:
       - name: Verify native crypto dependencies and release libraries
         run: pnpm mobile:e2e -- crypto-audit --apk mobile/dist/cryptex-vault-unsigned.apk
 
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Run smoke flow on emulator
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -198,10 +204,9 @@ jobs:
           disable-animations: true
           script: |
             test "$(adb devices | awk '$2 == "device" { count++ } END { print count+0 }')" = 1
-            export MAESTRO_DEVICE="$(adb devices | awk '$2 == "device" { print $1; exit }')"
-            test -n "$MAESTRO_DEVICE"
-            adb -s "$MAESTRO_DEVICE" shell settings put secure show_ime_with_hard_keyboard 1
-            adb -s "$MAESTRO_DEVICE" install -r -t mobile/android/app/build/outputs/apk/e2e/app-e2e.apk
+            test -n "$ANDROID_SERIAL"
+            adb -s "$ANDROID_SERIAL" shell settings put secure show_ime_with_hard_keyboard 1
+            adb -s "$ANDROID_SERIAL" install -r -t mobile/android/app/build/outputs/apk/e2e/app-e2e.apk
             pnpm mobile:e2e -- smoke
             pnpm mobile:e2e -- crypto
             pnpm mobile:e2e -- native

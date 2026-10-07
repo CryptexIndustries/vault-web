@@ -140,8 +140,8 @@ jobs:
         run: |
           test -n "$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          sdkmanager --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
-          sdkmanager --sdk_root="$ANDROID_HOME" \
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "build-tools;34.0.0" \
@@ -246,8 +246,8 @@ jobs:
         run: |
           test -n "$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          sdkmanager --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
-          sdkmanager --sdk_root="$ANDROID_HOME" \
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
             "platforms;android-36" "build-tools;36.0.0" "build-tools;34.0.0" \
             "ndk;27.1.12297006" "cmake;3.22.1"
 
@@ -299,7 +299,8 @@ jobs:
           java-version: 17.0.19+10
 
       - name: Install pinned APK inspection and signing tools
-        run: sdkmanager --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
 
       - name: Download verified unsigned APK and its configuration
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0

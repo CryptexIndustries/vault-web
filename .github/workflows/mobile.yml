@@ -187,7 +187,9 @@ jobs:
         run: pnpm mobile:build -- --unsigned --clean
 
       - name: Verify native crypto dependencies and release libraries
-        run: pnpm mobile:e2e -- crypto-audit --apk mobile/dist/cryptex-vault-unsigned.apk
+        run: |
+          pnpm mobile:e2e -- crypto-audit --apk mobile/dist/cryptex-vault-unsigned.apk
+          mobile/android/gradlew --stop
 
       - name: Enable emulator hardware acceleration
         run: |
@@ -196,6 +198,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Run smoke flow on emulator
+        env:
+          ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35

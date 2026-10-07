@@ -194,6 +194,7 @@ if (phase === "prebuild") {
             "--console=plain",
             "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8",
             "-PcryptexUnsignedRelease=true",
+            "-PreactNativeDevServerIp=127.0.0.1",
             "-PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64",
             `-Pandroid.buildToolsVersion=${toolchain.buildTools}`,
             `-Pandroid.compileSdkVersion=${toolchain.compileSdk}`,

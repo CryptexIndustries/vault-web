@@ -1,0 +1,18 @@
+Cryptex Vault stores passwords, passkeys and verification codes in an encrypted vault on your device. Create and use a local vault without an account.
+
+<b>Manage your credentials</b>
+<ul>
+<li>Organize entries into directories and search your vault.</li>
+<li>Generate passwords and use Android autofill.</li>
+<li>Store passkeys and time-based verification codes.</li>
+<li>Unlock with your master password or configured biometrics.</li>
+<li>Import, export and keep a recovery code for your vault.</li>
+</ul>
+
+<b>Link your devices</b>
+Create or use an invitation with a QR code or invitation file. Linked vaults can synchronize with Cryptex Vault on Android, the web and supported browser extensions. Device linking and synchronization use encrypted transfers.
+
+<b>Optional Online Services</b>
+Online Services offers a paid monthly or yearly subscription for managed encrypted backups, hosted signaling and relay services, and account device management. Local vault use does not require a subscription. Account creation uses Cloudflare Turnstile, and billing opens Stripe Checkout in your browser. These optional features use external network services.
+
+Cryptex Vault is free software under the GNU Affero General Public License, version 3.

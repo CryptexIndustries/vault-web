@@ -1,0 +1,34 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android passkey locked-vault assertion
+---
+- launchApp
+- runFlow:
+    when:
+      visible: Unlock vault
+    commands:
+      - tapOn: Master password
+      - eraseText: 100
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- tapOn: Vault
+# Launching an already-running app does not guarantee a locked vault.
+- tapOn: Lock vault
+- assertVisible: Unlock vault
+- openLink: http://localhost:43110/passkeys
+- assertVisible: Deterministic passkey fixture
+- tapOn: Use account A
+- assertVisible: Unlock ${CRYPTEX_APP_NAME}
+- tapOn: Unlock ${CRYPTEX_APP_NAME}
+- assertVisible: Unlock vault
+- tapOn: Master password
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: Fixture User A
+- tapOn: Fixture User A
+- assertVisible: Authenticated account A
+- pressKey: back

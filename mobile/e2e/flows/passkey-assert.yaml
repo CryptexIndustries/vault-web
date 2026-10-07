@@ -1,0 +1,17 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android passkey allow-list and discoverable assertions
+---
+- openLink: http://localhost:43110/passkeys
+- assertVisible: Deterministic passkey fixture
+- tapOn: Use account A
+- assertVisible: Fixture User A
+- assertNotVisible: Fixture User B
+- tapOn: Fixture User A
+- assertVisible: Authenticated account A
+
+- tapOn: Use any passkey
+- assertVisible: Fixture User A
+- assertVisible: Fixture User B
+- tapOn: Fixture User B
+- assertVisible: Authenticated account B
+- pressKey: back

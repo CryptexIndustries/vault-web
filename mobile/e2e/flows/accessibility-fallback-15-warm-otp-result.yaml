@@ -1,0 +1,13 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - OTP-only fill and saved update read-back
+---
+- assertVisible: Accessibility login fixture
+- assertVisible: Accessibility username
+- assertVisible: Accessibility password
+- assertNotVisible: fixture@example.test
+- assertVisible: "^[0-9]{6}$"
+- tapOn: Validate accessibility login
+- assertVisible: Accessibility login incomplete
+- assertVisible: Accessibility verification code matched
+- assertNotVisible: Accessibility verification code mismatch
+- runFlow: accessibility-fallback-saved-password-readback.yaml

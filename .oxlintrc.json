@@ -29,6 +29,7 @@
         "builtin": true
     },
     "ignorePatterns": [
+        "**/.mobile-build/**",
         "**/node_modules/**",
         "**/dist/**",
         "**/build/**",

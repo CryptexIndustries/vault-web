@@ -567,7 +567,8 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["URL"],
-                message: "Enter a valid URL or safe wildcard pattern.",
+                message:
+                    "Enter a valid website, Android app, or safe wildcard pattern.",
             });
         }
 
@@ -576,7 +577,8 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["AdditionalURLs", index, "URL"],
-                message: "Enter a valid URL or safe wildcard pattern.",
+                message:
+                    "Enter a valid website, Android app, or safe wildcard pattern.",
             });
         });
     },

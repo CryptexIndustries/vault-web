@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=1280">
+    <title>Cryptex Vault mobile store screenshots</title>
+    <style>
+        @font-face {
+            font-family: Oxanium;
+            src: url("../../web/public/fonts/oxanium-200-800-latin.woff2") format("woff2");
+            font-weight: 200 800;
+        }
+
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #111021; color: #f7f5fc; font-family: Arial, sans-serif; }
+        .stage {
+            position: relative;
+            width: 1280px;
+            height: 1600px;
+            overflow: hidden;
+            background:
+                radial-gradient(ellipse at 92% 16%, #362147 0, transparent 62%),
+                linear-gradient(120deg, #101020 8%, #1d1630 61%, #291b37);
+        }
+        .stage::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            opacity: .36;
+            background-image:
+                radial-gradient(circle, #070811 .8px, transparent 1px),
+                radial-gradient(circle, #514266 .7px, transparent 1px);
+            background-size: 83px 101px, 139px 157px;
+            background-position: 12px 18px, 57px 71px;
+            pointer-events: none;
+        }
+        header {
+            position: absolute;
+            z-index: 1;
+            top: 54px;
+            left: 64px;
+            right: 64px;
+        }
+        .brand { display: flex; align-items: center; gap: 15px; font-family: Oxanium, sans-serif; font-size: 29px; font-weight: 500; letter-spacing: .03em; color: #fcf8ec; }
+        .brand img { width: 47px; height: 47px; }
+        .brand-vault { color: #ff5668; }
+        .slide { position: absolute; inset: 0; }
+        .slide[hidden] { display: none; }
+        .copy { position: absolute; top: 286px; left: 64px; width: 448px; }
+        .label { margin: 0 0 38px; color: #b49bff; font-family: Oxanium, sans-serif; font-size: 21px; font-weight: 700; }
+        h1 { margin: 0; font-size: 70px; line-height: 1.13; letter-spacing: -.8px; font-weight: 700; }
+        .description { margin: 30px 0 0; color: #b9b4c5; font-size: 29px; line-height: 1.52; }
+        .capture {
+            position: absolute;
+            top: 180px;
+            right: 64px;
+            width: 600px;
+            border: 2px solid #363145;
+            border-radius: 30px;
+            overflow: hidden;
+            box-shadow: 0 24px 70px #07081066;
+            background: #181d2b;
+        }
+        .capture img { display: block; width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <main class="stage">
+        <header>
+            <div class="brand"><img src="../assets/brand-mark.png" alt=""><span>CRYPTEX <span class="brand-vault">VAULT</span></span></div>
+        </header>
+
+        <article class="slide" id="vault">
+            <div class="copy">
+                <p class="label">DAILY ACCESS</p>
+                <h1>Your vault,<br>ready when<br>you are</h1>
+                <p class="description">Keep passwords and sign-in details together on your phone.</p>
+            </div>
+            <div class="capture"><img src="raw/1-vault.png" alt="Cryptex Vault showing four example items and one linked device"></div>
+        </article>
+
+        <article class="slide" id="item" hidden>
+            <div class="copy">
+                <p class="label">LOGIN DETAILS</p>
+                <h1>Everything<br>you need to<br>sign in</h1>
+                <p class="description">Copy a username or password, then open the right website.</p>
+            </div>
+            <div class="capture"><img src="raw/2-item.png" alt="An example login with a username, masked password and website"></div>
+        </article>
+
+        <article class="slide" id="devices" hidden>
+            <div class="copy">
+                <p class="label">DEVICE LINKING</p>
+                <h1>Your vault,<br>across your<br>devices</h1>
+                <p class="description">Create or use an invitation. See how your devices connect.</p>
+            </div>
+            <div class="capture"><img src="raw/3-devices.png" alt="Cryptex Vault showing a connection graph of 100 example devices and 50 recorded connections"></div>
+        </article>
+
+        <article class="slide" id="codes" hidden>
+            <div class="copy">
+                <p class="label">VERIFICATION CODES</p>
+                <h1>Copy a code.<br>Finish<br>signing in.</h1>
+                <p class="description">Keep time-based verification codes in your vault. Copy one when you need it.</p>
+            </div>
+            <div class="capture"><img src="raw/4-verification-code.png" alt="An example time-based verification code with its remaining time"></div>
+        </article>
+    </main>
+    <script>
+        function selectSlide() {
+            const selected = document.getElementById(location.hash.slice(1));
+            const slide = selected?.classList.contains("slide") ? selected : document.getElementById("vault");
+            document.querySelectorAll(".slide").forEach((item) => { item.hidden = item !== slide; });
+        }
+        window.addEventListener("hashchange", selectSlide);
+        selectSlide();
+    </script>
+</body>
+</html>

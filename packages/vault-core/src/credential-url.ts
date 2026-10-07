@@ -4,6 +4,9 @@ import psl from "psl";
 import { CredentialURLMatchMode, type CredentialURL } from "./proto/vault";
 
 const ALLOWED_CREDENTIAL_URL_PROTOCOLS = new Set(["http:", "https:"]);
+const ANDROID_APP_PROTOCOL = "androidapp:";
+const ANDROID_PACKAGE_NAME =
+    /^(?:[a-zA-Z][a-zA-Z0-9_]*\.)+[a-zA-Z][a-zA-Z0-9_]*$/;
 const HTTP_URL_PREFIX = /^https?:\/\//i;
 const EXPLICIT_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 const REGEX_SPECIAL = /[\\^$.*+?()[\]{}|]/g;
@@ -79,8 +82,49 @@ export function getCredentialUrlRules(
     ].filter(({ URL }) => URL.trim().length > 0);
 }
 
-function protocolsAndPortsMatch(saved: URL, page: URL): boolean {
+export type CredentialUrlMatchOptions = {
+    /**
+     * Ignore explicit ports on both the saved rule URL and the page URL.
+     * Android browser autofill only exposes the page host (`webDomain`
+     * carries no port), so a strict port comparison can never match a
+     * credential saved with a non-default port. Web and extension callers
+     * see the full page URL and should not use this.
+     */
+    ignorePort?: boolean;
+};
+
+/** Normalize an Android application association without treating it as a web URL. */
+export function normalizeAndroidAppUri(rawUrl?: string | null): string | null {
+    const trimmed = rawUrl?.trim();
+    if (!trimmed) return null;
+
+    try {
+        const parsed = new URL(trimmed);
+        if (
+            parsed.protocol !== ANDROID_APP_PROTOCOL ||
+            parsed.username ||
+            parsed.password ||
+            parsed.port ||
+            parsed.pathname !== "" ||
+            parsed.search ||
+            parsed.hash ||
+            !ANDROID_PACKAGE_NAME.test(parsed.hostname)
+        ) {
+            return null;
+        }
+        return `${ANDROID_APP_PROTOCOL}//${parsed.hostname.toLowerCase()}`;
+    } catch {
+        return null;
+    }
+}
+
+function protocolsAndPortsMatch(
+    saved: URL,
+    page: URL,
+    options?: CredentialUrlMatchOptions,
+): boolean {
     if (saved.protocol === "https:" && page.protocol !== "https:") return false;
+    if (options?.ignorePort) return true;
     return !(saved.port || page.port) || saved.port === page.port;
 }
 
@@ -88,9 +132,14 @@ function normalizedHostname(url: URL): string {
     return url.hostname.toLowerCase().replace(/\.$/, "").replaceAll("%2a", "*");
 }
 
+/** Registrable domain (eTLD+1) of a hostname under the PSL, or null. */
+export function registrableDomainOf(hostname: string): string | null {
+    return psl.get(hostname.toLowerCase().replace(/\.$/u, ""));
+}
+
 /** True when a hostname contains a registrable domain under the PSL. */
 export function isRegistrableDomain(hostname: string): boolean {
-    return psl.get(hostname.toLowerCase().replace(/\.$/u, "")) !== null;
+    return registrableDomainOf(hostname) !== null;
 }
 
 function escapeRegex(value: string): string {
@@ -111,11 +160,15 @@ function wildcardHostnameIsSafe(labels: readonly string[]): boolean {
         .every((label) => label !== "*" && label.toLowerCase() !== "%2a");
 }
 
-function wildcardRuleMatches(rawPattern: string, page: URL): boolean {
+function wildcardRuleMatches(
+    rawPattern: string,
+    page: URL,
+    options?: CredentialUrlMatchOptions,
+): boolean {
     const normalizedPattern = normalizeCredentialPattern(rawPattern);
     if (!normalizedPattern) return false;
     const pattern = new URL(normalizedPattern);
-    if (!protocolsAndPortsMatch(pattern, page)) return false;
+    if (!protocolsAndPortsMatch(pattern, page, options)) return false;
 
     const labels = normalizedHostname(pattern).split(".");
     if (
@@ -155,15 +208,19 @@ function wildcardRuleMatches(rawPattern: string, page: URL): boolean {
     return pathRegex.test(page.pathname);
 }
 
-function rulePriority(rule: CredentialUrlRule, page: URL): number {
+function rulePriority(
+    rule: CredentialUrlRule,
+    page: URL,
+    options?: CredentialUrlMatchOptions,
+): number {
     if (rule.MatchMode === CredentialURLMatchMode.Wildcard) {
-        return wildcardRuleMatches(rule.URL, page) ? 2 : -1;
+        return wildcardRuleMatches(rule.URL, page, options) ? 2 : -1;
     }
 
     const normalizedSavedUrl = normalizeCredentialUrl(rule.URL);
     if (!normalizedSavedUrl) return -1;
     const saved = new URL(normalizedSavedUrl);
-    if (!protocolsAndPortsMatch(saved, page)) return -1;
+    if (!protocolsAndPortsMatch(saved, page, options)) return -1;
 
     const savedHostname = normalizedHostname(saved);
     const pageHostname = normalizedHostname(page);
@@ -180,6 +237,10 @@ function rulePriority(rule: CredentialUrlRule, page: URL): number {
 }
 
 export function isCredentialUrlRuleValid(rule: CredentialUrlRule): boolean {
+    const androidApp = normalizeAndroidAppUri(rule.URL);
+    if (androidApp) {
+        return rule.MatchMode === CredentialURLMatchMode.ExactHost;
+    }
     if (rule.MatchMode === CredentialURLMatchMode.Wildcard) {
         const sentinel = normalizeCredentialPattern(rule.URL);
         if (!sentinel) return false;
@@ -198,6 +259,20 @@ export function isCredentialUrlRuleValid(rule: CredentialUrlRule): boolean {
         );
     }
     return normalizeCredentialUrl(rule.URL) !== null;
+}
+
+/** Match a saved application association. Web match modes never cross into apps. */
+export function credentialMatchesAndroidApp(
+    credential: CredentialUrlSet,
+    packageName: string,
+): boolean {
+    if (!ANDROID_PACKAGE_NAME.test(packageName)) return false;
+    const target = `${ANDROID_APP_PROTOCOL}//${packageName.toLowerCase()}`;
+    return getCredentialUrlRules(credential).some(
+        (rule) =>
+            rule.MatchMode === CredentialURLMatchMode.ExactHost &&
+            normalizeAndroidAppUri(rule.URL) === target,
+    );
 }
 
 function credentialUrlRuleKey(rule: CredentialUrlRule): string {
@@ -240,6 +315,7 @@ export function sanitizeAdditionalCredentialUrls(
 export function findCredentialUrlMatch(
     credential: CredentialUrlSet,
     pageUrl: string,
+    options?: CredentialUrlMatchOptions,
 ): CredentialUrlMatch | null {
     const normalizedPageUrl = normalizeCredentialUrl(pageUrl);
     if (!normalizedPageUrl) return null;
@@ -247,7 +323,7 @@ export function findCredentialUrlMatch(
     let best: CredentialUrlMatch | null = null;
 
     for (const rule of getCredentialUrlRules(credential)) {
-        const priority = rulePriority(rule, page);
+        const priority = rulePriority(rule, page, options);
         if (priority > (best?.priority ?? -1)) best = { rule, priority };
     }
 
@@ -257,6 +333,7 @@ export function findCredentialUrlMatch(
 export function credentialMatchesPageUrl(
     credential: CredentialUrlSet,
     pageUrl: string,
+    options?: CredentialUrlMatchOptions,
 ): boolean {
-    return findCredentialUrlMatch(credential, pageUrl) !== null;
+    return findCredentialUrlMatch(credential, pageUrl, options) !== null;
 }

@@ -1,0 +1,100 @@
+{
+  "expo": {
+    "name": "Cryptex Vault",
+    "slug": "cryptex-vault",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "scheme": "cryptex",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#181d2b"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cryptexindustries.vault",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan credential and device-link QR codes.",
+        "NSFaceIDUsageDescription": "Unlock your vault with Face ID.",
+        "UIBackgroundModes": []
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#181d2b",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.cryptexindustries.vault",
+      "versionCode": 1,
+      "allowBackup": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET"
+      ],
+      "blockedPermissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
+      "expo-local-authentication",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#181d2b",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      "expo-font",
+      "./plugins/with-splash-wordmark",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan credential and device-link QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "./plugins/with-release-signing-config",
+      "./plugins/with-app-identity",
+      "./plugins/with-android-dependency-verification",
+      "./plugins/with-localhost-network",
+      "./plugins/with-android-screen-privacy"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

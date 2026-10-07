@@ -125,14 +125,19 @@ export function createWebCryptoEnvelopeCrypto(): VaultEnvelopeCrypto {
                 AES_256_KEY_BYTES,
                 "VAULT_HKDF_IKM_INVALID",
             );
-            const key = await crypto.subtle.importKey(
-                "raw",
-                toBufferSource(rawKeyMaterial),
-                { name: "HKDF" },
-                false,
-                ["deriveKey"],
-            );
-            return key as unknown as VaultHkdfKey;
+            const importBytes = new Uint8Array(rawKeyMaterial);
+            try {
+                const key = await crypto.subtle.importKey(
+                    "raw",
+                    importBytes,
+                    { name: "HKDF" },
+                    false,
+                    ["deriveKey"],
+                );
+                return key as unknown as VaultHkdfKey;
+            } finally {
+                importBytes.fill(0);
+            }
         },
 
         // Web Crypto exposes non-extractable keys but no destruction primitive.
@@ -143,19 +148,24 @@ export function createWebCryptoEnvelopeCrypto(): VaultEnvelopeCrypto {
             if (info.byteLength === 0) {
                 throw new Error("VAULT_HKDF_INFO_REQUIRED");
             }
-            const key = await crypto.subtle.deriveKey(
-                {
-                    name: "HKDF",
-                    hash: "SHA-256",
-                    salt: toBufferSource(salt),
-                    info: toBufferSource(info),
-                },
-                nativeHkdfKey(hkdfKey),
-                { name: "AES-KW", length: 256 },
-                false,
-                ["wrapKey", "unwrapKey"],
-            );
-            return key as unknown as VaultKek;
+            const saltBytes = new Uint8Array(salt);
+            try {
+                const key = await crypto.subtle.deriveKey(
+                    {
+                        name: "HKDF",
+                        hash: "SHA-256",
+                        salt: saltBytes,
+                        info: toBufferSource(info),
+                    },
+                    nativeHkdfKey(hkdfKey),
+                    { name: "AES-KW", length: 256 },
+                    false,
+                    ["wrapKey", "unwrapKey"],
+                );
+                return key as unknown as VaultKek;
+            } finally {
+                saltBytes.fill(0);
+            }
         },
 
         async importKek(rawKeyMaterial) {
@@ -164,14 +174,19 @@ export function createWebCryptoEnvelopeCrypto(): VaultEnvelopeCrypto {
                 AES_256_KEY_BYTES,
                 "VAULT_KEK_MATERIAL_INVALID",
             );
-            const key = await crypto.subtle.importKey(
-                "raw",
-                toBufferSource(rawKeyMaterial),
-                { name: "AES-KW", length: 256 },
-                false,
-                ["wrapKey", "unwrapKey"],
-            );
-            return key as unknown as VaultKek;
+            const importBytes = new Uint8Array(rawKeyMaterial);
+            try {
+                const key = await crypto.subtle.importKey(
+                    "raw",
+                    importBytes,
+                    { name: "AES-KW", length: 256 },
+                    false,
+                    ["wrapKey", "unwrapKey"],
+                );
+                return key as unknown as VaultKek;
+            } finally {
+                importBytes.fill(0);
+            }
         },
 
         disposeKek() {},

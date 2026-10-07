@@ -1,4 +1,7 @@
 // NOTE: In order to run bundle analysis, this file needs to be a .js file
+import { fileURLToPath } from "node:url";
+
+const workspaceRoot = fileURLToPath(new URL("..", import.meta.url));
 
 /**
  * Don't be scared of the generics here.
@@ -62,6 +65,14 @@ const rmConsoleFromBuild =
           };
 const nextConfig = {
     output: "standalone",
+    turbopack: {
+        root: workspaceRoot,
+    },
+    transpilePackages: [
+        "@cryptex-industries/api-contract",
+        "@cryptex-industries/shared-ui",
+        "@cryptex-industries/vault-core",
+    ],
     reactStrictMode: true,
     images: {
         domains: [],

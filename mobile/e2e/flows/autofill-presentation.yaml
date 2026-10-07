@@ -1,0 +1,37 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android autofill presentation modes
+---
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow:
+    when:
+      visible: Master password
+    commands:
+      - tapOn: Master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- tapOn: More
+- tapOn: Autofill
+- tapOn: Suggestion display
+- tapOn: Popup / dropdown
+- assertVisible: Popup / dropdown
+- launchApp: com.android.chrome
+- openLink: http://localhost:43110/login
+- tapOn: Username
+- assertVisible: Open ${CRYPTEX_APP_NAME}
+- takeScreenshot: popup-autofill
+- back
+
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- tapOn: More
+- tapOn: Autofill
+- tapOn: Suggestion display
+- tapOn: Above keyboard
+- assertVisible: Above keyboard
+- launchApp: com.android.chrome
+- openLink: http://localhost:43110/login
+- tapOn: Username
+- assertVisible: ${CRYPTEX_APP_NAME}
+- takeScreenshot: inline-autofill
+- back

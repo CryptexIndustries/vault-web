@@ -1,0 +1,70 @@
+appId: ${CRYPTEX_APP_ID}
+name: Receive and protect a real linked vault
+---
+- clearState
+- launchApp
+- assertVisible: Create vault
+- assertVisible: Vault name
+- tapOn: Link Vault
+- runFlow:
+    when:
+      notVisible: Make the connection.
+    commands:
+      - tapOn: Link Vault
+- assertVisible: Make the connection.
+- assertVisible: Scan QR code
+- tapOn: Choose link file
+- runFlow:
+    file: pick-exported-file.yaml
+    env:
+      EXPORTED_FILE: e2e-invitation.cryxlink
+- assertVisible: Invitation ready.*
+- tapOn: Linking phrase
+- inputText: ${TRANSFER_PHRASE}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: Connect to sending device
+    direction: DOWN
+- tapOn: Connect to sending device
+- extendedWaitUntil:
+    visible: Linked vault name
+    timeout: 120000
+- tapOn: Linked vault name
+- eraseText: 100
+- inputText: E2E Receiver Vault
+- tapOn: Master password
+- inputText: ReceiverHorseBatteryStaple42
+- hideKeyboard
+- tapOn: Confirm master password
+- inputText: ReceiverHorseBatteryStaple42
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: Continue
+    direction: DOWN
+- tapOn: Continue
+- extendedWaitUntil:
+    visible: Keep your way back in
+    timeout: 120000
+- tapOn: I have written down the recovery code
+- scrollUntilVisible:
+    element:
+      text: Save and open vault
+    direction: DOWN
+- tapOn: Save and open vault
+- assertVisible: E2E Transfer Login.*
+- tapOn: E2E Transfer Login.*
+- assertVisible: transfer@example.test
+- tapOn: Reveal Password
+- assertVisible: transfer-password-42
+- tapOn: Back
+- runFlow: sync-disable-auto-lock.yaml
+- stopApp
+- launchApp
+- tapOn: Master password
+- inputText: ReceiverHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: E2E Transfer Login.*

@@ -1,0 +1,696 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index 5de524761cb03c970254be8c122549f85694f5cb..6b8759917903b08de95f4da8d42bc372e793ae93 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -6,15 +6,13 @@ plugins {
+ group = 'host.exp.exponent'
+ version = '57.0.4'
+ 
+-def barcodeScannerEnabled = findProperty('expo.camera.barcode-scanner-enabled')
+-def isBarcodeScannerEnabled = (barcodeScannerEnabled ?: "true").toString() != "false"
+-
+ android {
+   namespace "expo.modules.camera"
+   defaultConfig {
+     versionCode 32
+     versionName "57.0.4"
+   }
++  testOptions.unitTests.returnDefaultValues = true
+ }
+ 
+ // CameraX 1.6.0 requires listenablefuture:1.0 at compile time, but the React Native
+@@ -24,6 +22,13 @@ configurations.configureEach {
+   resolutionStrategy.force "com.google.guava:listenablefuture:1.0"
+ }
+ 
++tasks.withType(Test).configureEach {
++  systemProperty 'cryptex.qrFixtures', findProperty('cryptexQrFixtures') ?: ''
++  if (findProperty('cryptexQrFixtures')) {
++    inputs.file(findProperty('cryptexQrFixtures'))
++  }
++}
++
+ dependencies {
+   def camerax_version = "1.6.0"
+ 
+@@ -39,8 +44,6 @@ dependencies {
+   implementation "androidx.camera:camera-extensions:${camerax_version}"
+   implementation "androidx.core:core-ktx:1.18.0"
+ 
+-  def barcodeDependencyConfiguration = isBarcodeScannerEnabled ? "implementation" : "compileOnly"
+-  add(barcodeDependencyConfiguration, "com.google.android.gms:play-services-code-scanner:16.1.0")
+-  add(barcodeDependencyConfiguration, "com.google.mlkit:barcode-scanning:17.3.0")
+-  add(barcodeDependencyConfiguration, "androidx.camera:camera-mlkit-vision:${camerax_version}")
++  implementation "com.google.zxing:core:3.5.3"
++  testImplementation "junit:junit:4.13.2"
+ }
+diff --git a/android/src/main/AndroidManifest.xml b/android/src/main/AndroidManifest.xml
+index 35ffabe014992f72b210e2552d8b8b15e0390de5..9727c2b030b22684c2c784a4f1d106be55094711 100644
+--- a/android/src/main/AndroidManifest.xml
++++ b/android/src/main/AndroidManifest.xml
+@@ -1,9 +1,4 @@
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+   <uses-permission android:name="android.permission.CAMERA" />
+ 
+-  <application>
+-    <meta-data
+-      android:name="com.google.mlkit.vision.DEPENDENCIES"
+-      android:value="barcode_ui"/>
+-  </application>
+ </manifest>
+diff --git a/android/src/main/java/expo/modules/camera/CameraExceptions.kt b/android/src/main/java/expo/modules/camera/CameraExceptions.kt
+index 6960bbd006877e81e69f0cf4ec286dbc05c514a0..da5ce5e27e44e06ba0ee7c65af36251230aeda71 100644
+--- a/android/src/main/java/expo/modules/camera/CameraExceptions.kt
++++ b/android/src/main/java/expo/modules/camera/CameraExceptions.kt
+@@ -16,11 +16,5 @@ class CameraExceptions {
+   class BarcodeScanningFailedException :
+     CodedException("Barcode scanning failed")
+ 
+-  class MLKitUnavailableException :
+-    CodedException("MLKit is not available on this device. Barcode scanning requires Google Play Services.")
+-
+-  class GooglePlayServicesUnavailableException :
+-    CodedException("Google Play Services is not available on this device. This feature requires Google Play Services.")
+-
+   class WriteImageException(cause: String?) : CodedException("Writing image has failed: $cause")
+ }
+diff --git a/android/src/main/java/expo/modules/camera/CameraViewModule.kt b/android/src/main/java/expo/modules/camera/CameraViewModule.kt
+index 21382f81b3f42889193c6583a5439690a39f2a64..53cef895433ff19b0126d5a803adc3ffaf2d5ad8 100644
+--- a/android/src/main/java/expo/modules/camera/CameraViewModule.kt
++++ b/android/src/main/java/expo/modules/camera/CameraViewModule.kt
+@@ -6,10 +6,6 @@ import android.net.Uri
+ import android.os.Bundle
+ import android.util.Base64
+ import android.util.Log
+-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+-import expo.modules.camera.analyzers.BarCodeScannerResultSerializer
+-import expo.modules.camera.analyzers.MLKitBarCodeScanner
+ import expo.modules.camera.records.BarcodeSettings
+ import expo.modules.camera.records.BarcodeType
+ import expo.modules.camera.records.CameraMode
+@@ -21,12 +17,10 @@ import expo.modules.camera.records.VideoQuality
+ import expo.modules.camera.records.VideoStabilizationMode
+ import expo.modules.camera.tasks.ResolveTakenPicture
+ import expo.modules.camera.tasks.writeStreamToFile
+-import expo.modules.camera.utils.CameraUtils
+ import expo.modules.camera.utils.CameraViewHelper
+ import expo.modules.core.errors.ModuleDestroyedException
+ import expo.modules.core.utilities.EmulatorUtilities
+ import expo.modules.core.utilities.VRUtilities
+-import expo.modules.interfaces.imageloader.ImageLoaderInterface
+ import expo.modules.interfaces.permissions.Permissions
+ import expo.modules.kotlin.Promise
+ import expo.modules.kotlin.exception.CodedException
+@@ -68,11 +62,8 @@ class CameraViewModule : Module() {
+ 
+     Events("onModernBarcodeScanned")
+ 
+-    // Aligned with iOS which has the same property. True when ML Kit is available.
+-    // False on Horizon OS (Quest devices) and devices without Google Play Services.
+-    Property("isModernBarcodeScannerAvailable") {
+-      !VRUtilities.isQuest() && CameraUtils.isMLKitAvailable(appContext.reactContext)
+-    }
++    // Cryptex uses embedded CameraView scanning on Android.
++    Property("isModernBarcodeScannerAvailable") { false }
+ 
+     // Again, aligned with iOS.
+     Property("toggleRecordingAsyncAvailable") {
+@@ -111,88 +102,13 @@ class CameraViewModule : Module() {
+       )
+     }
+ 
++    // Unused by Cryptex. Reject explicitly instead of retaining proprietary dependencies.
+     AsyncFunction("scanFromURLAsync") { url: String, barcodeTypes: List<BarcodeType>, promise: Promise ->
+-      if (!CameraUtils.isMLKitAvailable(appContext.reactContext)) {
+-        promise.reject(CameraExceptions.MLKitUnavailableException())
+-        return@AsyncFunction
+-      }
+-
+-      appContext.service<ImageLoaderInterface>()?.loadImageForManipulationFromURL(
+-        url,
+-        object : ImageLoaderInterface.ResultListener {
+-          override fun onSuccess(bitmap: Bitmap) {
+-            try {
+-              val scanner = MLKitBarCodeScanner()
+-              val formats = barcodeTypes.map { it.mapToBarcode() }
+-              scanner.setSettings(formats)
+-
+-              moduleScope.launch {
+-                try {
+-                  val barcodes = scanner.scan(bitmap)
+-                    .filter { formats.contains(it.type) }
+-                    .map { BarCodeScannerResultSerializer.toBundle(it, 1.0f) }
+-                  promise.resolve(barcodes)
+-                } catch (e: Exception) {
+-                  Log.e(TAG, "ML Kit scanning failed: ${e.message}")
+-                  promise.reject(CameraExceptions.MLKitUnavailableException())
+-                }
+-              }
+-            } catch (e: Exception) {
+-              promise.reject(CameraExceptions.MLKitUnavailableException())
+-            }
+-          }
+-
+-          override fun onFailure(cause: Throwable?) {
+-            promise.reject(CameraExceptions.ImageRetrievalException(url))
+-          }
+-        }
+-      )
++      promise.reject("ERR_SCANNER_UNSUPPORTED", "Use CameraView for QR scanning on Android.", null)
+     }
+ 
+     AsyncFunction("launchScanner") { settings: BarcodeSettings, promise: Promise ->
+-      if (!CameraUtils.isMLKitBarcodeScannerAvailable()) {
+-        promise.reject(CameraExceptions.MLKitUnavailableException())
+-        return@AsyncFunction
+-      }
+-
+-      if (!CameraUtils.hasGooglePlayServices(appContext.reactContext)) {
+-        promise.reject(CameraExceptions.GooglePlayServicesUnavailableException())
+-        return@AsyncFunction
+-      }
+-
+-      val reactContext = appContext.reactContext
+-
+-      if (reactContext == null) {
+-        promise.reject(Exceptions.ReactContextLost())
+-        return@AsyncFunction
+-      }
+-
+-      try {
+-        val options = GmsBarcodeScannerOptions.Builder().apply {
+-          if (settings.barcodeTypes.isNotEmpty()) {
+-            setBarcodeFormats(
+-              settings.barcodeTypes.first().mapToBarcode(),
+-              *settings.barcodeTypes.drop(1).map { it.mapToBarcode() }.toIntArray()
+-            )
+-          }
+-        }.build()
+-
+-        val scanner = GmsBarcodeScanning.getClient(reactContext, options)
+-        scanner.startScan()
+-          .addOnSuccessListener { barcode ->
+-            val result = BarCodeScannerResultSerializer.parseBarcodeScanningResult(barcode)
+-            sendEvent("onModernBarcodeScanned", BarCodeScannerResultSerializer.toBundle(result, 1.0f))
+-            promise.resolve()
+-          }
+-          .addOnCanceledListener {
+-            promise.reject(CameraExceptions.BarcodeScanningCancelledException())
+-          }
+-          .addOnFailureListener {
+-            promise.reject(CameraExceptions.BarcodeScanningFailedException())
+-          }
+-      } catch (_: Exception) {
+-        promise.reject(CameraExceptions.GooglePlayServicesUnavailableException())
+-      }
++      promise.reject("ERR_SCANNER_UNSUPPORTED", "Use CameraView for QR scanning on Android.", null)
+     }
+ 
+     AsyncFunction("dismissScanner") {
+@@ -347,20 +263,12 @@ class CameraViewModule : Module() {
+       }
+ 
+       Prop("barcodeScannerSettings") { view, settings: BarcodeSettings? ->
+-        if (!CameraUtils.isMLKitBarcodeScannerAvailable()) {
+-          appContext.jsLogger?.warn("Barcode scanning has been disabled")
+-          return@Prop
+-        }
+         settings?.let {
+           view.setBarcodeScannerSettings(it)
+         }
+       }
+ 
+       Prop("barcodeScannerEnabled") { view, enabled: Boolean? ->
+-        if (!CameraUtils.isMLKitBarcodeScannerAvailable()) {
+-          view.setShouldScanBarcodes(false)
+-          return@Prop
+-        }
+         enabled?.let {
+           view.setShouldScanBarcodes(enabled)
+         }
+diff --git a/android/src/main/java/expo/modules/camera/ExpoCameraView.kt b/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
+index 999a22c6a679042e144acb6caa764c9929103966..d707ccab85f93a9cd0a539e5745ac4b482fec0ce 100644
+--- a/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
++++ b/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
+@@ -66,7 +66,6 @@ import expo.modules.camera.records.VideoStabilizationMode
+ import expo.modules.camera.tasks.ResolveTakenPicture
+ import expo.modules.camera.utils.BarCodeScannerResult
+ import expo.modules.camera.utils.BarCodeScannerResult.BoundingBox
+-import expo.modules.camera.utils.CameraUtils
+ import expo.modules.camera.utils.FileSystemUtils
+ import expo.modules.camera.utils.mapX
+ import expo.modules.camera.utils.mapY
+@@ -85,6 +84,7 @@ import kotlinx.coroutines.SupervisorJob
+ import kotlinx.coroutines.cancel
+ import kotlinx.coroutines.launch
+ import java.io.File
++import java.util.concurrent.Executors
+ import java.lang.Float.max
+ import java.lang.Float.min
+ import kotlin.math.roundToInt
+@@ -128,6 +128,7 @@ class ExpoCameraView(
+   private var cameraProvider: ProcessCameraProvider? = null
+   private var imageCaptureUseCase: ImageCapture? = null
+   private var imageAnalysisUseCase: ImageAnalysis? = null
++  private val barcodeExecutor = Executors.newSingleThreadExecutor()
+   private var recorder: Recorder? = null
+   private var barcodeFormats: List<BarcodeType> = emptyList()
+   private var glSurfaceTexture: SurfaceTexture? = null
+@@ -550,12 +551,16 @@ class ExpoCameraView(
+       .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+       .build()
+       .also { analyzer ->
+-        if (shouldScanBarcodes && CameraUtils.isMLKitBarcodeScannerAvailable()) {
++        if (shouldScanBarcodes) {
+           try {
+             analyzer.setAnalyzer(
+-              ContextCompat.getMainExecutor(context),
+-              BarcodeAnalyzer(barcodeFormats) {
+-                onBarcodeScanned(it)
++              barcodeExecutor,
++              BarcodeAnalyzer(barcodeFormats) { result ->
++                scope.launch {
++                  if (imageAnalysisUseCase === analyzer && !previewPaused) {
++                    onBarcodeScanned(result)
++                  }
++                }
+               }
+             )
+           } catch (e: Exception) {
+@@ -862,6 +867,8 @@ class ExpoCameraView(
+ 
+   fun cleanupCamera() {
+     orientationEventListener.disable()
++    imageAnalysisUseCase?.clearAnalyzer()
++    barcodeExecutor.shutdown()
+     cancelCoroutineScope()
+     cameraProvider?.unbindAll()
+     glSurfaceTexture?.release()
+diff --git a/android/src/main/java/expo/modules/camera/analyzers/BarcodeAnalyzer.kt b/android/src/main/java/expo/modules/camera/analyzers/BarcodeAnalyzer.kt
+index 00a70f6558042febdb4d2fe19001c403bfbff174..fb64033a5abc11e3cf4f72683ce9a8513db361d1 100644
+--- a/android/src/main/java/expo/modules/camera/analyzers/BarcodeAnalyzer.kt
++++ b/android/src/main/java/expo/modules/camera/analyzers/BarcodeAnalyzer.kt
+@@ -1,81 +1,110 @@
+ package expo.modules.camera.analyzers
+ 
+-import android.util.Log
+-import androidx.annotation.OptIn
+-import androidx.camera.core.ExperimentalGetImage
++import android.graphics.ImageFormat
++import android.os.Bundle
+ import androidx.camera.core.ImageAnalysis
+ import androidx.camera.core.ImageProxy
+-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+-import com.google.mlkit.vision.barcode.BarcodeScanning
+-import com.google.mlkit.vision.common.InputImage
++import com.google.zxing.BarcodeFormat
++import com.google.zxing.BinaryBitmap
++import com.google.zxing.DecodeHintType
++import com.google.zxing.MultiFormatReader
++import com.google.zxing.PlanarYUVLuminanceSource
++import com.google.zxing.ReaderException
++import com.google.zxing.common.GlobalHistogramBinarizer
++import com.google.zxing.common.HybridBinarizer
+ import expo.modules.camera.records.BarcodeType
+ import expo.modules.camera.utils.BarCodeScannerResult
+ 
+-@OptIn(ExperimentalGetImage::class)
++// One reader per CameraX analyzer. CameraX serializes calls on barcodeExecutor.
+ class BarcodeAnalyzer(formats: List<BarcodeType>, val onComplete: (BarCodeScannerResult) -> Unit) : ImageAnalysis.Analyzer {
+-  private val barcodeFormats = if (formats.isEmpty()) {
+-    0
+-  } else {
+-    formats.map { it.mapToBarcode() }.reduce { acc, it ->
+-      acc or it
+-    }
++  private val enabled = formats.isEmpty() || BarcodeType.QR in formats
++  private val reader = MultiFormatReader().apply {
++    setHints(mapOf(
++      DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
++      DecodeHintType.TRY_HARDER to true,
++      DecodeHintType.ALSO_INVERTED to true
++    ))
+   }
+-  private var barcodeScannerOptions =
+-    BarcodeScannerOptions.Builder()
+-      .setBarcodeFormats(barcodeFormats)
+-      .build()
+-  private var barcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions)
+ 
+   override fun analyze(imageProxy: ImageProxy) {
+-    val mediaImage = imageProxy.image
+-
+-    if (mediaImage != null) {
+-      val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+-      val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
+-
+-      // MLKit returns coordinates in the upright (rotated) coordinate space,
+-      // so we need the post-rotation dimensions for correct scaling.
+-      val isRotated = rotationDegrees == 90 || rotationDegrees == 270
+-      val effectiveWidth = if (isRotated) imageProxy.height else imageProxy.width
+-      val effectiveHeight = if (isRotated) imageProxy.width else imageProxy.height
+-
+-      barcodeScanner.process(image)
+-        .addOnSuccessListener { barcodes ->
+-          if (barcodes.isEmpty()) {
+-            return@addOnSuccessListener
+-          }
+-          val barcode = barcodes.first()
+-          val raw = barcode.rawValue ?: barcode.rawBytes?.let { String(it) }
++    try {
++      if (!enabled || imageProxy.format != ImageFormat.YUV_420_888) return
++      val width = imageProxy.width
++      val height = imageProxy.height
++      val rotation = imageProxy.imageInfo.rotationDegrees
++      val rotated = rotation == 90 || rotation == 270
++      val outputWidth = if (rotated) height else width
++      val outputHeight = if (rotated) width else height
++      val plane = imageProxy.planes.firstOrNull() ?: return
++      val rowStride = plane.rowStride
++      val pixelStride = plane.pixelStride
++      val buffer = plane.buffer.duplicate()
++      // The final row need not include padding. Honor both strides and buffer position.
++      val rowBytes = (width.toLong() - 1) * pixelStride + 1
++      val required = (height.toLong() - 1) * rowStride + rowBytes
++      if (width <= 0 || height <= 0 || pixelStride <= 0 || rowStride < rowBytes ||
++        required > buffer.remaining() || width.toLong() * height > Int.MAX_VALUE) return
+ 
+-          val cornerPoints = barcode.cornerPoints?.let { points ->
+-            // Pre-allocate array
+-            IntArray(points.size * 2).apply {
+-              points.forEachIndexed { index, point ->
+-                this[index * 2] = point.x
+-                this[index * 2 + 1] = point.y
++      val luminance = ByteArray(width * height)
++      try {
++        val start = buffer.position()
++        for (y in 0 until height) {
++          val offset = start + y * rowStride
++          if (pixelStride == 1 && rotation == 0) {
++            buffer.position(offset)
++            buffer.get(luminance, y * width, width)
++          } else {
++            for (x in 0 until width) {
++              val target = when (rotation) {
++                90 -> x * height + height - 1 - y
++                180 -> (height - 1 - y) * width + width - 1 - x
++                270 -> (width - 1 - x) * height + y
++                else -> y * width + x
+               }
+-            }.toMutableList()
+-          } ?: mutableListOf()
+-
+-          val extra = BarCodeScannerResultSerializer.parseExtraDate(barcode)
+-          onComplete(
+-            BarCodeScannerResult(
+-              barcode.format,
+-              barcode.displayValue,
+-              raw,
+-              extra,
+-              cornerPoints,
+-              effectiveHeight,
+-              effectiveWidth
+-            )
+-          )
+-        }
+-        .addOnFailureListener {
+-          Log.d("SCANNER", it.cause?.message ?: "Barcode scanning failed")
++              luminance[target] = buffer.get(offset + x * pixelStride)
++            }
++          }
+         }
+-        .addOnCompleteListener {
+-          imageProxy.close()
++        val source = PlanarYUVLuminanceSource(luminance, outputWidth, outputHeight, 0, 0, outputWidth, outputHeight, false)
++        // Full frame: no crop, downsampling, payload truncation, or duplicate suppression.
++        for (hybrid in listOf(true, false)) {
++          val bitmap = BinaryBitmap(if (hybrid) HybridBinarizer(source) else GlobalHistogramBinarizer(source))
++          // QR detection can miss dense codes at some angles. CameraX rotation
++          // describes the phone, not the code: retry the binarized image itself.
++          // QR-only readers use this matrix's dimensions, not the source's.
++          val matrix = try { bitmap.blackMatrix } catch (_: ReaderException) { continue }
++          try {
++            for (turn in 0 until 4) {
++              val result = try {
++                reader.decodeWithState(bitmap)
++              } catch (_: ReaderException) {
++                if (turn < 3) {
++                  // ALSO_INVERTED leaves a failed matrix inverted. Restore it first.
++                  matrix.flip()
++                  matrix.rotate90()
++                }
++                continue
++              } finally {
++                reader.reset()
++              }
++              // ZXing returns finder points, not four corners. Avoid reporting incorrect bounds.
++              // Cryptex consumes only the exact decoded text.
++              onComplete(BarCodeScannerResult(
++                BarcodeType.QR_CODE, result.text, result.text, Bundle(), mutableListOf(), outputHeight, outputWidth
++              ))
++              return
++            }
++          } finally {
++            matrix.clear()
++          }
+         }
++      } finally {
++        luminance.fill(0)
++      }
++    } catch (_: RuntimeException) {
++      // An invalid frame must not kill the stream. Never log camera data or QR contents.
++    } finally {
++      imageProxy.close()
+     }
+   }
+ }
+diff --git a/android/src/main/java/expo/modules/camera/analyzers/BarcodeScannerResultSerializer.kt b/android/src/main/java/expo/modules/camera/analyzers/BarcodeScannerResultSerializer.kt
+deleted file mode 100644
+index 119454d5b7db4b9eefbdb51b87e57cb3faf8e942..0000000000000000000000000000000000000000
+diff --git a/android/src/main/java/expo/modules/camera/analyzers/MLKitBarcodeAnalyzer.kt b/android/src/main/java/expo/modules/camera/analyzers/MLKitBarcodeAnalyzer.kt
+deleted file mode 100644
+index 681995d2551afa49f3874803222c551962c94c36..0000000000000000000000000000000000000000
+diff --git a/android/src/main/java/expo/modules/camera/records/CameraRecords.kt b/android/src/main/java/expo/modules/camera/records/CameraRecords.kt
+index 9e56f53be252d945033abdf0d6f8f0c2b500501b..f34d572eaa1c6e9cba62c07472f3dfb36c2d5368 100644
+--- a/android/src/main/java/expo/modules/camera/records/CameraRecords.kt
++++ b/android/src/main/java/expo/modules/camera/records/CameraRecords.kt
+@@ -4,7 +4,6 @@ import android.hardware.camera2.CameraMetadata
+ import androidx.camera.core.ImageCapture
+ import androidx.camera.core.resolutionselector.AspectRatioStrategy
+ import androidx.camera.video.Quality
+-import com.google.mlkit.vision.barcode.common.Barcode
+ import expo.modules.kotlin.records.Field
+ import expo.modules.kotlin.records.Record
+ import expo.modules.kotlin.types.Enumerable
+@@ -102,43 +101,10 @@ enum class BarcodeType(private val value: String) : Enumerable {
+   UPCA("upc_a"),
+   UNKNOWN("unknown");
+ 
+-  fun mapToBarcode() = when (this) {
+-    AZTEC -> Barcode.FORMAT_AZTEC
+-    EAN13 -> Barcode.FORMAT_EAN_13
+-    EAN8 -> Barcode.FORMAT_EAN_8
+-    QR -> Barcode.FORMAT_QR_CODE
+-    PDF417 -> Barcode.FORMAT_PDF417
+-    UPCE -> Barcode.FORMAT_UPC_E
+-    DATAMATRIX -> Barcode.FORMAT_DATA_MATRIX
+-    CODE39 -> Barcode.FORMAT_CODE_39
+-    CODE93 -> Barcode.FORMAT_CODE_93
+-    ITF14 -> Barcode.FORMAT_ITF
+-    CODABAR -> Barcode.FORMAT_CODABAR
+-    CODE128 -> Barcode.FORMAT_CODE_128
+-    UPCA -> Barcode.FORMAT_UPC_A
+-    UNKNOWN -> Barcode.FORMAT_UNKNOWN
+-  }
+-
+   companion object {
+-    fun mapFormatToString(format: Int): String {
+-      val result = when (format) {
+-        Barcode.FORMAT_AZTEC -> AZTEC
+-        Barcode.FORMAT_EAN_13 -> EAN13
+-        Barcode.FORMAT_EAN_8 -> EAN8
+-        Barcode.FORMAT_QR_CODE -> QR
+-        Barcode.FORMAT_PDF417 -> PDF417
+-        Barcode.FORMAT_UPC_E -> UPCE
+-        Barcode.FORMAT_DATA_MATRIX -> DATAMATRIX
+-        Barcode.FORMAT_CODE_39 -> CODE39
+-        Barcode.FORMAT_CODE_93 -> CODE93
+-        Barcode.FORMAT_ITF -> ITF14
+-        Barcode.FORMAT_CODABAR -> CODABAR
+-        Barcode.FORMAT_CODE_128 -> CODE128
+-        Barcode.FORMAT_UPC_A -> UPCA
+-        else -> UNKNOWN
+-      }
+-
+-      return result.value
+-    }
++    // Preserve Expo's numeric QR event type without importing ML Kit.
++    const val QR_CODE = 256
++
++    fun mapFormatToString(format: Int): String = if (format == QR_CODE) QR.value else UNKNOWN.value
+   }
+ }
+diff --git a/android/src/main/java/expo/modules/camera/utils/CameraUtils.kt b/android/src/main/java/expo/modules/camera/utils/CameraUtils.kt
+deleted file mode 100644
+index 613c7ff80df7d2b9abfb20e2a16d5990229e7300..0000000000000000000000000000000000000000
+diff --git a/android/src/test/java/expo/modules/camera/analyzers/BarcodeAnalyzerTest.kt b/android/src/test/java/expo/modules/camera/analyzers/BarcodeAnalyzerTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..9b9a2a0fd260554f0a620bf33939ce037e54a9b3
+--- /dev/null
++++ b/android/src/test/java/expo/modules/camera/analyzers/BarcodeAnalyzerTest.kt
+@@ -0,0 +1,154 @@
++package expo.modules.camera.analyzers
++
++import android.graphics.ImageFormat
++import androidx.camera.core.ImageInfo
++import androidx.camera.core.ImageProxy
++import expo.modules.camera.records.BarcodeType
++import expo.modules.camera.utils.BarCodeScannerResult
++import java.io.DataInputStream
++import java.io.File
++import java.lang.reflect.Proxy
++import java.nio.ByteBuffer
++import org.junit.Assert.*
++import org.junit.Test
++
++class BarcodeAnalyzerTest {
++  private data class Fixture(val text: String, val size: Int, val pixels: ByteArray)
++
++  private fun fixtures(): List<Fixture> = DataInputStream(
++    File(requireNotNull(System.getProperty("cryptex.qrFixtures"))).inputStream().buffered()
++  ).use { input ->
++    assertEquals("QR rotation must remain unchanged", 250, input.readInt())
++    List(input.readInt()) {
++      val text = ByteArray(input.readInt()).also(input::readFully).toString(Charsets.UTF_8)
++      val size = input.readInt()
++      Fixture(text, size, ByteArray(size * size).also(input::readFully))
++    }
++  }
++
++  private inline fun <reified T> proxy(crossinline invoke: (String) -> Any?): T =
++    Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, method, _ ->
++      invoke(method.name)
++    } as T
++
++  private fun frame(
++    f: Fixture, rotation: Int = 0, inverted: Boolean = false, pixelStride: Int = 1,
++    truncated: Boolean = false, format: Int = ImageFormat.YUV_420_888,
++    cameraRotation: Int = (360 - rotation) % 360, sidePadding: Int = 0, closed: () -> Unit
++  ): ImageProxy {
++    val width = f.size + 2 * sidePadding
++    val stride = width * pixelStride + 19
++    val start = 7
++    // Direct buffer with a nonzero position and no padding after the final pixel.
++    val end = start + (f.size - 1) * stride + (width - 1) * pixelStride + 1
++    val buffer = ByteBuffer.allocateDirect(end)
++    for (i in 0 until end) buffer.put(i, (if (inverted) 0 else 255).toByte())
++    for (y in 0 until f.size) for (x in 0 until f.size) {
++      val index = when (rotation) {
++        90 -> (f.size - 1 - x) * f.size + y
++        180 -> (f.size - 1 - y) * f.size + f.size - 1 - x
++        270 -> x * f.size + f.size - 1 - y
++        else -> y * f.size + x
++      }
++      val value = f.pixels[index].toInt() and 255
++      buffer.put(start + y * stride + (x + sidePadding) * pixelStride, (if (inverted) 255 - value else value).toByte())
++    }
++    buffer.position(start)
++    if (truncated) buffer.limit(end - 1)
++    val plane = proxy<ImageProxy.PlaneProxy> {
++      when (it) {
++        "getBuffer" -> buffer
++        "getRowStride" -> stride
++        "getPixelStride" -> pixelStride
++        else -> error(it)
++      }
++    }
++    return proxy {
++      when (it) {
++        "getWidth" -> width
++        "getHeight" -> f.size
++        "getFormat" -> format
++        "getPlanes" -> arrayOf(plane)
++        "getImageInfo" -> proxy<ImageInfo> { name ->
++          when (name) {
++            "getRotationDegrees" -> cameraRotation
++            else -> error(name)
++          }
++        }
++        "close" -> { closed(); null }
++        else -> error(it)
++      }
++    }
++  }
++
++  @Test fun productionFramesDecodeExactlyThroughRotationAndInversion() {
++    val results = mutableListOf<BarCodeScannerResult>()
++    val analyzer = BarcodeAnalyzer(listOf(BarcodeType.QR)) { results.add(it) }
++    var closed = 0
++    var count = 0
++    for (f in fixtures()) for (rotation in listOf(0, 90, 180, 270)) for (inverted in listOf(false, true)) {
++      analyzer.analyze(frame(f, rotation, inverted, pixelStride = 2, sidePadding = 11) { closed++ })
++      count++
++      assertEquals("Missing result at frame $count", count, results.size)
++      assertEquals(f.text, results.last().value)
++      assertEquals(f.text, results.last().raw)
++      assertEquals("qr", BarcodeType.mapFormatToString(results.last().type))
++    }
++    assertEquals(count, closed)
++  }
++
++  @Test fun repeatedAndOutOfOrderChunksAreNotSuppressed() {
++    val frames = fixtures().filter { it.text.startsWith("CVQ1:") }
++    assertTrue(frames.size > 1)
++    assertTrue(frames.first().text.substringAfterLast(':').length == 750)
++    val expected = frames.reversed() + frames + frames
++    val actual = mutableListOf<String?>()
++    val analyzer = BarcodeAnalyzer(listOf(BarcodeType.QR)) { actual.add(it.value) }
++    var closed = 0
++    expected.forEach { analyzer.analyze(frame(it) { closed++ }) }
++    assertEquals(expected.map { it.text }, actual)
++    assertEquals(expected.size, closed)
++  }
++
++  @Test fun invalidFramesAndCallbackFailuresDoNotLeakFramesOrPoisonReader() {
++    val f = fixtures().first()
++    var closed = 0
++    var callbacks = 0
++    val analyzer = BarcodeAnalyzer(emptyList()) {
++      callbacks++
++      if (callbacks == 1) throw IllegalStateException("Synthetic callback failure")
++      assertEquals(f.text, it.value)
++    }
++    analyzer.analyze(frame(f, truncated = true) { closed++ })
++    analyzer.analyze(frame(f, format = ImageFormat.JPEG) { closed++ })
++    analyzer.analyze(frame(f.copy(pixels = ByteArray(f.size * f.size) { 127 })) { closed++ })
++    assertEquals(0, callbacks)
++    repeat(2) { analyzer.analyze(frame(f) { closed++ }) }
++    assertEquals(2, callbacks)
++    assertEquals(5, closed)
++  }
++
++  @Test fun nonQrRequestsNeverEmitQrResults() {
++    var closed = 0
++    BarcodeAnalyzer(listOf(BarcodeType.EAN13)) { fail("Unexpected QR result") }
++      .analyze(frame(fixtures().first()) { closed++ })
++    assertEquals(1, closed)
++  }
++
++  @Test fun turningTheCodeDoesNotPoisonLaterUprightFrames() {
++    val results = mutableListOf<String?>()
++    val analyzer = BarcodeAnalyzer(listOf(BarcodeType.QR)) { results.add(it.value) }
++    var closed = 0
++    var expected = 0
++    repeat(3) {
++      for (f in fixtures()) for (rotation in listOf(180, 0, 90, 0, 270, 0)) {
++        // The sender turns. The receiving phone and CameraX metadata do not.
++        analyzer.analyze(frame(f, rotation, inverted = it % 2 == 1, cameraRotation = 0, sidePadding = 23) { closed++ })
++        expected++
++        assertEquals("Missing result at frame $expected, code rotation $rotation", expected, results.size)
++        assertEquals(f.text, results.last())
++      }
++    }
++    assertEquals(expected, closed)
++  }
++}

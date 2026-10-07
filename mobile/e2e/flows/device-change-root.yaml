@@ -1,0 +1,22 @@
+appId: ${CRYPTEX_APP_ID}
+name: Change account device root permission
+---
+- scrollUntilVisible:
+    element:
+      id: device-toggle-root
+    direction: DOWN
+- tapOn:
+    id: device-toggle-root
+- assertVisible: ${ROOT_CONFIRMATION}
+- tapOn:
+    id: device-confirm-action
+- extendedWaitUntil:
+    notVisible:
+      id: device-confirm-action
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: device-close-details
+    direction: DOWN
+- tapOn:
+    id: device-close-details

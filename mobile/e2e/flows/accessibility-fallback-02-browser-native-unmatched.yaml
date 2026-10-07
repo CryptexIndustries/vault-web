@@ -1,0 +1,11 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - browser result and unmatched app
+---
+- assertVisible: Login fields filled
+- tapOn: Sign in
+- assertVisible: Verification required
+- assertVisible: Signed in as fixture@example.test
+- clearState: com.cryptex.autofillfixture
+- launchApp: com.cryptex.autofillfixture
+- tapOn: Accessibility login
+- tapOn: Accessibility username

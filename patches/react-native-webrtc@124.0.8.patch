@@ -1,0 +1,199 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index 03e74418589998ba0ce223e8de85150c763e680c..b22e075d0be51c9945ab3ddc18771761306d688a 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -30,6 +30,6 @@ android {
+ 
+ dependencies {
+     implementation "com.facebook.react:react-android:+"
+-    api 'org.jitsi:webrtc:124.+'
++    api 'io.github.webrtc-sdk:android:150.7871.01'
+     implementation "androidx.core:core:1.7.0"
+ }
+diff --git a/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java b/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java
+index 510435b8885b43fd51780595aa9e02c98385627f..3f56f7e0d9509727ffca98aa455f3e431114dca6 100644
+--- a/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java
++++ b/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java
+@@ -82,6 +82,5 @@ class PeerConnectionObserver implements PeerConnection.Observer {
+         for (DataChannelWrapper dcw : dataChannels.values()) {
+-            DataChannel dataChannel = dcw.getDataChannel();
+-            dataChannel.unregisterObserver();
++            dcw.dispose();
+         }
+ 
+         // At this point there should be no local MediaStreams in the associated
+@@ -207,6 +206,5 @@ class PeerConnectionObserver implements PeerConnection.Observer {
+ 
+-        DataChannel dataChannel = dcw.getDataChannel();
+-        dataChannel.unregisterObserver();
++        dcw.dispose();
+         dataChannels.remove(reactTag);
+     }
+ 
+@@ -220,7 +218,7 @@ class PeerConnectionObserver implements PeerConnection.Observer {
+         byte[] byteArray;
+         if (type.equals("text")) {
+             byteArray = data.getBytes(StandardCharsets.UTF_8);
+-        } else if (type.equals("binary")) {
++        } else if (type.equals("binary") || type.equals("text-base64")) {
+             byteArray = Base64.decode(data, Base64.NO_WRAP);
+         } else {
+             Log.e(TAG, "Unsupported data type: " + type);
+@@ -355,33 +353,38 @@ class PeerConnectionObserver implements PeerConnection.Observer {
+ 
+     @Override
+     public void onDataChannel(DataChannel dataChannel) {
+-        ThreadUtils.runOnExecutor(() -> {
+-            final String reactTag = UUID.randomUUID().toString();
+-            DataChannelWrapper dcw = new DataChannelWrapper(webRTCModule, id, reactTag, dataChannel);
+-            dataChannels.put(reactTag, dcw);
+-            dataChannel.registerObserver(dcw);
+-
+-            WritableMap info = Arguments.createMap();
+-            info.putInt("peerConnectionId", id);
+-            info.putString("reactTag", reactTag);
+-            info.putString("label", dataChannel.label());
+-            info.putInt("id", dataChannel.id());
+-
+-            // TODO: These values are not gettable from a DataChannel instance.
+-            info.putBoolean("ordered", true);
+-            info.putInt("maxPacketLifeTime", -1);
+-            info.putInt("maxRetransmits", -1);
+-            info.putString("protocol", "");
+-
+-            info.putBoolean("negotiated", false);
+-            info.putString("readyState", dcw.dataChannelStateString(dataChannel.state()));
++        // Handle the remote channel inline on the WebRTC callback thread.
++        // The remote peer sends its first data frames right after the channel
++        // opens, and this module emits data channel messages from the same
++        // thread without an executor hop. If the "did open" event crossed the
++        // React bridge after the first message event, JavaScript would have
++        // no channel object for that reactTag yet and the first message (ex. the
++        // link handshake hello) would be dropped.
++        final String reactTag = UUID.randomUUID().toString();
++        DataChannelWrapper dcw = new DataChannelWrapper(webRTCModule, id, reactTag, dataChannel);
++        dataChannels.put(reactTag, dcw);
++        dataChannel.registerObserver(dcw);
+ 
+-            WritableMap params = Arguments.createMap();
+-            params.putInt("pcId", id);
+-            params.putMap("dataChannel", info);
++        WritableMap info = Arguments.createMap();
++        info.putInt("peerConnectionId", id);
++        info.putString("reactTag", reactTag);
++        info.putString("label", dataChannel.label());
++        info.putInt("id", dataChannel.id());
+ 
+-            webRTCModule.sendEvent("peerConnectionDidOpenDataChannel", params);
+-        });
++        // TODO: These values are not gettable from a DataChannel instance.
++        info.putBoolean("ordered", true);
++        info.putInt("maxPacketLifeTime", -1);
++        info.putInt("maxRetransmits", -1);
++        info.putString("protocol", "");
++
++        info.putBoolean("negotiated", false);
++        info.putString("readyState", dcw.dataChannelStateString(dataChannel.state()));
++
++        WritableMap params = Arguments.createMap();
++        params.putInt("pcId", id);
++        params.putMap("dataChannel", info);
++
++        webRTCModule.sendEvent("peerConnectionDidOpenDataChannel", params);
+     }
+ 
+     @Override
+diff --git a/android/src/main/java/com/oney/WebRTCModule/DataChannelWrapper.java b/android/src/main/java/com/oney/WebRTCModule/DataChannelWrapper.java
+--- a/android/src/main/java/com/oney/WebRTCModule/DataChannelWrapper.java
++++ b/android/src/main/java/com/oney/WebRTCModule/DataChannelWrapper.java
+@@ -16,6 +16,8 @@ class DataChannelWrapper implements DataChannel.Observer {
+     private final DataChannel mDataChannel;
+     private final int peerConnectionId;
+     private final WebRTCModule webRTCModule;
++    private boolean closed;
++    private boolean disposed;
+ 
+     DataChannelWrapper(WebRTCModule webRTCModule, int peerConnectionId, String reactTag, DataChannel dataChannel) {
+         this.webRTCModule = webRTCModule;
+@@ -28,6 +30,19 @@ class DataChannelWrapper implements DataChannel.Observer {
+         return mDataChannel;
+     }
+ 
++    // Called only on the bridge executor, never on the native callback thread.
++    void dispose() {
++        if (disposed) return;
++        // Unregister outside the state lock so an in-flight callback can finish.
++        mDataChannel.unregisterObserver();
++        synchronized (this) {
++            int id = mDataChannel.id();
++            mDataChannel.dispose();
++            disposed = true;
++            sendStateChange(id, DataChannel.State.CLOSED);
++        }
++    }
++
+     public String getReactTag() {
+         return reactTag;
+     }
+@@ -87,13 +102,20 @@ class DataChannelWrapper implements DataChannel.Observer {
+     }
+ 
+     @Override
+-    public void onStateChange() {
++    public synchronized void onStateChange() {
++        if (closed) return;
++        sendStateChange(mDataChannel.id(), mDataChannel.state());
++    }
++
++    private void sendStateChange(int id, DataChannel.State state) {
++        if (closed) return;
++        closed = state == DataChannel.State.CLOSED;
+         WritableMap params = Arguments.createMap();
+         params.putString("reactTag", reactTag);
+         params.putInt("peerConnectionId", peerConnectionId);
+-        params.putInt("id", mDataChannel.id());
+-        params.putString("state", dataChannelStateString(mDataChannel.state()));
++        params.putInt("id", id);
++        params.putString("state", dataChannelStateString(state));
+ 
+         webRTCModule.sendEvent("dataChannelStateChanged", params);
+     }
+ }
+diff --git a/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java b/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
+--- a/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
++++ b/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
+@@ -1352,6 +1352,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
+             PeerConnectionObserver pco = mPeerConnectionObservers.get(id);
+             if (pco == null || pco.getPeerConnection() == null) {
+                 Log.d(TAG, "peerConnectionDispose() peerConnection is null");
++                return;
+             }
+             pco.dispose();
+             mPeerConnectionObservers.remove(id);
+diff --git a/src/RTCDataChannel.ts b/src/RTCDataChannel.ts
+--- a/src/RTCDataChannel.ts
++++ b/src/RTCDataChannel.ts
+@@ -1,5 +1,5 @@
+ import * as base64 from 'base64-js';
+-import { NativeModules } from 'react-native';
++import { NativeModules, Platform } from 'react-native';
+ 
+ import { addListener, removeListener } from './EventEmitter';
+ import MessageEvent from './MessageEvent';
+@@ -143,7 +143,15 @@ export default class RTCDataChannel extends EventTarget<DataChannelEventMap> {
+     send(data: ArrayBufferView): void;
+     send(data: string | ArrayBuffer | ArrayBufferView): void {
+         if (typeof data === 'string') {
+-            WebRTCModule.dataChannelSend(this._peerConnectionId, this._reactTag, data, 'text');
++            if (Platform.OS === 'android') {
++                // JNI string arguments truncate at embedded NULs. Transport UTF-8 as ASCII base64,
++                // then decode natively and keep the WebRTC text wire type.
++                const base64data = base64.fromByteArray(new TextEncoder().encode(data));
++
++                WebRTCModule.dataChannelSend(this._peerConnectionId, this._reactTag, base64data, 'text-base64');
++            } else {
++                WebRTCModule.dataChannelSend(this._peerConnectionId, this._reactTag, data, 'text');
++            }
+ 
+             return;
+         }

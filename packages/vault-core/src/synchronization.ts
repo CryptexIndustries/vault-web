@@ -1,5 +1,9 @@
 import Pusher, { type Channel } from "pusher-js";
 import { ulid } from "ulidx";
+import {
+    createIceCandidateDiscovery,
+    type IceCandidateDiscovery,
+} from "./vault-utils/ice-candidate-discovery";
 
 import { ONLINE_SERVICES_SELECTION_ID } from "./consts";
 import { constructSyncPresenceChannelName } from "./presence";
@@ -371,6 +375,10 @@ export class SyncConnectionController {
 
     // Map<deviceID, status>
     private _webRTCStatus: Map<string, WebRTCStatus>;
+    private readonly _iceCandidateDiscoveries = new WeakMap<
+        RTCPeerConnection,
+        IceCandidateDiscovery
+    >();
 
     // Map<deviceID, handler>
     private _syncWebRTCEventHandlers: Map<string, SCCWebRTCEventHandler>;
@@ -402,17 +410,28 @@ export class SyncConnectionController {
         syncLog.info("SyncConnectionController initialized");
     }
 
-    public teardown() {
+    /** Close background connections without dropping listeners needed on resume. */
+    public pauseConnections() {
         this._lifecycleGeneration += 1;
         this._connectAttempts.clear();
         this._syncOnOpen.clear();
-        syncLog.info("Tearing down signaling and WebRTC connections");
+        syncLog.info("Pausing signaling and WebRTC connections");
 
         // Tear down the signaling servers
         this._signalingServers.forEach((server, id) => {
             this._teardownSignalingConnection(id, server);
         });
 
+        // Keep event handlers registered so resumed connections report status.
+        this._webRTConnections.forEach((connPackage, id) => {
+            this._teardownWebRTCConnection(id, connPackage);
+        });
+
+        syncLog.info("Signaling and WebRTC connections paused");
+    }
+
+    public teardown() {
+        this.pauseConnections();
         this._syncSignalingConnectionEventHandlers.forEach(
             (handlers, serverID) => {
                 handlers.forEach((_, uniqueID) => {
@@ -421,11 +440,6 @@ export class SyncConnectionController {
             },
         );
         this._syncSignalingConnectionEventHandlers.clear();
-
-        // Tear down the WebRTC connections
-        this._webRTConnections.forEach((connPackage, id) => {
-            this._teardownWebRTCConnection(id, connPackage);
-        });
 
         this._syncWebRTCEventHandlers.forEach((_, id) => {
             this.removeSyncWebRTCHandler(id);
@@ -473,6 +487,7 @@ export class SyncConnectionController {
         }
         // }
 
+        this._iceCandidateDiscoveries.get(instance.connection)?.cancel();
         instance.connection.onconnectionstatechange = null;
         instance.connection.onicecandidate = null;
         instance.connection.ondatachannel = null;
@@ -792,11 +807,40 @@ export class SyncConnectionController {
             syncId: device.SyncID,
         });
         if (generation !== this._lifecycleGeneration) {
+            this._iceCandidateDiscoveries.get(webRTC)?.cancel();
             webRTC.close();
             throw new Error("Synchronization connection was cancelled.");
         }
 
+        const discovery = createIceCandidateDiscovery(() => {
+            if (
+                generation !== this._lifecycleGeneration ||
+                this._webRTConnections.get(device.ID)?.connection !== webRTC ||
+                webRTC.connectionState === "connected" ||
+                webRTC.connectionState === "closed"
+            )
+                return;
+            signalingChannel.trigger(this._signalingEventName, {
+                type: SignalingServerMessageType.ICECandidate,
+                data: null,
+            });
+            this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
+            this._vaultItemSynchronization.resetPeer(device.ID);
+            signalingLog.error("Failed to generate any ICE candidates", {
+                deviceId: device.ID,
+                deviceName: device.Name,
+            });
+            this.broadcastWebRTCConnectionEvent(device.ID, WebRTCStatus.Failed);
+        });
+        this._iceCandidateDiscoveries.set(webRTC, discovery);
+
         webRTC.onconnectionstatechange = () => {
+            if (
+                ["connected", "disconnected", "failed", "closed"].includes(
+                    webRTC.connectionState,
+                )
+            )
+                discovery.cancel();
             let newWebRTCStatus: WebRTCStatus;
             if (webRTC.connectionState === "connected") {
                 signalingChannel.unsubscribe();
@@ -839,6 +883,7 @@ export class SyncConnectionController {
         let iceCandidatesWeGenerated = 0;
         webRTC.onicecandidate = async (event) => {
             if (event && event.candidate) {
+                discovery.candidateReceived();
                 signalingLog.debug(`Sending ICE candidate`, {
                     deviceId: device.ID,
                     deviceName: device.Name,
@@ -870,29 +915,13 @@ export class SyncConnectionController {
                 });
             }
 
-            // If we haven't generated any ICE candidates, and this event was triggered without a candidate, we're done
-            if (iceCandidatesWeGenerated === 0 && !event.candidate) {
-                signalingChannel.trigger(this._signalingEventName, {
-                    type: SignalingServerMessageType.ICECandidate,
-                    data: null,
-                });
-
-                // Update the status, and clean up the connection
-                this._webRTCStatus.set(device.ID, WebRTCStatus.Failed);
-                this._vaultItemSynchronization.resetPeer(device.ID);
-                signalingLog.error(`Failed to generate any ICE candidates`, {
-                    deviceId: device.ID,
-                    deviceName: device.Name,
-                });
-                this.broadcastWebRTCConnectionEvent(
-                    device.ID,
-                    WebRTCStatus.Failed,
-                );
-            }
+            // Empty completion starts a bounded deadline for late native candidates.
+            if (event?.candidate == null) discovery.gatheringCompleted();
         };
 
         const dataChannelOnOpen =
             (dataChannel: RTCDataChannel) => (_event: Event) => {
+                discovery.cancel();
                 webrtcLog.info(`Data channel opened`, {
                     deviceId: device.ID,
                     deviceName: device.Name,
@@ -913,6 +942,7 @@ export class SyncConnectionController {
             };
 
         const dataChannelOnClose = () => (_event: Event) => {
+            discovery.cancel();
             webrtcLog.info(`Data channel closed`, {
                 deviceId: device.ID,
                 deviceName: device.Name,
@@ -934,6 +964,7 @@ export class SyncConnectionController {
         };
 
         const dataChannelOnError = () => (_event: Event) => {
+            discovery.cancel();
             webrtcLog.error(`Data channel error`, {
                 deviceId: device.ID,
                 deviceName: device.Name,
@@ -974,6 +1005,7 @@ export class SyncConnectionController {
         // Meaning, this is used when the remote device creates a data channel, and we connect to it
         webRTC.ondatachannel = (event) => {
             const dataChannel = event.channel;
+            if (dataChannel.readyState === "open") discovery.cancel();
             dataChannel.binaryType = "arraybuffer";
             webrtcLog.info(`Remote data channel received`, {
                 deviceId: device.ID,
@@ -992,6 +1024,11 @@ export class SyncConnectionController {
         dataChannel.binaryType = "arraybuffer";
 
         dataChannel.onmessage = dataChannelOnMessage(dataChannel);
+        // Local channel status handlers remain disabled below; its lifecycle
+        // still ends any pending candidate-discovery deadline.
+        dataChannel.onopen = () => discovery.cancel();
+        dataChannel.onclose = () => discovery.cancel();
+        dataChannel.onerror = () => discovery.cancel();
 
         // FIXME: These binds caused duplicated events to be triggered
         // FIXME: ??Does the onDataChannel actually trigger for both vaults??
@@ -1156,6 +1193,7 @@ export class SyncConnectionController {
         }
 
         if (generation !== this._lifecycleGeneration) {
+            this._iceCandidateDiscoveries.get(webRTC)?.cancel();
             webRTC.close();
             channel.unsubscribe();
             channel.unbind();

@@ -1,0 +1,5 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - embedded-frame warning checkpoint
+---
+- assertVisible: Choose a login
+- assertVisible: .*An embedded or hidden frame may receive this login.*

@@ -18,6 +18,7 @@
         "./presence": "./src/presence.ts",
         "./synchronization": "./src/synchronization.ts",
         "./synchronization-utils": "./src/synchronization-utils.ts",
+        "./sync-operations": "./src/sync-operations.ts",
         "./online-services-session/port": "./src/online-services-session/port.ts",
         "./online-services-session/protocol": "./src/online-services-session/protocol.ts",
         "./vault-utils/*": "./src/vault-utils/*.ts"

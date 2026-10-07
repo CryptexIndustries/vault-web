@@ -10,6 +10,7 @@
         "lint-tsc": "tsgo --noEmit --strict"
     },
     "dependencies": {
+        "@cryptex-industries/vault-core": "workspace:*",
         "autoprefixer": "10.4.21",
         "cssnano": "7.1.0",
         "postcss": "8.5.23",

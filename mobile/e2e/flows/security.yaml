@@ -1,0 +1,37 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android security lifecycle
+---
+- runFlow: setup-vault.yaml
+- tapOn: More
+- tapOn: Security,.*
+- assertVisible: Security
+- tapOn: Biometric unlock
+- assertVisible: Enable biometric unlock
+- tapOn: Confirm vault password for biometric unlock
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+      text: Enable biometric unlock
+      below: Confirm vault password for biometric unlock
+# The serial-scoped biometric runner supplies a genuine enrolled fingerprint.
+- extendedWaitUntil:
+      visible: DEK stored behind device biometrics
+      timeout: 60000
+- tapOn: Back
+- tapOn: Lock vault
+- assertVisible: Unlock vault
+- assertVisible: Selected vault E2E Vault.*
+- tapOn: Unlock with biometrics
+- extendedWaitUntil:
+      visible: Search your vault
+      timeout: 60000
+- assertVisible: Your vault starts here.
+- tapOn: More
+- tapOn: Security,.*
+- tapOn: Auto-lock,.*
+- tapOn: 1 minute
+- assertNotVisible: 1 minute
+- tapOn: Back
+- stopApp
+- launchApp
+- assertVisible: Unlock vault

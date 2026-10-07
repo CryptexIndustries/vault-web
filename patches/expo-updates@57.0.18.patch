@@ -1,0 +1,73 @@
+diff --git a/utils/build/createManifestForBuildAsync.js b/utils/build/createManifestForBuildAsync.js
+index c20930b4e5a368e23ec71aa18111ac10eec46ed8..3fce678105bbd6c0e80efc6848ba068ab2aa5f31 100644
+--- a/utils/build/createManifestForBuildAsync.js
++++ b/utils/build/createManifestForBuildAsync.js
+@@ -11,6 +11,19 @@ const fs_1 = __importDefault(require("fs"));
+ const path_1 = __importDefault(require("path"));
+ const filterPlatformAssetScales_1 = require("./filterPlatformAssetScales");
+ async function createManifestForBuildAsync(platform, projectRoot, destinationDir, entryFileArg) {
++    // Rebuilds replay only these public fields from a verified reference APK.
++    const embeddedId = process.env.CRYPTEX_EMBEDDED_UPDATE_ID;
++    const embeddedCommitTime = process.env.CRYPTEX_EMBEDDED_UPDATE_COMMIT_TIME;
++    if (embeddedId !== undefined || embeddedCommitTime !== undefined) {
++        if (embeddedId === undefined ||
++            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(embeddedId) ||
++            embeddedCommitTime === undefined ||
++            !/^(0|[1-9]\d*)$/.test(embeddedCommitTime) ||
++            !Number.isSafeInteger(Number(embeddedCommitTime)) ||
++            Number(embeddedCommitTime) > 8640000000000000) {
++            throw new Error('Embedded update replay requires a canonical UUID and valid integer commitTime in milliseconds together');
++        }
++    }
+     const entryFile = entryFileArg ||
+         process.env.ENTRY_FILE ||
+         (0, paths_1.resolveEntryPoint)(projectRoot, { platform }) ||
+@@ -37,8 +50,8 @@ async function createManifestForBuildAsync(platform, projectRoot, destinationDir
+         server.end();
+     }
+     const manifest = {
+-        id: crypto_1.default.randomUUID(),
+-        commitTime: new Date().getTime(),
++        id: embeddedId ?? crypto_1.default.randomUUID(),
++        commitTime: embeddedCommitTime === undefined ? new Date().getTime() : Number(embeddedCommitTime),
+         assets: [],
+     };
+     assets.forEach(function (asset) {
+diff --git a/utils/src/createManifestForBuildAsync.ts b/utils/src/createManifestForBuildAsync.ts
+index 3fba73f1323a0cf442a6a7b0b10d68172c4ae294..52ecdf2eb7338c08656eb71c19a5c73cf13a43c3 100644
+--- a/utils/src/createManifestForBuildAsync.ts
++++ b/utils/src/createManifestForBuildAsync.ts
+@@ -18,6 +18,22 @@ export async function createManifestForBuildAsync(
+   destinationDir: string,
+   entryFileArg?: string
+ ): Promise<void> {
++  // Rebuilds replay only these public fields from a verified reference APK.
++  const embeddedId = process.env.CRYPTEX_EMBEDDED_UPDATE_ID;
++  const embeddedCommitTime = process.env.CRYPTEX_EMBEDDED_UPDATE_COMMIT_TIME;
++  if (embeddedId !== undefined || embeddedCommitTime !== undefined) {
++    if (
++      embeddedId === undefined ||
++      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(embeddedId) ||
++      embeddedCommitTime === undefined ||
++      !/^(0|[1-9]\d*)$/.test(embeddedCommitTime) ||
++      !Number.isSafeInteger(Number(embeddedCommitTime)) ||
++      Number(embeddedCommitTime) > 8640000000000000
++    ) {
++      throw new Error('Embedded update replay requires a canonical UUID and valid integer commitTime in milliseconds together');
++    }
++  }
++
+   const entryFile =
+     entryFileArg ||
+     process.env.ENTRY_FILE ||
+@@ -53,8 +69,8 @@ export async function createManifestForBuildAsync(
+   }
+ 
+   const manifest: EmbeddedManifest = {
+-    id: crypto.randomUUID(),
+-    commitTime: new Date().getTime(),
++    id: embeddedId ?? crypto.randomUUID(),
++    commitTime: embeddedCommitTime === undefined ? new Date().getTime() : Number(embeddedCommitTime),
+     assets: [],
+   };
+ 

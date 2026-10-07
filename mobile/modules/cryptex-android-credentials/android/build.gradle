@@ -1,0 +1,31 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.cryptex.vault'
+version = '0.1.0'
+
+android {
+  namespace 'com.cryptex.vault.credentials'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+  }
+  // Run the same verifier cases against both JVM and Android JSON implementations.
+  sourceSets {
+    test.java.srcDir 'src/sharedTest/java'
+    androidTest.java.srcDir 'src/sharedTest/java'
+  }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation 'androidx.credentials:credentials:1.6.0'
+  implementation 'androidx.autofill:autofill:1.3.0'
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20250517'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
+}

@@ -17,6 +17,7 @@ export default function GettingStarted() {
                 { href: "#create", label: "Create a vault" },
                 { href: "#recovery", label: "Save the recovery code" },
                 { href: "#first-login", label: "Add a login" },
+                { href: "#find-logins", label: "Find saved logins" },
                 { href: "#next", label: "Before you move in" },
             ]}
             related={[
@@ -181,6 +182,21 @@ export default function GettingStarted() {
                     alt="Saved Personal email credential with username, masked password, and website"
                     caption="Open a saved credential to check its username and website. Keep the password masked when sharing a screenshot."
                 />
+            </DocSection>
+
+            <DocSection id="find-logins" title="Find saved logins">
+                <p>
+                    Use the search field above the credential list to narrow the
+                    entries you see. You can also choose a directory to show
+                    only its credentials.
+                </p>
+                <p>
+                    Select the sort button beside the row count to cycle through
+                    <strong> Name A-Z</strong>, <strong>Name Z-A</strong>,{" "}
+                    <strong>Recently updated</strong>, and{" "}
+                    <strong>Newest created</strong>. The web app remembers your
+                    choice in this browser.
+                </p>
             </DocSection>
 
             <DocSection

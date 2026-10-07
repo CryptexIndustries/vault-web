@@ -1,0 +1,9 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - remember an application association
+---
+- assertVisible: fixture@example.test
+- tapOn: Validate accessibility login
+- assertVisible: Accessibility login complete
+- back
+- tapOn: Accessibility login
+- tapOn: Accessibility username

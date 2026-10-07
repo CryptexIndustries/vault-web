@@ -1,0 +1,39 @@
+appId: ${CRYPTEX_APP_ID}
+name: Online Services fixture lifecycle
+---
+- runFlow: setup-online-services.yaml
+- tapOn: More
+- tapOn: Backup Center,.*
+- scrollUntilVisible:
+      element:
+          text: Automatic managed backups
+      direction: DOWN
+- tapOn: Automatic managed backups
+- assertVisible: Managed encrypted backups enabled.
+- scrollUntilVisible:
+      element:
+          text: Back up now
+      direction: DOWN
+- tapOn: Back up now
+- assertVisible: Encrypted backup uploaded.
+- scrollUntilVisible:
+      element:
+          text: Backup history,.*
+      direction: DOWN
+- tapOn: Backup history,.*
+- assertVisible: Encrypted snapshots
+- tapOn: .*Root device.*
+- assertVisible: Encrypted snapshot
+- tapOn: Delete backup
+- assertVisible: Permanently delete this encrypted backup?
+- tapOn: Delete
+- assertVisible: Backup deleted.
+- runFlow:
+      when:
+          visible: Delete all backups
+      commands:
+          - tapOn: Delete all backups
+          - assertVisible: Permanently delete every managed backup for this vault?
+          - tapOn: Delete all
+          - assertVisible: All backups deleted.
+- assertVisible: No managed backups

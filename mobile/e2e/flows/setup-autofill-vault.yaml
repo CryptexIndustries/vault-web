@@ -1,0 +1,71 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- runFlow: setup-vault.yaml
+- tapOn: Add your first item
+- tapOn: Credential name
+- inputText: Fixture Login
+- tapOn: Credential username
+- inputText: fixture@example.test
+- tapOn:
+    text: Password, Hidden.*
+- inputText: fixture-password
+- hideKeyboard
+- tapOn:
+    id: credential-website-url
+- eraseText
+- inputText: http://localhost:43110/login
+- assertVisible: http://localhost:43110/login
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: Authenticator \(TOTP\)
+    direction: DOWN
+- tapOn: Enter key
+- scrollUntilVisible:
+    element:
+      id: credential-totp-secret
+    direction: DOWN
+- tapOn:
+    id: credential-totp-secret
+- inputText: JBSWY3DPEHPK3PXP
+- tapOn: Apply setup
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: Item details
+- assertVisible: Fixture Login.*
+- back
+- tapOn: More
+- tapOn: Autofill
+- assertVisible: Autofill
+- runFlow:
+    when:
+      visible: Select Cryptex Vault in Android settings
+    commands:
+      - tapOn: Password autofill
+      - runFlow:
+          when:
+            visible: ${CRYPTEX_APP_NAME}
+          commands:
+            - tapOn: ${CRYPTEX_APP_NAME}
+      - runFlow:
+          when:
+            visible: Use ${CRYPTEX_APP_NAME}
+          commands:
+            - tapOn: Use ${CRYPTEX_APP_NAME}
+      - runFlow:
+          when:
+            visible: Change
+          commands:
+            - tapOn: Change
+      - runFlow:
+          when:
+            visible: OK
+          commands:
+            - tapOn: OK
+      - back
+- assertVisible: Cryptex Vault is selected
+- runFlow: setup-browser-autofill.yaml

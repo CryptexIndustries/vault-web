@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="com.cryptex.vault.credentials.CredentialHandoffCallerActivity" android:exported="false" />
+        <activity android:name="com.cryptex.vault.credentials.CredentialHandoffRelayActivity" android:exported="false" />
+        <activity android:name="com.cryptex.vault.credentials.CredentialHandoffUnrelatedActivity" android:exported="false" />
+        <activity android:name="com.cryptex.vault.credentials.CredentialHandoffHostActivity" android:exported="false" />
+        <activity
+            android:name="com.cryptex.vault.credentials.ClipboardTestActivity"
+            android:exported="false" />
+    </application>
+</manifest>

@@ -1,0 +1,61 @@
+appId: com.android.chrome
+name: Live Android registration save regression
+---
+# Opt-in external-site smoke. Mandatory registration coverage uses the local
+# deterministic browser registration fixture instead.
+- runFlow: setup-autofill-vault.yaml
+- launchApp
+- openLink: https://autofill.me/form/registration-simple
+- assertVisible: Register
+- tapOn: Email
+- inputText: hdbjd@jfjr.com
+- tapOn: Username
+- inputText: userrname
+- tapOn: Password
+- inputText: t1234
+- tapOn: Confirm Password
+- inputText: t1234
+- hideKeyboard
+- tapOn: Register
+- runFlow:
+    when:
+      visible: Save
+    commands:
+      - tapOn: Save
+- runFlow:
+    when:
+      visible: Master password
+    commands:
+      - tapOn: Master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- assertVisible: (Add|Edit) item
+- assertVisible: userrname
+- assertVisible: autofill.me
+- scrollUntilVisible:
+    element:
+      text: hdbjd@jfjr.com
+    direction: DOWN
+- assertVisible: hdbjd@jfjr.com
+- takeScreenshot: live-registration-review
+- tapOn:
+    id: credential-submit
+- assertNotVisible: (Add|Edit) item
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Search your vault
+- tapOn: Search your vault
+- inputText: userrname
+- hideKeyboard
+- tapOn:
+    text: autofill.me, userrname
+- assertVisible: Item details
+- assertVisible: userrname
+- assertVisible: autofill.me
+- scrollUntilVisible:
+    element:
+      text: hdbjd@jfjr.com
+    direction: DOWN
+- assertVisible: hdbjd@jfjr.com

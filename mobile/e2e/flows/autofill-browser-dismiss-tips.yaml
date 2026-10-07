@@ -1,0 +1,8 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- runFlow:
+    when:
+      visible: You can touch and hold to move the address bar to the bottom
+    commands:
+      - tapOn:
+          point: 50%,45%

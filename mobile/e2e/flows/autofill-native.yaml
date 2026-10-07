@@ -1,0 +1,231 @@
+appId: com.cryptex.autofillfixture
+---
+# Use the popup path for native forms; inline rendering depends on the device IME.
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow:
+    when:
+      visible: Enter master password
+    commands:
+      - tapOn: Enter master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- tapOn: More
+- tapOn: Autofill
+- tapOn: Suggestion display
+- tapOn: Popup / dropdown
+
+# Cancel leaves the native form empty.
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- runFlow:
+    when:
+      visible: Enter master password
+    commands:
+      - tapOn: Enter master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- assertVisible: No login saved for Autofill Test App
+- tapOn: Cancel autofill
+- assertVisible: Native login fixture
+- assertNotVisible: fixture@example.test
+
+# Searching outside the destination matches and filling once does not add an app target.
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: No login saved for Autofill Test App
+- tapOn: Search all logins
+- inputText: Fixture Login
+- hideKeyboard
+- tapOn:
+    text: fixture@example.test
+- assertVisible: Review destination
+- assertVisible: Fill and associate app
+- tapOn: Fill once
+- assertVisible: Native login fixture
+- assertVisible: fixture@example.test
+- tapOn: Sign in
+- assertVisible: Signed in as fixture@example.test
+- assertVisible: Native fixture password matched
+- assertNotVisible: Native fixture password mismatch
+
+# A manually entered sign-in offers a save review. Nothing is stored until Save item.
+- clearState
+- launchApp
+- tapOn: Login form
+# Retry only input delivery; the real submit/save occurs once below.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: Username
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native-unknown@example.test
+      - assertVisible: native-unknown@example.test
+      - tapOn:
+          text: Password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native-unknown-password
+      - hideKeyboard
+      - tapOn: Verify fixture inputs
+      - assertVisible: Fixture inputs matched
+      - assertNotVisible: Fixture inputs mismatch
+- tapOn: Sign in
+- tapOn: Save
+- assertVisible: Add item
+- assertVisible: native-unknown@example.test
+- tapOn:
+    id: credential-submit
+- assertVisible: Native login complete
+
+# Registration saves username and email as separate fields.
+- clearState
+- launchApp
+- tapOn: Registration form
+# Retry only input delivery; the real submit/save occurs once below.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: Email address
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: earlier-native-email@example.test
+      - assertVisible: earlier-native-email@example.test
+      - tapOn:
+          text: New username
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native@example.test
+      - assertVisible: native@example.test
+      - tapOn:
+          text: New password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native-password-one
+      - tapOn:
+          text: Confirm password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native-password-one
+      - hideKeyboard
+      - tapOn: Verify fixture inputs
+      - assertVisible: Fixture inputs matched
+      - assertNotVisible: Fixture inputs mismatch
+- tapOn: Create account
+- tapOn: Save
+- assertVisible: Add item
+- assertVisible: native@example.test
+- scrollUntilVisible:
+    element:
+      text: earlier-native-email@example.test
+    direction: DOWN
+- assertVisible: earlier-native-email@example.test
+- tapOn:
+    id: credential-submit
+- assertVisible: Native registration complete
+
+# Changing a saved login's password opens the existing item for review.
+- clearState
+- launchApp
+- tapOn: Password update form
+# Retry only input delivery; the real submit/save occurs once below.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: Username
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native@example.test
+      - assertVisible: native@example.test
+      - tapOn:
+          text: New password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native-password-two
+      - tapOn:
+          text: Confirm new password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: native-password-two
+      - hideKeyboard
+      - tapOn: Verify fixture inputs
+      - assertVisible: Fixture inputs matched
+      - assertNotVisible: Fixture inputs mismatch
+- tapOn: Change password
+- tapOn: Save
+- assertVisible: Edit item
+- assertVisible: native@example.test
+- tapOn: Show Password
+- assertVisible: native-password-two
+- tapOn:
+    id: credential-submit
+- assertVisible: Native password changed
+
+# Android's save context carries the username into the password-only step.
+- clearState
+- launchApp
+- tapOn: Multi-step registration
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: Account username
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: multistep@example.test
+      - assertVisible: multistep@example.test
+- tapOn: Continue
+# Retry only input delivery; the real submit/save occurs once below.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: New password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: multistep-password
+      - tapOn:
+          text: Confirm password
+          point: 99%,50%
+      - eraseText: 100
+      - inputText: multistep-password
+      - hideKeyboard
+      - tapOn: Verify fixture inputs
+      - assertVisible: Fixture inputs matched
+      - assertNotVisible: Fixture inputs mismatch
+- tapOn: Create account
+- tapOn: Save
+- assertVisible: Add item
+- assertVisible: multistep@example.test
+- tapOn:
+    id: credential-submit
+- assertVisible: Multi-step registration complete
+
+# Even an exact native-app match needs a fresh fill decision.
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: native@example.test
+- tapOn:
+    text: native@example.test
+- assertVisible: Review destination
+- assertVisible: Fill once
+- tapOn: Cancel
+- tapOn: Cancel autofill
+- assertVisible: Native login fixture
+- assertNotVisible: native@example.test

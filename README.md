@@ -18,6 +18,7 @@ New links connect and sync automatically by default when both vaults are open, u
 
 - [`web/`](web/) contains the web vault, public website, and user guides.
 - [`extension/`](extension/) contains the Chromium Extension and its [developer notes](extension/README.md).
+- [`mobile/`](mobile/) contains the Android app and its [build and development notes](mobile/README.md).
 - [`packages/vault-core/`](packages/vault-core/) holds the shared vault format, encryption, imports and exports, device linking, and synchronization code.
 - [`packages/api-contract/`](packages/api-contract/) and [`packages/shared-ui/`](packages/shared-ui/) hold client API types and shared interface code.
 - [`deploy/self-hosting/`](deploy/self-hosting/) has the Compose stack and configuration for running the web app and connection services yourself. The root `compose.*.yaml` files cover client development and deployment; [Docker Swarm instructions](docs/swarm-deployment.md) live in `docs/`.

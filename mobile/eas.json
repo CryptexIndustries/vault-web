@@ -1,0 +1,15 @@
+{
+  "cli": { "version": "24.8.0", "appVersionSource": "local" },
+  "build": {
+    "production": {
+      "channel": "production", "environment": "production",
+      "env": { "CRYPTEX_APP_PROFILE": "production", "CRYPTEX_BUILD_PROFILE": "production", "CRYPTEX_DISTRIBUTION": "standard", "EXPO_NO_DOTENV": "1", "EXPO_PUBLIC_CRYPTEX_E2E": "0" },
+      "android": { "buildType": "apk" }
+    },
+    "preprod": {
+      "channel": "preprod", "environment": "preview", "distribution": "internal",
+      "env": { "CRYPTEX_APP_PROFILE": "preprod", "CRYPTEX_BUILD_PROFILE": "production", "CRYPTEX_DISTRIBUTION": "standard", "EXPO_NO_DOTENV": "1", "EXPO_PUBLIC_CRYPTEX_E2E": "0" },
+      "android": { "buildType": "apk" }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+appId: com.cryptex.autofillfixture
+name: Credential Manager requires unlock after background timeout
+---
+# Run after prepare and at least 65 seconds with the fixture foregrounded.
+- tapOn: Get password credential
+- assertVisible: Unlock ${CRYPTEX_APP_NAME}
+- assertNotVisible: cm-native@example.test
+- tapOn: Unlock ${CRYPTEX_APP_NAME}
+- assertVisible: Master password
+- tapOn: Master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+# AuthenticationAction refreshes entries for this original pending request.
+# Returning a password must not require restarting the fixture or requesting again.
+- assertVisible: cm-native@example.test
+- tapOn: cm-native@example.test
+- runFlow:
+    when:
+      visible: Choose a login
+    commands:
+      - tapOn:
+          text: com.cryptex.autofillfixture, cm-native@example.test, matches destination
+- assertVisible: Review destination
+- tapOn: Fill once
+- assertVisible: "Credential Manager get complete: cm-native@example.test"
+- assertNotVisible: Credential Manager returned a different password

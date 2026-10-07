@@ -1,0 +1,10 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - canceled native form stays empty
+---
+- assertVisible: Accessibility login fixture
+- assertVisible: Accessibility username
+- assertVisible: Accessibility password
+- assertVisible: Verification code
+- assertNotVisible: fixture@example.test
+- tapOn: Validate accessibility login
+- assertVisible: Accessibility login incomplete

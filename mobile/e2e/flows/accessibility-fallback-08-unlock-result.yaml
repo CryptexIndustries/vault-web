@@ -1,0 +1,6 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - unlock and complete fill
+---
+- assertVisible: fixture@example.test
+- tapOn: Validate accessibility login
+- assertVisible: Accessibility login complete

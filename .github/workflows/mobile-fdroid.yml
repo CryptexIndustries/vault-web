@@ -1,0 +1,119 @@
+name: Mobile F-Droid
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-fdroid-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    environment: Mobile - Production
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+
+      - name: Generate public configuration from the production environment
+        env:
+          CRYPTEX_PUBLIC_CONFIG_JSON: ${{ toJSON(vars) }}
+        run: |
+          mkdir "$RUNNER_TEMP/fdroid-inputs"
+          node mobile/scripts/ci-release.mjs config "$RUNNER_TEMP/fdroid-inputs/release-config.json"
+
+      - name: Make room for four Android ABIs
+        run: sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet
+
+      - name: Build and scan the complete F-Droid recipe
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          test -z "$(git status --porcelain)"
+          mkdir "$RUNNER_TEMP/fdroid"
+          docker run --rm \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/app,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/fdroid-inputs,target=/inputs,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
+            --env "SOURCE_COMMIT=$(git rev-parse HEAD)" \
+            --env RELEASE_REF \
+            --entrypoint /bin/bash \
+            registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \
+            /app/mobile/fdroid/ci.sh
+
+      - name: Upload unsigned APK and its configuration
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-fdroid-unsigned-${{ github.run_id }}
+          path: ${{ runner.temp }}/fdroid/artifacts/
+          if-no-files-found: error
+
+      - name: Upload submission metadata and build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-fdroid-submission-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/fdroid/submission/metadata/
+            ${{ runner.temp }}/fdroid/submission/srclibs/
+            ${{ runner.temp }}/fdroid/fdroid/build.log
+            ${{ runner.temp }}/fdroid/fdroid/logs/
+            ${{ runner.temp }}/fdroid/fdroid/repo/status/
+          if-no-files-found: error
+
+  sign:
+    name: sign production F-Droid APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: build
+    environment: Mobile - Production
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+
+      - name: Install pinned APK inspection and signing tools
+        run: sdkmanager --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
+
+      - name: Download verified unsigned APK and its configuration
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: mobile-fdroid-unsigned-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release
+
+      - name: Sign and verify the production APK
+        env:
+          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
+          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
+          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
+        run: node mobile/scripts/ci-release.mjs sign production "$RUNNER_TEMP/mobile-release"
+
+      - name: Upload signed F-Droid APK, configuration and checksums
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-fdroid-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release/
+          if-no-files-found: error

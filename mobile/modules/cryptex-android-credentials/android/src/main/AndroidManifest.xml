@@ -1,0 +1,69 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <package android:name="com.android.chrome" />
+        <package android:name="com.chrome.beta" />
+        <package android:name="com.brave.browser" />
+        <package android:name="com.vivaldi.browser" />
+    </queries>
+
+    <application>
+        <service
+            android:name="com.cryptex.vault.credentials.CryptexAutofillService"
+            android:exported="true"
+            android:label="@string/cryptex_provider_name"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE"
+            tools:targetApi="26">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.autofill"
+                android:resource="@xml/cryptex_autofill_service" />
+        </service>
+
+        <service
+            android:name="com.cryptex.vault.credentials.CryptexAccessibilityService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/cryptex_accessibility_service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/cryptex_accessibility_service" />
+        </service>
+
+        <service
+            android:name="com.cryptex.vault.credentials.CryptexCredentialProviderService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/cryptex_provider_name"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
+            tools:targetApi="34">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.credentials.provider"
+                android:resource="@xml/cryptex_credential_provider" />
+        </service>
+
+        <activity
+            android:name="com.cryptex.vault.credentials.CredentialRequestActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:noHistory="false"
+            android:taskAffinity="${applicationId}.credentials"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+</manifest>

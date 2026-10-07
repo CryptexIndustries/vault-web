@@ -1,0 +1,16 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - TOTP and registration capture
+---
+- tapOn: Validate accessibility login
+- assertVisible: Accessibility login complete
+- back
+- tapOn: Accessibility registration
+- tapOn: Accessibility email address
+- inputText: fallback-email@example.test
+- tapOn: Accessibility new username
+- inputText: fallback-user
+- tapOn: Accessibility new password
+- inputText: fallback-password-one
+- tapOn: Accessibility confirm password
+- inputText: fallback-password-one
+- hideKeyboard

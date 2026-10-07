@@ -2,7 +2,9 @@ import type { JestConfigWithTsJest } from "ts-jest";
 
 const jestConfig: JestConfigWithTsJest = {
     testEnvironment: "jsdom",
-    testPathIgnorePatterns: ["/node_modules/", "/extension/e2e/", "/web/e2e/"],
+    // Mobile has its own Jest configuration, aliases, and native mocks.
+    testPathIgnorePatterns: ["/node_modules/", "/extension/e2e/", "/web/e2e/", "<rootDir>/mobile/"],
+    modulePathIgnorePatterns: ["<rootDir>/\\.mobile-build/"],
     // testEnvironment: "node",
     moduleNameMapper: {
         "^@/(.*)$": "<rootDir>/web/src/$1",

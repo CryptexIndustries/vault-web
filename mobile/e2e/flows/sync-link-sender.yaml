@@ -1,0 +1,27 @@
+appId: ${CRYPTEX_APP_ID}
+name: Create a real device-link invitation
+---
+- runFlow: setup-vault.yaml
+- runFlow: setup-transfer-item.yaml
+- runFlow: sync-disable-auto-lock.yaml
+- runFlow: setup-sync-connectivity.yaml
+- tapOn: Link a device
+- tapOn: Create invitation,.*
+- tapOn: Receiving device name
+- inputText: E2E Receiver
+- hideKeyboard
+- tapOn: Create invitation
+- assertVisible: Copy invitation
+- scrollUntilVisible:
+    element:
+      text: Share .cryxlink file
+    direction: DOWN
+- tapOn: Share .cryxlink file
+- runFlow: export-capture.yaml
+- scrollUntilVisible:
+    element:
+      text: Show transfer phrase
+    direction: DOWN
+- tapOn: Show transfer phrase
+- copyTextFrom: '[a-z]+( [a-z]+){11}'
+- evalScript: ${console.log('E2E_TRANSFER_PHRASE:' + maestro.copiedText)}

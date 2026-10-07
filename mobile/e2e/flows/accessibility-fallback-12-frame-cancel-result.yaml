@@ -1,0 +1,9 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - canceled cross-site forms stay empty
+---
+- assertVisible: Frame origin fixture
+- assertVisible: Page empty
+- assertVisible: Visible frame empty
+- assertVisible: Off-screen frame empty
+- assertVisible: Exact frame values empty
+- tapOn: Page username

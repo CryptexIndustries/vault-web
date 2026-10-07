@@ -9,7 +9,7 @@ const userGuides = [
     [
         "Getting started",
         "/docs/getting-started",
-        "Create a vault, save its recovery code, and add your first login.",
+        "Create a vault, save its recovery code, and find your saved logins.",
     ],
     [
         "Importing passwords",

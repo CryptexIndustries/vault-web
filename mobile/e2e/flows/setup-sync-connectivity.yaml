@@ -1,0 +1,137 @@
+appId: ${CRYPTEX_APP_ID}
+---
+# Real local Pusher and coturn services. Credentials come from sync-config.mjs.
+- tapOn: Devices
+- tapOn: Link a device
+- tapOn: Create invitation,.*
+- tapOn: Connection options,.*
+- scrollUntilVisible:
+    element:
+      text: Manage custom servers,.*
+    direction: DOWN
+- tapOn: Manage custom servers,.*
+- tapOn: Signaling servers.*
+- tapOn: Add Signaling server
+- tapOn:
+    text: Name
+    below: Name
+- assertVisible:
+    text: Name
+    focused: true
+- inputText: E2E Local Signaling
+- hideKeyboard
+- tapOn:
+    text: Host
+    below: Host
+- assertVisible:
+    text: Host
+    focused: true
+- inputText: ${SIGNALING_HOST}
+- hideKeyboard
+- tapOn:
+    text: App ID
+    below: App ID
+- assertVisible:
+    text: App ID
+    focused: true
+- inputText: ${SIGNALING_APP_ID}
+- hideKeyboard
+- tapOn:
+    text: Key
+    below: Key
+- assertVisible:
+    text: Key
+    focused: true
+- inputText: ${SIGNALING_KEY}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: Secret
+    direction: DOWN
+- tapOn:
+    text: Secret
+    below: Secret
+- assertVisible:
+    text: Secret
+    focused: true
+- inputText: ${SIGNALING_SECRET}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: WS port
+    direction: DOWN
+- tapOn:
+    text: WS port
+    below: WS port
+- assertVisible:
+    text: WS port
+    focused: true
+- eraseText: 10
+- inputText: ${SIGNALING_PORT}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: Save server
+    direction: DOWN
+- tapOn: Save server
+- extendedWaitUntil:
+    visible: Add Signaling server
+    timeout: 15000
+- assertVisible: E2E Local Signaling.*
+- pressKey: Back
+- tapOn: TURN servers.*
+- tapOn: Add TURN server
+- tapOn:
+    text: Name
+    below: Name
+- assertVisible:
+    text: Name
+    focused: true
+- inputText: E2E Local TURN
+- hideKeyboard
+- tapOn:
+    text: Host / URL
+    below: Host / URL
+- assertVisible:
+    text: Host / URL
+    focused: true
+- inputText: ${TURN_HOST}
+- hideKeyboard
+- tapOn:
+    text: Username
+    below: Username
+- assertVisible:
+    text: Username
+    focused: true
+- inputText: ${TURN_USERNAME}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: TURN credential.*
+    direction: DOWN
+- tapOn: TURN credential.*
+- assertVisible:
+    text: TURN credential.*
+    focused: true
+- inputText: ${TURN_PASSWORD}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: Save server
+    direction: DOWN
+- tapOn: Save server
+- extendedWaitUntil:
+    visible: Add TURN server
+    timeout: 15000
+- assertVisible: E2E Local TURN.*
+- pressKey: Back
+- pressKey: Back
+- runFlow:
+    when:
+      visible: Invitation connection
+    commands:
+      - pressKey: Back
+- assertVisible: Receiving device name
+- tapOn: Back
+- assertVisible:
+    id: device-link

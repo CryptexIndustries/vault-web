@@ -1,0 +1,328 @@
+name: Mobile
+
+on:
+  push:
+    branches: [development, master]
+    tags: ["mobile-v*"]
+    paths:
+      - "mobile/**"
+      - "packages/vault-core/**"
+      - "packages/api-contract/**"
+      - "packages/shared-ui/**"
+      - "patches/**"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/mobile.yml"
+      - ".github/workflows/mobile-fdroid.yml"
+      - "!**/*.md"
+      - "!mobile/store-listing/**"
+      - "!mobile/*.webm"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "packages/vault-core/**"
+      - "packages/api-contract/**"
+      - "packages/shared-ui/**"
+      - "patches/**"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/mobile.yml"
+      - ".github/workflows/mobile-fdroid.yml"
+      - "!**/*.md"
+      - "!mobile/store-listing/**"
+      - "!mobile/*.webm"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Preproduction builds the selected branch; production requires a mobile-v tag
+        required: true
+        default: preprod
+        type: choice
+        options: [preprod, production]
+
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch') }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint / typecheck / unit tests / CLI tests / android JS export
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.25.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+
+      - name: Validate release selection
+        env:
+          RELEASE_PROFILE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v') && 'production' || inputs.profile || 'preprod' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { getProfile } from './mobile/scripts/release-config.mjs';
+          getProfile(process.env.RELEASE_PROFILE);
+          if (process.env.RELEASE_PROFILE === 'production') {
+            const app = JSON.parse(readFileSync('mobile/app.json', 'utf8')).expo;
+            assert.equal(process.env.GITHUB_REF_TYPE, 'tag', 'Run production on a mobile-v release tag.');
+            assert.equal(process.env.GITHUB_REF_NAME, `mobile-v${app.version}`, 'Release tag must match the application version.');
+          }
+          NODE
+
+      - name: Generate configuration fixtures for checks
+        run: node mobile/scripts/ci-release.mjs fixtures mobile
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check mobile
+        run: pnpm mobile:check
+
+  smoke:
+    name: android e2e smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    needs: check
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v'))
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.25.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+
+      - name: Generate configuration fixtures for checks
+        run: node mobile/scripts/ci-release.mjs fixtures mobile
+
+      - name: Install pinned Android build tools
+        run: |
+          test -n "$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          sdkmanager --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
+          sdkmanager --sdk_root="$ANDROID_HOME" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "build-tools;34.0.0" \
+            "ndk;27.1.12297006" \
+            "cmake;3.22.1"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install verified Maestro 2.9.0
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --output "$RUNNER_TEMP/maestro.zip" \
+            "https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.9.0/maestro.zip"
+          printf '%s  %s\n' \
+            '855bb2ce1399d82f4f4a73d84a4d945f70b0d43eb86127e027af82809f63f0bd' \
+            "$RUNNER_TEMP/maestro.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          test "$("$RUNNER_TEMP/maestro/bin/maestro" --version)" = "2.9.0"
+
+      - name: Verify pinned native build reproducibility fixtures
+        run: CRYPTEX_NATIVE_TEST_SDK="$ANDROID_SDK_ROOT" pnpm mobile:check -- cli
+
+      - name: Build test-only E2E APK
+        env:
+          EXPO_PUBLIC_CLOUD_ENABLED: "false"
+          EXPO_PUBLIC_APP_URL: "http://10.0.2.2:43110"
+          EXPO_PUBLIC_ONLINE_SERVICES_API_URL: "http://10.0.2.2:43110"
+        run: pnpm mobile:build -- --e2e
+
+      - name: Verify Android QR scanner
+        # The native QR decoder tests use synthetic production-sized frames.
+        # Physical camera performance remains a device acceptance check.
+        run: pnpm mobile:e2e -- qr
+
+      - name: Build unsigned APK for the native dependency audit
+        run: pnpm mobile:build -- --unsigned --clean
+
+      - name: Verify native crypto dependencies and release libraries
+        run: pnpm mobile:e2e -- crypto-audit --apk mobile/dist/cryptex-vault-unsigned.apk
+
+      - name: Run smoke flow on emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            test "$(adb devices | awk '$2 == "device" { count++ } END { print count+0 }')" = 1
+            export MAESTRO_DEVICE="$(adb devices | awk '$2 == "device" { print $1; exit }')"
+            test -n "$MAESTRO_DEVICE"
+            adb -s "$MAESTRO_DEVICE" shell settings put secure show_ime_with_hard_keyboard 1
+            adb -s "$MAESTRO_DEVICE" install -r -t mobile/android/app/build/outputs/apk/e2e/app-e2e.apk
+            pnpm mobile:e2e -- smoke
+            pnpm mobile:e2e -- crypto
+            pnpm mobile:e2e -- native
+
+      - name: Upload E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-e2e-smoke
+          path: |
+            mobile/e2e/results
+            ~/.maestro/tests
+          if-no-files-found: ignore
+
+  preprod_build:
+    name: build preproduction APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    needs: [check, smoke]
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod'
+    environment: Mobile - Preproduction
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.25.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+
+      - name: Install pinned Android build tools
+        run: |
+          test -n "$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          sdkmanager --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
+          sdkmanager --sdk_root="$ANDROID_HOME" \
+            "platforms;android-36" "build-tools;36.0.0" "build-tools;34.0.0" \
+            "ndk;27.1.12297006" "cmake;3.22.1"
+
+      - name: Generate public configuration from the preproduction environment
+        env:
+          CRYPTEX_PUBLIC_CONFIG_JSON: ${{ toJSON(vars) }}
+        run: node mobile/scripts/ci-release.mjs config "$RUNNER_TEMP/release-config.json"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build unsigned preproduction APK
+        run: pnpm mobile:build -- --unsigned --profile preprod --config "$RUNNER_TEMP/release-config.json" --clean
+
+      - name: Prepare signing inputs
+        run: |
+          mkdir "$RUNNER_TEMP/mobile-release"
+          cp mobile/dist/cryptex-vault-preprod-unsigned.apk{,.json} "$RUNNER_TEMP/mobile-release/"
+          cp "$RUNNER_TEMP/release-config.json" "$RUNNER_TEMP/mobile-release/"
+
+      - name: Upload verified unsigned APK and its configuration
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-preprod-unsigned-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release/
+          if-no-files-found: error
+
+  preprod_sign:
+    name: sign preproduction APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: preprod_build
+    environment: Mobile - Preproduction
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+
+      - name: Install pinned APK inspection and signing tools
+        run: sdkmanager --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
+
+      - name: Download verified unsigned APK and its configuration
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: mobile-preprod-unsigned-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release
+
+      - name: Sign and verify the preproduction APK
+        env:
+          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
+          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
+          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
+        run: node mobile/scripts/ci-release.mjs sign preprod "$RUNNER_TEMP/mobile-release"
+
+      - name: Upload signed preproduction APK, configuration and checksums
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-preprod-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release/
+          if-no-files-found: error
+
+  fdroid:
+    name: build and sign production F-Droid APK
+    needs: [check, smoke]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production')
+    uses: ./.github/workflows/mobile-fdroid.yml

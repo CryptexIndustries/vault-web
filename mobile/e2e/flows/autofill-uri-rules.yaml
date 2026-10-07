@@ -1,0 +1,67 @@
+appId: com.cryptex.autofillfixture
+name: Android autofill URI matching
+---
+# Exact host matches the declared HTTPS origin.
+- clearState
+- launchApp
+- tapOn: Exact web form
+- assertVisible: Web login fixture
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: login.exact.example.com
+- assertVisible: exact-rule@example.test
+- tapOn:
+    text: exact-rule@example.test
+- assertVisible: Review destination
+- tapOn: Fill once
+- assertVisible: Web login fixture
+- assertVisible: exact-rule@example.test
+
+# Exact host does not include a sibling hostname.
+- clearState
+- launchApp
+- tapOn: Exact sibling web form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: No login saved for sibling.exact.example.com
+- assertNotVisible: exact-rule@example.test
+- tapOn: Cancel autofill
+- assertVisible: Web login fixture
+
+# Related domains includes a sibling under the same base domain.
+- clearState
+- launchApp
+- tapOn: Domain sibling web form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: domain-rule@example.test
+- tapOn:
+    text: domain-rule@example.test
+- assertVisible: Review destination
+- tapOn: Fill once
+- assertVisible: Web login fixture
+- assertVisible: domain-rule@example.test
+
+# The wildcard includes a subdomain, but not the apex.
+- clearState
+- launchApp
+- tapOn: Wildcard web form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: wildcard-rule@example.test
+- tapOn:
+    text: wildcard-rule@example.test
+- assertVisible: Review destination
+- tapOn: Fill once
+- assertVisible: Web login fixture
+- assertVisible: wildcard-rule@example.test
+
+- clearState
+- launchApp
+- tapOn: Wildcard apex web form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: No login saved for wild.example.org
+- assertNotVisible: wildcard-rule@example.test
+- tapOn: Cancel autofill
+- assertVisible: Web login fixture

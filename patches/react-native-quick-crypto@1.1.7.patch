@@ -1,0 +1,92 @@
+diff --git a/android/CMakeLists.txt b/android/CMakeLists.txt
+index 2bb708e6691795c42bb816e2185247c891126e09..26690ab693e15940523794dac2a53b7ed1a9c3bd 100644
+--- a/android/CMakeLists.txt
++++ b/android/CMakeLists.txt
+@@ -114,7 +114,73 @@ include_directories(
+ # Third party libraries (Prefabs)
+ find_library(LOG_LIB log)
+ 
+-find_package(opensslstatic REQUIRED CONFIG)
++# OpenSSL's supported Android Configure targets and build system.
++# https://github.com/openssl/openssl/blob/openssl-3.5.8/NOTES-ANDROID.md
++include(ExternalProject)
++find_program(OPENSSL_MAKE make REQUIRED)
++
++get_filename_component(CRYPTEX_PACKAGE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." REALPATH)
++target_compile_options(${PACKAGE_NAME} PRIVATE
++  "-ffile-prefix-map=${CRYPTEX_PACKAGE_ROOT}=/src/react-native-quick-crypto"
++  "-fdebug-prefix-map=${CRYPTEX_PACKAGE_ROOT}=/src/react-native-quick-crypto"
++  "-ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=/build/react-native-quick-crypto"
++  "-fdebug-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=/build/react-native-quick-crypto"
++)
++
++set(OPENSSL_VERSION 3.5.8)
++set(OPENSSL_SHA256 a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2)
++set(OPENSSL_SOURCE "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz")
++# F-Droid/offline builds can supply the same archive. URL_HASH still verifies it.
++if(DEFINED ENV{CRYPTEX_OPENSSL_ARCHIVE})
++  set(OPENSSL_SOURCE "$ENV{CRYPTEX_OPENSSL_ARCHIVE}")
++endif()
++
++if(ANDROID_ABI STREQUAL "arm64-v8a")
++  set(OPENSSL_TARGET android-arm64)
++elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
++  set(OPENSSL_TARGET android-arm)
++elseif(ANDROID_ABI STREQUAL "x86")
++  set(OPENSSL_TARGET android-x86)
++elseif(ANDROID_ABI STREQUAL "x86_64")
++  set(OPENSSL_TARGET android-x86_64)
++else()
++  message(FATAL_ERROR "Unsupported OpenSSL Android ABI: ${ANDROID_ABI}")
++endif()
++
++get_filename_component(OPENSSL_TOOLCHAIN_BIN "${CMAKE_C_COMPILER}" DIRECTORY)
++set(OPENSSL_INSTALL "${CMAKE_CURRENT_BINARY_DIR}/openssl-install")
++file(MAKE_DIRECTORY "${OPENSSL_INSTALL}/usr/include")
++ExternalProject_Add(cryptex_openssl
++  URL "${OPENSSL_SOURCE}"
++  URL_HASH "SHA256=${OPENSSL_SHA256}"
++  TLS_VERIFY TRUE
++  INSTALL_DIR "${OPENSSL_INSTALL}"
++  CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
++    "ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}"
++    "PATH=${OPENSSL_TOOLCHAIN_BIN}:$ENV{PATH}"
++    <SOURCE_DIR>/Configure ${OPENSSL_TARGET}
++    "-D__ANDROID_API__=${ANDROID_PLATFORM_LEVEL}"
++    --prefix=/usr --libdir=lib --openssldir=/etc/ssl
++    no-shared no-tests no-apps no-module no-autoload-config
++    -fPIC -fstack-protector-strong -D_FORTIFY_SOURCE=2
++    -ffunction-sections -fdata-sections
++    # OpenSSL compiles relative source paths; absolute map flags would be
++    # recorded verbatim by mkbuildinf.pl in the shipped compiler metadata.
++  BUILD_COMMAND ${CMAKE_COMMAND} -E env "PATH=${OPENSSL_TOOLCHAIN_BIN}:$ENV{PATH}"
++    ${OPENSSL_MAKE} -j2 build_libs
++  INSTALL_COMMAND ${CMAKE_COMMAND} -E env "PATH=${OPENSSL_TOOLCHAIN_BIN}:$ENV{PATH}"
++    ${OPENSSL_MAKE} "DESTDIR=<INSTALL_DIR>" install_dev
++  BUILD_BYPRODUCTS "${OPENSSL_INSTALL}/usr/lib/libcrypto.a" "${OPENSSL_INSTALL}/usr/lib/libssl.a"
++)
++
++foreach(OPENSSL_LIBRARY crypto ssl)
++  add_library(opensslstatic::${OPENSSL_LIBRARY} STATIC IMPORTED)
++  set_target_properties(opensslstatic::${OPENSSL_LIBRARY} PROPERTIES
++    IMPORTED_LOCATION "${OPENSSL_INSTALL}/usr/lib/lib${OPENSSL_LIBRARY}.a"
++    INTERFACE_INCLUDE_DIRECTORIES "${OPENSSL_INSTALL}/usr/include"
++  )
++endforeach()
++add_dependencies(${PACKAGE_NAME} cryptex_openssl)
+ 
+ # Link all libraries together
+ target_link_libraries(
+diff --git a/android/build.gradle b/android/build.gradle
+index 4e32c5af4bcbc12027ab054b2d33ea003506c9ca..34ebd6ca63d69e6be1b00434a1d3ba834d291dbf 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -152,7 +152,7 @@ dependencies {
+   // Static OpenSSL: linked into libQuickCrypto.so with its symbols localized, so we
+   // neither ship a libcrypto.so that collides with another library's nor export
+   // OpenSSL symbols that could interpose. See CMakeLists.txt and issue #1059.
+-  implementation 'io.github.ronickg:openssl-static:3.6.2-2'
++  // CMakeLists.txt builds pinned, checksum-verified OpenSSL source.
+ 
+   if (sodiumEnabled) {
+     // Add a dependency on libsodium

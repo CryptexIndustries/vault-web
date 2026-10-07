@@ -115,7 +115,7 @@ export async function importHkdfBaseKey(
         AES_256_KEY_BYTES,
         "VAULT_HKDF_IKM_INVALID",
     );
-    return getEnvelopeCrypto().importHkdfKey(new Uint8Array(rawKeyMaterial));
+    return getEnvelopeCrypto().importHkdfKey(rawKeyMaterial);
 }
 
 export function buildKekInfo(vaultId: string): string {
@@ -141,7 +141,7 @@ export async function deriveKEK(
     if (additionalKeyProtectionHkdfBase) {
         return getEnvelopeCrypto().deriveKek(
             additionalKeyProtectionHkdfBase,
-            new Uint8Array(pwKey),
+            pwKey,
             info,
         );
     }
@@ -156,7 +156,7 @@ export async function deriveKEK(
     try {
         return await getEnvelopeCrypto().deriveKek(
             pwHkdfBase,
-            new Uint8Array(hkdfSaltWhenNoAdditionalKeyProtection),
+            hkdfSaltWhenNoAdditionalKeyProtection,
             info,
         );
     } finally {
@@ -177,7 +177,7 @@ export async function deriveRecoveryKEK(
             AES_256_KEY_BYTES,
             "VAULT_KEK_MATERIAL_INVALID",
         );
-        return await getEnvelopeCrypto().importKek(new Uint8Array(material));
+        return await getEnvelopeCrypto().importKek(material);
     } finally {
         material.fill(0);
     }
@@ -373,9 +373,10 @@ export async function openPrimarySlot(
             ? slot.HKDFInfo
             : buildKekInfo(vaultId);
 
-    const pwKey = await derivePasswordKey(masterPassword, salt, kdfConfig);
+    let pwKey: Uint8Array | undefined;
     let kek: VaultKek;
     try {
+        pwKey = await derivePasswordKey(masterPassword, salt, kdfConfig);
         kek = await deriveKEK(
             pwKey,
             kekInfo,
@@ -388,7 +389,7 @@ export async function openPrimarySlot(
         }
         return err("KEK_DERIVATION_FAILED");
     } finally {
-        pwKey.fill(0);
+        pwKey?.fill(0);
     }
 
     try {

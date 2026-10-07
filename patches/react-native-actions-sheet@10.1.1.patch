@@ -1,0 +1,39 @@
+diff --git a/dist/src/index.js b/dist/src/index.js
+index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c261b7ec8a 100644
+--- a/dist/src/index.js
++++ b/dist/src/index.js
+@@ -420,6 +420,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+                     hiding.current = false;
+                 }
+                 (_b = hardwareBackPressEvent.current) === null || _b === void 0 ? void 0 : _b.remove();
++                hardwareBackPressEvent.current = null;
+                 if (sheetId) {
+                     SheetManager.remove(sheetId, currentContext);
+                     hiding.current = false;
+@@ -477,6 +478,18 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         enableRouterBackNavigation,
+         visible,
+     ]);
++    useEffect(function () {
++        if (!visible || (isModal && !props.backgroundInteractionEnabled))
++            return;
++        var subscription = BackHandler.addEventListener('hardwareBackPress', onHardwareBackPress);
++        hardwareBackPressEvent.current = subscription;
++        return function () {
++            subscription.remove();
++            if (hardwareBackPressEvent.current === subscription) {
++                hardwareBackPressEvent.current = null;
++            }
++        };
++    }, [visible, isModal, props.backgroundInteractionEnabled, onHardwareBackPress]);
+     /**
+      * Snap towards the top
+      */
+@@ -959,7 +972,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
+                 testID: ((_b = props.testIDs) === null || _b === void 0 ? void 0 : _b.root) || props.testID,
+                 onLayout: function () {
+                     var _a;
+-                    hardwareBackPressEvent.current = BackHandler.addEventListener('hardwareBackPress', onHardwareBackPress);
+                     (_a = props === null || props === void 0 ? void 0 : props.onOpen) === null || _a === void 0 ? void 0 : _a.call(props);
+                 },
+                 style: {

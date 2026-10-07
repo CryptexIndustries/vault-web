@@ -1,0 +1,16 @@
+{
+  "node": "24.20.0",
+  "pnpm": "11.25.0",
+  "java": "17.0.19+10",
+  "javaVendor": "Eclipse Adoptium",
+  "gradle": "9.3.1",
+  "gradleDistributionSha256": "b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06",
+  "buildTools": "36.0.0",
+  "signingBuildTools": "34.0.0",
+  "compileSdk": "36",
+  "targetSdk": "36",
+  "ndk": "27.1.12297006",
+  "cmake": "3.22.1",
+  "apksigcopier": "1.1.1",
+  "reproductionPython": "3.12.13"
+}

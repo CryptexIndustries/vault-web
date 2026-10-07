@@ -1,0 +1,52 @@
+appId: com.android.chrome
+---
+- launchApp
+- runFlow:
+    when:
+      visible: Use without an account
+    commands:
+      - tapOn: Use without an account
+- runFlow:
+    when:
+      visible: No thanks
+    commands:
+      - tapOn: No thanks
+- runFlow:
+    when:
+      visible: More
+    commands:
+      - tapOn: More
+- runFlow:
+    when:
+      visible: Got it
+    commands:
+      - tapOn: Got it
+- tapOn:
+    id: com.android.chrome:id/menu_button
+- tapOn: Settings
+# Chrome 134 can hide this row when its Android virtual-view feature is off.
+# Newer Chrome versions with the row already present skip this fixture-specific setup.
+- runFlow:
+    when:
+      notVisible: Autofill services
+    commands:
+      - back
+      - runFlow: setup-browser-autofill-legacy-flag.yaml
+      - tapOn:
+          id: com.android.chrome:id/menu_button
+      - tapOn: Settings
+- scrollUntilVisible:
+    element:
+      text: Autofill services
+    direction: DOWN
+- tapOn: Autofill services
+- runFlow:
+    when:
+      visible: Autofill using another service
+    commands:
+      - tapOn: Autofill using another service
+      - runFlow:
+          when:
+            visible: Restart Chrome
+          commands:
+            - tapOn: Restart Chrome

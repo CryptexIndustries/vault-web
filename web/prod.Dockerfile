@@ -11,6 +11,7 @@ FROM base AS builder
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 COPY scripts/install-lefthook.mjs ./scripts/install-lefthook.mjs
 COPY web/package.json ./web/
 COPY packages/api-contract/package.json ./packages/api-contract/

@@ -1,0 +1,41 @@
+appId: ${CRYPTEX_APP_ID}
+name: Real encrypted and readable exports, restore and JSON import
+---
+- runFlow: setup-vault.yaml
+- runFlow: setup-transfer-item.yaml
+- tapOn: More
+- tapOn: Import / Export.*
+- tapOn: Encrypted vault.*
+- tapOn: Export encrypted vault
+- runFlow: export-capture.yaml
+- assertVisible: Encrypted export ready.
+- pressKey: Back
+- tapOn: Unencrypted export.*
+- tapOn: Master password for cleartext export
+- inputText: WrongPassword42
+- hideKeyboard
+- tapOn: I understand this file is unencrypted and will delete it after use.
+- scrollUntilVisible:
+    element:
+      text: Review export
+    direction: DOWN
+- tapOn: Review export
+- tapOn: Export JSON
+# Wrong reauthentication must leave the confirmation open with sharing absent.
+# The button becomes enabled only after the decrypt attempt finishes.
+- assertVisible:
+    text: Export JSON
+    enabled: true
+- assertVisible: Export cleartext JSON
+- assertNotVisible: Capture E2E export
+- tapOn: Cancel
+- tapOn: Master password for cleartext export
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn: Review export
+- tapOn: Export JSON
+- runFlow: export-capture.yaml
+- assertVisible: Cleartext export ready. Delete it after use.
+- runFlow: restore-export.yaml
+- runFlow: import-exported-json.yaml

@@ -1,0 +1,116 @@
+appId: com.cryptex.autofillfixture
+name: Android autofill application associations
+---
+- runFlow: setup-autofill-vault.yaml
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- tapOn: More
+- tapOn: Autofill
+- tapOn: Suggestion display
+- tapOn: Popup / dropdown
+- assertVisible: Popup / dropdown
+
+# Filling once must leave the saved login's destinations unchanged.
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- runFlow:
+    when:
+      visible: Master password
+    commands:
+      - tapOn: Master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- assertVisible: No login saved for Autofill Test App
+- tapOn: Search all logins
+- inputText: Fixture Login
+- hideKeyboard
+- tapOn:
+    text: fixture@example.test
+- assertVisible: Review destination
+- assertVisible: Fill and associate app
+- tapOn: Fill once
+- assertVisible: Native login fixture
+- assertVisible: fixture@example.test
+- tapOn: Sign in
+- assertVisible: Native fixture password matched
+- assertNotVisible: Native fixture password mismatch
+
+# A second unmatched request can explicitly associate the exact app package.
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: No login saved for Autofill Test App
+- tapOn: Search all logins
+- inputText: Fixture Login
+- hideKeyboard
+- tapOn:
+    text: fixture@example.test
+- tapOn: Fill and associate app
+- assertVisible: Associate app
+- assertVisible: androidapp://com.cryptex.autofillfixture
+- assertVisible: Save association and fill
+- tapOn: Add this exact app package
+- tapOn: Save association and fill
+- assertVisible: Native login fixture
+- assertVisible: fixture@example.test
+- tapOn: Sign in
+- assertVisible: Native fixture password matched
+- assertNotVisible: Native fixture password mismatch
+
+# The package match is offered, but each fill still requires review.
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: fixture@example.test
+- assertNotVisible: No login saved for Autofill Test App
+- tapOn:
+    text: fixture@example.test
+- assertVisible: Review destination
+- assertNotVisible: Fill and associate app
+- tapOn: Fill once
+- assertVisible: Native login fixture
+- assertVisible: fixture@example.test
+- tapOn: Sign in
+- assertVisible: Native fixture password matched
+- assertNotVisible: Native fixture password mismatch
+
+- clearState
+- launchApp
+- tapOn: Login form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- tapOn:
+    text: fixture@example.test
+- assertVisible: Review destination
+- tapOn: Cancel
+- tapOn: Cancel autofill
+- assertVisible: Native login fixture
+- assertNotVisible: fixture@example.test
+
+# The website remains the primary target; the app is an additional exact target.
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- tapOn: Vault
+- tapOn:
+    text: Fixture Login.*
+- assertVisible: Primary website
+- assertVisible: http://localhost:43110/login
+- assertVisible: Android app
+- assertVisible: androidapp://com.cryptex.autofillfixture
+
+# A website origin in the associated package is not a native app request.
+- clearState: com.cryptex.autofillfixture
+- launchApp: com.cryptex.autofillfixture
+- tapOn: Exact web form
+- tapOn: Username
+- tapOn: Open ${CRYPTEX_APP_NAME}
+- assertVisible: No login saved for login.exact.example.com
+- assertNotVisible: fixture@example.test
+- tapOn: Cancel autofill

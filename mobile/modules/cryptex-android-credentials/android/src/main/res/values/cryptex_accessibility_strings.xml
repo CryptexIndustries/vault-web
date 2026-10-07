@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cryptex_accessibility_description">Offers an explicit autofill and save button on login fields when an app or browser does not support Android autofill. Readable form values are inspected only after you choose Save login; Android-protected passwords must be entered again in Cryptex Vault.</string>
+</resources>

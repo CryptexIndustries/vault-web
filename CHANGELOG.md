@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-06
+
+### Added
+
+- Credential rules now accept exact Android app associations such as `androidapp://com.example.app` in the web app and Chromium extension. App associations remain separate from website matching.
+- Added a billing return page that routes users back to the web vault or the production or pre-production Android app, with a manual return link when automatic navigation is blocked. Payment API contracts now support hosted checkout and fixed return targets for checkout and the billing portal.
+
+### Changed
+
+- Bumped the web app and Chromium extension versions to `1.5.0`, aligning the extension package and manifest versions.
+
+### Fixed
+
+- Device linking and synchronization now allow up to five seconds for connection candidates that arrive after an empty discovery completion, instead of failing immediately. Pending failure timers are cancelled when connections end or are replaced.
+- Password-key derivation failures now return handled vault unlock errors instead of escaping the unlock error handler.
+
+### Security
+
+- Temporary key-material buffers used by Web Crypto are now cleared after key import and derivation, and redundant key-material copies were removed.
+
+### Chore
+
+- Shared device topology, Recovery Kit generation, and synchronization helpers across clients, with regression coverage for connection discovery, directory synchronization, and billing return links.
+- Added Android workspace and build tooling, native dependency patches, and an F-Droid build workflow. Updated the workspace Node version to `24.20.0` and web builds to support shared workspace packages and dependency patches.
+
 ## [1.4.1] - 2026-09-25
 
 ### Added

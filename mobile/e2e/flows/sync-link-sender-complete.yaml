@@ -1,0 +1,11 @@
+appId: ${CRYPTEX_APP_ID}
+name: Verify the sender completed actual transfer
+---
+- extendedWaitUntil:
+    visible: Transfer complete
+    timeout: 120000
+- tapOn: Back to Devices
+- tapOn:
+    id: device-view-list
+- assertVisible: E2E Receiver.*
+- runFlow: sync-connection-details.yaml

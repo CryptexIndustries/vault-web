@@ -5,10 +5,14 @@ import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     Directory,
     hashCredential,
-    resolveDirectoryNameCollisions,
     shouldAcceptVersionedRecord,
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
+import {
+    applyReceivedSyncDirectories,
+    getSyncVersionVectors,
+    selectSyncItems,
+} from "@cryptex-industries/vault-core/sync-operations";
 import { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import {
     SyncConnectionController,
@@ -59,52 +63,12 @@ export function shouldAutoReconnectAfterWebRTCStatus(
 
 export const createVaultOperations = (): VaultOperations => {
     return {
-        getCredentialVersionVectors: async () => {
-            return vaultGet().Credentials.map((c) => ({
-                ID: c.ID,
-                Hash: c.Hash,
-                Version: c.Version,
-                DateModifiedTimestamp: c.DateModifiedTimestamp,
-                Deleted: c.Deleted,
-            }));
-        },
+        getCredentialVersionVectors: async () =>
+            getSyncVersionVectors(vaultGet().Credentials),
         getDirectoryVersionVectors: async () =>
-            vaultGet().Directories.map((directory) => ({
-                ID: directory.ID,
-                Hash: directory.Hash,
-                Version: directory.Version,
-                DateModifiedTimestamp: directory.DateModifiedTimestamp,
-                Deleted: directory.Deleted,
-            })),
-        getItems: async (items: VaultUtilTypes.SyncItemReference[]) => {
-            const credentialIDs = new Set(
-                items
-                    .filter(
-                        (item) =>
-                            item.Type ===
-                            VaultUtilTypes.SyncItemType.CredentialItem,
-                    )
-                    .map((item) => item.ID),
-            );
-            const directoryIDs = new Set(
-                items
-                    .filter(
-                        (item) =>
-                            item.Type ===
-                            VaultUtilTypes.SyncItemType.DirectoryItem,
-                    )
-                    .map((item) => item.ID),
-            );
-            const vault = vaultGet();
-            return {
-                Credentials: vault.Credentials.filter((credential) =>
-                    credentialIDs.has(credential.ID),
-                ),
-                Directories: vault.Directories.filter((directory) =>
-                    directoryIDs.has(directory.ID),
-                ),
-            };
-        },
+            getSyncVersionVectors(vaultGet().Directories),
+        getItems: async (items: VaultUtilTypes.SyncItemReference[]) =>
+            selectSyncItems(vaultGet(), items),
         updateItems: async (
             directories: VaultUtilTypes.Directory[],
             credentials: VaultUtilTypes.Credential[],
@@ -113,26 +77,13 @@ export const createVaultOperations = (): VaultOperations => {
             const mutationResult = await persistVaultMutation(
                 "synchronization.apply",
                 async (currentVault) => {
-                    const directoriesMap = new Map(
-                        currentVault.Directories.map((directory) => [
-                            directory.ID,
-                            Object.assign(new Directory(), directory),
-                        ]),
-                    );
-                    for (const directory of directories) {
-                        const existing = directoriesMap.get(directory.ID);
-                        if (!shouldAcceptVersionedRecord(existing, directory)) {
-                            continue;
-                        }
-                        directoriesMap.set(
-                            directory.ID,
-                            Object.assign(new Directory(), directory),
+                    const updatedDirectories =
+                        await applyReceivedSyncDirectories(
+                            currentVault.Directories,
+                            directories,
+                            (directory) =>
+                                Object.assign(new Directory(), directory),
                         );
-                    }
-                    const updatedDirectories = Array.from(
-                        directoriesMap.values(),
-                    );
-                    await resolveDirectoryNameCollisions(updatedDirectories);
                     const activeDirectoryIDs = new Set(
                         updatedDirectories
                             .filter((directory) => !directory.Deleted)

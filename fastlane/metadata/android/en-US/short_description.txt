@@ -1,0 +1,1 @@
+Encrypted password vault with autofill, passkeys and device synchronization

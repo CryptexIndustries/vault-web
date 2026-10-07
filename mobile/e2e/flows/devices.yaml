@@ -1,0 +1,172 @@
+appId: ${CRYPTEX_APP_ID}
+name: Account devices, permissions and topology visibility
+---
+- runFlow: setup-online-services.yaml
+- tapOn: Devices
+- extendedWaitUntil:
+    visible: 3 devices
+    timeout: 15000
+- runFlow: device-sheet-navigation.yaml
+# Preparing an invitation registers and promotes a temporary account device.
+# Returning without a transfer must demote and remove that registration.
+- tapOn: Link a device
+- tapOn: Create invitation,.*
+- tapOn: Receiving device name
+- inputText: E2E Root Invitation
+- hideKeyboard
+- tapOn: Connection options,.*
+- scrollUntilVisible:
+    element:
+      text: Make linked device root.*
+    direction: DOWN
+- tapOn: Make linked device root.*
+- scrollUntilVisible:
+    element:
+      text: Use selected connection
+    direction: DOWN
+- tapOn: Use selected connection
+- tapOn: Create invitation
+- extendedWaitUntil:
+    visible: Open on your other device
+    timeout: 30000
+- tapOn: Back
+- assertVisible: Receiving device name
+- tapOn: Back
+- tapOn: Refresh devices
+- extendedWaitUntil:
+    visible: 3 devices
+    timeout: 15000
+- tapOn:
+    id: device-view-list
+- assertNotVisible:
+    id: device-row-fixture-linked-device-.*
+- tapOn:
+    id: device-search
+- inputText: e2e-peer
+- hideKeyboard
+- assertVisible: 1 devices
+- tapOn:
+    id: device-row-e2e-peer-.*
+- assertVisible: Registered with Online Services
+- runFlow:
+    file: device-change-root.yaml
+    env:
+      ROOT_CONFIRMATION: Allow root access for .*\?
+- tapOn:
+    id: device-row-e2e-peer-.*
+- assertNotVisible:
+    id: device-remove-account
+- runFlow:
+    file: device-change-root.yaml
+    env:
+      ROOT_CONFIRMATION: Remove root access for .*\?
+- tapOn:
+    id: device-row-e2e-peer-.*
+- scrollUntilVisible:
+    element:
+      id: device-remove-account
+    direction: DOWN
+- tapOn:
+    id: device-remove-account
+# Cancel returns to the same device details without mutating the fixture.
+- assertVisible:
+    id: device-unlink-scope-connection
+- tapOn:
+    id: device-cancel-unlink
+- assertVisible: Device details
+- tapOn:
+    id: device-remove-account
+# Unlink only the relationship; the account registration must remain.
+- tapOn:
+    id: device-confirm-unlink
+- extendedWaitUntil:
+    notVisible:
+      id: device-confirm-unlink
+    timeout: 15000
+- assertVisible:
+    id: device-row-e2e-peer-.*
+- tapOn:
+    id: device-row-e2e-peer-.*
+- assertVisible: No recorded connections to other devices.
+- tapOn:
+    id: device-remove-account
+- assertVisible:
+    id: device-unlink-scope-connection
+    enabled: false
+- assertVisible: Remove from Online Services
+- tapOn:
+    id: device-confirm-unlink
+- extendedWaitUntil:
+    notVisible:
+      id: device-confirm-unlink
+    timeout: 15000
+- assertVisible: 0 devices
+- tapOn:
+    id: device-search
+- eraseText: 100
+- hideKeyboard
+- assertNotVisible:
+    id: device-row-e2e-peer-.*
+- tapOn:
+    id: device-row-e2e-root-.*
+- runFlow:
+    file: device-change-root.yaml
+    env:
+      ROOT_CONFIRMATION: Remove root access for .*\?
+- tapOn:
+    id: device-row-fixture-device-.*
+- scrollUntilVisible:
+    element:
+      id: device-toggle-root
+    direction: DOWN
+- assertVisible:
+    id: device-toggle-root
+    enabled: false
+- assertVisible: This is the last root device.*
+- assertNotVisible:
+    id: device-remove-account
+- scrollUntilVisible:
+    element:
+      id: device-close-details
+    direction: DOWN
+- tapOn:
+    id: device-close-details
+- tapOn:
+    id: device-row-e2e-root-.*
+- runFlow:
+    file: device-change-root.yaml
+    env:
+      ROOT_CONFIRMATION: Allow root access for .*\?
+- tapOn:
+    id: device-view-map
+- tapOn: Zoom in
+- tapOn: Zoom out
+- tapOn:
+    id: device-view-list
+- tapOn:
+    id: device-row-fixture-device-.*
+- runFlow:
+    file: device-change-root.yaml
+    env:
+      ROOT_CONFIRMATION: Remove root access for .*\?
+- assertVisible: This device does not have root access.*
+- assertVisible: 1 devices
+- assertNotVisible:
+    id: device-row-e2e-root-.*
+- tapOn:
+    id: device-row-fixture-device-.*
+- scrollUntilVisible:
+    element:
+      text: Account access
+    direction: DOWN
+- assertVisible:
+    id: device-toggle-root
+    enabled: false
+- assertNotVisible:
+    id: device-remove-account
+- scrollUntilVisible:
+    element:
+      id: device-close-details
+    direction: DOWN
+- tapOn:
+    id: device-close-details

@@ -1,0 +1,5 @@
+<resources>
+    <string name="cryptex_app_scheme">cryptex</string>
+    <string name="cryptex_provider_name">Cryptex Vault</string>
+    <string name="cryptex_accessibility_service_name">Cryptex Vault autofill fallback</string>
+</resources>

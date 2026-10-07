@@ -1,0 +1,31 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- clearState
+- launchApp
+- assertVisible: Create vault
+- tapOn: Vault name
+- inputText: E2E Vault
+- hideKeyboard
+- tapOn: Master password
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: confirm-master-password
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn: Continue
+- assertVisible: Additional key protection
+- tapOn:
+    id: create-vault
+- runFlow:
+    when:
+      visible: Failed to create vault.*
+    commands:
+      - tapOn:
+          id: create-vault
+- assertVisible: Keep your way back in
+- tapOn: I have written down the recovery code
+- tapOn: Save & open vault
+- assertVisible: Your vault starts here.

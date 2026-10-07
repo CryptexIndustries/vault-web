@@ -1,0 +1,99 @@
+appId: ${CRYPTEX_APP_ID}
+name: Create Android autofill URI-rule fixtures
+---
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow:
+    when:
+      visible: Enter master password
+    commands:
+      - tapOn: Master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- tapOn: More
+- tapOn: Security
+- tapOn: Auto-lock
+- tapOn: "Off"
+- openLink: ${CRYPTEX_APP_SCHEME}://
+
+- tapOn: Add item
+- tapOn: Credential name
+- inputText: Exact URI Rule
+- tapOn: Credential username
+- inputText: exact-rule@example.test
+- tapOn:
+    text: Password, Hidden.*
+- inputText: rule-password
+- hideKeyboard
+- tapOn:
+    id: credential-website-url
+- eraseText
+- inputText: https://login.exact.example.com
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: Item details
+- assertVisible: Exact URI Rule.*
+- back
+
+- tapOn: Add item
+- tapOn: Credential name
+- inputText: Domain URI Rule
+- tapOn: Credential username
+- inputText: domain-rule@example.test
+- tapOn:
+    text: Password, Hidden.*
+- inputText: rule-password
+- hideKeyboard
+- tapOn:
+    id: credential-website-url
+- eraseText
+- inputText: https://www.domain.example.net
+- hideKeyboard
+- tapOn: Website matching, This host only
+- tapOn: Related domains
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: Item details
+- assertVisible: Domain URI Rule.*
+- back
+
+- tapOn: Add item
+- tapOn: Credential name
+- inputText: Wildcard URI Rule
+- tapOn: Credential username
+- inputText: wildcard-rule@example.test
+- tapOn:
+    text: Password, Hidden.*
+- inputText: rule-password
+- hideKeyboard
+- tapOn:
+    id: credential-website-url
+- eraseText
+- inputText: https://*.wild.example.org
+- hideKeyboard
+- tapOn: Website matching, This host only
+- tapOn: Custom pattern
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: Item details
+- assertVisible: Wildcard URI Rule.*
+- back
+- tapOn: More
+- tapOn: Autofill
+- tapOn: Suggestion display
+- tapOn: Popup / dropdown
+- assertVisible: Popup / dropdown

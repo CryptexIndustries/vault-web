@@ -1,0 +1,85 @@
+appId: ${CRYPTEX_APP_ID}
+name: Chrome registration save and field mapping
+---
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow:
+    when:
+      visible: Master password
+    commands:
+      - tapOn: Enter master password
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: unlock-vault
+- tapOn: Lock vault
+- assertVisible: Unlock vault
+- launchApp: com.android.chrome
+- openLink: http://localhost:43110/fresh-register?case=save
+- runFlow: autofill-browser-dismiss-tips.yaml
+- assertVisible: Deterministic registration fixture
+# After earlier Autofill callbacks, Chrome 134 can paint the fixture while
+# omitting its fields from accessibility. These coordinates target the four
+# distinct inputs on the pinned 1080x2400 AVD; the POST oracle checks mapping.
+- tapOn:
+    point: 50%,25%
+- inputText: earlier-browser-email@example.test
+- tapOn:
+    point: 45%,28%
+- inputText: browser-new@example.test
+- tapOn:
+    point: 25%,30%
+- inputText: browser-new-password
+- tapOn:
+    point: 25%,33%
+- inputText: browser-new-password
+- hideKeyboard
+- tapOn:
+    point: 64%,33%
+- runFlow:
+    when:
+      visible: Save
+    commands:
+      - tapOn: Save
+- assertVisible: Master password
+- tapOn: Enter master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: (Add|Edit) item
+- assertVisible: browser-new@example.test
+- assertVisible: localhost
+- scrollUntilVisible:
+    element:
+      text: earlier-browser-email@example.test
+    direction: DOWN
+- assertVisible: earlier-browser-email@example.test
+- tapOn:
+    id: credential-submit
+- assertVisible: localhost:43110/register\?accepted=1
+
+# The captured email and username return to their own registration fields.
+- launchApp: com.android.chrome
+- openLink: http://localhost:43110/fresh-register?case=refill
+- runFlow: autofill-browser-dismiss-tips.yaml
+- assertVisible: Deterministic registration fixture
+- tapOn:
+    point: 50%,25%
+- tapOn: .*${CRYPTEX_APP_NAME}
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Android could not confirm.*browser page and login field.*
+- assertVisible: browser-new@example.test
+- tapOn: browser-new@example.test
+- assertVisible: Review destination
+- tapOn: Fill once
+- runFlow:
+    when:
+      visible: Chrome
+    commands:
+      - tapOn: Chrome
+# Chrome 134 can omit page text from accessibility after Autofill returns.
+# Submit the fixture's button on the pinned 1080x2400 AVD; its POST checks all
+# four separate fields, including email versus username.
+- tapOn:
+    point: 64%,32%
+- assertVisible: localhost:43110/register\?accepted=1

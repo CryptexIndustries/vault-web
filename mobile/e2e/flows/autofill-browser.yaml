@@ -1,0 +1,19 @@
+appId: ${CRYPTEX_APP_ID}
+name: Chrome standard autofill
+---
+# Chrome 134's keyboard suggestion strip can replace a second Autofill
+# suggestion with a clipboard chip. Keep this multi-request suite on the
+# Android popup path; autofill-presentation.yaml tests inline separately.
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Search your vault
+- tapOn: More
+- tapOn: Autofill
+- tapOn: Suggestion display
+- tapOn: Popup / dropdown
+- assertVisible: Popup / dropdown
+- runFlow: autofill-browser-login.yaml
+- runFlow: autofill-browser-locked.yaml
+- runFlow: autofill-browser-frame-origin.yaml
+- runFlow: autofill-browser-registration.yaml
+- runFlow: autofill-browser-auto-lock-resume.yaml

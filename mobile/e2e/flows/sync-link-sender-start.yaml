@@ -1,0 +1,13 @@
+appId: ${CRYPTEX_APP_ID}
+name: Start the sender's encrypted transfer
+---
+- scrollUntilVisible:
+    element:
+      text: Start live transfer
+    direction: DOWN
+- tapOn: Start live transfer
+- assertVisible: Ready for your other device
+- tapOn: Start live transfer
+- extendedWaitUntil:
+    visible: Waiting for other device.*
+    timeout: 35000

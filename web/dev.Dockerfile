@@ -14,6 +14,7 @@ RUN apk add --no-cache libc6-compat curl \
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 COPY scripts/install-lefthook.mjs ./scripts/install-lefthook.mjs
 COPY web/package.json ./web/
 COPY packages/shared-ui/package.json ./packages/shared-ui/

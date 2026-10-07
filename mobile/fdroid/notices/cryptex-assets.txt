@@ -1,0 +1,10 @@
+Cryptex Vault project artwork
+
+The icons, splash images and brand marks in mobile/assets/ are distributed with
+Cryptex Vault under the GNU Affero General Public License, version 3 only.
+The full license is included as AGPL-3.0-only.txt.
+
+Oxanium fonts, the Expo Google Fonts loader and Lucide icons retain their
+respective upstream licenses. Their copyright and license notices are included
+in this directory as oxanium-OFL.txt, expo-google-fonts-LICENSE.txt and
+lucide-LICENSE.txt.

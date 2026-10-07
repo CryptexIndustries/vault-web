@@ -1,0 +1,1 @@
+First Android release. Encrypted local vaults, password generation, autofill, passkeys, verification codes, device linking and synchronization. Optional Online Services provides managed encrypted backups and account recovery.

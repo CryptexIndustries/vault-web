@@ -1,0 +1,19 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - save review and update capture
+---
+- assertVisible: Add item
+- assertVisible: fallback-user
+- assertVisible: Android hid this password from accessibility.*
+- tapOn:
+    point: "50%,47%"
+- inputText: fallback-password-one
+- tapOn:
+    id: credential-submit
+- assertVisible: Accessibility registration fixture
+- tapOn: Accessibility new password
+- eraseText
+- inputText: fallback-password-two
+- tapOn: Accessibility confirm password
+- eraseText
+- inputText: fallback-password-two
+- hideKeyboard

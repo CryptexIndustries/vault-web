@@ -21,8 +21,10 @@ savePrefix: ""
 
 allowBuilds:
   argon2: true
+  dtrace-provider: false
   esbuild: true
   lefthook: true
+  protobufjs: false
   sharp: true
   unrs-resolver: true
   react-native-libsodium: true

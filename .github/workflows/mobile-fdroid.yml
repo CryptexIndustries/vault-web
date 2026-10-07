@@ -2,6 +2,9 @@ name: Mobile F-Droid
 
 on:
   workflow_call:
+  push:
+    branches: [development]
+    paths: [.github/workflows/mobile-fdroid.yml]
 
 permissions:
   contents: read
@@ -11,8 +14,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check_worker:
+    name: check F-Droid worker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 15
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+
+      - name: Check resources and the pinned build container
+        run: |
+          nproc
+          free -h
+          df -h "$RUNNER_TEMP"
+          test "$(docker info --format '{{.OSType}}')" = linux
+          docker run --rm --entrypoint /bin/bash \
+            registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \
+            -c 'test -f /etc/profile.d/bsenv.sh'
+
   build:
-    runs-on: ubuntu-24.04
+    if: github.ref_type == 'tag'
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 360
     environment: Mobile - Production
     steps:
@@ -33,9 +58,6 @@ jobs:
           mkdir "$RUNNER_TEMP/fdroid-inputs"
           node mobile/scripts/ci-release.mjs config "$RUNNER_TEMP/fdroid-inputs/release-config.json"
 
-      - name: Make room for four Android ABIs
-        run: sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet
-
       - name: Build and scan the complete F-Droid recipe
         env:
           RELEASE_REF: ${{ github.ref }}
@@ -48,9 +70,21 @@ jobs:
             --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
             --env "SOURCE_COMMIT=$(git rev-parse HEAD)" \
             --env RELEASE_REF \
+            --env CRYPTEX_BUILD_JOBS=16 \
             --entrypoint /bin/bash \
             registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \
             /app/mobile/fdroid/ci.sh
+
+      - name: Restore build output ownership for runner cleanup
+        if: always()
+        run: |
+          if [ -d "$RUNNER_TEMP/fdroid" ]; then
+            docker run --rm \
+              --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
+              --entrypoint /bin/chown \
+              registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \
+              -hR "$(id -u):$(id -g)" /build
+          fi
 
       - name: Upload unsigned APK and its configuration
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

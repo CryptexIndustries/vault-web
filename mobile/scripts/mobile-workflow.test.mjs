@@ -17,7 +17,11 @@ test("mobile CI uses full action commit hashes and read-only credentials", () =>
                 assert.equal(job.uses, "./.github/workflows/mobile-fdroid.yml");
                 continue;
             }
-            assert.equal(job["runs-on"], "ubuntu-24.04");
+            if (job === fdroid.jobs.build || job === fdroid.jobs.check_worker) {
+                assert.deepEqual(job["runs-on"], ["self-hosted", "Linux", "X64"]);
+            } else {
+                assert.equal(job["runs-on"], "ubuntu-24.04");
+            }
             for (const step of job.steps) {
                 if (!step.uses) continue;
                 assert.match(step.uses, /^[\w-]+\/[\w-]+@[a-f0-9]{40}$/);
@@ -91,7 +95,8 @@ test("release triggers select preproduction manually and production only for tag
     assert.deepEqual(workflow.on.workflow_dispatch.inputs.profile.options, ["preprod", "production"]);
     assert.equal(workflow.on.workflow_dispatch.inputs.profile.default, "preprod");
     assert.deepEqual(workflow.on.push.tags, ["mobile-v*"]);
-    assert.deepEqual(Object.keys(fdroid.on), ["workflow_call"]);
+    assert.deepEqual(Object.keys(fdroid.on), ["workflow_call", "push"]);
+    assert.deepEqual(fdroid.on.push, { branches: ["development"], paths: [".github/workflows/mobile-fdroid.yml"] });
     const cases = [
         ["pull_request", "refs/pull/1/merge", {}, [false, false, false]],
         ["push", "refs/heads/development", {}, [false, false, false]],
@@ -101,9 +106,11 @@ test("release triggers select preproduction manually and production only for tag
         ["workflow_dispatch", "refs/tags/mobile-v0.1.0", { profile: "production" }, [true, false, true]],
     ];
     for (const [event_name, ref, inputs, expected] of cases) {
-        const context = { github: { event_name, ref }, inputs, startsWith: (value, prefix) => value.startsWith(prefix) };
+        const context = { github: { event_name, ref, ref_type: ref.startsWith("refs/tags/") ? "tag" : "branch" }, inputs, startsWith: (value, prefix) => value.startsWith(prefix) };
         const actual = ["smoke", "preprod_build", "fdroid"].map(name => Boolean(runInNewContext(workflow.jobs[name].if, context)));
         assert.deepEqual(actual, expected, `${event_name} ${ref} ${JSON.stringify(inputs)}`);
+        assert.equal(Boolean(runInNewContext(fdroid.jobs.build.if, context)), context.github.ref_type === "tag");
+        assert.equal(Boolean(runInNewContext(fdroid.jobs.check_worker.if, context)), event_name === "push" && ref === "refs/heads/development");
     }
     assert.deepEqual(workflow.jobs.preprod_build.needs, ["check", "smoke"]);
     assert.deepEqual(workflow.jobs.fdroid.needs, ["check", "smoke"]);

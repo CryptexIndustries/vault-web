@@ -171,6 +171,8 @@ jobs:
 
       - name: Build test-only E2E APK
         env:
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8"'
+          ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
           EXPO_PUBLIC_CLOUD_ENABLED: "false"
           EXPO_PUBLIC_APP_URL: "http://10.0.2.2:43110"
           EXPO_PUBLIC_ONLINE_SERVICES_API_URL: "http://10.0.2.2:43110"

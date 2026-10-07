@@ -47,11 +47,6 @@ const { config, toolchain, env, metadata } = prepareProduction([
 ]);
 const run = (command, args, cwd) =>
     execFileSync(command, args, { cwd, env, stdio: "inherit" });
-const jobs = Number(env.CRYPTEX_BUILD_JOBS ?? 2);
-assert.ok(
-    Number.isSafeInteger(jobs) && jobs > 0,
-    "CRYPTEX_BUILD_JOBS must be a positive integer.",
-);
 
 if (phase === "prebuild") {
     assert.ok(
@@ -151,7 +146,7 @@ if (phase === "prebuild") {
             "--package",
             "lightningcss_node",
             "--jobs",
-            String(jobs),
+            "2",
             "--target-dir",
             join(work, "lightningcss"),
         ],
@@ -194,7 +189,7 @@ if (phase === "prebuild") {
             ":app:assembleRelease",
             "--no-daemon",
             "--no-build-cache",
-            `--max-workers=${jobs}`,
+            "--max-workers=2",
             "--no-parallel",
             "--console=plain",
             "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8",

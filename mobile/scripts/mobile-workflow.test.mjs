@@ -17,11 +17,7 @@ test("mobile CI uses full action commit hashes and read-only credentials", () =>
                 assert.equal(job.uses, "./.github/workflows/mobile-fdroid.yml");
                 continue;
             }
-            if (job === fdroid.jobs.build || job === fdroid.jobs.check_worker) {
-                assert.deepEqual(job["runs-on"], ["self-hosted", "Linux", "X64"]);
-            } else {
-                assert.equal(job["runs-on"], "ubuntu-24.04");
-            }
+            assert.equal(job["runs-on"], "ubuntu-24.04");
             for (const step of job.steps) {
                 if (!step.uses) continue;
                 assert.match(step.uses, /^[\w-]+\/[\w-]+@[a-f0-9]{40}$/);
@@ -95,8 +91,7 @@ test("release triggers select preproduction manually and production only for tag
     assert.deepEqual(workflow.on.workflow_dispatch.inputs.profile.options, ["preprod", "production"]);
     assert.equal(workflow.on.workflow_dispatch.inputs.profile.default, "preprod");
     assert.deepEqual(workflow.on.push.tags, ["mobile-v*"]);
-    assert.deepEqual(Object.keys(fdroid.on), ["workflow_call", "push"]);
-    assert.deepEqual(fdroid.on.push, { branches: ["development"], paths: [".github/workflows/mobile-fdroid.yml"] });
+    assert.deepEqual(Object.keys(fdroid.on), ["workflow_call"]);
     const cases = [
         ["pull_request", "refs/pull/1/merge", {}, [false, false, false]],
         ["push", "refs/heads/development", {}, [false, false, false]],
@@ -106,14 +101,14 @@ test("release triggers select preproduction manually and production only for tag
         ["workflow_dispatch", "refs/tags/mobile-v0.1.0", { profile: "production" }, [true, false, true]],
     ];
     for (const [event_name, ref, inputs, expected] of cases) {
-        const context = { github: { event_name, ref, ref_type: ref.startsWith("refs/tags/") ? "tag" : "branch" }, inputs, startsWith: (value, prefix) => value.startsWith(prefix) };
+        const context = { github: { event_name, ref }, inputs, startsWith: (value, prefix) => value.startsWith(prefix) };
         const actual = ["smoke", "preprod_build", "fdroid"].map(name => Boolean(runInNewContext(workflow.jobs[name].if, context)));
         assert.deepEqual(actual, expected, `${event_name} ${ref} ${JSON.stringify(inputs)}`);
-        assert.equal(Boolean(runInNewContext(fdroid.jobs.build.if, context)), context.github.ref_type === "tag");
-        assert.equal(Boolean(runInNewContext(fdroid.jobs.check_worker.if, context)), event_name === "push" && ref === "refs/heads/development");
+        assert.equal(Boolean(runInNewContext(workflow.jobs.fdroid_sign.if, context)), expected[2]);
     }
     assert.deepEqual(workflow.jobs.preprod_build.needs, ["check", "smoke"]);
-    assert.deepEqual(workflow.jobs.fdroid.needs, ["check", "smoke"]);
+    assert.equal(workflow.jobs.fdroid.needs, "check");
+    assert.deepEqual(workflow.jobs.fdroid_sign.needs, ["fdroid", "smoke"]);
 });
 
 test("production dispatch rejects branches and version mismatches before building", () => {
@@ -133,18 +128,20 @@ test("production dispatch rejects branches and version mismatches before buildin
 test("signing credentials are scoped to separate signing steps and the matching environment", () => {
     for (const [jobs, signer, builder, environment, profile] of [
         [workflow.jobs, "preprod_sign", "preprod_build", "Mobile - Preproduction", "preprod"],
-        [fdroid.jobs, "sign", "build", "Mobile - Production", "production"],
+        [workflow.jobs, "fdroid_sign", "fdroid", "Mobile - Production", "production"],
     ]) {
-        assert.equal(jobs[signer].needs, builder);
+        const build = profile === "production" ? fdroid.jobs.build : jobs[builder];
+        assert.deepEqual(jobs[signer].needs, profile === "production" ? ["fdroid", "smoke"] : builder);
         assert.equal(jobs[signer].environment, environment);
-        assert.equal(jobs[builder].environment, environment);
-        const secretSteps = Object.values(jobs).flatMap(job => job.steps || []).filter(step => JSON.stringify(step).includes("secrets.CRYPTEX_"));
+        assert.equal(build.environment, environment);
+        const secretSteps = jobs[signer].steps.filter(step => JSON.stringify(step).includes("secrets.CRYPTEX_"));
         assert.equal(secretSteps.length, 1);
         assert.match(secretSteps[0].run, new RegExp(`ci-release.mjs sign ${profile}`));
         assert.deepEqual(Object.keys(secretSteps[0].env).sort(), ["CRYPTEX_KEYSTORE_BASE64", "CRYPTEX_KEYSTORE_PASSWORD", "CRYPTEX_KEY_PASSWORD"].sort());
         assert.ok(!jobs[signer].steps.some(step => /pnpm install|mobile:build|gradle/.test(step.run || "")), "Signing must not install app dependencies or rebuild the APK");
         const download = jobs[signer].steps.find(step => step.uses?.startsWith("actions/download-artifact@"));
-        const upload = jobs[builder].steps.find(step => step.with?.name === download.with.name);
+        assert.ok(!JSON.stringify(build).includes("secrets.CRYPTEX_"));
+        const upload = build.steps.find(step => step.with?.name === download.with.name);
         assert.ok(upload, "Signing must consume the artifact uploaded by its build job");
     }
     for (const name of ["check", "smoke"]) {

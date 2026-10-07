@@ -207,11 +207,6 @@ export function buildSkiaLibraries({
     cpus = Object.keys(skiaTargets),
     env = process.env,
 }) {
-    const jobs = Number(env.CRYPTEX_BUILD_JOBS ?? 2);
-    assert.ok(
-        Number.isSafeInteger(jobs) && jobs > 0,
-        "CRYPTEX_BUILD_JOBS must be a positive integer.",
-    );
     const { skia, gn } = verifySkiaSources(skiaDirectory, gnDirectory);
     const pkg = sourceDirectory(packageDirectory);
     const manifest = JSON.parse(
@@ -273,7 +268,7 @@ export function buildSkiaLibraries({
         join(gnOut, "last_commit_position.h"),
         `#define LAST_COMMIT_POSITION_NUM 0\n#define LAST_COMMIT_POSITION "source ${skiaSource.gn.commit}"\n`,
     );
-    run("ninja", ["-C", gnOut, `-j${jobs}`, "gn"], gn, env);
+    run("ninja", ["-C", gnOut, "-j2", "gn"], gn, env);
     const gnBinary = join(gnOut, "gn");
     const built = [];
     for (const cpu of cpus) {
@@ -295,7 +290,7 @@ export function buildSkiaLibraries({
             skia,
             env,
         );
-        run("ninja", ["-C", out, `-j${jobs}`, ...skiaArchives], skia, {
+        run("ninja", ["-C", out, "-j2", ...skiaArchives], skia, {
             ...env,
             ZERO_AR_DATE: "1",
         });

@@ -9,7 +9,6 @@ git clone --quiet --depth 1 --branch 2.4.5 \
   https://gitlab.com/fdroid/fdroidserver.git "$fdroid_tools"
 test "$(git -C "$fdroid_tools" rev-parse HEAD)" = 92229a9152a31d005503bac64d773551f0655494
 export PATH="$fdroid_tools:$PATH" PYTHONPATH="$fdroid_tools:$fdroid_tools/examples"
-export CRYPTEX_BUILD_JOBS="${CRYPTEX_BUILD_JOBS:-2}"
 
 mkdir -p /build/submission/{metadata,srclibs} /build/fdroid/{metadata,srclibs} /build/artifacts
 curl -fL 'https://gitlab.com/fdroid/fdroiddata/-/archive/60211383fefd7e2891a1205a61a041896b149514/fdroiddata-60211383fefd7e2891a1205a61a041896b149514.tar.gz?path=config' \
@@ -93,7 +92,7 @@ sdkmanager --sdk_root="$ANDROID_HOME" 'cmdline-tools;latest' 'ndk;27.1.12297006'
 cd /build/fdroid
 fdroid fetchsrclibs com.cryptexindustries.vault
 chown -R vagrant:vagrant /build "$fdroid_tools" "$ANDROID_HOME"
-sudo -H --user vagrant --preserve-env=PATH,PYTHONPATH,ANDROID_HOME,CRYPTEX_BUILD_JOBS \
+sudo -H --user vagrant --preserve-env=PATH,PYTHONPATH,ANDROID_HOME \
   "$fdroid_tools/fdroid" build --on-server --verbose --scan-binary --no-tarball \
   com.cryptexindustries.vault 2>&1 | tee build.log
 

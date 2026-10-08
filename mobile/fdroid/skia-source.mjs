@@ -268,7 +268,7 @@ export function buildSkiaLibraries({
         join(gnOut, "last_commit_position.h"),
         `#define LAST_COMMIT_POSITION_NUM 0\n#define LAST_COMMIT_POSITION "source ${skiaSource.gn.commit}"\n`,
     );
-    run("ninja", ["-C", gnOut, "-j2", "gn"], gn, env);
+    run("ninja", ["-C", gnOut, "-j4", "gn"], gn, env);
     const gnBinary = join(gnOut, "gn");
     const built = [];
     for (const cpu of cpus) {
@@ -290,7 +290,7 @@ export function buildSkiaLibraries({
             skia,
             env,
         );
-        run("ninja", ["-C", out, "-j2", ...skiaArchives], skia, {
+        run("ninja", ["-C", out, "-j4", ...skiaArchives], skia, {
             ...env,
             ZERO_AR_DATE: "1",
         });

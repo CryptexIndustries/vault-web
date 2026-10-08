@@ -183,13 +183,8 @@ jobs:
         # Physical camera performance remains a device acceptance check.
         run: pnpm mobile:e2e -- qr
 
-      - name: Build unsigned APK for the native dependency audit
-        run: pnpm mobile:build -- --unsigned --clean
-
-      - name: Verify native crypto dependencies and release libraries
-        run: |
-          pnpm mobile:e2e -- crypto-audit --apk mobile/dist/cryptex-vault-unsigned.apk
-          mobile/android/gradlew --stop
+      - name: Stop Gradle before emulator
+        run: mobile/android/gradlew --stop
 
       - name: Enable emulator hardware acceleration
         run: |
@@ -273,7 +268,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build unsigned preproduction APK
-        run: pnpm mobile:build -- --unsigned --profile preprod --config "$RUNNER_TEMP/release-config.json" --clean
+        run: pnpm mobile:build -- --unsigned --profile preprod --config "$RUNNER_TEMP/release-config.json" --clean --jobs 4 --heap 4096
 
       - name: Prepare signing inputs
         run: |

@@ -75,16 +75,15 @@ test("CI shell scripts parse without executing tools or device commands", () => 
     }
 });
 
-test("native audit output remains unsigned and Online Services overrides stay test-only", () => {
+test("smoke builds only its test APK and Online Services overrides stay test-only", () => {
     const steps = workflow.jobs.smoke.steps;
-    const production = steps.find(step => step.run === "pnpm mobile:build -- --unsigned --clean");
-    assert.ok(production);
-    assert.equal(production.env, undefined);
+    const builds = steps.filter(step => step.run?.startsWith("pnpm mobile:build"));
+    assert.equal(builds.length, 1);
+    assert.equal(builds[0].run, "pnpm mobile:build -- --e2e");
     const emulator = steps.find(step => step.uses?.startsWith("reactivecircus/android-emulator-runner@"));
     assert.equal(emulator.env.ORG_GRADLE_PROJECT_reactNativeArchitectures, emulator.with.arch);
-    const audit = steps.find(step => step.name === "Verify native crypto dependencies and release libraries");
-    assert.ok(audit.run.trim().endsWith("mobile/android/gradlew --stop"));
-    assert.ok(steps.indexOf(audit) < steps.indexOf(emulator));
+    const stop = steps.find(step => step.run === "mobile/android/gradlew --stop");
+    assert.ok(stop && steps.indexOf(stop) < steps.indexOf(emulator));
     for (const step of steps) {
         if (step.env?.EXPO_PUBLIC_CLOUD_ENABLED === "false") {
             assert.equal(step.run, "pnpm mobile:build -- --e2e");

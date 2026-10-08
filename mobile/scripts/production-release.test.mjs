@@ -398,6 +398,14 @@ else throw new Error("Unexpected inspection tool " + tool);
                     return ok(args[0] === "--version" ? pins.pnpm : "");
                 }
                 if (binary === process.execPath) {
+                    if (args[0].endsWith("/scripts/verify-native-crypto.mjs")) {
+                        assert.equal(args[0], path.join(options.cwd, "scripts/verify-native-crypto.mjs"));
+                        assert.equal(args[1], "--apk");
+                        assert.equal(JSON.parse(fs.readFileSync(args[2], "utf8")).signed, false);
+                        assert.ok(fs.existsSync(path.join(options.cwd, "android/gradle/wrapper/gradle-wrapper.properties")));
+                        console.log("fixture native audit");
+                        return { status: process.env.CRYPTEX_POLICY_NATIVE_AUDIT_FAILURE ? 1 : 0 };
+                    }
                     assert.equal(options.env.CRYPTEX_EMBEDDED_UPDATE_ID, undefined);
                     if (args[0].includes("expo-updates")) return ok(JSON.stringify({ runtimeVersion: (process.env.CRYPTEX_POLICY_WRONG_RUNTIME ? "b" : "a").repeat(40), workflow: "managed" }));
                     const wrapper = path.join(options.cwd, "android/gradle/wrapper"); fs.mkdirSync(wrapper, { recursive: true });
@@ -439,15 +447,16 @@ else throw new Error("Unexpected inspection tool " + tool);
         };
         try {
             const built = runBuild(); assert.equal(built.status, 0, built.stderr);
+            assert.ok(built.stdout.includes("fixture native audit"));
             const outputs = ["cryptex-vault-reproduced.apk", "cryptex-vault-reproduced-unsigned.apk"].flatMap(name => [join(project, "dist", name), join(project, "dist", name + ".json")]);
             assert.equal(readFileSync(outputs[0], "utf8"), referenceBytes);
             assert.equal(existsSync(built.stage), false, "Successful cold staging is cleaned");
             const before = outputs.map(file => readFileSync(file));
-            for (const [extra, error] of [[{ CRYPTEX_POLICY_CHANGED_BUILD: "1" }, /differs from the reference byte-for-byte/], [{ CRYPTEX_POLICY_WRONG_REVISION: "1" }, /source revision or dirty marker/], [{ CRYPTEX_POLICY_WRONG_RUNTIME: "1" }, /native runtime differs/]]) {
+            for (const [extra, error] of [[{ CRYPTEX_POLICY_CHANGED_BUILD: "1" }, /differs from the reference byte-for-byte/], [{ CRYPTEX_POLICY_WRONG_REVISION: "1" }, /source revision or dirty marker/], [{ CRYPTEX_POLICY_WRONG_RUNTIME: "1" }, /native runtime differs/], [{ CRYPTEX_POLICY_NATIVE_AUDIT_FAILURE: "1" }, /node.* failed/]]) {
                 const failed = runBuild(extra); assert.equal(failed.status, 1); assert.match(failed.stderr, error);
                 assert.equal(existsSync(failed.stage), true, "Failed work must remain quarantined");
                 outputs.forEach((file, index) => assert.deepEqual(readFileSync(file), before[index], "Failure must not overwrite any existing artifact"));
-                if (!extra.CRYPTEX_POLICY_CHANGED_BUILD) assert.ok(!failed.stdout.includes("fixture native build"));
+                if (extra.CRYPTEX_POLICY_WRONG_REVISION || extra.CRYPTEX_POLICY_WRONG_RUNTIME) assert.ok(!failed.stdout.includes("fixture native build"));
             }
             const wrongProfile = runBuild({}, ["--reproduce-from", reference, "--profile", "preprod", "--config", join(project, "release-config.json")]);
             assert.equal(wrongProfile.status, 1); assert.match(wrongProfile.stderr, /Wrong application profile ID/); assert.ok(!wrongProfile.stdout.includes("fixture native build"));
@@ -639,7 +648,7 @@ target_compile_options(fixture PRIVATE
                 `-DCMAKE_PROJECT_INCLUDE=${join(workspace, "mobile/fdroid/reproducible-native.cmake")}`,
                 `-DCRYPTEX_GRADLE_USER_HOME=${gradle}`, `-DCRYPTEX_ANDROID_SDK_ROOT=${sdk}`]);
             const rules = readFileSync(join(build, "CMakeFiles/rules.ninja"), "utf8");
-            for (const [pool, depth] of [["existing_pool", 3], ["cryptex_compile", 2], ["cryptex_link", 1]]) {
+            for (const [pool, depth] of [["existing_pool", 3], ["cryptex_compile", 4], ["cryptex_link", 1]]) {
                 assert.match(rules, new RegExp(`pool ${pool}\\n[ \\t]+depth = ${depth}\\b`));
                 assert.equal((rules.match(new RegExp(`^pool ${pool}$`, "gm")) || []).length, 1);
             }

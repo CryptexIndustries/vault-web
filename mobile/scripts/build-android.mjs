@@ -245,6 +245,9 @@ export function buildAndroid(args = process.argv.slice(2)) {
         run(join(sdk, "build-tools", toolchain.buildTools, "zipalign"), ["-P", "16", "-f", "4", unaligned, aligned], { env: buildEnv });
         const updates = verifyRelease(aligned, { ...options, unsigned: true, env: buildEnv, config });
         assert.equal(updates.runtimeVersion, nativeRuntime.runtimeVersion, "Packaged native runtime differs from the pre-build SDK resolution.");
+        if (selectedArchitectures(options.arch).length === 4) {
+            run(process.execPath, [join(stagedMobile, "scripts/verify-native-crypto.mjs"), "--apk", aligned], { cwd: stagedMobile, env: buildEnv });
+        }
         let apk = aligned;
         if (reference) {
             apk = join(staging, "reconstructed.apk");

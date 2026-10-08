@@ -1,8 +1,7 @@
 {
-  "node": "24.20.0",
+  "node": "24.21.0",
   "pnpm": "11.25.0",
-  "java": "17.0.19+10",
-  "javaVendor": "Eclipse Adoptium",
+  "java": "21",
   "gradle": "9.3.1",
   "gradleDistributionSha256": "b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06",
   "buildTools": "36.0.0",

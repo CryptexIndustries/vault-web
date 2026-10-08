@@ -29,8 +29,8 @@ test("mobile CI uses full action commit hashes and read-only credentials", () =>
     }
 });
 
-test("validation and Android CI install the exact checked-in Adoptium JDK before mobile commands", () => {
-    assert.equal(toolchain.javaVendor, "Eclipse Adoptium");
+test("validation and Android CI install JDK 21 before mobile commands", () => {
+    assert.equal(toolchain.java, "21");
     for (const name of ["check", "smoke"]) {
         const steps = workflow.jobs[name].steps;
         const java = steps.filter(step => step.uses?.startsWith("actions/setup-java@"));

@@ -18,7 +18,7 @@ const apk = args.length ? resolve(args[1]) : join(mobile, "dist", `${profile.art
 const gradle = process.env.CRYPTEX_GRADLE_COMMAND || "./gradlew";
 if (process.env.CRYPTEX_GRADLE_COMMAND) {
     const toolchain = JSON.parse(readFileSync(join(mobile, "fdroid/toolchain.json"), "utf8"));
-    assert.match(execFileSync(gradle, ["--version"], { encoding: "utf8" }),
+    assert.match(execFileSync(gradle, ["--version"], { cwd: join(mobile, "android"), encoding: "utf8" }),
         new RegExp(`^Gradle ${toolchain.gradle.replaceAll(".", "\\.")}$`, "m"), "Use the pinned Gradle version");
 }
 for (const [name, version] of Object.entries({

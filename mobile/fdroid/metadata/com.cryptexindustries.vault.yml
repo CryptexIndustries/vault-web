@@ -22,67 +22,47 @@ Builds:
     commit: PUBLISH_RELEASE_COMMIT
     sudo:
       - apt-get update
-      - apt-get install -y curl xz-utils unzip make perl golang-go g++ ninja-build
-      - curl -fL https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-x64.tar.xz -o
-        /tmp/cryptex-node.tar.xz
-      - echo '2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2  /tmp/cryptex-node.tar.xz'
-        | sha256sum -c -
-      - mkdir -p /opt/cryptex-node
-      - tar -xJf /tmp/cryptex-node.tar.xz --strip-components=1 -C /opt/cryptex-node
-      - PATH=/opt/cryptex-node/bin:$PATH npm install --global pnpm@11.25.0
-      - curl -fL https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.19%2B10/OpenJDK17U-jdk_x64_linux_hotspot_17.0.19_10.tar.gz
-        -o /tmp/cryptex-java.tar.gz
-      - echo 'd8afc263758141a66e0e3aafc321e783f7016696f4eaea067d340a269037d331  /tmp/cryptex-java.tar.gz'
-        | sha256sum -c -
-      - mkdir -p /opt/cryptex-java
-      - tar -xzf /tmp/cryptex-java.tar.gz --strip-components=1 -C /opt/cryptex-java
-      - curl -fL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o
-        /tmp/cryptex-gradle.zip
-      - echo 'b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06  /tmp/cryptex-gradle.zip'
-        | sha256sum -c -
-      - unzip -q /tmp/cryptex-gradle.zip -d /opt
-      - curl -fL https://static.rust-lang.org/dist/rust-1.76.0-x86_64-unknown-linux-gnu.tar.xz
-        -o /tmp/cryptex-rust.tar.xz
-      - echo '04fa0cf224ed36c9c7a5ea7a0ad7d31f5ad20dda5af0cc1e5991c703e01ef988  /tmp/cryptex-rust.tar.xz'
-        | sha256sum -c -
-      - mkdir -p /tmp/cryptex-rust-source
-      - tar -xJf /tmp/cryptex-rust.tar.xz --strip-components=1 -C /tmp/cryptex-rust-source
-      - /tmp/cryptex-rust-source/install.sh --prefix=/opt/cryptex-rust --disable-ldconfig
+      - apt-get install -y curl xz-utils unzip make perl golang-go g++ ninja-build rustup openjdk-21-jdk-headless
+      - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
+      - apt-get update
+      - apt-get install -y --no-install-recommends -t forky nodejs=24.21.0+dfsg+~cs24.13.4-1
+        node-corepack
+      - corepack enable pnpm
+      - corepack prepare pnpm@11.25.0 --activate
     output: mobile/dist/cryptex-vault-fdroid-unsigned.apk
     srclibs:
-      - Esbuild@208f539945b145e7c9d6d844290f81c3fe5af320
+      - esbuild@208f539945b145e7c9d6d844290f81c3fe5af320
       - LightningCSS@eb49015cf887ae720b80a2856ccbdf61bf940ef1
-      - Skia@4502f88af90279ad2685528bd3cf7e90ab140f19
+      - skia@4502f88af90279ad2685528bd3cf7e90ab140f19
       - GN@b2afae122eeb6ce09c52d63f67dc53fc517dbdc8
+      - OpenSSL@f4dc4d58b48d346a8270183f89acf826d459b0ca
     prebuild:
-      - export PATH=/opt/cryptex-rust/bin:/opt/cryptex-node/bin:$PATH JAVA_HOME=/opt/cryptex-java
-        ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$ CRYPTEX_GRADLE_COMMAND=/opt/gradle-9.3.1/bin/gradle
+      - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+        ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
         CRYPTEX_RELEASE_CONFIG=/tmp/cryptex-release-config.json
       - rm -f local.properties
-      - $$SDK$$/cmdline-tools/latest/bin/sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - sdkmanager --sdk_root=$$SDK$$ 'platforms;android-36' 'build-tools;36.0.0'
         'build-tools;34.0.0' 'cmake;3.22.1'
+      - rustup default 1.76.0
       - pnpm install --frozen-lockfile --ignore-scripts --filter mobile...
       - curl -fL https://github.com/CryptexIndustries/vault-web/releases/download/mobile-v$$VERSION$$/release-config.json
         -o /tmp/cryptex-release-config.json
       - echo 'PUBLISH_RELEASE_CONFIG_SHA256  /tmp/cryptex-release-config.json' | sha256sum --check --strict
       - node mobile/fdroid/build.mjs prebuild
-      - mkdir -p mobile/dist/fdroid-build
-      - curl -fL https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz
-        -o /tmp/cryptex-openssl-3.5.8.tar.gz
-      - echo 'a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2  /tmp/cryptex-openssl-3.5.8.tar.gz'
-        | sha256sum -c -
-      - tar -xzf /tmp/cryptex-openssl-3.5.8.tar.gz -C mobile/dist/fdroid-build
-      - node mobile/fdroid/skia-source.mjs fetch $$Skia$$ $$GN$$
-      - cd $$Esbuild$$ && go mod download
+      - sed -i 's/jvmToolchain(17)/jvmToolchain(21)/g'
+        node_modules/.pnpm/expo-modules-core@*/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - rm -rf $$skia$$/platform_tools
+      - node mobile/fdroid/skia-source.mjs fetch $$skia$$ $$GN$$
+      - cd $$esbuild$$ && rm -rf npm && go mod download
       - cd $$LightningCSS$$ && cargo fetch --locked
     scanignore:
       - node_modules/.pnpm/hermes-compiler@250829098.0.14/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
     build:
-      - export PATH=/opt/cryptex-rust/bin:/opt/cryptex-node/bin:$PATH JAVA_HOME=/opt/cryptex-java
-        ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$ CRYPTEX_GRADLE_COMMAND=/opt/gradle-9.3.1/bin/gradle
+      - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+        ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
         CRYPTEX_RELEASE_CONFIG=/tmp/cryptex-release-config.json
-      - CRYPTEX_OPENSSL_ARCHIVE=/tmp/cryptex-openssl-3.5.8.tar.gz node mobile/fdroid/build.mjs
-        build $$Esbuild$$ $$LightningCSS$$ $$Skia$$ $$GN$$
+      - CRYPTEX_GRADLE_COMMAND=gradle CRYPTEX_OPENSSL_SOURCE=$$OpenSSL$$ node mobile/fdroid/build.mjs
+        build $$esbuild$$ $$LightningCSS$$ $$skia$$ $$GN$$
     ndk: 27.1.12297006
 
 AllowedAPKSigningKeys: aa084b878eac0403b30b05c82ced96acfd72b9c94a5964e7aeaaab849b60e7df

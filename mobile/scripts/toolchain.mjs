@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 function javaMatches(path, toolchain) {
     if (!existsSync(join(path, "release")) || !existsSync(join(path, "bin/java"))) return false;
     const release = readFileSync(join(path, "release"), "utf8");
-    return release.includes(`JAVA_RUNTIME_VERSION="${toolchain.java}"`) && release.includes(`IMPLEMENTOR="${toolchain.javaVendor}"`);
+    return release.match(/^JAVA_VERSION="(\d+)(?:\.[^"]*)?"$/m)?.[1] === toolchain.java;
 }
 
 function javaCandidates(directory, depth = 0) {
@@ -32,7 +32,7 @@ export function discoverToolchain(env, toolchain, { home = homedir(), run = spaw
     };
     assert.equal(inspect("pnpm", ["--version"]), toolchain.pnpm, `Use pnpm ${toolchain.pnpm}`);
     const javaHome = env.JAVA_HOME ? resolve(env.JAVA_HOME) : javaCandidates(join(home, ".gradle/jdks")).find(path => javaMatches(path, toolchain));
-    assert.ok(javaHome && javaMatches(javaHome, toolchain), `Set JAVA_HOME or install ${toolchain.javaVendor} JDK ${toolchain.java} under ~/.gradle/jdks.`);
+    assert.ok(javaHome && javaMatches(javaHome, toolchain), `Set JAVA_HOME or install JDK ${toolchain.java} under ~/.gradle/jdks.`);
     const required = [join("build-tools", toolchain.buildTools), join("build-tools", toolchain.signingBuildTools), join("platforms", `android-${toolchain.compileSdk}`), join("ndk", toolchain.ndk), join("cmake", toolchain.cmake)];
     const complete = path => required.every(item => existsSync(join(path, item)));
     if (env.ANDROID_HOME && env.ANDROID_SDK_ROOT) assert.equal(resolve(env.ANDROID_HOME), resolve(env.ANDROID_SDK_ROOT), "ANDROID_HOME and ANDROID_SDK_ROOT must identify the same SDK.");

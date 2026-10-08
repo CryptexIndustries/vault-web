@@ -69,14 +69,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24.20.0
+          node-version: 24.21.0
           cache: pnpm
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
-          java-version: 17.0.19+10
+          java-version: '21'
 
       - name: Validate release selection
         env:
@@ -126,14 +126,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24.20.0
+          node-version: 24.21.0
           cache: pnpm
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
-          java-version: 17.0.19+10
+          java-version: '21'
 
       - name: Generate configuration fixtures for checks
         run: node mobile/scripts/ci-release.mjs fixtures mobile
@@ -246,14 +246,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24.20.0
+          node-version: 24.21.0
           cache: pnpm
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
-          java-version: 17.0.19+10
+          java-version: '21'
 
       - name: Install pinned Android build tools
         run: |
@@ -303,13 +303,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24.20.0
+          node-version: 24.21.0
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
-          java-version: 17.0.19+10
+          java-version: '21'
 
       - name: Install pinned APK inspection and signing tools
         run: |
@@ -357,13 +357,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24.20.0
+          node-version: 24.21.0
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
-          java-version: 17.0.19+10
+          java-version: '21'
 
       - name: Install pinned APK inspection and signing tools
         run: |

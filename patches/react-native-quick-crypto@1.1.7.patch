@@ -2,7 +2,7 @@ diff --git a/android/CMakeLists.txt b/android/CMakeLists.txt
 index 2bb708e6691795c42bb816e2185247c891126e09..26690ab693e15940523794dac2a53b7ed1a9c3bd 100644
 --- a/android/CMakeLists.txt
 +++ b/android/CMakeLists.txt
-@@ -114,7 +114,73 @@ include_directories(
+@@ -114,7 +114,78 @@ include_directories(
  # Third party libraries (Prefabs)
  find_library(LOG_LIB log)
  
@@ -23,9 +23,16 @@ index 2bb708e6691795c42bb816e2185247c891126e09..26690ab693e15940523794dac2a53b7e
 +set(OPENSSL_VERSION 3.5.8)
 +set(OPENSSL_SHA256 a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2)
 +set(OPENSSL_SOURCE "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz")
-+# F-Droid/offline builds can supply the same archive. URL_HASH still verifies it.
++# Offline builds can supply the same archive. URL_HASH still verifies it.
 +if(DEFINED ENV{CRYPTEX_OPENSSL_ARCHIVE})
 +  set(OPENSSL_SOURCE "$ENV{CRYPTEX_OPENSSL_ARCHIVE}")
++endif()
++set(OPENSSL_DOWNLOAD URL "${OPENSSL_SOURCE}" URL_HASH "SHA256=${OPENSSL_SHA256}" TLS_VERIFY TRUE)
++# Each Android ABI configures an independent copy of the source library.
++if(DEFINED ENV{CRYPTEX_OPENSSL_SOURCE})
++  file(COPY "$ENV{CRYPTEX_OPENSSL_SOURCE}/" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/openssl-source"
++    PATTERN ".git" EXCLUDE)
++  set(OPENSSL_DOWNLOAD SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/openssl-source" DOWNLOAD_COMMAND "")
 +endif()
 +
 +if(ANDROID_ABI STREQUAL "arm64-v8a")
@@ -44,9 +51,7 @@ index 2bb708e6691795c42bb816e2185247c891126e09..26690ab693e15940523794dac2a53b7e
 +set(OPENSSL_INSTALL "${CMAKE_CURRENT_BINARY_DIR}/openssl-install")
 +file(MAKE_DIRECTORY "${OPENSSL_INSTALL}/usr/include")
 +ExternalProject_Add(cryptex_openssl
-+  URL "${OPENSSL_SOURCE}"
-+  URL_HASH "SHA256=${OPENSSL_SHA256}"
-+  TLS_VERIFY TRUE
++  ${OPENSSL_DOWNLOAD}
 +  INSTALL_DIR "${OPENSSL_INSTALL}"
 +  CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
 +    "ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}"

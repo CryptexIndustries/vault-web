@@ -25,7 +25,7 @@ const checkout = dirname(mobile);
 const android = join(mobile, "android");
 const work = join(mobile, "dist/fdroid-build");
 const [phase, esbuildSource, lightningcssSource, skiaSource, gnSource] =
-    process.argv.slice(2);
+    process.argv.slice(2).map((value, index) => index ? resolve(value) : value);
 assert.ok(
     ["prebuild", "build"].includes(phase),
     "Use prebuild or build <esbuild source> <Lightning CSS source> <Skia source> <GN source>.",
@@ -35,10 +35,13 @@ assert.equal(
     phase === "prebuild" ? 3 : 7,
     "Unexpected F-Droid build arguments.",
 );
-assert.ok(
-    process.env.CRYPTEX_GRADLE_COMMAND,
-    "Set CRYPTEX_GRADLE_COMMAND to pinned installed Gradle.",
-);
+if (phase === "build") {
+    assert.ok(process.env.CRYPTEX_GRADLE_COMMAND, "Set CRYPTEX_GRADLE_COMMAND to installed Gradle.");
+    assert.ok(process.env.CRYPTEX_OPENSSL_SOURCE, "Provide the reviewed OpenSSL source library checkout.");
+    process.env.CRYPTEX_OPENSSL_SOURCE = resolve(process.env.CRYPTEX_OPENSSL_SOURCE);
+    // F-Droid's wrapper selects Gradle from this project's wrapper properties.
+    process.chdir(android);
+}
 const { config, toolchain, env, metadata } = prepareProduction([
     "--unsigned",
     "--distribution",
@@ -80,8 +83,8 @@ if (phase === "prebuild") {
         "Run prebuild and the F-Droid scanner first.",
     );
     assert.ok(
-        env.CRYPTEX_OPENSSL_ARCHIVE && existsSync(env.CRYPTEX_OPENSSL_ARCHIVE),
-        "Fetch checksum-pinned OpenSSL source before building.",
+        env.CRYPTEX_OPENSSL_SOURCE && existsSync(join(env.CRYPTEX_OPENSSL_SOURCE, "Configure")),
+        "Provide the reviewed OpenSSL source library checkout.",
     );
     mkdirSync(work, { recursive: true });
     const esbuild = join(work, "esbuild");

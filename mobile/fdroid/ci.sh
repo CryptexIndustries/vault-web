@@ -51,8 +51,22 @@ yaml.dump(metadata, submission / 'metadata/com.cryptexindustries.vault.yml')
 for srclib in build['srclibs']:
     name, revision = srclib.split('@')
     assert re.fullmatch(r'[0-9a-f]{40}', revision), 'Source library needs a full commit'
-    shutil.copyfile(source / f'mobile/fdroid/srclibs/{name}.yml', submission / f'srclibs/{name}.yml')
+    definition = source / f'mobile/fdroid/srclibs/{name}.yml'
+    if definition.exists():
+        shutil.copyfile(definition, submission / f'srclibs/{name}.yml')
 PY
+
+# Use the existing definitions from the same reviewed fdroiddata revision.
+for name in esbuild skia OpenSSL; do
+  curl -fL "https://gitlab.com/fdroid/fdroiddata/-/raw/60211383fefd7e2891a1205a61a041896b149514/srclibs/$name.yml" \
+    -o "/build/submission/srclibs/$name.yml"
+done
+cd /build/submission/srclibs
+sha256sum --check --strict <<'CHECKSUMS'
+bf4763068e614bdf727c0f963269479283826bf497fc61370dc7edb629eb6b2e  esbuild.yml
+88caff16994ed6690e87523ad60b048cf31b601867974b08fae90c352c3a240e  skia.yml
+92b7f3115e81ab7a6dfc2316b2addff37891629e52c5c62e3c664191bccdd9fb  OpenSSL.yml
+CHECKSUMS
 
 cd /build/submission
 fdroid readmeta
@@ -65,6 +79,8 @@ PY
 fdroid lint com.cryptexindustries.vault
 cp metadata/*.yml /build/fdroid/metadata/
 cp srclibs/*.yml /build/fdroid/srclibs/
+# Only new definitions belong in the submission merge request.
+rm srclibs/{esbuild,skia,OpenSSL}.yml
 mv config /build/fdroid/
 
 # The reference APK is published after local signing. Keep its URL in the
@@ -88,7 +104,7 @@ PY
 # The container provides sdkmanager; the recipe installs the remaining pinned
 # toolchains through its sudo phase. --on-server executes that phase, then
 # removes sudo before preparing, scanning and compiling the application.
-sdkmanager --sdk_root="$ANDROID_HOME" 'cmdline-tools;latest' 'ndk;27.1.12297006'
+sdkmanager --sdk_root="$ANDROID_HOME" 'ndk;27.1.12297006'
 cd /build/fdroid
 fdroid fetchsrclibs com.cryptexindustries.vault
 chown -R vagrant:vagrant /build "$fdroid_tools" "$ANDROID_HOME"

@@ -77,17 +77,22 @@ test("release provenance identifies profile, source, selected JSON and public si
     assert.ok(!JSON.stringify(metadata).includes("CRYPTEX_KEYSTORE_PASSWORD"));
 });
 
-test("tool discovery finds only the pinned JDK and complete SDK; explicit wrong tools never silently fall back", () => temporary(home => {
-    const java = join(home, ".gradle/jdks/temurin17/Contents/Home");
+test("tool discovery requires JDK 21 and the complete SDK; explicit wrong tools never silently fall back", () => temporary(home => {
+    const java = join(home, ".gradle/jdks/temurin21/Contents/Home");
     mkdirSync(join(java, "bin"), { recursive: true });
     writeFileSync(join(java, "bin/java"), "fixture");
-    writeFileSync(join(java, "release"), `JAVA_RUNTIME_VERSION="${toolchain.java}"\nIMPLEMENTOR="${toolchain.javaVendor}"`);
+    writeFileSync(join(java, "release"), 'JAVA_VERSION="21.0.12"\nIMPLEMENTOR="Eclipse Adoptium"');
     const sdk = join(home, "Android/Sdk");
     for (const path of [`build-tools/${toolchain.buildTools}`, `build-tools/${toolchain.signingBuildTools}`, `platforms/android-${toolchain.compileSdk}`, `ndk/${toolchain.ndk}`, `cmake/${toolchain.cmake}`]) mkdirSync(join(sdk, path), { recursive: true });
     const calls = [];
     const run = (command, args) => { calls.push([command, args]); return { status: 0, stdout: command === "pnpm" ? toolchain.pnpm : `Gradle ${toolchain.gradle}` }; };
     const options = { home, run, nodeVersion: toolchain.node };
     assert.equal(discoverToolchain({}, toolchain, options).JAVA_HOME, java);
+    writeFileSync(join(java, "release"), 'JAVA_VERSION="21.0.12.1"\nIMPLEMENTOR="Debian"');
+    assert.equal(discoverToolchain({}, toolchain, options).JAVA_HOME, java);
+    writeFileSync(join(java, "release"), 'JAVA_VERSION="17.0.19"\nIMPLEMENTOR="Eclipse Adoptium"');
+    assert.throws(() => discoverToolchain({ JAVA_HOME: java }, toolchain, options), /JDK/);
+    writeFileSync(join(java, "release"), 'JAVA_VERSION="21.0.12.1"\nIMPLEMENTOR="Debian"');
     assert.equal(discoverToolchain({}, toolchain, options).ANDROID_HOME, sdk);
     assert.throws(() => discoverToolchain({ JAVA_HOME: join(home, "missing") }, toolchain, options), /JDK/);
     assert.throws(() => discoverToolchain({ ANDROID_HOME: join(home, "missing") }, toolchain, options), error => /Selected Android SDK/.test(error.message) && error.message.includes(sdk));

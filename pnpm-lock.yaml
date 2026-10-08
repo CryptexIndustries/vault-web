@@ -35,11 +35,12 @@ overrides:
   query-string@7.1.3>decode-uri-component: 0.5.0
 
 patchedDependencies:
+  '@react-native/gradle-plugin@0.86.0': 8858db415b20586f39d7884401b0de386c9479dc33f4e74f088b5d2e53100e6f
   expo-camera@57.0.4: f9217bfe076c29be948ffb8286eeaeeda8fe1b84bb314c64fd8c9c082d73d8a0
   expo-updates@57.0.18: 4bb06823697acef304c09c80a2c7fe94b4c5719c4acee47bb5acabf2caeb92df
   query-string@7.1.3: 3c5b7131248a0de4b1888f130d2d92048170e2010222165462377a212a5d794d
   react-native-actions-sheet@10.1.1: 6412ebd28e674d1d6b4495686953796d75e17929a154b22e33c19b3075b23160
-  react-native-quick-crypto@1.1.7: 5dce17756f8681a4b38f9efb592b2bdc22f0e9a0199ab71bbe0973f442e95fb4
+  react-native-quick-crypto@1.1.7: 2cb5d04a79f8fd2f677e58dda3db880e2795844fba00aaccbad8706b2bff64ee
   react-native-webrtc@124.0.8: 8e11b99d505e300ded3a9a217e9ecb25933874546b2d31fa555cb5efb9042285
 
 importers:
@@ -358,7 +359,7 @@ importers:
         version: 3.0.1(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
       react-native-quick-crypto:
         specifier: 1.1.7
-        version: 1.1.7(patch_hash=5dce17756f8681a4b38f9efb592b2bdc22f0e9a0199ab71bbe0973f442e95fb4)(expo@57.0.17)(react-native-nitro-modules@0.33.2(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native-quick-base64@3.0.1(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
+        version: 1.1.7(patch_hash=2cb5d04a79f8fd2f677e58dda3db880e2795844fba00aaccbad8706b2bff64ee)(expo@57.0.17)(react-native-nitro-modules@0.33.2(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native-quick-base64@3.0.1(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
       react-native-reanimated:
         specifier: 4.5.5
         version: 4.5.5(react-native-worklets@0.10.4(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1))(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
@@ -11230,7 +11231,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@react-native/gradle-plugin@0.86.0': {}
+  '@react-native/gradle-plugin@0.86.0(patch_hash=8858db415b20586f39d7884401b0de386c9479dc33f4e74f088b5d2e53100e6f)': {}
 
   '@react-native/js-polyfills@0.86.0': {}
 
@@ -15549,7 +15550,7 @@ snapshots:
       react: 19.2.3
       react-native: 0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1)
 
-  react-native-quick-crypto@1.1.7(patch_hash=5dce17756f8681a4b38f9efb592b2bdc22f0e9a0199ab71bbe0973f442e95fb4)(expo@57.0.17)(react-native-nitro-modules@0.33.2(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native-quick-base64@3.0.1(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3):
+  react-native-quick-crypto@1.1.7(patch_hash=2cb5d04a79f8fd2f677e58dda3db880e2795844fba00aaccbad8706b2bff64ee)(expo@57.0.17)(react-native-nitro-modules@0.33.2(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native-quick-base64@3.0.1(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3):
     dependencies:
       '@craftzdog/react-native-buffer': 6.1.2(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
       events: 3.3.0
@@ -15641,7 +15642,7 @@ snapshots:
       '@react-native/assets-registry': 0.86.0
       '@react-native/codegen': 0.86.0(@babel/core@7.29.7(supports-color@8.1.1))
       '@react-native/community-cli-plugin': 0.86.0(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)
-      '@react-native/gradle-plugin': 0.86.0
+      '@react-native/gradle-plugin': 0.86.0(patch_hash=8858db415b20586f39d7884401b0de386c9479dc33f4e74f088b5d2e53100e6f)
       '@react-native/js-polyfills': 0.86.0
       '@react-native/normalize-colors': 0.86.0
       '@react-native/virtualized-lists': 0.86.0(@types/react@19.2.18)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)

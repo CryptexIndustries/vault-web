@@ -1,3 +1,0 @@
-RepoType: git
-Repo: https://github.com/evanw/esbuild.git
-Prepare: rm -rf npm

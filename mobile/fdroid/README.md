@@ -1,8 +1,9 @@
 # F-Droid source preparation
 
 The submission package is `metadata/com.cryptexindustries.vault.yml` plus
-`srclibs/Esbuild.yml`, `srclibs/LightningCSS.yml`, `srclibs/Skia.yml` and
-`srclibs/GN.yml`. It builds an unsigned production APK for F-Droid while
+`srclibs/LightningCSS.yml` and `srclibs/GN.yml`. The recipe reuses F-Droid's
+existing `esbuild`, `skia` and `OpenSSL` definitions. It builds an unsigned
+production APK while
 keeping Online Services available and disabling Expo OTA. The submission needs
 the complete public release commit, developer-signed reference APK URL and the
 checksum of its public configuration snapshot.
@@ -147,20 +148,20 @@ Run `fdroid scanner` with the actual app metadata/build recipe after cleanup.
 Do not add blanket `scanignore` entries for `node_modules`, native archives or
 Android modules. The official Hermes compiler is a permitted binary toolchain;
 the recipe excludes only its exact Linux compiler path. The scanner deletes
-Gradle wrappers, so the build phase uses pinned installed Gradle directly.
+Gradle wrappers, so the build phase uses F-Droid's installed wrapper with the
+project's pinned Gradle version.
 
-Android OpenSSL compiles from checksum-verified source. Supply the F-Droid
-source library archive through `CRYPTEX_OPENSSL_ARCHIVE` when network downloads
-are unavailable during the build. OpenSSL's version and source checksum are pinned
-in the [Quick Crypto patch](../../patches/react-native-quick-crypto@1.1.7.patch).
+Android OpenSSL compiles from source. The F-Droid recipe supplies its pinned
+`OpenSSL` source library through `CRYPTEX_OPENSSL_SOURCE`; other builds use
+the checksum-verified archive pinned in the
+[Quick Crypto patch](../../patches/react-native-quick-crypto@1.1.7.patch).
 The [APK audit](../scripts/verify-native-crypto.mjs) checks the shipped native libraries.
 
-The recipe fetches checksum-pinned OpenSSL source before scanning and expands it
-into the source tree for review and source-tarball inclusion. Its original archive
-remains in temporary cache for CMake's independent checksum verification. esbuild
+The recipe uses F-Droid's existing `OpenSSL`, `esbuild` and `skia` source library
+definitions. OpenSSL is pinned to its 3.5.8 release commit. esbuild
 0.25.12 is compiled from source commit
 `208f539945b145e7c9d6d844290f81c3fe5af320` after scanning, using prefetched Go
-modules with network access disabled for Go. Its source library preparation
+modules with network access disabled for Go. The recipe
 removes unused npm publishing manifests; the Go compiler uses none of them.
 Gradle still resolves approved Maven
 dependencies under strict checksum verification.
@@ -169,8 +170,8 @@ The Android Metro export loads Lightning CSS 1.27.0 through NativeWind; Expo's
 1.32.0 web compiler is not loaded. Both npm prebuilts are removed. The required
 Node addon is built after scanning from upstream commit
 `eb49015cf887ae720b80a2856ccbdf61bf940ef1`, with its locked Cargo dependencies and
-upstream-pinned Rust 1.76.0. The metadata installs the official checksum-verified
-Rust distribution and fetches Cargo sources before scanning. Cargo compilation
+upstream-pinned Rust 1.76.0. Debian's rustup installs this toolchain and the
+recipe fetches Cargo sources before scanning. Cargo compilation
 then runs offline, and the compiled addon uses Lightning CSS's existing local
 fallback loader. The unused dprint, Rollup, oxlint/oxfmt and pnpm platform addons
 are also removed at their exact reviewed versions.
@@ -180,7 +181,7 @@ APK from independent source/dependency trees.
 
 The build phase is
 `node mobile/fdroid/build.mjs build /absolute/esbuild-source /absolute/lightningcss-source /absolute/skia-source /absolute/gn-source`,
-with `CRYPTEX_OPENSSL_ARCHIVE` pointing to the verified archive. It never calls
+with `CRYPTEX_OPENSSL_SOURCE` pointing to the pinned source library. It never calls
 Expo prebuild again. Do not invoke the ordinary staging build helper after
 scanner cleanup, since it regenerates a separate native project.
 Generate the developer-signed F-Droid reference from this source-built recipe.

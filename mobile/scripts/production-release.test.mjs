@@ -353,7 +353,7 @@ else throw new Error("Unexpected inspection tool " + tool);
         for (const file of ["scripts/build-android.mjs", "scripts/build-cache.mjs", "scripts/build-resources.cjs", "scripts/verify-release.mjs", "scripts/verify-reproducibility.mjs", "scripts/release-config.mjs", "scripts/native-runtime.mjs", "scripts/signing.mjs", "scripts/toolchain.mjs", "config/profiles.cjs", "config/release-config.cjs", "config/ota.cjs", "fdroid/toolchain.json", "app.json", "eas-project.json", "release-config.json", "release-signing.json", "release-signing-preprod.json"]) copyFileSync(new URL("../" + file, import.meta.url), join(project, file));
         writeFileSync(join(project, "App.tsx"), "independently staged source");
         const java = join(temporary, "java"); mkdirSync(join(java, "bin"), { recursive: true });
-        writeFileSync(join(java, "bin/java"), "fixture"); writeFileSync(join(java, "release"), 'JAVA_RUNTIME_VERSION="' + toolchain.java + '"\nIMPLEMENTOR="' + toolchain.javaVendor + '"\n');
+        writeFileSync(join(java, "bin/java"), "fixture"); writeFileSync(join(java, "release"), 'JAVA_VERSION="' + toolchain.java + '.0.12"\n');
         for (const directory of ["build-tools/" + toolchain.signingBuildTools, "platforms/android-" + toolchain.compileSdk, "ndk/" + toolchain.ndk, "cmake/" + toolchain.cmake]) mkdirSync(join(temporary, "sdk", directory), { recursive: true });
         const reference = join(checkout, "reference.apk");
         const referenceBytes = JSON.stringify({ signed: true, payload: "independently staged source", metadata: JSON.parse(readFileSync(fixture, "utf8")).metadata, embedded: JSON.parse(readFileSync(fixture, "utf8")).embedded });

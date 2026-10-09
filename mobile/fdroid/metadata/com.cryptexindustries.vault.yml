@@ -53,8 +53,11 @@ Builds:
         node_modules/.pnpm/expo-modules-core@*/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
       - rm -rf $$skia$$/platform_tools
       - node mobile/fdroid/skia-source.mjs fetch $$skia$$ $$GN$$
-      - cd $$esbuild$$ && rm -rf npm && go mod download
-      - cd $$LightningCSS$$ && cargo fetch --locked
+      - cd $$esbuild$$
+      - rm -rf npm
+      - go mod download
+      - cd $$LightningCSS$$
+      - cargo fetch --locked
     scanignore:
       - node_modules/.pnpm/hermes-compiler@250829098.0.14/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
     build:

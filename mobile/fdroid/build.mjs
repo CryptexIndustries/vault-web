@@ -46,7 +46,8 @@ const { config, toolchain, env, metadata } = prepareProduction([
     "--unsigned",
     "--distribution",
     "fdroid",
-    ...(process.env.CRYPTEX_RELEASE_CONFIG ? ["--config", process.env.CRYPTEX_RELEASE_CONFIG] : []),
+    "--config",
+    join(mobile, "release-config.json"),
 ]);
 const run = (command, args, cwd) =>
     execFileSync(command, args, { cwd, env, stdio: "inherit" });

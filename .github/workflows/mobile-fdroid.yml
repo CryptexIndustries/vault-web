@@ -21,18 +21,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24.21.0
-
-      - name: Generate public configuration from the production environment
-        env:
-          CRYPTEX_PUBLIC_CONFIG_JSON: ${{ toJSON(vars) }}
-        run: |
-          mkdir "$RUNNER_TEMP/fdroid-inputs"
-          node mobile/scripts/ci-release.mjs config "$RUNNER_TEMP/fdroid-inputs/release-config.json"
-
       - name: Make room for four Android ABIs
         run: sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet
 
@@ -44,7 +32,6 @@ jobs:
           mkdir "$RUNNER_TEMP/fdroid"
           docker run --rm \
             --mount "type=bind,source=$GITHUB_WORKSPACE,target=/app,readonly" \
-            --mount "type=bind,source=$RUNNER_TEMP/fdroid-inputs,target=/inputs,readonly" \
             --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
             --env "SOURCE_COMMIT=$(git rev-parse HEAD)" \
             --env RELEASE_REF \

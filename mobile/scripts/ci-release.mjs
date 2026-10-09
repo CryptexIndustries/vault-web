@@ -1,33 +1,16 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { artifactName, getProfile, loadReleaseConfig, validateReleaseConfig } from "./release-config.mjs";
+import { artifactName, getProfile, loadReleaseConfig } from "./release-config.mjs";
 import { validateSigningIdentity } from "./signing.mjs";
 import { verifyRelease } from "./verify-release.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const sha256 = path => createHash("sha256").update(readFileSync(path)).digest("hex");
-
-export function writeCiConfig(path, variables) {
-    const config = validateReleaseConfig(Object.fromEntries(Object.entries(variables).filter(([name]) => name.startsWith("EXPO_PUBLIC_"))));
-    writeFileSync(path, JSON.stringify(Object.fromEntries(Object.entries(config).sort(([a], [b]) => a.localeCompare(b))), null, 2) + "\n", { flag: "wx" });
-}
-
-export function writeCheckConfigs(directory) {
-    const paths = ["production", "preprod"].map(profile => join(directory, getProfile(profile).configFile));
-    assert.ok(paths.every(path => !existsSync(path)), "Check fixtures must not overwrite local configuration.");
-    for (const [index, prefix] of ["www", "pp"].entries()) writeCiConfig(paths[index], {
-        EXPO_PUBLIC_CLOUD_ENABLED: "true",
-        EXPO_PUBLIC_OTA_SIGNING_ENABLED: "false",
-        EXPO_PUBLIC_APP_URL: `https://${prefix}.cryptex-vault.com`,
-        EXPO_PUBLIC_ONLINE_SERVICES_API_URL: `https://${index ? "pp-api" : "api"}.cryptex-vault.com`,
-        EXPO_PUBLIC_PUSHER_APP_HOST: "signaling.example.invalid",
-    });
-}
 
 export function signCiRelease(profile, directory, env = process.env) {
     const selected = getProfile(profile);
@@ -80,10 +63,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     try {
         const [command, first, second, ...extra] = process.argv.slice(2);
         assert.equal(extra.length, 0, "Unexpected CI release arguments.");
-        if (command === "config" && first && !second) writeCiConfig(resolve(first), JSON.parse(process.env.CRYPTEX_PUBLIC_CONFIG_JSON));
-        else if (command === "fixtures" && first && !second) writeCheckConfigs(resolve(first));
-        else if (command === "sign" && first && second) console.log(`Verified signed APK: ${signCiRelease(first, resolve(second))}`);
-        else throw new Error("Use config <output>, fixtures <mobile directory>, or sign <production|preprod> <artifact directory>.");
+        if (command === "sign" && first && second) console.log(`Verified signed APK: ${signCiRelease(first, resolve(second))}`);
+        else throw new Error("Use sign <production|preprod> <artifact directory>.");
     } catch (error) {
         // Child process failures must never print their environment or input.
         console.error(error.message);

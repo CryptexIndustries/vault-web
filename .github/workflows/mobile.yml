@@ -94,9 +94,6 @@ jobs:
           }
           NODE
 
-      - name: Generate configuration fixtures for checks
-        run: node mobile/scripts/ci-release.mjs fixtures mobile
-
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -134,9 +131,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-
-      - name: Generate configuration fixtures for checks
-        run: node mobile/scripts/ci-release.mjs fixtures mobile
 
       - name: Install pinned Android build tools
         run: |
@@ -259,22 +253,17 @@ jobs:
             "platforms;android-36" "build-tools;36.0.0" "build-tools;34.0.0" \
             "ndk;27.1.12297006" "cmake;3.22.1"
 
-      - name: Generate public configuration from the preproduction environment
-        env:
-          CRYPTEX_PUBLIC_CONFIG_JSON: ${{ toJSON(vars) }}
-        run: node mobile/scripts/ci-release.mjs config "$RUNNER_TEMP/release-config.json"
-
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Build unsigned preproduction APK
-        run: pnpm mobile:build -- --unsigned --profile preprod --config "$RUNNER_TEMP/release-config.json" --clean --jobs 4 --heap 4096
+        run: pnpm mobile:build -- --unsigned --profile preprod --config mobile/prerelease-config.json --clean --jobs 4 --heap 4096
 
       - name: Prepare signing inputs
         run: |
           mkdir "$RUNNER_TEMP/mobile-release"
           cp mobile/dist/cryptex-vault-preprod-unsigned.apk{,.json} "$RUNNER_TEMP/mobile-release/"
-          cp "$RUNNER_TEMP/release-config.json" "$RUNNER_TEMP/mobile-release/"
+          cp mobile/prerelease-config.json "$RUNNER_TEMP/mobile-release/release-config.json"
 
       - name: Upload verified unsigned APK and its configuration
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

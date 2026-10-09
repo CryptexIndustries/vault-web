@@ -150,6 +150,5 @@ test("signing credentials are scoped to separate signing steps and the matching 
     }
     for (const name of ["check", "smoke"]) {
         assert.equal(workflow.jobs[name].environment, undefined);
-        assert.ok(workflow.jobs[name].steps.some(step => step.run === "node mobile/scripts/ci-release.mjs fixtures mobile"));
     }
 });

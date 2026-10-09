@@ -17,7 +17,6 @@ echo 'a4c7ce6b6baca8965eabcb16be6db866118759dd122752dff63dc18b14aa80bd  /tmp/fdr
 tar -xzf /tmp/fdroiddata-config.tar.gz --strip-components=1 -C /build/submission
 python3 - <<'PY'
 import json
-import hashlib
 import os
 import re
 import shutil
@@ -39,12 +38,7 @@ assert len(metadata['Builds']) == 1, 'Review CI selection before adding another 
 build = metadata['Builds'][0]
 build.update({'commit': commit, 'versionName': version, 'versionCode': code})
 build.pop('disable', None)
-config = Path('/inputs/release-config.json').read_bytes()
-config_hash = hashlib.sha256(config).hexdigest()
-assert sum('PUBLISH_RELEASE_CONFIG_SHA256' in command for command in build['prebuild']) == 1
-build['prebuild'] = [command.replace('PUBLISH_RELEASE_CONFIG_SHA256', config_hash) for command in build['prebuild']]
-Path('/build/release-config.json').write_bytes(config)
-Path('/build/release-config.json').chmod(0o644)
+config = (source / 'mobile/release-config.json').read_bytes()
 Path('/build/artifacts/release-config.json').write_bytes(config)
 metadata.update({'CurrentVersion': version, 'CurrentVersionCode': code})
 yaml.dump(metadata, submission / 'metadata/com.cryptexindustries.vault.yml')
@@ -92,12 +86,6 @@ path = Path('/build/fdroid/metadata/com.cryptexindustries.vault.yml')
 yaml = YAML()
 metadata = yaml.load(path)
 metadata.pop('Binaries')
-# The public configuration asset is published with the signed APK after this
-# build. Bootstrap from the identical CI snapshot and retain its checksum check.
-commands = metadata['Builds'][0]['prebuild']
-fetch = [index for index, command in enumerate(commands) if command.startswith('curl -fL ') and '/release-config.json' in command]
-assert len(fetch) == 1, 'Expected one release configuration download'
-commands[fetch[0]] = 'cp /build/release-config.json /tmp/cryptex-release-config.json'
 yaml.dump(metadata, path)
 PY
 

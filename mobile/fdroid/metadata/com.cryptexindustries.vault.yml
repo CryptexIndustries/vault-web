@@ -39,15 +39,11 @@ Builds:
     prebuild:
       - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
         ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
-        CRYPTEX_RELEASE_CONFIG=/tmp/cryptex-release-config.json
       - rm -f local.properties
       - sdkmanager --sdk_root=$$SDK$$ 'platforms;android-36' 'build-tools;36.0.0'
         'build-tools;34.0.0' 'cmake;3.22.1'
       - rustup default 1.76.0
       - pnpm install --frozen-lockfile --ignore-scripts --filter mobile...
-      - curl -fL https://github.com/CryptexIndustries/vault-web/releases/download/mobile-v$$VERSION$$/release-config.json
-        -o /tmp/cryptex-release-config.json
-      - echo 'PUBLISH_RELEASE_CONFIG_SHA256  /tmp/cryptex-release-config.json' | sha256sum --check --strict
       - node mobile/fdroid/build.mjs prebuild
       - sed -i 's/jvmToolchain(17)/jvmToolchain(21)/g'
         node_modules/.pnpm/expo-modules-core@*/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
@@ -63,7 +59,6 @@ Builds:
     build:
       - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
         ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
-        CRYPTEX_RELEASE_CONFIG=/tmp/cryptex-release-config.json
       - CRYPTEX_GRADLE_COMMAND=gradle CRYPTEX_OPENSSL_SOURCE=$$OpenSSL$$ node mobile/fdroid/build.mjs
         build $$esbuild$$ $$LightningCSS$$ $$skia$$ $$GN$$
     ndk: 27.1.12297006
@@ -74,12 +69,12 @@ MaintainerNotes: |-
   This source-repository template needs the full public release commit in its
   fdroiddata submission copy. Replace PUBLISH_RELEASE_COMMIT with the full
   commit hash of mobile-v0.1.0 before submission.
-  Replace PUBLISH_RELEASE_CONFIG_SHA256 with the checksum of that release's
-  public release-config.json asset. CI materializes both values in its submission.
+  CI writes that hash into the generated fdroiddata YAML.
+  Public configuration is stored in mobile/release-config.json in the
+  release source.
   Binaries supplies the developer-signed reference APK for each release.
-  Keep AllowedAPKSigningKeys pinned. After initial
-  acceptance, AutoUpdateMode can become Version mobile-v%v for future releases
-  selected by the mobile-only tag and app.json version/code checks.
+  Keep AllowedAPKSigningKeys pinned. Future releases are selected by the
+  mobile-only tag and app.json version/code checks.
 
   Online Services are optional. This distribution disables Expo OTA updates.
   The only source scan exception is the exact official Hermes compiler path,
@@ -98,7 +93,7 @@ MaintainerNotes: |-
   fastlane/metadata/android. Expo prebuild runs once before scanning;
   the build phase uses installed Gradle and never regenerates native sources.
 
-AutoUpdateMode: None
+AutoUpdateMode: Version mobile-v%v
 UpdateCheckMode: Tags ^mobile-v[0-9]+\.[0-9]+\.[0-9]+$
 UpdateCheckData: mobile/app.json|"versionCode"\s*:\s*(\d+)|.|"version"\s*:\s*"([^"]+)"
 CurrentVersion: 0.1.0

@@ -5,23 +5,21 @@ The submission package is `metadata/com.cryptexindustries.vault.yml` plus
 existing `esbuild`, `skia` and `OpenSSL` definitions. It builds an unsigned
 production APK while
 keeping Online Services available and disabling Expo OTA. The submission needs
-the complete public release commit, developer-signed reference APK URL and the
-checksum of its public configuration snapshot.
+the complete public release commit and developer-signed reference APK URL.
+The public configuration is at `mobile/release-config.json` in that commit.
 F-Droid packager review and build-server acceptance remain
 external steps. Listing files are at checkout-root `fastlane/metadata/android`.
 The metadata declares `NonFreeNet` for optional Turnstile, Stripe and Backblaze use.
 
 To prepare the first submission, replace `PUBLISH_RELEASE_COMMIT` in the
-fdroiddata copy with the full commit hash behind `mobile-v0.1.0`. Replace
-`PUBLISH_RELEASE_CONFIG_SHA256` with the SHA-256 of that release's
-`release-config.json`. CI fills both values in its submission artifact.
+fdroiddata copy with the full commit hash behind `mobile-v0.1.0`.
+CI fills this value in its submission artifact.
 Publish the developer-signed `cryptex-vault-fdroid.apk` and `release-config.json`
 assets on the matching GitHub release. The build has no `disable` flag.
-`AutoUpdateMode` remains `None` during preparation.
-After initial acceptance it can become `Version mobile-v%v`; fdroidserver 2.4.5
-supports this mode and the existing mobile-only tag/app.json checks select future
-versions and full source commit hashes. Each release still needs its signed APK
-asset and public configuration snapshot at the corresponding release URLs.
+`AutoUpdateMode: Version mobile-v%v` uses the existing mobile-only tag/app.json
+checks to select future versions and source commits. Each release still needs
+its signed APK at the corresponding release URL. The configuration comes from
+the source checkout; its published copy is included for verification.
 
 ## First release source
 
@@ -72,11 +70,9 @@ gh workflow run mobile.yml --ref development -f profile=preprod
 gh workflow run mobile.yml --ref mobile-v0.1.0 -f profile=production
 ```
 
-Each environment supplies its `EXPO_PUBLIC_*` variables. CI writes a temporary
-JSON snapshot and passes it to the build. Local `release-config.json` and
-`prerelease-config.json` files are ignored. Checks use synthetic configuration
-without GitHub environment access. Commit the public certificate identities in
-`release-signing.json` and `release-signing-preprod.json`.
+Production and F-Droid builds read `mobile/release-config.json`; preproduction
+builds read `mobile/prerelease-config.json`. Both public configurations are
+versioned with the source.
 
 Separate signing jobs consume the verified unsigned APK and the exact
 configuration snapshot from the build job. They use environment secrets
@@ -87,12 +83,10 @@ checks the certificate pin and APK policy, and never rebuilds the application.
 The `mobile-preprod-release-<run-id>` and `mobile-fdroid-release-<run-id>` artifacts
 contain signed and unsigned APKs, public configuration, verification receipts and
 checksums. `mobile-fdroid-submission-<run-id>` contains scanner/build logs and
-submission metadata with the exact source commit, configuration checksum and
-all four srclibs. Commit its metadata and srclib files in the fdroiddata fork.
+submission metadata with the exact source commit and srclib definitions.
 
 Publish `cryptex-vault-fdroid.apk` and its `release-config.json` from the production
-artifact on the matching GitHub release before submission. The recipe downloads
-and checks that configuration without access to GitHub variables. F-Droid uses
+artifact on the matching GitHub release before submission. F-Droid uses
 `Binaries` to compare our signed APK with its independent source build.
 GitHub Actions artifacts prepare the release; publishing it remains a separate step.
 

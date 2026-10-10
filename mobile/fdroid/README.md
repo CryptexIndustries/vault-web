@@ -16,8 +16,8 @@ fdroiddata copy with the full commit hash behind `mobile-v0.1.0`.
 CI fills this value in its submission artifact.
 Publish the developer-signed `cryptex-vault-fdroid.apk` and `release-config.json`
 assets on the matching GitHub release. The build has no `disable` flag.
-`AutoUpdateMode: Version mobile-v%v` uses the existing mobile-only tag/app.json
-checks to select future versions and source commits. Each release still needs
+`AutoUpdateMode: Version` uses the release tag selected by `UpdateCheckMode`.
+The mobile-only tag/app.json checks select new versions. Each release still needs
 its signed APK at the corresponding release URL. The configuration comes from
 the source checkout; its published copy is included for verification.
 

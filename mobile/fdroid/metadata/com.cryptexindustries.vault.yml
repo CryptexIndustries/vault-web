@@ -93,7 +93,7 @@ MaintainerNotes: |-
   fastlane/metadata/android. Expo prebuild runs once before scanning;
   the build phase uses installed Gradle and never regenerates native sources.
 
-AutoUpdateMode: Version mobile-v%v
+AutoUpdateMode: Version
 UpdateCheckMode: Tags ^mobile-v[0-9]+\.[0-9]+\.[0-9]+$
 UpdateCheckData: mobile/app.json|"versionCode"\s*:\s*(\d+)|.|"version"\s*:\s*"([^"]+)"
 CurrentVersion: 0.1.0

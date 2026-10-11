@@ -126,21 +126,31 @@ test("workspace locks refuse concurrent builds and release on initialization fai
     } finally { workspace?.close(); rmSync(checkout, { recursive: true, force: true }); }
 });
 
-test("repeated native finalization preserves wrapper bytes and modification times", () => {
+test("release finalization enables optimization and preserves unchanged native files", () => {
     const mobile = mkdtempSync(join(tmpdir(), "cryptex-native-finalize-test-"));
     try {
         const wrapper = join(mobile, "android/gradle/wrapper/gradle-wrapper.properties");
         mkdirSync(dirname(wrapper), { recursive: true });
         writeFileSync(wrapper, "distributionUrl=stock\nvalidateDistributionUrl=true\n");
+        const gradleProperties = join(mobile, "android/gradle.properties");
+        writeFileSync(gradleProperties, "hermesEnabled=true\nexpo.useLegacyPackaging=false\n");
+        const appGradle = join(mobile, "android/app/build.gradle");
+        mkdirSync(dirname(appGradle), { recursive: true });
+        writeFileSync(appGradle, 'proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"\n');
         const options = { toolchain: { gradle: "9.3.1", gradleDistributionSha256: "fixture-checksum" }, metadata: { source: "unchanged" } };
         finalizeNativeSources(mobile, options);
-        const first = readFileSync(wrapper);
-        utimesSync(wrapper, 100, 100);
-        const mtime = statSync(wrapper).mtimeMs;
+        assert.equal(readFileSync(gradleProperties, "utf8"), "hermesEnabled=true\nexpo.useLegacyPackaging=true\nandroid.enableMinifyInReleaseBuilds=true\nandroid.enableShrinkResourcesInReleaseBuilds=true\n");
+        assert.match(readFileSync(appGradle, "utf8"), /proguard-android-optimize\.txt/);
+        const files = [wrapper, gradleProperties, appGradle];
+        const first = files.map(file => readFileSync(file));
+        files.forEach(file => utimesSync(file, 100, 100));
+        const mtimes = files.map(file => statSync(file).mtimeMs);
         finalizeNativeSources(mobile, options);
-        assert.deepEqual(readFileSync(wrapper), first);
-        assert.equal(statSync(wrapper).mtimeMs, mtime);
-        assert.equal(writeIfChanged(wrapper, first), false);
+        files.forEach((file, index) => {
+            assert.deepEqual(readFileSync(file), first[index]);
+            assert.equal(statSync(file).mtimeMs, mtimes[index]);
+            assert.equal(writeIfChanged(file, first[index]), false);
+        });
     } finally { rmSync(mobile, { recursive: true, force: true }); }
 });
 

@@ -480,7 +480,10 @@ else throw new Error("Unexpected inspection tool " + tool);
                     assert.equal(options.env.CRYPTEX_EMBEDDED_UPDATE_ID, undefined);
                     if (args[0].includes("expo-updates")) return ok(JSON.stringify({ runtimeVersion: (process.env.CRYPTEX_POLICY_WRONG_RUNTIME ? "b" : "a").repeat(40), workflow: "managed" }));
                     const wrapper = path.join(options.cwd, "android/gradle/wrapper"); fs.mkdirSync(wrapper, { recursive: true });
-                    fs.writeFileSync(path.join(wrapper, "gradle-wrapper.properties"), "distributionUrl=stock\n"); return ok();
+                    fs.writeFileSync(path.join(wrapper, "gradle-wrapper.properties"), "distributionUrl=stock\n");
+                    fs.writeFileSync(path.join(options.cwd, "android/gradle.properties"), "expo.useLegacyPackaging=false\n");
+                    const app = path.join(options.cwd, "android/app"); fs.mkdirSync(app, { recursive: true });
+                    fs.writeFileSync(path.join(app, "build.gradle"), 'proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"\n'); return ok();
                 }
                 if (binary === "./gradlew") {
                     for (const required of [":app:assembleRelease", "--no-daemon", "--no-build-cache", "--max-workers=2", "--no-parallel",

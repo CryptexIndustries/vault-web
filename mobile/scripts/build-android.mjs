@@ -91,6 +91,22 @@ export function finalizeNativeSources(stagedMobile, { toolchain, metadata }) {
     properties = properties.replace(/^distributionUrl=.*$/m, `distributionUrl=https\\://services.gradle.org/distributions/gradle-${toolchain.gradle}-bin.zip`);
     properties = properties.replace(/^distributionSha256Sum=.*\n?/m, "").trimEnd() + `\n\ndistributionSha256Sum=${toolchain.gradleDistributionSha256}\n`;
     writeIfChanged(wrapper, properties);
+    const gradleProperties = join(android, "gradle.properties");
+    properties = readFileSync(gradleProperties, "utf8");
+    for (const key of ["android.enableMinifyInReleaseBuilds", "android.enableShrinkResourcesInReleaseBuilds", "expo.useLegacyPackaging"]) {
+        const entry = new RegExp(`^${key.replaceAll(".", "\\.")}=.*$`, "m");
+        properties = entry.test(properties)
+            ? properties.replace(entry, `${key}=true`)
+            : `${properties.trimEnd()}\n${key}=true\n`;
+    }
+    writeIfChanged(gradleProperties, properties);
+    const appGradle = join(android, "app/build.gradle");
+    const build = readFileSync(appGradle, "utf8").replace(
+        'getDefaultProguardFile("proguard-android.txt")',
+        'getDefaultProguardFile("proguard-android-optimize.txt")',
+    );
+    assert.ok(build.includes('getDefaultProguardFile("proguard-android-optimize.txt")'), "Expo release ProGuard configuration changed");
+    writeIfChanged(appGradle, build);
     const assets = join(android, "app/src/main/assets");
     mkdirSync(assets, { recursive: true });
     writeIfChanged(join(assets, "cryptex-release.json"), JSON.stringify(metadata) + "\n");

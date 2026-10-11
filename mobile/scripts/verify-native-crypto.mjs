@@ -6,13 +6,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import profileRegistry from "../config/profiles.cjs";
+import androidVersion from "../config/android-version.cjs";
 
 for (const name of ["CRYPTEX_KEYSTORE", "CRYPTEX_KEYSTORE_PASSWORD", "CRYPTEX_KEY_ALIAS", "CRYPTEX_KEY_PASSWORD"]) delete process.env[name];
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const args = process.argv.slice(2);
-assert.ok(!args.length || (args.length === 2 && args[0] === "--apk" && !args[1].startsWith("-")),
-    "Usage: verify-native-crypto.mjs [--apk <path>]");
+assert.ok(!args.length || ([2, 4].includes(args.length) && args[0] === "--apk" && !args[1].startsWith("-") &&
+    (args.length === 2 || (args[2] === "--arch" && args[3]))),
+    "Usage: verify-native-crypto.mjs [--apk <path> [--arch <abi>|all]]");
+const abis = androidVersion.selectedArchitectures(args[3]);
 const profile = profileRegistry.getProfile(process.env.CRYPTEX_APP_PROFILE || "production");
 const apk = args.length ? resolve(args[1]) : join(mobile, "dist", `${profile.artifactBase}.apk`);
 const gradle = process.env.CRYPTEX_GRADLE_COMMAND || "./gradlew";
@@ -73,10 +76,11 @@ const webrtcHashes = {
 };
 assert.deepEqual(
     entries.filter((entry) => /^lib\/[^/]+\/libjingle_peerconnection_so\.so$/.test(entry)).sort(),
-    Object.keys(webrtcHashes).map((abi) => `lib/${abi}/libjingle_peerconnection_so.so`).sort(),
-    "Publication APK must contain the reviewed WebRTC provider for all four ABIs",
+    abis.map((abi) => `lib/${abi}/libjingle_peerconnection_so.so`).sort(),
+    "Publication APK must contain the reviewed WebRTC provider for each selected ABI",
 );
-for (const [abi, expected] of Object.entries(webrtcHashes)) {
+for (const abi of abis) {
+    const expected = webrtcHashes[abi];
     const entry = `lib/${abi}/libjingle_peerconnection_so.so`;
     const binary = execFileSync("unzip", ["-p", apk, entry], { maxBuffer: 32 * 1024 * 1024 });
     assert.equal(createHash("sha256").update(binary).digest("hex"), expected,
@@ -102,8 +106,8 @@ const libraries = entries.filter((p) =>
 );
 assert.deepEqual(
     libraries.map((p) => p.split("/")[1]).sort(),
-    ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"].sort(),
-    "Publication APK must include all four audited ABIs",
+    [...abis].sort(),
+    "Publication APK must include each selected audited ABI",
 );
 const bundle = execFileSync(
     "unzip",

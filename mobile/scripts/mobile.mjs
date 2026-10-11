@@ -45,7 +45,7 @@ export const help = `Mobile commands, from the repository root:
 Build defaults to a signed production APK. --unsigned builds without private APK signing material.
 Local release builds reuse .mobile-build/ in the current checkout and use all available CPU parallelism.
 --clean uses a fresh build without compilation caches; --reproduce-from always does this.
---arch selects one ABI; omission or all selects all four. Targeted APKs include the ABI in their filename.
+--arch selects one ABI; omission or all selects all four. F-Droid signed APK names use the ABI version code.
 --jobs overrides automatic parallelism; --heap overrides the local Gradle heap in MiB.
 --distribution fdroid disables Expo OTA; standard builds keep OTA enabled.
 --reproduce-from rebuilds and restores the reference's public signature without private keys; exact APK bytes must match.
@@ -114,6 +114,7 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         CRYPTEX_APP_PROFILE: profile.name,
         CRYPTEX_BUILD_PROFILE: e2e ? "e2e" : "development",
         CRYPTEX_DISTRIBUTION: "standard",
+        CRYPTEX_BUILD_ARCH: undefined,
         CRYPTEX_RELEASE_CONFIG: undefined,
         CRYPTEX_OFFLINE_SERVICES: undefined,
         CRYPTEX_SOURCE_REVISION: undefined,

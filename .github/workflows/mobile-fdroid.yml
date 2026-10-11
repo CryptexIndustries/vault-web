@@ -12,21 +12,27 @@ concurrency:
 
 jobs:
   build:
+    name: Build ${{ matrix.abi }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     environment: Mobile - Production
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
     steps:
       - name: Checkout release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - name: Make room for four Android ABIs
+      - name: Make room for the Android build
         run: sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet
 
       - name: Build and scan the complete F-Droid recipe
         env:
           RELEASE_REF: ${{ github.ref }}
+          CRYPTEX_BUILD_ARCH: ${{ matrix.abi }}
         run: |
           test -z "$(git status --porcelain)"
           mkdir "$RUNNER_TEMP/fdroid"
@@ -35,6 +41,7 @@ jobs:
             --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
             --env "SOURCE_COMMIT=$(git rev-parse HEAD)" \
             --env RELEASE_REF \
+            --env CRYPTEX_BUILD_ARCH \
             --entrypoint /bin/bash \
             registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \
             /app/mobile/fdroid/ci.sh
@@ -42,7 +49,7 @@ jobs:
       - name: Upload unsigned APK and its configuration
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mobile-fdroid-unsigned-${{ github.run_id }}
+          name: mobile-fdroid-unsigned-${{ github.run_id }}-${{ matrix.abi }}
           path: ${{ runner.temp }}/fdroid/artifacts/
           if-no-files-found: error
 
@@ -50,7 +57,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mobile-fdroid-submission-${{ github.run_id }}
+          name: mobile-fdroid-submission-${{ github.run_id }}-${{ matrix.abi }}
           path: |
             ${{ runner.temp }}/fdroid/submission/metadata/
             ${{ runner.temp }}/fdroid/submission/srclibs/

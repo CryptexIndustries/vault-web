@@ -26,7 +26,8 @@ test("local builds keep the same profiles and accept architecture and resource o
     for (const args of [["--arch", "arm64"], ["--jobs", "0"], ["--jobs", "1.5"], ["--heap", "-1"], ["--jobs"], ["--clean", "--clean"]]) {
         assert.throws(() => productionBuildOptions(args));
     }
-    for (const args of [["--reproduce-from", "release.apk", "--arch", "x86"], ["--reproduce-from", "release.apk", "--jobs", "auto"], ["--distribution", "fdroid", "--heap", "8192"]]) {
+    assert.equal(productionBuildOptions(["--reproduce-from", "release.apk", "--arch", "x86"]).arch, "x86");
+    for (const args of [["--reproduce-from", "release.apk", "--jobs", "auto"], ["--distribution", "fdroid", "--heap", "8192"]]) {
         assert.throws(() => productionBuildOptions(args), /Reproduction|pinned resource/);
     }
 });

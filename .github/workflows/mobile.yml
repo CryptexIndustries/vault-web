@@ -320,13 +320,13 @@ jobs:
           if-no-files-found: error
 
   fdroid:
-    name: build production F-Droid APK
+    name: build production F-Droid APKs
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production')
     uses: ./.github/workflows/mobile-fdroid.yml
 
   fdroid_sign:
-    name: sign production F-Droid APK
+    name: sign production F-Droid APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [fdroid, smoke]
@@ -353,20 +353,21 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
 
-      - name: Download verified unsigned APK and its configuration
+      - name: Download verified unsigned APKs and their configuration
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: mobile-fdroid-unsigned-${{ github.run_id }}
+          pattern: mobile-fdroid-unsigned-${{ github.run_id }}-*
+          merge-multiple: true
           path: ${{ runner.temp }}/mobile-release
 
-      - name: Sign and verify the production APK
+      - name: Sign and verify the production APKs
         env:
           CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
           CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
           CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
         run: node mobile/scripts/ci-release.mjs sign production "$RUNNER_TEMP/mobile-release"
 
-      - name: Upload signed F-Droid APK, configuration and checksums
+      - name: Upload signed F-Droid APKs, configuration and checksums
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mobile-fdroid-release-${{ github.run_id }}

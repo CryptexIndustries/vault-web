@@ -3,7 +3,9 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { getProfile, artifactName, configHash, loadReleaseConfig, parseReleaseOptions, validateReleaseConfig } from "./release-config.mjs";
+import { architectures, releaseVersion, getProfile, artifactName, configHash, loadReleaseConfig, parseReleaseOptions, validateReleaseConfig } from "./release-config.mjs";
+import yaml from "js-yaml";
+import appConfig from "../app.config.js";
 import publicConfig from "../config/release-config.cjs";
 import { discoverToolchain } from "./toolchain.mjs";
 import { defaultSigningDirectory, loadSigningEnvironment, validateSigningIdentity } from "./signing.mjs";
@@ -65,6 +67,39 @@ test("profile selection does not relax release mode, offline intent or mandatory
     assert.equal(env.EXPO_PUBLIC_CRYPTEX_E2E, "0");
     assert.equal(loadReleaseConfig().EXPO_PUBLIC_OTA_SIGNING_ENABLED, "false");
     assert.equal(loadReleaseConfig(new URL("../prerelease-config.json", import.meta.url)).EXPO_PUBLIC_OTA_SIGNING_ENABLED, "false");
+});
+
+test("F-Droid ABI recipes, native versions and reference filenames agree across releases", () => {
+    const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo;
+    const metadata = yaml.load(readFileSync(new URL('../fdroid/metadata/com.cryptexindustries.vault.yml', import.meta.url), 'utf8'));
+    assert.equal(metadata.Builds.length, architectures.length);
+    const previous = { ...process.env };
+    try {
+        for (const [index, arch] of architectures.entries()) {
+            const options = parseReleaseOptions(['--distribution', 'fdroid', '--arch', arch], { allowBuild: true });
+            const version = releaseVersion(app, options);
+            const build = metadata.Builds[index];
+            assert.equal(version.code, app.android.versionCode * 10 + index + 1);
+            assert.equal(build.versionCode, version.code);
+            assert.equal(build.output, `mobile/dist/${artifactName({ ...options, unsigned: true })}`);
+            for (const phase of ['prebuild', 'build']) assert.ok(build[phase].includes(`export CRYPTEX_BUILD_ARCH=${arch}`));
+            assert.equal(metadata.Binaries.replace('%v', version.name).replace('%c', version.code).split('/').at(-1), artifactName(options));
+            assert.equal(metadata.VercodeOperation[index], `10 * %c + ${index + 1}`);
+            const next = releaseVersion({ ...app, android: { versionCode: app.android.versionCode + 1 } }, options);
+            assert.ok(next.code > metadata.CurrentVersionCode, 'Every new ABI build must upgrade every previous ABI');
+            assert.equal(releaseVersion(app, { arch }).code, app.android.versionCode, 'Standard builds retain their base version code');
+            Object.assign(process.env, productionEnvironment(previous, config, options));
+            const native = appConfig({ config: structuredClone(app) });
+            assert.equal(native.android.versionCode, version.code);
+            assert.equal(native.updates.enabled, false);
+        }
+        assert.equal(metadata.CurrentVersionCode, metadata.Builds.at(-1).versionCode);
+        assert.throws(() => releaseVersion(app, { distribution: 'fdroid', arch: 'arm64' }));
+        assert.throws(() => releaseVersion({ ...app, android: { versionCode: 2100000000 } }, { distribution: 'fdroid', arch: 'x86' }));
+    } finally {
+        for (const name of Object.keys(process.env)) if (!Object.hasOwn(previous, name)) delete process.env[name];
+        Object.assign(process.env, previous);
+    }
 });
 
 test("release provenance identifies profile, source, selected JSON and public signer without credentials", () => {

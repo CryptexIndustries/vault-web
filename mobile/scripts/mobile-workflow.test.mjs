@@ -145,10 +145,24 @@ test("signing credentials are scoped to separate signing steps and the matching 
         assert.ok(!jobs[signer].steps.some(step => /pnpm install|mobile:build|gradle/.test(step.run || "")), "Signing must not install app dependencies or rebuild the APK");
         const download = jobs[signer].steps.find(step => step.uses?.startsWith("actions/download-artifact@"));
         assert.ok(!JSON.stringify(build).includes("secrets.CRYPTEX_"));
-        const upload = build.steps.find(step => step.with?.name === download.with.name);
+        const upload = build.steps.find(step => profile === "production"
+            ? step.with?.name === download.with.pattern.replace('*', '${{ matrix.abi }}')
+            : step.with?.name === download.with.name);
         assert.ok(upload, "Signing must consume the artifact uploaded by its build job");
     }
     for (const name of ["check", "smoke"]) {
         assert.equal(workflow.jobs[name].environment, undefined);
     }
+});
+
+test("F-Droid runs every ABI independently and signing waits for the whole matrix", () => {
+    assert.deepEqual(fdroid.jobs.build.strategy, { "fail-fast": false,
+        matrix: { abi: ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"] } });
+    const build = fdroid.jobs.build.steps.find(step => step.run?.includes('/app/mobile/fdroid/ci.sh'));
+    assert.equal(build.env.CRYPTEX_BUILD_ARCH, '${{ matrix.abi }}');
+    assert.match(build.run, /--env CRYPTEX_BUILD_ARCH/);
+    assert.ok(!fdroid.jobs.build.concurrency, "ABI jobs must not share a job concurrency lock");
+    const download = workflow.jobs.fdroid_sign.steps.find(step => step.uses?.startsWith('actions/download-artifact@'));
+    assert.equal(download.with['merge-multiple'], true);
+    assert.deepEqual(workflow.jobs.fdroid_sign.needs, ['fdroid', 'smoke']);
 });

@@ -1,6 +1,7 @@
 const { getProfile } = require('./config/profiles.cjs');
 const { getOtaConfig } = require('./config/ota.cjs');
 const { loadReleaseConfig, configHash } = require('./config/release-config.cjs');
+const { releaseVersion } = require('./config/android-version.cjs');
 const path = require('node:path');
 
 module.exports = ({ config }) => {
@@ -35,6 +36,7 @@ module.exports = ({ config }) => {
         icon: preprod ? './assets/icon-preprod.png' : config.icon,
         android: {
             ...config.android,
+            versionCode: release ? releaseVersion(config, { distribution, arch: process.env.CRYPTEX_BUILD_ARCH || 'all' }).code : config.android?.versionCode,
             package: profile.applicationId,
             adaptiveIcon: {
                 ...config.android?.adaptiveIcon,

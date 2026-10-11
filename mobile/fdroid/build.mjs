@@ -17,7 +17,8 @@ import {
 } from "../scripts/build-android.mjs";
 import { verifyRelease } from "../scripts/verify-release.mjs";
 import { prepareSource } from "./prepare-source.mjs";
-import { buildSkiaLibraries } from "./skia-source.mjs";
+import { buildSkiaLibraries, skiaTargets } from "./skia-source.mjs";
+import { artifactName, selectedArchitectures } from "../scripts/release-config.mjs";
 
 // F-Droid scans between these phases. Never prebuild again after that scan.
 const mobile = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -42,10 +43,14 @@ if (phase === "build") {
     // F-Droid's wrapper selects Gradle from this project's wrapper properties.
     process.chdir(android);
 }
-const { config, toolchain, env, metadata } = prepareProduction([
+const arch = process.env.CRYPTEX_BUILD_ARCH || 'all';
+const abis = selectedArchitectures(arch);
+const { options, config, toolchain, env, metadata } = prepareProduction([
     "--unsigned",
     "--distribution",
     "fdroid",
+    "--arch",
+    arch,
     "--config",
     join(mobile, "release-config.json"),
 ]);
@@ -177,6 +182,7 @@ if (phase === "prebuild") {
         ),
         outputDirectory: join(work, "skia"),
         ndkDirectory: join(env.ANDROID_HOME, "ndk", toolchain.ndk),
+        cpus: Object.keys(skiaTargets).filter(cpu => abis.includes(skiaTargets[cpu])),
         env,
     });
     const embedded = JSON.parse(
@@ -199,7 +205,7 @@ if (phase === "prebuild") {
             "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8",
             "-PcryptexUnsignedRelease=true",
             "-PreactNativeDevServerIp=127.0.0.1",
-            "-PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64",
+            `-PreactNativeArchitectures=${abis.join(',')}`,
             `-Pandroid.buildToolsVersion=${toolchain.buildTools}`,
             `-Pandroid.compileSdkVersion=${toolchain.compileSdk}`,
             `-Pandroid.targetSdkVersion=${toolchain.targetSdk}`,
@@ -207,7 +213,7 @@ if (phase === "prebuild") {
         ],
         android,
     );
-    const apk = join(mobile, "dist/cryptex-vault-fdroid-unsigned.apk");
+    const apk = join(mobile, "dist", artifactName(options));
     run(
         join(env.ANDROID_HOME, "build-tools", toolchain.buildTools, "zipalign"),
         [
@@ -225,10 +231,11 @@ if (phase === "prebuild") {
     const verification = verifyRelease(apk, {
         unsigned: true,
         distribution: "fdroid",
+        arch,
         env,
         config,
     });
-    run(process.execPath, [join(mobile, "scripts/verify-native-crypto.mjs"), "--apk", apk], mobile);
+    run(process.execPath, [join(mobile, "scripts/verify-native-crypto.mjs"), "--apk", apk, "--arch", arch], mobile);
     writeFileSync(
         `${apk}.json`,
         JSON.stringify(

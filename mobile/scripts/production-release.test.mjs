@@ -8,6 +8,8 @@ import test from "node:test";
 import { buildAndroid, copyInstalledDependencies, finishStaging, productionBuildOptions, productionEnvironment, releaseMetadata } from "./build-android.mjs";
 import { assertBackupResources, assertEmbeddedUpdate, assertNetworkPolicy, assertProductionManifest, assertProductionSignature, loadReleaseConfig, releaseVerificationOptions, verifyRelease, xmlResourcePath } from "./verify-release.mjs";
 import ota from "../config/ota.cjs";
+import { architectures, artifactName, releaseVersion } from "./release-config.mjs";
+import { signCiRelease } from "./ci-release.mjs";
 import { apkSha256, reproductionOptions, verifyReproducibility } from "./verify-reproducibility.mjs";
 
 const require = createRequire(import.meta.url);
@@ -295,11 +297,22 @@ test("every APK and signature-reproduction inspection child gets an explicit env
 import assert from "node:assert/strict";
 import { appendFileSync, copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
-for (const name of ${JSON.stringify(signingNames)}) assert.equal(process.env[name], undefined, "Signing credential reached inspection child: " + name);
-const fixture = JSON.parse(readFileSync(process.env.CRYPTEX_POLICY_FIXTURE, "utf8"));
 const tool = basename(process.argv[1]);
 appendFileSync(process.env.CRYPTEX_POLICY_CALLS, tool + "\\n");
 const args = process.argv.slice(2);
+if (tool === 'keytool') {
+    process.stdout.write(Buffer.from(${JSON.stringify(identity.certificateDerBase64)}, 'base64'));
+    process.exit(0);
+}
+if (tool === 'apksigner' && args[0] === 'sign') {
+    assert.ok(process.env.CRYPTEX_KEYSTORE_PASSWORD);
+    copyFileSync(args.at(-1), args[args.indexOf('--out') + 1]);
+    process.exit(0);
+}
+for (const name of ${JSON.stringify(signingNames)}) assert.equal(process.env[name], undefined, "Signing credential reached inspection child: " + name);
+const variants = JSON.parse(process.env.CRYPTEX_POLICY_VARIANTS || '{}');
+const fixturePath = args.find(arg => variants[arg]);
+const fixture = JSON.parse(readFileSync(fixturePath ? variants[fixturePath] : process.env.CRYPTEX_POLICY_FIXTURE, "utf8"));
 if (tool === "aapt2") process.stdout.write(args[1] === "resources" ? fixture.resources : args.at(-1) === "AndroidManifest.xml" ? fixture.manifest : fixture.xml[args.at(-1)]);
 else if (tool === "unzip") process.stdout.write(args[0] === "-Z1" ? fixture.entries : args.at(-1) === "assets/cryptex-release.json" ? fixture.metadata : args.at(-1) === "assets/app.manifest" ? fixture.embedded : args.at(-1) === "assets/index.android.bundle" ? fixture.bundle : "fixture dex");
 else if (tool === "apksigner") { if (process.env.CRYPTEX_POLICY_UNSIGNED === "1" || args.at(-1).includes("-unsigned.apk")) process.exit(1); process.stdout.write(fixture.signature); }
@@ -343,14 +356,72 @@ else throw new Error("Unexpected inspection tool " + tool);
         verifyRelease(apk, { ...targetedOptions, arch: "arm64-v8a" });
         assert.throws(() => verifyRelease(apk, targetedOptions), /architectures differ/);
         assert.throws(() => verifyRelease(apk, { ...targetedOptions, arch: "x86" }), /architectures differ/);
+        const releaseDirectory = join(temporary, 'release');
+        mkdirSync(releaseDirectory);
+        copyFileSync(new URL('../release-config.json', import.meta.url), join(releaseDirectory, 'release-config.json'));
+        const variants = {};
+        for (const arch of architectures) {
+            const split = JSON.parse(universalFixture);
+            const version = releaseVersion(JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo, { distribution: 'fdroid', arch });
+            split.manifest = manifest.replace(/:versionCode\(0x0101021b\)=1/, `:versionCode(0x0101021b)=0x${version.code.toString(16)}`)
+                .replace('E: activity\n', Object.entries({ ENABLED: 'false', EXPO_UPDATES_CHECK_ON_LAUNCH: 'NEVER', EXPO_RUNTIME_VERSION: 'a'.repeat(40) })
+                    .map(([name, value]) => `  E: meta-data\n    A: android:name(0x01010003)="expo.modules.updates.${name}"\n    A: android:value(0x01010024)=${JSON.stringify(value)}\n`).join('') + 'E: activity\n');
+            split.entries = split.entries.split('\n').filter(entry => !entry.startsWith('lib/') || entry.startsWith(`lib/${arch}/`)).join('\n');
+            split.metadata = JSON.stringify({ ...JSON.parse(split.metadata), distribution: 'fdroid', version });
+            writeFileSync(fixture, JSON.stringify(split));
+            const splitOptions = { ...targetedOptions, distribution: 'fdroid', arch };
+            assert.equal(verifyRelease(apk, splitOptions).otaUpdateUrl, null);
+            const variantFixture = join(temporary, `fixture-${arch}.json`);
+            writeFileSync(variantFixture, JSON.stringify(split));
+            const unsigned = join(releaseDirectory, artifactName({ distribution: 'fdroid', arch, unsigned: true }));
+            const signed = join(releaseDirectory, artifactName({ distribution: 'fdroid', arch }));
+            variants[unsigned] = variants[signed] = variantFixture;
+            writeFileSync(unsigned, `unsigned ${arch} bytes`);
+            writeFileSync(`${unsigned}.json`, JSON.stringify({ ...JSON.parse(split.metadata), apkSha256: apkSha256(unsigned), signed: false }));
+            const wrongVersion = structuredClone(split);
+            wrongVersion.manifest = split.manifest.replace(`=0x${version.code.toString(16)}`, '=0x1');
+            writeFileSync(fixture, JSON.stringify(wrongVersion));
+            assert.throws(() => verifyRelease(apk, splitOptions), /version code/);
+            split.entries += '\nlib/unsupported/libfixture.so';
+            writeFileSync(fixture, JSON.stringify(split));
+            assert.throws(() => verifyRelease(apk, splitOptions), /architectures differ/);
+        }
         writeFileSync(fixture, universalFixture);
+        const signingTools = join(temporary, 'sdk/build-tools', toolchain.signingBuildTools);
+        const javaTools = join(temporary, 'signing-java/bin');
+        mkdirSync(signingTools, { recursive: true });
+        mkdirSync(javaTools, { recursive: true });
+        for (const path of [join(signingTools, 'apksigner'), join(javaTools, 'keytool')]) {
+            writeFileSync(path, script);
+            chmodSync(path, 0o700);
+        }
+        const signingEnv = { ...inherited, JAVA_HOME: join(temporary, 'signing-java'), GITHUB_ACTIONS: 'false',
+            CRYPTEX_POLICY_VARIANTS: JSON.stringify(variants), CRYPTEX_KEYSTORE_BASE64: Buffer.from('fixture-only-keystore').toString('base64'),
+            CRYPTEX_KEYSTORE_PASSWORD: 'fixture-only-password', CRYPTEX_KEY_PASSWORD: 'fixture-only-password' };
+        const signedVariants = signCiRelease('production', releaseDirectory, signingEnv);
+        assert.equal(signedVariants.length, architectures.length);
+        for (const [index, path] of signedVariants.entries()) {
+            const receipt = JSON.parse(readFileSync(`${path}.json`, 'utf8'));
+            assert.equal(receipt.version.code, index + 11);
+            assert.equal(receipt.signed, true);
+            assert.equal(receipt.apkSha256, apkSha256(path));
+        }
+        const checksums = readFileSync(join(releaseDirectory, 'SHA256SUMS'), 'utf8').trim().split('\n');
+        assert.equal(checksums.length, 17, 'Every ABI APK and receipt plus the configuration must be hashed');
+        for (const line of checksums) {
+            const [hash, file] = line.split('  ');
+            assert.equal(hash, apkSha256(join(releaseDirectory, file)));
+        }
+        const missing = join(releaseDirectory, artifactName({ distribution: 'fdroid', arch: 'armeabi-v7a', unsigned: true }));
+        rmSync(missing);
+        assert.throws(() => signCiRelease('production', releaseDirectory, signingEnv), /ENOENT/);
         assert.throws(() => verifyReproducibility(signed, firstUnsigned, secondUnsigned, { env: { ...inherited, CRYPTEX_POLICY_BAD_COPIER: "1" } }), /pinned apksigcopier version/);
         assert.throws(() => verifyReproducibility(signed, firstUnsigned, secondUnsigned, { env: { ...inherited, CRYPTEX_POLICY_BAD_RECONSTRUCTION: "1" } }), /Reconstructed signed APK differs/);
         // Exercise the real builder in a tiny isolated source tree. Only external
         // commands are replaced inside the child; staging, policy and delivery run.
         const checkout = join(temporary, "checkout"), project = join(checkout, "mobile");
         for (const directory of ["scripts", "config", "fdroid"]) mkdirSync(join(project, directory), { recursive: true });
-        for (const file of ["scripts/build-android.mjs", "scripts/build-cache.mjs", "scripts/build-resources.cjs", "scripts/verify-release.mjs", "scripts/verify-reproducibility.mjs", "scripts/release-config.mjs", "scripts/native-runtime.mjs", "scripts/signing.mjs", "scripts/toolchain.mjs", "config/profiles.cjs", "config/release-config.cjs", "config/ota.cjs", "fdroid/toolchain.json", "app.json", "eas-project.json", "release-config.json", "release-signing.json", "release-signing-preprod.json"]) copyFileSync(new URL("../" + file, import.meta.url), join(project, file));
+        for (const file of ["scripts/build-android.mjs", "scripts/build-cache.mjs", "scripts/build-resources.cjs", "scripts/verify-release.mjs", "scripts/verify-reproducibility.mjs", "scripts/release-config.mjs", "scripts/native-runtime.mjs", "scripts/signing.mjs", "scripts/toolchain.mjs", "config/profiles.cjs", "config/release-config.cjs", "config/android-version.cjs", "config/ota.cjs", "fdroid/toolchain.json", "app.json", "eas-project.json", "release-config.json", "release-signing.json", "release-signing-preprod.json"]) copyFileSync(new URL("../" + file, import.meta.url), join(project, file));
         writeFileSync(join(project, "App.tsx"), "independently staged source");
         const java = join(temporary, "java"); mkdirSync(join(java, "bin"), { recursive: true });
         writeFileSync(join(java, "bin/java"), "fixture"); writeFileSync(join(java, "release"), 'JAVA_VERSION="' + toolchain.java + '.0.12"\n');
@@ -505,6 +576,7 @@ test("standalone native audit removes signing credentials before launching an in
         mkdirSync(join(mobile, "config"), { recursive: true });
         copyFileSync(new URL("./verify-native-crypto.mjs", import.meta.url), join(mobile, "scripts/verify-native-crypto.mjs"));
         copyFileSync(new URL("../config/profiles.cjs", import.meta.url), join(mobile, "config/profiles.cjs"));
+        copyFileSync(new URL("../config/android-version.cjs", import.meta.url), join(mobile, "config/android-version.cjs"));
         for (const [name, version] of Object.entries({ "react-native-quick-crypto": "1.1.7", "react-native-quick-base64": "3.0.1", "react-native-nitro-modules": "0.33.2" })) {
             const directory = join(mobile, "node_modules", name);
             mkdirSync(directory, { recursive: true });

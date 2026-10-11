@@ -14,7 +14,7 @@ import ota from "../config/ota.cjs";
 import { loadSigningEnvironment, signingNames, validateSigningIdentity } from "./signing.mjs";
 import { dependencyDirectories, invalidateDependencies, openBuildWorkspace, synchronizeSources, writeIfChanged } from "./build-cache.mjs";
 import resources from "./build-resources.cjs";
-import { selectedArchitectures } from "./release-config.mjs";
+import { selectedArchitectures, releaseVersion } from "./release-config.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const checkout = resolve(mobile, "..");
@@ -23,7 +23,7 @@ export function productionBuildOptions(args, cwd = process.cwd()) {
     return parseReleaseOptions(args, { cwd, allowReproduction: true, allowBuild: true });
 }
 
-export function productionEnvironment(inherited, config, { unsigned = false, offlineServices = false, profile = "production", distribution = "standard" } = {}) {
+export function productionEnvironment(inherited, config, { unsigned = false, offlineServices = false, profile = "production", distribution = "standard", arch = "all" } = {}) {
     validateReleaseConfig(config);
     const env = { ...inherited };
     // Neither ignored .env files nor ambient public variables define a release.
@@ -47,6 +47,7 @@ export function productionEnvironment(inherited, config, { unsigned = false, off
         CRYPTEX_BUILD_PROFILE: "production",
         CRYPTEX_APP_PROFILE: getProfile(profile).name,
         CRYPTEX_DISTRIBUTION: distribution,
+        CRYPTEX_BUILD_ARCH: arch,
         CRYPTEX_OFFLINE_SERVICES: offlineServices ? "1" : "0",
         CI: "1",
         TZ: "UTC",
@@ -140,7 +141,7 @@ export function prepareProduction(args, inherited = process.env) {
     ota.requireOtaConfiguration(profile, { distribution, signingEnabled: config.EXPO_PUBLIC_OTA_SIGNING_ENABLED ?? "false" });
     validateSigningIdentity(env, identity, nativeOptions);
     const app = JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo;
-    const metadata = releaseMetadata({ ...options, config, toolchain, identity, sourceRevision, version: { name: app.version, code: app.android.versionCode } });
+    const metadata = releaseMetadata({ ...options, config, toolchain, identity, sourceRevision, version: releaseVersion(app, options) });
     return { options, config, toolchain, identity, env, metadata };
 }
 

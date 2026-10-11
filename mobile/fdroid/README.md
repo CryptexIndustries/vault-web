@@ -3,7 +3,7 @@
 The submission package is `metadata/com.cryptexindustries.vault.yml` plus
 `srclibs/LightningCSS.yml` and `srclibs/GN.yml`. The recipe reuses F-Droid's
 existing `esbuild`, `skia` and `OpenSSL` definitions. It builds an unsigned
-production APK while
+production APK for each ABI while
 keeping Online Services available and disabling Expo OTA. The submission needs
 the complete public release commit and developer-signed reference APK URL.
 The public configuration is at `mobile/release-config.json` in that commit.
@@ -14,11 +14,11 @@ The metadata declares `NonFreeNet` for optional Turnstile, Stripe and Backblaze 
 To prepare the first submission, replace `PUBLISH_RELEASE_COMMIT` in the
 fdroiddata copy with the full commit hash behind `mobile-v0.1.0`.
 CI fills this value in its submission artifact.
-Publish the developer-signed `cryptex-vault-fdroid.apk` and `release-config.json`
+Publish the developer-signed `cryptex-vault-fdroid-<versionCode>.apk` files and `release-config.json`
 assets on the matching GitHub release. The build has no `disable` flag.
 `AutoUpdateMode: Version` uses the release tag selected by `UpdateCheckMode`.
 The mobile-only tag/app.json checks select new versions. Each release still needs
-its signed APK at the corresponding release URL. The configuration comes from
+its signed APKs at the corresponding release URLs. The configuration comes from
 the source checkout; its published copy is included for verification.
 
 ## First release source
@@ -59,8 +59,16 @@ Manual dispatch defaults to `preprod` and builds the selected branch using the
 dispatch on an existing `mobile-v` tag matching `app.json`. Pushing that tag
 automatically selects production and calls
 [Mobile F-Droid](../../.github/workflows/mobile-fdroid.yml) after checks and smoke tests.
-The F-Droid workflow compiles and scans the complete recipe inside the pinned
-official build-server container, including all four Android ABIs.
+The F-Droid workflow runs four parallel jobs inside the pinned official
+build-server container, one for each Android ABI. Each job compiles Skia and
+the app only for its ABI. A separate signing job verifies and signs all four
+APKs after every build and the smoke tests pass.
+
+ABI version codes are `app.json`'s versionCode multiplied by 10, plus 1 for
+`armeabi-v7a`, 2 for `arm64-v8a`, 3 for `x86`, or 4 for `x86_64`. For versionCode
+1, the signed APKs are `cryptex-vault-fdroid-11.apk` through
+`cryptex-vault-fdroid-14.apk`. `VercodeOperation` applies the same mapping when
+F-Droid checks for updates.
 
 GitHub requires `mobile.yml` on the default branch before manual dispatch is
 available. Tag runs use the workflow in the tagged commit.
@@ -74,7 +82,7 @@ Production and F-Droid builds read `mobile/release-config.json`; preproduction
 builds read `mobile/prerelease-config.json`. Both public configurations are
 versioned with the source.
 
-Separate signing jobs consume the verified unsigned APK and the exact
+Separate signing jobs consume the verified unsigned APKs and the exact
 configuration snapshot from the build job. They use environment secrets
 `CRYPTEX_KEYSTORE_BASE64`, `CRYPTEX_KEYSTORE_PASSWORD` and `CRYPTEX_KEY_PASSWORD`.
 The alias comes from the public signing identity. Signing uses build-tools 34,
@@ -82,10 +90,10 @@ checks the certificate pin and APK policy, and never rebuilds the application.
 
 The `mobile-preprod-release-<run-id>` and `mobile-fdroid-release-<run-id>` artifacts
 contain signed and unsigned APKs, public configuration, verification receipts and
-checksums. `mobile-fdroid-submission-<run-id>` contains scanner/build logs and
+checksums. Each `mobile-fdroid-submission-<run-id>-<abi>` contains scanner/build logs and
 submission metadata with the exact source commit and srclib definitions.
 
-Publish `cryptex-vault-fdroid.apk` and its `release-config.json` from the production
+Publish the four `cryptex-vault-fdroid-<versionCode>.apk` files and `release-config.json` from the production
 artifact on the matching GitHub release before submission. F-Droid uses
 `Binaries` to compare our signed APK with its independent source build.
 GitHub Actions artifacts prepare the release; publishing it remains a separate step.
@@ -202,7 +210,7 @@ It fetches only these Git sources and validates their commits. It never runs
 depot_tools, CIPD, `fetch-gn`, `git-sync-deps` or automatic tool updates.
 
 After scanning, the helper compiles GN with the distribution's C++ compiler and
-Ninja, then compiles all four Skia ABIs with the pinned NDK 27.1.12297006.
+Ninja, then compiles the selected Skia ABI with the pinned NDK 27.1.12297006.
 Its Ganesh flags match the upstream Android configuration, with source/output/NDK
 prefix maps added for build paths. Paragraph, SVG, image codecs and skottie remain
 enabled. ICU is loaded from Android at runtime; Graphite/Dawn and their build
@@ -225,7 +233,8 @@ ANDROID_NDK=/absolute/android-sdk/ndk/27.1.12297006 \
   /absolute/clean-npm-skia /absolute/build-output x64
 ```
 
-Omit `x64` to build all four ABIs. The F-Droid recipe always builds all four.
+Omit `x64` to build all four ABIs. The F-Droid recipe sets `CRYPTEX_BUILD_ARCH`
+in both phases to select one ABI per build block.
 Keep isolated dependencies and build outputs separate from the development
 checkout; source cleanup must never run on the live pnpm store.
 

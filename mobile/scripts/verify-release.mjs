@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { loadReleaseConfig, parseReleaseOptions, validateReleaseConfig, getProfile, configHash, selectedArchitectures } from "./release-config.mjs";
+import { loadReleaseConfig, parseReleaseOptions, validateReleaseConfig, getProfile, configHash, selectedArchitectures, releaseVersion } from "./release-config.mjs";
 import ota from "../config/ota.cjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
@@ -196,7 +196,9 @@ export function verifyRelease(apk, { unsigned = false, offlineServices = false, 
     assert.ok(sdk, "Set ANDROID_HOME to verify the APK");
     const tools = join(sdk, "build-tools", toolchain.buildTools);
     const manifest = execFileSync(join(tools, "aapt2"), ["dump", "xmltree", apk, "--file", "AndroidManifest.xml"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, env: inspectionEnv });
-    assertProductionManifest(manifest, { profile });
+    const app = JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo;
+    const version = releaseVersion(app, { distribution, arch });
+    assertProductionManifest(manifest, { profile, version });
     const resources = execFileSync(join(tools, "aapt2"), ["dump", "resources", apk], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, env: inspectionEnv });
     const entries = execFileSync("unzip", ["-Z1", apk], { encoding: "utf8", env: inspectionEnv }).trim().split("\n");
     const asset = (entry, maxBuffer = 32 * 1024 * 1024) => execFileSync("unzip", ["-p", apk, entry], { maxBuffer, env: inspectionEnv });
@@ -212,9 +214,8 @@ export function verifyRelease(apk, { unsigned = false, offlineServices = false, 
     const metadata = JSON.parse(asset("assets/cryptex-release.json").toString("utf8"));
     assert.equal(entries.filter(entry => entry === "assets/app.manifest").length, 1, "Missing or duplicate embedded update manifest.");
     const embeddedUpdate = assertEmbeddedUpdate(JSON.parse(asset("assets/app.manifest").toString("utf8")));
-    const app = JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo;
     assert.deepEqual(metadata, { ...metadata, profile, buildProfile: "production", distribution, applicationId: getProfile(profile).applicationId,
-        version: { name: app.version, code: app.android.versionCode }, configHash: configHash(config),
+        version, configHash: configHash(config),
         signer: { alias: identity.alias, certificateSha256: identity.certificateSha256 },
         e2e: false, onlineServicesEnabled: !offlineServices, appUrl: config.EXPO_PUBLIC_APP_URL,
         apiUrl: config.EXPO_PUBLIC_ONLINE_SERVICES_API_URL, toolchain }, "Production build configuration mismatch");

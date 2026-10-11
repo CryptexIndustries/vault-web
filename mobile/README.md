@@ -110,8 +110,9 @@ pnpm mobile:build -- --profile preprod --clean
 `--clean` creates an independent workspace, disables compiled build caches and
 uses the pinned reproduction resource settings. Release CI passes this flag.
 You can also request a fresh local build with `--clean --jobs auto`.
-`--reproduce-from` and F-Droid builds always use fresh workspaces, all four
-architectures and pinned resource settings.
+`--reproduce-from` and F-Droid builds always use fresh workspaces and pinned
+resource settings. Pass the reference APK's ABI with `--arch` when reproducing
+a single-ABI release. F-Droid signed APK names use their ABI version code.
 
 `logs` requires the selected app to be running. Build output includes an
 `<APK>.json` record with the source revision, configuration, signer and native

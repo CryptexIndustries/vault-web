@@ -1,23 +1,23 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import profileRegistry from "../config/profiles.cjs";
+import androidVersion from "../config/android-version.cjs";
 
 import publicConfig from "../config/release-config.cjs";
 export const { configHash, loadReleaseConfig, validateReleaseConfig } = publicConfig;
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 export const { getProfile } = profileRegistry;
-export const architectures = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
-
-export function selectedArchitectures(arch = "all") {
-    assert.ok(arch === "all" || architectures.includes(arch), "--arch must be all, armeabi-v7a, arm64-v8a, x86 or x86_64.");
-    return arch === "all" ? [...architectures] : [arch];
-}
+export const { architectures, selectedArchitectures, releaseVersion } = androidVersion;
 
 export function artifactName({ profile = "production", distribution = "standard", offlineServices = false, unsigned = false, reproduceFrom, arch = "all" } = {}) {
     selectedArchitectures(arch);
-    return `${getProfile(profile).artifactBase}${distribution === "fdroid" ? "-fdroid" : ""}${offlineServices ? "-offline" : ""}${reproduceFrom ? "-reproduced" : ""}${arch !== "all" ? `-${arch}` : ""}${unsigned ? "-unsigned" : ""}.apk`;
+    const target = distribution === "fdroid" && !unsigned && arch !== "all"
+        ? releaseVersion(JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo, { distribution, arch }).code
+        : arch;
+    return `${getProfile(profile).artifactBase}${distribution === "fdroid" ? "-fdroid" : ""}${offlineServices ? "-offline" : ""}${reproduceFrom ? "-reproduced" : ""}${arch !== "all" ? `-${target}` : ""}${unsigned ? "-unsigned" : ""}.apk`;
 }
 
 export function parseReleaseOptions(args, { cwd = process.cwd(), allowApk = false, allowReproduction = false, allowBuild = false } = {}) {
@@ -54,7 +54,6 @@ export function parseReleaseOptions(args, { cwd = process.cwd(), allowApk = fals
     assert.ok(options.jobs === undefined || options.jobs === "auto" || (/^[1-9]\d*$/.test(options.jobs) && Number.isSafeInteger(Number(options.jobs))), "--jobs requires a positive integer or auto.");
     assert.ok(options.heap === undefined || (/^[1-9]\d*$/.test(options.heap) && Number.isSafeInteger(Number(options.heap))), "--heap requires a positive number of MiB.");
     if (options.reproduceFrom || options.distribution === "fdroid") {
-        assert.ok(!options.arch || options.arch === "all", "Reproduction and F-Droid builds require all four architectures.");
         assert.ok(options.jobs === undefined && options.heap === undefined, "Reproduction and F-Droid builds use pinned resource settings.");
     }
     if (allowApk) options.apk ??= join(mobile, "dist", artifactName(options));

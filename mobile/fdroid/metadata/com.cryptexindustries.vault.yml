@@ -22,11 +22,11 @@ Builds:
     commit: PUBLISH_RELEASE_COMMIT
     sudo:
       - apt-get update
-      - apt-get install -y curl xz-utils unzip make perl golang-go g++ ninja-build rustup openjdk-21-jdk-headless
+      - apt-get install -y curl xz-utils unzip make perl golang-go g++ ninja-build
+        rustup
       - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
       - apt-get update
-      - apt-get install -y --no-install-recommends -t forky nodejs=24.21.0+dfsg+~cs24.13.4-1
-        node-corepack
+      - apt-get install -y --no-install-recommends -t forky nodejs node-corepack
       - corepack enable pnpm
       - corepack prepare pnpm@11.25.0 --activate
     output: mobile/dist/cryptex-vault-fdroid-unsigned.apk
@@ -37,16 +37,14 @@ Builds:
       - GN@b2afae122eeb6ce09c52d63f67dc53fc517dbdc8
       - OpenSSL@f4dc4d58b48d346a8270183f89acf826d459b0ca
     prebuild:
-      - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-        ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
+      - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
       - rm -f local.properties
       - sdkmanager --sdk_root=$$SDK$$ 'platforms;android-36' 'build-tools;36.0.0'
         'build-tools;34.0.0' 'cmake;3.22.1'
       - rustup default 1.76.0
       - pnpm install --frozen-lockfile --ignore-scripts --filter mobile...
       - node mobile/fdroid/build.mjs prebuild
-      - sed -i 's/jvmToolchain(17)/jvmToolchain(21)/g'
-        node_modules/.pnpm/expo-modules-core@*/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - sed -i 's/jvmToolchain(17)/jvmToolchain(21)/g' node_modules/.pnpm/expo-modules-core@*/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
       - rm -rf $$skia$$/platform_tools
       - node mobile/fdroid/skia-source.mjs fetch $$skia$$ $$GN$$
       - cd $$esbuild$$
@@ -57,8 +55,7 @@ Builds:
     scanignore:
       - node_modules/.pnpm/hermes-compiler@250829098.0.14/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
     build:
-      - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-        ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
+      - export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=$$SDK$$ ANDROID_SDK_ROOT=$$SDK$$
       - CRYPTEX_GRADLE_COMMAND=gradle CRYPTEX_OPENSSL_SOURCE=$$OpenSSL$$ node mobile/fdroid/build.mjs
         build $$esbuild$$ $$LightningCSS$$ $$skia$$ $$GN$$
     ndk: 27.1.12297006
@@ -66,15 +63,13 @@ Builds:
 AllowedAPKSigningKeys: aa084b878eac0403b30b05c82ced96acfd72b9c94a5964e7aeaaab849b60e7df
 
 MaintainerNotes: |-
-  This source-repository template needs the full public release commit in its
-  fdroiddata submission copy. Replace PUBLISH_RELEASE_COMMIT with the full
-  commit hash of mobile-v0.1.0 before submission.
-  CI writes that hash into the generated fdroiddata YAML.
+  Replace PUBLISH_RELEASE_COMMIT with the full release source commit
+  in the fdroiddata submission copy. CI fills it in its submission artifact.
+
   Public configuration is stored in mobile/release-config.json in the
   release source.
   Binaries supplies the developer-signed reference APK for each release.
-  Keep AllowedAPKSigningKeys pinned. Future releases are selected by the
-  mobile-only tag and app.json version/code checks.
+  UpdateCheckMode tracks mobile release tags and app.json version/code values.
 
   Online Services are optional. This distribution disables Expo OTA updates.
   The only source scan exception is the exact official Hermes compiler path,

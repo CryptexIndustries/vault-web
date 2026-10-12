@@ -13,10 +13,12 @@ index 03e74418589998ba0ce223e8de85150c763e680c..b22e075d0be51c9945ab3ddc18771761
 diff --git a/android/consumer-rules.pro b/android/consumer-rules.pro
 --- a/android/consumer-rules.pro
 +++ b/android/consumer-rules.pro
-@@ -1,2 +1,3 @@
+@@ -1,2 +1,5 @@
  # WebRTC
  -keep class org.webrtc.** { *; }
 +-keep class org.jni_zero.** { *; }
++# WebRTC omits the unused class-loader bridge.
++-dontwarn org.jni_zero.JniZeroJni
 diff --git a/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java b/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java
 index 510435b8885b43fd51780595aa9e02c98385627f..3f56f7e0d9509727ffca98aa455f3e431114dca6 100644
 --- a/android/src/main/java/com/oney/WebRTCModule/PeerConnectionObserver.java

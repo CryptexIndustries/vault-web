@@ -41,7 +41,7 @@ patchedDependencies:
   query-string@7.1.3: 3c5b7131248a0de4b1888f130d2d92048170e2010222165462377a212a5d794d
   react-native-actions-sheet@10.1.1: 6412ebd28e674d1d6b4495686953796d75e17929a154b22e33c19b3075b23160
   react-native-quick-crypto@1.1.7: 2cb5d04a79f8fd2f677e58dda3db880e2795844fba00aaccbad8706b2bff64ee
-  react-native-webrtc@124.0.8: 6bea72c32d3bad43eef547461d333d6937eb7de07f5dad225f4afa6be9738218
+  react-native-webrtc@124.0.8: bb32427a1dc5d1e4ac52e3a8feeb8ce5261210c67d8b4b0eef189ec65187513e
 
 importers:
 
@@ -374,7 +374,7 @@ importers:
         version: 15.15.4(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
       react-native-webrtc:
         specifier: 124.0.8
-        version: 124.0.8(patch_hash=6bea72c32d3bad43eef547461d333d6937eb7de07f5dad225f4afa6be9738218)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(supports-color@8.1.1)
+        version: 124.0.8(patch_hash=bb32427a1dc5d1e4ac52e3a8feeb8ce5261210c67d8b4b0eef189ec65187513e)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(supports-color@8.1.1)
       react-native-webview:
         specifier: 13.16.1
         version: 13.16.1(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
@@ -15601,7 +15601,7 @@ snapshots:
       react-native: 0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1)
       warn-once: 0.1.1
 
-  react-native-webrtc@124.0.8(patch_hash=6bea72c32d3bad43eef547461d333d6937eb7de07f5dad225f4afa6be9738218)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(supports-color@8.1.1):
+  react-native-webrtc@124.0.8(patch_hash=bb32427a1dc5d1e4ac52e3a8feeb8ce5261210c67d8b4b0eef189ec65187513e)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       base64-js: 1.5.1
       debug: 4.3.4(supports-color@8.1.1)

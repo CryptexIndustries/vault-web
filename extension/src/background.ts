@@ -1987,10 +1987,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     void clearPageOrigin(tabId);
 });
 
-// Set up idle detection to lock the vault after 30 minutes of inactivity
+// Lock the vault after 30 minutes of inactivity or when the OS screen locks.
+// A screen lock before the idle threshold goes active -> locked -> active
+// and never reports "idle".
 chrome.idle.setDetectionInterval(60 * 30);
 chrome.idle.onStateChanged.addListener(async (newState) => {
-    if (newState === "idle") {
+    if (newState === "idle" || newState === "locked") {
         console.debug("[SW] Vault locked due to inactivity");
 
         await vaultWriteCoordinator.run("vault.lock", async () => {

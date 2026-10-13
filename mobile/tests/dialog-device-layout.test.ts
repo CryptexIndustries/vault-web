@@ -328,3 +328,35 @@ it("keeps centered dialogs on their existing native modal", async () => {
     );
     expect(modal().props.navigationBarTranslucent).toBeUndefined();
 });
+
+it.each(["bottom", "center"] as const)(
+    "keeps %s feedback outside scrolling content and hides its controls while loading",
+    async (placement) => {
+        props = {
+            ...props,
+            placement,
+            bottomSheetVariant: undefined,
+            scroll: true,
+            footer: createElement("Feedback"),
+        };
+        await render();
+        const footer = renderer!.root.findByProps({ testID: "dialog-footer" });
+        const feedback = renderer!.root.findByType("Feedback" as never);
+        let ancestor = feedback.parent;
+        while (ancestor) {
+            expect(["ScrollView", "SheetScrollView"]).not.toContain(
+                ancestor.type,
+            );
+            ancestor = ancestor.parent;
+        }
+        expect(footer.props.style.flexShrink).toBe(0);
+        expect(footer.props.pointerEvents).toBe("auto");
+        props = { ...props, loading: true };
+        await render();
+        expect(footer.props.accessibilityElementsHidden).toBe(true);
+        expect(footer.props.importantForAccessibility).toBe(
+            "no-hide-descendants",
+        );
+        expect(footer.props.pointerEvents).toBe("none");
+    },
+);

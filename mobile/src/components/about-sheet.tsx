@@ -7,7 +7,7 @@ function installedUpdateMetadata() {
     try { return require("expo-updates") as typeof import("expo-updates"); }
     catch { return {}; }
 }
-import { CircleHelp, Code2, Globe, Info } from "lucide-react-native";
+import { CircleHelp, Code2, Globe, Info, ShieldCheck } from "lucide-react-native";
 
 import {
     UnlockedButton as Button,
@@ -56,9 +56,10 @@ export function AboutSheet({ open, onOpenChange }: { open: boolean; onOpenChange
                     <UnlockedText style={{ color: colors.muted, fontSize: 11, letterSpacing: 1, marginTop: 8, marginBottom: 6, textTransform: "uppercase" }}>
                         Project
                     </UnlockedText>
-                    <UnlockedMenuRow icon={Globe} title="Website" subtitle="cryptex-vault.com" onPress={() => void Linking.openURL("https://cryptex-vault.com")} />
+                    {details.distribution !== "play" ? <UnlockedMenuRow icon={Globe} title="Website" subtitle="cryptex-vault.com" onPress={() => void Linking.openURL("https://cryptex-vault.com")} /> : null}
                     <UnlockedMenuRow icon={Code2} title="Source code" subtitle="View the project repository" onPress={() => void Linking.openURL("https://github.com/CryptexIndustries/vault-web")} />
                     <UnlockedMenuRow icon={CircleHelp} title="Report an issue" subtitle="Open the issue tracker" onPress={() => void Linking.openURL("https://github.com/CryptexIndustries/vault-web/issues")} />
+                    <UnlockedMenuRow icon={ShieldCheck} title="Privacy policy" subtitle="How your data is handled" onPress={() => void Linking.openURL("https://www.cryptex-vault.com/privacy")} />
                     <UnlockedMenuRow icon={Info} title="License" subtitle="AGPL-3.0-only" onPress={() => setLicenseOpen(true)} />
                 </>
             )}

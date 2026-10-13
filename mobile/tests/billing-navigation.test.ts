@@ -7,14 +7,19 @@ import { useAutoLock } from "@/hooks/use-auto-lock";
 import { getVaultDEKFromSession } from "@/utils/vault-session";
 import { vaultLockStateAtom } from "@/utils/vault-lock";
 import {
-    openCheckoutExternal,
-    openCustomerPortalExternal,
+    billingManagement,
+    isGooglePlayBuild,
+    restoreStorePurchases,
+    purchaseMembership,
+    openBillingManagement,
+    checkStorePurchaseStatus,
 } from "@/app_lib/online-services-billing";
 import BillingReturnScreen from "../app/billing-return";
 import { AccountSummary } from "@/components/account/account-summary";
 import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 
 jest.mock("react-native", () => ({
+    useWindowDimensions: () => ({ fontScale: 1 }),
     View: "View",
     Pressable: "Pressable",
     ActivityIndicator: "Spinner",
@@ -39,13 +44,19 @@ jest.mock("@/utils/atoms", () => {
 jest.mock("@/utils/vault-lock", () => ({ vaultLockStateAtom: atom("idle") }));
 jest.mock("@/utils/vault-session", () => ({
     getVaultDEKFromSession: jest.fn(),
+    getVaultSessionGeneration: () => 1,
+    isSameActiveVaultSession: () => true,
 }));
 jest.mock("@/hooks/use-auto-lock", () => ({
     useAutoLock: jest.fn(() => ({ resumeAfterFailedLock: jest.fn() })),
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    openCheckoutExternal: jest.fn(),
-    openCustomerPortalExternal: jest.fn(),
+    isGooglePlayBuild: jest.fn(() => false),
+    restoreStorePurchases: jest.fn(),
+    purchaseMembership: jest.fn(),
+    openBillingManagement: jest.fn(),
+    billingManagement: jest.fn(() => "stripe"),
+    checkStorePurchaseStatus: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
     Redirect: "Redirect",
@@ -64,6 +75,8 @@ const { mockUnlockedAtom } = jest.requireMock<{
 }>("@/utils/atoms");
 
 beforeEach(() => {
+    jest.mocked(isGooglePlayBuild).mockReturnValue(false);
+    jest.mocked(billingManagement).mockReturnValue("stripe");
     (
         globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -75,8 +88,8 @@ beforeEach(() => {
     store.set(mockUnlockedAtom, false);
     store.set(vaultLockStateAtom, "idle");
     jest.mocked(getVaultDEKFromSession).mockReturnValue(ok({} as CryptoKey));
-    jest.mocked(openCheckoutExternal).mockResolvedValue({ ok: true });
-    jest.mocked(openCustomerPortalExternal).mockResolvedValue({ ok: true });
+    jest.mocked(purchaseMembership).mockResolvedValue({ ok: true });
+    jest.mocked(openBillingManagement).mockResolvedValue({ ok: true });
 });
 afterEach(async () => {
     await act(async () => renderer?.unmount());
@@ -167,6 +180,8 @@ const summaryProps = {
     onMessage: jest.fn(),
     onExternalBillingOpened: jest.fn(),
     onOpenUpgrade: jest.fn(),
+    pendingConfirmation: false,
+    onPendingChange: jest.fn(),
 };
 function button(label: string) {
     return renderer!.root
@@ -185,7 +200,7 @@ it("opens upgrade details without starting checkout or exposing the interval pic
     ).toHaveLength(0);
     await act(async () => button("Upgrade membership").props.onPress());
     expect(summaryProps.onOpenUpgrade).toHaveBeenCalledTimes(1);
-    expect(openCheckoutExternal).not.toHaveBeenCalled();
+    expect(purchaseMembership).not.toHaveBeenCalled();
 });
 
 it("defaults to Monthly in the upgrade sheet and sends the selected Yearly tier to Stripe", async () => {
@@ -202,10 +217,10 @@ it("defaults to Monthly in the upgrade sheet and sends the selected Yearly tier 
     const options = renderer!.root.findAllByType("Pressable" as never);
     expect(options[0]!.props.accessibilityState.checked).toBe(true);
     await act(async () => button("Continue with monthly").props.onPress());
-    expect(openCheckoutExternal).toHaveBeenLastCalledWith("premiumMonthly");
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumMonthly");
     await act(async () => options[1]!.props.onPress());
     await act(async () => button("Continue with yearly").props.onPress());
-    expect(openCheckoutExternal).toHaveBeenLastCalledWith("premiumYearly");
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumYearly");
     expect(summaryProps.onExternalBillingOpened).toHaveBeenCalledTimes(2);
 });
 
@@ -219,9 +234,32 @@ it("continues to use the customer portal for paid members", async () => {
         );
     });
     await act(async () => button("Manage billing").props.onPress());
-    expect(openCustomerPortalExternal).toHaveBeenCalledTimes(1);
-    expect(openCheckoutExternal).not.toHaveBeenCalled();
+    expect(openBillingManagement).toHaveBeenCalledTimes(1);
+    expect(purchaseMembership).not.toHaveBeenCalled();
 });
+
+it.each(["overview", "membership"] as const)(
+    "shows a Play build's Stripe subscriber where they are billed without linking to Stripe in %s",
+    async (mode) => {
+        jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+        jest.mocked(billingManagement).mockReturnValue(null);
+        await act(async () => {
+            renderer = create(
+                createElement(AccountSummary, {
+                    ...summaryProps,
+                    mode,
+                    subscription: { nonFree: true, provider: "stripe" },
+                }),
+            );
+        });
+        expect(button("Manage billing")).toBeUndefined();
+        expect(button("Manage Google Play subscriptions")).toBeUndefined();
+        expect(JSON.stringify(renderer!.toJSON())).toContain(
+            "Billed outside Google Play",
+        );
+        expect(openBillingManagement).not.toHaveBeenCalled();
+    },
+);
 
 it("shows free and paid benefits in Membership with only enabled services highlighted and no tier picker", async () => {
     await act(async () => {
@@ -257,5 +295,110 @@ it("shows free and paid benefits in Membership with only enabled services highli
     expect(button("Refresh account status")).toBeUndefined();
     await act(async () => button("Upgrade").props.onPress());
     expect(summaryProps.onOpenUpgrade).toHaveBeenCalled();
-    expect(openCheckoutExternal).not.toHaveBeenCalled();
+    expect(purchaseMembership).not.toHaveBeenCalled();
+});
+
+it.each([
+    {
+        ok: false as const,
+        pending: true as const,
+        message: "Membership confirmation is pending.",
+    },
+    { ok: true as const },
+])(
+    "delegates restored purchases %p to the account owner and blocks retries while parent props lag",
+    async (result) => {
+        jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+        jest.mocked(restoreStorePurchases).mockResolvedValueOnce(result);
+        await act(async () => {
+            renderer = create(createElement(AccountSummary, summaryProps));
+        });
+        const restore = button("Restore Google Play purchases").props.onPress;
+        await act(async () => restore());
+        expect(summaryProps.onPendingChange).toHaveBeenCalledWith(true);
+        await act(async () => restore());
+        expect(restoreStorePurchases).toHaveBeenCalledTimes(1);
+        await act(async () =>
+            renderer!.update(
+                createElement(AccountSummary, {
+                    ...summaryProps,
+                    pendingConfirmation: true,
+                }),
+            ),
+        );
+        expect(button("Restore Google Play purchases")).toBeUndefined();
+        expect(button("Upgrade membership")).toBeUndefined();
+        expect(button("Check status")).toBeUndefined();
+        expect(checkStorePurchaseStatus).not.toHaveBeenCalled();
+        expect(summaryProps.onMessage).not.toHaveBeenCalled();
+        if (result.ok)
+            expect(summaryProps.onExternalBillingOpened).toHaveBeenCalledWith(
+                "resume",
+            );
+        else
+            expect(summaryProps.onExternalBillingOpened).not.toHaveBeenCalled();
+        await act(async () =>
+            renderer!.update(createElement(AccountSummary, summaryProps)),
+        );
+        expect(button("Restore Google Play purchases")).toBeDefined();
+    },
+);
+
+it("keeps canceled restore quiet", async () => {
+    jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+    jest.mocked(restoreStorePurchases).mockResolvedValueOnce({
+        ok: false,
+        canceled: true,
+        message: "Canceled",
+    });
+    await act(async () => {
+        renderer = create(createElement(AccountSummary, summaryProps));
+    });
+    await act(async () =>
+        button("Restore Google Play purchases").props.onPress(),
+    );
+    expect(summaryProps.onMessage).not.toHaveBeenCalled();
+    expect(button("Check status")).toBeUndefined();
+});
+
+it("prevents duplicate Stripe checkout and retries the current tier", async () => {
+    let resolve!: (result: { ok: boolean; message: string }) => void;
+    jest.mocked(purchaseMembership).mockReturnValueOnce(
+        new Promise((r) => {
+            resolve = r;
+        }) as never,
+    );
+    await act(async () => {
+        renderer = create(
+            createElement(MembershipUpgrade, {
+                canUpgrade: true,
+                refreshing: false,
+                onMessage: summaryProps.onMessage,
+                onExternalBillingOpened: summaryProps.onExternalBillingOpened,
+            }),
+        );
+    });
+    await act(async () => {
+        button("Continue with monthly").props.onPress();
+        button("Continue with monthly").props.onPress();
+    });
+    expect(purchaseMembership).toHaveBeenCalledTimes(1);
+    await act(async () =>
+        resolve({ ok: false, message: "Could not open payment" }),
+    );
+    const recovery = summaryProps.onMessage.mock.calls[0]![1] as {
+        onPress: () => void;
+    };
+    await act(async () =>
+        renderer!.root
+            .findAllByType("Pressable" as never)
+            .find((node) => node.props.accessibilityLabel.startsWith("Yearly"))!
+            .props.onPress(),
+    );
+    await act(async () => recovery.onPress());
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumYearly");
+    await act(async () => renderer!.unmount());
+    renderer = undefined;
+    await act(async () => recovery.onPress());
+    expect(purchaseMembership).toHaveBeenCalledTimes(2);
 });

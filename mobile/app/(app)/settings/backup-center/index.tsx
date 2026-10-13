@@ -312,7 +312,7 @@ export function BackupCenterScreen({
             ) : !entitled ? (
                 <InlineNotice
                     tone="info"
-                    message="Managed backups require an eligible subscription. Open Membership in Account to upgrade using Stripe Checkout."
+                    message="Managed backups require an eligible subscription. Open Membership in Account to upgrade."
                 />
             ) : (
                 <View className="mb-0">

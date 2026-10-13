@@ -16,6 +16,11 @@ import { AccountSummary } from "@/components/account/account-summary";
 import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 import { SubscriptionSignup } from "@/components/account/subscription-signup";
 import { InlineNotice } from "@/components/inline-notice";
+import {
+    BillingSnackbar,
+    useBillingFeedback,
+} from "@/components/billing-feedback";
+import { BillingPendingNotice } from "@/components/account/billing-pending-notice";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import {
     establishOnlineServicesSession,
@@ -23,6 +28,8 @@ import {
 } from "@/app_lib/auth-session";
 import {
     refreshSubscriptionAfterExternalBilling,
+    checkStorePurchaseStatus,
+    isGooglePlayBuild,
     type BillingConfirmation,
 } from "@/app_lib/online-services-billing";
 import {
@@ -39,8 +46,6 @@ import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { trpcReact } from "@/utils/trpc";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { colors } from "@/theme";
-
-type NoticeTone = "info" | "error" | "loading";
 
 export default function AccountScreen() {
     const focused = useIsFocused();
@@ -67,22 +72,70 @@ export default function AccountScreen() {
     const [subscriptionSignupStarted, setSubscriptionSignupStarted] =
         useState(false);
     const signupGenerationRef = useRef(getVaultSessionGeneration());
+    const signupOwnerRef = useRef<string | undefined>(undefined);
+    const signupKitSavedRef = useRef(false);
+    const boundUserId = vault.OnlineServices?.UserID;
+    if (subscriptionSignupStarted && !signupOwnerRef.current && boundUserId)
+        signupOwnerRef.current = boundUserId;
     const vaultGeneration = getVaultSessionGeneration();
     const currentSubscriptionSignup =
         subscriptionSignupStarted &&
-        signupGenerationRef.current === vaultGeneration;
+        signupGenerationRef.current === vaultGeneration &&
+        (!signupOwnerRef.current || signupOwnerRef.current === boundUserId);
     const [accountSummaryMode, setAccountSummaryMode] = useState<
         "membership" | "details" | "upgrade"
     >("membership");
     const [busy, setBusy] = useState(false);
-    const [membershipRefreshError, setMembershipRefreshError] = useState<
-        string | null
-    >(null);
+    const [playBillingBusy, setPlayBillingBusy] = useState(false);
     const refreshPromiseRef = useRef<Promise<void> | null>(null);
-    const [message, setMessage] = useState<{
-        tone: NoticeTone;
-        text: string;
-    } | null>(null);
+    const billingScope = `${vaultGeneration}:${vault.OnlineServices?.UserID ?? "unbound"}:${vault.OnlineServices?.DeviceId ?? ""}`;
+    const billingScopeRef = useRef(billingScope);
+    billingScopeRef.current = billingScope;
+    const authFeedbackLifetime = useRef({ connected: hasSession, revision: 0 });
+    if (authFeedbackLifetime.current.connected && !hasSession)
+        authFeedbackLifetime.current.revision++;
+    authFeedbackLifetime.current.connected = hasSession;
+    const authFeedbackRevision = authFeedbackLifetime.current.revision;
+    const {
+        feedback: billingFeedback,
+        show: showFeedback,
+        dismiss: dismissFeedback,
+    } = useBillingFeedback(
+        `${billingScope}:${authFeedbackRevision}:${accountSummaryMode}:${accountDetailsOpen}`,
+        focused && !subscriptionSignupOpen,
+    );
+    const [pendingState, setPendingState] = useState({
+        scope: billingScope,
+        pending: false,
+    });
+    const billingPending =
+        pendingState.scope === billingScope && pendingState.pending;
+    const setBillingPending = useCallback(
+        (pending: boolean) => {
+            if (
+                isSameActiveVaultSession(vaultGeneration) &&
+                billingScopeRef.current === billingScope
+            )
+                setPendingState({ scope: billingScope, pending });
+        },
+        [vaultGeneration, billingScope],
+    );
+    const recordPendingBilling = useCallback(
+        (pending: boolean) => {
+            if (pending) setBillingPending(true);
+        },
+        [setBillingPending],
+    );
+    const statusCheckInFlight = useRef<symbol | null>(null);
+    const busyRef = useRef(busy);
+    busyRef.current = busy;
+    useEffect(() => {
+        busyRef.current = false;
+        setBusy(false);
+        setPlayBillingBusy(false);
+        refreshPromiseRef.current = null;
+        statusCheckInFlight.current = null;
+    }, [billingScope, authFeedbackRevision]);
     const automaticRecoveryStartedRef = useRef(false);
     const externalBillingOpenedRef = useRef(false);
     const externalBillingOutcomeRef = useRef<"success" | "cancel" | "resume">(
@@ -172,8 +225,13 @@ export default function AccountScreen() {
                 : "resume";
         const controller = new AbortController();
         const generation = getVaultSessionGeneration();
+        const scope = billingScope;
+        const authRevision = authFeedbackLifetime.current.revision;
         const isCurrent = () =>
-            !controller.signal.aborted && isSameActiveVaultSession(generation);
+            !controller.signal.aborted &&
+            isSameActiveVaultSession(generation) &&
+            billingScopeRef.current === scope &&
+            authFeedbackLifetime.current.revision === authRevision;
         const backgroundListener = AppState.addEventListener(
             "change",
             (state) => {
@@ -210,11 +268,8 @@ export default function AccountScreen() {
             subscription: null,
         };
         setBusy(true);
-        setMessage(
-            outcome === "success"
-                ? { tone: "loading", text: "Confirming membership…" }
-                : null,
-        );
+        dismissFeedback();
+        if (outcome === "success") setBillingPending(true);
         void (async () => {
             try {
                 const currentSubscription =
@@ -225,10 +280,19 @@ export default function AccountScreen() {
                     );
                 if (!isCurrent()) return;
                 if (!currentSubscription) {
-                    setMessage({
-                        tone: "info",
-                        text: "Membership confirmation is still pending. Reopen Membership shortly to check again.",
-                    });
+                    if (outcome === "success") setBillingPending(true);
+                    else if (outcome !== "cancel")
+                        showFeedback(
+                            "Could not refresh membership. Please try again.",
+                            {
+                                label: "Check status",
+                                onPress: () =>
+                                    router.setParams({
+                                        billingOutcome: "resume",
+                                        billingReturn: String(Date.now()),
+                                    }),
+                            },
+                        );
                     return;
                 }
                 queryUtils.v1.payment.subscription.setData(
@@ -243,20 +307,21 @@ export default function AccountScreen() {
                     queryUtils.v1.payment.customerPortal.invalidate(),
                 ]);
                 if (!isCurrent()) return;
-                setMessage(
-                    outcome === "success" && !currentSubscription.nonFree
-                        ? {
-                              tone: "info",
-                              text: "Membership confirmation is still pending. Reopen Membership shortly to check again.",
-                          }
-                        : null,
-                );
+                if (currentSubscription.nonFree) setBillingPending(false);
+                else if (outcome === "success") setBillingPending(true);
             } catch {
-                if (isCurrent())
-                    setMessage({
-                        tone: "error",
-                        text: "Could not refresh membership. Reopen Membership to try again.",
-                    });
+                if (isCurrent() && outcome !== "cancel")
+                    showFeedback(
+                        "Could not refresh membership. Please try again.",
+                        {
+                            label: "Check status",
+                            onPress: () =>
+                                router.setParams({
+                                    billingOutcome: outcome,
+                                    billingReturn: String(Date.now()),
+                                }),
+                        },
+                    );
             } finally {
                 if (isCurrent()) {
                     confirmationRef.current = undefined;
@@ -284,6 +349,10 @@ export default function AccountScreen() {
         cloudOn,
         deviceId,
         queryUtils,
+        billingScope,
+        dismissFeedback,
+        showFeedback,
+        setBillingPending,
     ]);
 
     const recoveryGenerationNeeded =
@@ -311,11 +380,18 @@ export default function AccountScreen() {
 
     const handleRefresh = useCallback(() => {
         if (refreshPromiseRef.current) return refreshPromiseRef.current;
-        if (busy) return Promise.resolve();
+        if (busyRef.current) return Promise.resolve();
         const generation = getVaultSessionGeneration();
+        const scope = billingScope;
+        const authRevision = authFeedbackLifetime.current.revision;
+        const isCurrent = () =>
+            isSameActiveVaultSession(generation) &&
+            billingScopeRef.current === scope &&
+            authFeedbackLifetime.current.revision === authRevision;
+        if (!isCurrent()) return Promise.resolve();
+        dismissFeedback();
         setBusy(true);
-        setMembershipRefreshError(null);
-        const promise = (async () => {
+        const promise: Promise<void> = Promise.resolve().then(async () => {
             try {
                 if (Vault.isOnlineServicesBound(vault) && !hasSession) {
                     await establishOnlineServicesSession({
@@ -323,48 +399,73 @@ export default function AccountScreen() {
                         privateKeyJWK: vault.OnlineServices.PrivateKeyJWK,
                     });
                 }
-                if (!isSameActiveVaultSession(generation)) return;
+                if (!isCurrent()) return;
                 await syncOnlineServicesRemoteConfiguration();
-                if (!isSameActiveVaultSession(generation)) return;
+                if (!isCurrent()) return;
                 await Promise.all([
                     refetchConfig({ throwOnError: true }),
                     refetchSubscription({ throwOnError: true }),
                 ]);
-            } catch (error) {
-                if (!isSameActiveVaultSession(generation)) return;
-                setMembershipRefreshError(
+            } catch {
+                if (!isCurrent()) return;
+                showFeedback(
                     "Could not update your membership. Please try again.",
+                    {
+                        label: "Retry",
+                        onPress: () => {
+                            void handleRefresh();
+                        },
+                    },
                 );
-                setMessage({
-                    tone: "error",
-                    text:
-                        error instanceof Error
-                            ? error.message
-                            : "Could not reconnect to Online Services.",
-                });
             } finally {
-                refreshPromiseRef.current = null;
-                if (isSameActiveVaultSession(generation)) setBusy(false);
+                if (refreshPromiseRef.current === promise)
+                    refreshPromiseRef.current = null;
+                if (isCurrent()) setBusy(false);
             }
-        })();
+        });
         refreshPromiseRef.current = promise;
         return promise;
-    }, [busy, vault, hasSession, refetchConfig, refetchSubscription]);
+    }, [
+        billingScope,
+        vault,
+        hasSession,
+        refetchConfig,
+        refetchSubscription,
+        dismissFeedback,
+        showFeedback,
+    ]);
 
     const openMembership = useCallback(() => {
-        setMessage(null);
+        dismissFeedback();
         setAccountSummaryMode("membership");
         setAccountDetailsOpen(true);
-        void handleRefresh();
-    }, [handleRefresh]);
+    }, [dismissFeedback]);
+
+    const membershipRefreshKeyRef = useRef<string | undefined>(undefined);
+    useEffect(() => {
+        const key =
+            accountDetailsOpen && accountSummaryMode === "membership"
+                ? billingScope
+                : undefined;
+        if (membershipRefreshKeyRef.current === key) return;
+        membershipRefreshKeyRef.current = key;
+        if (key) void handleRefresh();
+    }, [accountDetailsOpen, accountSummaryMode, billingScope, handleRefresh]);
 
     const startSubscriptionSignup = useCallback(() => {
         signupGenerationRef.current = getVaultSessionGeneration();
+        signupOwnerRef.current = vault.OnlineServices?.UserID;
+        signupKitSavedRef.current = false;
         setSubscriptionSignupStarted(true);
         setSubscriptionSignupOpen(true);
-    }, []);
+    }, [vault]);
 
     const openUpgrade = useCallback(() => {
+        if (billingPending) {
+            setAccountSummaryMode("membership");
+            setAccountDetailsOpen(true);
+            return;
+        }
         if (
             currentSubscriptionSignup ||
             (remoteConfig?.root &&
@@ -375,15 +476,16 @@ export default function AccountScreen() {
             startSubscriptionSignup();
             return;
         }
-        setMessage(null);
-        setMembershipRefreshError(null);
+        dismissFeedback();
         setAccountSummaryMode("upgrade");
         setAccountDetailsOpen(true);
     }, [
+        billingPending,
         currentSubscriptionSignup,
         remoteConfig,
         subscription?.nonFree,
         startSubscriptionSignup,
+        dismissFeedback,
     ]);
 
     useEffect(() => {
@@ -407,6 +509,54 @@ export default function AccountScreen() {
         startSubscriptionSignup,
     ]);
 
+    useEffect(() => {
+        if (subscription?.nonFree) setBillingPending(false);
+    }, [subscription?.nonFree, setBillingPending]);
+
+    const checkPendingBilling = async () => {
+        if (busy || statusCheckInFlight.current || !focused) return;
+        const generation = getVaultSessionGeneration();
+        const report = showFeedback;
+        const scope = billingScope;
+        const authRevision = authFeedbackLifetime.current.revision;
+        const isCurrent = () =>
+            isSameActiveVaultSession(generation) &&
+            billingScopeRef.current === scope &&
+            authFeedbackLifetime.current.revision === authRevision;
+        const request = Symbol();
+        statusCheckInFlight.current = request;
+        dismissFeedback();
+        try {
+            if (isGooglePlayBuild()) {
+                setBusy(true);
+                const result = await checkStorePurchaseStatus();
+                if (!isCurrent()) return;
+                if (!result.ok) {
+                    if (!result.pending)
+                        report(result.message, {
+                            label: "Check status",
+                            onPress: checkPendingBilling,
+                        });
+                    return;
+                }
+            }
+            router.setParams({
+                billingOutcome: "success",
+                billingReturn: String(Date.now()),
+            });
+        } catch {
+            if (isCurrent())
+                report("Could not check your subscription. Please try again.", {
+                    label: "Check status",
+                    onPress: checkPendingBilling,
+                });
+        } finally {
+            if (statusCheckInFlight.current === request)
+                statusCheckInFlight.current = null;
+            if (isCurrent()) setBusy(false);
+        }
+    };
+
     const accountSummaryProps = {
         tierName: subscription?.productName ?? "Membership unavailable",
         subscriptionStatus: subscription?.status ?? "Status unavailable",
@@ -421,10 +571,33 @@ export default function AccountScreen() {
         authStatusDescription: authStatus.statusDescription,
         refreshing: busy || configFetching || subscriptionFetching,
         onRefresh: () => void handleRefresh(),
-        onMessage: (text: string) => setMessage({ tone: "error", text }),
-        onExternalBillingOpened: () => {
-            externalBillingOpenedRef.current = true;
+        onBillingBusyChange: (value: boolean) => {
+            if (
+                billingScopeRef.current !== billingScope ||
+                authFeedbackLifetime.current.revision !== authFeedbackRevision
+            )
+                return;
+            if (value) dismissFeedback();
+            setPlayBillingBusy(value);
+        },
+        pendingConfirmation: billingPending,
+        onPendingChange: recordPendingBilling,
+        onMessage: showFeedback,
+        onExternalBillingOpened: (
+            outcome: "success" | "resume" | "external" = "external",
+        ) => {
+            if (
+                billingScopeRef.current !== billingScope ||
+                authFeedbackLifetime.current.revision !== authFeedbackRevision
+            )
+                return;
+            externalBillingOpenedRef.current = outcome === "external";
             externalBillingOutcomeRef.current = "resume";
+            if (outcome !== "external")
+                router.setParams({
+                    billingOutcome: outcome,
+                    billingReturn: String(Date.now()),
+                });
             confirmationRef.current = undefined;
             if (accountSummaryMode === "upgrade") {
                 setAccountDetailsOpen(false);
@@ -434,238 +607,280 @@ export default function AccountScreen() {
     };
 
     return (
-        <UnlockedScreen scroll>
-            {currentSubscriptionSignup ? (
-                <SubscriptionSignup
-                    key={vaultGeneration}
-                    open={subscriptionSignupOpen}
-                    onOpenChange={(open) => {
-                        if (!open && bound) {
+        <View style={{ flex: 1 }}>
+            <UnlockedScreen scroll>
+                {currentSubscriptionSignup ? (
+                    <SubscriptionSignup
+                        key={vaultGeneration}
+                        open={subscriptionSignupOpen}
+                        pendingConfirmation={billingPending}
+                        onPendingChange={recordPendingBilling}
+                        onRecoveryKitSaved={() => {
+                            signupKitSavedRef.current = true;
+                        }}
+                        onOpenChange={(open) => {
+                            if (!open && bound) {
+                                automaticRecoveryStartedRef.current = true;
+                                // Resume signup only while the kit is unsaved;
+                                // after that, Upgrade uses the normal sheet.
+                                if (signupKitSavedRef.current)
+                                    setSubscriptionSignupStarted(false);
+                            } else if (!open) {
+                                setSubscriptionSignupStarted(false);
+                            }
+                            setSubscriptionSignupOpen(open);
+                        }}
+                        onExternalBillingOpened={(outcome) => {
+                            if (
+                                billingScopeRef.current !== billingScope ||
+                                authFeedbackLifetime.current.revision !==
+                                    authFeedbackRevision
+                            )
+                                return;
                             automaticRecoveryStartedRef.current = true;
-                        } else if (!open) {
                             setSubscriptionSignupStarted(false);
-                        }
-                        setSubscriptionSignupOpen(open);
-                    }}
-                    onExternalBillingOpened={() => {
-                        automaticRecoveryStartedRef.current = true;
-                        setSubscriptionSignupStarted(false);
-                        accountSummaryProps.onExternalBillingOpened();
-                    }}
-                />
-            ) : null}
-            <Dialog
-                open={accountDetailsOpen}
-                onOpenChange={setAccountDetailsOpen}
-                placement="bottom"
-                scroll
-                scrollResetKey={accountSummaryMode}
-                loading={
-                    accountSummaryMode === "membership" &&
-                    accountSummaryProps.refreshing
-                }
-                loadingLabel="Updating membership…"
-            >
-                <DialogHeader
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                    }}
+                            accountSummaryProps.onExternalBillingOpened(
+                                outcome,
+                            );
+                        }}
+                    />
+                ) : null}
+                <Dialog
+                    open={accountDetailsOpen}
+                    onOpenChange={setAccountDetailsOpen}
+                    placement="bottom"
+                    footer={
+                        accountDetailsOpen ? (
+                            <BillingSnackbar
+                                feedback={billingFeedback}
+                                onDismiss={dismissFeedback}
+                                floating={false}
+                            />
+                        ) : null
+                    }
+                    scroll
+                    dismissible={!playBillingBusy}
+                    scrollResetKey={accountSummaryMode}
+                    loading={
+                        accountSummaryMode === "membership" &&
+                        accountSummaryProps.refreshing
+                    }
+                    loadingLabel={
+                        billingPending
+                            ? "Confirming your subscription…"
+                            : "Updating membership…"
+                    }
                 >
-                    {accountSummaryMode === "upgrade" ? (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            accessibilityLabel="Back to membership"
-                            onPress={openMembership}
-                        >
-                            <ArrowLeft size={20} color={colors.foreground} />
-                        </Button>
+                    <DialogHeader
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                        }}
+                    >
+                        {accountSummaryMode === "upgrade" ? (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={playBillingBusy}
+                                accessibilityLabel="Back to membership"
+                                onPress={openMembership}
+                            >
+                                <ArrowLeft
+                                    size={20}
+                                    color={colors.foreground}
+                                />
+                            </Button>
+                        ) : null}
+                        <DialogTitle>
+                            {accountSummaryMode === "membership"
+                                ? "Membership"
+                                : accountSummaryMode === "upgrade"
+                                  ? "Online Services"
+                                  : "Account details"}
+                        </DialogTitle>
+                    </DialogHeader>
+                    {accountDetailsOpen &&
+                    accountSummaryMode === "membership" &&
+                    billingPending ? (
+                        <BillingPendingNotice
+                            busy={busy}
+                            onCheckStatus={() => void checkPendingBilling()}
+                        />
                     ) : null}
-                    <DialogTitle>
-                        {accountSummaryMode === "membership"
-                            ? "Membership"
-                            : accountSummaryMode === "upgrade"
-                              ? "Online Services"
-                              : "Account details"}
-                    </DialogTitle>
-                </DialogHeader>
-                {accountSummaryMode === "membership" &&
-                membershipRefreshError &&
-                !accountSummaryProps.refreshing ? (
-                    <View style={{ gap: 12 }}>
+                    {accountSummaryMode === "upgrade" ? (
+                        <MembershipUpgrade
+                            key={`${billingScope}:${authFeedbackRevision}:${accountDetailsOpen}`}
+                            onBillingBusyChange={
+                                accountSummaryProps.onBillingBusyChange
+                            }
+                            canUpgrade={
+                                hasSession &&
+                                subscription?.nonFree === false &&
+                                !billingPending
+                            }
+                            pendingConfirmation={billingPending}
+                            onPendingChange={recordPendingBilling}
+                            refreshing={accountSummaryProps.refreshing}
+                            onMessage={accountSummaryProps.onMessage}
+                            onExternalBillingOpened={
+                                accountSummaryProps.onExternalBillingOpened
+                            }
+                        />
+                    ) : (
+                        <AccountSummary
+                            {...accountSummaryProps}
+                            mode={accountSummaryMode}
+                            onOpenUpgrade={openUpgrade}
+                        />
+                    )}
+                </Dialog>
+
+                {bound && cloudOn ? (
+                    <AccountSummary
+                        {...accountSummaryProps}
+                        mode="overview"
+                        onOpenMembership={openMembership}
+                        onOpenUpgrade={openUpgrade}
+                    />
+                ) : null}
+
+                {bound && cloudOn && !hasSession ? (
+                    <View style={{ marginTop: 12, gap: 12 }}>
                         <InlineNotice
-                            tone="error"
-                            message={membershipRefreshError}
+                            tone={busy ? "loading" : "warning"}
+                            message={
+                                busy
+                                    ? "Reconnecting to Online Services…"
+                                    : "Online Services needs reconnection."
+                            }
                         />
                         <Button
                             variant="outline"
-                            onPress={() => {
-                                setMessage(null);
-                                void handleRefresh();
-                            }}
+                            loading={busy}
+                            onPress={() => void handleRefresh()}
                         >
-                            Retry
+                            Reconnect
                         </Button>
                     </View>
                 ) : null}
-                {accountSummaryMode === "upgrade" ? (
-                    <MembershipUpgrade
-                        canUpgrade={
-                            hasSession && subscription?.nonFree === false
-                        }
-                        refreshing={accountSummaryProps.refreshing}
-                        onMessage={accountSummaryProps.onMessage}
-                        onExternalBillingOpened={
-                            accountSummaryProps.onExternalBillingOpened
-                        }
-                    />
-                ) : (
-                    <AccountSummary
-                        {...accountSummaryProps}
-                        mode={accountSummaryMode}
-                        onOpenUpgrade={openUpgrade}
-                    />
-                )}
-                {accountDetailsOpen && message && !membershipRefreshError ? (
-                    <InlineNotice tone={message.tone} message={message.text} />
-                ) : null}
-            </Dialog>
 
-            {bound && cloudOn ? (
-                <AccountSummary
-                    {...accountSummaryProps}
-                    mode="overview"
-                    onOpenMembership={openMembership}
-                    onOpenUpgrade={openUpgrade}
-                />
-            ) : null}
-
-            {bound && cloudOn && !hasSession ? (
-                <View style={{ marginTop: 12, gap: 12 }}>
-                    <InlineNotice
-                        tone={busy ? "loading" : "warning"}
-                        message={
-                            busy
-                                ? "Reconnecting to Online Services…"
-                                : "Online Services needs reconnection."
-                        }
-                    />
-                    <Button
-                        variant="outline"
-                        loading={busy}
-                        onPress={() => void handleRefresh()}
-                    >
-                        Reconnect
-                    </Button>
-                </View>
-            ) : null}
-
-            {!cloudOn ? (
-                <Text className="text-sm leading-5 text-muted-foreground">
-                    Online Services are unavailable in this app configuration.
-                    Your local vault remains available.
-                </Text>
-            ) : !bound ? (
-                <View className="gap-3">
-                    <View
-                        style={{
-                            paddingBottom: 22,
-                            marginBottom: 6,
-                            borderBottomWidth: 1,
-                            borderBottomColor: colors.border,
-                        }}
-                    >
-                        <Text
+                {!cloudOn ? (
+                    <Text className="text-sm leading-5 text-muted-foreground">
+                        Online Services are unavailable in this app
+                        configuration. Your local vault remains available.
+                    </Text>
+                ) : !bound ? (
+                    <View className="gap-3">
+                        <View
                             style={{
-                                marginTop: 10,
-                                fontSize: 22,
-                                fontWeight: "500",
-                                letterSpacing: -0.5,
+                                paddingBottom: 22,
+                                marginBottom: 6,
+                                borderBottomWidth: 1,
+                                borderBottomColor: colors.border,
                             }}
                         >
-                            Online Services
-                        </Text>
+                            <Text
+                                style={{
+                                    marginTop: 10,
+                                    fontSize: 22,
+                                    fontWeight: "500",
+                                    letterSpacing: -0.5,
+                                }}
+                            >
+                                Online Services
+                            </Text>
+                            <Text
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 13,
+                                    lineHeight: 20,
+                                    marginTop: 6,
+                                }}
+                            >
+                                Add online services when you need them. Your
+                                local vault works independently.
+                            </Text>
+                        </View>
+                        <Button onPress={startSubscriptionSignup}>
+                            Get Online Services
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            onPress={() =>
+                                router.push("/(app)/account/auth/recover")
+                            }
+                        >
+                            Recover account
+                        </Button>
+                    </View>
+                ) : (
+                    <View className="gap-4">
                         <Text
                             style={{
                                 color: colors.muted,
-                                fontSize: 13,
-                                lineHeight: 20,
-                                marginTop: 6,
+                                fontSize: 10,
+                                letterSpacing: 1.1,
+                                marginTop: 18,
+                                marginBottom: 6,
+                                textTransform: "uppercase",
                             }}
                         >
-                            Add online services when you need them. Your local
-                            vault works independently.
+                            Your account
                         </Text>
+                        <UnlockedMenuRow
+                            icon={Shield}
+                            title="Recovery & access"
+                            subtitle="Recovery Kit and account security"
+                            onPress={() =>
+                                router.push("/(app)/account/security")
+                            }
+                        />
+                        <UnlockedMenuRow
+                            icon={Smartphone}
+                            title="Online Services devices"
+                            subtitle="Account access and vault sync links"
+                            onPress={() => router.push("/(app)/(tabs)/devices")}
+                        />
+                        <Text
+                            style={{
+                                color: colors.muted,
+                                fontSize: 10,
+                                letterSpacing: 1.1,
+                                marginTop: 26,
+                                marginBottom: 6,
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            Account details
+                        </Text>
+                        <UnlockedMenuRow
+                            icon={User}
+                            title="Account identifiers"
+                            subtitle="User ID and this device"
+                            onPress={() => {
+                                setAccountSummaryMode("details");
+                                setAccountDetailsOpen(true);
+                            }}
+                        />
                     </View>
-                    <Button onPress={startSubscriptionSignup}>
-                        Get Online Services
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        onPress={() =>
-                            router.push("/(app)/account/auth/recover")
-                        }
-                    >
-                        Recover account
-                    </Button>
-                </View>
-            ) : (
-                <View className="gap-4">
-                    <Text
-                        style={{
-                            color: colors.muted,
-                            fontSize: 10,
-                            letterSpacing: 1.1,
-                            marginTop: 18,
-                            marginBottom: 6,
-                            textTransform: "uppercase",
-                        }}
-                    >
-                        Your account
-                    </Text>
-                    <UnlockedMenuRow
-                        icon={Shield}
-                        title="Recovery & access"
-                        subtitle="Recovery Kit and account security"
-                        onPress={() => router.push("/(app)/account/security")}
-                    />
-                    <UnlockedMenuRow
-                        icon={Smartphone}
-                        title="Online Services devices"
-                        subtitle="Account access and vault sync links"
-                        onPress={() => router.push("/(app)/(tabs)/devices")}
-                    />
-                    <Text
-                        style={{
-                            color: colors.muted,
-                            fontSize: 10,
-                            letterSpacing: 1.1,
-                            marginTop: 26,
-                            marginBottom: 6,
-                            textTransform: "uppercase",
-                        }}
-                    >
-                        Account details
-                    </Text>
-                    <UnlockedMenuRow
-                        icon={User}
-                        title="Account identifiers"
-                        subtitle="User ID and this device"
-                        onPress={() => {
-                            setAccountSummaryMode("details");
-                            setAccountDetailsOpen(true);
-                        }}
-                    />
-                </View>
-            )}
+                )}
 
-            {message && !accountDetailsOpen ? (
-                <View className="mt-4">
-                    <InlineNotice tone={message.tone} message={message.text} />
-                </View>
+                {billingPending &&
+                !accountDetailsOpen &&
+                !subscriptionSignupOpen ? (
+                    <BillingPendingNotice
+                        busy={busy}
+                        onCheckStatus={() => void checkPendingBilling()}
+                    />
+                ) : null}
+            </UnlockedScreen>
+            {!accountDetailsOpen && !subscriptionSignupOpen ? (
+                <BillingSnackbar
+                    feedback={billingFeedback}
+                    onDismiss={dismissFeedback}
+                />
             ) : null}
-        </UnlockedScreen>
+        </View>
     );
 }

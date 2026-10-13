@@ -69,6 +69,8 @@ type DialogProps = {
     /** Start a different sheet view at the top of its content. */
     scrollResetKey?: string;
     bottomSheetVariant?: DeviceSheetVariant;
+    /** Fixed content inside the native dialog, outside scrolling content. */
+    footer?: React.ReactNode;
     children: React.ReactNode;
 };
 
@@ -85,6 +87,7 @@ function Dialog({
     loadingLabel = "Loading…",
     scrollResetKey,
     bottomSheetVariant,
+    footer,
     children,
 }: DialogProps) {
     const scrollRef = React.useRef<RNScrollView>(null);
@@ -221,6 +224,18 @@ function Dialog({
         }
         if (openRef.current) handleOpenChange(false);
     }, [handleOpenChange, modal, deviceModal]);
+
+    const fixedFooter = footer ? (
+        <View
+            testID="dialog-footer"
+            style={{ flexShrink: 0 }}
+            pointerEvents={loading ? "none" : "auto"}
+            accessibilityElementsHidden={loading}
+            importantForAccessibility={loading ? "no-hide-descendants" : "auto"}
+        >
+            {footer}
+        </View>
+    ) : null;
 
     const staticBody = (
         <View
@@ -363,7 +378,7 @@ function Dialog({
                         className="max-h-full"
                         style={[
                             loading ? { minHeight: 220 } : undefined,
-                            deviceSheet
+                            deviceSheet || footer
                                 ? { maxHeight: sheetBodyHeight }
                                 : undefined,
                             fullHeight
@@ -379,10 +394,15 @@ function Dialog({
                             importantForAccessibility={
                                 loading ? "no-hide-descendants" : "auto"
                             }
-                            style={fullHeight ? { flex: 1 } : { flexShrink: 1 }}
+                            style={
+                                fullHeight
+                                    ? { flex: 1, minHeight: 0 }
+                                    : { flexShrink: 1, minHeight: 0 }
+                            }
                         >
                             {bottomBody}
                         </View>
+                        {fixedFooter}
                         {loading ? (
                             <View
                                 accessibilityRole="progressbar"
@@ -439,8 +459,24 @@ function Dialog({
                             ) : (
                                 <View className="absolute inset-0" />
                             )}
-                            <View className="z-10 max-h-full w-full max-w-sm overflow-hidden rounded-lg border border-border bg-background">
-                                {centerBody}
+                            <View
+                                className="z-10 max-h-full w-full max-w-sm overflow-hidden rounded-lg border border-border bg-background"
+                                style={
+                                    footer
+                                        ? { maxHeight: availableHeight }
+                                        : undefined
+                                }
+                            >
+                                {footer ? (
+                                    <View
+                                        style={{ flexShrink: 1, minHeight: 0 }}
+                                    >
+                                        {centerBody}
+                                    </View>
+                                ) : (
+                                    centerBody
+                                )}
+                                {fixedFooter}
                             </View>
                         </View>
                     </KeyboardAvoidingView>

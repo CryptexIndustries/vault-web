@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
-import { Check } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
+import { View } from "react-native";
 
 import {
     UnlockedButton as Button,
@@ -8,213 +7,285 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import {
     type CheckoutTier,
-    openCheckoutExternal,
+    purchaseMembership,
+    isGooglePlayBuild,
+    type StorePlan,
+    loadStorePlans,
+    checkStorePurchaseStatus,
 } from "@/app_lib/online-services-billing";
 import { colors } from "@/theme";
 import { currentPriceList } from "../../../../web/src/lib/price-lists";
+import { BillingPendingNotice } from "./billing-pending-notice";
 import { MembershipBenefits } from "./membership-benefits";
+import { BillingIntervalSelector } from "./billing-interval-selector";
+import type { FeedbackAction } from "@/components/billing-feedback";
 
+export type MembershipUpgradeProps = {
+    canUpgrade: boolean;
+    refreshing: boolean;
+    onMessage: (message: string, recovery?: FeedbackAction) => void;
+    onExternalBillingOpened: (
+        outcome?: "success" | "resume" | "external",
+    ) => void;
+    onContinue?: (tier: CheckoutTier) => Promise<void>;
+    initialTier?: CheckoutTier;
+    onBillingBusyChange?: (busy: boolean) => void;
+    pendingConfirmation?: boolean;
+    onPendingChange?: (pending: boolean) => void;
+};
 export function MembershipUpgrade({
     canUpgrade,
     refreshing,
     onMessage,
     onExternalBillingOpened,
     onContinue,
+    onBillingBusyChange,
+    pendingConfirmation,
+    onPendingChange,
     initialTier = "premiumMonthly",
-}: {
-    canUpgrade: boolean;
-    refreshing: boolean;
-    onMessage: (message: string) => void;
-    onExternalBillingOpened: () => void;
-    onContinue?: (tier: CheckoutTier) => Promise<void>;
-    initialTier?: CheckoutTier;
-}) {
-    const [checkoutTier, setCheckoutTier] = useState<CheckoutTier>(initialTier);
-    const [billingBusy, setBillingBusy] = useState(false);
-    const yearly = checkoutTier === "premiumYearly";
+}: MembershipUpgradeProps) {
+    const play = isGooglePlayBuild();
+    const mounted = useRef(true);
+    const feedbackLifetime = useRef(onMessage);
+    feedbackLifetime.current = onMessage;
+    const inFlight = useRef(false);
+    const retryBilling = useRef<(checking?: boolean) => Promise<void>>(
+        async () => {},
+    );
+    const [plans, setPlans] = useState<StorePlan[]>();
+    const [tier, setTier] = useState(initialTier);
+    const selectedPlan = plans?.find((plan) => plan.tier === tier);
+    const [busy, setBusy] = useState(false);
+    const [localPending, setPending] = useState(false);
+    const pending = !!pendingConfirmation || localPending;
+    const pendingRef = useRef(pending);
+    pendingRef.current = pending;
+    useEffect(() => {
+        if (pendingConfirmation !== undefined) {
+            pendingRef.current = pendingConfirmation;
+            setPending(pendingConfirmation);
+        }
+    }, [pendingConfirmation]);
+    const [pricesUnavailable, setPricesUnavailable] = useState(false);
+    const [reload, setReload] = useState(0);
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
+    useEffect(() => {
+        if (!play) return;
+        let current = true;
+        setPlans(undefined);
+        setPricesUnavailable(false);
+        void loadStorePlans()
+            .then((value) => {
+                if (current) setPlans(value);
+            })
+            .catch(() => {
+                if (!current) return;
+                setPricesUnavailable(true);
+                onMessage(
+                    "Could not load Google Play prices. Please try again.",
+                    {
+                        label: "Retry prices",
+                        onPress: () => {
+                            if (current && mounted.current)
+                                setReload((value) => value + 1);
+                        },
+                    },
+                );
+            });
+        return () => {
+            current = false;
+        };
+    }, [play, onMessage, reload]);
     const savings = (
         Number(currentPriceList.monthly.price) * 12 -
         Number(currentPriceList.yearly.price)
     ).toFixed(2);
-
-    const handleCheckout = async () => {
-        if (!canUpgrade || refreshing || billingBusy) return;
-        setBillingBusy(true);
+    const intervalPlans = play
+        ? Object.fromEntries(
+              plans?.map((plan) => [
+                  plan.tier,
+                  {
+                      price: plan.price,
+                      caption:
+                          plan.tier === "premiumMonthly"
+                              ? "Billed monthly"
+                              : "Billed yearly",
+                  },
+              ]) ?? [],
+          )
+        : {
+              premiumMonthly: {
+                  price: `€${currentPriceList.monthly.price}`,
+                  caption: "Billed monthly",
+              },
+              premiumYearly: {
+                  price: `€${currentPriceList.yearly.price}`,
+                  caption: `Save €${savings} a year`,
+              },
+          };
+    const disabled = busy || refreshing;
+    const submit = async (checking = false) => {
+        if (
+            !mounted.current ||
+            disabled ||
+            inFlight.current ||
+            (!checking &&
+                (pendingRef.current ||
+                    !canUpgrade ||
+                    (play && !onContinue && !plans)))
+        )
+            return;
+        inFlight.current = true;
+        setBusy(true);
+        onBillingBusyChange?.(true);
+        const isCurrent = () =>
+            mounted.current && feedbackLifetime.current === onMessage;
+        const recovery = {
+            label: checking ? "Check status" : "Retry",
+            onPress: () => {
+                if (isCurrent()) return retryBilling.current(checking);
+            },
+        };
         try {
             if (onContinue) {
-                await onContinue(checkoutTier);
+                await onContinue(tier);
                 return;
             }
-            const result = await openCheckoutExternal(checkoutTier);
-            if (!result.ok) onMessage(result.message);
-            else onExternalBillingOpened();
+            const result = checking
+                ? await checkStorePurchaseStatus()
+                : await purchaseMembership(tier);
+            if (!isCurrent()) return;
+            if (!play) {
+                if (result.ok) onExternalBillingOpened();
+                else
+                    onMessage(
+                        result.message,
+                        result.retryable === false ? undefined : recovery,
+                    );
+            } else if (result.ok) {
+                // A completed store payment still waits for authoritative membership.
+                pendingRef.current = !checking;
+                setPending(!checking);
+                onPendingChange?.(!checking);
+                onExternalBillingOpened("success");
+            } else if (result.pending) {
+                pendingRef.current = true;
+                setPending(true);
+                onPendingChange?.(true);
+            } else if (!result.canceled)
+                onMessage(
+                    result.message,
+                    result.retryable === false ? undefined : recovery,
+                );
+        } catch {
+            if (isCurrent())
+                onMessage(
+                    play
+                        ? "Could not complete billing. Please try again."
+                        : "Could not open checkout. Please try again.",
+                    recovery,
+                );
         } finally {
-            setBillingBusy(false);
+            inFlight.current = false;
+            if (mounted.current) setBusy(false);
+            if (isCurrent()) onBillingBusyChange?.(false);
         }
     };
-
+    retryBilling.current = submit;
     return (
         <View style={{ gap: 22 }}>
             <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>
                 Your vault stays yours. We run the supporting infrastructure and
                 store your encrypted backups.
             </Text>
-            <View
-                accessibilityRole="radiogroup"
-                accessibilityLabel="Billing interval"
-                style={{
-                    flexDirection: "row",
-                    padding: 5,
-                    gap: 5,
-                    backgroundColor: colors.navigation,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                }}
-            >
-                {(["premiumMonthly", "premiumYearly"] as const).map((tier) => {
-                    const selected = checkoutTier === tier;
-                    const annual = tier === "premiumYearly";
-                    return (
-                        <Pressable
-                            key={tier}
-                            accessibilityRole="radio"
-                            accessibilityLabel={`${annual ? "Yearly" : "Monthly"}, €${annual ? currentPriceList.yearly.price : currentPriceList.monthly.price} per ${annual ? "year" : "month"}`}
-                            accessibilityState={{
-                                checked: selected,
-                                disabled: billingBusy || refreshing,
-                            }}
-                            disabled={billingBusy || refreshing}
-                            onPress={() => setCheckoutTier(tier)}
+            <BillingIntervalSelector
+                value={tier}
+                onChange={setTier}
+                disabled={disabled || pending}
+                plans={intervalPlans}
+                pricePlaceholder={
+                    pricesUnavailable ? "Unavailable" : "Loading…"
+                }
+            />
+            {pending ? (
+                <BillingPendingNotice
+                    busy={busy || refreshing}
+                    onCheckStatus={() => void submit(true)}
+                />
+            ) : (
+                <View style={{ gap: 9 }}>
+                    <Button
+                        loading={busy}
+                        disabled={
+                            disabled ||
+                            !canUpgrade ||
+                            (play &&
+                                !onContinue &&
+                                !plans &&
+                                !pricesUnavailable)
+                        }
+                        onPress={() =>
+                            play && !onContinue && pricesUnavailable
+                                ? setReload((value) => value + 1)
+                                : void submit()
+                        }
+                    >
+                        {onContinue
+                            ? "Continue"
+                            : play && pricesUnavailable
+                              ? "Retry prices"
+                              : play && !plans
+                                ? "Loading prices…"
+                                : tier === "premiumYearly"
+                                  ? "Continue with yearly"
+                                  : "Continue with monthly"}
+                    </Button>
+                    {onContinue || !play || selectedPlan ? (
+                        <Text
                             style={{
-                                flex: 1,
-                                minHeight: 110,
-                                padding: 13,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: selected
-                                    ? colors.primary
-                                    : "transparent",
-                                backgroundColor: selected
-                                    ? colors.secondary
-                                    : "transparent",
-                                gap: 8,
+                                color: colors.muted,
+                                fontSize: 11,
+                                lineHeight: 17,
+                                textAlign: "center",
                             }}
                         >
-                            <View
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                }}
-                            >
-                                <Text
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: "600",
-                                        color: selected
-                                            ? colors.foreground
-                                            : colors.muted,
-                                    }}
-                                >
-                                    {annual ? "Yearly" : "Monthly"}
-                                </Text>
-                                <View
-                                    style={{
-                                        width: 18,
-                                        height: 18,
-                                        borderRadius: 9,
-                                        borderWidth: 1,
-                                        borderColor: selected
-                                            ? colors.primary
-                                            : colors.border,
-                                        backgroundColor: selected
-                                            ? colors.primary
-                                            : "transparent",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                    }}
-                                >
-                                    {selected ? (
-                                        <Check
-                                            size={12}
-                                            color={colors.navigation}
-                                        />
-                                    ) : null}
-                                </View>
-                            </View>
-                            <Text
-                                style={{
-                                    fontSize: 22,
-                                    fontWeight: "500",
-                                    letterSpacing: -0.5,
-                                }}
-                            >
-                                €
-                                {annual
-                                    ? currentPriceList.yearly.price
-                                    : currentPriceList.monthly.price}
-                                <Text
-                                    style={{
-                                        fontSize: 11,
-                                        color: colors.muted,
-                                    }}
-                                >
-                                    {annual ? " / year" : " / month"}
-                                </Text>
-                            </Text>
-                            <Text
-                                style={{
-                                    fontSize: 11,
-                                    color: annual
-                                        ? colors.primary
-                                        : colors.muted,
-                                }}
-                            >
-                                {annual
-                                    ? `Save €${savings} a year`
-                                    : "Billed monthly"}
-                            </Text>
-                        </Pressable>
-                    );
-                })}
-            </View>
-            <View style={{ gap: 9 }}>
-                <Button
-                    disabled={!canUpgrade || refreshing}
-                    loading={billingBusy}
-                    onPress={() => void handleCheckout()}
-                >
-                    {onContinue
-                        ? "Continue"
-                        : yearly
-                          ? "Continue with yearly"
-                          : "Continue with monthly"}
-                </Button>
-                <Text
-                    style={{
-                        color: colors.muted,
-                        fontSize: 11,
-                        lineHeight: 17,
-                        textAlign: "center",
-                    }}
-                >
-                    {onContinue
-                        ? "No email required. Save your Recovery Kit before payment."
-                        : "VAT included. Checkout opens in your browser."}
-                </Text>
-                {!canUpgrade && !refreshing ? (
-                    <Text
-                        style={{
-                            color: colors.muted,
-                            fontSize: 12,
-                            lineHeight: 18,
-                        }}
-                    >
-                        An upgrade is available for connected free accounts.
-                    </Text>
-                ) : null}
-            </View>
+                            {onContinue
+                                ? "No email required. Save your Recovery Kit before payment."
+                                : play
+                                  ? "Checkout opens in Google Play."
+                                  : "VAT included. Checkout opens in your browser."}
+                        </Text>
+                    ) : null}
+                    {selectedPlan ? (
+                        <Text
+                            style={{
+                                color: colors.muted,
+                                fontSize: 11,
+                                lineHeight: 17,
+                                textAlign: "center",
+                            }}
+                        >
+                            {`${selectedPlan.price} charged every ${tier === "premiumMonthly" ? "month" : "year"}. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
+                        </Text>
+                    ) : null}
+                    {!canUpgrade && !refreshing ? (
+                        <Text
+                            style={{
+                                color: colors.muted,
+                                fontSize: 12,
+                                lineHeight: 18,
+                            }}
+                        >
+                            An upgrade is available for connected free accounts.
+                        </Text>
+                    ) : null}
+                </View>
+            )}
             <MembershipBenefits upgrading />
             <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17 }}>
                 New to Online Services? Start with monthly billing before

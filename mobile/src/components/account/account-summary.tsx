@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 
@@ -7,8 +7,18 @@ import {
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { copyTextToClipboard } from "@/utils/clipboard";
-import { openCustomerPortalExternal } from "@/app_lib/online-services-billing";
+import {
+    isGooglePlayBuild,
+    restoreStorePurchases,
+    openBillingManagement,
+    billingManagement,
+} from "@/app_lib/online-services-billing";
 import { colors } from "@/theme";
+import type { FeedbackAction } from "@/components/billing-feedback";
+import {
+    getVaultSessionGeneration,
+    isSameActiveVaultSession,
+} from "@/utils/vault-session";
 import {
     MembershipBenefits,
     type MembershipAccess,
@@ -28,6 +38,7 @@ type Subscription = {
     cancelAtPeriodEnd?: boolean | null;
     expiresAt?: Date | string | null;
     nonFree?: boolean;
+    provider?: "stripe" | "google_play" | "app_store" | null;
     resourceStatus?: { linkedDevices?: number };
 };
 
@@ -47,8 +58,13 @@ type AccountSummaryProps = {
     authStatusDescription: string;
     refreshing: boolean;
     onRefresh: () => void;
-    onMessage: (message: string) => void;
-    onExternalBillingOpened: () => void;
+    onMessage: (message: string, action?: FeedbackAction) => void;
+    onExternalBillingOpened: (
+        outcome?: "success" | "resume" | "external",
+    ) => void;
+    onBillingBusyChange?: (busy: boolean) => void;
+    pendingConfirmation: boolean;
+    onPendingChange: (pending: boolean) => void;
 };
 
 function formatAccountDate(value?: Date | string | null) {
@@ -121,8 +137,27 @@ export function AccountSummary({
     onRefresh,
     onMessage,
     onExternalBillingOpened,
+    onBillingBusyChange,
+    pendingConfirmation,
+    onPendingChange,
 }: AccountSummaryProps) {
+    const billingInFlight = useRef(false);
+    const accountScope = `${userId ?? ""}:${deviceId ?? ""}`;
+    const accountScopeRef = useRef(accountScope);
+    accountScopeRef.current = accountScope;
+    const mounted = useRef(true);
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
     const [billingBusy, setBillingBusy] = useState(false);
+    const pending = pendingConfirmation;
+    const pendingRef = useRef(pending);
+    useEffect(() => {
+        pendingRef.current = pendingConfirmation;
+    }, [accountScope, pendingConfirmation]);
     const linkedDeviceCount = subscription?.resourceStatus?.linkedDevices;
     const linkedDeviceLimit = remoteConfig?.maxLinks;
     const usage =
@@ -138,8 +173,21 @@ export function AccountSummary({
     const billingDateLabel = subscription?.cancelAtPeriodEnd
         ? "Expires"
         : "Renews";
-    const canManageBilling = hasSession && !!subscription?.nonFree;
-    const canUpgrade = hasSession && subscription?.nonFree === false;
+    const management = billingManagement(subscription?.provider);
+    const canManageBilling =
+        hasSession && !!subscription?.nonFree && management !== null;
+    const billedElsewhere =
+        hasSession && !!subscription?.nonFree && management === null
+            ? subscription.provider === "app_store"
+                ? "Billed through the App Store"
+                : "Billed outside Google Play"
+            : null;
+    const managementCaption =
+        management === "google_play"
+            ? "Manage or cancel in Google Play Subscriptions"
+            : "Billing opens in your browser";
+    const canUpgrade =
+        hasSession && subscription?.nonFree === false && !pending;
     const displayTierName = subscription
         ? subscription.nonFree
             ? "Online Services"
@@ -155,17 +203,108 @@ export function AccountSummary({
                 ? "Your subscription is paused."
                 : null;
 
-    const handleBilling = async () => {
-        if (billingBusy || refreshing || !canManageBilling) return;
+    const handleBilling = async (
+        operation: "manage" | "restore" = "manage",
+    ) => {
+        if (
+            !mounted.current ||
+            billingInFlight.current ||
+            refreshing ||
+            !hasSession ||
+            accountScopeRef.current !== accountScope
+        )
+            return;
+        if (operation === "restore" && pendingRef.current) return;
+        billingInFlight.current = true;
+        const generation = getVaultSessionGeneration();
+        const scope = accountScope;
+        const isCurrent = () =>
+            mounted.current &&
+            isSameActiveVaultSession(generation) &&
+            accountScopeRef.current === scope;
         setBillingBusy(true);
+        onBillingBusyChange?.(true);
         try {
-            const result = await openCustomerPortalExternal();
-            if (!result.ok) onMessage(result.message);
-            else onExternalBillingOpened();
+            const result = await (operation === "restore"
+                ? restoreStorePurchases()
+                : openBillingManagement(
+                      operation === "manage" && subscription?.nonFree
+                          ? management
+                          : undefined,
+                  ));
+            if (!isCurrent()) return;
+            if (!result.ok) {
+                if ("canceled" in result && result.canceled) return;
+                if ("pending" in result && result.pending) {
+                    pendingRef.current = true;
+                    onPendingChange(true);
+                } else
+                    onMessage(
+                        result.message,
+                        "retryable" in result && result.retryable === false
+                            ? undefined
+                            : {
+                                  label: "Retry",
+                                  onPress: () => {
+                                      if (isCurrent())
+                                          return handleBillingRef.current(
+                                              operation,
+                                          );
+                                  },
+                              },
+                    );
+            } else {
+                if (operation === "restore") {
+                    pendingRef.current = true;
+                    onPendingChange(true);
+                }
+                onExternalBillingOpened(
+                    operation === "manage" ? "external" : "resume",
+                );
+            }
+        } catch {
+            if (isCurrent())
+                onMessage("Could not complete billing. Please try again.", {
+                    label: "Retry",
+                    onPress: () => {
+                        if (isCurrent())
+                            return handleBillingRef.current(operation);
+                    },
+                });
         } finally {
-            setBillingBusy(false);
+            billingInFlight.current = false;
+            if (isCurrent()) {
+                setBillingBusy(false);
+                onBillingBusyChange?.(false);
+            }
         }
     };
+    const handleBillingRef = useRef(handleBilling);
+    handleBillingRef.current = handleBilling;
+    const restoreButton =
+        isGooglePlayBuild() && hasSession ? (
+            <View style={{ gap: 8 }}>
+                {!pending ? (
+                    <Button
+                        variant="outline"
+                        loading={billingBusy}
+                        disabled={refreshing}
+                        onPress={() => void handleBilling("restore")}
+                    >
+                        Restore Google Play purchases
+                    </Button>
+                ) : null}
+                {!subscription?.nonFree ? (
+                    <Button
+                        variant="ghost"
+                        disabled={billingBusy || refreshing}
+                        onPress={() => void handleBilling()}
+                    >
+                        Manage Google Play subscriptions
+                    </Button>
+                ) : null}
+            </View>
+        ) : null;
     const billingDate = formatAccountDate(subscription?.expiresAt);
 
     if (mode === "overview") {
@@ -257,6 +396,7 @@ export function AccountSummary({
                         </View>
                     ) : null}
                 </Pressable>
+                {restoreButton}
                 {canManageBilling || canUpgrade ? (
                     <View style={{ marginTop: 8, gap: 8 }}>
                         <Button
@@ -282,10 +422,22 @@ export function AccountSummary({
                                     textAlign: "center",
                                 }}
                             >
-                                Billing opens in your browser
+                                {managementCaption}
                             </Text>
                         ) : null}
                     </View>
+                ) : billedElsewhere ? (
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 11,
+                            lineHeight: 16,
+                            marginTop: 8,
+                            textAlign: "center",
+                        }}
+                    >
+                        {billedElsewhere}
+                    </Text>
                 ) : hasSession && !subscription && !refreshing ? (
                     <Button
                         variant="outline"
@@ -312,7 +464,11 @@ export function AccountSummary({
                         Copy user ID
                     </Button>
                 ) : null}
-                <Detail label="Device ID" value={deviceId ?? "Unavailable"} mono />
+                <Detail
+                    label="Device ID"
+                    value={deviceId ?? "Unavailable"}
+                    mono
+                />
                 <Detail
                     label="Account role"
                     value={
@@ -368,6 +524,7 @@ export function AccountSummary({
                           ? "Membership unavailable."
                           : "Reconnect to view your membership details."}
                 </Text>
+                {restoreButton}
                 {!hasSession ? (
                     <Button
                         variant="outline"
@@ -452,11 +609,27 @@ export function AccountSummary({
                                 textAlign: "center",
                             }}
                         >
-                            Billing opens in your browser. Your membership
-                            updates when you return.
+                            {managementCaption}. Your membership updates when
+                            you return.
                         </Text>
                     ) : null}
                 </View>
+            ) : null}
+            {billedElsewhere ? (
+                <Text
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                        marginTop: 20,
+                        textAlign: "center",
+                    }}
+                >
+                    {billedElsewhere}
+                </Text>
+            ) : null}
+            {restoreButton ? (
+                <View style={{ marginTop: 16 }}>{restoreButton}</View>
             ) : null}
             <View style={{ marginTop: 28 }}>
                 <MembershipBenefits access={remoteConfig} />

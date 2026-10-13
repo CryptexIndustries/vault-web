@@ -27,6 +27,7 @@ type RecoveryKitDialogProps = {
     kit: RecoveryKitData | null;
     onComplete: () => void;
     continueToPayment?: boolean;
+    completionDisabled?: boolean;
 };
 
 export function RecoveryKitDialog({
@@ -34,6 +35,7 @@ export function RecoveryKitDialog({
     kit,
     onComplete,
     continueToPayment = false,
+    completionDisabled = false,
 }: RecoveryKitDialogProps) {
     const [acknowledged, setAcknowledged] = useState(false);
     const [savedActionTaken, setSavedActionTaken] = useState(false);
@@ -226,7 +228,10 @@ export function RecoveryKitDialog({
                     {status.text}
                 </Text>
             ) : null}
-            <Button disabled={!canContinue} onPress={onComplete}>
+            <Button
+                disabled={!canContinue || completionDisabled}
+                onPress={onComplete}
+            >
                 {continueToPayment
                     ? "I've saved my kit. Continue to payment"
                     : "Finish"}

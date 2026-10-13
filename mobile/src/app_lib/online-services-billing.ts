@@ -1,203 +1,102 @@
-import { Linking } from "react-native";
 import Constants from "expo-constants";
-import { TRPCClientError } from "@trpc/client";
+import { Linking, Platform } from "react-native";
+import type { trpc } from "@/utils/trpc";
+import * as stripe from "./stripe-billing";
 
-import { trpc } from "@/utils/trpc";
-import { onlineServicesLog } from "@/utils/logging";
-import { syncOnlineServicesRemoteConfiguration } from "@/app_lib/auth-session";
-import {
-    getVaultSessionGeneration,
-    isSameActiveVaultSession,
-} from "@/utils/vault-session";
+export { checkoutReturnTarget } from "./stripe-billing";
+export { refreshSubscriptionAfterExternalBilling } from "./billing-confirmation";
 
 export type CheckoutTier = "premiumMonthly" | "premiumYearly";
-type Subscription = Awaited<
-    ReturnType<typeof trpc.v1.payment.subscription.query>
->;
+export type StorePlan = { tier: CheckoutTier; price: string };
+export type BillingResult =
+    | { ok: true }
+    | {
+          ok: false;
+          message: string;
+          canceled?: boolean;
+          pending?: boolean;
+          /** False when trying again cannot change the outcome. */
+          retryable?: false;
+      };
 export type BillingConfirmation = {
     generation: number;
     deadline: number;
     nextPollAt: number;
     attempts: number;
-    subscription: Subscription | null;
+    subscription: Awaited<
+        ReturnType<typeof trpc.v1.payment.subscription.query>
+    > | null;
 };
-
-/**
- * Open Stripe Customer Portal in the system browser (not an embedded WebView).
- */
-export async function openCustomerPortalExternal(): Promise<
-    { ok: true } | { ok: false; message: string }
-> {
-    const generation = getVaultSessionGeneration();
-    try {
-        if (!isSameActiveVaultSession(generation))
-            throw new Error("Vault session expired.");
-        const customerPortalURL = await trpc.v1.payment.customerPortal.query({
-            returnTarget: checkoutReturnTarget(),
-        });
-
-        if (!customerPortalURL) {
-            return {
-                ok: false,
-                message: "Billing portal is not available yet.",
-            };
-        }
-
-        const portalURL = new URL(customerPortalURL);
-        if (
-            portalURL.protocol !== "https:" ||
-            portalURL.hostname !== "billing.stripe.com" ||
-            portalURL.username ||
-            portalURL.password
-        ) {
-            throw new Error("Billing portal did not return a Stripe URL.");
-        }
-
-        const canOpen = await Linking.canOpenURL(customerPortalURL);
-        if (!canOpen) {
-            return {
-                ok: false,
-                message: "Cannot open billing portal URL on this device.",
-            };
-        }
-
-        if (!isSameActiveVaultSession(generation))
-            throw new Error("Vault session expired.");
-        await Linking.openURL(customerPortalURL);
-        return { ok: true };
-    } catch {
-        onlineServicesLog.error("Failed to open customer portal");
-        return { ok: false, message: "Could not open billing portal." };
-    }
+export function isGooglePlayBuild(): boolean {
+    return (
+        Platform?.OS === "android" &&
+        Constants.expoConfig?.extra?.buildDetails?.distribution === "play"
+    );
 }
 
-export function checkoutReturnTarget(): "mobile-production" | "mobile-preprod" {
-    const scheme = Constants.expoConfig?.scheme;
-    if (scheme === "cryptex") return "mobile-production";
-    if (scheme === "cryptex-preprod") return "mobile-preprod";
-    throw new Error("This app's checkout return scheme is not configured.");
-}
-
-/** Create an authenticated hosted checkout, then give only its URL to the browser. */
-export async function openCheckoutExternal(
+export async function purchaseMembership(
     tier: CheckoutTier = "premiumMonthly",
-): Promise<{ ok: true } | { ok: false; message: string }> {
-    const generation = getVaultSessionGeneration();
-    try {
-        if (!isSameActiveVaultSession(generation))
-            throw new Error("Vault session expired.");
-        const url = await trpc.v1.payment.checkoutSession.query({
+): Promise<BillingResult> {
+    if (isGooglePlayBuild()) {
+        return (await import("./google-play-billing")).purchaseGooglePlayPlan(
             tier,
-            uiMode: "hosted",
-            returnTarget: checkoutReturnTarget(),
-        });
-        const checkoutURL = new URL(url);
-        if (
-            checkoutURL.protocol !== "https:" ||
-            checkoutURL.hostname !== "checkout.stripe.com" ||
-            checkoutURL.username ||
-            checkoutURL.password
-        ) {
-            throw new Error("Checkout did not return a Stripe URL.");
-        }
-        if (!(await Linking.canOpenURL(url))) {
-            return {
-                ok: false,
-                message: "Cannot open Stripe Checkout on this device.",
-            };
-        }
-        if (!isSameActiveVaultSession(generation)) {
-            return {
-                ok: false,
-                message: "Unlock your vault again before opening checkout.",
-            };
-        }
-        await Linking.openURL(url);
-        return { ok: true };
-    } catch {
-        onlineServicesLog.error("Failed to open Stripe Checkout");
-        return {
-            ok: false,
-            message: "Could not open Stripe Checkout. Please try again.",
-        };
+        );
     }
+    return stripe.openCheckoutExternal(tier);
+}
+type BillingProvider = NonNullable<
+    BillingConfirmation["subscription"]
+>["provider"];
+export type BillingManagement = "google_play" | "stripe" | null;
+
+/** Where the current subscription is managed, or null when this build cannot link to it. */
+export function billingManagement(
+    provider: BillingProvider | undefined,
+): BillingManagement {
+    if (provider === "google_play") return "google_play";
+    if (provider === "app_store") return null;
+    // Google Play builds must not link to another payment method.
+    if (provider === "stripe") return isGooglePlayBuild() ? null : "stripe";
+    return isGooglePlayBuild() ? "google_play" : "stripe";
 }
 
-/** The return link requests a refresh. Only the authenticated API proves membership. */
-export async function refreshSubscriptionAfterExternalBilling(
-    outcome: "success" | "cancel" | "resume",
-    signal: AbortSignal,
-    confirmation: BillingConfirmation = {
-        generation: getVaultSessionGeneration(),
-        deadline: Date.now() + 60000,
-        nextPollAt: 0,
-        attempts: 0,
-        subscription: null,
-    },
+/** Play builds open their own subscription; other builds cannot know which app bought it. */
+function googlePlaySubscriptionsUrl() {
+    const url = "https://play.google.com/store/account/subscriptions";
+    const sku = process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID;
+    const appPackage = Constants.expoConfig?.android?.package;
+    if (!isGooglePlayBuild() || !sku || !appPackage) return url;
+    return `${url}?sku=${encodeURIComponent(sku)}&package=${encodeURIComponent(appPackage)}`;
+}
+
+export async function openBillingManagement(
+    management: BillingManagement = billingManagement(undefined),
 ) {
-    const generation = getVaultSessionGeneration();
-    const isCurrent = () =>
-        !signal.aborted &&
-        confirmation.generation === generation &&
-        isSameActiveVaultSession(generation);
-    // The subscription endpoint allows ten requests per minute. Reserve room
-    // for the account screen's normal query and final cache refresh.
-    const attempts = 7;
-    while (
-        confirmation.attempts < attempts &&
-        (!confirmation.subscription ||
-            (outcome === "success" && !confirmation.subscription.nonFree))
-    ) {
-        if (!isCurrent()) return null;
-        if (Date.now() > confirmation.deadline) break;
-        if (confirmation.nextPollAt > Date.now()) {
-            await new Promise<void>((resolve) => {
-                const done = () => {
-                    clearTimeout(timer);
-                    signal.removeEventListener("abort", done);
-                    resolve();
-                };
-                const timer = setTimeout(
-                    done,
-                    Math.min(
-                        confirmation.nextPollAt - Date.now(),
-                        Math.max(0, confirmation.deadline - Date.now()),
-                    ),
-                );
-                signal.addEventListener("abort", done, { once: true });
-            });
-            if (!isCurrent()) return null;
-            if (Date.now() > confirmation.deadline) break;
-        }
-        confirmation.attempts++;
-        confirmation.nextPollAt = Date.now() + 10000;
+    if (management === "google_play") {
         try {
-            const subscription = await trpc.v1.payment.subscription.query(
-                undefined,
-                { signal },
-            );
-            if (!isCurrent()) return null;
-            confirmation.subscription = subscription;
-        } catch (error) {
-            if (!isCurrent()) return null;
-            if (
-                !(
-                    outcome === "success" &&
-                    error instanceof TRPCClientError &&
-                    error.data?.code === "TOO_MANY_REQUESTS"
-                )
-            )
-                throw error;
-            if (
-                confirmation.attempts === attempts &&
-                !confirmation.subscription
-            )
-                throw error;
+            await Linking.openURL(googlePlaySubscriptionsUrl());
+            return { ok: true } as const;
+        } catch {
+            return {
+                ok: false,
+                message: "Could not open Google Play subscriptions.",
+            } as const;
         }
-        if (!isCurrent()) return null;
-        if (outcome !== "success" || confirmation.subscription?.nonFree) break;
     }
-    if (!isCurrent()) return null;
-    await syncOnlineServicesRemoteConfiguration();
-    return isCurrent() ? confirmation.subscription : null;
+    if (management === "stripe") return stripe.openCustomerPortalExternal();
+    return {
+        ok: false,
+        message: "This subscription cannot be managed from this app.",
+    } as const;
+}
+export async function loadStorePlans() {
+    return (await import("./google-play-billing")).loadGooglePlayPlans();
+}
+export async function restoreStorePurchases() {
+    return (await import("./google-play-billing")).restoreGooglePlayPurchases();
+}
+export async function checkStorePurchaseStatus() {
+    return (
+        await import("./google-play-billing")
+    ).checkGooglePlayPurchaseStatus();
 }

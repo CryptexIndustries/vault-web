@@ -2,10 +2,22 @@ import { afterEach, beforeEach, expect, it, jest } from "@jest/globals";
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { AppState } from "react-native";
+import { getDefaultStore } from "jotai";
+import {
+    unlockedVaultAtom,
+    onlineServicesDataAtom,
+    onlineServicesStore,
+} from "@/utils/atoms";
 import { router } from "expo-router";
 import { trpcReact } from "@/utils/trpc";
-import { syncOnlineServicesRemoteConfiguration } from "@/app_lib/auth-session";
-import { refreshSubscriptionAfterExternalBilling } from "@/app_lib/online-services-billing";
+import {
+    establishOnlineServicesSession,
+    syncOnlineServicesRemoteConfiguration,
+} from "@/app_lib/auth-session";
+import {
+    isGooglePlayBuild,
+    refreshSubscriptionAfterExternalBilling,
+} from "@/app_lib/online-services-billing";
 import {
     getVaultSessionGeneration,
     isSameActiveVaultSession,
@@ -13,7 +25,11 @@ import {
 import AccountScreen from "../app/(app)/(tabs)/account";
 
 jest.mock("react-native", () => ({
+    useWindowDimensions: () => ({ fontScale: 1 }),
     View: "View",
+    Pressable: "Pressable",
+    Platform: { OS: "android" },
+    AccessibilityInfo: {},
     AppState: {
         currentState: "active",
         addEventListener: (
@@ -30,6 +46,7 @@ jest.mock("lucide-react-native", () => ({
     Smartphone: "Smartphone",
     User: "User",
     ArrowLeft: "ArrowLeft",
+    X: "X",
 }));
 jest.mock("expo-router", () => ({
     useLocalSearchParams: () => mockParams,
@@ -70,7 +87,14 @@ jest.mock("@/components/account/subscription-signup", () => ({
 }));
 jest.mock("@/components/inline-notice", () => ({ InlineNotice: "Notice" }));
 jest.mock("@/components/ui/dialog", () => ({
-    Dialog: "Dialog",
+    Dialog: ({
+        footer,
+        children,
+        ...props
+    }: {
+        footer?: React.ReactNode;
+        children?: React.ReactNode;
+    }) => createElement("Dialog", props, children, footer),
     DialogHeader: "DialogHeader",
 }));
 jest.mock("@cryptex-industries/vault-core/vault-utils/vault", () => ({
@@ -101,7 +125,9 @@ jest.mock("@/app_lib/auth-session", () => ({
     syncOnlineServicesRemoteConfiguration: jest.fn(),
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
+    isGooglePlayBuild: jest.fn(() => false),
     refreshSubscriptionAfterExternalBilling: jest.fn(),
+    checkStorePurchaseStatus: jest.fn(),
 }));
 jest.mock("@/utils/vault-session", () => ({
     getVaultSessionGeneration: jest.fn(),
@@ -191,12 +217,23 @@ async function state(next: string) {
     await render();
 }
 beforeEach(() => {
+    jest.mocked(isGooglePlayBuild).mockReturnValue(false);
     (
         globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     (
         globalThis as { IS_REACT_NATIVE_TEST_ENVIRONMENT?: boolean }
     ).IS_REACT_NATIVE_TEST_ENVIRONMENT = true;
+    getDefaultStore().set(unlockedVaultAtom, {
+        OnlineServices: { DeviceId: "device-a", UserID: "user-a" },
+    } as never);
+    onlineServicesStore.set(onlineServicesDataAtom, {
+        sessionToken: "test-token",
+        remoteData: {},
+    } as never);
+    jest.mocked(establishOnlineServicesSession)
+        .mockReset()
+        .mockResolvedValue(undefined);
     mockParams = {};
     mockFocused = true;
     mockBound = true;
@@ -226,38 +263,38 @@ afterEach(async () => {
         .IS_REACT_NATIVE_TEST_ENVIRONMENT;
 });
 
-it("shows confirmation progress then authoritative pending status without a payment-success claim", async () => {
+it("keeps confirmation pending with Check status until the backend confirms membership", async () => {
     const pending = deferred<typeof free>();
     refresh.mockReturnValue(pending.promise);
     mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
     expect(
         renderer!.root
-            .findAllByType("Notice" as never)
-            .some((node) => node.props.message === "Confirming membership…"),
-    ).toBe(true);
+            .findAllByType("Button" as never)
+            .find((node) => node.props.children === "Check status")!.props
+            .children,
+    ).toBe("Check status");
+    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
     await act(async () => pending.resolve(free));
     expect(utils.v1.payment.subscription.setData).toHaveBeenCalledWith(
         undefined,
         free,
     );
-    expect(utils.v1.payment.subscription.invalidate).toHaveBeenCalledWith(
-        undefined,
-        { refetchType: "none" },
-    );
     expect(
         renderer!.root
-            .findAllByType("Notice" as never)
-            .some((node) => node.props.message.includes("still pending")),
-    ).toBe(true);
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(1);
+            .findAllByType("Button" as never)
+            .find((node) => node.props.children === "Check status")!.props
+            .children,
+    ).toBe("Check status");
     expect(
         renderer!.root
-            .findAllByType("Notice" as never)
-            .some(
-                (node) => node.props.message === "Your membership is active.",
-            ),
+            .findAllByType("Button" as never)
+            .find((node) => node.props.children === "Check status")!.props
+            .disabled,
     ).toBe(false);
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(0);
 });
 
 it.each<["resume" | "cancel", typeof free]>([
@@ -293,7 +330,11 @@ it("clears confirmation progress once the authoritative subscription is active",
         billingReturn: "checkout-return",
     };
     await render();
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(1);
+    expect(
+        renderer!.root
+            .findAllByType("Button" as never)
+            .some((node) => node.props.children === "Check status"),
+    ).toBe(true);
     await act(async () => pending.resolve(paid));
     expect(utils.v1.payment.subscription.setData).toHaveBeenCalledWith(
         undefined,
@@ -302,17 +343,24 @@ it("clears confirmation progress once the authoritative subscription is active",
     expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
 });
 
-it("preserves a useful billing refresh failure without a routine success notice", async () => {
+it("offers one actionable snackbar after a membership refresh failure", async () => {
     refresh.mockRejectedValueOnce(new Error("Offline"));
     mockParams = { billingOutcome: "resume", billingReturn: "billing-return" };
     await render();
-    const notices = renderer!.root.findAllByType("Notice" as never);
-    expect(notices).toHaveLength(1);
-    expect(notices[0]!.props.tone).toBe("error");
-    expect(notices[0]!.props.message).toContain("Could not refresh membership");
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(1);
+    expect(
+        renderer!.root
+            .findAllByType("Text" as never)
+            .some((node) =>
+                node.props.children.includes("Could not refresh membership"),
+            ),
+    ).toBe(true);
+    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
 });
 
-it("shows an account error once when its sheet is opened and once after it closes", async () => {
+it("clears a previous screen error when the account sheet changes view", async () => {
     await render();
     const overview = renderer!.root
         .findAllByType("AccountSummary" as never)
@@ -320,7 +368,9 @@ it("shows an account error once when its sheet is opened and once after it close
     await act(async () =>
         overview.props.onMessage("Could not open billing portal."),
     );
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(1);
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(1);
     await act(async () =>
         renderer!.root
             .findAllByType("MenuRow" as never)
@@ -328,11 +378,15 @@ it("shows an account error once when its sheet is opened and once after it close
             .props.onPress(),
     );
     expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(true);
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(1);
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(0);
     await act(async () =>
         renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
     );
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(1);
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(0);
 });
 
 it.each(["background", "inactive"] as const)(
@@ -503,13 +557,17 @@ it("offers Retry after a failed automatic refresh and recovers without a persist
     );
     expect(
         renderer!.root
-            .findAllByType("Notice" as never)
-            .some((node) => node.props.message.includes("Could not update")),
+            .findAllByType("Text" as never)
+            .some(
+                (node) =>
+                    typeof node.props.children === "string" &&
+                    node.props.children.includes("Could not update"),
+            ),
     ).toBe(true);
     await act(async () =>
         renderer!.root
-            .findAllByType("Button" as never)
-            .find((node) => node.props.children === "Retry")!
+            .findAllByType("Pressable" as never)
+            .find((node) => node.props.accessibilityLabel === "Retry")!
             .props.onPress(),
     );
     expect(mockRefetchSubscription).toHaveBeenCalledTimes(2);
@@ -535,6 +593,38 @@ it("opens the dedicated upgrade sheet and closes it when the checkout browser op
     expect(
         renderer!.root.findAllByType("MembershipUpgrade" as never),
     ).toHaveLength(0);
+});
+
+it("replaces retained upgrade controls on dismissal, account change, and logout", async () => {
+    await render();
+    const openUpgrade = () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenUpgrade();
+    await act(async () => openUpgrade());
+    const original = renderer!.root.findByType("MembershipUpgrade" as never);
+    await act(async () =>
+        renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
+    );
+    const dismissed = renderer!.root.findByType("MembershipUpgrade" as never);
+    expect(dismissed).not.toBe(original);
+    await act(async () => openUpgrade());
+    const reopened = renderer!.root.findByType("MembershipUpgrade" as never);
+    expect(reopened).not.toBe(dismissed);
+    await act(async () =>
+        getDefaultStore().set(unlockedVaultAtom, {
+            OnlineServices: { DeviceId: "device-b", UserID: "user-b" },
+        } as never),
+    );
+    const replaced = renderer!.root.findByType("MembershipUpgrade" as never);
+    expect(replaced).not.toBe(reopened);
+    await act(async () =>
+        onlineServicesStore.set(onlineServicesDataAtom, null),
+    );
+    expect(renderer!.root.findByType("MembershipUpgrade" as never)).not.toBe(
+        replaced,
+    );
 });
 
 it("opens subscription signup directly for an unbound vault", async () => {
@@ -582,6 +672,38 @@ it("resumes interrupted bound signup through Upgrade without leaving two sheets 
         renderer!.root.findByType("SubscriptionSignup" as never).props.open,
     ).toBe(true);
     expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(false);
+});
+
+it("uses normal upgrade after the signup kit was saved and payment did not finish", async () => {
+    mockBound = false;
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("Button" as never)
+            .find((node) => node.props.children === "Get Online Services")!
+            .props.onPress(),
+    );
+    mockBound = true;
+    await render();
+    const signup = renderer!.root.findByType("SubscriptionSignup" as never);
+    await act(async () => signup.props.onRecoveryKitSaved());
+    await act(async () => signup.props.onOpenChange(false));
+    expect(
+        renderer!.root.findAllByType("SubscriptionSignup" as never),
+    ).toHaveLength(0);
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenUpgrade(),
+    );
+    expect(
+        renderer!.root.findAllByType("SubscriptionSignup" as never),
+    ).toHaveLength(0);
+    expect(
+        renderer!.root.findByType("MembershipUpgrade" as never).props
+            .canUpgrade,
+    ).toBe(true);
 });
 
 it("uses normal upgrade for an existing-kit account reached through the old register route", async () => {
@@ -692,4 +814,304 @@ it("discards retained signup state when the unlocked vault session changes", asy
     expect(
         renderer!.root.findAllByType("SubscriptionSignup" as never),
     ).toHaveLength(0);
+});
+
+it.each(["success", "resume"] as const)(
+    "refreshes Play %s outcomes immediately without waiting for browser return",
+    async (outcome) => {
+        jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+        await render();
+        await act(async () =>
+            renderer!.root
+                .findAllByType("AccountSummary" as never)
+                .find((node) => node.props.mode === "overview")!
+                .props.onExternalBillingOpened(outcome),
+        );
+        expect(router.setParams).toHaveBeenCalledWith(
+            expect.objectContaining({ billingOutcome: outcome }),
+        );
+    },
+);
+
+it("refreshes Google subscription management only after returning from the browser", async () => {
+    jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onExternalBillingOpened(),
+    );
+    expect(refresh).not.toHaveBeenCalled();
+    await state("background");
+    await state("active");
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh.mock.calls[0]![0]).toBe("resume");
+});
+
+it("shows a safe retry when reconnection succeeds but membership refresh fails", async () => {
+    onlineServicesStore.set(onlineServicesDataAtom, null);
+    jest.mocked(establishOnlineServicesSession).mockImplementationOnce(
+        async () => {
+            onlineServicesStore.set(onlineServicesDataAtom, {
+                sessionToken: "new-token",
+                remoteData: {},
+            } as never);
+        },
+    );
+    mockRefetchSubscription.mockRejectedValueOnce(
+        new Error("private network error"),
+    );
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenMembership(),
+    );
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(1);
+    expect(
+        renderer!.root
+            .findAllByType("Text" as never)
+            .some(
+                (node) =>
+                    node.props.children ===
+                    "Could not update your membership. Please try again.",
+            ),
+    ).toBe(true);
+    expect(
+        renderer!.root
+            .findAllByType("Text" as never)
+            .some((node) => node.props.children === "private network error"),
+    ).toBe(false);
+});
+
+it("keeps one active snackbar host and clears it on logout", async () => {
+    await render();
+    const overview = renderer!.root
+        .findAllByType("AccountSummary" as never)
+        .find((node) => node.props.mode === "overview")!;
+    await act(async () => overview.props.onOpenMembership());
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "membership")!
+            .props.onMessage("Could not open billing portal."),
+    );
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(1);
+    await act(async () =>
+        onlineServicesStore.set(onlineServicesDataAtom, null),
+    );
+    expect(
+        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+    ).toHaveLength(0);
+});
+
+it("keeps pending purchases through sheet reopening and blocks another checkout", async () => {
+    await render();
+    const overview = renderer!.root
+        .findAllByType("AccountSummary" as never)
+        .find((node) => node.props.mode === "overview")!;
+    await act(async () => overview.props.onPendingChange(true));
+    await act(async () => overview.props.onOpenUpgrade());
+    expect(
+        renderer!.root.findAllByType("MembershipUpgrade" as never),
+    ).toHaveLength(0);
+    expect(
+        renderer!.root
+            .findAllByType("Button" as never)
+            .some((node) => node.props.children === "Check status"),
+    ).toBe(true);
+    await act(async () =>
+        renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
+    );
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenUpgrade(),
+    );
+    expect(
+        renderer!.root.findAllByType("MembershipUpgrade" as never),
+    ).toHaveLength(0);
+});
+
+it("does not let an old account completion release the new account refresh lock", async () => {
+    const old = deferred<unknown>();
+    const next = deferred<unknown>();
+    mockRefetchSubscription
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(next.promise);
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenMembership(),
+    );
+    await act(async () =>
+        getDefaultStore().set(unlockedVaultAtom, {
+            OnlineServices: { DeviceId: "device-b", UserID: "user-b" },
+        } as never),
+    );
+    expect(mockRefetchSubscription).toHaveBeenCalledTimes(2);
+    await act(async () => old.resolve({ data: free }));
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "membership")!
+            .props.onRefresh(),
+    );
+    expect(mockRefetchSubscription).toHaveBeenCalledTimes(2);
+    expect(renderer!.root.findByType("Dialog" as never).props.loading).toBe(
+        true,
+    );
+    await act(async () => next.resolve({ data: free }));
+    expect(renderer!.root.findByType("Dialog" as never).props.loading).toBe(
+        false,
+    );
+});
+
+it("discards a retained signup kit when its bound account is replaced in the same vault", async () => {
+    mockRemoteConfig = { root: true, recoveryTokenCreatedAt: null };
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenUpgrade(),
+    );
+    expect(
+        renderer!.root.findAllByType("SubscriptionSignup" as never),
+    ).toHaveLength(1);
+    await act(async () =>
+        getDefaultStore().set(unlockedVaultAtom, {
+            OnlineServices: null,
+        } as never),
+    );
+    expect(
+        renderer!.root.findAllByType("SubscriptionSignup" as never),
+    ).toHaveLength(0);
+    await act(async () =>
+        getDefaultStore().set(unlockedVaultAtom, {
+            OnlineServices: { DeviceId: "device-b", UserID: "user-b" },
+        } as never),
+    );
+    expect(
+        renderer!.root.findAllByType("SubscriptionSignup" as never),
+    ).toHaveLength(0);
+});
+
+it("starts explicit billing success confirmation for Stripe without waiting for browser return", async () => {
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onExternalBillingOpened("success"),
+    );
+    expect(router.setParams).toHaveBeenCalledWith(
+        expect.objectContaining({ billingOutcome: "success" }),
+    );
+    await render();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh.mock.calls[0]![0]).toBe("success");
+});
+
+it("releases refresh loading on logout and keeps a newer reconnect request guarded", async () => {
+    const old = deferred<unknown>();
+    const next = deferred<unknown>();
+    mockRefetchSubscription
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(next.promise);
+    await render();
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "overview")!
+            .props.onOpenMembership(),
+    );
+    expect(renderer!.root.findByType("Dialog" as never).props.loading).toBe(
+        true,
+    );
+    await act(async () =>
+        onlineServicesStore.set(onlineServicesDataAtom, null),
+    );
+    expect(renderer!.root.findByType("Dialog" as never).props.loading).toBe(
+        false,
+    );
+    jest.mocked(establishOnlineServicesSession).mockImplementationOnce(
+        async () => {
+            onlineServicesStore.set(onlineServicesDataAtom, {
+                sessionToken: "next-token",
+                remoteData: {},
+            } as never);
+        },
+    );
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "membership")!
+            .props.onRefresh(),
+    );
+    expect(mockRefetchSubscription).toHaveBeenCalledTimes(2);
+    await act(async () => old.resolve({ data: free }));
+    expect(renderer!.root.findByType("Dialog" as never).props.loading).toBe(
+        true,
+    );
+    await act(async () => next.resolve({ data: free }));
+    expect(renderer!.root.findByType("Dialog" as never).props.loading).toBe(
+        false,
+    );
+});
+
+it("keeps newer billing locks and pending state when old callbacks arrive after same-account reconnect", async () => {
+    await render();
+    const old = renderer!.root
+        .findAllByType("AccountSummary" as never)
+        .find((node) => node.props.mode === "overview")!.props;
+    await act(async () => old.onPendingChange(true));
+    await act(async () =>
+        onlineServicesStore.set(onlineServicesDataAtom, null),
+    );
+    await act(async () =>
+        onlineServicesStore.set(onlineServicesDataAtom, {
+            sessionToken: "reconnected-token",
+            remoteData: {},
+        } as never),
+    );
+    const current = renderer!.root
+        .findAllByType("AccountSummary" as never)
+        .find((node) => node.props.mode === "overview")!.props;
+    expect(current.pendingConfirmation).toBe(true);
+    await act(async () => current.onOpenMembership());
+    await act(async () =>
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "membership")!
+            .props.onBillingBusyChange(true),
+    );
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        false,
+    );
+    jest.mocked(router.setParams).mockClear();
+    await act(async () => {
+        old.onBillingBusyChange(false);
+        old.onExternalBillingOpened("success");
+    });
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        false,
+    );
+    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(true);
+    expect(router.setParams).not.toHaveBeenCalled();
+    expect(
+        renderer!.root
+            .findAllByType("AccountSummary" as never)
+            .find((node) => node.props.mode === "membership")!.props
+            .pendingConfirmation,
+    ).toBe(true);
 });

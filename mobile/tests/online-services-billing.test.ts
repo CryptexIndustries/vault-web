@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, jest } from "@jest/globals";
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/utils/trpc";
@@ -9,14 +9,16 @@ import {
     isSameActiveVaultSession,
 } from "@/utils/vault-session";
 import {
+    billingManagement,
     checkoutReturnTarget,
-    openCheckoutExternal,
-    openCustomerPortalExternal,
+    purchaseMembership,
+    openBillingManagement,
     refreshSubscriptionAfterExternalBilling,
     type BillingConfirmation,
 } from "@/app_lib/online-services-billing";
 
 jest.mock("react-native", () => ({
+    Platform: { OS: "android" },
     Linking: { canOpenURL: jest.fn(), openURL: jest.fn() },
 }));
 jest.mock("expo-constants", () => ({
@@ -45,6 +47,11 @@ jest.mock("@/utils/logging", () => ({
     onlineServicesLog: { error: jest.fn() },
 }));
 
+jest.mock("@/app_lib/google-play-billing", () => ({
+    purchaseGooglePlayPlan: (...args: unknown[]) => mockPlayPurchase(...args),
+}));
+const mockPlayPurchase = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const checkout = jest.mocked(trpc.v1.payment.checkoutSession.query);
 const portal = jest.mocked(trpc.v1.payment.customerPortal.query);
 const subscription = jest.mocked(trpc.v1.payment.subscription.query);
@@ -70,6 +77,11 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+    Object.assign(Platform, { OS: "android" });
+    Constants.expoConfig!.extra = {
+        buildDetails: { distribution: "standard" },
+    };
+    mockPlayPurchase.mockReset();
     jest.useFakeTimers({ now: 1000 });
     jest.mocked(getVaultSessionGeneration).mockReset().mockReturnValue(1);
     jest.mocked(isSameActiveVaultSession).mockReset().mockReturnValue(true);
@@ -84,13 +96,15 @@ beforeEach(() => {
         .mockResolvedValue(undefined);
     jest.mocked(Linking.canOpenURL).mockReset().mockResolvedValue(true);
     jest.mocked(Linking.openURL).mockReset().mockResolvedValue(undefined);
+    delete Constants.expoConfig!.android;
+    delete process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID;
 });
 afterEach(() => {
     jest.useRealTimers();
 });
 
 it("opens hosted monthly checkout directly in the system browser with the production return target", async () => {
-    await expect(openCheckoutExternal()).resolves.toEqual({ ok: true });
+    await expect(purchaseMembership()).resolves.toEqual({ ok: true });
     expect(checkout).toHaveBeenCalledWith({
         tier: "premiumMonthly",
         uiMode: "hosted",
@@ -101,7 +115,7 @@ it("opens hosted monthly checkout directly in the system browser with the produc
 
 it("uses the preprod return target for yearly checkout and customer portal", async () => {
     Constants.expoConfig!.scheme = "cryptex-preprod";
-    await expect(openCheckoutExternal("premiumYearly")).resolves.toEqual({
+    await expect(purchaseMembership("premiumYearly")).resolves.toEqual({
         ok: true,
     });
     expect(checkout).toHaveBeenCalledWith({
@@ -109,7 +123,7 @@ it("uses the preprod return target for yearly checkout and customer portal", asy
         uiMode: "hosted",
         returnTarget: "mobile-preprod",
     });
-    await expect(openCustomerPortalExternal()).resolves.toEqual({ ok: true });
+    await expect(openBillingManagement()).resolves.toEqual({ ok: true });
     expect(portal).toHaveBeenCalledWith({ returnTarget: "mobile-preprod" });
 });
 
@@ -118,7 +132,7 @@ it("rejects missing or unknown app schemes before making a checkout request", as
     expect(checkoutReturnTarget).toThrow(
         "This app's checkout return scheme is not configured.",
     );
-    await expect(openCheckoutExternal()).resolves.toMatchObject({ ok: false });
+    await expect(purchaseMembership()).resolves.toMatchObject({ ok: false });
     expect(checkout).not.toHaveBeenCalled();
 });
 
@@ -130,7 +144,7 @@ it.each([
     "cs_test_client_secret",
 ])("rejects a non-Stripe hosted URL: %s", async (url) => {
     checkout.mockResolvedValue(url);
-    await expect(openCheckoutExternal()).resolves.toMatchObject({ ok: false });
+    await expect(purchaseMembership()).resolves.toMatchObject({ ok: false });
     expect(Linking.openURL).not.toHaveBeenCalled();
 });
 
@@ -138,10 +152,10 @@ it("rejects an arbitrary portal URL and handles unavailable portals", async () =
     portal
         .mockResolvedValueOnce("https://app.cryptex.test/app")
         .mockResolvedValueOnce(null);
-    await expect(openCustomerPortalExternal()).resolves.toMatchObject({
+    await expect(openBillingManagement()).resolves.toMatchObject({
         ok: false,
     });
-    await expect(openCustomerPortalExternal()).resolves.toMatchObject({
+    await expect(openBillingManagement()).resolves.toMatchObject({
         ok: false,
     });
     expect(Linking.openURL).not.toHaveBeenCalled();
@@ -150,7 +164,7 @@ it("rejects an arbitrary portal URL and handles unavailable portals", async () =
 it("does not launch a browser when the active vault expires while the request is pending", async () => {
     const request = deferred<string>();
     checkout.mockReturnValue(request.promise);
-    const opening = openCheckoutExternal();
+    const opening = purchaseMembership();
     jest.mocked(isSameActiveVaultSession).mockReturnValue(false);
     request.resolve(checkoutURL);
     await expect(opening).resolves.toMatchObject({ ok: false });
@@ -159,8 +173,8 @@ it("does not launch a browser when the active vault expires while the request is
 
 it("does not request checkout or portal after the vault deadline has passed", async () => {
     jest.mocked(isSameActiveVaultSession).mockReturnValue(false);
-    await expect(openCheckoutExternal()).resolves.toMatchObject({ ok: false });
-    await expect(openCustomerPortalExternal()).resolves.toMatchObject({
+    await expect(purchaseMembership()).resolves.toMatchObject({ ok: false });
+    await expect(openBillingManagement()).resolves.toMatchObject({
         ok: false,
     });
     expect(checkout).not.toHaveBeenCalled();
@@ -365,4 +379,70 @@ it("backs off a rate-limited response instead of retrying immediately", async ()
     expect(subscription).toHaveBeenCalledTimes(1);
     await jest.advanceTimersByTimeAsync(1);
     await expect(result).resolves.toEqual(paid);
+});
+
+it("keeps Play purchases and management out of Stripe, including unavailable billing", async () => {
+    Constants.expoConfig!.extra!.buildDetails.distribution = "play";
+    Constants.expoConfig!.android = { package: "com.cryptexindustries.vault" };
+    process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID = "online_services";
+    mockPlayPurchase.mockResolvedValue({
+        ok: false,
+        message: "Not configured",
+    });
+    expect(await purchaseMembership("premiumYearly")).toEqual({
+        ok: false,
+        message: "Not configured",
+    });
+    expect(mockPlayPurchase).toHaveBeenCalledWith("premiumYearly");
+    await openBillingManagement();
+    expect(Linking.openURL).toHaveBeenCalledWith(
+        "https://play.google.com/store/account/subscriptions?sku=online_services&package=com.cryptexindustries.vault",
+    );
+    expect(checkout).not.toHaveBeenCalled();
+    expect(portal).not.toHaveBeenCalled();
+});
+
+it.each<
+    [string, Parameters<typeof billingManagement>[0], ReturnType<typeof billingManagement>]
+>([
+    ["standard", "stripe", "stripe"],
+    ["fdroid", "stripe", "stripe"],
+    ["fdroid", "google_play", "google_play"],
+    ["fdroid", "app_store", null],
+    ["fdroid", undefined, "stripe"],
+    ["play", "stripe", null],
+    ["play", "google_play", "google_play"],
+    ["play", "app_store", null],
+    ["play", undefined, "google_play"],
+])("manages a %s build's %s subscription through %s", (distribution, provider, expected) => {
+    Constants.expoConfig!.extra!.buildDetails.distribution = distribution;
+    expect(billingManagement(provider)).toBe(expected);
+});
+
+it("keeps F-Droid Stripe management on the portal and sends Play subscribers to Google Play", async () => {
+    Constants.expoConfig!.extra!.buildDetails.distribution = "fdroid";
+    expect(await openBillingManagement(billingManagement("stripe"))).toEqual({ ok: true });
+    expect(portal).toHaveBeenCalledTimes(1);
+    expect(Linking.openURL).toHaveBeenLastCalledWith("https://billing.stripe.com/p/session/test");
+    await openBillingManagement(billingManagement("google_play"));
+    expect(Linking.openURL).toHaveBeenLastCalledWith(
+        "https://play.google.com/store/account/subscriptions",
+    );
+    expect(portal).toHaveBeenCalledTimes(1);
+});
+
+it("opens nothing for a subscription this build cannot manage", async () => {
+    Constants.expoConfig!.extra!.buildDetails.distribution = "play";
+    const result = await openBillingManagement(billingManagement("stripe"));
+    expect(result.ok).toBe(false);
+    expect(Linking.openURL).not.toHaveBeenCalled();
+    expect(portal).not.toHaveBeenCalled();
+});
+
+it.each([["android", "fdroid"], ["ios", "play"], ["web", "play"]])("preserves existing billing on %s / %s", async (os, distribution) => {
+    Object.assign(Platform, { OS: os });
+    Constants.expoConfig!.extra!.buildDetails.distribution = distribution;
+    await purchaseMembership();
+    expect(checkout).toHaveBeenCalledTimes(1);
+    expect(mockPlayPurchase).not.toHaveBeenCalled();
 });

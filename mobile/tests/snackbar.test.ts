@@ -3,9 +3,9 @@ import { createElement, StrictMode, useEffect } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { AccessibilityInfo, Platform } from "react-native";
 import {
-    BillingSnackbar,
-    useBillingFeedback,
-} from "@/components/billing-feedback";
+    Snackbar,
+    useSnackbar,
+} from "@/components/snackbar";
 
 jest.mock("react-native", () => ({
     View: "View",
@@ -21,7 +21,7 @@ jest.mock("@/components/unlocked/unlocked-ui", () => ({
     UnlockedText: "Text",
 }));
 let renderer: ReactTestRenderer | undefined;
-let current!: ReturnType<typeof useBillingFeedback>;
+let current!: ReturnType<typeof useSnackbar>;
 let scope = "vault-a";
 let active = true;
 let mounts = 0;
@@ -29,8 +29,8 @@ function Harness() {
     useEffect(() => {
         mounts++;
     }, []);
-    current = useBillingFeedback(scope, active);
-    return createElement(BillingSnackbar, {
+    current = useSnackbar(scope, active);
+    return createElement(Snackbar, {
         feedback: current.feedback,
         onDismiss: current.dismiss,
     });
@@ -90,7 +90,7 @@ it("shows one message and keeps an actionable recovery until it is used or dismi
     );
     await advance(60000);
     expect(
-        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+        renderer!.root.findAllByProps({ testID: "snackbar" }),
     ).toHaveLength(1);
     expect(
         AccessibilityInfo.getRecommendedTimeoutMillis,
@@ -120,7 +120,7 @@ it("clears the prior timer when replacing feedback", async () => {
     await advance(60000);
     expect(current.feedback?.message).toBe("Second");
     expect(
-        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+        renderer!.root.findAllByProps({ testID: "snackbar" }),
     ).toHaveLength(1);
 });
 it("has accessible dismissal and live feedback without grouping away recovery controls", async () => {

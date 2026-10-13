@@ -8,20 +8,25 @@ name: Create a real device-link invitation
 - tapOn: Link a device
 - tapOn: Create invitation,.*
 - tapOn: Receiving device name
+- eraseText: 20
 - inputText: E2E Receiver
 - hideKeyboard
 - tapOn: Create invitation
-- assertVisible: Copy invitation
 - scrollUntilVisible:
     element:
-      text: Share .cryxlink file
+      text: Copy invitation
     direction: DOWN
-- tapOn: Share .cryxlink file
+# The live transfer is already waiting; sharing must not stop it.
+- tapOn: Share file
 - runFlow: export-capture.yaml
+# The words sit just above Share file; read them before scrolling further down.
 - scrollUntilVisible:
     element:
-      text: Show transfer phrase
-    direction: DOWN
-- tapOn: Show transfer phrase
+      text: '[a-z]+( [a-z]+){11}'
+    direction: UP
 - copyTextFrom: '[a-z]+( [a-z]+){11}'
 - evalScript: ${console.log('E2E_TRANSFER_PHRASE:' + maestro.copiedText)}
+- scrollUntilVisible:
+    element:
+      text: Waiting for other device.*
+    direction: DOWN

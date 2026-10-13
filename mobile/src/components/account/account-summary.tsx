@@ -14,7 +14,7 @@ import {
     billingManagement,
 } from "@/app_lib/online-services-billing";
 import { colors } from "@/theme";
-import type { FeedbackAction } from "@/components/billing-feedback";
+import type { FeedbackAction } from "@/components/snackbar";
 import {
     getVaultSessionGeneration,
     isSameActiveVaultSession,

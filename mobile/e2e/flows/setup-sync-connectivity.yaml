@@ -4,7 +4,7 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn: Devices
 - tapOn: Link a device
 - tapOn: Create invitation,.*
-- tapOn: Connection options,.*
+- tapOn: Advanced connection,.*
 - scrollUntilVisible:
     element:
       text: Manage custom servers,.*

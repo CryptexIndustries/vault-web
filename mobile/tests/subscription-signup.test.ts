@@ -1123,7 +1123,7 @@ it.each(["pending", "canceled"])(
         ).toBe(state === "pending");
         expect(!!button("Check status")).toBe(state === "pending");
         expect(
-            renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+            renderer!.root.findAllByProps({ testID: "snackbar" }),
         ).toHaveLength(0);
         expect(mockBillingOpened).not.toHaveBeenCalled();
         expect(mockClosed).not.toHaveBeenCalled();
@@ -1292,7 +1292,7 @@ it("keeps the Recovery Kit and shows an actionable snackbar if Stripe checkout r
     await press("I've saved my kit. Continue to payment");
     expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
     expect(
-        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+        renderer!.root.findAllByProps({ testID: "snackbar" }),
     ).toHaveLength(1);
     expect(
         renderer!.root
@@ -1312,7 +1312,7 @@ it("uses the snackbar for registration failures without exposing server diagnost
     await renderSignup();
     await press("Continue");
     expect(
-        renderer!.root.findAllByProps({ testID: "billing-snackbar" }),
+        renderer!.root.findAllByProps({ testID: "snackbar" }),
     ).toHaveLength(1);
     expect(
         renderer!.root

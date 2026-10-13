@@ -8,6 +8,7 @@
     "@expo/dom-webview@57.0.1": ["local-maven-repo"],
     "@expo/ui@57.0.14": ["local-maven-repo"],
     "expo-asset@57.0.15": ["local-maven-repo"],
+    "expo-brightness@57.0.2": ["local-maven-repo"],
     "expo-camera@57.0.4": ["local-maven-repo", "prebuilds"],
     "expo-clipboard@57.0.1": ["local-maven-repo"],
     "expo-document-picker@57.0.1": ["local-maven-repo"],

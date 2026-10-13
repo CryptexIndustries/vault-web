@@ -6,7 +6,8 @@ import {
     useState,
     type RefObject,
 } from "react";
-import { Alert, AppState, Pressable, View, type TextInput } from "react-native";
+import { AppState, Pressable, View, type TextInput } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useNavigation } from "expo-router";
 import { useIsFocused, usePreventRemove } from "expo-router/react-navigation";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -72,7 +73,6 @@ import {
     UnlockedButton,
     UnlockedInput,
     UnlockedLabel,
-    UnlockedMenuRow,
     UnlockedText,
 } from "@/components/unlocked/unlocked-ui";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,8 @@ import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
 import { InlineNotice } from "@/components/inline-notice";
 import { InvitationHeader } from "@/components/invitation-header";
+import { LinkResult } from "@/components/link-result";
+import { Snackbar, useSnackbar } from "@/components/snackbar";
 import {
     VaultEntryAction,
     VaultEntryAssurance,
@@ -129,6 +131,14 @@ type Stage =
     | "failed";
 
 type InputMethod = "scan" | "paste" | "file";
+
+type ConfirmRequest = {
+    title: string;
+    description: string;
+    cancelLabel: string;
+    confirmLabel?: string;
+    onConfirm?: () => void;
+};
 
 type Invitation =
     | { source: "scan"; base64: string; label: string }
@@ -289,6 +299,22 @@ function LinkReceiveContent({
     const [validatingInvitation, setValidatingInvitation] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
     const [error, setError] = useState("");
+    const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(
+        null,
+    );
+    const {
+        feedback: snackbar,
+        show: notify,
+        dismiss: dismissSnackbar,
+    } = useSnackbar("link-receive", unlocked);
+    const insets = useSafeAreaInsets();
+    // Inside the unlocked app, problems are reported in a snackbar instead of
+    // an inline notice; the locked flow keeps its inline messages.
+    useEffect(() => {
+        if (!unlocked || !error) return;
+        notify(error);
+        setError("");
+    }, [unlocked, error, notify]);
     const [fieldErrors, setFieldErrors] = useState({
         paste: "",
         mnemonic: "",
@@ -389,32 +415,29 @@ function LinkReceiveContent({
         !allowNavigation && (recoveryCode != null || hasUnsavedReceivedVault),
         ({ data }) => {
             if (recoveryCode != null) {
-                Alert.alert(
-                    "Finish saving your vault",
-                    "Save the recovery details before leaving this screen.",
-                    [{ text: "Continue setup" }],
-                );
+                setConfirmRequest({
+                    title: "Finish saving your vault",
+                    description:
+                        "Save the recovery details before leaving this screen.",
+                    cancelLabel: "Continue setup",
+                });
                 return;
             }
-            Alert.alert(
-                "Discard received vault?",
-                "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed.",
-                [
-                    { text: "Keep setting up", style: "cancel" },
-                    {
-                        text: "Discard",
-                        style: "destructive",
-                        onPress: () => {
-                            receivedVaultRef.current = null;
-                            pendingLinkedSaveRef.current = null;
-                            setHasUnsavedReceivedVault(false);
-                            requestAnimationFrame(() =>
-                                navigation.dispatch(data.action),
-                            );
-                        },
-                    },
-                ],
-            );
+            setConfirmRequest({
+                title: "Discard received vault?",
+                description:
+                    "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed.",
+                cancelLabel: "Keep setting up",
+                confirmLabel: "Discard",
+                onConfirm: () => {
+                    receivedVaultRef.current = null;
+                    pendingLinkedSaveRef.current = null;
+                    setHasUnsavedReceivedVault(false);
+                    requestAnimationFrame(() =>
+                        navigation.dispatch(data.action),
+                    );
+                },
+            });
         },
     );
 
@@ -496,7 +519,10 @@ function LinkReceiveContent({
                 copyToCacheDirectory: true,
                 type: "*/*",
             });
-            if (result.canceled || !result.assets?.[0]) return;
+            if (result.canceled || !result.assets?.[0]) {
+                setMethod(null);
+                return;
+            }
             const asset = result.assets[0];
             const picked = await readPickedImportFile(asset);
             const name = asset.name ?? `link.${LINK_FILE_EXTENSION}`;
@@ -508,13 +534,16 @@ function LinkReceiveContent({
                 })
             ) {
                 setPasteDraft("");
+            } else {
+                setMethod(null);
             }
         } catch {
             setError("Could not read this link file.");
+            setMethod(null);
         }
     };
 
-    const startScan = async () => {
+    const startScan = async (clearErrors = true) => {
         cancelScan();
         setScanEpoch((epoch) => epoch + 1);
         scanSessionRef.current = createQrScanSession(
@@ -533,13 +562,26 @@ function LinkReceiveContent({
                 setMethod(null);
             },
         );
-        setError("");
-        setCameraError("");
+        if (clearErrors) {
+            setError("");
+            setCameraError("");
+        }
         setMethod("scan");
         if (!permission?.granted && permission?.canAskAgain !== false) {
             await requestPermission();
         }
     };
+
+    // An unlocked vault opens straight into the scanner; file and paste are
+    // the fallbacks. Coming back from either one restarts the camera.
+    useEffect(() => {
+        if (!unlocked || stage !== "input" || invitation || method !== null)
+            return;
+        if (!isFocused) return;
+        void startScan(false);
+        // startScan is recreated every render; the guards above decide when to run.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [unlocked, stage, invitation, method, isFocused]);
 
     const usePastedInvitation = () => {
         const base64 = pasteDraft.trim();
@@ -908,7 +950,7 @@ function LinkReceiveContent({
         if (mnemonic.trim().split(/\s+/).length < 12) {
             setFieldError(
                 "mnemonic",
-                "Enter the full twelve-word linking phrase from the sending device.",
+                "Enter all twelve verification words from the sending device.",
                 mnemonicRef,
             );
             return;
@@ -920,7 +962,8 @@ function LinkReceiveContent({
 
         setValidatingInvitation(true);
         let invitationOpened = false;
-        setStatusMessage("Checking linking phrase…");
+        let wrongWords = false;
+        setStatusMessage("Checking verification words…");
         linkStartedAtRef.current = Date.now();
         linkActivityIdRef.current = 0;
         setLinkActivity([]);
@@ -943,7 +986,8 @@ function LinkReceiveContent({
             );
             if (attempt !== linkAttemptRef.current) return;
             if (decrypted.isErr()) {
-                throw new Error("Wrong linking phrase or corrupt invitation.");
+                wrongWords = true;
+                throw new Error("Wrong verification words or corrupt invitation.");
             }
             invitationOpened = true;
             setValidatingInvitation(false);
@@ -1148,6 +1192,12 @@ function LinkReceiveContent({
             setStatusMessage("");
             const message =
                 e instanceof Error ? e.message : "Link receive failed.";
+            if (wrongWords) {
+                // The user fixes this in the field, so report it there.
+                setStage("input");
+                setFieldError("mnemonic", message, mnemonicRef);
+                return;
+            }
             setError(message);
             if (!invitationOpened) {
                 setStage("input");
@@ -1172,25 +1222,21 @@ function LinkReceiveContent({
     const beginReceive = () => {
         setError("");
         if (hasUnsavedReceivedVault) {
-            Alert.alert(
-                "Restart live transfer?",
-                "The received copy has not been saved. Restarting means this copy will be discarded.",
-                [
-                    { text: "Keep received copy", style: "cancel" },
-                    {
-                        text: "Discard and restart",
-                        style: "destructive",
-                        onPress: () => {
-                            finishCurrentSessionTransition();
-                            receivedVaultRef.current = null;
-                            pendingLinkedSaveRef.current = null;
-                            setHasUnsavedReceivedVault(false);
-                            if (mergeMode) setStage("confirm-merge");
-                            else void runLinking();
-                        },
-                    },
-                ],
-            );
+            setConfirmRequest({
+                title: "Restart live transfer?",
+                description:
+                    "The received copy has not been saved. Restarting means this copy will be discarded.",
+                cancelLabel: "Keep received copy",
+                confirmLabel: "Discard and restart",
+                onConfirm: () => {
+                    finishCurrentSessionTransition();
+                    receivedVaultRef.current = null;
+                    pendingLinkedSaveRef.current = null;
+                    setHasUnsavedReceivedVault(false);
+                    if (mergeMode) setStage("confirm-merge");
+                    else void runLinking();
+                },
+            });
             return;
         }
         void runLinking();
@@ -1198,29 +1244,25 @@ function LinkReceiveContent({
 
     const abortWaiting = () => {
         if (hasUnsavedReceivedVault) {
-            Alert.alert(
-                "Discard received vault?",
-                "This received copy has not been saved. Discarding means you will need to repeat the live transfer.",
-                [
-                    { text: "Keep setting up", style: "cancel" },
-                    {
-                        text: "Discard",
-                        style: "destructive",
-                        onPress: () => {
-                            linkAttemptRef.current += 1;
-                            receivedVaultRef.current = null;
-                            setHasUnsavedReceivedVault(false);
-                            controllerRef.current?.abortWaitingForDevice();
-                            controllerRef.current = null;
-                            setStage("input");
-                            setStatusMessage("");
-                            setError(
-                                "Received copy discarded. No vault was saved on this device.",
-                            );
-                        },
-                    },
-                ],
-            );
+            setConfirmRequest({
+                title: "Discard received vault?",
+                description:
+                    "This received copy has not been saved. Discarding means you will need to repeat the live transfer.",
+                cancelLabel: "Keep setting up",
+                confirmLabel: "Discard",
+                onConfirm: () => {
+                    linkAttemptRef.current += 1;
+                    receivedVaultRef.current = null;
+                    setHasUnsavedReceivedVault(false);
+                    controllerRef.current?.abortWaitingForDevice();
+                    controllerRef.current = null;
+                    setStage("input");
+                    setStatusMessage("");
+                    setError(
+                        "Received copy discarded. No vault was saved on this device.",
+                    );
+                },
+            });
             return;
         }
         linkAttemptRef.current += 1;
@@ -1229,7 +1271,7 @@ function LinkReceiveContent({
         controllerRef.current = null;
         setStage("input");
         setStatusMessage("");
-        setError("Live transfer canceled. No vault was saved on this device.");
+        setError("Live transfer cancelled. No vault was saved on this device.");
     };
 
     const useNewInvitation = () => {
@@ -1292,6 +1334,47 @@ function LinkReceiveContent({
         state: linkProgress[item.key],
     }));
 
+    const confirmDialog = (
+        <Dialog
+            placement="bottom"
+            open={confirmRequest != null}
+            onOpenChange={(open) => {
+                if (!open) setConfirmRequest(null);
+            }}
+        >
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{confirmRequest?.title}</DialogTitle>
+                    <DialogDescription>
+                        {confirmRequest?.description}
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button
+                        className="h-[54px] min-h-[54px]"
+                        variant={confirmRequest?.confirmLabel ? "ghost" : "secondary"}
+                        onPress={() => setConfirmRequest(null)}
+                    >
+                        {confirmRequest?.cancelLabel}
+                    </Button>
+                    {confirmRequest?.confirmLabel ? (
+                        <Button
+                            className="h-[54px] min-h-[54px]"
+                            variant="destructive"
+                            onPress={() => {
+                                const request = confirmRequest;
+                                setConfirmRequest(null);
+                                request.onConfirm?.();
+                            }}
+                        >
+                            {confirmRequest.confirmLabel}
+                        </Button>
+                    ) : null}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+
     if (unlocked && stage === "input") {
         const resetInput = () => {
             setInvitation(null);
@@ -1305,107 +1388,621 @@ function LinkReceiveContent({
             ? "Review invitation"
             : "Receive invitation";
         return (
+            <View style={{ flex: 1 }}>
+                <Screen
+                    scroll
+                    taskTitle={inputTitle}
+                    onTaskBack={() => {
+                        if (invitation) resetInput();
+                        else router.back();
+                    }}
+                    maxWidth="content"
+                    contentContainerClassName="px-[20px] pb-[28px] pt-0"
+                    style={{ paddingTop: 24 }}
+                >
+                    {!invitation ? (
+                        <View className="gap-4">
+                            <InvitationHeader title="Scan the invitation">
+                                On your other device, choose Create invitation and
+                                point this camera at its QR code. Items received
+                                are merged with this vault; existing items are kept.
+                            </InvitationHeader>
+                            <View className="aspect-square w-full overflow-hidden rounded-md border border-border bg-[#111520]">
+                                {cameraActive ? (
+                                    <CameraView
+                                        key={scanEpoch}
+                                        ref={cameraRef}
+                                        style={{ width: "100%", height: "100%" }}
+                                        facing="back"
+                                        barcodeScannerSettings={{
+                                            barcodeTypes: ["qr"],
+                                        }}
+                                        onBarcodeScanned={onBarcodeScanned}
+                                        onMountError={() =>
+                                            setCameraError(
+                                                "Could not start the camera. Open an invitation file or paste the invitation instead.",
+                                            )
+                                        }
+                                    />
+                                ) : (
+                                    <View className="flex-1 items-center justify-center">
+                                        <QrCode size={56} color="#ff526b" />
+                                    </View>
+                                )}
+                            </View>
+                            {method === "scan" && !permission?.granted ? (
+                                <InlineNotice
+                                    tone={permission ? "warning" : "loading"}
+                                    message={
+                                        permission
+                                            ? "Camera access is off. Open an invitation file or paste the invitation instead."
+                                            : "Opening camera…"
+                                    }
+                                />
+                            ) : null}
+                            {cameraError ? (
+                                <InlineNotice tone="error" message={cameraError} />
+                            ) : null}
+                            {qrChunkProgress ? (
+                                <InlineNotice
+                                    tone="loading"
+                                    message={`Collected ${qrChunkProgress.received} of ${qrChunkProgress.total} QR parts.`}
+                                />
+                            ) : null}
+                            <View className="flex-row gap-3">
+                                <UnlockedButton
+                                    className="flex-1"
+                                    variant="outline"
+                                    onPress={() => void pickLinkFile()}
+                                >
+                                    Open file
+                                </UnlockedButton>
+                                <UnlockedButton
+                                    className="flex-1"
+                                    variant="outline"
+                                    onPress={() => setMethod("paste")}
+                                >
+                                    Paste
+                                </UnlockedButton>
+                            </View>
+                        </View>
+                    ) : null}
+
+                    <Dialog
+                        open={method === "paste" && !invitation && isFocused}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                setMethod(null);
+                                clearFieldError("paste");
+                            }
+                        }}
+                        placement="bottom"
+                        scroll
+                    >
+                        <DialogHeader>
+                            <DialogTitle>Paste invitation</DialogTitle>
+                        </DialogHeader>
+                        {method === "paste" && !invitation ? (
+                            <View className="gap-4">
+                                <UnlockedLabel>Invitation</UnlockedLabel>
+                                <UnlockedInput
+                                    autoFocus
+                                    value={pasteDraft}
+                                    onChangeText={(value) => {
+                                        setPasteDraft(value);
+                                        clearFieldError("paste");
+                                    }}
+                                    invalid={!!fieldErrors.paste}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    placeholder="Paste invitation text"
+                                    multiline
+                                    numberOfLines={6}
+                                    textAlignVertical="top"
+                                    accessibilityLabel="Pasted invitation"
+                                    style={{ height: 140, paddingVertical: 12 }}
+                                />
+                                <VaultEntryFieldError message={fieldErrors.paste} />
+                                <UnlockedButton onPress={usePastedInvitation}>
+                                    Review invitation
+                                </UnlockedButton>
+                            </View>
+                        ) : null}
+                    </Dialog>
+
+                    {invitation ? (
+                        <View className="gap-4">
+                            <InvitationHeader
+                                title={`Connect to ${invitation.label}`}
+                            >
+                                You will receive an encrypted vault and merge it
+                                with this one.
+                            </InvitationHeader>
+                            <View className="min-h-[52px] flex-row items-center justify-between border-b border-border">
+                                <UnlockedText className="text-sm text-muted-foreground">
+                                    Connection
+                                </UnlockedText>
+                                <UnlockedText className="text-sm text-foreground">
+                                    Encrypted invitation
+                                </UnlockedText>
+                            </View>
+                            <View className="border-l-2 border-muted pl-3">
+                                <UnlockedText className="text-xs leading-5 text-muted-foreground">
+                                    Existing items stay in this vault. New items
+                                    from the other vault will be added.
+                                </UnlockedText>
+                            </View>
+                            <UnlockedLabel>Verification words</UnlockedLabel>
+                            <UnlockedInput
+                                value={mnemonic}
+                                onChangeText={(value) => {
+                                    setMnemonic(value.toLowerCase());
+                                    clearFieldError("mnemonic");
+                                }}
+                                invalid={!!fieldErrors.mnemonic}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                placeholder="Enter the words shown on the sending device"
+                                multiline
+                                numberOfLines={4}
+                                textAlignVertical="top"
+                                accessibilityLabel="Verification words"
+                                style={{ height: 112, paddingVertical: 12 }}
+                            />
+                            <VaultEntryFieldError message={fieldErrors.mnemonic} />
+                            <UnlockedButton
+                                loading={validatingInvitation}
+                                onPress={beginReceive}
+                            >
+                                Connect &amp; merge
+                            </UnlockedButton>
+                            <UnlockedButton
+                                variant="secondary"
+                                onPress={resetInput}
+                            >
+                                Cancel
+                            </UnlockedButton>
+                        </View>
+                    ) : null}
+                </Screen>
+                {confirmDialog}
+                <Snackbar
+                    feedback={snackbar}
+                    onDismiss={dismissSnackbar}
+                    bottomOffset={insets.bottom + 12}
+                />
+            </View>
+        );
+    }
+
+    return (
+        <View style={{ flex: 1 }}>
             <Screen
                 scroll
-                taskTitle={inputTitle}
-                onTaskBack={() => {
-                    if (method || invitation) resetInput();
-                    else router.back();
-                }}
+                taskTitle={
+                    unlocked
+                        ? method === "paste" && !invitation && stage === "input"
+                            ? "Paste invitation"
+                            : stage !== "done" &&
+                                (invitation || stage === "confirm-merge")
+                              ? "Review invitation"
+                              : "Receive invitation"
+                        : undefined
+                }
+                onTaskBack={
+                    unlocked
+                        ? () => {
+                              if (stage === "confirm-merge") setStage("input");
+                              else if (method === "paste") setMethod(null);
+                              else router.back();
+                          }
+                        : undefined
+                }
                 maxWidth="content"
-                contentContainerClassName="px-[20px] pb-[28px] pt-0"
-                style={{ paddingTop: 24 }}
+                contentContainerClassName={
+                    unlocked ? "px-[20px] pb-[28px] pt-[24px]" : "px-5 pb-8 pt-0"
+                }
+                edges={embedded ? ["top", "left", "right"] : undefined}
+                style={vars({ "--primary-foreground": "224.21 28.36% 13.14%" })}
             >
-                {(!method || method === "paste") && !invitation ? (
+                {!unlocked ? (
+                    <VaultEntryHeader
+                        {...headerCopy}
+                        showBack
+                        onBack={() =>
+                            embedded
+                                ? router.replace("/(locked)/unlock" as never)
+                                : router.back()
+                        }
+                    />
+                ) : null}
+                {stage === "input" ? (
                     <View>
-                        <InvitationHeader title="Connect this vault">
-                            Use an invitation from the device you want to link.
-                        </InvitationHeader>
-                        <UnlockedMenuRow
-                            icon={QrCode}
-                            title="Scan QR code"
-                            subtitle="Use your camera"
-                            onPress={() => void startScan()}
+                        <VaultEntrySteps
+                            labels={["Invitation", "Authorize", "Protect"]}
+                            current={invitation ? 1 : 0}
                         />
-                        <UnlockedMenuRow
-                            icon={FileText}
-                            title="Open invitation file"
-                            subtitle="Choose a Cryptex invitation"
-                            onPress={() => void pickLinkFile()}
-                        />
-                        <UnlockedMenuRow
-                            icon={Link2}
-                            title="Paste invitation"
-                            subtitle="Enter invitation text"
-                            onPress={() => setMethod("paste")}
-                        />
-                        <View className="mt-5 border-l-2 border-muted pl-3">
-                            <UnlockedText className="text-xs leading-5 text-muted-foreground">
-                                Items received from another vault are merged
-                                with this vault. Existing items are kept.
-                            </UnlockedText>
-                        </View>
+                        {mergeMode ? (
+                            <InlineNotice
+                                className="mb-4"
+                                tone="info"
+                                message="Vault is unlocked. Received data will merge into the active vault. Existing credentials keep their current values; missing IDs are added."
+                            />
+                        ) : (
+                            <Text className="mb-[18px] text-xs leading-[18px] text-muted-foreground">
+                                On your other device, open Cryptex Vault and start
+                                linking. Then scan its invitation here.
+                            </Text>
+                        )}
+
+                        {!invitation ? (
+                            <View className="gap-2">
+                                <View
+                                    style={{
+                                        width: "100%",
+                                        maxWidth: cameraActive ? undefined : 240,
+                                        alignSelf: "center",
+                                    }}
+                                >
+                                    <View
+                                        className="bg-navigation relative w-full items-center justify-center overflow-hidden rounded-md border border-border"
+                                        style={{ aspectRatio: 1 }}
+                                    >
+                                        {cameraActive ? (
+                                            <CameraView
+                                                key={scanEpoch}
+                                                ref={cameraRef}
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                }}
+                                                facing="back"
+                                                barcodeScannerSettings={{
+                                                    barcodeTypes: ["qr"],
+                                                }}
+                                                onBarcodeScanned={onBarcodeScanned}
+                                                onMountError={() =>
+                                                    setCameraError(
+                                                        "Could not start the camera. Try again or choose another linking method.",
+                                                    )
+                                                }
+                                            />
+                                        ) : (
+                                            <Pressable
+                                                accessibilityRole="button"
+                                                accessibilityLabel="Scan QR code"
+                                                onPress={() => void startScan()}
+                                                className="h-full w-full items-center justify-center gap-4 active:bg-secondary"
+                                            >
+                                                <Icon
+                                                    as={QrCode}
+                                                    size={56}
+                                                    className="text-primary"
+                                                />
+                                                <Text className="font-medium text-sm text-foreground">
+                                                    Tap to scan
+                                                </Text>
+                                            </Pressable>
+                                        )}
+                                    </View>
+                                </View>
+                                {method === "scan" ? (
+                                    <>
+                                        {!permission ? (
+                                            <InlineNotice
+                                                tone="loading"
+                                                message="Opening camera…"
+                                            />
+                                        ) : !permission.granted ? (
+                                            <InlineNotice
+                                                tone="warning"
+                                                message={
+                                                    permission.canAskAgain
+                                                        ? "Camera access was not granted. Tap the scanner to try again, or use a link file or pasted data."
+                                                        : "Camera access is blocked. Enable it in Android settings, or use a link file or pasted data."
+                                                }
+                                            />
+                                        ) : null}
+                                        {cameraError ? (
+                                            <InlineNotice
+                                                autoScroll
+                                                tone="error"
+                                                message={cameraError}
+                                            />
+                                        ) : null}
+                                        {qrChunkProgress ? (
+                                            <InlineNotice
+                                                tone="loading"
+                                                message={`Collected ${qrChunkProgress.received} of ${qrChunkProgress.total} QR parts. Keep the camera pointed at the sender's code.`}
+                                            />
+                                        ) : null}
+                                    </>
+                                ) : null}
+                                <View className="flex-row gap-2">
+                                    <Button
+                                        variant="secondary"
+                                        className="h-[52px] min-h-[52px] flex-1 rounded-md border border-border"
+                                        textClassName="text-xs"
+                                        onPress={() => void pickLinkFile()}
+                                    >
+                                        <View className="flex-row items-center gap-2">
+                                            <Icon
+                                                as={FileText}
+                                                size={18}
+                                                className="text-foreground"
+                                            />
+                                            <Text className="font-semibold text-xs text-foreground">
+                                                Choose link file
+                                            </Text>
+                                        </View>
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        className="h-[52px] min-h-[52px] flex-1 rounded-md border border-border"
+                                        textClassName="text-xs"
+                                        onPress={() => setMethod("paste")}
+                                    >
+                                        <View className="flex-row items-center gap-2">
+                                            <Icon
+                                                as={Link2}
+                                                size={18}
+                                                className="text-foreground"
+                                            />
+                                            <Text className="font-semibold text-xs text-foreground">
+                                                Paste link data
+                                            </Text>
+                                        </View>
+                                    </Button>
+                                </View>
+
+                                <VaultEntryNotice className="mb-3 mt-5">
+                                    Keep the linking screen open on your sending
+                                    device until the transfer finishes.
+                                </VaultEntryNotice>
+                                <VaultEntryAssurance className="mt-2">
+                                    Encrypted from sender to receiver
+                                </VaultEntryAssurance>
+                            </View>
+                        ) : null}
+
+                        {invitation ? (
+                            <View className="gap-3">
+                                <InlineNotice
+                                    tone="success"
+                                    message={`Invitation ready: ${invitation.label}`}
+                                />
+                                <Button
+                                    variant="outline"
+                                    onPress={() => {
+                                        setInvitation(null);
+                                        setMethod(null);
+                                        setStatusMessage("");
+                                        setError("");
+                                    }}
+                                >
+                                    Replace invitation
+                                </Button>
+                                <View>
+                                    <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
+                                        Verification words
+                                    </Label>
+                                    <Input
+                                        ref={mnemonicRef}
+                                        value={mnemonic}
+                                        onChangeText={(value) => {
+                                            setMnemonic(value);
+                                            clearFieldError("mnemonic");
+                                        }}
+                                        invalid={!!fieldErrors.mnemonic}
+                                        revealButtonHeight={54}
+                                        secureTextEntry
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                        placeholder="Twelve words from the sender"
+                                        accessibilityLabel="Verification words"
+                                        className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
+                                    />
+                                    <VaultEntryFieldError
+                                        message={fieldErrors.mnemonic}
+                                    />
+                                    <Text className="mt-1 text-xs text-muted-foreground">
+                                        This phrase authorizes the live transfer. It
+                                        is separate from vault recovery details.
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : null}
+
+                        {statusMessage ? (
+                            <InlineNotice tone="info" message={statusMessage} />
+                        ) : null}
+                        {error ? (
+                            <View ref={generalErrorRef} collapsable={false}>
+                                <InlineNotice
+                                    autoScroll
+                                    tone="error"
+                                    message={error}
+                                />
+                            </View>
+                        ) : null}
+
+                        {invitation ? (
+                            <>
+                                <VaultEntryAction
+                                    className="mt-3"
+                                    onPress={beginReceive}
+                                    loading={validatingInvitation}
+                                >
+                                    {mergeMode
+                                        ? "Continue to merge"
+                                        : "Connect to sending device"}
+                                </VaultEntryAction>
+                                <Button
+                                    variant="ghost"
+                                    className="min-h-[44px]"
+                                    onPress={() =>
+                                        embedded
+                                            ? router.replace(
+                                                  "/(locked)/unlock" as never,
+                                              )
+                                            : router.back()
+                                    }
+                                >
+                                    Cancel
+                                </Button>
+                            </>
+                        ) : null}
                     </View>
                 ) : null}
 
-                {method === "scan" && !invitation ? (
-                    <View className="gap-4">
-                        <UnlockedText className="font-medium text-xl text-foreground">
-                            Scan invitation
-                        </UnlockedText>
-                        <View className="aspect-square w-full overflow-hidden rounded-md border border-border bg-[#111520]">
-                            {cameraActive ? (
-                                <CameraView
-                                    key={scanEpoch}
-                                    ref={cameraRef}
-                                    style={{ width: "100%", height: "100%" }}
-                                    facing="back"
-                                    barcodeScannerSettings={{
-                                        barcodeTypes: ["qr"],
-                                    }}
-                                    onBarcodeScanned={onBarcodeScanned}
-                                    onMountError={() =>
-                                        setCameraError(
-                                            "Could not start the camera. Choose a link file or pasted invitation instead.",
-                                        )
-                                    }
-                                />
-                            ) : (
-                                <View className="flex-1 items-center justify-center">
-                                    <QrCode size={56} color="#ff526b" />
-                                </View>
-                            )}
-                        </View>
-                        {!permission?.granted ? (
-                            <InlineNotice
-                                tone={permission ? "warning" : "loading"}
-                                message={
-                                    permission
-                                        ? "Camera access is required to scan an invitation."
-                                        : "Opening camera…"
-                                }
-                            />
-                        ) : null}
-                        {cameraError ? (
-                            <InlineNotice tone="error" message={cameraError} />
-                        ) : null}
-                        {qrChunkProgress ? (
-                            <InlineNotice
-                                tone="loading"
-                                message={`Collected ${qrChunkProgress.received} of ${qrChunkProgress.total} QR parts.`}
-                            />
-                        ) : null}
-                        <UnlockedButton
-                            variant="secondary"
-                            onPress={resetInput}
+                {stage === "confirm-merge" ? (
+                    <View className="gap-3">
+                        <InlineNotice
+                            tone="warning"
+                            message="Merge into the unlocked vault? This adds missing credentials, directories, connectivity servers, and linked devices. Existing records with the same ID are kept (not overwritten)."
+                        />
+                        <VaultEntryAction onPress={() => void runLinking()}>
+                            Confirm merge and start
+                        </VaultEntryAction>
+                        <Button
+                            variant="ghost"
+                            className="min-h-[44px]"
+                            onPress={() => setStage("input")}
                         >
-                            Cancel
-                        </UnlockedButton>
+                            Back
+                        </Button>
+                    </View>
+                ) : null}
+
+                {stage === "linking" || stage === "failed" ? (
+                    <LinkingProgress
+                        items={progressItems}
+                        status={statusMessage || "Linking in progress…"}
+                        activity={linkActivity}
+                        failure={linkFailure}
+                        onCancel={abortWaiting}
+                        onRetry={() => {
+                            if (mergeMode && receivedVaultRef.current) {
+                                const attempt = linkAttemptRef.current;
+                                beginSessionTransition(attempt);
+                                void finishWithMerge(attempt);
+                            } else {
+                                void runLinking();
+                            }
+                        }}
+                        onUseNewInvitation={useNewInvitation}
+                    />
+                ) : null}
+
+                {stage === "passphrase" ? (
+                    <View className="gap-3">
+                        <VaultEntrySteps
+                            labels={["Invitation", "Authorize", "Protect"]}
+                            current={2}
+                        />
+                        <LinkActivityLog activity={linkActivity} />
+                        <Text className="text-sm text-muted-foreground">
+                            Create a master password for this local copy. It can
+                            differ from the password on the sending device.
+                        </Text>
+                        <View>
+                            <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
+                                Vault name
+                            </Label>
+                            <Input
+                                ref={vaultNameRef}
+                                value={vaultName}
+                                onChangeText={(value) => {
+                                    setVaultName(value);
+                                    clearFieldError("vaultName");
+                                }}
+                                invalid={!!fieldErrors.vaultName}
+                                placeholder="Linked vault"
+                                autoCapitalize="words"
+                                accessibilityLabel="Linked vault name"
+                                className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
+                            />
+                            <VaultEntryFieldError message={fieldErrors.vaultName} />
+                        </View>
+                        <View>
+                            <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
+                                Master password
+                            </Label>
+                            <Input
+                                ref={passwordRef}
+                                value={password}
+                                onChangeText={(value) => {
+                                    setPassword(value);
+                                    clearFieldError("password");
+                                    clearFieldError("confirm");
+                                }}
+                                invalid={!!fieldErrors.password}
+                                revealButtonHeight={54}
+                                secureTextEntry
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                textContentType="newPassword"
+                                placeholder="Master password"
+                                accessibilityLabel="Master password"
+                                className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
+                            />
+                            <VaultEntryFieldError message={fieldErrors.password} />
+                            <PasswordStrengthMeter password={password} compact />
+                        </View>
+                        <View>
+                            <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
+                                Confirm password
+                            </Label>
+                            <Input
+                                ref={confirmRef}
+                                value={confirm}
+                                onChangeText={(value) => {
+                                    setConfirm(value);
+                                    clearFieldError("confirm");
+                                }}
+                                invalid={!!fieldErrors.confirm}
+                                revealButtonHeight={54}
+                                secureTextEntry
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                placeholder="Confirm password"
+                                accessibilityLabel="Confirm master password"
+                                className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
+                            />
+                            <VaultEntryFieldError message={fieldErrors.confirm} />
+                        </View>
+                        <AdditionalKeyProtectionOptions
+                            value={additionalKeyProtectionChoice}
+                            disabled={saving}
+                            onChange={(choice) =>
+                                setAdditionalKeyProtectionChoice(choice)
+                            }
+                        />
+                        {error ? (
+                            <View ref={generalErrorRef} collapsable={false}>
+                                <InlineNotice
+                                    autoScroll
+                                    tone="error"
+                                    message={error}
+                                />
+                            </View>
+                        ) : null}
+                        <VaultEntryAction
+                            loading={saving}
+                            onPress={() => void sealLinkedVault()}
+                        >
+                            Continue
+                        </VaultEntryAction>
                     </View>
                 ) : null}
 
                 <Dialog
-                    open={method === "paste" && !invitation && isFocused}
+                    open={
+                        method === "paste" &&
+                        stage === "input" &&
+                        !invitation &&
+                        isFocused
+                    }
                     onOpenChange={(open) => {
                         if (!open) {
                             setMethod(null);
@@ -1416,732 +2013,235 @@ function LinkReceiveContent({
                     scroll
                 >
                     <DialogHeader>
-                        <DialogTitle>Paste invitation</DialogTitle>
+                        <DialogTitle>Paste link data</DialogTitle>
+                        <DialogDescription>
+                            Paste the invitation from your sending device.
+                        </DialogDescription>
                     </DialogHeader>
-                    {method === "paste" && !invitation ? (
-                        <View className="gap-4">
-                            <UnlockedLabel>Invitation</UnlockedLabel>
-                            <UnlockedInput
-                                autoFocus
-                                value={pasteDraft}
-                                onChangeText={(value) => {
-                                    setPasteDraft(value);
-                                    clearFieldError("paste");
-                                }}
-                                invalid={!!fieldErrors.paste}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                placeholder="Paste invitation text"
-                                multiline
-                                numberOfLines={6}
-                                textAlignVertical="top"
-                                accessibilityLabel="Pasted invitation"
-                                style={{ height: 140, paddingVertical: 12 }}
-                            />
-                            <VaultEntryFieldError message={fieldErrors.paste} />
-                            <UnlockedButton onPress={usePastedInvitation}>
-                                Review invitation
-                            </UnlockedButton>
-                        </View>
-                    ) : null}
-                </Dialog>
-
-                {invitation ? (
-                    <View className="gap-4">
-                        <InvitationHeader
-                            title={`Connect to ${invitation.label}`}
+                    <Label>Link data</Label>
+                    <Input
+                        ref={pasteRef}
+                        value={pasteDraft}
+                        onChangeText={(value) => {
+                            setPasteDraft(value);
+                            clearFieldError("paste");
+                        }}
+                        invalid={!!fieldErrors.paste}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        placeholder="Paste link data"
+                        multiline
+                        numberOfLines={4}
+                        scrollEnabled
+                        textAlignVertical="top"
+                        accessibilityLabel="Pasted link data"
+                        style={{
+                            height: 112,
+                            maxHeight: 112,
+                            lineHeight: 22,
+                            paddingVertical: 12,
+                        }}
+                        className="rounded-md border-border bg-transparent px-3.5"
+                    />
+                    <VaultEntryFieldError message={fieldErrors.paste} />
+                    <DialogFooter>
+                        <VaultEntryAction
+                            showArrow={false}
+                            onPress={usePastedInvitation}
                         >
-                            You will receive an encrypted vault and merge it
-                            with this one.
-                        </InvitationHeader>
-                        <View className="min-h-[52px] flex-row items-center justify-between border-b border-border">
-                            <UnlockedText className="text-sm text-muted-foreground">
-                                Connection
-                            </UnlockedText>
-                            <UnlockedText className="text-sm text-foreground">
-                                Encrypted invitation
-                            </UnlockedText>
-                        </View>
-                        <View className="border-l-2 border-muted pl-3">
-                            <UnlockedText className="text-xs leading-5 text-muted-foreground">
-                                Existing items stay in this vault. New items
-                                from the other vault will be added.
-                            </UnlockedText>
-                        </View>
-                        <UnlockedLabel>Transfer phrase</UnlockedLabel>
-                        <UnlockedInput
-                            value={mnemonic}
-                            onChangeText={(value) => {
-                                setMnemonic(value.toLowerCase());
-                                clearFieldError("mnemonic");
+                            Use pasted data
+                        </VaultEntryAction>
+                        <Button
+                            variant="ghost"
+                            onPress={() => {
+                                setMethod(null);
+                                clearFieldError("paste");
                             }}
-                            invalid={!!fieldErrors.mnemonic}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            placeholder="Enter the phrase shown on the sending device"
-                            multiline
-                            numberOfLines={4}
-                            textAlignVertical="top"
-                            accessibilityLabel="Transfer phrase"
-                            style={{ height: 112, paddingVertical: 12 }}
-                        />
-                        <VaultEntryFieldError message={fieldErrors.mnemonic} />
-                        {error ? (
-                            <InlineNotice tone="error" message={error} />
-                        ) : null}
-                        <UnlockedButton
-                            loading={validatingInvitation}
-                            onPress={beginReceive}
-                        >
-                            Connect &amp; merge
-                        </UnlockedButton>
-                        <UnlockedButton
-                            variant="secondary"
-                            onPress={resetInput}
                         >
                             Cancel
-                        </UnlockedButton>
+                        </Button>
+                    </DialogFooter>
+                </Dialog>
+                {stage === "recovery" ? (
+                    <Dialog
+                        open
+                        onOpenChange={() => {}}
+                        placement="bottom"
+                        dismissible={false}
+                        scroll
+                        fullHeight
+                    >
+                        <DialogHeader>
+                            <DialogTitle>Keep your way back in</DialogTitle>
+                            <DialogDescription>
+                                Store these offline before opening the linked vault.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <VaultEntrySteps
+                            labels={["Invitation", "Protect", "Save recovery"]}
+                            current={2}
+                        />
+                        <InlineNotice
+                            tone="warning"
+                            message="This is the recovery material for the new local vault. Recovery details from the sending device do not transfer."
+                        />
+                        {recoveryCode ? (
+                            <SecretReveal
+                                label="Recovery code"
+                                value={recoveryCode}
+                                helper="Store this offline. It can recover this local vault if you forget its master password."
+                                requireAck
+                                defaultRevealed
+                                ackLabel="I have written down the recovery code"
+                                acknowledged={recoveryAck}
+                                onAcknowledgedChange={setRecoveryAck}
+                            />
+                        ) : null}
+                        {protectionPhrase ? (
+                            <SecretReveal
+                                label="Generated protection phrase"
+                                value={protectionPhrase}
+                                helper="Store this separately. You will need it with the master password after restoring on a new device."
+                                requireAck
+                                defaultRevealed
+                                ackLabel="I have written down the protection phrase"
+                                acknowledged={additionalKeyProtectionAck}
+                                onAcknowledgedChange={setAdditionalKeyProtectionAck}
+                            />
+                        ) : null}
+                        {saveWarning ? (
+                            <InlineNotice tone="warning" message={saveWarning} />
+                        ) : null}
+                        {error ? (
+                            <View ref={generalErrorRef} collapsable={false}>
+                                <InlineNotice
+                                    autoScroll
+                                    tone="error"
+                                    message={error}
+                                />
+                            </View>
+                        ) : null}
+                        <DialogFooter>
+                            <VaultEntryAction
+                                loading={saving}
+                                disabled={
+                                    !recoveryAck ||
+                                    (protectionPhrase != null &&
+                                        !additionalKeyProtectionAck)
+                                }
+                                onPress={() => void finishLinkedVault()}
+                            >
+                                Save and open vault
+                            </VaultEntryAction>
+                        </DialogFooter>
+                    </Dialog>
+                ) : null}
+
+                {stage === "done" && mergeMode ? (
+                    <LinkResult
+                        title="Vault merged"
+                        description="Items from the other device were added to this vault. Nothing here was overwritten."
+                        rows={[
+                            {
+                                label: "Credentials added",
+                                value: String(mergeSummary?.credentialsAdded ?? 0),
+                            },
+                            {
+                                label: "Already in this vault",
+                                value: String(mergeSummary?.credentialsSkipped ?? 0),
+                            },
+                            {
+                                label: "Linked devices added",
+                                value: String(mergeSummary?.devicesAdded ?? 0),
+                            },
+                        ]}
+                        actionLabel="Back to Devices"
+                        onAction={() => router.dismissTo("/(app)/(tabs)/devices")}
+                    />
+                ) : null}
+
+                {stage === "done" && !mergeMode ? (
+                    <View className="gap-3">
+                        <InlineNotice
+                            tone="success"
+                            message={statusMessage || "Done."}
+                        />
+                        {mergeSummary ? (
+                            <Text className="text-sm text-muted-foreground">
+                                Added {mergeSummary.credentialsAdded} credentials,
+                                skipped {mergeSummary.credentialsSkipped}, linked{" "}
+                                {mergeSummary.devicesAdded} devices.
+                            </Text>
+                        ) : null}
+                        <VaultEntryAction
+                            onPress={() =>
+                                mergeMode
+                                    ? router.dismissTo("/(app)/(tabs)/devices")
+                                    : router.replace("/(app)/(tabs)/vault")
+                            }
+                        >
+                            {mergeMode ? "Back to Devices" : "Open vault"}
+                        </VaultEntryAction>
                     </View>
                 ) : null}
-            </Screen>
-        );
-    }
 
-    return (
-        <Screen
-            scroll
-            taskTitle={
-                unlocked
-                    ? method === "paste" && !invitation && stage === "input"
-                        ? "Paste invitation"
-                        : invitation || stage === "confirm-merge"
-                          ? "Review invitation"
-                          : "Receive invitation"
-                    : undefined
-            }
-            onTaskBack={
-                unlocked
-                    ? () => {
-                          if (stage === "confirm-merge") setStage("input");
-                          else if (method === "paste") setMethod(null);
-                          else router.back();
-                      }
-                    : undefined
-            }
-            maxWidth="content"
-            contentContainerClassName={
-                unlocked ? "px-[20px] pb-[28px] pt-[24px]" : "px-5 pb-8 pt-0"
-            }
-            edges={embedded ? ["top", "left", "right"] : undefined}
-            style={vars({ "--primary-foreground": "224.21 28.36% 13.14%" })}
-        >
-            {!unlocked ? (
-                <VaultEntryHeader
-                    {...headerCopy}
-                    showBack
-                    onBack={() =>
-                        embedded
-                            ? router.replace("/(locked)/unlock" as never)
-                            : router.back()
-                    }
-                />
-            ) : null}
-            {stage === "input" ? (
-                <View>
-                    <VaultEntrySteps
-                        labels={["Invitation", "Authorize", "Protect"]}
-                        current={invitation ? 1 : 0}
-                    />
-                    {mergeMode ? (
-                        <InlineNotice
-                            className="mb-4"
-                            tone="info"
-                            message="Vault is unlocked. Received data will merge into the active vault. Existing credentials keep their current values; missing IDs are added."
-                        />
-                    ) : (
-                        <Text className="mb-[18px] text-xs leading-[18px] text-muted-foreground">
-                            On your other device, open Cryptex Vault and start
-                            linking. Then scan its invitation here.
-                        </Text>
-                    )}
-
-                    {!invitation ? (
-                        <View className="gap-2">
-                            <View
-                                style={{
-                                    width: "100%",
-                                    maxWidth: cameraActive ? undefined : 240,
-                                    alignSelf: "center",
-                                }}
-                            >
-                                <View
-                                    className="bg-navigation relative w-full items-center justify-center overflow-hidden rounded-md border border-border"
-                                    style={{ aspectRatio: 1 }}
-                                >
-                                    {cameraActive ? (
-                                        <CameraView
-                                            key={scanEpoch}
-                                            ref={cameraRef}
-                                            style={{
-                                                width: "100%",
-                                                height: "100%",
-                                            }}
-                                            facing="back"
-                                            barcodeScannerSettings={{
-                                                barcodeTypes: ["qr"],
-                                            }}
-                                            onBarcodeScanned={onBarcodeScanned}
-                                            onMountError={() =>
-                                                setCameraError(
-                                                    "Could not start the camera. Try again or choose another linking method.",
-                                                )
-                                            }
-                                        />
-                                    ) : (
-                                        <Pressable
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Scan QR code"
-                                            onPress={() => void startScan()}
-                                            className="h-full w-full items-center justify-center gap-4 active:bg-secondary"
-                                        >
-                                            <Icon
-                                                as={QrCode}
-                                                size={56}
-                                                className="text-primary"
-                                            />
-                                            <Text className="font-medium text-sm text-foreground">
-                                                Tap to scan
-                                            </Text>
-                                        </Pressable>
-                                    )}
-                                </View>
-                            </View>
-                            {method === "scan" ? (
-                                <>
-                                    {!permission ? (
-                                        <InlineNotice
-                                            tone="loading"
-                                            message="Opening camera…"
-                                        />
-                                    ) : !permission.granted ? (
-                                        <InlineNotice
-                                            tone="warning"
-                                            message={
-                                                permission.canAskAgain
-                                                    ? "Camera access was not granted. Tap the scanner to try again, or use a link file or pasted data."
-                                                    : "Camera access is blocked. Enable it in Android settings, or use a link file or pasted data."
-                                            }
-                                        />
-                                    ) : null}
-                                    {cameraError ? (
-                                        <InlineNotice
-                                            autoScroll
-                                            tone="error"
-                                            message={cameraError}
-                                        />
-                                    ) : null}
-                                    {qrChunkProgress ? (
-                                        <InlineNotice
-                                            tone="loading"
-                                            message={`Collected ${qrChunkProgress.received} of ${qrChunkProgress.total} QR parts. Keep the camera pointed at the sender's code.`}
-                                        />
-                                    ) : null}
-                                </>
-                            ) : null}
-                            <View className="flex-row gap-2">
-                                <Button
-                                    variant="secondary"
-                                    className="h-[52px] min-h-[52px] flex-1 rounded-md border border-border"
-                                    textClassName="text-xs"
-                                    onPress={() => void pickLinkFile()}
-                                >
-                                    <View className="flex-row items-center gap-2">
-                                        <Icon
-                                            as={FileText}
-                                            size={18}
-                                            className="text-foreground"
-                                        />
-                                        <Text className="font-semibold text-xs text-foreground">
-                                            Choose link file
-                                        </Text>
-                                    </View>
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    className="h-[52px] min-h-[52px] flex-1 rounded-md border border-border"
-                                    textClassName="text-xs"
-                                    onPress={() => setMethod("paste")}
-                                >
-                                    <View className="flex-row items-center gap-2">
-                                        <Icon
-                                            as={Link2}
-                                            size={18}
-                                            className="text-foreground"
-                                        />
-                                        <Text className="font-semibold text-xs text-foreground">
-                                            Paste link data
-                                        </Text>
-                                    </View>
-                                </Button>
-                            </View>
-
-                            <VaultEntryNotice className="mb-3 mt-5">
-                                Keep the linking screen open on your sending
-                                device until the transfer finishes.
-                            </VaultEntryNotice>
-                            <VaultEntryAssurance className="mt-2">
-                                Encrypted from sender to receiver
-                            </VaultEntryAssurance>
-                        </View>
-                    ) : null}
-
-                    {invitation ? (
-                        <View className="gap-3">
-                            <InlineNotice
-                                tone="success"
-                                message={`Invitation ready: ${invitation.label}`}
-                            />
+                <Dialog
+                    placement="bottom"
+                    open={osOverwriteOpen}
+                    onOpenChange={(open) => {
+                        if (!open && osOverwriteResolverRef.current) {
+                            osOverwriteResolverRef.current(false);
+                            osOverwriteResolverRef.current = null;
+                        }
+                        setOsOverwriteOpen(open);
+                    }}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Overwrite Online Services?</DialogTitle>
+                            <DialogDescription>
+                                {pendingOsOverwrite &&
+                                Vault.isOnlineServicesBound(unlockedVault) &&
+                                pendingOsOverwrite.UserID ===
+                                    unlockedVault.OnlineServices.UserID
+                                    ? "This invitation uses a different Online Services device identity for the same account. Continuing replaces the identity saved in this vault; existing Online Services device links may need to be linked again."
+                                    : `This link contains Online Services credentials for a different user${pendingOsOverwrite ? ` (${pendingOsOverwrite.UserID})` : ""}. Continuing replaces the Online Services identity saved in this vault, and existing Online Services device links may need to be linked again.`}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
                             <Button
-                                variant="outline"
-                                onPress={() => {
-                                    setInvitation(null);
-                                    setMethod(null);
-                                    setStatusMessage("");
-                                    setError("");
-                                }}
-                            >
-                                Replace invitation
-                            </Button>
-                            <View>
-                                <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                    Linking phrase
-                                </Label>
-                                <Input
-                                    ref={mnemonicRef}
-                                    value={mnemonic}
-                                    onChangeText={(value) => {
-                                        setMnemonic(value);
-                                        clearFieldError("mnemonic");
-                                    }}
-                                    invalid={!!fieldErrors.mnemonic}
-                                    revealButtonHeight={54}
-                                    secureTextEntry
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    placeholder="Twelve words from the sender"
-                                    accessibilityLabel="Linking phrase"
-                                    className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
-                                />
-                                <VaultEntryFieldError
-                                    message={fieldErrors.mnemonic}
-                                />
-                                <Text className="mt-1 text-xs text-muted-foreground">
-                                    This phrase authorizes the live transfer. It
-                                    is separate from vault recovery details.
-                                </Text>
-                            </View>
-                        </View>
-                    ) : null}
-
-                    {statusMessage ? (
-                        <InlineNotice tone="info" message={statusMessage} />
-                    ) : null}
-                    {error ? (
-                        <View ref={generalErrorRef} collapsable={false}>
-                            <InlineNotice
-                                autoScroll
-                                tone="error"
-                                message={error}
-                            />
-                        </View>
-                    ) : null}
-
-                    {invitation ? (
-                        <>
-                            <VaultEntryAction
-                                className="mt-3"
-                                onPress={beginReceive}
-                                loading={validatingInvitation}
-                            >
-                                {mergeMode
-                                    ? "Continue to merge"
-                                    : "Connect to sending device"}
-                            </VaultEntryAction>
-                            <Button
+                                className="h-[54px] min-h-[54px]"
                                 variant="ghost"
-                                className="min-h-[44px]"
-                                onPress={() =>
-                                    embedded
-                                        ? router.replace(
-                                              "/(locked)/unlock" as never,
-                                          )
-                                        : router.back()
-                                }
+                                onPress={() => {
+                                    osOverwriteResolverRef.current?.(false);
+                                    osOverwriteResolverRef.current = null;
+                                    setOsOverwriteOpen(false);
+                                }}
                             >
                                 Cancel
                             </Button>
-                        </>
-                    ) : null}
-                </View>
-            ) : null}
-
-            {stage === "confirm-merge" ? (
-                <View className="gap-3">
-                    <InlineNotice
-                        tone="warning"
-                        message="Merge into the unlocked vault? This adds missing credentials, directories, connectivity servers, and linked devices. Existing records with the same ID are kept (not overwritten)."
-                    />
-                    <VaultEntryAction onPress={() => void runLinking()}>
-                        Confirm merge and start
-                    </VaultEntryAction>
-                    <Button
-                        variant="ghost"
-                        className="min-h-[44px]"
-                        onPress={() => setStage("input")}
-                    >
-                        Back
-                    </Button>
-                </View>
-            ) : null}
-
-            {stage === "linking" || stage === "failed" ? (
-                <LinkingProgress
-                    items={progressItems}
-                    status={statusMessage || "Linking in progress…"}
-                    activity={linkActivity}
-                    failure={linkFailure}
-                    onCancel={abortWaiting}
-                    onRetry={() => {
-                        if (mergeMode && receivedVaultRef.current) {
-                            const attempt = linkAttemptRef.current;
-                            beginSessionTransition(attempt);
-                            void finishWithMerge(attempt);
-                        } else {
-                            void runLinking();
-                        }
-                    }}
-                    onUseNewInvitation={useNewInvitation}
-                />
-            ) : null}
-
-            {stage === "passphrase" ? (
-                <View className="gap-3">
-                    <VaultEntrySteps
-                        labels={["Invitation", "Authorize", "Protect"]}
-                        current={2}
-                    />
-                    <LinkActivityLog activity={linkActivity} />
-                    <Text className="text-sm text-muted-foreground">
-                        Create a master password for this local copy. It can
-                        differ from the password on the sending device.
-                    </Text>
-                    <View>
-                        <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Vault name
-                        </Label>
-                        <Input
-                            ref={vaultNameRef}
-                            value={vaultName}
-                            onChangeText={(value) => {
-                                setVaultName(value);
-                                clearFieldError("vaultName");
-                            }}
-                            invalid={!!fieldErrors.vaultName}
-                            placeholder="Linked vault"
-                            autoCapitalize="words"
-                            accessibilityLabel="Linked vault name"
-                            className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
-                        />
-                        <VaultEntryFieldError message={fieldErrors.vaultName} />
-                    </View>
-                    <View>
-                        <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Master password
-                        </Label>
-                        <Input
-                            ref={passwordRef}
-                            value={password}
-                            onChangeText={(value) => {
-                                setPassword(value);
-                                clearFieldError("password");
-                                clearFieldError("confirm");
-                            }}
-                            invalid={!!fieldErrors.password}
-                            revealButtonHeight={54}
-                            secureTextEntry
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            textContentType="newPassword"
-                            placeholder="Master password"
-                            accessibilityLabel="Master password"
-                            className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
-                        />
-                        <VaultEntryFieldError message={fieldErrors.password} />
-                        <PasswordStrengthMeter password={password} compact />
-                    </View>
-                    <View>
-                        <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Confirm password
-                        </Label>
-                        <Input
-                            ref={confirmRef}
-                            value={confirm}
-                            onChangeText={(value) => {
-                                setConfirm(value);
-                                clearFieldError("confirm");
-                            }}
-                            invalid={!!fieldErrors.confirm}
-                            revealButtonHeight={54}
-                            secureTextEntry
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            placeholder="Confirm password"
-                            accessibilityLabel="Confirm master password"
-                            className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
-                        />
-                        <VaultEntryFieldError message={fieldErrors.confirm} />
-                    </View>
-                    <AdditionalKeyProtectionOptions
-                        value={additionalKeyProtectionChoice}
-                        disabled={saving}
-                        onChange={(choice) =>
-                            setAdditionalKeyProtectionChoice(choice)
-                        }
-                    />
-                    {error ? (
-                        <View ref={generalErrorRef} collapsable={false}>
-                            <InlineNotice
-                                autoScroll
-                                tone="error"
-                                message={error}
-                            />
-                        </View>
-                    ) : null}
-                    <VaultEntryAction
-                        loading={saving}
-                        onPress={() => void sealLinkedVault()}
-                    >
-                        Continue
-                    </VaultEntryAction>
-                </View>
-            ) : null}
-
-            <Dialog
-                open={
-                    method === "paste" &&
-                    stage === "input" &&
-                    !invitation &&
-                    isFocused
-                }
-                onOpenChange={(open) => {
-                    if (!open) {
-                        setMethod(null);
-                        clearFieldError("paste");
-                    }
-                }}
-                placement="bottom"
-                scroll
-            >
-                <DialogHeader>
-                    <DialogTitle>Paste link data</DialogTitle>
-                    <DialogDescription>
-                        Paste the invitation from your sending device.
-                    </DialogDescription>
-                </DialogHeader>
-                <Label>Link data</Label>
-                <Input
-                    ref={pasteRef}
-                    value={pasteDraft}
-                    onChangeText={(value) => {
-                        setPasteDraft(value);
-                        clearFieldError("paste");
-                    }}
-                    invalid={!!fieldErrors.paste}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    placeholder="Paste link data"
-                    multiline
-                    numberOfLines={4}
-                    scrollEnabled
-                    textAlignVertical="top"
-                    accessibilityLabel="Pasted link data"
-                    style={{
-                        height: 112,
-                        maxHeight: 112,
-                        lineHeight: 22,
-                        paddingVertical: 12,
-                    }}
-                    className="rounded-md border-border bg-transparent px-3.5"
-                />
-                <VaultEntryFieldError message={fieldErrors.paste} />
-                <DialogFooter>
-                    <VaultEntryAction
-                        showArrow={false}
-                        onPress={usePastedInvitation}
-                    >
-                        Use pasted data
-                    </VaultEntryAction>
-                    <Button
-                        variant="ghost"
-                        onPress={() => {
-                            setMethod(null);
-                            clearFieldError("paste");
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                </DialogFooter>
-            </Dialog>
-            {stage === "recovery" ? (
-                <Dialog
-                    open
-                    onOpenChange={() => {}}
-                    placement="bottom"
-                    dismissible={false}
-                    scroll
-                    fullHeight
-                >
-                    <DialogHeader>
-                        <DialogTitle>Keep your way back in</DialogTitle>
-                        <DialogDescription>
-                            Store these offline before opening the linked vault.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <VaultEntrySteps
-                        labels={["Invitation", "Protect", "Save recovery"]}
-                        current={2}
-                    />
-                    <InlineNotice
-                        tone="warning"
-                        message="This is the recovery material for the new local vault. Recovery details from the sending device do not transfer."
-                    />
-                    {recoveryCode ? (
-                        <SecretReveal
-                            label="Recovery code"
-                            value={recoveryCode}
-                            helper="Store this offline. It can recover this local vault if you forget its master password."
-                            requireAck
-                            defaultRevealed
-                            ackLabel="I have written down the recovery code"
-                            acknowledged={recoveryAck}
-                            onAcknowledgedChange={setRecoveryAck}
-                        />
-                    ) : null}
-                    {protectionPhrase ? (
-                        <SecretReveal
-                            label="Generated protection phrase"
-                            value={protectionPhrase}
-                            helper="Store this separately. You will need it with the master password after restoring on a new device."
-                            requireAck
-                            defaultRevealed
-                            ackLabel="I have written down the protection phrase"
-                            acknowledged={additionalKeyProtectionAck}
-                            onAcknowledgedChange={setAdditionalKeyProtectionAck}
-                        />
-                    ) : null}
-                    {saveWarning ? (
-                        <InlineNotice tone="warning" message={saveWarning} />
-                    ) : null}
-                    {error ? (
-                        <View ref={generalErrorRef} collapsable={false}>
-                            <InlineNotice
-                                autoScroll
-                                tone="error"
-                                message={error}
-                            />
-                        </View>
-                    ) : null}
-                    <DialogFooter>
-                        <VaultEntryAction
-                            loading={saving}
-                            disabled={
-                                !recoveryAck ||
-                                (protectionPhrase != null &&
-                                    !additionalKeyProtectionAck)
-                            }
-                            onPress={() => void finishLinkedVault()}
-                        >
-                            Save and open vault
-                        </VaultEntryAction>
-                    </DialogFooter>
+                            <Button
+                                className="h-[54px] min-h-[54px]"
+                                variant="destructive"
+                                onPress={() => {
+                                    osOverwriteResolverRef.current?.(true);
+                                    osOverwriteResolverRef.current = null;
+                                    setOsOverwriteOpen(false);
+                                }}
+                            >
+                                Overwrite
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
                 </Dialog>
-            ) : null}
-
-            {stage === "done" ? (
-                <View className="gap-3">
-                    <InlineNotice
-                        tone="success"
-                        message={statusMessage || "Done."}
-                    />
-                    {mergeSummary ? (
-                        <Text className="text-sm text-muted-foreground">
-                            Added {mergeSummary.credentialsAdded} credentials,
-                            skipped {mergeSummary.credentialsSkipped}, linked{" "}
-                            {mergeSummary.devicesAdded} devices.
-                        </Text>
-                    ) : null}
-                    <VaultEntryAction
-                        onPress={() =>
-                            mergeMode
-                                ? router.dismissTo("/(app)/(tabs)/devices")
-                                : router.replace("/(app)/(tabs)/vault")
-                        }
-                    >
-                        {mergeMode ? "Back to Devices" : "Open vault"}
-                    </VaultEntryAction>
-                </View>
-            ) : null}
-
-            <Dialog
-                placement="bottom"
-                open={osOverwriteOpen}
-                onOpenChange={(open) => {
-                    if (!open && osOverwriteResolverRef.current) {
-                        osOverwriteResolverRef.current(false);
-                        osOverwriteResolverRef.current = null;
-                    }
-                    setOsOverwriteOpen(open);
-                }}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Overwrite Online Services?</DialogTitle>
-                        <DialogDescription>
-                            {pendingOsOverwrite &&
-                            Vault.isOnlineServicesBound(unlockedVault) &&
-                            pendingOsOverwrite.UserID ===
-                                unlockedVault.OnlineServices.UserID
-                                ? "This invitation uses a different Online Services device identity for the same account. Continuing replaces the identity saved in this vault; existing Online Services device links may need to be linked again."
-                                : `This link contains Online Services credentials for a different user${pendingOsOverwrite ? ` (${pendingOsOverwrite.UserID})` : ""}. Continuing replaces the Online Services identity saved in this vault, and existing Online Services device links may need to be linked again.`}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            className="h-[54px] min-h-[54px]"
-                            variant="ghost"
-                            onPress={() => {
-                                osOverwriteResolverRef.current?.(false);
-                                osOverwriteResolverRef.current = null;
-                                setOsOverwriteOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            className="h-[54px] min-h-[54px]"
-                            variant="destructive"
-                            onPress={() => {
-                                osOverwriteResolverRef.current?.(true);
-                                osOverwriteResolverRef.current = null;
-                                setOsOverwriteOpen(false);
-                            }}
-                        >
-                            Overwrite
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </Screen>
+            </Screen>
+            {confirmDialog}
+            <Snackbar
+                feedback={snackbar}
+                onDismiss={dismissSnackbar}
+                bottomOffset={insets.bottom + 12}
+            />
+        </View>
     );
 }
 

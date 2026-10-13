@@ -220,7 +220,7 @@ setup with a different receiver master password. It checks the transferred
 credential, bidirectional edits including password changes, and restart
 persistence on both devices.
 
-Server setup uses **Link a device → Create invitation → Connection options →
+Server setup uses **Link a device → Create invitation → Advanced connection →
 Manage custom servers**, then returns to Devices before creating the transfer
 invitation.
 

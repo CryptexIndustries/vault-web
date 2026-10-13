@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Pressable, View } from "react-native";
+import {
+    AppState,
+    BackHandler,
+    Platform,
+    Pressable,
+    useWindowDimensions,
+    View,
+} from "react-native";
 import { useIsFocused } from "expo-router/react-navigation";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
 import * as FileSystem from "expo-file-system/legacy";
@@ -10,7 +18,9 @@ import { deleteAppOwnedTempFile, writeSecretTempFile } from "@/utils/secret-temp
 import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
 import { ulid } from "ulidx";
-import { Settings2 } from "lucide-react-native";
+import { Maximize2, Settings2, X } from "lucide-react-native";
+import * as Brightness from "expo-brightness";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
 import {
     createChunkedQRCodeFrames,
@@ -52,6 +62,7 @@ import {
 import {
     ensureFreshOnlineServicesSession,
     hasOnlineServicesSession,
+    syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
@@ -87,7 +98,6 @@ import {
 import { Screen } from "@/components/screen";
 import {
     UnlockedButton,
-    UnlockedCheckbox,
     UnlockedInput,
     UnlockedLabel,
     UnlockedMenuRow,
@@ -95,6 +105,17 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import { InlineNotice } from "@/components/inline-notice";
 import { InvitationHeader } from "@/components/invitation-header";
+import {
+    LinkingProgress,
+    type LinkActivityEntry,
+    type LinkFailure,
+    type LinkProgressItem,
+} from "@/components/linking-progress";
+import { Snackbar, useSnackbar } from "@/components/snackbar";
+import { LinkResult } from "@/components/link-result";
+import { Switch } from "@/components/ui/switch";
+import { DialogDescription } from "@/components/ui/dialog";
+import { colors } from "@/theme";
 
 const MISSING_SYNC_SIGNING_KEY_ERROR =
     "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
@@ -110,10 +131,41 @@ type LinkInvitation = {
 };
 
 type TransferPhase = "idle" | "active" | "success" | "error";
-type LinkFlow = "prepare" | "connection" | "share" | "confirm";
 
-function LinkSteps({ current }: { current: 0 | 1 | 2 }) {
-    const labels = ["Prepare", "Share", "Transfer"];
+const SEND_PROGRESS: Array<{ key: string; title: string; detail: string }> = [
+    {
+        key: "waiting",
+        title: "Wait for the other device",
+        detail: "Open the invitation there and enter the verification words.",
+    },
+    {
+        key: "connection",
+        title: "Open a private connection",
+        detail: "Negotiating the direct WebRTC connection.",
+    },
+    {
+        key: "authentication",
+        title: "Authenticate the receiving device",
+        detail: "Checking the verification words and exchanging sync keys.",
+    },
+    {
+        key: "transfer",
+        title: "Send your vault",
+        detail: "Encrypting and sending the vault over the private connection.",
+    },
+    {
+        key: "save",
+        title: "Save the device link",
+        detail: "Recording the new device in this vault.",
+    },
+];
+const STEP = { waiting: 0, connection: 1, authentication: 2, transfer: 3, save: 4 };
+
+const KEEP_AWAKE_TAG = "link-send";
+type LinkFlow = "prepare" | "connection" | "transfer";
+
+function LinkSteps({ current }: { current: 0 | 1 }) {
+    const labels = ["Prepare", "Transfer"];
     return (
         <View className="mb-6">
             <View className="mb-3 flex-row justify-between">
@@ -121,7 +173,7 @@ function LinkSteps({ current }: { current: 0 | 1 | 2 }) {
                     {labels[current]}
                 </UnlockedText>
                 <UnlockedText className="text-[10px] tracking-[1.3px] text-muted-foreground">
-                    {String(current + 1).padStart(2, "0")} / 03
+                    {String(current + 1).padStart(2, "0")} / 02
                 </UnlockedText>
             </View>
             <View className="flex-row gap-1.5">
@@ -133,6 +185,102 @@ function LinkSteps({ current }: { current: 0 | 1 | 2 }) {
                 ))}
             </View>
         </View>
+    );
+}
+
+function SectionLabel({ children }: { children: string }) {
+    return (
+        <UnlockedText className="mb-[2px] mt-[26px] text-[10px] uppercase tracking-[1.1px] text-muted-foreground">
+            {children}
+        </UnlockedText>
+    );
+}
+
+function RadioRow({
+    title,
+    subtitle,
+    selected,
+    disabled = false,
+    onPress,
+}: {
+    title: string;
+    subtitle?: string;
+    selected: boolean;
+    disabled?: boolean;
+    onPress: () => void;
+}) {
+    return (
+        <Pressable
+            accessibilityRole="radio"
+            accessibilityLabel={title}
+            accessibilityState={{ selected, disabled }}
+            disabled={disabled}
+            onPress={onPress}
+            className="min-h-[58px] flex-row items-center gap-3 border-b border-border py-3"
+            style={{ opacity: disabled ? 0.5 : 1 }}
+        >
+            <View
+                className={`h-[18px] w-[18px] items-center justify-center rounded-full border ${selected ? "border-primary" : "border-muted"}`}
+            >
+                {selected ? (
+                    <View className="h-2.5 w-2.5 rounded-full bg-primary" />
+                ) : null}
+            </View>
+            <View className="flex-1">
+                <UnlockedText className="text-sm text-foreground">
+                    {title}
+                </UnlockedText>
+                {subtitle ? (
+                    <UnlockedText className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {subtitle}
+                    </UnlockedText>
+                ) : null}
+            </View>
+        </Pressable>
+    );
+}
+
+function SwitchRow({
+    title,
+    subtitle,
+    value,
+    disabled = false,
+    onValueChange,
+}: {
+    title: string;
+    subtitle?: string;
+    value: boolean;
+    disabled?: boolean;
+    onValueChange: (value: boolean) => void;
+}) {
+    return (
+        <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel={title}
+            accessibilityState={{ checked: value, disabled }}
+            disabled={disabled}
+            onPress={() => onValueChange(!value)}
+            className="min-h-[64px] flex-row items-center justify-between gap-3 border-b border-border py-3"
+            style={{ opacity: disabled ? 0.5 : 1 }}
+        >
+            <View className="flex-1">
+                <UnlockedText className="text-sm text-foreground">
+                    {title}
+                </UnlockedText>
+                {subtitle ? (
+                    <UnlockedText className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {subtitle}
+                    </UnlockedText>
+                ) : null}
+            </View>
+            <Switch
+                value={value}
+                onValueChange={onValueChange}
+                disabled={disabled}
+                importantForAccessibility="no-hide-descendants"
+                accessibilityElementsHidden
+            />
+        </Pressable>
     );
 }
 
@@ -202,14 +350,26 @@ export default function LinkSendScreen() {
     const [qrFrames, setQrFrames] = useState<string[]>([]);
     const [activeFrameIndex, setActiveFrameIndex] = useState(0);
     const [invitation, setInvitation] = useState<LinkInvitation | null>(null);
-    const [deviceName, setDeviceName] = useState("");
+    const [deviceName, setDeviceName] = useState("My Device");
     const [makeRoot, setMakeRoot] = useState(false);
     const [busy, setBusy] = useState(false);
     const [transferPhase, setTransferPhase] = useState<TransferPhase>("idle");
     const [flow, setFlow] = useState<LinkFlow>("prepare");
-    const [showTransferPhrase, setShowTransferPhrase] = useState(false);
-    const [error, setError] = useState("");
-    const [rollbackWarning, setRollbackWarning] = useState("");
+    const [copied, setCopied] = useState(false);
+    const [refreshingAccess, setRefreshingAccess] = useState(false);
+    const [failure, setFailure] = useState<LinkFailure | null>(null);
+    const [sendStep, setSendStep] = useState(0);
+    const [activity, setActivity] = useState<LinkActivityEntry[]>([]);
+    const activityStartRef = useRef(0);
+    const activityIdRef = useRef(0);
+    const [stopDialogOpen, setStopDialogOpen] = useState(false);
+    const [qrFullscreen, setQrFullscreen] = useState(false);
+    const {
+        feedback: snackbar,
+        show: notify,
+        dismiss: dismissSnackbar,
+    } = useSnackbar("link-send");
+    const insets = useSafeAreaInsets();
     const [signalingServerID, setSignalingServerID] =
         useState(defaultSignalingId);
     const [stunServerIDs, setStunServerIDs] =
@@ -222,10 +382,18 @@ export default function LinkSendScreen() {
     const setRootMut = trpcReact.v1.device.setRoot.useMutation();
     const promotedInvitations = useRef(new Set<string>());
     const completedInvitations = useRef(new Set<string>());
+    // Teardown can report a failure while Stop is already cleaning up; both
+    // must share one removal or the second reports a false cleanup failure.
+    const pendingRollbacks = useRef(new Map<string, Promise<void>>());
 
     const vaultTransferSentRef = useRef(false);
     const transferActiveRef = useRef(false);
     const teardownRef = useRef<(() => void) | null>(null);
+    // Set when the user shares or copies the invitation, so leaving the app
+    // to hand it over does not stop the live transfer. Cleared on return.
+    const externalHandoffRef = useRef(false);
+    const appActiveForTransfer = () =>
+        AppState.currentState === "active" || externalHandoffRef.current;
 
     const selectionsValid = useMemo(
         () =>
@@ -268,7 +436,6 @@ export default function LinkSendScreen() {
         setSignalingServerID(ONLINE_SERVICES_SELECTION_ID);
         setStunServerIDs([ONLINE_SERVICES_SELECTION_ID]);
         setTurnServerIDs([ONLINE_SERVICES_SELECTION_ID]);
-        setError("");
     };
 
     const selectCustomServers = () => {
@@ -279,34 +446,77 @@ export default function LinkSendScreen() {
         setTurnServerIDs(
             vault.LinkedDevices.TURNServers.map((server) => server.ID),
         );
-        setError("");
     };
 
-    const rollbackPeerDevice = async (deviceId: string | null | undefined) => {
-        if (!deviceId || completedInvitations.current.has(deviceId)) return;
-        try {
-            await removePendingInvitationDevice(
-                deviceId,
-                promotedInvitations.current.has(deviceId),
-                (input) => setRootMut.mutateAsync(input),
-                (input) => removeDeviceMut.mutateAsync(input),
-            );
-            promotedInvitations.current.delete(deviceId);
-        } catch (rollbackError) {
-            setRollbackWarning(
-                "Invitation cleanup failed. Review the pending device in Devices before linking again.",
-            );
-            onlineServicesLog.error(
-                "Failed to roll back linked device registration",
-                { deviceId, error: rollbackError },
-            );
-        }
+    const rollbackPeerDevice = (deviceId: string | null | undefined) => {
+        if (!deviceId || completedInvitations.current.has(deviceId))
+            return Promise.resolve();
+        const pending = pendingRollbacks.current.get(deviceId);
+        if (pending) return pending;
+        const rollback = (async () => {
+            try {
+                await removePendingInvitationDevice(
+                    deviceId,
+                    promotedInvitations.current.has(deviceId),
+                    (input) => setRootMut.mutateAsync(input),
+                    (input) => removeDeviceMut.mutateAsync(input),
+                );
+                promotedInvitations.current.delete(deviceId);
+                completedInvitations.current.add(deviceId);
+            } catch (rollbackError) {
+                notify(
+                    "Invitation cleanup failed. Review the pending device in Devices before linking again.",
+                );
+                onlineServicesLog.error(
+                    "Failed to roll back linked device registration",
+                    { deviceId, error: rollbackError },
+                );
+            } finally {
+                pendingRollbacks.current.delete(deviceId);
+            }
+        })();
+        pendingRollbacks.current.set(deviceId, rollback);
+        return rollback;
     };
 
     const teardownLiveTransfer = () => {
+        // Mark inactive first: closing the channel fires its close handler,
+        // which must not treat a deliberate stop as a failure.
+        transferActiveRef.current = false;
         teardownRef.current?.();
         teardownRef.current = null;
-        transferActiveRef.current = false;
+    };
+
+    const logActivity = (
+        message: string,
+        type: LinkActivityEntry["type"] = "info",
+    ) => {
+        const now = Date.now();
+        const startedAt = activityStartRef.current || now;
+        const id = ++activityIdRef.current;
+        setActivity((current) => [
+            ...current,
+            {
+                id,
+                elapsedSeconds: Math.max(0, Math.floor((now - startedAt) / 1000)),
+                message,
+                type,
+            },
+        ]);
+    };
+
+    const resetTransferProgress = () => {
+        setFailure(null);
+        setSendStep(STEP.waiting);
+        setActivity([]);
+        activityStartRef.current = Date.now();
+    };
+
+    const showTransferFailure = (message: string, technical = message) => {
+        setTransferPhase("error");
+        setFailure({ message, technical });
+        setQrFullscreen(false);
+        logActivity(message, "error");
     };
 
     useEffect(() => {
@@ -318,15 +528,20 @@ export default function LinkSendScreen() {
 
     useEffect(() => {
         const subscription = AppState.addEventListener("change", (state) => {
-            if (state === "active" || !transferActiveRef.current) return;
+            if (state === "active") {
+                externalHandoffRef.current = false;
+                return;
+            }
+            if (!transferActiveRef.current || externalHandoffRef.current)
+                return;
             teardownLiveTransfer();
             void rollbackPeerDevice(invitation?.peerOnlineServicesDeviceId);
-            if (invitation?.peerOnlineServicesDeviceId) {
-                setInvitation(null);
-                setFlow("prepare");
-            }
-            setTransferPhase("error");
-            setError("Linking stopped while the app was in the background. Start again.");
+            // An Online Services invitation is revoked by the rollback, so a
+            // retry needs a new one.
+            if (invitation?.peerOnlineServicesDeviceId) setInvitation(null);
+            showTransferFailure(
+                "Linking stopped while the app was in the background.",
+            );
             setBusy(false);
         });
         return () => subscription.remove();
@@ -362,11 +577,12 @@ export default function LinkSendScreen() {
 
     const createInvitation = async () => {
         const sessionGeneration = getVaultSessionGeneration();
-        setError("");
         setBusy(true);
         setTransferPhase("idle");
+        resetTransferProgress();
         setStatus("Preparing sync keys…");
         let registeredPeerDeviceId: string | null = null;
+        let created: LinkInvitation | null = null;
         try {
             if (!deviceName.trim() || deviceName.trim().length > 150) {
                 throw new Error(
@@ -504,7 +720,7 @@ export default function LinkSendScreen() {
                 throw new Error("Vault session expired. Unlock and try again.");
             }
 
-            setInvitation({
+            created = {
                 syncId,
                 mnemonic: words,
                 packageB64: linkingPackage.toBase64(),
@@ -512,48 +728,49 @@ export default function LinkSendScreen() {
                 turnServers,
                 signalingServer,
                 peerOnlineServicesDeviceId: registeredPeerDeviceId,
-            });
-            setShowTransferPhrase(false);
-            setFlow("share");
-            setStatus(
-                "Invitation ready. Share QR or file with the other device, then start live transfer on this device.",
-            );
+            };
+            setInvitation(created);
+            setFlow("transfer");
         } catch (e) {
             await rollbackPeerDevice(registeredPeerDeviceId);
-            setError(
-                e instanceof Error
-                    ? e.message
-                    : "Failed to create link package.",
-            );
+            const message =
+                e instanceof Error ? e.message : "Failed to create link package.";
+            // A retry from the transfer screen reports in its step list.
+            if (flow === "transfer") showTransferFailure(message);
+            else notify(message);
             setInvitation(null);
         } finally {
             setBusy(false);
         }
+        // Wait for the receiver right away, so the user only taps once.
+        if (created) await startLiveTransfer(created);
     };
 
-    const startLiveTransfer = async () => {
+    const startLiveTransfer = async (
+        current: LinkInvitation | null = invitation,
+    ) => {
         const sessionGeneration = getVaultSessionGeneration();
-        if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") {
-            setError("Vault session expired. Unlock and try again.");
+        if (!isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) {
+            notify("Vault session expired. Unlock and try again.");
             return;
         }
-        if (!invitation) return;
+        if (!current) return;
         const cleanDeviceName = deviceName.trim();
         if (!cleanDeviceName) {
-            setError("Device name cannot be empty.");
+            notify("Device name cannot be empty.");
             return;
         }
         if (cleanDeviceName.length > 150) {
-            setError("Device name cannot be longer than 150 characters.");
+            notify("Device name cannot be longer than 150 characters.");
             return;
         }
         if (!vaultMetadata) {
-            setError("Vault metadata is unavailable.");
+            notify("Vault metadata is unavailable.");
             return;
         }
         if (transferActiveRef.current) return;
 
-        setError("");
+        resetTransferProgress();
         setBusy(true);
         setTransferPhase("active");
         vaultTransferSentRef.current = false;
@@ -566,7 +783,7 @@ export default function LinkSendScreen() {
             turnServers,
             signalingServer,
             peerOnlineServicesDeviceId,
-        } = invitation;
+        } = current;
 
         let signalingSetupTimeout: ReturnType<typeof setTimeout> | undefined;
         let signalingFailureReported = false;
@@ -575,14 +792,17 @@ export default function LinkSendScreen() {
             current: VaultUtilTypes.SyncKeyBundle | null;
         } = { current: null };
 
-        const setProgress = (message: string) => {
+        const setProgress = (message: string, step?: number) => {
             setStatus(message);
+            logActivity(message);
+            if (step !== undefined)
+                setSendStep((current) => Math.max(current, step));
         };
 
         try {
             if (usesOnlineServices) {
                 await ensureFreshOnlineServicesSession();
-                if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") {
+                if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) {
                     throw new Error("Vault session expired. Unlock and try again.");
                 }
                 if (!hasOnlineServicesSession()) {
@@ -598,7 +818,7 @@ export default function LinkSendScreen() {
                 turnServers,
                 turnServers.length === 0 ? { syncId } : undefined,
             );
-            if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") {
+            if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) {
                 webRTConnection.close();
                 throw new Error("Vault session expired. Unlock and try again.");
             }
@@ -646,13 +866,9 @@ export default function LinkSendScreen() {
                 teardownLinkingConnections();
                 teardownRef.current = null;
                 await rollbackPeerDevice(peerOnlineServicesDeviceId);
-                if (peerOnlineServicesDeviceId) {
-                    setInvitation(null);
-                    setFlow("prepare");
-                }
-                setTransferPhase("error");
-                setError(message);
-                setProgress(message);
+                if (peerOnlineServicesDeviceId) setInvitation(null);
+                setStatus(message);
+                showTransferFailure(message);
                 setBusy(false);
             };
 
@@ -660,7 +876,7 @@ export default function LinkSendScreen() {
                 if (
                     teardownRef.current !== teardownLinkingConnections ||
                     !isSameActiveVaultSession(sessionGeneration) ||
-                    AppState.currentState !== "active" ||
+                    !appActiveForTransfer() ||
                     webRTConnection.connectionState === "closed" ||
                     webRTConnection.connectionState === "connected"
                 ) return;
@@ -746,10 +962,11 @@ export default function LinkSendScreen() {
             };
 
             webRTCDataChannel.onopen = async () => {
-                if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
+                if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) return;
                 iceCandidateDiscovery?.cancel();
                 setProgress(
                     "Private channel open. Authenticating the receiving device…",
+                    STEP.authentication,
                 );
 
                 const vaultSecret = getVaultDEKFromSession();
@@ -785,7 +1002,7 @@ export default function LinkSendScreen() {
                             senderNonce,
                         ),
                     );
-                    if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
+                    if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) return;
                     webRTCDataChannel.send(
                         toArrayBuffer(
                             VaultUtilTypes.LinkSenderHello.encode({
@@ -815,7 +1032,7 @@ export default function LinkSendScreen() {
                     }
                     setProgress("Quantum-safe sync keys exchanged.");
 
-                    setProgress("Preparing vault package…");
+                    setProgress("Preparing vault package…", STEP.transfer);
                     const exportedVault = packageForLinking(
                         vault,
                         syncId,
@@ -854,7 +1071,7 @@ export default function LinkSendScreen() {
                         transferContext,
                     );
 
-                    if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
+                    if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) return;
 
                     setProgress("Sending encrypted vault transfer…");
                     webRTCDataChannel.send(
@@ -868,7 +1085,7 @@ export default function LinkSendScreen() {
                         ),
                     );
                     vaultTransferSentRef.current = true;
-                    setProgress("Encrypted vault transfer sent.");
+                    setProgress("Encrypted vault transfer sent.", STEP.save);
 
                     const saveLinkedDeviceResult = await persistVaultMutation(
                         "vault.configuration",
@@ -1029,7 +1246,10 @@ export default function LinkSendScreen() {
             });
 
             wsChannel.bind("pusher:member_added", async () => {
-                setProgress("Other device found. Creating private connection…");
+                setProgress(
+                    "Other device found. Creating private connection…",
+                    STEP.connection,
+                );
                 const offer = await webRTConnection.createOffer();
                 await webRTConnection.setLocalDescription(offer);
                 wsChannel.trigger("client-link", {
@@ -1056,47 +1276,29 @@ export default function LinkSendScreen() {
                 },
             );
         } catch (e) {
-            transferActiveRef.current = false;
             teardownLiveTransfer();
             await rollbackPeerDevice(peerOnlineServicesDeviceId);
-            if (peerOnlineServicesDeviceId) {
-                setInvitation(null);
-                setFlow("prepare");
-            }
-            setTransferPhase("error");
-            setError(
+            if (peerOnlineServicesDeviceId) setInvitation(null);
+            showTransferFailure(
                 e instanceof Error
                     ? e.message
                     : "Failed to start live transfer.",
+                e instanceof Error ? `${e.name}: ${e.message}` : String(e),
             );
             setBusy(false);
         }
     };
 
-    const cancelLiveTransfer = async () => {
-        const peerId = invitation?.peerOnlineServicesDeviceId ?? null;
-        teardownLiveTransfer();
-        await rollbackPeerDevice(peerId);
-        if (peerId) {
-            setInvitation(null);
-            setFlow("prepare");
-        }
-        setTransferPhase("error");
-        setError("Linking cancelled.");
-        setStatus("Linking cancelled.");
-        setBusy(false);
-    };
-
     const sharePackageFile = async () => {
         const sessionGeneration = getVaultSessionGeneration();
         if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") {
-            setError("Vault session expired. Unlock and try again.");
+            notify("Vault session expired. Unlock and try again.");
             return;
         }
         if (!invitation?.packageB64) return;
         const parsed = LinkingPackage.fromBase64(invitation.packageB64);
         if (parsed.isErr()) {
-            setError("Invalid package data.");
+            notify("Invalid package data.");
             return;
         }
         let path: string | undefined;
@@ -1108,18 +1310,47 @@ export default function LinkSendScreen() {
             );
             if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
             if (!(await Sharing.isAvailableAsync())) {
-                setError("Sharing is not available on this device.");
+                notify("Sharing is not available on this device.");
                 return;
             }
             if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
+            externalHandoffRef.current = true;
             await Sharing.shareAsync(path, {
                 mimeType: "application/octet-stream",
                 dialogTitle: "Share Cryptex link package",
             });
         } catch {
-            setError("Could not share the link package.");
+            notify("Could not share the link package.");
         } finally {
+            // Some share sheets never leave the active state; don't keep the
+            // exemption around for an unrelated trip to the background.
+            if (AppState.currentState === "active")
+                externalHandoffRef.current = false;
             if (path) await deleteAppOwnedTempFile(path).catch(() => undefined);
+        }
+    };
+
+    const copyInvitation = async () => {
+        if (!invitation?.packageB64) return;
+        if (!(await copyTextToClipboard(invitation.packageB64))) {
+            notify("Could not copy the invitation.");
+            return;
+        }
+        // The user is about to paste it into another app.
+        externalHandoffRef.current = true;
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const refreshAccountAccess = async () => {
+        setRefreshingAccess(true);
+        try {
+            await ensureFreshOnlineServicesSession();
+            await syncOnlineServicesRemoteConfiguration();
+        } catch {
+            notify("Could not refresh your account. Check your connection and try again.");
+        } finally {
+            setRefreshingAccess(false);
         }
     };
 
@@ -1134,11 +1365,7 @@ export default function LinkSendScreen() {
 
     const focused = useIsFocused();
     const title =
-        flow === "prepare" || flow === "connection"
-            ? "Send an invitation"
-            : flow === "share"
-              ? "Share invitation"
-              : "Live vault transfer";
+        flow === "transfer" ? "Share invitation" : "Send an invitation";
     const invitationError = invitationAccessError({
         usesOnlineServices,
         hasSession,
@@ -1146,416 +1373,525 @@ export default function LinkSendScreen() {
         permissions: onlineServicesData?.remoteData,
     });
 
+    const leaveTransfer = async (announce = false) => {
+        setStopDialogOpen(false);
+        setBusy(true);
+        try {
+            teardownLiveTransfer();
+            await rollbackPeerDevice(invitation?.peerOnlineServicesDeviceId);
+            setInvitation(null);
+            setTransferPhase("idle");
+            setStatus("");
+            setFailure(null);
+            setFlow("prepare");
+            if (announce) notify("Linking cancelled. The invitation can no longer be used.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const retryTransfer = () => {
+        // Online Services invitations are revoked on failure; others can be reused.
+        if (invitation) void startLiveTransfer(invitation);
+        else void createInvitation();
+    };
+
     const goBack = async () => {
+        if (qrFullscreen) {
+            setQrFullscreen(false);
+            return;
+        }
         if (busy && !transferInProgress) return;
         if (transferPhase === "success") {
             router.dismissTo("/(app)/(tabs)/devices");
         } else if (flow === "prepare") router.back();
         else if (flow === "connection") setFlow("prepare");
-        else if (flow === "share") {
-            setBusy(true);
-            try {
-                await rollbackPeerDevice(
-                    invitation?.peerOnlineServicesDeviceId,
-                );
-                setInvitation(null);
-                setFlow("prepare");
-            } finally {
-                setBusy(false);
-            }
-        } else if (transferInProgress) {
-            Alert.alert(
-                "Transfer in progress",
-                "Cancel the live transfer before returning to the invitation.",
-            );
-        } else setFlow("share");
+        else if (transferInProgress) setStopDialogOpen(true);
+        else void leaveTransfer();
     };
 
+    useEffect(() => {
+        if (flow !== "transfer" || transferPhase !== "active") return;
+        void activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => undefined);
+        return () => {
+            void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
+        };
+    }, [flow, transferPhase]);
+
+    // The QR is only useful until the receiver connects.
+    useEffect(() => {
+        if (sendStep > STEP.waiting || transferPhase !== "active")
+            setQrFullscreen(false);
+    }, [sendStep, transferPhase]);
+
+    useEffect(() => {
+        if (!qrFullscreen) return;
+        let previous: number | null = null;
+        // Window brightness only: no system setting changes, no permission.
+        const applied = (async () => {
+            try {
+                previous = await Brightness.getBrightnessAsync();
+                await Brightness.setBrightnessAsync(1);
+            } catch {
+                // Brightness is a convenience; the QR still works without it.
+            }
+        })();
+        const back = BackHandler.addEventListener("hardwareBackPress", () => {
+            setQrFullscreen(false);
+            return true;
+        });
+        return () => {
+            back.remove();
+            void applied
+                .then(() =>
+                    Platform.OS === "android"
+                        ? Brightness.restoreSystemBrightnessAsync()
+                        : previous !== null
+                          ? Brightness.setBrightnessAsync(previous)
+                          : undefined,
+                )
+                .catch(() => undefined);
+        };
+    }, [qrFullscreen]);
+
+    const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+    const fullscreenQrSize = Math.min(windowWidth, windowHeight) - 48;
+
+    const connectionNeedsAttention = !selectionsValid || !!invitationError;
+    const connectionRow = (
+        <UnlockedMenuRow
+            icon={Settings2}
+            title="Advanced connection"
+            subtitle="Servers and root access for this invitation"
+            value={
+                signalingServerID === ONLINE_SERVICES_SELECTION_ID
+                    ? "Online Services"
+                    : vault.LinkedDevices.SignalingServers.find(
+                          (server) => server.ID === signalingServerID,
+                      )?.Name || "Custom"
+            }
+            onPress={() => setFlow("connection")}
+        />
+    );
+    const needsAccountVisit =
+        usesOnlineServices &&
+        (!hasSession ||
+            (!!onlineServicesData?.remoteData &&
+                onlineServicesData.remoteData.root &&
+                !onlineServicesData.remoteData.canLink));
+
+    const progressItems: LinkProgressItem[] = SEND_PROGRESS.map((item, index) => ({
+        ...item,
+        state:
+            transferPhase === "success" || index < sendStep
+                ? "completed"
+                : index > sendStep
+                  ? "pending"
+                  : failure
+                    ? "error"
+                    : "active",
+    }));
+    const showInvitation =
+        !!invitation && !failure && sendStep === STEP.waiting;
+    const qrValue = qrFrames[activeFrameIndex];
+
     return (
-        <Screen
-            scroll
-            edges={["top", "left", "right", "bottom"]}
-            taskTitle={title}
-            onTaskBack={goBack}
-            contentContainerClassName="px-[20px] pb-[28px] pt-[24px]"
-        >
-            {rollbackWarning ? (
-                <InlineNotice tone="warning" message={rollbackWarning} />
-            ) : null}
-            {flow === "prepare" || flow === "connection" ? (
-                <View>
-                    <LinkSteps current={0} />
-                    <View className="my-5">
-                        <UnlockedLabel>Receiving device name</UnlockedLabel>
-                        <UnlockedInput
-                            value={deviceName}
-                            onChangeText={setDeviceName}
-                            autoCapitalize="words"
-                            placeholder="e.g. Laptop"
-                            accessibilityLabel="Receiving device name"
-                            maxLength={150}
-                        />
-                    </View>
-                    <View className="mb-5 border-l-2 border-muted pl-[13px]">
-                        <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
-                            Keep both devices online. The invitation gives the
-                            other device a way to request an encrypted vault
-                            transfer.
-                        </UnlockedText>
-                    </View>
-                    <UnlockedMenuRow
-                        icon={Settings2}
-                        title="Connection options"
-                        subtitle="Choose services for this invitation"
-                        value={
-                            signalingServerID === ONLINE_SERVICES_SELECTION_ID
-                                ? "Online Services"
-                                : vault.LinkedDevices.SignalingServers.find(
-                                      (server) =>
-                                          server.ID === signalingServerID,
-                                  )?.Name || "Custom"
-                        }
-                        onPress={() => setFlow("connection")}
-                    />
-                    <UnlockedButton
-                        className="mt-6"
-                        loading={busy}
-                        disabled={
-                            !deviceName.trim() ||
-                            !selectionsValid ||
-                            !!invitationError
-                        }
-                        onPress={() => void createInvitation()}
-                    >
-                        Create invitation
-                    </UnlockedButton>
-                    {invitationError ? (
-                        <InlineNotice
-                            tone="info"
-                            message={invitationError}
-                        />
-                    ) : null}
-                    {error ? (
-                        <InlineNotice tone="error" message={error} />
-                    ) : null}
-                </View>
-            ) : null}
-
-            <Dialog
-                open={flow === "connection" && focused}
-                onOpenChange={(open) => {
-                    if (!open) setFlow("prepare");
-                }}
-                placement="bottom"
+        <View style={{ flex: 1 }}>
+            <Screen
                 scroll
+                edges={["top", "left", "right", "bottom"]}
+                taskTitle={title}
+                onTaskBack={goBack}
+                contentContainerClassName="px-[20px] pb-[96px] pt-[24px]"
             >
-                <DialogHeader>
-                    <UnlockedDialogTitle>
-                        Invitation connection
-                    </UnlockedDialogTitle>
-                </DialogHeader>
-                <View>
-                    <InvitationHeader title="Connect the two devices">
-                        Only the services selected here are included in the
-                        invitation.
-                        {hasSession ? " Online Services is ready." : ""}
-                    </InvitationHeader>
-                    <Pressable
-                        accessibilityRole="radio"
-                        accessibilityState={{
-                            selected: connectionMode === "online",
-                            disabled: !cloudEnabled || !boundOs,
-                        }}
-                        disabled={!cloudEnabled || !boundOs}
-                        onPress={selectOnlineServices}
-                        className="min-h-[58px] flex-row items-center gap-3 border-b border-border py-3"
-                    >
-                        <View
-                            className={`h-[18px] w-[18px] items-center justify-center rounded-full border ${connectionMode === "online" ? "border-primary" : "border-muted"}`}
-                        >
-                            {connectionMode === "online" ? (
-                                <View className="h-2.5 w-2.5 rounded-full bg-primary" />
-                            ) : null}
-                        </View>
-                        <View className="flex-1">
-                            <UnlockedText className="text-sm text-foreground">
-                                Online Services
-                            </UnlockedText>
-                            <UnlockedText className="mt-1 text-xs leading-5 text-muted-foreground">
-                                {hasSession
-                                    ? "Use your signed-in account connection."
-                                    : "Reconnect your account before using this option."}
-                            </UnlockedText>
-                        </View>
-                    </Pressable>
-                    <Pressable
-                        accessibilityRole="radio"
-                        accessibilityState={{
-                            selected: connectionMode === "custom",
-                        }}
-                        onPress={selectCustomServers}
-                        className="min-h-[58px] flex-row items-center gap-3 border-b border-border py-3"
-                    >
-                        <View
-                            className={`h-[18px] w-[18px] items-center justify-center rounded-full border ${connectionMode === "custom" ? "border-primary" : "border-muted"}`}
-                        >
-                            {connectionMode === "custom" ? (
-                                <View className="h-2.5 w-2.5 rounded-full bg-primary" />
-                            ) : null}
-                        </View>
-                        <View className="flex-1">
-                            <UnlockedText className="text-sm text-foreground">
-                                Custom servers
-                            </UnlockedText>
-                            <UnlockedText className="mt-1 text-xs leading-5 text-muted-foreground">
-                                Requires signaling and an ICE path; STUN or TURN
-                                can provide the connection.
-                            </UnlockedText>
-                        </View>
-                    </Pressable>
-                    <UnlockedText className="mb-[6px] mt-[26px] text-[10px] uppercase tracking-[1.1px] text-muted-foreground">
-                        Custom services
-                    </UnlockedText>
-                    {vault.LinkedDevices.SignalingServers.map((server) => (
-                        <UnlockedCheckbox
-                            key={server.ID}
-                            label={`Signaling: ${server.Name || server.Host}`}
-                            checked={signalingServerID === server.ID}
-                            onCheckedChange={() =>
-                                setSignalingServerID((current) =>
-                                    current === server.ID ? "" : server.ID,
-                                )
-                            }
-                        />
-                    ))}
-                    {vault.LinkedDevices.STUNServers.map((server) => (
-                        <UnlockedCheckbox
-                            key={server.ID}
-                            label={`STUN: ${server.Name || server.Host}`}
-                            checked={stunServerIDs.includes(server.ID)}
-                            onCheckedChange={() =>
-                                setStunServerIDs((list) =>
-                                    toggleId(list, server.ID),
-                                )
-                            }
-                        />
-                    ))}
-                    {vault.LinkedDevices.TURNServers.map((server) => (
-                        <UnlockedCheckbox
-                            key={server.ID}
-                            label={`TURN: ${server.Name || server.Host}`}
-                            checked={turnServerIDs.includes(server.ID)}
-                            onCheckedChange={() =>
-                                setTurnServerIDs((list) =>
-                                    toggleId(list, server.ID),
-                                )
-                            }
-                        />
-                    ))}
-                    {!hasCustomSignaling && !hasCustomIce ? (
-                        <View className="my-5 border-l-2 border-muted pl-[13px]">
-                            <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
-                                No custom servers are configured yet.
-                            </UnlockedText>
-                        </View>
-                    ) : null}
-                    <UnlockedMenuRow
-                        icon={Settings2}
-                        title="Manage custom servers"
-                        subtitle="Add STUN, TURN, or signaling services"
-                        onPress={() =>
-                            router.push("/(app)/devices/connectivity")
-                        }
-                    />
-                    {!selectionsValid ? (
-                        <InlineNotice
-                            tone="warning"
-                            message="Select signaling plus at least one STUN or TURN connection path."
-                        />
-                    ) : null}
-                    <UnlockedCheckbox
-                        className="mt-5"
-                        label="Make linked device root"
-                        checked={usesOnlineServices && makeRoot}
-                        onCheckedChange={setMakeRoot}
-                        disabled={
-                            !usesOnlineServices ||
-                            !hasSession ||
-                            !onlineServicesData?.remoteData?.root ||
-                            !onlineServicesData.remoteData.canPromoteDevices
-                        }
-                    />
-                    <UnlockedText className="mt-2 text-xs leading-5 text-muted-foreground">
-                        Root devices can manage account devices, recovery, and
-                        account deletion.
-                    </UnlockedText>
-                    <UnlockedButton
-                        className="mt-6"
-                        disabled={!selectionsValid}
-                        onPress={() => setFlow("prepare")}
-                    >
-                        Use selected connection
-                    </UnlockedButton>
-                </View>
-            </Dialog>
-
-            {flow === "share" && invitation ? (
-                <View className="gap-4">
-                    <LinkSteps current={1} />
-                    <InvitationHeader title="Open on your other device">
-                        Use Receive invitation in Cryptex Vault on the device
-                        you want to link.
-                    </InvitationHeader>
-                    {qrFrames[activeFrameIndex] ? (
-                        <View className="items-center py-2">
-                            <QRCode
-                                value={qrFrames[activeFrameIndex]!}
-                                size={200}
+                {flow === "prepare" || flow === "connection" ? (
+                    <View>
+                        <LinkSteps current={0} />
+                        <View className="my-5">
+                            <UnlockedLabel>Receiving device name</UnlockedLabel>
+                            <UnlockedInput
+                                value={deviceName}
+                                onChangeText={setDeviceName}
+                                autoCapitalize="words"
+                                placeholder="e.g. Laptop"
+                                accessibilityLabel="Receiving device name"
+                                maxLength={150}
                             />
                         </View>
-                    ) : (
-                        <InlineNotice
-                            tone="loading"
-                            message="Preparing the scannable invitation…"
-                        />
-                    )}
-                    {qrFrames.length > 1 ? (
-                        <UnlockedText className="text-center text-xs text-muted-foreground">
-                            Part {activeFrameIndex + 1} of {qrFrames.length}
-                        </UnlockedText>
-                    ) : null}
-                    {showTransferPhrase ? (
-                        <View className="rounded-md border border-border bg-secondary/40 p-3">
-                            <UnlockedText className="mb-2 text-xs text-muted-foreground">
-                                Transfer phrase
-                            </UnlockedText>
-                            <UnlockedText
-                                selectable
-                                className="font-mono text-sm leading-6 text-foreground"
-                            >
-                                {invitation.mnemonic}
+                        <View className="mb-5 border-l-2 border-muted pl-[13px]">
+                            <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
+                                Keep both devices online. The invitation gives
+                                the other device a way to request an encrypted
+                                vault transfer.
                             </UnlockedText>
                         </View>
-                    ) : null}
-                    <UnlockedButton
-                        className="w-full"
-                        variant="outline"
-                        onPress={() => void sharePackageFile()}
-                    >{`Share .${LINK_FILE_EXTENSION} file`}</UnlockedButton>
-                    <UnlockedButton
-                        className="w-full"
-                        variant="outline"
-                        onPress={() =>
-                            void copyTextToClipboard(invitation.packageB64)
-                        }
-                    >
-                        Copy invitation
-                    </UnlockedButton>
-                    <UnlockedButton
-                        className="w-full"
-                        variant="outline"
-                        onPress={() => setShowTransferPhrase((shown) => !shown)}
-                    >
-                        {showTransferPhrase
-                            ? "Hide transfer phrase"
-                            : "Show transfer phrase"}
-                    </UnlockedButton>
-                    <UnlockedButton
-                        className="w-full"
-                        onPress={() => setFlow("confirm")}
-                    >
-                        Start live transfer
-                    </UnlockedButton>
-                    <View className="border-l-2 border-muted pl-3">
-                        <UnlockedText className="text-xs leading-5 text-muted-foreground">
-                            Share the invitation and transfer phrase with your
-                            receiving device, then start the live transfer here.
-                        </UnlockedText>
+                        {connectionNeedsAttention ? connectionRow : null}
+                        <UnlockedButton
+                            className="mt-6"
+                            loading={busy}
+                            disabled={
+                                !deviceName.trim() ||
+                                !selectionsValid ||
+                                !!invitationError
+                            }
+                            onPress={() => void createInvitation()}
+                        >
+                            Create invitation
+                        </UnlockedButton>
+                        {invitationError ? (
+                            <View>
+                                <InlineNotice
+                                    tone="info"
+                                    message={invitationError}
+                                />
+                                <View className="mt-3 flex-row gap-3">
+                                    {usesOnlineServices ? (
+                                        <UnlockedButton
+                                            className="flex-1"
+                                            variant="outline"
+                                            loading={refreshingAccess}
+                                            onPress={() =>
+                                                void refreshAccountAccess()
+                                            }
+                                        >
+                                            Refresh
+                                        </UnlockedButton>
+                                    ) : null}
+                                    {needsAccountVisit ? (
+                                        <UnlockedButton
+                                            className="flex-1"
+                                            variant="outline"
+                                            onPress={() =>
+                                                router.dismissTo(
+                                                    "/(app)/(tabs)/account",
+                                                )
+                                            }
+                                        >
+                                            Open Account
+                                        </UnlockedButton>
+                                    ) : null}
+                                </View>
+                            </View>
+                        ) : null}
+                        {connectionNeedsAttention ? null : (
+                            <View className="mt-8">{connectionRow}</View>
+                        )}
                     </View>
-                    {error ? (
-                        <InlineNotice tone="error" message={error} />
-                    ) : null}
-                </View>
-            ) : null}
+                ) : null}
 
-            {flow === "confirm" && invitation ? (
-                <View className="gap-4">
-                    <LinkSteps current={2} />
-                    <InvitationHeader title="Ready for your other device">
-                        Open the invitation and enter the transfer phrase on
-                        the receiving device. Keep this screen open during
-                        transfer.
-                    </InvitationHeader>
-                    <View className="min-h-[54px] flex-row items-center justify-between gap-5 border-b border-border py-4">
-                        <UnlockedText className="text-[13px] text-muted-foreground">
-                            Receiving device
-                        </UnlockedText>
-                        <UnlockedText className="max-w-[65%] text-right text-[13px] text-foreground">
-                            {deviceName}
-                        </UnlockedText>
-                    </View>
-                    <View className="min-h-[54px] flex-row items-center justify-between gap-5 border-b border-border py-4">
-                        <UnlockedText className="text-[13px] text-muted-foreground">
-                            Status
-                        </UnlockedText>
-                        <UnlockedText className="max-w-[65%] text-right text-[13px] text-foreground">
-                            {transferPhase === "active"
-                                ? "Transferring"
-                                : transferPhase === "success"
-                                  ? "Transfer complete"
-                                  : transferPhase === "error"
-                                    ? "Needs attention"
-                                    : "Waiting for receiver"}
-                        </UnlockedText>
-                    </View>
-                    <View className="border-l-2 border-muted pl-[13px]">
-                        <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
-                            Your vault is transferred through an encrypted
-                            connection. Both devices need to stay online.
-                        </UnlockedText>
-                    </View>
-                    {status && transferPhase !== "idle" ? (
-                        <InlineNotice
-                            tone={
-                                transferPhase === "success"
-                                    ? "success"
-                                    : transferPhase === "error"
-                                      ? "error"
-                                      : "loading"
+                <Dialog
+                    open={flow === "connection" && focused}
+                    onOpenChange={(open) => {
+                        if (!open) setFlow("prepare");
+                    }}
+                    placement="bottom"
+                    scroll
+                >
+                    <DialogHeader>
+                        <UnlockedDialogTitle>
+                            Invitation connection
+                        </UnlockedDialogTitle>
+                    </DialogHeader>
+                    <View>
+                        <InvitationHeader title="Connect the two devices">
+                            Only the services selected here are included in the
+                            invitation.
+                            {hasSession ? " Online Services is ready." : ""}
+                        </InvitationHeader>
+                        <RadioRow
+                            title="Online Services"
+                            subtitle={
+                                hasSession
+                                    ? "Use your signed-in account connection."
+                                    : "Reconnect your account before using this option."
                             }
-                            message={status}
+                            selected={connectionMode === "online"}
+                            disabled={!cloudEnabled || !boundOs}
+                            onPress={selectOnlineServices}
                         />
-                    ) : null}
-                    {error ? (
-                        <InlineNotice tone="error" message={error} />
-                    ) : null}
-                    {transferPhase !== "success" ? (
-                        <UnlockedButton
-                            loading={transferInProgress}
-                            disabled={transferInProgress}
-                            onPress={() => void startLiveTransfer()}
-                        >
-                            Start live transfer
-                        </UnlockedButton>
-                    ) : (
-                        <UnlockedButton
+                        <RadioRow
+                            title="Custom servers"
+                            subtitle="Requires signaling and an ICE path; STUN or TURN can provide the connection."
+                            selected={connectionMode === "custom"}
+                            onPress={selectCustomServers}
+                        />
+                        {vault.LinkedDevices.SignalingServers.length ? (
+                            <>
+                                <SectionLabel>Signaling server</SectionLabel>
+                                {vault.LinkedDevices.SignalingServers.map(
+                                    (server) => (
+                                        <RadioRow
+                                            key={server.ID}
+                                            title={server.Name || server.Host}
+                                            selected={
+                                                signalingServerID === server.ID
+                                            }
+                                            onPress={() =>
+                                                setSignalingServerID(server.ID)
+                                            }
+                                        />
+                                    ),
+                                )}
+                            </>
+                        ) : null}
+                        {vault.LinkedDevices.STUNServers.length ||
+                        vault.LinkedDevices.TURNServers.length ? (
+                            <SectionLabel>Connection paths</SectionLabel>
+                        ) : null}
+                        {vault.LinkedDevices.STUNServers.map((server) => (
+                            <SwitchRow
+                                key={server.ID}
+                                title={server.Name || server.Host}
+                                subtitle="STUN"
+                                value={stunServerIDs.includes(server.ID)}
+                                onValueChange={() =>
+                                    setStunServerIDs((list) =>
+                                        toggleId(list, server.ID),
+                                    )
+                                }
+                            />
+                        ))}
+                        {vault.LinkedDevices.TURNServers.map((server) => (
+                            <SwitchRow
+                                key={server.ID}
+                                title={server.Name || server.Host}
+                                subtitle="TURN"
+                                value={turnServerIDs.includes(server.ID)}
+                                onValueChange={() =>
+                                    setTurnServerIDs((list) =>
+                                        toggleId(list, server.ID),
+                                    )
+                                }
+                            />
+                        ))}
+                        {!hasCustomSignaling && !hasCustomIce ? (
+                            <View className="my-5 border-l-2 border-muted pl-[13px]">
+                                <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
+                                    No custom servers are configured yet.
+                                </UnlockedText>
+                            </View>
+                        ) : null}
+                        <UnlockedMenuRow
+                            icon={Settings2}
+                            title="Manage custom servers"
+                            subtitle="Add STUN, TURN, or signaling services"
                             onPress={() =>
-                                router.dismissTo("/(app)/(tabs)/devices")
+                                router.push("/(app)/devices/connectivity")
                             }
-                        >
-                            Back to Devices
-                        </UnlockedButton>
-                    )}
-                    {transferInProgress ? (
+                        />
+                        {!selectionsValid ? (
+                            <InlineNotice
+                                tone="warning"
+                                message="Select signaling plus at least one STUN or TURN connection path."
+                            />
+                        ) : null}
+                        <SwitchRow
+                            title="Make linked device root"
+                            subtitle="Root devices can manage account devices, recovery, and account deletion."
+                            value={usesOnlineServices && makeRoot}
+                            onValueChange={setMakeRoot}
+                            disabled={
+                                !usesOnlineServices ||
+                                !hasSession ||
+                                !onlineServicesData?.remoteData?.root ||
+                                !onlineServicesData.remoteData.canPromoteDevices
+                            }
+                        />
                         <UnlockedButton
-                            variant="destructive"
-                            onPress={() => void cancelLiveTransfer()}
+                            className="mt-6"
+                            disabled={!selectionsValid}
+                            onPress={() => setFlow("prepare")}
                         >
-                            Cancel transfer
+                            Use selected connection
                         </UnlockedButton>
-                    ) : null}
-                </View>
+                    </View>
+                </Dialog>
+
+                {flow === "transfer" ? (
+                    <View className="gap-4">
+                        <LinkSteps current={1} />
+                        {transferPhase === "success" ? (
+                            <LinkResult
+                                title="Device linked"
+                                description={`${deviceName.trim()} received your vault and can now sync with this device.`}
+                                rows={[
+                                    {
+                                        label: "Linked device",
+                                        value: deviceName.trim(),
+                                    },
+                                    {
+                                        label: "Connection",
+                                        value: usesOnlineServices
+                                            ? "Online Services"
+                                            : "Custom servers",
+                                    },
+                                ]}
+                                actionLabel="Back to Devices"
+                                onAction={() =>
+                                    router.dismissTo("/(app)/(tabs)/devices")
+                                }
+                            />
+                        ) : (
+                            <>
+                                {showInvitation ? (
+                                    <>
+                                        <InvitationHeader title="Open on your other device">
+                                            In Cryptex Vault on the other
+                                            device, choose Use invitation, scan
+                                            this code, and enter the
+                                            verification words.
+                                        </InvitationHeader>
+                                        <Pressable
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Show QR code full screen"
+                                            disabled={!qrValue}
+                                            onPress={() => setQrFullscreen(true)}
+                                            className="items-center py-2"
+                                        >
+                                            <View className="h-[224px] w-[224px] items-center justify-center rounded-md bg-white">
+                                                {qrValue ? (
+                                                    <QRCode
+                                                        value={qrValue}
+                                                        size={200}
+                                                    />
+                                                ) : (
+                                                    <UnlockedText className="text-xs text-[#5b6274]">
+                                                        Preparing QR code…
+                                                    </UnlockedText>
+                                                )}
+                                            </View>
+                                            {qrFrames.length > 1 ? (
+                                                <UnlockedText className="mt-3 text-xs text-muted-foreground">
+                                                    Part {activeFrameIndex + 1}{" "}
+                                                    of {qrFrames.length}
+                                                </UnlockedText>
+                                            ) : null}
+                                            <View className="mt-2 flex-row items-center gap-2">
+                                                <Maximize2
+                                                    size={13}
+                                                    color={colors.muted}
+                                                />
+                                                <UnlockedText className="text-xs text-muted-foreground">
+                                                    Tap to enlarge
+                                                </UnlockedText>
+                                            </View>
+                                        </Pressable>
+                                        <View className="rounded-md border border-border bg-secondary/40 p-3">
+                                            <UnlockedText className="mb-2 text-xs text-muted-foreground">
+                                                Verification words
+                                            </UnlockedText>
+                                            <UnlockedText
+                                                selectable
+                                                accessibilityLabel="Verification words"
+                                                className="font-mono text-sm leading-6 text-foreground"
+                                            >
+                                                {invitation.mnemonic}
+                                            </UnlockedText>
+                                        </View>
+                                        <View className="flex-row gap-3">
+                                            <UnlockedButton
+                                                className="flex-1"
+                                                variant="outline"
+                                                onPress={() =>
+                                                    void sharePackageFile()
+                                                }
+                                            >
+                                                Share file
+                                            </UnlockedButton>
+                                            <UnlockedButton
+                                                className="flex-1"
+                                                variant="outline"
+                                                onPress={() =>
+                                                    void copyInvitation()
+                                                }
+                                            >
+                                                {copied
+                                                    ? "Copied"
+                                                    : "Copy invitation"}
+                                            </UnlockedButton>
+                                        </View>
+                                    </>
+                                ) : null}
+                                <LinkingProgress
+                                    items={progressItems}
+                                    status={status || "Preparing invitation…"}
+                                    activity={activity}
+                                    failure={failure}
+                                    failureTitle="Your vault was not sent."
+                                    onCancel={() => void leaveTransfer(true)}
+                                    onRetry={retryTransfer}
+                                />
+                            </>
+                        )}
+                    </View>
+                ) : null}
+
+                <Dialog
+                    open={stopDialogOpen}
+                    onOpenChange={setStopDialogOpen}
+                    placement="bottom"
+                >
+                    <DialogHeader>
+                        <UnlockedDialogTitle>Stop linking?</UnlockedDialogTitle>
+                        <DialogDescription>
+                            The other device will not be able to use this
+                            invitation. You can create a new one at any time.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <UnlockedButton
+                        variant="secondary"
+                        onPress={() => setStopDialogOpen(false)}
+                    >
+                        Keep linking
+                    </UnlockedButton>
+                    <UnlockedButton
+                        variant="destructive"
+                        onPress={() => void leaveTransfer(true)}
+                    >
+                        Stop linking
+                    </UnlockedButton>
+                </Dialog>
+            </Screen>
+            <Snackbar
+                feedback={snackbar}
+                onDismiss={dismissSnackbar}
+                bottomOffset={insets.bottom + 12}
+            />
+            {qrFullscreen && qrValue ? (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close full-screen QR code"
+                    onPress={() => setQrFullscreen(false)}
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        left: 0,
+                        zIndex: 10,
+                        elevation: 10,
+                        backgroundColor: "#ffffff",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 20,
+                    }}
+                >
+                    <QRCode value={qrValue} size={fullscreenQrSize} />
+                    <View style={{ alignItems: "center", gap: 6 }}>
+                        {qrFrames.length > 1 ? (
+                            <UnlockedText style={{ color: "#111520", fontSize: 14 }}>
+                                Part {activeFrameIndex + 1} of {qrFrames.length}
+                            </UnlockedText>
+                        ) : null}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <X size={14} color="#5b6274" />
+                            <UnlockedText style={{ color: "#5b6274", fontSize: 13 }}>
+                                Tap anywhere to close
+                            </UnlockedText>
+                        </View>
+                    </View>
+                </Pressable>
             ) : null}
-        </Screen>
+        </View>
     );
 }

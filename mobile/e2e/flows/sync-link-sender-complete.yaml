@@ -2,7 +2,7 @@ appId: ${CRYPTEX_APP_ID}
 name: Verify the sender completed actual transfer
 ---
 - extendedWaitUntil:
-    visible: Transfer complete
+    visible: Device linked
     timeout: 120000
 - tapOn: Back to Devices
 - tapOn:

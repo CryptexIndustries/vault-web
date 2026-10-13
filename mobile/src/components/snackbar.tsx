@@ -10,16 +10,16 @@ export type FeedbackAction = {
     onPress: () => void | Promise<void>;
 };
 
-type BillingFeedback = {
+type SnackbarMessage = {
     id: number;
     message: string;
     action?: FeedbackAction;
 };
 
 /** Feedback belongs to one account/sheet lifetime. Actions remain until dismissed. */
-export function useBillingFeedback(scope: string | number, active = true) {
+export function useSnackbar(scope: string | number, active = true) {
     const [entry, setEntry] = useState<
-        (BillingFeedback & { scope: string | number }) | null
+        (SnackbarMessage & { scope: string | number }) | null
     >(null);
     const nextId = useRef(0);
     const mounted = useRef(true);
@@ -57,14 +57,17 @@ export function useBillingFeedback(scope: string | number, active = true) {
     };
 }
 
-export function BillingSnackbar({
+export function Snackbar({
     feedback,
     onDismiss,
     floating = true,
+    bottomOffset = 12,
 }: {
-    feedback: BillingFeedback | null;
+    feedback: SnackbarMessage | null;
     onDismiss: () => void;
     floating?: boolean;
+    /** Distance from the bottom edge; screens without a tab bar add the safe-area inset. */
+    bottomOffset?: number;
 }) {
     useEffect(() => {
         if (!feedback) return;
@@ -92,7 +95,7 @@ export function BillingSnackbar({
     if (!feedback) return null;
     return (
         <View
-            testID="billing-snackbar"
+            testID="snackbar"
             pointerEvents="box-none"
             style={
                 floating
@@ -100,7 +103,7 @@ export function BillingSnackbar({
                           position: "absolute",
                           left: 18,
                           right: 18,
-                          bottom: 12,
+                          bottom: bottomOffset,
                           zIndex: 2,
                       }
                     : { marginHorizontal: 18, marginBottom: 12 }

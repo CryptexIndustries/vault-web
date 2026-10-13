@@ -5,9 +5,9 @@ import { usePreventRemove } from "expo-router/react-navigation";
 import { UnlockedDialogTitle as DialogTitle } from "@/components/unlocked/unlocked-ui";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import {
-    BillingSnackbar,
-    useBillingFeedback,
-} from "@/components/billing-feedback";
+    Snackbar,
+    useSnackbar,
+} from "@/components/snackbar";
 import {
     getVaultSessionGeneration,
     isSameActiveVaultSession,
@@ -72,7 +72,7 @@ function SubscriptionSignupSheet({
         feedback: billingFeedback,
         show: showFeedback,
         dismiss: dismissFeedback,
-    } = useBillingFeedback(getVaultSessionGeneration(), open);
+    } = useSnackbar(getVaultSessionGeneration(), open);
     const checkoutTierRef = useRef<CheckoutTier>("premiumMonthly");
     const pendingRef = useRef(false);
     const [localPending, setLocalPending] = useState(
@@ -230,7 +230,7 @@ function SubscriptionSignupSheet({
             placement="bottom"
             footer={
                 open ? (
-                    <BillingSnackbar
+                    <Snackbar
                         feedback={billingFeedback}
                         onDismiss={dismissFeedback}
                         floating={false}

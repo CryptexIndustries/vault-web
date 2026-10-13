@@ -17,9 +17,9 @@ import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 import { SubscriptionSignup } from "@/components/account/subscription-signup";
 import { InlineNotice } from "@/components/inline-notice";
 import {
-    BillingSnackbar,
-    useBillingFeedback,
-} from "@/components/billing-feedback";
+    Snackbar,
+    useSnackbar,
+} from "@/components/snackbar";
 import { BillingPendingNotice } from "@/components/account/billing-pending-notice";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import {
@@ -100,7 +100,7 @@ export default function AccountScreen() {
         feedback: billingFeedback,
         show: showFeedback,
         dismiss: dismissFeedback,
-    } = useBillingFeedback(
+    } = useSnackbar(
         `${billingScope}:${authFeedbackRevision}:${accountSummaryMode}:${accountDetailsOpen}`,
         focused && !subscriptionSignupOpen,
     );
@@ -651,7 +651,7 @@ export default function AccountScreen() {
                     placement="bottom"
                     footer={
                         accountDetailsOpen ? (
-                            <BillingSnackbar
+                            <Snackbar
                                 feedback={billingFeedback}
                                 onDismiss={dismissFeedback}
                                 floating={false}
@@ -876,7 +876,7 @@ export default function AccountScreen() {
                 ) : null}
             </UnlockedScreen>
             {!accountDetailsOpen && !subscriptionSignupOpen ? (
-                <BillingSnackbar
+                <Snackbar
                     feedback={billingFeedback}
                     onDismiss={dismissFeedback}
                 />

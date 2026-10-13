@@ -1,13 +1,9 @@
 appId: ${CRYPTEX_APP_ID}
-name: Start the sender's encrypted transfer
+name: Confirm the sender is still waiting for the receiver
 ---
+# Creating the invitation starts the live transfer; nothing to tap here.
 - scrollUntilVisible:
     element:
-      text: Start live transfer
+      text: Waiting for other device.*
     direction: DOWN
-- tapOn: Start live transfer
-- assertVisible: Ready for your other device
-- tapOn: Start live transfer
-- extendedWaitUntil:
-    visible: Waiting for other device.*
     timeout: 35000

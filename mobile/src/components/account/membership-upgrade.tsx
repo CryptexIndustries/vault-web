@@ -18,7 +18,7 @@ import { currentPriceList } from "../../../../web/src/lib/price-lists";
 import { BillingPendingNotice } from "./billing-pending-notice";
 import { MembershipBenefits } from "./membership-benefits";
 import { BillingIntervalSelector } from "./billing-interval-selector";
-import type { FeedbackAction } from "@/components/billing-feedback";
+import type { FeedbackAction } from "@/components/snackbar";
 
 export type MembershipUpgradeProps = {
     canUpgrade: boolean;

@@ -293,6 +293,7 @@ export function LinkingProgress({
     onCancel,
     onRetry,
     onUseNewInvitation,
+    failureTitle = "The received vault has not been saved.",
 }: {
     items: LinkProgressItem[];
     status: string;
@@ -300,7 +301,8 @@ export function LinkingProgress({
     failure: LinkFailure | null;
     onCancel: () => void;
     onRetry: () => void;
-    onUseNewInvitation: () => void;
+    onUseNewInvitation?: () => void;
+    failureTitle?: string;
 }) {
     return (
         <View className="gap-3">
@@ -328,7 +330,7 @@ export function LinkingProgress({
             {failure ? (
                 <View className="gap-3 border-l-2 border-primary bg-secondary px-4 py-3">
                     <Text className="font-semibold text-foreground">
-                        The received vault has not been saved.
+                        {failureTitle}
                     </Text>
                     <AdvancedDisclosure ruled title="Inspect error">
                         <Text
@@ -341,9 +343,11 @@ export function LinkingProgress({
                     <VaultEntryAction onPress={onRetry}>
                         Try again
                     </VaultEntryAction>
-                    <Button variant="outline" onPress={onUseNewInvitation}>
-                        Use a new invitation
-                    </Button>
+                    {onUseNewInvitation ? (
+                        <Button variant="outline" onPress={onUseNewInvitation}>
+                            Use a new invitation
+                        </Button>
+                    ) : null}
                 </View>
             ) : null}
 

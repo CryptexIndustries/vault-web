@@ -12,9 +12,10 @@ name: Account devices, permissions and topology visibility
 - tapOn: Link a device
 - tapOn: Create invitation,.*
 - tapOn: Receiving device name
+- eraseText: 20
 - inputText: E2E Root Invitation
 - hideKeyboard
-- tapOn: Connection options,.*
+- tapOn: Advanced connection,.*
 - scrollUntilVisible:
     element:
       text: Make linked device root.*
@@ -26,10 +27,17 @@ name: Account devices, permissions and topology visibility
     direction: DOWN
 - tapOn: Use selected connection
 - tapOn: Create invitation
+# The transfer starts on creation. This fixture has no signaling or TURN
+# service, so it may already have failed; Back must clean up either way.
 - extendedWaitUntil:
-    visible: Open on your other device
+    visible: Share invitation
     timeout: 30000
 - tapOn: Back
+- runFlow:
+    when:
+      visible: Stop linking\?
+    commands:
+      - tapOn: Stop linking
 - assertVisible: Receiving device name
 - tapOn: Back
 - tapOn: Refresh devices

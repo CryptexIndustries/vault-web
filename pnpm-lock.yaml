@@ -252,6 +252,9 @@ importers:
       expo:
         specifier: 57.0.17
         version: 57.0.17(8e0137b53d9d4bc8aa1054bcff4e6b19)
+      expo-brightness:
+        specifier: 57.0.2
+        version: 57.0.2(expo@57.0.17)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))
       expo-camera:
         specifier: 57.0.4
         version: 57.0.4(patch_hash=f9217bfe076c29be948ffb8286eeaeeda8fe1b84bb314c64fd8c9c082d73d8a0)(@types/emscripten@1.41.5)(expo@57.0.17)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
@@ -273,6 +276,9 @@ importers:
       expo-font:
         specifier: 57.0.1
         version: 57.0.1(expo@57.0.17)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
+      expo-keep-awake:
+        specifier: 57.0.1
+        version: 57.0.1(expo@57.0.17)(react@19.2.3)
       expo-linking:
         specifier: 57.0.8
         version: 57.0.8(expo@57.0.17)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1)
@@ -4756,6 +4762,12 @@ packages:
     peerDependencies:
       expo: '*'
       react: '*'
+      react-native: '*'
+
+  expo-brightness@57.0.2:
+    resolution: {integrity: sha512-X5x1qVeUGpb6GMe4AWjQSiJTfwgzRjQGMKnVy7w37xtUW6G2rML9rnddh7mId6ZaCgE+anbb6m66sOGdMGAkvQ==}
+    peerDependencies:
+      expo: '*'
       react-native: '*'
 
   expo-camera@57.0.4:
@@ -12998,6 +13010,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
+
+  expo-brightness@57.0.2(expo@57.0.17)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1)):
+    dependencies:
+      expo: 57.0.17(8e0137b53d9d4bc8aa1054bcff4e6b19)
+      react-native: 0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1)
 
   expo-camera@57.0.4(patch_hash=f9217bfe076c29be948ffb8286eeaeeda8fe1b84bb314c64fd8c9c082d73d8a0)(@types/emscripten@1.41.5)(expo@57.0.17)(react-native@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3):
     dependencies:

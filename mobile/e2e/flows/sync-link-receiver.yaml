@@ -19,7 +19,7 @@ name: Receive and protect a real linked vault
     env:
       EXPORTED_FILE: e2e-invitation.cryxlink
 - assertVisible: Invitation ready.*
-- tapOn: Linking phrase
+- tapOn: Verification words
 - inputText: ${TRANSFER_PHRASE}
 - hideKeyboard
 - scrollUntilVisible:

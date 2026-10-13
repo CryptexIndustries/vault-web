@@ -62,6 +62,14 @@
             background: #181d2b;
         }
         .capture img { display: block; width: 100%; height: auto; }
+
+        /* Google Play accepts only 9:16 phone screenshots: open with ?format=play. */
+        .play .stage { width: 1080px; height: 1920px; }
+        .play .copy { top: 170px; width: auto; right: 64px; }
+        .play .label { margin-bottom: 30px; }
+        .play h1 { font-size: 76px; }
+        .play .description { margin-top: 24px; }
+        .play .capture { top: 630px; left: 50%; right: auto; width: 560px; transform: translateX(-50%); }
     </style>
 </head>
 <body>
@@ -112,6 +120,7 @@
             const slide = selected?.classList.contains("slide") ? selected : document.getElementById("vault");
             document.querySelectorAll(".slide").forEach((item) => { item.hidden = item !== slide; });
         }
+        document.body.classList.toggle("play", new URLSearchParams(location.search).get("format") === "play");
         window.addEventListener("hashchange", selectSlide);
         selectSlide();
     </script>

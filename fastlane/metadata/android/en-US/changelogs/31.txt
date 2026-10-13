@@ -1,0 +1,1 @@
+Membership now shows clearer messages while a payment is being confirmed, and a Recovery Kit you have already saved is no longer shown again when you upgrade. Turning on the accessibility fallback now asks you to agree first. About now links to the privacy policy.

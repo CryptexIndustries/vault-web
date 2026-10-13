@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Bumped the web app and Chromium extension versions to `1.5.0`, aligning the extension package and manifest versions.
+- The web app's device linking dialogs now call the twelve-word secret "Verification words" instead of "Mnemonic", the same term the documentation, Chromium extension and Android app use. The linking guide no longer mentions a mnemonic field.
 
 ### Fixed
 

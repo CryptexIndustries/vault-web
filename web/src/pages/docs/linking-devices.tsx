@@ -174,8 +174,7 @@ export default function LinkingDevices() {
                                     </p>,
                                     <p key="words">
                                         Enter the verification words shown by
-                                        the sending vault in the mnemonic field,
-                                        then choose{" "}
+                                        the sending vault, then choose{" "}
                                         <strong>Receive vault data</strong>.
                                     </p>,
                                     <p key="finish">

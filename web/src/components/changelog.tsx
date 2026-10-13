@@ -55,6 +55,11 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
                     "A new billing return page takes you back to the web vault or Android app. A return button stays available if your browser blocks automatic navigation.",
             },
             {
+                type: "changed",
+                description:
+                    "The device linking dialog now says \"Verification words\" instead of \"Mnemonic\", the same term the extension, Android app and documentation use.",
+            },
+            {
                 type: "fix",
                 description:
                     "Device linking and synchronization now wait for delayed connection candidates instead of failing immediately. Pending failure timers are cleared when connections end or are replaced.",

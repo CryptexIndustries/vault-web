@@ -16,7 +16,7 @@ export default function TermsOfService() {
                     These terms cover Cryptex Vault and the optional Online
                     Services operated by Cryptex Industries d.o.o., Croatia.
                 </p>
-                <p>Last updated: 25 September 2026</p>
+                <p>Last updated: 12 October 2026</p>
             </section>
 
             <Section
@@ -97,18 +97,31 @@ export default function TermsOfService() {
                     cancel renewal before the new price takes effect.
                 </p>
                 <p>
-                    Link is the merchant of record through Stripe Managed
-                    Payments. It handles payment support, receipts, invoices,
-                    payment methods and transaction disputes. Purchases are
-                    subject to <a href="https://link.com/terms">Link's terms</a>
-                    . Cryptex Industries d.o.o. provides product support.
+                    For subscriptions bought through Stripe checkout, Link is
+                    the merchant of record through Stripe Managed Payments. It
+                    handles payment support, receipts, invoices, payment methods
+                    and transaction disputes. Purchases are subject to{" "}
+                    <a href="https://link.com/terms">Link's terms</a>. Cryptex
+                    Industries d.o.o. provides product support.
                 </p>
                 <p>
-                    To cancel renewal, open <strong>Manage billing</strong> in
-                    your Online Services account. Cancellation takes effect at
-                    the end of your paid billing period. You retain the paid
-                    service until then and will not be charged for another
-                    period.
+                    For subscriptions bought in the Android app from Google
+                    Play, Google Play processes the payment under the{" "}
+                    <a href="https://play.google.com/about/play-terms/">
+                        Google Play Terms of Service
+                    </a>{" "}
+                    and handles payment support, receipts and payment methods.
+                </p>
+                <p>
+                    To cancel renewal of a Stripe subscription, open{" "}
+                    <strong>Manage billing</strong> in your Online Services
+                    account. To cancel a Google Play subscription, open{" "}
+                    <a href="https://play.google.com/store/account/subscriptions">
+                        Subscriptions in Google Play
+                    </a>
+                    . Cancellation takes effect at the end of your paid billing
+                    period. You retain the paid service until then and will not
+                    be charged for another period.
                 </p>
             </Section>
 
@@ -123,10 +136,10 @@ export default function TermsOfService() {
                     Cancelling renewal does not itself refund the current
                     billing period. We do not offer voluntary refunds for
                     non-use or a change of mind beyond refunds available under
-                    Link's terms or applicable law.
+                    Link's terms, Google Play's policies or applicable law.
                 </p>
                 <p>
-                    Under{" "}
+                    For Stripe purchases, under{" "}
                     <a href="https://link.com/terms#sold-through-link-terms">
                         Link's terms
                     </a>
@@ -139,13 +152,19 @@ export default function TermsOfService() {
                     request.
                 </p>
                 <p>
-                    Follow{" "}
+                    To request a refund for a Stripe purchase, follow{" "}
                     <a href="https://support.link.com/questions/requesting-a-refund-for-a-sold-through-link-payment">
                         Link's refund instructions
                     </a>
-                    . Your statutory consumer rights remain unaffected,
-                    including remedies if the service does not meet the
-                    contract.
+                    . For a Google Play purchase, follow{" "}
+                    <a href="https://support.google.com/googleplay/answer/2479637">
+                        Google Play's refund instructions
+                    </a>
+                    .
+                </p>
+                <p>
+                    Your statutory consumer rights remain unaffected, including
+                    remedies if the service does not meet the contract.
                 </p>
             </Section>
 

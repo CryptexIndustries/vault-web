@@ -92,7 +92,8 @@ export default function Pricing() {
                             statutory consumer rights are unaffected. For
                             purchases through Stripe Managed Payments,
                             Stripe/Link may also issue refunds under its own
-                            terms.
+                            terms. Google Play purchases follow Google Play's
+                            refund policy.
                         </dd>
                     </div>
                     <div>
@@ -132,9 +133,11 @@ export default function Pricing() {
                     <div>
                         <dt>Managing cancellation</dt>
                         <dd>
-                            Manage your subscription through Stripe’s billing
-                            portal, accessible from the app. Cancellation takes
-                            effect at the end of the current paid period.
+                            Manage a Stripe subscription through Stripe’s
+                            billing portal, accessible from the app. Manage a
+                            Google Play subscription in Google Play.
+                            Cancellation takes effect at the end of the current
+                            paid period.
                         </dd>
                     </div>
                     <div>

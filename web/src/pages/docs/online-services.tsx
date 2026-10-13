@@ -361,7 +361,9 @@ export default function OnlineServices() {
                     <div className={t.definition}>
                         <dt>Cancel subscription</dt>
                         <dd>
-                            Paid access continues to the end of the paid period.
+                            Cancel a Stripe subscription from Manage billing, or
+                            a Google Play subscription in Google Play. Paid
+                            access continues to the end of the paid period.
                             After entitlement ends, new uploads stop.
                         </dd>
                     </div>
@@ -386,6 +388,30 @@ export default function OnlineServices() {
                     Hosted backup deletion is asynchronous. Queued cleanup
                     removes stored objects and retries failures. Ending Online
                     Services does not erase local vaults or downloaded backups.
+                </p>
+                <p>
+                    To delete your Cryptex Vault Online Services account, use
+                    the root device of the vault that owns it:
+                </p>
+                <ol>
+                    <li>
+                        Android app: open Account, then Recovery &amp; access,
+                        and choose Delete online account.
+                    </li>
+                    <li>
+                        Web vault, without the Android app: open Account, then
+                        the Security tab, and choose Delete account.
+                    </li>
+                </ol>
+                <p>
+                    Deletion removes the account, device, subscription and
+                    payment-event records from the active database and queues
+                    hosted backups for deletion. Copies remain in database
+                    backups for up to seven days, and operational and security
+                    logs for up to 30 days. Deleting the account does not cancel
+                    a subscription billed by Google Play or Stripe; cancel it
+                    there first. Payment providers keep their own records under
+                    their own policies.
                 </p>
             </DocSection>
 

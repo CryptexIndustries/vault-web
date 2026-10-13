@@ -781,8 +781,8 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     {detailed && (
                         <small>
                             No voluntary subscription refunds. Your statutory
-                            consumer rights and applicable Stripe/Link refund
-                            terms are unaffected.
+                            consumer rights and applicable Stripe/Link or Google
+                            Play refund terms are unaffected.
                         </small>
                     )}
                 </article>

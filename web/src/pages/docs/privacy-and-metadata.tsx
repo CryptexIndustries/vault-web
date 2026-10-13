@@ -236,6 +236,17 @@ export default function PrivacyAndMetadata() {
                                     .
                                 </td>
                             </tr>
+                            <tr>
+                                <td>Buying through Google Play</td>
+                                <td>
+                                    In the Android app from Google Play, Google
+                                    Play handles the purchase and the payment
+                                    details. RevenueCat receives the purchase
+                                    record and the Online Services account
+                                    identifier, and passes the subscription
+                                    status to the service.
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

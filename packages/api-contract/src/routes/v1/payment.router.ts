@@ -1,5 +1,5 @@
-import { protectedProcedure } from "../../trpc";
 import { z } from "zod";
+import { protectedProcedure } from "../../trpc";
 import {
     getSubscriptionOutputSchema,
     paymentReturnTargetSchema,
@@ -11,14 +11,24 @@ export const paymentRouterGetCheckoutSession = protectedProcedure
             .union([
                 z.object({
                     tier: z
-                        .enum(["premiumMonthly", "premiumYearly"])
+                        .enum([
+                            "premiumMonthly",
+                            "premiumYearly",
+                            "onlineServicesMonthly",
+                            "onlineServicesYearly",
+                        ])
                         .default("premiumMonthly"),
                     uiMode: z.literal("embedded").default("embedded"),
                     returnTarget: paymentReturnTargetSchema.optional(),
                 }),
                 z.object({
                     tier: z
-                        .enum(["premiumMonthly", "premiumYearly"])
+                        .enum([
+                            "premiumMonthly",
+                            "premiumYearly",
+                            "onlineServicesMonthly",
+                            "onlineServicesYearly",
+                        ])
                         .default("premiumMonthly"),
                     uiMode: z.literal("hosted"),
                     returnTarget: paymentReturnTargetSchema,
@@ -48,5 +58,23 @@ export const paymentRouterGetCustomerPortal = protectedProcedure
     )
     .output(z.string().nullable())
     .query(() => {
+        throw new Error("api-contract stub");
+    });
+
+export const paymentRouterRevenueCatCustomer = protectedProcedure
+    .output(
+        z.object({
+            enabled: z.boolean(),
+            appUserId: z.string(),
+            canPurchase: z.boolean(),
+        }),
+    )
+    .query(() => {
+        throw new Error("api-contract stub");
+    });
+
+export const paymentRouterSyncRevenueCat = protectedProcedure
+    .output(z.void())
+    .mutation(() => {
         throw new Error("api-contract stub");
     });

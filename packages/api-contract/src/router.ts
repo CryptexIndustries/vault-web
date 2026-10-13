@@ -29,6 +29,8 @@ import {
     paymentRouterGetCheckoutSession,
     paymentRouterGetCustomerPortal,
     paymentRouterGetSubscription,
+    paymentRouterRevenueCatCustomer,
+    paymentRouterSyncRevenueCat,
 } from "./routes/v1/payment.router";
 
 import {
@@ -81,6 +83,8 @@ const _versionedRouter = router({
             checkoutSession: paymentRouterGetCheckoutSession,
             customerPortal: paymentRouterGetCustomerPortal,
             subscription: paymentRouterGetSubscription,
+            revenueCatCustomer: paymentRouterRevenueCatCustomer,
+            syncRevenueCat: paymentRouterSyncRevenueCat,
         }),
         backup: router({
             status: backupRouterStatus,

@@ -43,7 +43,7 @@ export function createOnlineServicesFixture({ origin = 'http://localhost:43111',
             case 'v1.auth.register': {
                 const publicKey = createPublicKey({ key: JSON.parse(input.publicKeyJWK), format: 'jwk' });
                 const userId = id('fixture-user'), deviceId = id('fixture-device');
-                accounts.set(userId, { userId, deviceId, enabled: false, phrase: null, snapshots: [] });
+                accounts.set(userId, { userId, deviceId, enabled: false, phrase: null, paid: false, snapshots: [] });
                 devices.set(deviceId, { userId, publicKey, root: true });
                 if (deviceScenario) {
                     const peerId = `e2e-peer-${deviceId}`, rootId = `e2e-root-${deviceId}`;
@@ -100,11 +100,16 @@ export function createOnlineServicesFixture({ origin = 'http://localhost:43111',
             case 'v1.user.configuration':
                 return { deviceId, root: devices.get(deviceId).root, canLink: devices.get(deviceId).root, maxLinks: 5, canPromoteDevices: true, managedEncryptedBackups: true, passwordSharing: true, securityReportBasic: true, securityReportAdvanced: true, recoveryTokenCreatedAt: account.phrase ? new Date('2026-01-01') : null, recoveryGenerationNeeded: !account.phrase };
             case 'v1.payment.subscription':
-                return { productName: 'E2E Premium', nonFree: true, status: 'active', paymentStatus: 'paid', resourceStatus: { linkedDevices: 0 } };
+                // New accounts start on the free plan so signup hands off to checkout.
+                return account.paid
+                    ? { provider: 'stripe', productName: 'E2E Premium', nonFree: true, status: 'active', paymentStatus: 'paid', resourceStatus: { linkedDevices: 0 } }
+                    : { provider: null, productName: 'Free', nonFree: false, status: null, resourceStatus: { linkedDevices: 0 } };
             case 'v1.payment.checkoutSession':
                 if (!['premiumMonthly', 'premiumYearly'].includes(input?.tier) || input.uiMode !== 'hosted' || !['mobile-production', 'mobile-preprod'].includes(input.returnTarget)) fail('Invalid hosted checkout request');
                 if (!account.phrase) fail('Save a Recovery Kit first', 'PRECONDITION_FAILED');
-                // Synthetic Stripe-host URL for browser handoff only. Entitlement is unchanged.
+                // Synthetic Stripe-host URL for browser handoff only. Requesting it stands in
+                // for a completed payment; feature entitlements are unchanged.
+                account.paid = true;
                 return `https://checkout.stripe.com/c/pay/cs_test_cryptex_fixture_${input.tier}`;
             case 'v1.device.link': {
                 if (!devices.get(deviceId).root) fail('Root access required', 'FORBIDDEN');

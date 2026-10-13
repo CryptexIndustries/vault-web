@@ -25,14 +25,14 @@ test('signed registration rejects replay and invalid signatures; refresh rotates
     assert.throws(() => fixture.dispatch('v1.auth.refresh', { refreshToken: tokens.refreshToken }), /Invalid refresh token/);
 });
 
-test('hosted checkout requires a signed session and Recovery Kit without changing entitlement', () => {
+test('hosted checkout requires a signed session and Recovery Kit, then reports a paid membership', () => {
     const { fixture, tokens } = authenticatedFixture();
     const call = (path, input) => fixture.dispatch(path, input, tokens.sessionToken);
     const input = { tier: 'premiumYearly', uiMode: 'hosted', returnTarget: 'mobile-production' };
     assert.throws(() => fixture.dispatch('v1.payment.checkoutSession', input), /Session required/);
     assert.throws(() => call('v1.payment.checkoutSession', input), /Recovery Kit/);
     call('v1.user.generateRecoveryToken');
-    const subscription = call('v1.payment.subscription');
+    assert.equal(call('v1.payment.subscription').nonFree, false);
     const configuration = call('v1.user.configuration');
     const backupStatus = call('v1.backup.status');
     for (const tier of ['premiumMonthly', 'premiumYearly']) {
@@ -47,7 +47,9 @@ test('hosted checkout requires a signed session and Recovery Kit without changin
         { ...input, returnTarget: 'https://untrusted.example' },
         { ...input, returnTarget: undefined },
     ]) assert.throws(() => call('v1.payment.checkoutSession', invalid), /Invalid hosted checkout/);
-    assert.deepEqual(call('v1.payment.subscription'), subscription);
+    const subscription = call('v1.payment.subscription');
+    assert.equal(subscription.nonFree, true);
+    assert.equal(subscription.provider, 'stripe');
     assert.deepEqual(call('v1.user.configuration'), configuration);
     assert.deepEqual(call('v1.backup.status'), backupStatus);
 });

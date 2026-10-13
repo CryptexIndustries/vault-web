@@ -31,8 +31,8 @@ name: Register disposable Online Services account
           text: I've saved my kit. Continue to payment
       direction: DOWN
 - tapOn: I've saved my kit. Continue to payment
-# The synthetic hosted URL verifies handoff. Fixture accounts are already entitled;
-# this flow does not complete a Stripe payment.
+# New fixture accounts are on the free plan, so signup opens the synthetic hosted
+# checkout. Requesting it marks the account paid; no Stripe payment runs.
 - assertVisible: .*checkout.stripe.com/c/pay/cs_test_cryptex_fixture_premiumYearly.*
 - launchApp:
       stopApp: false

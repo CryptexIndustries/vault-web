@@ -5,6 +5,7 @@ import { Copy, Lock } from "lucide-react";
 
 import { openCustomerPortal } from "@/app_lib/online-services";
 import type { CheckoutTier } from "@/app_lib/online-services";
+import type { GetSubscriptionOutputSchemaType } from "@cryptex-industries/api-contract";
 import dynamic from "next/dynamic";
 import {
     Accordion,
@@ -37,6 +38,9 @@ const EmbeddedCheckoutDialog = dynamic(
     { ssr: false },
 );
 
+const GOOGLE_PLAY_SUBSCRIPTIONS_URL =
+    "https://play.google.com/store/account/subscriptions";
+
 type RemoteConfig = {
     root?: boolean;
     canLink?: boolean;
@@ -46,6 +50,7 @@ type RemoteConfig = {
 };
 
 type Subscription = {
+    provider?: GetSubscriptionOutputSchemaType["provider"];
     productName?: string | null;
     status?: string | null;
     cancelAtPeriodEnd?: boolean | null;
@@ -195,6 +200,15 @@ export function AccountSummary({
         : "Renews";
     const billingDate = formatAccountDate(subscription?.expiresAt);
     const lockedPerks = buildLockedPerks(remoteConfig, tierAccessLoaded);
+    const canManageBilling = hasSession && !!subscription?.nonFree;
+    // Store subscriptions can only be changed in the store that bills them.
+    const provider = canManageBilling ? subscription.provider : null;
+    const billingNote =
+        provider === "google_play"
+            ? "Billed through Google Play. Manage or cancel it in Google Play subscriptions."
+            : provider === "app_store"
+              ? "Billed through the App Store. Manage or cancel it in your Apple account settings."
+              : null;
 
     return (
         <div className="space-y-4">
@@ -259,16 +273,33 @@ export function AccountSummary({
                         >
                             Upgrade
                         </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void openCustomerPortal()}
-                            disabled={!hasSession || !subscription?.nonFree}
-                        >
-                            Manage billing
-                        </Button>
+                        {provider === "google_play" ? (
+                            <Button asChild variant="outline" size="sm">
+                                <a
+                                    href={GOOGLE_PLAY_SUBSCRIPTIONS_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Manage billing
+                                </a>
+                            </Button>
+                        ) : provider === "app_store" ? null : (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void openCustomerPortal()}
+                                disabled={!canManageBilling}
+                            >
+                                Manage billing
+                            </Button>
+                        )}
                     </div>
+                    {billingNote ? (
+                        <p className="text-xs text-muted-foreground">
+                            {billingNote}
+                        </p>
+                    ) : null}
                     {canUpgrade ? <SubscriptionLegalNotice /> : null}
                 </CardFooter>
             </Card>

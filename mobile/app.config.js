@@ -1,14 +1,15 @@
 const { getProfile } = require('./config/profiles.cjs');
 const { getOtaConfig } = require('./config/ota.cjs');
-const { loadReleaseConfig, configHash } = require('./config/release-config.cjs');
+const { configHash } = require('./config/release-config.cjs');
 const { releaseVersion } = require('./config/android-version.cjs');
 const path = require('node:path');
+const { loadDistributionConfig } = require('./config/play.cjs');
 
 module.exports = ({ config }) => {
     const profile = getProfile(process.env.CRYPTEX_APP_PROFILE);
     const distribution = process.env.CRYPTEX_DISTRIBUTION || 'standard';
     const release = process.env.CRYPTEX_BUILD_PROFILE === 'production';
-    const publicConfig = loadReleaseConfig(process.env.CRYPTEX_RELEASE_CONFIG || path.join(__dirname, profile.configFile));
+    const publicConfig = loadDistributionConfig(process.env.CRYPTEX_RELEASE_CONFIG || path.join(__dirname, profile.configFile), distribution);
     // Hosted builds must use the same reviewed public JSON as local releases.
     if (release) {
         for (const name of Object.keys(process.env)) {

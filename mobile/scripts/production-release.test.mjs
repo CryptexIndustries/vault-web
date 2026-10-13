@@ -141,9 +141,10 @@ test("release configuration rejects accidental offline defaults and non-HTTPS en
     assert.throws(() => productionEnvironment({}, { ...config, CRYPTEX_KEY_PASSWORD: "secret" }), /Only public/);
 });
 
+const appVersionCode = JSON.parse(readFileSync(new URL("../app.json", import.meta.url), "utf8")).expo.android.versionCode;
 const manifest = `A: package="com.cryptexindustries.vault"
 A: android:versionName(0x0101021c)="0.1.0"
-A: android:versionCode(0x0101021b)=1
+A: android:versionCode(0x0101021b)=${appVersionCode}
 E: application
 A: android:allowBackup(0x01010280)=false
 A: android:fullBackupContent(0x010104eb)=@0x7f120001
@@ -182,8 +183,8 @@ test("release verification selects the intended application identity and an expl
     const preprod = manifest.replace('package="com.cryptexindustries.vault"', 'package="com.cryptexindustries.vault.preprod"');
     assertProductionManifest(preprod, { profile: "preprod" });
     assert.throws(() => assertProductionManifest(preprod), /profile ID/);
-    const bumped = manifest.replace('="0.1.0"', '="0.2.0"').replace('versionCode(0x0101021b)=1', 'versionCode(0x0101021b)=2');
-    assertProductionManifest(bumped, { version: { name: "0.2.0", code: 2 } });
+    const bumped = manifest.replace('="0.1.0"', '="0.2.0"').replace(`versionCode(0x0101021b)=${appVersionCode}`, `versionCode(0x0101021b)=${appVersionCode + 1}`);
+    assertProductionManifest(bumped, { version: { name: "0.2.0", code: appVersionCode + 1 } });
     assert.throws(() => assertProductionManifest(bumped), /version/);
 });
 
@@ -289,7 +290,7 @@ test("every APK and signature-reproduction inspection child gets an explicit env
                 "res/8G.xml": "E: network-security-config\nE: base-config\nA: cleartextTrafficPermitted=false\n" },
             entries: ["assets/app.manifest", "assets/cryptex-release.json", "assets/index.android.bundle", "classes.dex", ...["armeabi-v7a", "arm64-v8a", "x86", "x86_64"].map(abi => `lib/${abi}/libfixture.so`)].join("\n"),
             embedded: JSON.stringify({ id: "12345678-1234-4123-8123-123456789abc", commitTime: 1790549889123, assets: [] }),
-            metadata: JSON.stringify(releaseMetadata({ config, toolchain, identity, sourceRevision: { commit: "a".repeat(40), dirty: true }, version: { name: "0.1.0", code: 1 } })),
+            metadata: JSON.stringify(releaseMetadata({ config, toolchain, identity, sourceRevision: { commit: "a".repeat(40), dirty: true }, version: { name: "0.1.0", code: appVersionCode } })),
             bundle: [config.EXPO_PUBLIC_APP_URL, config.EXPO_PUBLIC_ONLINE_SERVICES_API_URL, config.EXPO_PUBLIC_PUSHER_APP_HOST].join("\n"),
             signature: `Signer #1 certificate SHA-256 digest: ${identity.certificateSha256}\n`,
         }));
@@ -363,7 +364,7 @@ else throw new Error("Unexpected inspection tool " + tool);
         for (const arch of architectures) {
             const split = JSON.parse(universalFixture);
             const version = releaseVersion(JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo, { distribution: 'fdroid', arch });
-            split.manifest = manifest.replace(/:versionCode\(0x0101021b\)=1/, `:versionCode(0x0101021b)=0x${version.code.toString(16)}`)
+            split.manifest = manifest.replace(`:versionCode(0x0101021b)=${appVersionCode}`, `:versionCode(0x0101021b)=0x${version.code.toString(16)}`)
                 .replace('E: activity\n', Object.entries({ ENABLED: 'false', EXPO_UPDATES_CHECK_ON_LAUNCH: 'NEVER', EXPO_RUNTIME_VERSION: 'a'.repeat(40) })
                     .map(([name, value]) => `  E: meta-data\n    A: android:name(0x01010003)="expo.modules.updates.${name}"\n    A: android:value(0x01010024)=${JSON.stringify(value)}\n`).join('') + 'E: activity\n');
             split.entries = split.entries.split('\n').filter(entry => !entry.startsWith('lib/') || entry.startsWith(`lib/${arch}/`)).join('\n');
@@ -402,7 +403,7 @@ else throw new Error("Unexpected inspection tool " + tool);
         assert.equal(signedVariants.length, architectures.length);
         for (const [index, path] of signedVariants.entries()) {
             const receipt = JSON.parse(readFileSync(`${path}.json`, 'utf8'));
-            assert.equal(receipt.version.code, index + 11);
+            assert.equal(receipt.version.code, appVersionCode * 10 + index + 1);
             assert.equal(receipt.signed, true);
             assert.equal(receipt.apkSha256, apkSha256(path));
         }
@@ -421,7 +422,7 @@ else throw new Error("Unexpected inspection tool " + tool);
         // commands are replaced inside the child; staging, policy and delivery run.
         const checkout = join(temporary, "checkout"), project = join(checkout, "mobile");
         for (const directory of ["scripts", "config", "fdroid"]) mkdirSync(join(project, directory), { recursive: true });
-        for (const file of ["scripts/build-android.mjs", "scripts/build-cache.mjs", "scripts/build-resources.cjs", "scripts/verify-release.mjs", "scripts/verify-reproducibility.mjs", "scripts/release-config.mjs", "scripts/native-runtime.mjs", "scripts/signing.mjs", "scripts/toolchain.mjs", "config/profiles.cjs", "config/release-config.cjs", "config/android-version.cjs", "config/ota.cjs", "fdroid/toolchain.json", "app.json", "eas-project.json", "release-config.json", "release-signing.json", "release-signing-preprod.json"]) copyFileSync(new URL("../" + file, import.meta.url), join(project, file));
+        for (const file of ["scripts/play-bundle.mjs", "scripts/play-source.mjs", "config/play.cjs", "scripts/build-android.mjs", "scripts/build-cache.mjs", "scripts/build-resources.cjs", "scripts/verify-release.mjs", "scripts/verify-reproducibility.mjs", "scripts/release-config.mjs", "scripts/native-runtime.mjs", "scripts/signing.mjs", "scripts/toolchain.mjs", "config/profiles.cjs", "config/release-config.cjs", "config/android-version.cjs", "config/ota.cjs", "fdroid/toolchain.json", "app.json", "eas-project.json", "release-config.json", "release-signing.json", "release-signing-preprod.json"]) copyFileSync(new URL("../" + file, import.meta.url), join(project, file));
         writeFileSync(join(project, "App.tsx"), "independently staged source");
         const java = join(temporary, "java"); mkdirSync(join(java, "bin"), { recursive: true });
         writeFileSync(join(java, "bin/java"), "fixture"); writeFileSync(join(java, "release"), 'JAVA_VERSION="' + toolchain.java + '.0.12"\n');
@@ -548,7 +549,7 @@ else throw new Error("Unexpected inspection tool " + tool);
         const selectedPath = join(temporary, "preprod.json");
         writeFileSync(selectedPath, JSON.stringify(selected));
         const preprod = JSON.parse(readFileSync(fixture, "utf8"));
-        preprod.metadata = JSON.stringify(releaseMetadata({ config: selected, toolchain, identity, sourceRevision: { commit: "a".repeat(40), dirty: true }, version: { name: "0.1.0", code: 1 } }));
+        preprod.metadata = JSON.stringify(releaseMetadata({ config: selected, toolchain, identity, sourceRevision: { commit: "a".repeat(40), dirty: true }, version: { name: "0.1.0", code: appVersionCode } }));
         preprod.bundle = [selected.EXPO_PUBLIC_APP_URL, selected.EXPO_PUBLIC_ONLINE_SERVICES_API_URL, selected.EXPO_PUBLIC_PUSHER_APP_HOST].join("\n");
         writeFileSync(fixture, JSON.stringify(preprod));
         assert.throws(() => verifyRelease(apk, { env: inherited }), /Production build configuration mismatch/);

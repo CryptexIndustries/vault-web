@@ -8,13 +8,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { architectures, artifactName, getProfile, loadReleaseConfig, releaseVersion } from "./release-config.mjs";
 import { validateSigningIdentity } from "./signing.mjs";
 import { verifyRelease } from "./verify-release.mjs";
+import { buildPlayBundle } from "./play-bundle.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const sha256 = path => createHash("sha256").update(readFileSync(path)).digest("hex");
 
-export function signCiRelease(profile, directory, env = process.env) {
+export function signCiRelease(profile, directory, env = process.env, distribution = profile === "production" ? "fdroid" : "standard") {
     const selected = getProfile(profile);
-    const distribution = profile === "production" ? "fdroid" : "standard";
+    assert.ok(["standard", "fdroid", "play"].includes(distribution), "Unknown release distribution.");
     const targets = distribution === "fdroid" ? architectures : ["all"];
     const configPath = join(directory, "release-config.json");
     const config = loadReleaseConfig(configPath);
@@ -60,6 +61,12 @@ export function signCiRelease(profile, directory, env = process.env) {
                 apkSha256: sha256(signed), unsignedApkSha256: unsignedHash, configFileSha256: sha256(configPath) }, null, 2) + "\n");
         }
         const files = [configPath, ...releases.flatMap(({ unsigned, signed }) => [unsigned, `${unsigned}.json`, signed, `${signed}.json`])];
+        if (distribution === "play") {
+            const [{ unsigned, signed }] = releases;
+            const aab = signed.replace(/\.apk$/, ".aab");
+            buildPlayBundle({ unsignedBundle: unsigned.replace(/\.apk$/, ".aab"), output: aab, unsigned: false, env: signingEnv, metadata: { signer: identity } });
+            files.push(aab);
+        }
         writeFileSync(join(directory, "SHA256SUMS"), files.map(path => `${sha256(path)}  ${basename(path)}`).join("\n") + "\n");
         return releases.map(({ signed }) => signed);
     } finally {
@@ -70,12 +77,12 @@ export function signCiRelease(profile, directory, env = process.env) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
     try {
-        const [command, first, second, ...extra] = process.argv.slice(2);
+        const [command, first, second, distribution, ...extra] = process.argv.slice(2);
         assert.equal(extra.length, 0, "Unexpected CI release arguments.");
         if (command === "sign" && first && second) {
-            for (const apk of signCiRelease(first, resolve(second))) console.log(`Verified signed APK: ${apk}`);
+            for (const apk of signCiRelease(first, resolve(second), process.env, distribution)) console.log(`Verified signed APK: ${apk}`);
         }
-        else throw new Error("Use sign <production|preprod> <artifact directory>.");
+        else throw new Error("Use sign <production|preprod> <artifact directory> [play].");
     } catch (error) {
         // Child process failures must never print their environment or input.
         console.error(error.message);

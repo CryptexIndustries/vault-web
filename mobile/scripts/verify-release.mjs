@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadReleaseConfig, parseReleaseOptions, validateReleaseConfig, getProfile, configHash, selectedArchitectures, releaseVersion } from "./release-config.mjs";
 import ota from "../config/ota.cjs";
+import play from "../config/play.cjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 
@@ -188,6 +189,7 @@ export function assertProductionSignature(report, identity) {
 export function verifyRelease(apk, { unsigned = false, offlineServices = false, profile = "production", distribution = "standard", arch = "all", env = process.env,
     config = loadReleaseConfig(join(mobile, getProfile(profile).configFile)) } = {}) {
     validateReleaseConfig(config);
+    config = play.distributionConfig(config, distribution);
     const inspectionEnv = { ...env };
     for (const name of ["CRYPTEX_KEYSTORE", "CRYPTEX_KEYSTORE_PASSWORD", "CRYPTEX_KEY_ALIAS", "CRYPTEX_KEY_PASSWORD"]) delete inspectionEnv[name];
     const toolchain = JSON.parse(readFileSync(join(mobile, "fdroid/toolchain.json"), "utf8"));
@@ -199,6 +201,7 @@ export function verifyRelease(apk, { unsigned = false, offlineServices = false, 
     const app = JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo;
     const version = releaseVersion(app, { distribution, arch });
     assertProductionManifest(manifest, { profile, version });
+    play.assertDistributionPermissions(manifest, distribution);
     const resources = execFileSync(join(tools, "aapt2"), ["dump", "resources", apk], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, env: inspectionEnv });
     const entries = execFileSync("unzip", ["-Z1", apk], { encoding: "utf8", env: inspectionEnv }).trim().split("\n");
     const asset = (entry, maxBuffer = 32 * 1024 * 1024) => execFileSync("unzip", ["-p", apk, entry], { maxBuffer, env: inspectionEnv });

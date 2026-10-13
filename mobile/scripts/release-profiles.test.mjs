@@ -7,6 +7,7 @@ import { architectures, releaseVersion, getProfile, artifactName, configHash, lo
 import yaml from "js-yaml";
 import appConfig from "../app.config.js";
 import publicConfig from "../config/release-config.cjs";
+import play from "../config/play.cjs";
 import { discoverToolchain } from "./toolchain.mjs";
 import { defaultSigningDirectory, loadSigningEnvironment, validateSigningIdentity } from "./signing.mjs";
 import { runDevice } from "./device.mjs";
@@ -105,7 +106,9 @@ test("F-Droid ABI recipes, native versions and reference filenames agree across 
 test("release provenance identifies profile, source, selected JSON and public signer without credentials", () => {
     const metadata = releaseMetadata({ profile: "preprod", config, toolchain, identity, sourceRevision: { commit: "a".repeat(40), dirty: true }, version: { name: "0.1.0", code: 1 } });
     assert.equal(metadata.applicationId, getProfile("preprod").applicationId);
-    assert.equal(metadata.configHash, configHash(config));
+    assert.equal(metadata.configHash, configHash(play.distributionConfig(config)));
+    const withoutPlay = Object.fromEntries(Object.entries(config).filter(([name]) => !play.playConfigKeys.includes(name)));
+    assert.equal(metadata.configHash, releaseMetadata({ profile: "preprod", config: withoutPlay, toolchain, identity, sourceRevision: metadata.sourceRevision, version: metadata.version }).configHash);
     assert.equal(configHash(config), configHash(Object.fromEntries(Object.entries(config).reverse())));
     assert.notEqual(configHash(config), configHash({ ...config, EXPO_PUBLIC_APP_URL: "https://other.example" }));
     assert.deepEqual(metadata.signer, { alias: identity.alias, certificateSha256: identity.certificateSha256 });

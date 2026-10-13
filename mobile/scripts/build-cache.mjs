@@ -65,7 +65,7 @@ export function synchronizeSources(checkout, destination, previousFiles = [], fi
         files: [...hashes.keys()], changed, removed,
         sourceHash: digest(() => true),
         dependencyHash: digest(dependencyInput),
-        nativeHash: digest(file => dependencyInput(file) || /^mobile\/(?:app\.(?:json|config\.[cm]?[jt]s)|fingerprint\.config\.js|eas-project\.json)$/.test(file) || /^mobile\/(?:config|plugins|assets|modules|fdroid)\//.test(file)),
+        nativeHash: digest(file => dependencyInput(file) || /^mobile\/(?:app\.(?:json|config\.[cm]?[jt]s)|fingerprint\.config\.js|react-native\.config\.js|eas-project\.json)$/.test(file) || /^mobile\/(?:config|plugins|assets|modules|fdroid)\//.test(file)),
     };
 }
 

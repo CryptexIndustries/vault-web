@@ -7,10 +7,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verifyRelease } from "./verify-release.mjs";
 import { resolveExportRuntime } from "./native-runtime.mjs";
 import { assertReproductionTools, reconstructSignedReference } from "./verify-reproducibility.mjs";
-import { loadReleaseConfig, parseReleaseOptions, validateReleaseConfig } from "./release-config.mjs";
+import { parseReleaseOptions, validateReleaseConfig } from "./release-config.mjs";
 import { getProfile, configHash, artifactName } from "./release-config.mjs";
 import { discoverToolchain } from "./toolchain.mjs";
 import ota from "../config/ota.cjs";
+import play from "../config/play.cjs";
+import { buildPlayBundle } from "./play-bundle.mjs";
+import { preparePlayFreeSource } from "./play-source.mjs";
 import { loadSigningEnvironment, signingNames, validateSigningIdentity } from "./signing.mjs";
 import { dependencyDirectories, invalidateDependencies, openBuildWorkspace, synchronizeSources, writeIfChanged } from "./build-cache.mjs";
 import resources from "./build-resources.cjs";
@@ -25,6 +28,7 @@ export function productionBuildOptions(args, cwd = process.cwd()) {
 
 export function productionEnvironment(inherited, config, { unsigned = false, offlineServices = false, profile = "production", distribution = "standard", arch = "all" } = {}) {
     validateReleaseConfig(config);
+    config = play.distributionConfig(config, distribution);
     const env = { ...inherited };
     // Neither ignored .env files nor ambient public variables define a release.
     for (const name of Object.keys(env)) {
@@ -65,7 +69,7 @@ function run(command, args, options) {
 
 export function releaseMetadata({ profile = "production", distribution = "standard", config, toolchain, identity, sourceRevision, version, offlineServices = false }) {
     return { profile, buildProfile: "production", distribution, applicationId: getProfile(profile).applicationId,
-        version, sourceRevision, configHash: configHash(config), signer: { alias: identity.alias, certificateSha256: identity.certificateSha256 },
+        version, sourceRevision, configHash: configHash(play.distributionConfig(config, distribution)), signer: { alias: identity.alias, certificateSha256: identity.certificateSha256 },
         e2e: false, onlineServicesEnabled: !offlineServices,
         appUrl: config.EXPO_PUBLIC_APP_URL, apiUrl: config.EXPO_PUBLIC_ONLINE_SERVICES_API_URL, toolchain };
 }
@@ -88,6 +92,7 @@ export function finalizeNativeSources(stagedMobile, { toolchain, metadata }) {
     const android = join(stagedMobile, "android");
     const wrapper = join(android, "gradle/wrapper/gradle-wrapper.properties");
     let properties = readFileSync(wrapper, "utf8");
+    if (metadata.distribution === "fdroid") preparePlayFreeSource(resolve(stagedMobile, ".."), true);
     properties = properties.replace(/^distributionUrl=.*$/m, `distributionUrl=https\\://services.gradle.org/distributions/gradle-${toolchain.gradle}-bin.zip`);
     properties = properties.replace(/^distributionSha256Sum=.*\n?/m, "").trimEnd() + `\n\ndistributionSha256Sum=${toolchain.gradleDistributionSha256}\n`;
     writeIfChanged(wrapper, properties);
@@ -141,7 +146,7 @@ export function finishStaging(staging, successful) {
 export function prepareProduction(args, inherited = process.env) {
     const options = productionBuildOptions(args);
     const { unsigned, reproduceFrom, configPath, profile, distribution } = options;
-    const config = loadReleaseConfig(configPath);
+    const config = play.loadDistributionConfig(configPath, distribution);
     const toolchain = JSON.parse(readFileSync(join(mobile, "fdroid/toolchain.json"), "utf8"));
     const identityFile = join(mobile, getProfile(profile).signingIdentityFile);
     assert.ok(existsSync(identityFile), `Missing public signing identity at ${identityFile}. Run pnpm mobile:signing -- setup --profile ${profile}.`);
@@ -252,7 +257,7 @@ export function buildAndroid(args = process.argv.slice(2)) {
                 CRYPTEX_LOCAL_BUILD_CONFIG_HASH: configHash(config),
             });
         }
-        run(gradle, [":app:assembleRelease", ...(execution.accelerated ? ["--daemon", cache ? "--build-cache" : "--no-build-cache", `--max-workers=${execution.jobs}`, "--parallel",
+        run(gradle, [":app:assembleRelease", ...(options.distribution === "play" ? [":app:bundleRelease"] : []), ...(execution.accelerated ? ["--daemon", cache ? "--build-cache" : "--no-build-cache", `--max-workers=${execution.jobs}`, "--parallel",
             `-Dorg.gradle.jvmargs=${execution.jvmArguments}`, "--init-script", join(stagedMobile, "scripts/local-build.gradle")] : ["--no-daemon", "--no-build-cache", "--max-workers=2", "--no-parallel"]), "--console=plain",
             "-PcryptexUnsignedRelease=true", `-PreactNativeArchitectures=${selectedArchitectures(options.arch).join(",")}`,
             `-Pandroid.buildToolsVersion=${toolchain.buildTools}`, `-Pandroid.compileSdkVersion=${toolchain.compileSdk}`,
@@ -290,6 +295,10 @@ export function buildAndroid(args = process.argv.slice(2)) {
                 build: { strategy: cache ? "incremental" : "clean", jobs: execution.jobs, architectures: selectedArchitectures(options.arch), sourceHash: snapshot.sourceHash },
                 apkSha256: createHash("sha256").update(readFileSync(path)).digest("hex") }, null, 2) + "\n");
         }
+        if (options.distribution === "play") buildPlayBundle({
+            unsignedBundle: join(android, "app/build/outputs/bundle/release/app-release.aab"),
+            output: output.replace(/\.apk$/, ".aab"), unsigned, env, metadata,
+        });
         if (!unsigned) console.log(`Verified unsigned counterpart: ${unsignedOutput}`);
         console.log(`Verified production APK: ${output}`);
         successful = true;

@@ -6,7 +6,7 @@ const mobile = resolve(__dirname, '..');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function getOtaConfig({ profile, distribution = 'standard', signingEnabled = false, mode = 'release', projectFile = resolve(mobile, 'eas-project.json') }) {
     profile = getProfile(typeof profile === 'string' ? profile : profile.name);
-    if (!['standard', 'fdroid'].includes(distribution)) throw new Error('Distribution must be standard or fdroid.');
+    if (!['standard', 'fdroid', 'play'].includes(distribution)) throw new Error('Distribution must be standard, fdroid or play.');
     if (distribution === 'fdroid' && profile.name !== 'production') throw new Error('F-Droid requires the production profile.');
     if (![true, false, 'true', 'false'].includes(signingEnabled)) throw new Error('EXPO_PUBLIC_OTA_SIGNING_ENABLED must be true or false.');
     if (!existsSync(projectFile)) throw new Error('Missing EAS project configuration. Restore mobile/eas-project.json.');
@@ -14,7 +14,7 @@ function getOtaConfig({ profile, distribution = 'standard', signingEnabled = fal
     if (!UUID.test(project.projectId) || !/^[a-z0-9][a-z0-9-]*$/i.test(project.owner) || project.slug !== 'cryptex-vault') throw new Error('Invalid EAS project identity.');
     if (!['release', 'development', 'e2e'].includes(mode)) throw new Error('OTA mode must be release, development or e2e.');
     const channel = profile.name + (mode === 'release' ? '' : mode === 'e2e' ? '-e2e' : '-dev');
-    const enabled = distribution !== 'fdroid';
+    const enabled = distribution === 'standard';
     const signed = enabled && (signingEnabled === true || signingEnabled === 'true');
     const config = {
         owner: project.owner,

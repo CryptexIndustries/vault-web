@@ -10,6 +10,11 @@ module.exports = {
         { type: 'dir', filePath: './plugins', reasons: ['customNativePlugins'] },
         { type: 'dir', filePath: '../patches', reasons: ['patchedNativeDependencies'] },
         { type: 'dir', filePath: './modules/cryptex-android-credentials/android', reasons: ['customNativeSources'] },
+        ...(process.env.CRYPTEX_DISTRIBUTION === 'play' ? [
+            { type: 'file', filePath: './config/play-dependencies.gradle', reasons: ['playNativeDependencyPolicy'] },
+            { type: 'file', filePath: './config/play-verification-metadata.xml', reasons: ['playApprovedNativeDependencies'] },
+        ] : []),
+        { type: 'file', filePath: './react-native.config.js', reasons: ['distributionNativeDependencies'] },
         { type: 'file', filePath: './config/ota.cjs', reasons: ['updateNativePolicy'] },
         { type: 'file', filePath: './eas-project.json', reasons: ['pinnedUpdateIdentity'] },
     ],

@@ -101,7 +101,8 @@ test('dev and E2E commands cannot inherit release classification or a different 
             assert.equal(e2e, mode === 'e2e' ? '1' : '0');
             const canonical = JSON.parse(readFileSync(new URL(`../${profile.configFile}`, import.meta.url), 'utf8'));
             const { configHash } = require('../config/release-config.cjs');
-            assert.equal(config.extra.buildDetails.configHash, configHash(canonical));
+            const { distributionConfig } = require('../config/play.cjs');
+            assert.equal(config.extra.buildDetails.configHash, configHash(distributionConfig(canonical)));
         }
     }
 });

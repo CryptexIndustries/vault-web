@@ -61,6 +61,9 @@ then `pnpm --dir mobile ios`. The release build helper targets Android.
 The profiles can coexist on one device. Release builds use the selected public
 JSON and ignore local dotenv files. `--config <path>` replaces the entire JSON;
 use the same file for build, install verification and OTA updates.
+Google Play builds use this same profile JSON with the additional public billing
+fields described in [Google Play configuration](docs/GOOGLE_PLAY.md). Other
+distributions omit those fields and work without them.
 
 Signed builds require the approved profile's keystore. The helpers load
 `signing.env` from `$HOME/.local/share/cryptex-vault/signing/` for production or
@@ -244,4 +247,5 @@ and `::1`. Use HTTPS for other hosts.
 - [QR scanner maintenance](QR_SCANNER.md)
 - [Security threat model](threat-model.md)
 - [F-Droid source builds](fdroid/README.md)
+- [Google Play billing and APK/AAB builds](docs/GOOGLE_PLAY.md), using `pnpm mobile:build:play`
 - [Asset licenses](ASSET_LICENSES.md)

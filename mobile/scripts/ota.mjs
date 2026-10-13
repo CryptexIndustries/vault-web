@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { X509Certificate, createHash, createPublicKey, generateKeyPairSync } from 'node:crypto';
-import { loadReleaseConfig } from './release-config.mjs';
+import { loadDistributionConfig } from '../config/play.cjs';
 import { productionEnvironment, stageSource, finalizeNativeSources } from './build-android.mjs';
 import { resolveExportRuntime } from './native-runtime.mjs';
 export { resolveExportRuntime } from './native-runtime.mjs';
@@ -56,7 +56,7 @@ export function parseOtaOptions(args, cwd = process.cwd()) {
 }
 export function createOtaPlan(options, { projectPath = projectFile, inherited = process.env } = {}) {
     const profile = getProfile(options.profile);
-    const config = loadReleaseConfig(options.config);
+    const config = loadDistributionConfig(options.config);
     const ota = getOtaConfig({ profile, required: true, signingEnabled: config.EXPO_PUBLIC_OTA_SIGNING_ENABLED ?? 'false', projectFile: projectPath });
     const environment = profile.name === 'production' ? 'production' : 'preview';
     // APK keystore credentials are irrelevant to Metro and EAS update children.

@@ -11,6 +11,11 @@ const localBuildJobs = Number(process.env.CRYPTEX_LOCAL_BUILD_JOBS);
 if (Number.isSafeInteger(localBuildJobs) && localBuildJobs > 0) {
     config.maxWorkers = localBuildJobs;
 }
+// Inline public environment values must not survive a build configuration change.
+const localBuildConfigHash = process.env.CRYPTEX_LOCAL_BUILD_CONFIG_HASH;
+if (localBuildConfigHash) {
+    config.cacheVersion = `${config.cacheVersion}:${localBuildConfigHash}`;
+}
 // A development Metro server must not crawl copies belonging to release builds.
 const localBuildDirectory = path
     .join(monorepoRoot, ".mobile-build")
@@ -40,8 +45,22 @@ config.resolver.extraNodeModules = {
     buffer: require.resolve("@craftzdog/react-native-buffer"),
 };
 
+const playBillingEnabled = process.env.CRYPTEX_DISTRIBUTION === "play";
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+    // Runtime checks cannot keep an imported SDK out of Metro's dependency graph.
+    if (
+        (!playBillingEnabled || platform !== "android") &&
+        (moduleName === "react-native-purchases" ||
+            moduleName.startsWith("react-native-purchases/") ||
+            moduleName.startsWith("@revenuecat/") ||
+            (moduleName === "./google-play-billing" &&
+                context.originModulePath ===
+                    path.join(projectRoot, "src/app_lib/online-services-billing.ts")))
+    ) {
+        return { type: "empty" };
+    }
+
     if (moduleName === "crypto") {
         return context.resolveRequest(
             context,

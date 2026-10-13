@@ -17,7 +17,7 @@ export function artifactName({ profile = "production", distribution = "standard"
     const target = distribution === "fdroid" && !unsigned && arch !== "all"
         ? releaseVersion(JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo, { distribution, arch }).code
         : arch;
-    return `${getProfile(profile).artifactBase}${distribution === "fdroid" ? "-fdroid" : ""}${offlineServices ? "-offline" : ""}${reproduceFrom ? "-reproduced" : ""}${arch !== "all" ? `-${target}` : ""}${unsigned ? "-unsigned" : ""}.apk`;
+    return `${getProfile(profile).artifactBase}${distribution === "standard" ? "" : `-${distribution}`}${offlineServices ? "-offline" : ""}${reproduceFrom ? "-reproduced" : ""}${arch !== "all" ? `-${target}` : ""}${unsigned ? "-unsigned" : ""}.apk`;
 }
 
 export function parseReleaseOptions(args, { cwd = process.cwd(), allowApk = false, allowReproduction = false, allowBuild = false } = {}) {
@@ -46,9 +46,14 @@ export function parseReleaseOptions(args, { cwd = process.cwd(), allowApk = fals
         else options.offlineServices = true;
     }
     const profile = getProfile(options.profile);
-    assert.ok(["standard", "fdroid"].includes(options.distribution), "Choose standard or fdroid distribution.");
+    assert.ok(["standard", "fdroid", "play"].includes(options.distribution), "Choose standard, fdroid or play distribution.");
     assert.ok(options.distribution !== "fdroid" || options.profile === "production", "F-Droid distribution requires the production profile.");
     options.configPath ??= join(mobile, profile.configFile);
+    if (options.distribution === "play") {
+        assert.ok(!options.offlineServices, "Google Play builds require Online Services.");
+        assert.ok(!options.reproduceFrom, "Google Play bundles do not support --reproduce-from.");
+        assert.ok(!options.arch || options.arch === "all", "Google Play builds require all four architectures.");
+    }
     assert.ok(!options.reproduceFrom || !options.unsigned, "--reproduce-from already builds without signing keys; do not combine it with --unsigned.");
     selectedArchitectures(options.arch);
     assert.ok(options.jobs === undefined || options.jobs === "auto" || (/^[1-9]\d*$/.test(options.jobs) && Number.isSafeInteger(Number(options.jobs))), "--jobs requires a positive integer or auto.");

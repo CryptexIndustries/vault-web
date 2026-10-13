@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { flows, requireAndroid, runMobile } from "./mobile.mjs";
+import { clearAutolinkingCache, flows, requireAndroid, runMobile } from "./mobile.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 function capture(args, env = {}) {
     const calls = [];
-    runMobile(args, { env, checkAndroid: () => {}, checkNativeIdentity: () => {}, run: (...parameters) => {
+    runMobile(args, { env, checkAndroid: () => {}, checkNativeIdentity: () => {}, clearAutolinking: () => calls.push(["clear-autolinking"]), run: (...parameters) => {
         calls.push(parameters);
         return { status: 0 };
     } });
-    return calls;
+    return calls.filter(call => call[0] !== "clear-autolinking");
 }
 
 test("production build defaults to the signed production helper from mobile cwd", () => {
@@ -61,6 +62,48 @@ for (const [flag, variant, nodeEnv, e2e] of [["--dev", "Debug", "development", "
         }
     });
 }
+
+for (const flag of ["--dev", "--e2e"]) {
+    test(`${flag} selects standard or Play billing and refreshes autolinking before Gradle`, () => {
+        for (const [extra, distribution] of [[[], "standard"], [["--distribution", "standard"], "standard"], [["--distribution", "play"], "play"]]) {
+            const order = [];
+            runMobile(["build", flag, ...extra], { env: { CRYPTEX_DISTRIBUTION: "fdroid" }, checkAndroid: () => {}, checkNativeIdentity: () => {},
+                clearAutolinking: () => order.push("clear"), run: (binary, _args, options) => {
+                    order.push(binary === "pnpm" || binary === "pnpm.cmd" ? "prebuild" : "gradle");
+                    assert.equal(options.env.CRYPTEX_DISTRIBUTION, distribution);
+                    return { status: 0 };
+                } });
+            assert.deepEqual(order, ["prebuild", "clear", "gradle"]);
+        }
+        assert.equal(capture(["build-play", flag])[0][2].env.CRYPTEX_DISTRIBUTION, "play");
+        for (const extra of [["--distribution"], ["--distribution", "fdroid"], ["--distribution", "play", "--distribution", "play"]]) {
+            assert.throws(() => capture(["build", flag, ...extra]), /--distribution standard or play/);
+        }
+    });
+}
+
+test("autolinking refresh removes only the cached React Native config", () => {
+    const project = mkdtempSync(join(tmpdir(), "cryptex-autolinking-"));
+    try {
+        mkdirSync(join(project, "build/generated/autolinking"), { recursive: true });
+        writeFileSync(join(project, "build/generated/autolinking/autolinking.json"), "{}");
+        writeFileSync(join(project, "build/keep.txt"), "");
+        clearAutolinkingCache(project);
+        clearAutolinkingCache(project);
+        assert.equal(existsSync(join(project, "build/generated/autolinking")), false);
+        assert.equal(existsSync(join(project, "build/keep.txt")), true);
+    } finally {
+        rmSync(project, { recursive: true, force: true });
+    }
+});
+
+test("dev selects the Metro distribution and keeps Expo options", () => {
+    assert.equal(capture(["dev"], { CRYPTEX_DISTRIBUTION: "play" })[0][2].env.CRYPTEX_DISTRIBUTION, "standard");
+    const [[, args, options]] = capture(["dev", "--", "--distribution", "play", "--port", "8082"]);
+    assert.deepEqual(args, ["exec", "expo", "start", "--dev-client", "--scheme", "cryptex", "--port", "8082"]);
+    assert.equal(options.env.CRYPTEX_DISTRIBUTION, "play");
+    assert.throws(() => capture(["dev", "--distribution", "fdroid"]), /--distribution standard or play/);
+});
 
 test("dev forwards Expo options and cannot inherit the E2E bridge", () => {
     const [[, args, options]] = capture(["dev", "--", "--port", "8082", "--android"], { EXPO_PUBLIC_CRYPTEX_E2E: "1" });

@@ -28,11 +28,12 @@ export const flows = {
 };
 
 export const help = `Mobile commands, from the repository root:
-  pnpm mobile:dev [-- <Expo start options>]
+  pnpm mobile:dev [-- --distribution standard|play] [<Expo start options>]
   pnpm mobile:build [-- --unsigned] [--distribution standard|fdroid] [--offline-services] [--profile production|preprod] [--config <path>] [--clean] [--arch <abi>|all] [--jobs <count>|auto] [--heap <MiB>]
+  pnpm mobile:build:play [-- --profile production|preprod] [--config <path>] [--unsigned] [--clean] [--jobs <count>|auto] [--heap <MiB>]
   pnpm mobile:build -- --reproduce-from <signed-reference.apk> [--profile <name>] [--config <path>]
-  pnpm mobile:build -- --dev [--profile <name>] [--regenerate-native]
-  pnpm mobile:build -- --e2e [--profile <name>] [--regenerate-native]
+  pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
+  pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:check [-- lint | types | unit | cli | export]
   pnpm mobile:e2e -- <suite> [--device <serial>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
@@ -51,6 +52,8 @@ Local release builds reuse .mobile-build/ in the current checkout and use all av
 --reproduce-from rebuilds and restores the reference's public signature without private keys; exact APK bytes must match.
 --config selects public release JSON; relative paths use the caller's working directory.
 --dev builds a secure debug APK; --e2e builds the test-only Maestro APK.
+Dev and E2E builds use the standard distribution; --distribution play adds Google Play Billing.
+Pass the same --distribution to mobile:dev so Metro bundles the matching billing modules.
 --regenerate-native backs up the existing Android tree before a fresh dev/E2E prebuild.
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
@@ -84,10 +87,16 @@ export function regenerateNativeProject(profile, project = android, backupRoot =
     return join(backup, "android");
 }
 
-export function runMobile(argv, { run = spawnSync, env = process.env, checkAndroid = requireAndroid, checkNativeIdentity = requireNativeIdentity, regenerateNative = regenerateNativeProject } = {}) {
+// React Native caches autolinking until package.json or react-native.config.js
+// changes. CRYPTEX_DISTRIBUTION changes the linked modules without touching either.
+export function clearAutolinkingCache(project = android) {
+    rmSync(join(project, "build/generated/autolinking"), { recursive: true, force: true });
+}
+
+export function runMobile(argv, { run = spawnSync, env = process.env, checkAndroid = requireAndroid, checkNativeIdentity = requireNativeIdentity, regenerateNative = regenerateNativeProject, clearAutolinking = clearAutolinkingCache } = {}) {
     const args = [...argv];
     if (args[0] === "--") args.shift();
-    const command = args.shift();
+    let command = args.shift();
     if (args[0] === "--") args.shift();
     if (!command || command === "--help" || command === "help" || args[0] === "--help") {
         console.log(help);
@@ -107,13 +116,13 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         }
     };
     const exec = (parameters, overrides) => execute(pnpm, ["exec", ...parameters], overrides);
-    const developmentEnvironment = (profile, e2e = false) => ({
+    const developmentEnvironment = (profile, e2e = false, distribution = "standard") => ({
         ...Object.fromEntries(Object.keys(env).filter(name => name.startsWith("CRYPTEX_EMBEDDED_UPDATE_")).map(name => [name, undefined])),
         NODE_ENV: e2e ? "production" : "development",
         EXPO_PUBLIC_CRYPTEX_E2E: e2e ? "1" : "0",
         CRYPTEX_APP_PROFILE: profile.name,
         CRYPTEX_BUILD_PROFILE: e2e ? "e2e" : "development",
-        CRYPTEX_DISTRIBUTION: "standard",
+        CRYPTEX_DISTRIBUTION: distribution,
         CRYPTEX_BUILD_ARCH: undefined,
         CRYPTEX_RELEASE_CONFIG: undefined,
         CRYPTEX_OFFLINE_SERVICES: undefined,
@@ -131,6 +140,17 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
             args.splice(index, 2);
         }
         return getProfile(name);
+    };
+    // F-Droid stays release-only; its builds come from the reviewed release path.
+    const takeDistribution = () => {
+        const index = args.indexOf("--distribution");
+        if (index < 0) return "standard";
+        const name = args[index + 1];
+        if (args.lastIndexOf("--distribution") !== index || !["standard", "play"].includes(name)) {
+            throw new Error("Specify --distribution standard or play once for dev and E2E builds.");
+        }
+        args.splice(index, 2);
+        return name;
     };
 
     if (["install", "logs"].includes(command)) {
@@ -156,22 +176,30 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
 
     if (command === "dev") {
         const profile = takeProfile();
-        exec(["expo", "start", "--dev-client", "--scheme", profile.scheme, ...args], developmentEnvironment(profile));
+        const distribution = takeDistribution();
+        exec(["expo", "start", "--dev-client", "--scheme", profile.scheme, ...args], developmentEnvironment(profile, false, distribution));
         return;
+    }
+    if (command === "build-play") {
+        if (args.includes("--distribution")) throw new Error("mobile:build:play selects the Play distribution.");
+        args.push("--distribution", "play");
+        command = "build";
     }
     if (command === "build") {
         const development = args.includes("--dev");
         const e2e = args.includes("--e2e");
         if (development || e2e) {
             const profile = takeProfile();
+            const distribution = takeDistribution();
             const regenerate = args.includes("--regenerate-native");
             if (regenerate) args.splice(args.indexOf("--regenerate-native"), 1);
             if (args.length !== 1) throw new Error("Choose only --dev or --e2e for a test build.");
             if (regenerate) regenerateNative(profile);
             checkNativeIdentity(profile);
-            const buildEnv = developmentEnvironment(profile, e2e);
+            const buildEnv = developmentEnvironment(profile, e2e, distribution);
             // Expo 57 recreates native projects unless --no-clean is explicit.
             exec(["expo", "prebuild", "--platform", "android", "--no-install", "--no-clean"], buildEnv);
+            clearAutolinking();
             execute(gradle, [`:app:assemble${e2e ? "E2e" : "Debug"}`, "--console=plain"], buildEnv, android);
         } else {
             const options = parseReleaseOptions(args, { cwd: env.INIT_CWD || process.cwd(), allowReproduction: true, allowBuild: true });

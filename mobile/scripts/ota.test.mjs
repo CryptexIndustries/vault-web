@@ -52,10 +52,12 @@ test('missing EAS project fails with an explicit configuration error in every mo
  const missing=join(dir,'absent.json');assert.throws(()=>getOtaConfig({profile:'production',projectFile:missing}),/Missing EAS/);
 }));
 test('profile/config canonical values survive hostile ambient E2E variables',()=>fixture(({project,publicConfig})=>{
+ writeFileSync(publicConfig,JSON.stringify({...config,EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY:'',EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID:'pending-setup'}));
  const options=parseOtaOptions(['publish','--profile','preprod','--config',publicConfig,'--message','reviewed','--dry-run']);const plan=createOtaPlan(options,{projectPath:project,inherited:{PATH:process.env.PATH, EXPO_PUBLIC_CRYPTEX_E2E:'1',EXPO_PUBLIC_APP_URL:'http://localhost:3000',CRYPTEX_APP_PROFILE:'production', EXPO_PUBLIC_OTHER:'bad', CRYPTEX_KEYSTORE:'/private/apk.keystore',CRYPTEX_KEYSTORE_PASSWORD:'private',CRYPTEX_KEY_ALIAS:'apk',CRYPTEX_KEY_PASSWORD:'private',CRYPTEX_EMBEDDED_UPDATE_COMMIT_TIME:'1',CRYPTEX_EMBEDDED_UPDATE_ID:'12345678-1234-4123-8123-123456789abc',CRYPTEX_EMBEDDED_UPDATE_UNKNOWN:'poison'}});
  assert.equal(plan.env.EXPO_PUBLIC_APP_URL,config.EXPO_PUBLIC_APP_URL);assert.equal(plan.env.EXPO_PUBLIC_CRYPTEX_E2E,'0');assert.equal(plan.env.EXPO_PUBLIC_OTHER,undefined);assert.equal(plan.env.CRYPTEX_APP_PROFILE,'preprod');assert.equal(plan.env.EXPO_NO_DOTENV,'1');assert.equal(plan.environment,'preview');assert.ok(plan.command.includes('--environment'));assert.ok(plan.command.includes('--skip-bundler'));assert.ok(!plan.command.includes('--private-key-path'));
  for(const name of ['CRYPTEX_KEYSTORE','CRYPTEX_KEYSTORE_PASSWORD','CRYPTEX_KEY_ALIAS','CRYPTEX_KEY_PASSWORD'])assert.equal(plan.env[name],undefined);
  assert.ok(!Object.keys(plan.env).some(name=>name.startsWith('CRYPTEX_EMBEDDED_UPDATE_')));
+ for(const name of ['EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY','EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID']){assert.equal(plan.env[name],undefined);assert.equal(plan.config[name],undefined);}
 }));
 test('publish defaults production rollout10 and preprod100; percentage/group inputs reject unsafe forms',()=>{
  for(const value of ['0','101','2.5','10x','NaN'])assert.throws(()=>parseOtaOptions(['publish','--message','test','--percentage',value]));
@@ -100,6 +102,7 @@ test('actual SDK fingerprint stays compatible for JS/revision changes and reject
   writeFileSync(join(root,'fdroid/verification-metadata.xml'),'<verification-metadata>first</verification-metadata>');
   const kotlin=join(root,'modules/cryptex-android-credentials/android/Fixture.kt');const plugin=join(root,'plugins/fixture.js');const patch=join(dir,'patches/fixture.patch');const asset=join(root,'android/app/src/main/assets/cryptex-release.json');
   writeFileSync(kotlin,'class Fixture {}');writeFileSync(plugin,'module.exports = {}');writeFileSync(patch,'native-first');writeFileSync(asset,'{"revision":"first"}');
+  writeFileSync(join(root,'react-native.config.js'),'module.exports = {}');
   writeFileSync(join(root,'config/ota.cjs'),'module.exports = {}');writeFileSync(join(root,'eas-project.json'),JSON.stringify(base));writeFileSync(join(root,'fingerprint.config.js'),readFileSync(new URL('../fingerprint.config.js',import.meta.url)));
   const fp=()=>createFingerprintAsync(root,{platforms:['android'],silent:true});
   const a=await fp();

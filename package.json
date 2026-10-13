@@ -15,6 +15,7 @@
         "dev:ext": "pnpm --filter extension dev",
         "mobile:dev": "node mobile/scripts/mobile.mjs dev",
         "mobile:build": "node mobile/scripts/mobile.mjs build",
+        "mobile:build:play": "node mobile/scripts/mobile.mjs build-play",
         "mobile:doctor": "node mobile/scripts/mobile.mjs doctor",
         "mobile:install": "node mobile/scripts/mobile.mjs install",
         "mobile:logs": "node mobile/scripts/mobile.mjs logs",

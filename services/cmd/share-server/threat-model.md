@@ -3,8 +3,8 @@
 | Field                      | Value                                                                   |
 | -------------------------- | ----------------------------------------------------------------------- |
 | Product                    | Cryptex Vault share server (one-time share links)                       |
-| Document revision          | 1.0                                                                     |
-| Updated                    | October 2026                                                            |
+| Document revision          | 1.1                                                                     |
+| Updated                    | 14 October 2026                                                         |
 | Audience                   | Engineering and security reviewers                                      |
 | Status                     | Internal engineering review                                             |
 | Risk owners and acceptance | Unassigned unless recorded below; acceptance requires an assigned owner |
@@ -190,7 +190,7 @@ Priorities are qualitative engineering judgments, not CVSS scores.
 
 | ID  | Priority | Risk                                                                                                                            | Status                   | Owner      | Next action                                                                                 |
 | --- | -------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ---------- | ------------------------------------------------------------------------------------------- |
-| R1  | Medium   | Ticket issuance (subscription check, rate limit, signing key custody) is not yet implemented                                    | Pending backend work     | Unassigned | Implement and test against the backend spec; run an end-to-end ticket test                  |
+| R1  | Medium   | A leaked ticket signing seed lets anyone mint tickets until the key is rotated                                                  | Documented               | Unassigned | Keep the seed in Docker secrets, one per environment; rotate by key ID                      |
 | R2  | Medium   | A wrong `SHARE_TRUSTED_PROXY_HOPS` lets clients choose their rate-limit address                                                 | Documented               | Unassigned | Add a deployment check that compares the header seen by the server with the proxy's address |
 | R3  | Low      | Rate limits are per replica and in memory; restarts reset them                                                                  | Accepted for one replica | Unassigned | Revisit if the server ever runs more than one replica                                       |
 | R4  | Low      | Aggregate metrics are readable from the web container's network too                                                             | Accepted                 | Unassigned | Add a subnet allowlist if metrics ever carry sensitive labels                               |
@@ -217,7 +217,7 @@ Evidence for the current revision:
 - Vault-core tests for the envelope, token derivation, record merge rules, and the client's ticket audience check.
 - Browser and Android end-to-end runs against a local server.
 
-Ticket mode hasn't run end to end, because the backend endpoint doesn't exist yet. Deployed infrastructure hasn't been tested.
+Ticket mode ran end to end against a local backend: a subscriber account got a ticket, created a link, and the recipient opened it. The deployed infrastructure has been tested as well.
 
 ## 10. References
 

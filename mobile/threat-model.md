@@ -5,14 +5,14 @@
 | Field               | Value                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------ |
 | Application         | Cryptex Vault mobile application                                                     |
-| Application version | 0.1.0                                                                                |
+| Application version | 0.2.0                                                                                |
 | Platform in scope   | Android                                                                              |
-| Document version    | 1.0                                                                                  |
+| Document version    | 1.1                                                                                  |
 | Status              | Active engineering threat model                                                      |
-| Last reviewed       | 2026-10-01                                                                           |
+| Last reviewed       | 2026-10-14                                                                           |
 | Document owner      | Mobile engineering                                                                   |
-| Source baseline     | `13ed0e7de76c542bf07a7c7a0d31d60a06926e5f`, published to `origin/development` on 2026-10-07 |
-| Security reviewer   | Milivoj Bošnjak (8l4cksmith), 2026-10-07                                              |
+| Source baseline     | `ab30ca53358c0b883438c31381fecf7ccc38e5c0`, published to `origin/development` on 2026-10-14 |
+| Security reviewer   | Milivoj Bošnjak (8l4cksmith), 2026-10-14                                              |
 | Review cadence      | Before each production release and whenever a review trigger in section 18 occurs    |
 
 ## 1. Purpose

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Dialogs, menus and dropdowns in the web vault use the dark theme like the rest of the app. They used to open in the light theme because they render outside the themed page.
+- Dialogs and menus in the Chromium extension use the dark theme too.
 - Free accounts no longer see an empty billing card or a disabled Manage billing button in the account dialog.
 - The pricing page calculates the yearly saving from the published price list instead of using a fixed amount.
 

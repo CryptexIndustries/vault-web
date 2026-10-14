@@ -13,6 +13,7 @@ architecture docs under `extension/docs/`.
 | Autofill on host pages                                                            | Physical device compromise (assumed out of band)           |
 | Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome)            |
 | Backup Center and Vault Settings security mutations                               | Fresh-device restore and Recovery Kit flows (web app only) |
+| One-time share links (share dialog, Shared links list)                            | Share server internals and the recipient page              |
 
 ## Assets
 
@@ -35,6 +36,8 @@ architecture docs under `extension/docs/`.
 | Encrypted `.cryx` ciphertext  | IndexedDB `cryptex-backup-staging` (one-shot); popup after take; user Downloads | Vault at rest if the vault secret is also stolen        |
 | Local backup receipt          | `chrome.storage.local` `cryptex:local-backup-receipt:{vaultId}`                 | Last-backup time and blob fingerprint; not vault bytes  |
 | Clipboard                     | OS clipboard after copy actions                                                 | Credential field exposure                               |
+| One-time share link           | Popup memory and clipboard after the user copies it                             | Opens the share once                                    |
+| Share manage tokens, settings | Vault `ShareLinks` and `ShareSettings` (in `UV` while unlocked)                 | Revoke shares; use a self-hosted creation token         |
 
 ## Trust boundaries
 
@@ -53,12 +56,14 @@ flowchart LR
         B3["B3: SW ↔ Cryptex API"]
         B4["B4: SW ↔ WebRTC peer"]
         B5["B5: SW session storage"]
+        B6["B6: Popup ↔ share server"]
     end
 
     MalPage --> B1
     MalPage --> B2
     MalPeer --> B4
     MalNet --> B3
+    MalNet --> B6
     Local --> B5
 ```
 
@@ -211,6 +216,34 @@ including older linked-device snapshots, because the API exposes no stable
 device/vault filter. It reduces hosted exposure but cannot make copies held
 elsewhere disappear.
 
+### B6 — Popup ↔ share server
+
+**Trust assumption:** The share server stores only ciphertext and token hashes;
+TLS protects the wire. A custom server the user configures is not trusted with
+Online Services tickets.
+
+**Controls:**
+
+- The popup encrypts the share with a fresh link secret before upload. The key
+  stays in the link fragment and never reaches the server or the SW
+- Share API calls use native `fetch` from the popup with no cookies and no
+  Online Services JWT. Tickets come from `v1.share.ticket` through the SW-owned
+  tRPC path
+- The client reads `aud` from each ticket and sends it only to the server it
+  names, so a custom server that claims ticket auth gets nothing
+- Share records go through popup-only SW messages (`GetShareLinks`,
+  `UpdateShareLinks`, `SaveShareSettings`). The SW validates them with zod,
+  accepts at most 1000 records per message, and merges by version: removed
+  records stay removed, server and manage token can't change, and non-HTTPS
+  servers other than localhost are rejected
+- Device linking strips `ShareSettings`, so a creation token stays on the
+  device where it was entered
+
+**Residual:** A link copied to the clipboard or sent through an insecure channel
+opens the share for whoever gets it first. Links on a custom server are only as
+trustworthy as that server's recipient page. See the
+[share server threat model](../../services/cmd/share-server/threat-model.md).
+
 ## Attacker models
 
 ### A1 — Malicious website (top frame, user has extension installed)
@@ -250,6 +283,8 @@ elsewhere disappear.
 | Attach JWT to object-store transfer  | Native fetch; ProxyFetch is tRPC-only | Low - signed URL is capability       |
 | Read sync/link payloads on wire      | AEAD session encryption               | Low                                  |
 | MITM signaling                       | Channel auth + handshake signatures   | Medium — availability/metadata       |
+| Fake share server collects a ticket  | Ticket `aud` checked before sending   | Low                                  |
+| Read share payloads on wire          | Client-side AES-256-GCM; key in link  | Low                                  |
 
 ### A4 — Malicious sync or link peer
 
@@ -310,6 +345,9 @@ elsewhere disappear.
 | Persist-then-session DEK reopen     | Publishing an uncommitted rotated key     | `storage.ts`, `session-dek-store.ts`            |
 | Replacement-before-delete backup    | Losing all managed recovery points        | `security-backup-job.ts`                        |
 | Account- and vault-bound backup job | Cross-vault upload or history deletion    | `security-backup-job.ts`, `auth-session-ext.ts` |
+| Client-side share encryption        | Share server reading shared secrets       | `share-link.ts`, `share-service.ts`             |
+| Ticket audience check               | Tickets handed to a foreign share server  | `share-service.ts`                              |
+| Popup-only, validated share records | CS/link writes; malformed or hostile sync | `background/share-links.ts`, `share-records.ts` |
 
 ## Residual risks (prioritized)
 
@@ -332,6 +370,9 @@ elsewhere disappear.
 | P3       | Object-store CORS vs extension origin               | Accepted          | Signed URL fetch uses CORS, not `host_permissions`; bucket must allow `chrome-extension://` or `*` |
 | P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                                                |
 | P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                                      |
+| P3       | Share link intercepted before the recipient         | Accepted          | One view; optional passphrase; sender sees "Opened"                                                |
+| P3       | Custom share server serves the recipient page       | Accepted          | Inherent to self-hosting; managed tickets never go to it                                           |
+| P3       | Synced share record names an attacker's server      | Accepted          | Only a linked device can add one, and it already holds the whole vault                             |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    |
 | P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      |
 
@@ -496,3 +537,4 @@ Ordered by threat-model priority:
 - [Online Services](sync-and-link/online-services.md)
 - [Platform layer](platform/README.md)
 - [Autofill security](autofill/README.md)
+- [Share server threat model](../../services/cmd/share-server/threat-model.md)

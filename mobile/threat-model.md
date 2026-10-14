@@ -74,6 +74,7 @@ Risk responses use four terms:
 - Import, restore, export, recovery kits, clipboard, camera and QR input, file sharing, diagnostics, and temporary files.
 - Device linking, encrypted peer synchronization, signaling, STUN, and TURN configuration.
 - Optional Online Services sessions, managed backups, account recovery, and the Turnstile WebView.
+- One-time share links: the Share once screen, the Shared links list, share server settings, and the link handed to the clipboard or sharesheet. The share server itself is covered by its own [threat model](../services/cmd/share-server/threat-model.md).
 - Android build, signing, dependencies, permissions, backup rules, and publication checks.
 
 ### 3.2 Out of scope
@@ -116,6 +117,7 @@ flowchart LR
     Signal[Signaling, STUN, and TURN]
     Associations[RP website and explicit association include hosts]
     Turnstile[Cloudflare Turnstile]
+    ShareServer[Share server]
 
     subgraph Device[Android device]
         subgraph App[Cryptex application process]
@@ -167,6 +169,7 @@ flowchart LR
     Sync <--> Signal
     UI <--> Cloud
     WebView <--> Turnstile
+    UI <--> ShareServer
     Native <--> Associations
 ```
 
@@ -204,6 +207,8 @@ flowchart LR
 | Clipboard contents                               | Restricted when copying secrets | System clipboard                                        | Mark sensitive, clear conditionally, disclose OS ownership           |
 | Vault name, account, device, and domain metadata | Confidential                    | Storage, logs, network requests, provider UI            | Minimize disclosure and redact production diagnostics                |
 | Turnstile token                                  | Confidential, ephemeral         | WebView to one API request                              | Validate origin and nonce; do not persist or log                     |
+| One-time share link and its key                  | Restricted                      | Share screen memory; clipboard or sharesheet recipient  | Copy as a sensitive clip; never log; one view on the server          |
+| Share manage tokens and share settings           | Restricted                      | Encrypted vault, synced between the user's devices      | Validate synced records; keep creation tokens off linked devices     |
 | Private release signing key and passwords        | Restricted                      | Private directory outside the checkout; signing process | Never enter source or APK; keep an encrypted offline backup          |
 | Public release configuration and certificate     | Public, integrity-sensitive      | Checked-in JSON; public configuration and APK signature  | Review changes; require the approved configuration and signer        |
 
@@ -223,6 +228,7 @@ flowchart LR
 | TB-10 | Credential provider to RP association hosts         | Website statement request, device IP, and timing                   | Direct HTTPS, exact local package/certificate/relation checks, bounded includes and responses, no redirects               | Native-app checks need connectivity; website and delegated hosts see request metadata             |
 | TB-11 | Untrusted file or QR to parsers                     | Vault, import, credential, TOTP, and device-link data             | A 1 GB outer-file limit before JavaScript materialization, format checks, and cryptographic authentication where defined | Expanded-size, nesting, QR, and wire-message limits remain incomplete                             |
 | TB-12 | Source and dependencies to release APK              | Code, native libraries, flags, signing identity                   | Frozen lock, Maven checksums, pinned toolchain/actions, isolated production build, final APK policy and signer checks    | Publication still needs an identified source baseline, protected key backup and F-Droid recipe review |
+| TB-13 | Application to share server                         | Share ciphertext, token hashes, manage tokens, subscriber tickets | Client-side AES-256-GCM, key only in the link fragment, ticket audience check, HTTPS-only production network policy     | An intercepted link opens the share; a custom server serves its own recipient page                |
 
 ## 8. Entry points
 
@@ -242,6 +248,7 @@ flowchart LR
 | EP-12 | Turnstile WebView navigation and messages                               | Hosted web content                             | Origin confusion, injected bridge messages, token leakage                   |
 | EP-13 | Environment variables and build configuration                           | Build operator-controlled                      | Wrong endpoints, E2E flags, debug signing, supply-chain compromise          |
 | EP-14 | Dependency installation and native build inputs                         | Registry and upstream-controlled               | Malicious package, stale native library, mutable CI dependency              |
+| EP-15 | Share server responses and synced share records                         | External service and other user devices        | Forged status reports, records pointing at another server, oversized lists  |
 
 ## 9. Threat actors
 
@@ -491,6 +498,22 @@ Required invariants:
 - No vault object or general native bridge may be exposed to hosted content.
 - Tokens and challenge error details must not be persisted or logged.
 
+### 12.10 One-time share links
+
+1. The user picks fields from an item (passkeys are never offered) or types text, and chooses an expiry the server allows and an optional passphrase.
+2. The application encrypts the payload with a fresh 32-byte link secret using AES-256-GCM. A passphrase adds Argon2id (64 MiB, 3 passes) through the native libsodium shim.
+3. It uploads the ciphertext and SHA-256 token hashes. On the managed server it first fetches an Online Services ticket and sends it only if the ticket's `aud` matches that server.
+4. The link is shown once, copied as a sensitive clipboard item, or handed to the sharesheet. A record with the manage token is saved to the encrypted vault.
+5. The Shared links list refreshes status in batches, revokes through the manage token, and prunes ended records about 90 days after the device learns that they ended.
+
+Required invariants:
+
+- The link secret and passphrase never reach the share server, logs, or diagnostics.
+- Status reports update only records for the server that answered and only IDs the client asked about.
+- Synced share records can't be undeleted, can't change server or manage token, and must name an HTTPS server or a loopback address. Production builds also block cleartext HTTP at the network layer.
+- Device linking does not copy share settings, so a self-hosted creation token stays on the device where it was entered.
+- Once the link leaves through the clipboard or sharesheet, Cryptex cannot recall it. The server's one-view rule and revoke are the only controls.
+
 ## 13. STRIDE coverage summary
 
 | STRIDE category        | Mobile examples                                                                     | Principal controls                                                                                | Open risk IDs                                                 |
@@ -627,6 +650,7 @@ Review this threat model when any of the following changes:
 - Android permissions, exported components, deep links, backup rules, WebView configuration, or network security policy.
 - Device linking, QR transport, sync authentication, signaling, STUN, TURN, WebRTC, or merge logic.
 - Cloud authentication, tokens, account recovery, managed backup, billing, or Turnstile.
+- One-time share links: envelope, token derivation, share server endpoints, ticket handling, or share record sync rules.
 - Import and export formats, parsers, document picker, cache handling, clipboard, screenshots, logs, or diagnostics.
 - Shared code aliases, native libraries, package versions, Gradle plugins, CI actions, signing, or release channels.
 - A new Android major version, supported browser, app store, or F-Droid distribution model.
@@ -655,6 +679,7 @@ Primary implementation anchors for this model:
 - Cloud sessions and transport: `mobile/src/app_lib/auth-session.ts`, `mobile/src/utils/online-services-transport.ts`, `packages/vault-core/src/online-services-session/`.
 - Managed backup: `mobile/src/app_lib/managed-backup-coordinator.ts`, `mobile/src/app_lib/managed-backup-hooks.ts`, `mobile/app/(app)/settings/backup-center/`.
 - Turnstile: `mobile/src/components/account/turnstile-bridge.ts`, `mobile/src/components/account/turnstile-challenge.tsx`.
+- One-time share links: `mobile/app/(app)/share/`, `mobile/src/app_lib/share-links.ts`, `packages/vault-core/src/vault-utils/share-link.ts`, `packages/vault-core/src/vault-utils/share-service.ts`, `packages/vault-core/src/vault-utils/share-records.ts`.
 - Import, export, and temporary files: `mobile/src/utils/mobile-import-picker.ts`, `mobile/src/utils/secret-temp-files.ts`, `mobile/app/(app)/settings/import-export/index.tsx`, `mobile/src/components/vault-import/`, `packages/vault-core/src/vault-utils/import-export.ts`.
 - QR handling: `mobile/src/utils/qr-scan-session.ts`, `packages/shared-ui/src/lib/chunked-qr.ts`.
 - Screen and clipboard privacy: `mobile/plugins/with-android-screen-privacy.js`, `mobile/src/utils/clipboard.ts`, `mobile/modules/cryptex-android-credentials/android/src/main/java/com/cryptex/vault/credentials/SensitiveClipboard.kt`.

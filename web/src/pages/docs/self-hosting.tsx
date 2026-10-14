@@ -69,6 +69,7 @@ export default function SelfHosting() {
                 { href: "#start", label: "Start the stack" },
                 { href: "#sync", label: "Configure Cryptex Vault" },
                 { href: "#verify", label: "Test synchronization and TURN" },
+                { href: "#share-server", label: "One-time share links" },
                 { href: "#operations", label: "Updates and troubleshooting" },
             ]}
             related={[
@@ -332,7 +333,11 @@ export default function SelfHosting() {
                             <code>
                                 VAULT_IMAGE=cryptex-vault-self-hosted:initial
                             </code>{" "}
-                            and uncomment{" "}
+                            and{" "}
+                            <code>
+                                SHARE_IMAGE=cryptex-vault-share-server:initial
+                            </code>
+                            , and uncomment{" "}
                             <code>
                                 COMPOSE_FILE=compose.yaml:compose.build.yaml
                             </code>
@@ -343,23 +348,35 @@ export default function SelfHosting() {
                             Set <code>VAULT_IMAGE</code> to{" "}
                             <code>
                                 ghcr.io/cryptexindustries/vault-web@sha256:YOUR_VERIFIED_DIGEST
+                            </code>{" "}
+                            and <code>SHARE_IMAGE</code> to{" "}
+                            <code>
+                                ghcr.io/cryptexindustries/vault-web/share-server@sha256:YOUR_VERIFIED_DIGEST
                             </code>
-                            . Resolve the digest for your chosen release from
-                            the{" "}
+                            . The share server has its own releases, tagged{" "}
+                            <code>share-server-v*</code>. Resolve both digests
+                            from the{" "}
                             <a href="https://github.com/CryptexIndustries/vault-web/pkgs/container/vault-web">
                                 published images
                             </a>
                             . Use the command below. Leave{" "}
                             <code>COMPOSE_FILE</code> commented out.
                         </>
-                    )}
+                    )}{" "}
+                    Replace <code>SHARE_CREATION_TOKENS</code> with one{" "}
+                    <code>openssl rand -hex 32</code> value per person who may
+                    create <a href="#share-server">one-time share links</a>,
+                    separated by commas.
                 </p>
                 {!fromSource && (
                     <div id="image-pinning">
                         <DocCode>{`# Replace the tag with the release you chose in step 2
 docker buildx imagetools inspect ghcr.io/cryptexindustries/vault-web:YOUR_PUBLISHED_TAG
 # Copy the top-level Digest into VAULT_IMAGE in .env
-# VAULT_IMAGE=ghcr.io/cryptexindustries/vault-web@sha256:YOUR_VERIFIED_DIGEST`}</DocCode>
+# VAULT_IMAGE=ghcr.io/cryptexindustries/vault-web@sha256:YOUR_VERIFIED_DIGEST
+# Same for the share server release you chose
+docker buildx imagetools inspect ghcr.io/cryptexindustries/vault-web/share-server:YOUR_SHARE_SERVER_TAG
+# SHARE_IMAGE=ghcr.io/cryptexindustries/vault-web/share-server@sha256:YOUR_VERIFIED_DIGEST`}</DocCode>
                         <p>
                             Use the top-level manifest digest. This pins the
                             image contents even if its tag changes. It does not
@@ -484,7 +501,7 @@ sudo install -d -m 0755 /var/lib/cryptex-acme
 sudo install -d -o root -g "$(id -g)" -m 0750 /etc/cryptex-turn/tls
 # Validate settings without printing credentials
 docker compose config --quiet
-${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web" : "docker compose pull"}
+${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web share" : "docker compose pull"}
 # Start HTTPS and signaling; coturn starts after certificate installation
 docker compose up -d --no-build web soketi caddy`}</DocCode>
                             </div>
@@ -586,7 +603,7 @@ sudo install -d -m 0755 /var/lib/cryptex-acme
 sudo install -d -o root -g "$(id -g)" -m 0750 /etc/cryptex-turn/tls
 # Validate settings and prepare the images
 docker compose config --quiet
-${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web" : "docker compose pull"}
+${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web share" : "docker compose pull"}
 # Start all four services
 docker compose up -d --no-build
 docker compose ps
@@ -870,7 +887,82 @@ curl -I https://vault.example.com/app`}</DocCode>
                     testing, especially on a shared browser.
                 </p>
             </DocSection>
-            <DocSection id="operations" title="8. Maintain the deployment">
+            <DocSection id="share-server" title="8. Use one-time share links">
+                <p>
+                    The stack includes the open-source share server behind{" "}
+                    <Link href="/docs/sharing">one-time share links</Link>.
+                    Links look like{" "}
+                    <code>https://vault.example.com/s/&lt;id&gt;</code>, and the
+                    web container forwards <code>/share-api/</code> requests to
+                    the share server, so no extra domain or firewall rule is
+                    needed. The server stores encrypted contents and token
+                    hashes in a SQLite file in the <code>share_data</code>{" "}
+                    volume. It never receives the decryption key.
+                </p>
+                <ol>
+                    <li>
+                        Give each person one of the tokens you put in{" "}
+                        <code>SHARE_CREATION_TOKENS</code> in step 4. Anyone can
+                        open a link; only token holders can create one.
+                    </li>
+                    <li>
+                        Each person opens <strong>Shared Links</strong> in their
+                        vault, chooses the server icon, and enters their token.
+                        In the extension and on Android they also enter{" "}
+                        <code>https://vault.example.com</code> as the share
+                        server.
+                    </li>
+                </ol>
+                <p>
+                    To add or withdraw access, edit{" "}
+                    <code>SHARE_CREATION_TOKENS</code> in <code>.env</code> and
+                    run <code>docker compose up -d --force-recreate share</code>
+                    . <code>docker compose restart</code> keeps the old tokens.
+                    Links someone already created keep working until they are
+                    opened or expire.
+                </p>
+                <DocCallout title="Keep the client address header honest">
+                    The share server rate-limits per client using{" "}
+                    <code>X-Forwarded-For</code>. Caddy replaces that header
+                    with the address it saw, and the web container passes it
+                    through, so the server uses the last entry. If a CDN or
+                    another proxy sits in front of Caddy, add its address ranges
+                    to Caddy&apos;s <code>trusted_proxies</code> option so Caddy
+                    keeps the client address, and set{" "}
+                    <code>SHARE_TRUSTED_PROXY_HOPS</code> in <code>.env</code>{" "}
+                    to the number of proxies, Caddy included. Behind Cloudflare
+                    you can set{" "}
+                    <code>SHARE_CLIENT_IP_HEADER=CF-Connecting-IP</code>{" "}
+                    instead, but only if the server accepts connections from
+                    Cloudflare alone. Anyone who reaches Caddy directly can set
+                    that header.
+                </DocCallout>
+                <DocCode>{`# Caddyfile global options, with your CDN's address ranges
+{
+	email {$ACME_EMAIL}
+	servers {
+		trusted_proxies static 203.0.113.0/24 2001:db8::/32
+	}
+}`}</DocCode>
+                <p>
+                    Caddy negotiates the hybrid post-quantum key exchange
+                    X25519MLKEM768 with current browsers by default. Someone who
+                    records traffic to <code>/share-api/</code> today can&apos;t
+                    decrypt it later by breaking only the classical key exchange
+                    with a quantum computer. Keep Caddy up to date and leave
+                    that key exchange on.
+                </p>
+                <p>
+                    The share server also serves Prometheus metrics at{" "}
+                    <code>/metrics</code> on port <code>9090</code>. The port
+                    isn&apos;t published, so only containers on the Compose
+                    network reach it; add your Prometheus or Alloy container to
+                    that network to scrape it. Metrics hold counts only, never
+                    share IDs or client addresses. Set{" "}
+                    <code>SHARE_METRICS_ADDR=off</code> to turn them off.
+                </p>
+            </DocSection>
+            <DocSection id="operations" title="9. Maintain the deployment">
                 <h3>Update and roll back</h3>
                 <div id="deployment-update">
                     {fromSource ? (

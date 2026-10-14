@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Credential rules now accept exact Android app associations such as `androidapp://com.example.app` in the web app and Chromium extension. App associations remain separate from website matching.
 - Added a billing return page that routes users back to the web vault or the production or pre-production Android app, with a manual return link when automatic navigation is blocked. Payment API contracts now support hosted checkout and fixed return targets for checkout and the billing portal.
+- One-time share links in the web app, Chromium extension and Android app. A link carries the fields you pick from a credential, or any text you type, and opens once. It expires after one hour to seven days and can require a passphrase. The client encrypts the content with AES-256-GCM before upload and keeps the key in the link fragment, so the share server stores only ciphertext.
+- A Shared links list on each client shows whether every link is active, opened, expired, revoked or destroyed. It has search, a status filter and sorting, and it revokes links that haven't been opened. The list syncs between your devices and drops finished links after about 90 days.
+- The open-source share server in `services/cmd/share-server`. Online Services subscribers create links on the managed server with tickets signed by the API, through the new `v1.share.ticket` contract. Self-hosted servers use creation tokens from their operator. The self-hosting Compose stack and the Docker Swarm guide include it, and it serves Prometheus metrics on a separate port that is never published.
+- The share server image is published as `ghcr.io/cryptexindustries/vault-web/share-server` on `share-server-v*` tags, so web releases don't restart it.
 
 ### Changed
 

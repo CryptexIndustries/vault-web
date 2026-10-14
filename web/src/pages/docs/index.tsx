@@ -27,6 +27,11 @@ const userGuides = [
         "Connect your vaults using an invitation and run your first sync.",
     ],
     [
+        "One-time share links",
+        "/docs/sharing",
+        "Send a login or secret as a link that opens once.",
+    ],
+    [
         "Backups",
         "/docs/backups",
         "Download an encrypted backup or use managed restore points.",

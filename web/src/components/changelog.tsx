@@ -55,6 +55,21 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
                     "A new billing return page takes you back to the web vault or Android app. A return button stays available if your browser blocks automatic navigation.",
             },
             {
+                type: "added",
+                description:
+                    "Share a credential or any text through a link that opens once. You pick the fields, when the link expires and whether it needs a passphrase. Your device encrypts it, and the key stays in the link, so the share server can't read what you send.",
+            },
+            {
+                type: "added",
+                description:
+                    "Shared links shows every link you've sent and whether it was opened. You can search and filter it, and revoke a link nobody has opened yet. It syncs between your devices.",
+            },
+            {
+                type: "added",
+                description:
+                    "If you self-host, you can run the open-source share server next to your web app and hand out creation tokens to the people who may send links.",
+            },
+            {
                 type: "changed",
                 description:
                     "The device linking dialog now says \"Verification words\" instead of \"Mnemonic\", the same term the extension, Android app and documentation use.",

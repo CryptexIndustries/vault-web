@@ -16,6 +16,7 @@ export default function OnlineServices() {
                 { href: "#account", label: "Account authentication" },
                 { href: "#sync", label: "Managed synchronization services" },
                 { href: "#devices", label: "Device authorization" },
+                { href: "#share-links", label: "One-time share links" },
                 { href: "#backups", label: "Backup lifecycle" },
                 { href: "#recovery", label: "Recovery authorization" },
                 { href: "#limits", label: "Limits and retention" },
@@ -151,6 +152,28 @@ export default function OnlineServices() {
                     </Link>{" "}
                     covers key establishment, message protection, and merging in
                     detail.
+                </p>
+            </DocSection>
+
+            <DocSection id="share-links" title="One-time share links">
+                <p>
+                    Share links use a separate, open-source share server that
+                    holds no accounts. To create a link, the client asks the API
+                    for a ticket. The API signs it with ML-DSA-65 only if the
+                    subscription includes share links. A ticket works once,
+                    expires after five minutes, and names the share server it is
+                    for. It identifies your account only by a keyed hash, so the
+                    share server can apply per-account limits without learning
+                    who you are.
+                </p>
+                <p>
+                    The client encrypts the contents before upload and keeps the
+                    key in the link fragment. The share server stores the
+                    ciphertext and token hashes, deletes the ciphertext when the
+                    link is opened, revoked or expires, and forgets the record
+                    30 days later. The{" "}
+                    <Link href="/docs/sharing">user guide</Link> covers the
+                    rest.
                 </p>
             </DocSection>
 

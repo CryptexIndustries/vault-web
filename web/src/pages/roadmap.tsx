@@ -22,10 +22,10 @@ const roadmap = [
                 description: "Use Cryptex Vault on Android.",
             },
             {
-                title: "Credential sharing via a URL",
-                target: "1.6.0",
+                title: "One-time share links",
+                target: "1.5.0",
                 description:
-                    "Share a credential through a link, even with someone who does not use Cryptex Vault.",
+                    "Send a credential or any text through a link that opens once, even to someone who doesn't use Cryptex Vault. Self-hosters can run their own share server.",
             },
         ],
     },

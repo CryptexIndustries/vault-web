@@ -10,6 +10,10 @@ import c from "@/styles/Cryptography.module.css";
 
 const sourceRoot =
     "https://github.com/CryptexIndustries/vault-web/blob/a01ac684cea1491814f2ede553c32dffc82b64bd/packages/vault-core/src/";
+// Newer than the pinned sourceRoot commit.
+const shareLinkSource =
+    "https://github.com/CryptexIndustries/vault-web/blob/master/packages/vault-core/src/vault-utils/share-link.ts";
+
 const standards = {
     argon: "https://www.rfc-editor.org/info/rfc9106/",
     hkdf: "https://www.rfc-editor.org/info/rfc5869/",
@@ -132,6 +136,7 @@ export default function Cryptography() {
                 { href: "#parameters", label: "Format and parameters" },
                 { href: "#sync", label: "Session cryptography" },
                 { href: "#files", label: "Backups and exports" },
+                { href: "#share-links", label: "One-time share links" },
                 { href: "#references", label: "Implementation references" },
             ]}
             related={[
@@ -473,6 +478,75 @@ export default function Cryptography() {
                 </p>
             </DocSection>
 
+            <DocSection id="share-links" title="One-time share links">
+                <p>
+                    Each <Link href="/docs/sharing">one-time share link</Link>{" "}
+                    has its own random 32-byte secret, carried in the part of
+                    the link after the <code>#</code>. Browsers don&apos;t send
+                    that part to the server, and the secret is never derived
+                    from the vault or its keys.
+                </p>
+                <div className={t.tableWrap}>
+                    <table className={t.table}>
+                        <thead>
+                            <tr>
+                                <th scope="col">Primitive</th>
+                                <th scope="col">Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <a href={standards.hkdf}>HKDF-SHA-256</a>
+                                </td>
+                                <td>
+                                    Derives the encryption key and the tokens
+                                    that open and reveal the link from the
+                                    secret, each with its own label.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <a href={standards.argon}>Argon2id</a>
+                                </td>
+                                <td>
+                                    With a passphrase, 64 MiB and three passes
+                                    turn it into a key that the encryption key
+                                    and reveal token also depend on.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <a href={standards.gcm}>AES-256-GCM</a>
+                                </td>
+                                <td>
+                                    Encrypts the contents with a random nonce. A
+                                    version byte and a flags byte are
+                                    authenticated as associated data.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>SHA-256</td>
+                                <td>
+                                    The server stores only hashes of the open,
+                                    reveal and revoke tokens. The revoke token
+                                    is random and stays in the sender&apos;s
+                                    vault.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    Without the reveal token, the server won&apos;t release the
+                    ciphertext. With a passphrase, a stolen link alone
+                    isn&apos;t enough, and five wrong guesses destroy the link.
+                    Someone holding both the link and a copy of the server
+                    database could guess the passphrase offline, at the cost of
+                    one Argon2id run per guess.
+                </p>
+            </DocSection>
+
             <DocSection id="references" title="Implementation references">
                 <dl>
                     <div className={t.definition}>
@@ -537,6 +611,15 @@ export default function Cryptography() {
                             , and{" "}
                             <a href={sourceRoot + "synchronization.ts"}>
                                 handshake and sequence validation
+                            </a>
+                            .
+                        </dd>
+                    </div>
+                    <div className={t.definition}>
+                        <dt>Share links</dt>
+                        <dd>
+                            <a href={shareLinkSource}>
+                                Link secret, token derivation and envelope
                             </a>
                             .
                         </dd>

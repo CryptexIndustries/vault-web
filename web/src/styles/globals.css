@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 /* latin-ext */
 @font-face {
     font-family: "Oxanium";

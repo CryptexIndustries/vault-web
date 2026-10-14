@@ -15,7 +15,11 @@ import {
 } from "lucide-react";
 import HTMLHeader from "@/components/html-header";
 import s from "@/styles/Marketing.module.css";
-import { currentPriceList, currentPriceListUrl } from "@/lib/price-lists";
+import {
+    currentPriceList,
+    currentPriceListUrl,
+    yearlySaving,
+} from "@/lib/price-lists";
 
 export const REPO = "https://github.com/CryptexIndustries/vault-web";
 export const BROWSER_EXTENSION =
@@ -700,7 +704,7 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     Monthly
                 </button>
                 <button aria-pressed={annual} onClick={() => setAnnual(true)}>
-                    Annually <span>Save €9.88</span>
+                    Annually <span>Save €{yearlySaving(currentPriceList)}</span>
                 </button>
             </div>
             <div className={`${s.plans} grid grid-cols-[1fr_1fr] gap-[24px]`}>

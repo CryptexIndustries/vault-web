@@ -63,7 +63,7 @@ export function VaultMigrationNoticeDialog() {
                     </DialogDescription>
                 </DialogHeader>
 
-                <Alert className="border-amber-500/40 bg-amber-50 text-amber-900">
+                <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
                     <AlertDescription className="space-y-3 text-sm">
                         <ol className="list-decimal space-y-2 pl-4">
                             <li>

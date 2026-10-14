@@ -329,7 +329,7 @@ const EditVaultDialog: React.FC<{ ctrl: Controller }> = ({ ctrl }) => {
                                 {...register("Name")}
                             />
                             {errors.Name && (
-                                <p className="text-destructive-foreground">
+                                <p className="text-destructive">
                                     {errors.Name.message}
                                 </p>
                             )}
@@ -344,13 +344,13 @@ const EditVaultDialog: React.FC<{ ctrl: Controller }> = ({ ctrl }) => {
                                 {...register("Description")}
                             />
                             {errors.Description && (
-                                <p className="text-destructive-foreground">
+                                <p className="text-destructive">
                                     {errors.Description.message}
                                 </p>
                             )}
                         </div>
                         {isVaultUpdatingError && (
-                            <p className="text-destructive-foreground">
+                            <p className="text-destructive">
                                 There was an error updating the vault. Please
                                 try again. There is more information in the
                                 console.
@@ -408,7 +408,7 @@ const DeleteVaultDialog: React.FC<{
                         ? This action cannot be undone and will permanently
                         remove all vault data.
                         {isVaultDeletingError && (
-                            <p className="text-destructive-foreground">
+                            <p className="text-destructive">
                                 There was an error deleting the vault. Please
                                 try again. There is more information in the
                                 console.
@@ -422,7 +422,7 @@ const DeleteVaultDialog: React.FC<{
                     </AlertDialogCancel>
                     <AlertDialogAction
                         onClick={handleVaultDelete}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        className="hover:bg-destructive-solid/90 bg-destructive-solid text-destructive-foreground"
                     >
                         {isVaultDeleting ? (
                             <span className="flex items-center">
@@ -465,9 +465,7 @@ const SecretField: React.FC<{ ctrl: Controller; id: string }> = ({
                 }}
             />
             {errors.Secret && !ctrl.useRecovery && (
-                <p className="text-destructive-foreground">
-                    {errors.Secret.message}
-                </p>
+                <p className="text-destructive">{errors.Secret.message}</p>
             )}
         </>
     );

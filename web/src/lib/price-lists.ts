@@ -13,6 +13,14 @@ export const priceLists = [
 export const currentPriceList = priceLists[priceLists.length - 1]!;
 export const currentPriceListUrl = `/prices/${currentPriceList.filename}`;
 
+/** Exact yearly saving versus twelve monthly payments, e.g. "9.88". */
+export function yearlySaving(list: (typeof priceLists)[number]): string {
+    return (
+        Number(list.monthly.price) * 12 -
+        Number(list.yearly.price)
+    ).toFixed(2);
+}
+
 export function priceListCsv(list: (typeof priceLists)[number]): string {
     return [
         "naziv_usluge,obracunsko_razdoblje,valuta,maloprodajna_cijena,posebni_oblik_prodaje,naziv_posebnog_oblika_prodaje,sidrena_cijena,datum_sidrene_cijene",

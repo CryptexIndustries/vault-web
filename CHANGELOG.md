@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The web app's account dialog shows what your plan includes. Free accounts see the free vault features next to what Online Services adds, with the price for the selected billing interval and the upgrade button. Subscribers see each included service with its allowance and how many of their linked devices they use.
+
+### Changed
+
+- Dialogs, menus and dropdowns in the web vault use the dark theme like the rest of the app. They used to open in the light theme because they render outside the themed page.
+- Free accounts no longer see an empty billing card or a disabled Manage billing button in the account dialog.
+- The pricing page calculates the yearly saving from the published price list instead of using a fixed amount.
+
+### Fixed
+
+- Delete account and other destructive buttons in the dark theme showed red text on a red background. They now use light text on a darker red with at least 4.5:1 contrast.
+
 ## [1.5.0] - 2026-10-14
 
 ### Added

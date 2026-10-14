@@ -593,7 +593,7 @@ export function ManagedBackupsSettingsCard({
                                                 Cancel
                                             </AlertDialogCancel>
                                             <AlertDialogAction
-                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                className="hover:bg-destructive-solid/90 bg-destructive-solid text-destructive-foreground"
                                                 onClick={() =>
                                                     void handleDeleteAll()
                                                 }
@@ -678,7 +678,7 @@ export function ManagedBackupsSettingsCard({
                                                                 Cancel
                                                             </AlertDialogCancel>
                                                             <AlertDialogAction
-                                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                className="hover:bg-destructive-solid/90 bg-destructive-solid text-destructive-foreground"
                                                                 onClick={() =>
                                                                     void handleDelete(
                                                                         snapshot.id,

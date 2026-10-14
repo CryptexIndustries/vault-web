@@ -106,9 +106,9 @@ describe("account billing management", () => {
         );
     });
 
-    it("keeps billing disabled for a free account", async () => {
+    it("hides billing for a free account", async () => {
         await renderSummary({ nonFree: false, provider: null });
-        expect((manageBilling() as HTMLButtonElement).disabled).toBe(true);
+        expect(manageBilling()).toBeUndefined();
         expect(container.textContent).not.toContain("Billed through");
     });
 });

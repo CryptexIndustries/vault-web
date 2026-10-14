@@ -156,6 +156,8 @@ module.exports = {
                 destructive: {
                     DEFAULT: "hsl(var(--destructive))",
                     foreground: "hsl(var(--destructive-foreground))",
+                    // Filled buttons; falls back to the base shade.
+                    solid: "hsl(var(--destructive-solid, var(--destructive)))",
                 },
                 border: "hsl(var(--border))",
                 input: "hsl(var(--input))",

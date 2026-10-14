@@ -91,7 +91,9 @@ html {
         --accent: var(--primary);
         --accent-foreground: var(--foreground);
         --destructive: 0 84.2% 60.2%; /* same red tone */
-        --destructive-foreground: 0 84.2% 70.2%; /* same red tone */
+        --destructive-foreground: var(--foreground);
+        /* Darker fill so button text reaches 4.5:1; text keeps --destructive */
+        --destructive-solid: 0 72.2% 50.6%; /* #dc2626 */
         --border: 224.21 28.36% 22%; /* matching muted */
         --input: 224.21 28.36% 38%; /* same as secondary */
         --ring: 353.61 100% 66.86%; /* accent on focus */

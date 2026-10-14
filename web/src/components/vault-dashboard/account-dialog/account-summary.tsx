@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Copy, Lock } from "lucide-react";
+import { Copy } from "lucide-react";
 
 import { openCustomerPortal } from "@/app_lib/online-services";
 import type { CheckoutTier } from "@/app_lib/online-services";
@@ -26,9 +26,9 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import { copyToClipboard, formatAccountDate } from "./utils";
-import { SubscriptionLegalNotice } from "@/components/vault-dashboard/subscription-legal-notice";
-import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
 import type { PurchasePlan } from "@/utils/purchase-onboarding";
+
+import { PlanBenefits } from "./plan-benefits";
 
 const EmbeddedCheckoutDialog = dynamic(
     () =>
@@ -46,6 +46,8 @@ type RemoteConfig = {
     canLink?: boolean;
     canPromoteDevices?: boolean;
     maxLinks?: number;
+    managedEncryptedBackups?: boolean;
+    passwordSharing?: boolean;
     recoveryTokenCreatedAt?: Date | string | null;
 };
 
@@ -75,43 +77,6 @@ type AccountSummaryProps = {
     checkoutBlocked?: boolean;
     onPurchaseHandled?: () => void;
 };
-
-type LockedPerk = {
-    label: string;
-    detail: string;
-};
-
-function buildLockedPerks(
-    remoteConfig: RemoteConfig | null | undefined,
-    tierAccessLoaded: boolean,
-): LockedPerk[] {
-    if (!tierAccessLoaded) return [];
-
-    const perks: LockedPerk[] = [];
-    const linkedDeviceLimit = remoteConfig?.maxLinks ?? 0;
-    const canLinkDevices = !!remoteConfig?.canLink && linkedDeviceLimit > 0;
-
-    if (!remoteConfig?.canLink) {
-        perks.push({
-            label: "Managed sync infrastructure",
-            detail: "Use managed signaling and relay infrastructure.",
-        });
-    }
-    if (!canLinkDevices) {
-        perks.push({
-            label: "Linked devices",
-            detail: "Upgrade to link more devices to your account.",
-        });
-    }
-    if (!remoteConfig?.canPromoteDevices) {
-        perks.push({
-            label: "Root device promotion",
-            detail: "Upgrade to promote trusted devices.",
-        });
-    }
-
-    return perks;
-}
 
 function StatusBadge({
     active,
@@ -191,15 +156,11 @@ export function AccountSummary({
         subscription,
         onPurchaseHandled,
     ]);
-    const tierAccessLoaded = !!remoteConfig;
     const linkedDeviceCount = subscription?.resourceStatus?.linkedDevices ?? 0;
-    const linkedDeviceLimit = remoteConfig?.maxLinks ?? 0;
-    const canLinkDevices = !!remoteConfig?.canLink && linkedDeviceLimit > 0;
     const billingDateLabel = subscription?.cancelAtPeriodEnd
         ? "Expires"
         : "Renews";
     const billingDate = formatAccountDate(subscription?.expiresAt);
-    const lockedPerks = buildLockedPerks(remoteConfig, tierAccessLoaded);
     const canManageBilling = hasSession && !!subscription?.nonFree;
     // Store subscriptions can only be changed in the store that bills them.
     const provider = canManageBilling ? subscription.provider : null;
@@ -210,125 +171,107 @@ export function AccountSummary({
               ? "Billed through the App Store. Manage or cancel it in your Apple account settings."
               : null;
 
+    // The plan comparison below already names the free tier.
+    const isFree = !!subscription && !subscription.nonFree;
+    const statusBadges = (
+        <div className="flex flex-wrap gap-2">
+            <StatusBadge
+                active={isConnected}
+                activeLabel="Connected"
+                inactiveLabel="Not connected"
+            />
+            <StatusBadge
+                active={!!remoteConfig?.root}
+                activeLabel="Root device"
+                inactiveLabel="Not root"
+            />
+            <StatusBadge
+                active={!!remoteConfig?.recoveryTokenCreatedAt}
+                activeLabel="Recovery backed up"
+                inactiveLabel="No recovery phrase"
+            />
+        </div>
+    );
+
     return (
         <div className="space-y-4">
-            <Card>
-                <CardHeader className="pb-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <CardTitle className="text-lg">{tierName}</CardTitle>
-                        <Badge variant="outline">{subscriptionStatus}</Badge>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pb-3">
-                    {canLinkDevices ? (
-                        <p className="text-sm text-muted-foreground">
-                            {linkedDeviceCount} of {linkedDeviceLimit} linked
-                            devices
-                        </p>
-                    ) : null}
-                    {subscription ? (
-                        <p className="text-sm text-muted-foreground">
-                            {billingDateLabel}{" "}
-                            <span className="font-medium text-foreground">
-                                {billingDate}
-                            </span>
-                        </p>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            Sign in to view billing details.
-                        </p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                        <StatusBadge
-                            active={isConnected}
-                            activeLabel="Connected"
-                            inactiveLabel="Not connected"
-                        />
-                        <StatusBadge
-                            active={!!remoteConfig?.root}
-                            activeLabel="Root device"
-                            inactiveLabel="Not root"
-                        />
-                        <StatusBadge
-                            active={!!remoteConfig?.recoveryTokenCreatedAt}
-                            activeLabel="Recovery backed up"
-                            inactiveLabel="No recovery phrase"
-                        />
-                    </div>
-                </CardContent>
-                <CardFooter className="flex flex-col items-stretch gap-3 border-t pt-4">
-                    {canUpgrade ? (
-                        <CheckoutTierPicker
-                            value={checkoutTier}
-                            onChange={setCheckoutTier}
-                            disabled={checkoutOpen}
-                        />
-                    ) : null}
-                    <div className="flex flex-wrap gap-2">
-                        <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => setCheckoutOpen(true)}
-                            disabled={!canUpgrade || checkoutOpen}
-                        >
-                            Upgrade
-                        </Button>
-                        {provider === "google_play" ? (
-                            <Button asChild variant="outline" size="sm">
-                                <a
-                                    href={GOOGLE_PLAY_SUBSCRIPTIONS_URL}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    Manage billing
-                                </a>
-                            </Button>
-                        ) : provider === "app_store" ? null : (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void openCustomerPortal()}
-                                disabled={!canManageBilling}
-                            >
-                                Manage billing
-                            </Button>
-                        )}
-                    </div>
-                    {billingNote ? (
-                        <p className="text-xs text-muted-foreground">
-                            {billingNote}
-                        </p>
-                    ) : null}
-                    {canUpgrade ? <SubscriptionLegalNotice /> : null}
-                </CardFooter>
-            </Card>
-
-            {lockedPerks.length > 0 ? (
+            {isFree ? (
+                statusBadges
+            ) : (
                 <Card>
                     <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <Lock className="h-4 w-4 text-muted-foreground" />
-                            Upgrade to unlock
-                        </CardTitle>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <CardTitle className="text-lg">
+                                {tierName}
+                            </CardTitle>
+                            <Badge variant="outline">
+                                {subscriptionStatus}
+                            </Badge>
+                        </div>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                        {lockedPerks.map((perk) => (
-                            <div
-                                key={perk.label}
-                                className="rounded-lg border border-dashed px-3 py-2"
-                            >
-                                <p className="text-sm font-medium">
-                                    {perk.label}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {perk.detail}
-                                </p>
-                            </div>
-                        ))}
+                    <CardContent className="space-y-3 pb-3">
+                        {subscription?.nonFree ? (
+                            <p className="text-sm text-muted-foreground">
+                                {billingDateLabel}{" "}
+                                <span className="font-medium text-foreground">
+                                    {billingDate}
+                                </span>
+                            </p>
+                        ) : subscription ? null : (
+                            <p className="text-sm text-muted-foreground">
+                                Sign in to view billing details.
+                            </p>
+                        )}
+                        {statusBadges}
                     </CardContent>
+                    {canManageBilling ? (
+                        <CardFooter className="flex flex-col items-stretch gap-3 border-t pt-4">
+                            <div className="flex flex-wrap gap-2">
+                                {provider === "google_play" ? (
+                                    <Button asChild variant="outline" size="sm">
+                                        <a
+                                            href={GOOGLE_PLAY_SUBSCRIPTIONS_URL}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            Manage billing
+                                        </a>
+                                    </Button>
+                                ) : provider === "app_store" ? null : (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            void openCustomerPortal()
+                                        }
+                                    >
+                                        Manage billing
+                                    </Button>
+                                )}
+                            </div>
+                            {billingNote ? (
+                                <p className="text-xs text-muted-foreground">
+                                    {billingNote}
+                                </p>
+                            ) : null}
+                        </CardFooter>
+                    ) : null}
                 </Card>
-            ) : null}
+            )}
+
+            <PlanBenefits
+                access={remoteConfig}
+                subscribed={!!subscription?.nonFree}
+                linkedDevices={linkedDeviceCount}
+                upgrade={{
+                    tier: checkoutTier,
+                    onTierChange: setCheckoutTier,
+                    onUpgrade: () => setCheckoutOpen(true),
+                    canUpgrade,
+                    checkoutOpen,
+                }}
+            />
 
             <Accordion type="single" collapsible>
                 <AccordionItem value="advanced" className="border-none">

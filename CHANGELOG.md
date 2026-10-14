@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Delete account and other destructive buttons in the dark theme showed red text on a red background. They now use light text on a darker red with at least 4.5:1 contrast.
 
+### Security
+
+- Updated Next.js to `16.3.8` and sharp to `0.35.5`. Patched versions of shell-quote, tar, joi, compression, ajv, diff and uuid replace the vulnerable ones pulled in by the Android build tools.
+
 ## [1.5.0] - 2026-10-14
 
 ### Added

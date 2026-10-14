@@ -1,0 +1,41 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- clearState
+- launchApp
+# A freshly booted CI emulator can show "Quickstep isn't responding" over the
+# app. Choose Wait so the system dialog doesn't hide the screen.
+- extendedWaitUntil:
+    visible: "Create vault|.*isn.t responding"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: ".*isn.t responding"
+    commands:
+      - tapOn: Wait
+- assertVisible: Create vault
+- tapOn: Vault name
+- inputText: E2E Vault
+- hideKeyboard
+- tapOn: Master password
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: confirm-master-password
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn: Continue
+- assertVisible: Additional key protection
+- tapOn:
+    id: create-vault
+- runFlow:
+    when:
+      visible: Failed to create vault.*
+    commands:
+      - tapOn:
+          id: create-vault
+- assertVisible: Keep your way back in
+- tapOn: I have written down the recovery code
+- tapOn: Save & open vault
+- assertVisible: Your vault starts here.

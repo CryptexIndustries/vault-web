@@ -1,0 +1,7 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android autofill presentation and URI coverage
+---
+- runFlow: setup-autofill-vault.yaml
+- runFlow: autofill-presentation.yaml
+- runFlow: setup-autofill-uri-rules.yaml
+- runFlow: autofill-uri-rules.yaml

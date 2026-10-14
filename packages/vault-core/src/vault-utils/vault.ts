@@ -33,6 +33,8 @@ export class Vault implements VaultUtilTypes.Vault {
     public OnlineServices?: OnlineServices;
     public Directories: Directory[] = [];
     public Credentials: VaultCredential[];
+    public ShareLinks: VaultUtilTypes.ShareLink[] = [];
+    public ShareSettings?: VaultUtilTypes.ShareSettings;
 
     constructor(seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
@@ -567,7 +569,8 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["URL"],
-                message: "Enter a valid URL or safe wildcard pattern.",
+                message:
+                    "Enter a valid website, Android app, or safe wildcard pattern.",
             });
         }
 
@@ -576,7 +579,8 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["AdditionalURLs", index, "URL"],
-                message: "Enter a valid URL or safe wildcard pattern.",
+                message:
+                    "Enter a valid website, Android app, or safe wildcard pattern.",
             });
         });
     },
@@ -1170,6 +1174,9 @@ export const packageForLinking = (
 
     // Clear the Online Services configuration because this data is delivered in the original linking package
     vaultCopy.OnlineServices = undefined;
+
+    // The share server choice and its creation token stay on this device.
+    vaultCopy.ShareSettings = undefined;
 
     // Copy over only the used STUN and TURN servers, and the signaling server
     vaultCopy.LinkedDevices.STUNServers =

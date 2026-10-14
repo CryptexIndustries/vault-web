@@ -1,0 +1,33 @@
+appId: ${CRYPTEX_APP_ID}
+name: Synchronize through the linked-device control
+---
+- tapOn: Back
+- tapOn: Devices
+- tapOn:
+    id: device-view-list
+- tapOn: ${PEER_NAME}.*
+- scrollUntilVisible:
+    element:
+      text: Sync now|Connect
+    direction: DOWN
+- runFlow:
+    when:
+      visible: Connect
+    commands:
+      - tapOn:
+          id: device-detail-sync
+- extendedWaitUntil:
+    visible: Sync now
+    timeout: 60000
+- tapOn:
+    id: device-detail-sync
+- scrollUntilVisible:
+    element:
+      id: device-close-details
+    direction: DOWN
+- tapOn:
+    id: device-close-details
+- tapOn:
+    text: Vault
+    below: ${PEER_NAME}.*
+- tapOn: E2E Updated After Link.*

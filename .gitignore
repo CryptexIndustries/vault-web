@@ -11,6 +11,8 @@ node_modules
 web/coverage/
 /playwright-report/
 /test-results/
+mobile/e2e/results/
+mobile/android/
 
 # database
 # next.js
@@ -25,6 +27,14 @@ web/out/
 # misc
 .DS_Store
 *.pem
+!mobile/config/ota-certificates/production.pem
+!mobile/config/ota-certificates/preprod.pem
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+signing.env
 todo.md
 
 # debug
@@ -47,3 +57,13 @@ web/.env.client.cloud-ui
 
 # build output
 dist/
+*.apk
+*.apk.*
+*.aab
+*.aab.*
+*.apks
+*.apks.*
+.review-artifacts/
+/mobile/**/.gradle/
+/mobile/**/.cxx/
+/.mobile-build/

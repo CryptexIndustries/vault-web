@@ -1,0 +1,45 @@
+// Persistent policy for generated Expo projects. Checksums live beside this file.
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { dependency ->
+            // Several React Native modules use '+' as an SDK placeholder.
+            // Resolve those placeholders to the app's exact React Native version.
+            if (dependency.requested.group == 'com.facebook.react' &&
+                dependency.requested.name in ['react-native', 'react-android']) {
+                dependency.useVersion('0.86.0')
+                dependency.because('Match the pinned app React Native SDK')
+            } else if (dependency.requested.group == 'org.bouncycastle' &&
+                dependency.requested.name == 'bcprov-jdk15to18' &&
+                dependency.requested.version == '[1.81,1.82)') {
+                // expo-updates 57.0.18 pins bcutil 1.81, whose provider POM uses this range.
+                dependency.useVersion('1.81')
+                dependency.because('Match the pinned expo-updates Bouncy Castle utility version')
+            } else {
+                def version = dependency.requested.version
+                if (version && (version.contains('+') || version.startsWith('latest.') ||
+                    version.contains('SNAPSHOT') || version.startsWith('[') ||
+                    version.startsWith('('))) {
+                    throw new GradleException("Unpinned Android dependency: ${dependency.requested}")
+                }
+            }
+        }
+        incoming.afterResolve { dependencies ->
+            dependencies.resolutionResult.allComponents.each { component ->
+                def id = component.id
+                // Expo substitutes published coordinates with source projects.
+                // Reject external binaries, not those source-built projects.
+                if (id instanceof ModuleComponentIdentifier) {
+                    def group = id.group
+                    if (group in ['com.google.android.gms', 'com.google.firebase',
+                        'com.google.mlkit', 'org.tensorflow'] ||
+                        (group == 'host.exp.exponent' && id.module.startsWith('expo.modules.')) ||
+                        group.startsWith('expo.modules.')) {
+                        throw new GradleException("Disallowed prebuilt Android dependency: ${id}")
+                    }
+                }
+            }
+        }
+    }
+}

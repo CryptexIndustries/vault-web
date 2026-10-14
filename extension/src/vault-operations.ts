@@ -60,6 +60,7 @@ const getItems = async (
                   ok: true;
                   credentials: VaultUtilTypes.Credential[];
                   directories: VaultUtilTypes.Directory[];
+                  shareLinks?: VaultUtilTypes.ShareLink[];
               }
         >(res);
         if (!decryptedPayload.ok) {
@@ -67,7 +68,7 @@ const getItems = async (
                 "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):",
                 decryptedPayload.error,
             );
-            return { Credentials: [], Directories: [] };
+            return { Credentials: [], Directories: [], ShareLinks: [] };
         }
 
         if (!decryptedPayload.payload.ok) {
@@ -75,12 +76,13 @@ const getItems = async (
                 "[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):",
                 decryptedPayload.payload.error,
             );
-            return { Credentials: [], Directories: [] };
+            return { Credentials: [], Directories: [], ShareLinks: [] };
         }
 
         return {
             Credentials: decryptedPayload.payload.credentials,
             Directories: decryptedPayload.payload.directories,
+            ShareLinks: decryptedPayload.payload.shareLinks ?? [],
         };
     }
 
@@ -88,7 +90,7 @@ const getItems = async (
         "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):",
         res.payload,
     );
-    return { Credentials: [], Directories: [] };
+    return { Credentials: [], Directories: [], ShareLinks: [] };
 };
 
 const getVersionVectors = async (
@@ -96,6 +98,7 @@ const getVersionVectors = async (
 ): Promise<{
     credentialVersionVectors: VaultUtilTypes.VersionVector[];
     directoryVersionVectors: VaultUtilTypes.VersionVector[];
+    shareLinkVersionVectors: VaultUtilTypes.VersionVector[];
 }> => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncGetVersionVectors,
@@ -114,6 +117,7 @@ const getVersionVectors = async (
                   ok: true;
                   credentialVersionVectors: VaultUtilTypes.VersionVector[];
                   directoryVersionVectors: VaultUtilTypes.VersionVector[];
+                  shareLinkVersionVectors?: VaultUtilTypes.VersionVector[];
               }
         >(res);
         if (!decryptedPayload.ok) {
@@ -124,6 +128,7 @@ const getVersionVectors = async (
             return {
                 credentialVersionVectors: [],
                 directoryVersionVectors: [],
+                shareLinkVersionVectors: [],
             };
         }
 
@@ -135,17 +140,26 @@ const getVersionVectors = async (
             return {
                 credentialVersionVectors: [],
                 directoryVersionVectors: [],
+                shareLinkVersionVectors: [],
             };
         }
 
-        return decryptedPayload.payload;
+        return {
+            ...decryptedPayload.payload,
+            shareLinkVersionVectors:
+                decryptedPayload.payload.shareLinkVersionVectors ?? [],
+        };
     }
 
     console.error(
         "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors):",
         res.payload,
     );
-    return { credentialVersionVectors: [], directoryVersionVectors: [] };
+    return {
+        credentialVersionVectors: [],
+        directoryVersionVectors: [],
+        shareLinkVersionVectors: [],
+    };
 };
 
 export const getSynchronizationConfig = async (
@@ -196,10 +210,11 @@ const updateItems = async (
     serverPublicKey: ServerPublicKey,
     directories: VaultUtilTypes.Directory[],
     credentials: VaultUtilTypes.Credential[],
+    shareLinks: VaultUtilTypes.ShareLink[],
 ) => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncUpdateItems,
-        { directories, credentials },
+        { directories, credentials, shareLinks },
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
         "popup",
@@ -252,11 +267,20 @@ export const createVaultOperations = (
             return (await getVersionVectors(serverPublicKey))
                 .directoryVersionVectors;
         },
+        getShareLinkVersionVectors: async () => {
+            return (await getVersionVectors(serverPublicKey))
+                .shareLinkVersionVectors;
+        },
         getItems: async (items: VaultUtilTypes.SyncItemReference[]) => {
             return await getItems(serverPublicKey, items);
         },
-        updateItems: async (directories, credentials) => {
-            await updateItems(serverPublicKey, directories, credentials);
+        updateItems: async (directories, credentials, shareLinks) => {
+            await updateItems(
+                serverPublicKey,
+                directories,
+                credentials,
+                shareLinks,
+            );
             await onCredentialsUpdated?.();
         },
         getSynchronizationConfig: loadConfig,

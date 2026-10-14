@@ -70,3 +70,24 @@ export const turnstileMobileContentSecurityPolicy = [
     "frame-ancestors 'none'",
     "form-action 'none'",
 ].join("; ");
+
+/**
+ * CSP for the public /s/<id> share page. The page talks only to its own
+ * origin; the decryption key never leaves the browser.
+ */
+export const shareRecipientContentSecurityPolicy = (development: boolean) =>
+    [
+        "default-src 'none'",
+        "base-uri 'none'",
+        "object-src 'none'",
+        // libsodium runs Argon2id for passphrase-protected shares.
+        "script-src 'self' 'wasm-unsafe-eval'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self' data:",
+        // Development needs the HMR socket.
+        development ? "connect-src 'self' ws:" : "connect-src 'self'",
+        "manifest-src 'self'",
+        "frame-ancestors 'none'",
+        "form-action 'none'",
+    ].join("; ");

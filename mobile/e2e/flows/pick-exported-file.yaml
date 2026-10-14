@@ -1,0 +1,10 @@
+appId: ${CRYPTEX_APP_ID}
+---
+# DocumentsUI is the real Android picker. The fixture app owns these Downloads.
+- runFlow:
+    when:
+      visible: Show roots
+    commands:
+      - tapOn: Show roots
+      - tapOn: Downloads
+- tapOn: ${EXPORTED_FILE}

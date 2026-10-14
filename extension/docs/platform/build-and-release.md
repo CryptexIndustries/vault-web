@@ -30,7 +30,7 @@ Watch dev: parallel `dev:main` + `dev:content`.
 
 On `mode === "production"` in `vite.config.ts`:
 
-- `host_permissions` narrowed to API host (`VITE_APP_URL`) + Pusher host
+- `host_permissions` narrowed to the Online Services API host (`VITE_ONLINE_SERVICES_API_URL`, or `VITE_APP_URL` when that is empty) + Pusher host. The app origin only serves the share API, which allows any origin, so it gets no permission of its own.
 - `VITE_EXTENSION_NAME_PREFIX` prepended to `name` / `action.default_title`
 - Build fails if `VITE_APP_URL` missing, contains `REPLACE_ME`, or is not `https://`
 
@@ -53,12 +53,14 @@ Shared vault, encryption, sync, and UI code come from the web package.
 ## Env validation
 
 `extension/src/env.ts` + `vite.config.ts` enforce required vars in production.
-See `.env.development.example` and `.env.production.example`.
+Release builds take their values from `release-config.json` (production) or
+`prerelease-config.json` (preprod) through `scripts/build.mjs`; development
+builds use `.env.development.example`.
 
 ## Shipping checklist
 
-1. Set production `.env` with HTTPS `VITE_APP_URL` and Pusher config.
-2. Run full build (`pnpm run build` in `extension/`).
+1. Check `release-config.json`: HTTPS `VITE_APP_URL` and Pusher config.
+2. Run the release build (`pnpm build:ext` from the repository root).
 3. Load `dist/` as unpacked extension or publish to store.
 4. Verify `dist/manifest.json` has narrowed `host_permissions`.
 5. Confirm no `*.map` files in production artifact.

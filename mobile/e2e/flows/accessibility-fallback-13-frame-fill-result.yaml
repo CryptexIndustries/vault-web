@@ -1,0 +1,10 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - confirmed cross-site fill
+---
+- assertVisible: Frame origin fixture
+- assertVisible: Page filled
+- assertVisible: Visible frame filled
+# Hidden nodes vary in the accessibility snapshot. The fixture checks exact
+# page/visible values and permits each hidden field only empty or matching.
+- assertVisible: Exact frame values matched
+- assertNotVisible: Exact frame values mismatch

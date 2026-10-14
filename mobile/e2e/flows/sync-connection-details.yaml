@@ -1,0 +1,87 @@
+appId: ${CRYPTEX_APP_ID}
+name: Saved link servers and cancellation of edited sync settings
+---
+- tapOn: E2E Receiver.*
+- assertVisible: Device details
+- assertVisible: Saved in this vault
+- assertVisible:
+    id: device-detail-sync
+- tapOn:
+    id: device-connection-local-link:.*
+- assertVisible: Connection
+- assertVisible:
+    id: device-detail-sync
+- tapOn:
+    id: device-servers
+- assertVisible: Signaling
+- assertVisible: STUN
+- assertVisible: TURN
+# This fixture uses custom signaling and TURN, with the default STUN service.
+- assertVisible: Online Services
+- tapOn:
+    id: device-detail-back
+- assertVisible: Connection
+- tapOn:
+    id: device-sync-settings
+- tapOn: Device display name
+- eraseText: 100
+- inputText: E2E Cancelled Name
+- hideKeyboard
+- tapOn:
+    id: device-cancel-settings
+- assertVisible: Save connection settings\?
+- tapOn:
+    id: device-discard-settings
+- assertVisible: Connection
+- tapOn:
+    id: device-sync-settings
+- assertVisible:
+    text: E2E Receiver
+- assertNotVisible: E2E Cancelled Name
+- tapOn:
+    id: device-cancel-settings
+- assertVisible: Connection
+# A validation failure must keep the edited draft and block implicit dismissal.
+- tapOn:
+    id: device-sync-settings
+- tapOn: Device display name
+- eraseText: 100
+- hideKeyboard
+- tapOn:
+    id: device-save-settings
+- assertVisible: Device name is required
+- assertVisible:
+    id: device-dismiss-error
+- pressKey: Back
+- assertVisible: Device name is required
+- tapOn:
+    point: '2%, 12%'
+- assertVisible: Device name is required
+- tapOn:
+    id: device-dismiss-error
+- assertVisible: Name and sync settings
+- assertVisible: Device display name
+- tapOn: Device display name
+- inputText: E2E Retained Draft
+- hideKeyboard
+- tapOn:
+    id: device-cancel-settings
+- assertVisible: Save connection settings\?
+- tapOn: Keep editing
+- assertVisible: E2E Retained Draft
+- tapOn:
+    id: device-cancel-settings
+- tapOn:
+    id: device-discard-settings
+- assertVisible: Connection
+- tapOn:
+    id: device-sync-settings
+- assertVisible:
+    text: E2E Receiver
+- assertNotVisible: E2E Retained Draft
+- tapOn:
+    id: device-cancel-settings
+- assertVisible: Connection
+- tapOn:
+    id: device-close-details
+- assertVisible: E2E Receiver.*

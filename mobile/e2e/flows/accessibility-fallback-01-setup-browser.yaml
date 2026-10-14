@@ -1,0 +1,19 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - setup and browser request
+---
+- runFlow: setup-autofill-vault.yaml
+- runFlow: setup-accessibility-fallback.yaml
+- launchApp: com.android.chrome
+- runFlow:
+    when:
+      visible: Use without an account
+    commands:
+      - tapOn: Use without an account
+- runFlow:
+    when:
+      visible: No thanks
+    commands:
+      - tapOn: No thanks
+- openLink: http://localhost:43110/fresh-login
+- assertVisible: Deterministic login fixture
+- tapOn: Username

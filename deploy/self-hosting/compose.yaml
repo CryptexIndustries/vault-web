@@ -14,6 +14,10 @@ services:
             NEXT_PUBLIC_CLOUD_ENABLED: "false"
             HOSTNAME: 0.0.0.0
             PORT: "3000"
+            # Forwards https://VAULT_DOMAIN/share-api/* to the share server.
+            SHARE_SERVER_INTERNAL_URL: http://share:8080
+        depends_on:
+            - share
         restart: unless-stopped
         logging: *logging
         healthcheck:
@@ -51,6 +55,25 @@ services:
         depends_on:
             - web
             - soketi
+        restart: unless-stopped
+        logging: *logging
+
+    # One-time share links (https://VAULT_DOMAIN/s/<id>). Stores ciphertext
+    # and token hashes only; the key stays in the link.
+    share:
+        image: ${SHARE_IMAGE:?Set SHARE_IMAGE in .env}
+        environment:
+            SHARE_AUTH: token
+            SHARE_CREATION_TOKENS: ${SHARE_CREATION_TOKENS:?Set SHARE_CREATION_TOKENS in .env}
+            # Caddy sets the address it saw and the web container passes the
+            # header through, so the client is the last entry. Behind a CDN,
+            # see the self-hosting guide before changing these.
+            SHARE_CLIENT_IP_HEADER: ${SHARE_CLIENT_IP_HEADER:-X-Forwarded-For}
+            SHARE_TRUSTED_PROXY_HOPS: ${SHARE_TRUSTED_PROXY_HOPS:-1}
+            # Prometheus metrics on port 9090, never published; "off" turns them off.
+            SHARE_METRICS_ADDR: ${SHARE_METRICS_ADDR:-:9090}
+        volumes:
+            - share_data:/data
         restart: unless-stopped
         logging: *logging
 
@@ -92,3 +115,4 @@ services:
 volumes:
     caddy_data:
     caddy_config:
+    share_data:

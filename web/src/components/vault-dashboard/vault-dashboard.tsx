@@ -67,6 +67,12 @@ import type { SyncConnectionController } from "@cryptex-industries/vault-core/sy
 import type { VaultWriteKind } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 import { AccountDialog } from "./account-dialog";
 import { CredentialDetail } from "./credential-detail";
+import {
+    ShareDialog,
+    type ShareDialogTarget,
+} from "@/components/share/share-dialog";
+import { SharedLinksView } from "@/components/share/shared-links-view";
+import { useWebShareBackend } from "@/app_lib/share-links";
 import { CredentialsList } from "./credentials-list";
 import {
     DeviceSidebar,
@@ -112,7 +118,7 @@ import {
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
 
-type DashboardView = "credentials" | "security-report";
+type DashboardView = "credentials" | "security-report" | "shared-links";
 
 function getDeviceLastSyncDate(device: LinkedDevice): Date | null {
     return device.LastSync ? new Date(device.LastSync) : null;
@@ -424,6 +430,9 @@ export function VaultDashboard({
         useState<VaultCredential | null>(null);
     const [dashboardView, setDashboardView] =
         useState<DashboardView>("credentials");
+    const [shareTarget, setShareTarget] = useState<ShareDialogTarget | null>(
+        null,
+    );
     const [selectedDirectoryID, setSelectedDirectoryID] =
         useState<string>("all");
     const [editingCredential, setEditingCredential] =
@@ -1141,6 +1150,22 @@ export function VaultDashboard({
         setIsAccountDialogOpen(true);
     }, []);
 
+    const shareBackend = useWebShareBackend(handleOpenAccountDialog);
+    const shareCredentialNames = useMemo(
+        () =>
+            new Map(
+                unlockedVault.Credentials.filter(
+                    (credential) => !credential.Deleted,
+                ).map((credential) => [credential.ID, credential.Name]),
+            ),
+        [unlockedVault.Credentials],
+    );
+    const handleShareCredential = useCallback(
+        (credential: VaultCredential) =>
+            setShareTarget({ kind: "credential", credential }),
+        [],
+    );
+
     const onlineServicesBound = Vault.isOnlineServicesBound(unlockedVault);
     const hasOnlineAuth = !!onlineServicesData?.sessionToken?.length;
     const remoteOnlineServicesData = onlineServicesData?.remoteData;
@@ -1435,7 +1460,8 @@ export function VaultDashboard({
                 isVaultSettingsOpen ||
                 isBackupDialogOpen ||
                 isAccountDialogOpen ||
-                isPasswordGeneratorOpen;
+                isPasswordGeneratorOpen ||
+                shareTarget !== null;
             if (hasBlockingOverlay) return;
 
             if (isTypingElement(event.target)) return;
@@ -1516,6 +1542,7 @@ export function VaultDashboard({
         isVaultSettingsOpen,
         moveSelection,
         selectCredentialAtIndex,
+        shareTarget,
     ]);
 
     return (
@@ -1533,7 +1560,9 @@ export function VaultDashboard({
                 <span className="font-semibold text-foreground">
                     {dashboardView === "security-report"
                         ? "Security Report"
-                        : unlockedVaultName}
+                        : dashboardView === "shared-links"
+                          ? "Shared Links"
+                          : unlockedVaultName}
                 </span>
                 <div className="w-9" /> {/* Spacer for centering */}
             </div>
@@ -1558,6 +1587,9 @@ export function VaultDashboard({
                         onOpenPasswordGenerator={handleOpenPasswordGenerator}
                         onOpenSecurityReport={() =>
                             setDashboardView("security-report")
+                        }
+                        onOpenSharedLinks={() =>
+                            setDashboardView("shared-links")
                         }
                         onOpenBackup={handleOpenBackup}
                         vaultId={unlockedVaultMetadata?.Blob?.Envelope?.VaultID}
@@ -1594,6 +1626,7 @@ export function VaultDashboard({
                     onOpenSecurityReport={() =>
                         setDashboardView("security-report")
                     }
+                    onOpenSharedLinks={() => setDashboardView("shared-links")}
                     onOpenBackup={handleOpenBackup}
                     vaultId={unlockedVaultMetadata?.Blob?.Envelope?.VaultID}
                     vaultBlob={unlockedVaultMetadata?.Blob}
@@ -1619,6 +1652,32 @@ export function VaultDashboard({
                         onEditCredential={handleEditSecurityFinding}
                         onOpenCredentialUrl={handleOpenSecurityFindingUrl}
                         onRefresh={refreshSecurityAnalysis}
+                    />
+                ) : dashboardView === "shared-links" ? (
+                    <SharedLinksView
+                        records={unlockedVault.ShareLinks ?? []}
+                        credentialNames={shareCredentialNames}
+                        backend={shareBackend}
+                        onBack={() => setDashboardView("credentials")}
+                        onShareSecret={() => setShareTarget({ kind: "text" })}
+                        confirm={(description, confirmLabel, onConfirm) =>
+                            showWarningDialogFnRef.current?.(
+                                description,
+                                onConfirm,
+                                () => {
+                                    // No-op
+                                },
+                                confirmLabel,
+                            )
+                        }
+                        onOpenItem={(credentialId) => {
+                            const credential = unlockedVault.Credentials.find(
+                                (item) => item.ID === credentialId,
+                            );
+                            if (!credential) return;
+                            setDashboardView("credentials");
+                            handleSelectCredential(credential);
+                        }}
                     />
                 ) : (
                     <>
@@ -1652,6 +1711,7 @@ export function VaultDashboard({
                                 onEdit={handleEditCredential}
                                 onOpenUrl={handleOpenCredentialUrl}
                                 onDeleteCredential={handleDeleteCredential}
+                                onShare={handleShareCredential}
                                 directoryName={
                                     unlockedVault.Directories.find(
                                         (directory) =>
@@ -1681,6 +1741,7 @@ export function VaultDashboard({
                                         onDeleteCredential={
                                             handleDeleteCredential
                                         }
+                                        onShare={handleShareCredential}
                                         directoryName={
                                             unlockedVault.Directories.find(
                                                 (directory) =>
@@ -1755,6 +1816,14 @@ export function VaultDashboard({
                     state: editingDisplay.tone,
                     label: editingDisplay.label,
                 }}
+            />
+            <ShareDialog
+                open={!!shareTarget}
+                onOpenChange={(open) => {
+                    if (!open) setShareTarget(null);
+                }}
+                target={shareTarget}
+                backend={shareBackend}
             />
             <LogInspectorDialog showDialogFnRef={showLogInspectorDialogRef} />
             <WarningDialog showFnRef={showWarningDialogFnRef} />

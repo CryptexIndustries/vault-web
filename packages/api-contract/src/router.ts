@@ -29,6 +29,8 @@ import {
     paymentRouterGetCheckoutSession,
     paymentRouterGetCustomerPortal,
     paymentRouterGetSubscription,
+    paymentRouterRevenueCatCustomer,
+    paymentRouterSyncRevenueCat,
 } from "./routes/v1/payment.router";
 
 import {
@@ -49,6 +51,7 @@ import {
     backupRouterRecoveryDownload,
     backupRouterRecoveryList,
 } from "./routes/v1/backup-recovery.router";
+import { shareRouterTicket } from "./routes/v1/share.router";
 
 const _versionedRouter = router({
     v1: router({
@@ -81,6 +84,8 @@ const _versionedRouter = router({
             checkoutSession: paymentRouterGetCheckoutSession,
             customerPortal: paymentRouterGetCustomerPortal,
             subscription: paymentRouterGetSubscription,
+            revenueCatCustomer: paymentRouterRevenueCatCustomer,
+            syncRevenueCat: paymentRouterSyncRevenueCat,
         }),
         backup: router({
             status: backupRouterStatus,
@@ -95,6 +100,9 @@ const _versionedRouter = router({
             createRecoverySession: backupRouterCreateRecoverySession,
             recoveryList: backupRouterRecoveryList,
             recoveryDownload: backupRouterRecoveryDownload,
+        }),
+        share: router({
+            ticket: shareRouterTicket,
         }),
     }),
 });

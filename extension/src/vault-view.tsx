@@ -22,6 +22,7 @@ import {
     Globe,
     GripVertical,
     ArchiveRestore,
+    Link2,
     Key,
     Folder,
     FolderRoot,
@@ -39,7 +40,13 @@ import {
     User,
     X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -118,6 +125,12 @@ import {
 import { CredentialListIcon } from "./components/credential-list-icon";
 import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
 import { PopupBackupDialog } from "./components/popup-backup-dialog";
+import {
+    ShareDialog,
+    type ShareDialogTarget,
+} from "@/components/share/share-dialog";
+import { SharedLinksView } from "@/components/share/shared-links-view";
+import { useExtensionShareBackend } from "./share-backend";
 import { PopupVaultSecurityDialog } from "./components/popup-vault-security-dialog";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
@@ -180,6 +193,25 @@ const VaultView: React.FC<VaultViewProps> = ({
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
     const [showBackupCenter, setShowBackupCenter] = useState(false);
     const [showVaultSecurity, setShowVaultSecurity] = useState(false);
+    const [shareTarget, setShareTarget] = useState<ShareDialogTarget | null>(
+        null,
+    );
+    const [showSharedLinks, setShowSharedLinks] = useState(false);
+    const sharedLinksRef = useRef<HTMLDivElement>(null);
+    const openingSharedLinksRef = useRef(false);
+    const share = useExtensionShareBackend();
+    const shareReloadRef = useRef(share.reload);
+    shareReloadRef.current = share.reload;
+    const shareCredentialNames = useMemo(
+        () =>
+            new Map(
+                credentials.map((credential) => [
+                    credential.id,
+                    credential.name,
+                ]),
+            ),
+        [credentials],
+    );
     const [directoryEditorOpen, setDirectoryEditorOpen] = useState(false);
     const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
     const [editingDirectory, setEditingDirectory] =
@@ -1878,6 +1910,8 @@ const VaultView: React.FC<VaultViewProps> = ({
             GlobalSyncConnectionController = new SyncConnectionController(
                 createVaultOperations(serverPublicKey, async () => {
                     await refreshCredentialsRef.current?.();
+                    // Synced share records arrive with the same update.
+                    await shareReloadRef.current?.();
                 }),
             );
             GlobalSyncConnectionController.init();
@@ -2237,7 +2271,18 @@ const VaultView: React.FC<VaultViewProps> = ({
                             </Tooltip>
                         </TooltipProvider>
 
-                        <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuContent
+                            align="end"
+                            className="w-56"
+                            onCloseAutoFocus={(event) => {
+                                // Focus the Shared links view instead of the
+                                // trigger, whose tooltip would cover it.
+                                if (!openingSharedLinksRef.current) return;
+                                openingSharedLinksRef.current = false;
+                                event.preventDefault();
+                                sharedLinksRef.current?.focus();
+                            }}
+                        >
                             <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                 Vault actions
                             </DropdownMenuLabel>
@@ -2312,6 +2357,24 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     </span>
                                     <span className="block text-[11px] text-muted-foreground">
                                         Encryption &amp; Security
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    openingSharedLinksRef.current = true;
+                                    void share.reload();
+                                    setShowSharedLinks(true);
+                                }}
+                                className="items-start py-2"
+                            >
+                                <Link2 className="mt-0.5 text-primary" />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        Shared links
+                                    </span>
+                                    <span className="block text-[11px] text-muted-foreground">
+                                        One-time links you sent
                                     </span>
                                 </span>
                             </DropdownMenuItem>
@@ -2844,6 +2907,12 @@ const VaultView: React.FC<VaultViewProps> = ({
                             onEdit={(c) => openEditForm(c)}
                             onOpenUrl={handleOpenUrl}
                             onDeleteCredential={handleDeleteSelected}
+                            onShare={(credential) =>
+                                setShareTarget({
+                                    kind: "credential",
+                                    credential,
+                                })
+                            }
                             directoryName={
                                 directories.find(
                                     (directory) =>
@@ -3727,6 +3796,41 @@ const VaultView: React.FC<VaultViewProps> = ({
             <PopupBackupDialog
                 open={showBackupCenter}
                 onOpenChange={setShowBackupCenter}
+            />
+            {showSharedLinks ? (
+                <div
+                    ref={sharedLinksRef}
+                    tabIndex={-1}
+                    className="fixed inset-0 z-40 flex bg-background outline-none"
+                >
+                    <SharedLinksView
+                        records={share.shareLinks}
+                        credentialNames={shareCredentialNames}
+                        backend={share.backend}
+                        onBack={() => setShowSharedLinks(false)}
+                        onShareSecret={() => setShareTarget({ kind: "text" })}
+                        confirm={(description, confirmLabel, onConfirm) =>
+                            showWarningDialogFnRef.current?.(
+                                description,
+                                onConfirm,
+                                () => undefined,
+                                confirmLabel,
+                            )
+                        }
+                        onOpenItem={(credentialId) => {
+                            setShowSharedLinks(false);
+                            void selectCredential(credentialId);
+                        }}
+                    />
+                </div>
+            ) : null}
+            <ShareDialog
+                open={!!shareTarget}
+                onOpenChange={(open) => {
+                    if (!open) setShareTarget(null);
+                }}
+                target={shareTarget}
+                backend={share.backend}
             />
             <PopupVaultSecurityDialog
                 open={showVaultSecurity}

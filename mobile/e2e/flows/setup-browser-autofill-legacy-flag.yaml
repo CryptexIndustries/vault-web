@@ -1,0 +1,18 @@
+appId: com.android.chrome
+---
+# Chrome 134 only: expose its third-party Autofill setting on this E2E AVD.
+- tapOn:
+    id: com.android.chrome:id/url_bar
+- eraseText
+- inputText: chrome://flags
+- pressKey: Enter
+- tapOn:
+    point: 30%,14%
+- inputText: enable-autofill-virtual-view-structure
+- tapOn:
+    point: 25%,45%
+- tapOn: Enabled
+- tapOn:
+    point: 85%,93%
+- assertVisible:
+    id: com.android.chrome:id/menu_button

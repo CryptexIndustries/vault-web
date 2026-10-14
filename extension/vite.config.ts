@@ -97,8 +97,14 @@ export default defineConfig(({ mode }) => {
             }
         };
 
-        add(env.VITE_APP_URL);
-        add(env.VITE_ONLINE_SERVICES_API_URL);
+        // The service worker calls the Online Services API, which needs a host
+        // permission. The app origin only serves the share API, which allows
+        // any origin, so it needs one only when it also hosts the API.
+        if (env.VITE_ONLINE_SERVICES_API_URL) {
+            add(env.VITE_ONLINE_SERVICES_API_URL);
+        } else {
+            add(env.VITE_APP_URL);
+        }
 
         if (env.VITE_PUSHER_APP_HOST) {
             const scheme =
@@ -263,7 +269,7 @@ export default defineConfig(({ mode }) => {
                                 if (prodHosts.length === 0) {
                                     throw new Error(
                                         "Production manifest would have empty host_permissions; " +
-                                            "check VITE_APP_URL / VITE_PUSHER_APP_HOST in .env.production.",
+                                            "check VITE_APP_URL / VITE_PUSHER_APP_HOST in the release configuration.",
                                     );
                                 }
                                 manifest.host_permissions = prodHosts;

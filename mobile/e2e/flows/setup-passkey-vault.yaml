@@ -1,0 +1,10 @@
+appId: ${CRYPTEX_APP_ID}
+name: Prepare Android passkey vault
+---
+- runFlow: setup-passkey-browser.yaml
+- runFlow: setup-vault.yaml
+- tapOn: More
+- tapOn: Autofill,.*
+- assertVisible: Passkey provider,.*
+- tapOn: Back
+- tapOn: Vault

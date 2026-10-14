@@ -542,17 +542,17 @@ export default function Home() {
                         <h3>Your daily vault.</h3>
                         <p>
                             Web app, Chromium Extension, autofill, imports and
-                            exports, P2P sync, manual backups and optional
-                            managed services.
+                            exports, P2P sync, manual backups, one-time share
+                            links and optional managed services.
                         </p>
                     </article>
                     <article>
                         <Label>IN DEVELOPMENT</Label>
-                        <h3>Android and link sharing.</h3>
+                        <h3>Android and an SSH agent.</h3>
                         <p>
-                            An Android app and credential sharing via a URL are
-                            in development. Links will let you share with people
-                            who do not use Cryptex Vault.
+                            An Android app is in development, and so is an SSH
+                            agent for Linux that keeps your keys in the vault
+                            instead of on the machine.
                         </p>
                     </article>
                     <article>
@@ -561,8 +561,8 @@ export default function Home() {
                         <p>
                             Advanced Security Report, custom backup
                             destinations, Firefox and iOS support, and granular
-                            device-linking permissions. Priorities and version
-                            targets may change.
+                            device-linking permissions. Priorities and target
+                            dates may change.
                         </p>
                     </article>
                 </div>

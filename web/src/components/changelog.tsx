@@ -41,6 +41,67 @@ const CHANGE_LABELS: Record<
 
 export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.5.0",
+        date: "2026-10-14",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "Credential rules in the web app and extension now accept exact Android app associations such as androidapp://com.example.app. These associations stay separate from website matching.",
+            },
+            {
+                type: "added",
+                description:
+                    "A new billing return page takes you back to the web vault or Android app. A return button stays available if your browser blocks automatic navigation.",
+            },
+            {
+                type: "added",
+                description:
+                    "Share a credential or any text through a link that opens once. You pick the fields, when the link expires and whether it needs a passphrase. Your device encrypts it, and the key stays in the link, so the share server can't read what you send.",
+            },
+            {
+                type: "added",
+                description:
+                    "Shared links shows every link you've sent and whether it was opened. You can search and filter it, and revoke a link nobody has opened yet. It syncs between your devices.",
+            },
+            {
+                type: "added",
+                description:
+                    "If you self-host, you can run the open-source share server next to your web app and hand out creation tokens to the people who may send links.",
+            },
+            {
+                type: "added",
+                description:
+                    "If you subscribed through Google Play or the App Store, the account dialog says so and tells you where to manage the subscription.",
+            },
+            {
+                type: "changed",
+                description:
+                    "The device linking dialog now says \"Verification words\" instead of \"Mnemonic\", the same term the extension, Android app and documentation use.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Device linking and synchronization now wait for delayed connection candidates instead of failing immediately. Pending failure timers are cleared when connections end or are replaced.",
+            },
+            {
+                type: "fix",
+                description:
+                    "Failures while deriving the password key now return a handled vault unlock error.",
+            },
+            {
+                type: "fix",
+                description:
+                    "The extension locks your vault when your computer's screen locks, not only after 30 minutes of inactivity.",
+            },
+            {
+                type: "fix",
+                description:
+                    "An open extension tab shows the unlock screen as soon as the vault locks somewhere else.",
+            },
+        ],
+    },
+    {
         version: "v1.4.1",
         date: "2026-09-25",
         changes: [

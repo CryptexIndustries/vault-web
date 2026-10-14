@@ -17,6 +17,7 @@ export type OnlineServicesData = {
         root: boolean;
         canLink: boolean;
         maxLinks: number;
+        passwordSharing?: boolean;
         recoveryTokenCreatedAt: Date | null;
         recoveryGenerationNeeded?: boolean;
     } | null;

@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
                     How we use personal data when you visit our website or use
                     Cryptex Vault and Online Services.
                 </p>
-                <p>Last updated: 25 September 2026</p>
+                <p>Last updated: 12 October 2026</p>
             </section>
 
             <Section
@@ -177,22 +177,46 @@ export default function PrivacyPolicy() {
                     .
                 </p>
                 <p>
-                    Cloudflare and Stripe may process data outside the European
-                    Economic Area, including in the United States. Their
-                    transfer arrangements use the EU-US Data Privacy Framework
-                    where applicable and EU Standard Contractual Clauses for
-                    transfers that require those safeguards. The terms are
-                    available in{" "}
-                    <a href="https://www.cloudflare.com/cloudflare-customer-dpa/">
-                        Cloudflare&apos;s Data Processing Addendum
+                    In the Android app from Google Play, Google Play handles
+                    subscription payments and collects the payment details you
+                    give it. RevenueCat, our subscription service provider,
+                    receives the purchase record and subscription status from
+                    Google Play, your Online Services account identifier, and
+                    basic device information such as the app version, operating
+                    system and country. RevenueCat passes the subscription
+                    status to us. We do not receive your payment details. Google
+                    processes Google Play purchases under its own privacy
+                    policy. See{" "}
+                    <a href="https://policies.google.com/privacy">
+                        Google&apos;s privacy policy
                     </a>{" "}
                     and{" "}
+                    <a href="https://www.revenuecat.com/privacy">
+                        RevenueCat&apos;s privacy policy
+                    </a>
+                    .
+                </p>
+                <p>
+                    Cloudflare, Stripe and RevenueCat may process data outside
+                    the European Economic Area, including in the United States.
+                    Their transfer arrangements use the EU-US Data Privacy
+                    Framework where applicable and EU Standard Contractual
+                    Clauses for transfers that require those safeguards. The
+                    terms are available in{" "}
+                    <a href="https://www.cloudflare.com/cloudflare-customer-dpa/">
+                        Cloudflare&apos;s Data Processing Addendum
+                    </a>
+                    ,{" "}
                     <a href="https://stripe.com/legal/dpa">
                         Stripe&apos;s Data Processing Agreement
                     </a>
                     , including its{" "}
                     <a href="https://stripe.com/legal/dta">
                         Data Transfers Addendum
+                    </a>
+                    , and{" "}
+                    <a href="https://www.revenuecat.com/dpa">
+                        RevenueCat&apos;s Data Processing Addendum
                     </a>
                     .
                 </p>

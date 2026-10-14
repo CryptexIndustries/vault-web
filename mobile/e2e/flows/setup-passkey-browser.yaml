@@ -1,0 +1,6 @@
+appId: com.android.chrome
+name: Prepare passkey browser
+---
+# Chrome must use the selected Android provider rather than its Google-only
+# legacy FIDO path. Reuse first-run and third-party service configuration.
+- runFlow: setup-browser-autofill.yaml

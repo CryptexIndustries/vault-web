@@ -1,0 +1,30 @@
+appId: ${CRYPTEX_APP_ID}
+name: Chrome autofill after explicit vault lock
+---
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Search your vault
+- tapOn: Lock vault
+- assertVisible: Unlock vault
+- launchApp: com.android.chrome
+- openLink: http://localhost:43110/fresh-login?case=explicit-lock
+- runFlow: autofill-browser-dismiss-tips.yaml
+- assertVisible: Login fields empty
+- tapOn: Username.*
+- tapOn: .*${CRYPTEX_APP_NAME}
+- assertVisible: Master password
+- tapOn: Enter master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: Choose a login
+- assertVisible: Android could not confirm.*browser page and login field.*
+- tapOn: Fixture Login, fixture@example.test.*
+- assertVisible: Review destination
+- tapOn: Fill once
+# Chrome 134 may omit filled page text from accessibility after Autofill.
+# The pinned fixture button submits both fields for exact server verification.
+- tapOn:
+    point: 60%,28%
+- assertVisible: localhost:43110/login/otp\?accepted=1&empty=0

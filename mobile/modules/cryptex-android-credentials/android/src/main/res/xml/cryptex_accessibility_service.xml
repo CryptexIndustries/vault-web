@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewFocused|typeViewAccessibilityFocused|typeViewClicked|typeViewTextChanged|typeWindowContentChanged|typeWindowStateChanged|typeWindowsChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews|flagRequestEnhancedWebAccessibility"
+    android:canRequestEnhancedWebAccessibility="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/cryptex_accessibility_description"
+    android:isAccessibilityTool="false"
+    android:notificationTimeout="100"
+    android:settingsActivity="com.cryptexindustries.vault.MainActivity" />

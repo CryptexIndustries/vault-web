@@ -1,0 +1,65 @@
+appId: ${CRYPTEX_APP_ID}
+name: Chrome login review, cancellation, unlock, and code handoff
+---
+- launchApp: com.android.chrome
+- openLink: http://localhost:43110/fresh-login?case=cancel
+- runFlow: autofill-browser-dismiss-tips.yaml
+- assertVisible: Deterministic login fixture
+- assertVisible: Login fields empty
+- tapOn: Username.*
+- assertVisible: .*${CRYPTEX_APP_NAME}
+- tapOn: .*${CRYPTEX_APP_NAME}
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Android could not confirm.*browser page and login field.*
+- tapOn: Fixture Login, fixture@example.test.*
+- assertVisible: Review destination
+- tapOn: Cancel
+- assertVisible: Choose a login
+- tapOn: Cancel autofill
+- runFlow:
+    when:
+      visible: Chrome
+    commands:
+      - tapOn: Chrome
+# Chrome 134 can omit DOM text from accessibility after returning from Android.
+# Tap the fixture's Sign in button on the pinned 1080x2400 AVD; the server
+# distinguishes both fields empty from a partial or filled form.
+- tapOn:
+    point: 60%,28%
+- assertVisible: localhost:43110/login/otp\?accepted=0&empty=1
+
+# A matching login still needs a separate destination review on this browser.
+- openLink: http://localhost:43110/fresh-login?case=fill
+- runFlow: autofill-browser-dismiss-tips.yaml
+# A prior Android Autofill callback can leave Chrome's form out of its
+# accessibility tree even after a fresh navigation on Chrome 134.
+- tapOn:
+    point: 45%,25%
+- tapOn: .*${CRYPTEX_APP_NAME}
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Android could not confirm.*browser page and login field.*
+- tapOn: Fixture Login, fixture@example.test.*
+- assertVisible: Review destination
+- tapOn: Fill once
+- runFlow:
+    when:
+      visible: Chrome
+    commands:
+      - tapOn: Chrome
+# Chrome can paint filled DOM values while omitting that document from its
+# accessibility tree after the Android Autofill callback. Submit at the same
+# pinned-AVD button coordinate; the fixture checks the actual posted fields.
+- tapOn:
+    point: 60%,28%
+- assertVisible: localhost:43110/login/otp\?accepted=1&empty=0
+
+# Autofill copies the selected login's current verification code by default.
+- tapOn:
+    point: 50%,25%
+- longPressOn:
+    point: 50%,25%
+- tapOn: Paste
+- hideKeyboard
+- tapOn:
+    point: 88%,25%
+- assertVisible: localhost:43110/otp\?accepted=1

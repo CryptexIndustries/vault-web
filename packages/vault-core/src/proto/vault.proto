@@ -136,7 +136,43 @@ message Vault {
     // Cryptex Vault Online Services - server auth (device signing key material); separate from device sync
     optional OnlineServices OnlineServices = 9;
     repeated Directory Directories = 10;
+    // One-time share links this vault created (sender side). Synced.
+    repeated ShareLink ShareLinks = 11;
+    // Which share server this device uses. Device-local, not synced.
+    optional ShareSettings ShareSettings = 12;
 }
+
+//#region ShareLinks
+message ShareLink {
+    // Server-assigned share ID (the <id> in /s/<id>)
+    string ID = 1;
+    // Origin serving /s/<id> and /share-api
+    string ServerOrigin = 2;
+    // Base64url token that proves ownership for status and revoke
+    string ManageToken = 3;
+    // Shared vault item, empty for free text
+    string CredentialID = 4;
+    string Label = 5;
+    int64 CreatedAtTimestamp = 6;
+    int64 ExpiresAtTimestamp = 7;
+    bool Passphrase = 8;
+    // Last status reported by the server ("active", "viewed", ...)
+    string Status = 9;
+    int64 ViewedAtTimestamp = 10;
+
+    string Hash = 11;
+    int32 Version = 12;
+    int64 DateModifiedTimestamp = 13;
+    bool Deleted = 14;
+}
+
+message ShareSettings {
+    // Empty means the Online Services share server
+    string ServerOrigin = 1;
+    // Creation token for a self-hosted share server
+    string CreationToken = 2;
+}
+//#endregion ShareLinks
 
 //#region OnlineServices
 message OnlineServices {
@@ -372,16 +408,19 @@ message SynchronizationEnvelope {
 message SyncHelloMessage {
     repeated VersionVector CredentialVersionVectors = 1;
     repeated VersionVector DirectoryVersionVectors = 2;
+    repeated VersionVector ShareLinkVersionVectors = 3;
 }
 
 message SyncHelloEchoMessage {
     repeated VersionVector CredentialVersionVectors = 1;
     repeated VersionVector DirectoryVersionVectors = 2;
+    repeated VersionVector ShareLinkVersionVectors = 3;
 }
 
 enum SyncItemType {
     CredentialItem = 0;
     DirectoryItem = 1;
+    ShareLinkItem = 2;
 }
 
 message SyncItemReference {
@@ -396,6 +435,7 @@ message SyncDataRequestMessage {
 message SyncDataResponseMessage {
     repeated Credential Credentials = 1;
     repeated Directory Directories = 2;
+    repeated ShareLink ShareLinks = 3;
 }
 //#endregion Synchronization Message
 

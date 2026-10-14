@@ -1,4 +1,15 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { webcrypto } from "node:crypto";
+import { TextEncoder } from "node:util";
+
+Object.defineProperty(globalThis, "crypto", {
+    value: webcrypto,
+    writable: true,
+});
+Object.defineProperty(globalThis, "TextEncoder", {
+    value: TextEncoder,
+    writable: true,
+});
 
 jest.mock("sonner", () => ({
     toast: {
@@ -27,7 +38,11 @@ jest.mock("@cryptex-industries/vault-core/synchronization", () => ({
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { toast } from "sonner";
 import type { VaultMetadata } from "../src/app_lib/vault-utils/storage";
-import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
+import {
+    Directory,
+    Vault,
+    VaultCredential,
+} from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
     createVaultOperations,
     getVaultMetadataLifecycleKey,
@@ -148,7 +163,7 @@ describe("vault dashboard sync controller helpers", () => {
         activeMetadata = vaultB;
         vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
 
-        await operations.updateItems?.([], [credential("from-sync")]);
+        await operations.updateItems?.([], [credential("from-sync")], []);
 
         expect(vaultA.save).not.toHaveBeenCalled();
         expect(vaultB.save).toHaveBeenCalledTimes(1);
@@ -171,7 +186,7 @@ describe("vault dashboard sync controller helpers", () => {
         const operations = createVaultOperations();
 
         await expect(
-            operations.updateItems([], [credential("from-sync")]),
+            operations.updateItems([], [credential("from-sync")], []),
         ).rejects.toThrow("VAULT_SAVE_FAILED");
 
         expect(
@@ -180,7 +195,7 @@ describe("vault dashboard sync controller helpers", () => {
         expect(toast.error).toHaveBeenCalled();
         expect(toast.success).not.toHaveBeenCalled();
 
-        await operations.updateItems([], [credential("from-sync")]);
+        await operations.updateItems([], [credential("from-sync")], []);
         expect(
             vaultStore.get(unlockedVaultAtom).Credentials.map((c) => c.ID),
         ).toContain("from-sync");
@@ -192,7 +207,7 @@ describe("vault dashboard sync controller helpers", () => {
         vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
         const operations = createVaultOperations();
 
-        await operations.updateItems?.([directory("work")], []);
+        await operations.updateItems?.([directory("work")], [], []);
 
         expect(vaultStore.get(unlockedVaultAtom).Directories).toEqual([
             expect.objectContaining({ ID: "work", Name: "Directory work" }),
@@ -203,5 +218,99 @@ describe("vault dashboard sync controller helpers", () => {
             }),
             sessionDEK,
         );
+    });
+
+    it("retains directory constructor defaults for records missing fields at the controller boundary", async () => {
+        vaultStore.set(unlockedVaultMetadataAtom, metadata(1, "vault-a"));
+        const previous = vaultStore.get(unlockedVaultAtom);
+        const current = Object.freeze({
+            ID: "current",
+            Name: "Old",
+        }) as VaultUtilTypes.Directory;
+        const incoming = Object.freeze({
+            ID: "sparse",
+        }) as VaultUtilTypes.Directory;
+        previous.Directories = [current];
+
+        await createVaultOperations().updateItems(
+            [directory("current"), incoming],
+            [],
+            [],
+        );
+
+        const updated = vaultStore.get(unlockedVaultAtom).Directories;
+        expect(updated[0]).toMatchObject({
+            ID: "current",
+            Name: "Directory current",
+            Version: 1,
+        });
+        expect(updated[1]).toBeInstanceOf(Directory);
+        expect(updated[1]).toMatchObject({
+            ID: "sparse",
+            Name: "",
+            Version: 0,
+            Hash: "",
+            Deleted: false,
+            DateModifiedTimestamp: expect.any(Number),
+        });
+        expect(current).toEqual({ ID: "current", Name: "Old" });
+        expect(incoming).toEqual({ ID: "sparse" });
+    });
+
+    it("preserves received hashes and constructor defaults while tombstoning directory credentials on a cloned snapshot", async () => {
+        vaultStore.set(unlockedVaultMetadataAtom, metadata(1, "vault-a"));
+        const previous = vaultStore.get(unlockedVaultAtom);
+        const affected = { ...credential("affected"), DirectoryID: "gone" };
+        previous.Credentials.push(affected);
+        const valid = credential("valid");
+        const missing = { ...credential("missing"), DirectoryID: "missing" };
+        await createVaultOperations().updateItems(
+            [
+                {
+                    ...directory("gone"),
+                    Deleted: true,
+                    DateModifiedTimestamp: 22,
+                },
+            ],
+            [valid, missing],
+            [],
+        );
+
+        const updated = vaultStore.get(unlockedVaultAtom);
+        const received = updated.Credentials.find(
+            (item) => item.ID === "valid",
+        );
+        expect(received).toBeInstanceOf(VaultCredential);
+        expect(received).toMatchObject({
+            Hash: valid.Hash,
+            Tags: "",
+            Deleted: false,
+        });
+        expect(
+            updated.Credentials.find((item) => item.ID === "affected"),
+        ).toMatchObject({
+            Deleted: true,
+            Version: 2,
+            DateModifiedTimestamp: 22,
+            Password: "",
+        });
+        expect(
+            updated.Credentials.find((item) => item.ID === "missing"),
+        ).toMatchObject({
+            Deleted: true,
+            Version: 1,
+            Password: "",
+        });
+        expect(affected).toMatchObject({
+            Deleted: false,
+            Version: 1,
+            Password: "secret",
+        });
+        expect(missing).toMatchObject({
+            Deleted: false,
+            Version: 1,
+            Password: "secret",
+        });
+        expect(updated.Credentials[0]).not.toBe(previous.Credentials[0]);
     });
 });

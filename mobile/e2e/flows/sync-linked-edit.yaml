@@ -1,0 +1,23 @@
+appId: ${CRYPTEX_APP_ID}
+name: Edit a transferred credential on the sending device
+---
+- tapOn:
+    text: Vault
+    below: E2E Receiver.*
+- tapOn: E2E Transfer Login.*
+- tapOn: Edit item
+- tapOn: Credential name
+- eraseText: 100
+- inputText: E2E Updated After Link
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: E2E Updated After Link.*
+- runFlow:
+    file: sync-device-now.yaml
+    env:
+      PEER_NAME: E2E Receiver

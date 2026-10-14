@@ -6,6 +6,8 @@ const extensionModel =
     "https://github.com/CryptexIndustries/vault-web/blob/master/extension/docs/threat-model.md";
 const webModel =
     "https://github.com/CryptexIndustries/vault-web/blob/master/web/threat-model.md";
+const shareServerModel =
+    "https://github.com/CryptexIndustries/vault-web/blob/master/services/cmd/share-server/threat-model.md";
 
 export default function ThreatModel() {
     return (
@@ -35,10 +37,10 @@ export default function ThreatModel() {
             <DocSection id="assets" title="Scope and assumptions">
                 <p>
                     This page summarizes the web application, Chromium
-                    Extension, linked-device connections, and optional Online
-                    Services. Detailed controls, implementation references, and
-                    known limitations remain in the repository documents linked
-                    below.
+                    Extension, linked-device connections, one-time share links,
+                    and optional Online Services. Detailed controls,
+                    implementation references, and known limitations remain in
+                    the repository documents linked below.
                 </p>
                 <p>
                     The protected data includes vault contents, the keys and
@@ -136,6 +138,32 @@ export default function ThreatModel() {
                                     not erase its existing local data.
                                 </td>
                             </tr>
+                            <tr>
+                                <td>Control of a share server</td>
+                                <td>
+                                    Shares are encrypted in the sender&apos;s
+                                    app, and the key stays in the link, which
+                                    browsers never send to the server.
+                                </td>
+                                <td>
+                                    The server sees sizes and timing and can
+                                    delete shares early. It also serves the
+                                    recipient page, so a compromised host can
+                                    change that page.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Someone who gets hold of a share link</td>
+                                <td>
+                                    A link opens once. An optional passphrase,
+                                    sent separately, protects it further, and
+                                    the sender sees when it was opened.
+                                </td>
+                                <td>
+                                    Whoever opens the link first reads the
+                                    secret. Five wrong passphrases destroy it.
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -206,6 +234,19 @@ export default function ThreatModel() {
                         <dd>
                             <a href={webModel}>Web application threat model</a>{" "}
                             in <code>web/threat-model.md</code>.
+                        </dd>
+                    </div>
+                    <div className={t.definition}>
+                        <dt>Share server</dt>
+                        <dd>
+                            <a href={shareServerModel}>
+                                Share server threat model
+                            </a>{" "}
+                            in{" "}
+                            <code>
+                                services/cmd/share-server/threat-model.md
+                            </code>
+                            , covering one-time share links.
                         </dd>
                     </div>
                     <div className={t.definition}>

@@ -1,0 +1,95 @@
+{
+    "reactNativeSkiaVersion": "2.6.2",
+    "reactNativeSkiaCommit": "8fabe1e991ed3059b67af21b131d0647e5b71006",
+    "skia": {
+        "repo": "https://chromium.googlesource.com/skia.git",
+        "commit": "4502f88af90279ad2685528bd3cf7e90ab140f19",
+        "depsSha256": "2f57b9f5f4de2f29b4effd8000e8525503fd25fc92ecaae389a1caef0541075d",
+        "cleanup": [
+            "resources",
+            "infra",
+            "site",
+            "platform_tools",
+            "third_party/vello/Cargo.toml"
+        ]
+    },
+    "gn": {
+        "repo": "https://gn.googlesource.com/gn",
+        "commit": "b2afae122eeb6ce09c52d63f67dc53fc517dbdc8",
+        "cleanup": ["test"]
+    },
+    "dependencies": [
+        {
+            "path": "third_party/externals/dng_sdk",
+            "repo": "https://android.googlesource.com/platform/external/dng_sdk.git",
+            "commit": "dbe0a676450d9b8c71bf00688bb306409b779e90"
+        },
+        {
+            "path": "third_party/externals/expat",
+            "repo": "https://chromium.googlesource.com/external/github.com/libexpat/libexpat.git",
+            "commit": "8e49998f003d693213b538ef765814c7d21abada"
+        },
+        {
+            "path": "third_party/externals/freetype",
+            "repo": "https://chromium.googlesource.com/chromium/src/third_party/freetype2.git",
+            "commit": "b91f75bd02db43b06d634591eb286d3eb0ce3b65"
+        },
+        {
+            "path": "third_party/externals/harfbuzz",
+            "repo": "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git",
+            "commit": "31695252eb6ed25096893aec7f848889dad874bc",
+            "cleanup": [
+                "src/rust",
+                "src/wasm/rust",
+                "src/wasm/sample/rust",
+                "test"
+            ]
+        },
+        {
+            "path": "third_party/externals/icu",
+            "repo": "https://chromium.googlesource.com/chromium/deps/icu.git",
+            "commit": "364118a1d9da24bb5b770ac3d762ac144d6da5a4",
+            "cleanup": ["source/test", "common/icudtl.dat", "icudtl.dat"]
+        },
+        {
+            "path": "third_party/externals/libjpeg-turbo",
+            "repo": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git",
+            "commit": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad"
+        },
+        {
+            "path": "third_party/externals/libpng",
+            "repo": "https://skia.googlesource.com/third_party/libpng.git",
+            "commit": "4e3f57d50f552841550a36eabbb3fbcecacb7750"
+        },
+        {
+            "path": "third_party/externals/libwebp",
+            "repo": "https://chromium.googlesource.com/webm/libwebp.git",
+            "commit": "845d5476a866141ba35ac133f856fa62f0b7445f",
+            "cleanup": [
+                "build.gradle",
+                "swig/libwebp.jar",
+                "gradle/wrapper",
+                "gradlew",
+                "gradlew.bat"
+            ]
+        },
+        {
+            "path": "third_party/externals/piex",
+            "repo": "https://android.googlesource.com/platform/external/piex.git",
+            "commit": "bb217acdca1cc0c16b704669dd6f91a1b509c406"
+        },
+        {
+            "path": "third_party/externals/wuffs",
+            "repo": "https://skia.googlesource.com/external/github.com/google/wuffs-mirror-release-c.git",
+            "commit": "e3f919ccfe3ef542cfc983a82146070258fb57f8"
+        },
+        {
+            "path": "third_party/externals/zlib",
+            "repo": "https://chromium.googlesource.com/chromium/src/third_party/zlib",
+            "commit": "646b7f569718921d7d4b5b8e22572ff6c76f2596",
+            "cleanup": ["google/test"]
+        }
+    ],
+    "packageCmakeSha256": "1c43862bdc0fbe880445741a04c4c2c05d218a9a672e79e1e685b5d83fc65b85",
+    "upstreamConfigurationSha256": "4753bf64fdf498019a665dff7bed6b7400377f0edad70d91e9017e92578bf94b"
+}

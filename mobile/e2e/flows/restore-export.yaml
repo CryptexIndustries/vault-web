@@ -1,0 +1,60 @@
+appId: ${CRYPTEX_APP_ID}
+name: Restore the actual encrypted export into a clean installation
+---
+- clearState
+- launchApp
+- assertVisible: Vault name
+- tapOn: Restore backup
+- runFlow:
+    when:
+      notVisible: Choose .cryx backup file
+    commands:
+      - tapOn: Restore backup
+- tapOn: Choose .cryx backup file
+- runFlow:
+    file: pick-exported-file.yaml
+    env:
+      EXPORTED_FILE: e2e-export.cryx
+- assertVisible: After restore, unlock with the existing master password.*
+- tapOn: Restored vault name
+- eraseText: 100
+- inputText: E2E Restored Vault
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: restore-vault
+    direction: DOWN
+- tapOn:
+    id: restore-vault
+- assertVisible: Backup restored. Unlock it to continue.
+- extendedWaitUntil:
+    visible: Master password
+    timeout: 10000
+- tapOn: Master password
+- inputText: WrongPassword42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: That password could not unlock this vault. Check it and try again.
+- assertNotVisible: E2E Transfer Login.*
+- tapOn: Master password
+- eraseText: 100
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: E2E Transfer Login.*
+- tapOn: E2E Transfer Login.*
+- assertVisible: transfer@example.test
+- assertVisible: https://transfer.example.test/login.*
+- tapOn: Reveal Password
+- assertVisible: transfer-password-42
+- tapOn: Back
+- stopApp
+- launchApp
+- tapOn: Master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: E2E Transfer Login.*

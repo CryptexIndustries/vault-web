@@ -1,0 +1,39 @@
+appId: ${CRYPTEX_APP_ID}
+name: Import the actual readable export into a separate empty vault
+---
+- runFlow: setup-vault.yaml
+- tapOn: More
+- tapOn: Import / Export.*
+- tapOn: Import passwords.*
+- tapOn: Cryptex Vault JSON
+- scrollUntilVisible:
+    element:
+      text: Continue
+    direction: DOWN
+- tapOn: Continue
+- tapOn:
+    text: Choose import file
+    below: Import from Cryptex Vault JSON
+- runFlow:
+    file: pick-exported-file.yaml
+    env:
+      EXPORTED_FILE: e2e-export.json
+- assertVisible: Ready to import
+- assertVisible: New logins
+- scrollUntilVisible:
+    element:
+      text: Import 1 login
+    direction: DOWN
+- tapOn: Import 1 login
+- assertVisible: Imported 1 credentials.*
+- pressKey: Back
+- pressKey: Back
+- tapOn:
+    text: Vault
+    below: Import / Export.*
+- assertVisible: E2E Transfer Login.*
+- tapOn: E2E Transfer Login.*
+- assertVisible: transfer@example.test
+- assertVisible: https://transfer.example.test/login.*
+- tapOn: Reveal Password
+- assertVisible: transfer-password-42

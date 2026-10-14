@@ -1,0 +1,5 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- tapOn: Capture E2E export
+- assertVisible: E2E export captured.*
+- tapOn: Return to vault

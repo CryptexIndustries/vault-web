@@ -1,0 +1,9 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - warm vault OTP-only request
+---
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- assertVisible: Search your vault
+- clearState: com.cryptex.autofillfixture
+- launchApp: com.cryptex.autofillfixture
+- tapOn: Accessibility login
+- tapOn: Verification code

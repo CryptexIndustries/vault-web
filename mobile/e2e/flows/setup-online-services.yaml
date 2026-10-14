@@ -1,0 +1,39 @@
+appId: ${CRYPTEX_APP_ID}
+name: Register disposable Online Services account
+---
+- runFlow: setup-vault.yaml
+- tapOn: Account
+- assertVisible: Get Online Services
+- tapOn: Get Online Services
+- assertVisible: Billing interval
+- tapOn: Yearly,.*
+- tapOn: Continue
+- assertVisible: Save your Recovery Kit
+- assertVisible: Hide phrase
+- tapOn: Hide phrase
+- assertVisible: Reveal recovery phrase
+- tapOn: Reveal recovery phrase
+- assertVisible: Hide phrase
+- scrollUntilVisible:
+      element:
+          text: Copy Recovery Kit
+      direction: DOWN
+- tapOn: Copy Recovery Kit
+- runFlow:
+      when:
+          visible:
+              id: com.android.systemui:id/dismiss_button
+      commands:
+          - tapOn:
+                id: com.android.systemui:id/dismiss_button
+- scrollUntilVisible:
+      element:
+          text: I've saved my kit. Continue to payment
+      direction: DOWN
+- tapOn: I've saved my kit. Continue to payment
+# New fixture accounts are on the free plan, so signup opens the synthetic hosted
+# checkout. Requesting it marks the account paid; no Stripe payment runs.
+- assertVisible: .*checkout.stripe.com/c/pay/cs_test_cryptex_fixture_premiumYearly.*
+- launchApp:
+      stopApp: false
+- assertVisible: Manage billing

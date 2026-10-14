@@ -1,0 +1,124 @@
+appId: ${CRYPTEX_APP_ID}
+name: Device and connection sheets, map legend and tab navigation
+---
+- extendedWaitUntil:
+    notVisible:
+      id: device-map-loading
+    timeout: 15000
+- assertVisible:
+    id: device-view-map
+    selected: true
+- tapOn:
+    id: device-map-legend
+- assertVisible: Reading the map
+- assertVisible: Connected
+- assertVisible: Disconnected
+- assertVisible: Status unknown
+- assertVisible: Custom signaling
+- assertNotVisible: Focus selected
+- assertNotVisible: Got it
+- assertVisible:
+    id: device-map-animation
+    checked: true
+- tapOn:
+    id: device-map-animation
+- assertVisible:
+    id: device-map-animation
+    checked: false
+- tapOn:
+    id: device-map-animation
+- tapOn: Close map legend
+# The default selection is the current device. It has no relative sync activity.
+- tapOn:
+    id: device-selection-details
+- assertVisible: Device details
+- assertVisible: Current device
+- assertVisible:
+    id: device-last-seen
+- assertNotVisible:
+    id: device-last-sync
+- assertNotVisible:
+    id: device-remove-account
+- pressKey: Back
+- assertNotVisible: Device details
+- assertVisible:
+    id: device-view-map
+    selected: true
+- tapOn:
+    id: device-view-list
+- assertVisible:
+    id: device-view-list
+    selected: true
+- assertNotVisible:
+    id: device-selection-details
+- tapOn:
+    id: device-row-e2e-peer-.*
+- assertVisible: Device details
+- assertVisible: Registered with Online Services
+- assertVisible:
+    id: device-last-seen
+- assertVisible:
+    id: device-last-sync
+    text: Unavailable in this vault
+# A recorded account relationship does not invent live status or local controls.
+- tapOn:
+    id: device-connection-server:e2e-sync-.*
+- assertVisible: Connection
+- assertNotVisible:
+    id: device-detail-sync
+- assertNotVisible:
+    id: device-sync-settings
+- tapOn:
+    id: device-link-information
+- assertVisible: Created
+- assertVisible: Relationship ID
+- assertVisible: e2e-sync-.*
+- tapOn:
+    id: device-unlink
+- assertVisible:
+    id: device-unlink-scope-connection
+    selected: true
+- assertVisible:
+    id: device-unlink-scope-device
+    selected: false
+- tapOn:
+    id: device-unlink-scope-device
+- assertVisible:
+    id: device-unlink-scope-device
+    selected: true
+- assertVisible:
+    id: device-unlink-scope-connection
+    selected: false
+- assertVisible: Remove from Online Services
+- tapOn:
+    id: device-unlink-scope-connection
+- assertVisible:
+    id: device-unlink-scope-connection
+    selected: true
+- assertVisible:
+    id: device-unlink-scope-device
+    selected: false
+- assertVisible: Unlink devices
+- tapOn:
+    id: device-cancel-unlink
+- assertVisible: Connection
+- tapOn:
+    id: device-unlink
+- tapOn:
+    id: device-detail-back
+- assertVisible: Connection
+- tapOn:
+    id: device-close-details
+- assertVisible:
+    id: device-row-e2e-peer-.*
+- tapOn:
+    id: device-view-map
+- assertNotVisible:
+    id: device-row-e2e-peer-.*
+- tapOn:
+    id: device-selection-details
+- assertVisible: Connection
+- tapOn:
+    id: device-close-details
+- tapOn:
+    id: device-view-list

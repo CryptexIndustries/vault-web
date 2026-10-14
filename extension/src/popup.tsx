@@ -62,6 +62,8 @@ const openFullPageTab = () => {
     });
 };
 
+const UNLOCKED_VAULT_METADATA_KEY = "UVM";
+
 type BgState = {
     unlocked: boolean;
     metadata: { id?: number; name: string } | null;
@@ -215,6 +217,25 @@ const App = () => {
             await fetchState();
         })();
     }, [serverPublicKey, requestServerPublicKey, handleStaleKeyError]);
+
+    // The worker can lock without this page asking (idle lock, another
+    // popup or tab). A full-page tab stays open, so follow the session key.
+    useEffect(() => {
+        const onStorageChanged = (
+            changes: Record<string, chrome.storage.StorageChange>,
+            areaName: string,
+        ) => {
+            if (
+                areaName === "session" &&
+                UNLOCKED_VAULT_METADATA_KEY in changes &&
+                !changes[UNLOCKED_VAULT_METADATA_KEY].newValue
+            ) {
+                setBg({ unlocked: false, metadata: null });
+            }
+        };
+        chrome.storage.onChanged.addListener(onStorageChanged);
+        return () => chrome.storage.onChanged.removeListener(onStorageChanged);
+    }, []);
 
     useEffect(() => {
         if (!bg.unlocked) {

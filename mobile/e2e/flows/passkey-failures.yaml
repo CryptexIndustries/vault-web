@@ -1,0 +1,30 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android passkey duplicate and cancellation handling
+---
+- openLink: http://localhost:43110/passkeys
+- assertVisible: Deterministic passkey fixture
+- tapOn: Try duplicate account A
+- runFlow:
+    when:
+      visible: Continue
+    commands:
+      - tapOn: Continue
+- assertVisible: Create passkey
+- tapOn: Create and save
+- assertVisible: "Duplicate rejected: InvalidStateError"
+
+- tapOn: Start cancellable create
+- runFlow:
+    when:
+      visible: Continue
+    commands:
+      - tapOn: Continue
+- assertVisible: Create passkey
+- tapOn: Cancel
+- runFlow:
+    when:
+      visible: Close
+    commands:
+      - tapOn: Close
+- assertVisible: "Create cancelled: .*Error"
+- pressKey: back

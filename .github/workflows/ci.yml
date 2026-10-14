@@ -50,6 +50,24 @@ jobs:
             - name: Test web client
               run: pnpm exec jest web/tests --runInBand
 
+    services-quality:
+        name: Go services quality
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        container:
+            image: golang:1.26@sha256:d7722066f0b60ceccb6c0643cbed1f5f9e15506ac237146c95333504d7805d89
+        defaults:
+            run:
+                working-directory: services
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Check formatting
+              run: test -z "$(gofmt -l .)"
+            - name: Vet Go services
+              run: go vet ./...
+            - name: Test Go services
+              run: go test -race ./...
+
     extension-quality:
         name: Extension quality
         runs-on: ubuntu-latest
@@ -68,60 +86,9 @@ jobs:
             - name: Type-check extension
               run: pnpm --filter extension lint-tsc
             - name: Test production configuration validation
-              run: pnpm exec jest extension/tests/production-env.test.ts --runInBand
-
-    extension-package:
-        name: Chromium extension package
-        needs: [lockfile, extension-quality]
-        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'extension-')
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
-        steps:
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-              with:
-                  node-version: 24.16.0
-            - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
-            - name: Install frozen lockfile
-              run: pnpm install --frozen-lockfile
-            - name: Build production extension
-              env:
-                  VITE_APP_URL: ${{ vars.VITE_APP_URL }}
-                  VITE_PUSHER_APP_ID: ${{ vars.VITE_PUSHER_APP_ID }}
-                  VITE_PUSHER_APP_KEY: ${{ vars.VITE_PUSHER_APP_KEY }}
-                  VITE_PUSHER_APP_HOST: ${{ vars.VITE_PUSHER_APP_HOST }}
-                  VITE_PUSHER_APP_PORT: ${{ vars.VITE_PUSHER_APP_PORT || '443' }}
-                  VITE_PUSHER_APP_TLS: ${{ vars.VITE_PUSHER_APP_TLS || 'true' }}
-                  VITE_ONLINE_SERVICES_API_URL: ${{ vars.VITE_ONLINE_SERVICES_API_URL }}
-                  VITE_CLOUD_ENABLED: ${{ vars.VITE_CLOUD_ENABLED || 'true' }}
-                  VITE_EXTENSION_NAME_PREFIX: ${{ vars.VITE_EXTENSION_NAME_PREFIX }}
-              run: pnpm build:ext
-            - name: Create extension ZIP
-              id: package
-              working-directory: extension/dist
-              shell: bash
               run: |
-                  test -f manifest.json
-                  if find . -name '*.map' -print -quit | grep -q .; then
-                    echo "Production extension must not contain source maps" >&2
-                    exit 1
-                  fi
-                  tag="${GITHUB_REF_NAME//[^a-zA-Z0-9._-]/-}"
-                  name="cryptex-vault-chromium-${tag}"
-                  archive="${RUNNER_TEMP}/${name}.zip"
-                  zip -X -q -r "$archive" .
-                  unzip -tq "$archive"
-                  echo "name=${name}" >> "$GITHUB_OUTPUT"
-                  echo "path=${archive}" >> "$GITHUB_OUTPUT"
-            - name: Upload extension ZIP
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: ${{ steps.package.outputs.name }}
-                  path: ${{ steps.package.outputs.path }}
-                  if-no-files-found: error
-                  compression-level: 0
-                  retention-days: 30
+                  node --test extension/scripts/release-config.test.mjs
+                  pnpm exec jest extension/tests/production-env.test.ts --runInBand
 
     # Temporarily disabled
     web-e2e:
@@ -227,18 +194,20 @@ jobs:
                   repository="${GITHUB_REPOSITORY,,}"
                   image="ghcr.io/${repository}"
 
+                  tag=""
+                  if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+                    tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
+                    tag="${tag:0:128}"
+                    if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
+                      tag="tag-${tag:0:124}"
+                    fi
+                  fi
+
                   {
                     echo "name=${image}"
                     echo "tags<<EOF"
                     echo "${image}:${GITHUB_SHA}"
-                    if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-                      tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
-                      tag="${tag:0:128}"
-                      if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
-                        tag="tag-${tag:0:124}"
-                      fi
-                      echo "${image}:${tag}"
-                    fi
+                    if [[ -n "${tag}" ]]; then echo "${image}:${tag}"; fi
                     echo "EOF"
                   } >> "$GITHUB_OUTPUT"
 
@@ -274,3 +243,70 @@ jobs:
                       org.opencontainers.image.revision=${{ github.sha }}
                   cache-from: type=gha,scope=web-production
                   cache-to: type=gha,mode=max,scope=web-production
+
+    share-server-image:
+        name: Share server container image
+        needs: [services-quality]
+        # Released on its own tags so web releases never restart it.
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'share-server-v')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Derive lowercase GHCR image name and tags
+              id: image
+              shell: bash
+              run: |
+                  repository="${GITHUB_REPOSITORY,,}"
+                  image="ghcr.io/${repository}/share-server"
+
+                  # share-server-v1.2.3 publishes the image tag v1.2.3.
+                  version="${GITHUB_REF_NAME#share-server-}"
+                  if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+                    echo "Release tags look like share-server-v1.2.3 or share-server-v1.2.3-rc1, not ${GITHUB_REF_NAME}" >&2
+                    exit 1
+                  fi
+
+                  {
+                    echo "name=${image}"
+                    echo "tags<<EOF"
+                    echo "${image}:${GITHUB_SHA}"
+                    echo "${image}:${version}"
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Validate Docker Swarm stack
+              env:
+                  SHARE_IMAGE: ${{ steps.image.outputs.name }}:${{ github.sha }}
+              run: |
+                  if env -u SHARE_IMAGE docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null 2>&1; then
+                    echo "services/cmd/share-server/compose.swarm.yaml must reject a missing SHARE_IMAGE" >&2
+                    exit 1
+                  fi
+                  docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and publish share server image
+              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              with:
+                  context: services
+                  file: services/cmd/share-server/Dockerfile
+                  push: true
+                  tags: ${{ steps.image.outputs.tags }}
+                  labels: |
+                      org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                  cache-from: type=gha,scope=share-server-production
+                  cache-to: type=gha,mode=max,scope=share-server-production

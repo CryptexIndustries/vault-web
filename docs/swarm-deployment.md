@@ -4,6 +4,9 @@ The Swarm stack runs the web client as a single service and publishes it on
 port `3000`. It includes a health check, rolling updates, and automatic rollback
 when an update fails.
 
+The share server behind one-time share links runs in a stack of its own, so web
+releases never restart it. See [Share server stack](#share-server-stack).
+
 ## Before you start
 
 You need:
@@ -65,6 +68,8 @@ Security Policy.
 | `NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID`       | Stripe premium product ID                           |
 | `NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID` | Stripe monthly price ID                             |
 | `NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID`  | Stripe yearly price ID                              |
+| `SHARE_SERVER_INTERNAL_URL`                   | Share server address; defaults to the share stack   |
+| `STACK_NAME`                                  | Prefix of the shared network name                   |
 
 For a local-only deployment, the defaults in `compose.swarm.yaml` are enough.
 For a cloud-connected deployment, set the real Turnstile, Pusher, Stripe, API,
@@ -133,9 +138,18 @@ export NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID="<stripe-yearly-price-id>"
 
 ### 3. Validate and deploy
 
+The web stack joins the external overlay network
+`${STACK_NAME}_cryptex-vault-network`, which it shares with the share server
+stack. `STACK_NAME` defaults to `cryptex-vault-frontend`. Use the same value
+for both stacks. If the network doesn't exist yet, create it once:
+
+```bash
+docker network create --driver overlay cryptex-vault-frontend_cryptex-vault-network
+```
+
 ```bash
 docker stack config -c compose.swarm.yaml >/dev/null
-docker stack deploy --with-registry-auth -c compose.swarm.yaml cryptex-vault-web
+docker stack deploy --with-registry-auth -c compose.swarm.yaml cryptex-vault-frontend
 ```
 
 For a local test with a local image, make sure the image exists on every node
@@ -146,9 +160,9 @@ The app is available at `http://<swarm-node>:3000` once the service is healthy.
 ### 4. Check the rollout
 
 ```bash
-docker stack services cryptex-vault-web
-docker service ps cryptex-vault-web_web --no-trunc
-docker service logs cryptex-vault-web_web
+docker stack services cryptex-vault-frontend
+docker service ps cryptex-vault-frontend_web --no-trunc
+docker service logs cryptex-vault-frontend_web
 ```
 
 ## Deploy an update
@@ -157,3 +171,123 @@ Point `APP_IMAGE` at the new SHA or release tag, then run the same
 `docker stack deploy` command again. Swarm updates one task at a time and starts
 the replacement before stopping the old task. A failed update rolls back
 automatically.
+
+## Share server stack
+
+`services/cmd/share-server/compose.swarm.yaml` runs `share`, the open-source server behind
+one-time share links. It holds only encrypted contents and token hashes, in
+SQLite on the `share_data` volume. SQLite has one writer, so the stack runs one
+replica with `stop-first` updates on a single labelled node.
+
+The web container forwards `/share-api/*` to it over the network both stacks
+share, so the share server needs no published port or proxy rule of its own.
+
+### Networks and node
+
+The share stack joins two existing external overlay networks:
+
+| Network                                       | Shared with           | Used for                        |
+| --------------------------------------------- | --------------------- | ------------------------------- |
+| `${STACK_NAME}_cryptex-vault-network`         | Web stack             | `/share-api/*` from the web app |
+| `${METRICS_STACK_NAME}_cryptex-vault-metrics` | Online Services stack | `/metrics` scrapes by Alloy     |
+
+`STACK_NAME` defaults to `cryptex-vault-frontend` and must match the value used
+for the web stack. `METRICS_STACK_NAME` defaults to `cryptex`. Without the
+Online Services stack, create the metrics network yourself:
+
+```bash
+docker network create --driver overlay cryptex_cryptex-vault-metrics
+```
+
+Pin the share server to one node, because the volume lives there. Moving it
+would start with an empty database and break every open link:
+
+```bash
+docker node update --label-add cryptex-vault.share=true <node>
+```
+
+### Image tags
+
+The share server is released separately from the web app. Push a
+`share-server-v*` tag, such as `share-server-v1.0.0`, and CI publishes:
+
+```text
+ghcr.io/cryptexindustries/vault-web/share-server:v1.0.0
+ghcr.io/cryptexindustries/vault-web/share-server:<commit-sha>
+```
+
+The tag must look like `share-server-v1.2.3` or `share-server-v1.2.3-rc1`. The
+job fails on anything else. The Go quality checks must pass first, and `web-v*`
+tags don't publish this image.
+
+### Configuration
+
+`docker stack deploy` does not read a `.env` file, so export these before
+deploying. Keep them separate from the web stack's variables.
+
+| Variable                     | What it controls                                                       |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `SHARE_IMAGE`                | Required. Exact share server image tag                                 |
+| `SHARE_AUTH`                 | `token` (default) or `ticket` for Online Services subscriber tickets   |
+| `SHARE_CREATION_TOKENS`      | Comma-separated creation tokens, 32+ characters each (`token` mode)    |
+| `SHARE_CREATION_TOKENS_FILE` | Path to a file with the tokens, such as a Swarm secret                 |
+| `NEXT_PUBLIC_APP_URL`        | Public web origin; tickets must name it (`ticket` mode)                |
+| `SHARE_TICKET_AUDIENCE`      | Overrides `NEXT_PUBLIC_APP_URL` as the ticket audience                 |
+| `SHARE_TICKET_PUBLIC_KEYS`   | `<kid>:<base64 ML-DSA-65 public key>`, comma-separated (`ticket` mode) |
+| `SHARE_CLIENT_IP_HEADER`     | Header with the real client address; defaults to `X-Forwarded-For`     |
+| `SHARE_TRUSTED_PROXY_HOPS`   | Proxies that append to that header; defaults to `1`                    |
+| `SHARE_METRICS_ADDR`         | Metrics listener; defaults to `:9090`, `off` turns it off              |
+| `STACK_NAME`                 | Shared network prefix; same value as the web stack                     |
+| `METRICS_STACK_NAME`         | Online Services stack name; defaults to `cryptex`                      |
+
+In `ticket` mode the server reduces the audience to an origin, so a trailing
+slash or path doesn't matter, and it refuses to start if neither variable holds
+an `http(s)` URL. Use the same value as the web stack's `NEXT_PUBLIC_APP_URL`.
+
+Rate limits are per client address. Each proxy appends the address it saw
+to `X-Forwarded-For`, and the web container passes the header through
+unchanged. The share server counts `SHARE_TRUSTED_PROXY_HOPS` entries from the
+right and ignores anything a client wrote further left. With one HTTPS proxy,
+keep the default of `1`, and add one per extra proxy in the chain. Behind
+Cloudflare, set `SHARE_CLIENT_IP_HEADER=CF-Connecting-IP`.
+
+The proxy must also offer the hybrid post-quantum key exchange X25519MLKEM768.
+Cloudflare, current Caddy and any proxy built with Go 1.24 or later do this by
+default.
+
+Prefer a Swarm secret for creation tokens:
+
+```bash
+openssl rand -hex 32 | docker secret create share_creation_tokens -
+export SHARE_CREATION_TOKENS_FILE=/run/secrets/share_creation_tokens
+```
+
+Then add the secret to the `share` service in a local override file. Tickets
+need no secret on this side: the share server only holds the API's public key.
+
+### Metrics
+
+The share server serves Prometheus metrics at `/metrics` on port `9090`, a
+listener separate from the API. The port is never published, and the web
+container only forwards `/share-api/*`, so the endpoint is reachable only from
+containers on the share server's two networks. Alloy scrapes it on the metrics
+network.
+
+Metrics count requests by route and status, created, opened, revoked, burned
+and expired shares, wrong passphrases, rate-limit hits, refused creates by
+reason, sweeper runs, stored shares by status and the database size, plus Go
+runtime and process metrics. They never include share IDs, account subjects or
+client addresses. Set `SHARE_METRICS_ADDR=off` to turn them off.
+
+### Deploy and update
+
+```bash
+export SHARE_IMAGE="ghcr.io/cryptexindustries/vault-web/share-server:v1.0.0"
+docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null
+docker stack deploy --with-registry-auth -c services/cmd/share-server/compose.swarm.yaml cryptex-vault-services
+docker service logs cryptex-vault-services_share
+```
+
+To update, point `SHARE_IMAGE` at the new tag and run the same deploy command.
+Swarm stops the old task before starting the new one, so share links are
+unavailable for a few seconds.

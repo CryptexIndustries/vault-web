@@ -1,0 +1,105 @@
+{
+  "@react-native-async-storage/async-storage@2.2.0": {
+    "path": "android/build.gradle",
+    "sha256": "826031d60840ad58b5d8fda29aa7c6f8c1906afb9aace90fd0c33870c07c8d2f",
+    "preparedSha256": "689f655d31cfee013d2cf665d54467022fecce7161ee4180d27ceb9cbba266c2",
+    "remove": [
+      "    maven {\n        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n        url \"${project.ext.resolveModulePath(\"react-native\")}/android\"\n    }\n"
+    ]
+  },
+  "react-native-safe-area-context@5.7.0": {
+    "path": "android/build.gradle",
+    "sha256": "46ddf952d5733a4f0e08f5dd3291eabc4a7c01632d71936ebfff25a38f42d244",
+    "preparedSha256": "2d139a8aae5ac833284b49e549d74fffd95fe47f0c03b26609487a0a5111736a",
+    "remove": [
+      "    maven {\n        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n        url \"$rootDir/../node_modules/react-native/android\"\n    }\n"
+    ]
+  },
+  "expo-modules-core@57.0.14": {
+    "path": "android/ExpoModulesCorePlugin.gradle",
+    "sha256": "f98d43a447043d50d4b4865fcd792d0734600136f0029fc05cbe92fdc9f81a16",
+    "preparedSha256": "eb5a539cfbb47bce9ffc8fb9a0713616910e598d3db462acba9632bc35014ba5",
+    "remove": [
+      "        maven {\n          url = mavenLocal().url\n        }\n"
+    ]
+  },
+  "react-native-screens@4.26.2": {
+    "path": "android/build.gradle",
+    "sha256": "4105793906ef8974c46ede9a5ffd893177d2d623413fbb1c6898a50df7c31232",
+    "preparedSha256": "a39046fc8c78b7b9791ccc69ce7ed1cd786014d78dccdc36ac7110bc45a772a7",
+    "remove": [
+      "    maven {\n        url \"${reactNativeRootDir}/android\"\n    }\n",
+      "    mavenLocal()\n"
+    ]
+  },
+  "react-native-get-random-values@1.11.0": {
+    "path": "android/build.gradle",
+    "sha256": "4e189be3357a8973f433441f794407bc495935ae1338640c7fdd3734565cf3e7",
+    "preparedSha256": "9b240f09ef88179ded24d2f3498e37410e717db8216144224be61d1d87c6a29b",
+    "remove": [
+      "    maven {\n        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n        url \"$rootDir/../node_modules/react-native/android\"\n    }\n"
+    ]
+  },
+  "@react-native-masked-view/masked-view@0.3.2": {
+    "path": "android/build.gradle",
+    "sha256": "fd3425332f42fae652cb6a699f9b4225f863984ed5c3a926b793a5d30ba221b8",
+    "preparedSha256": "edb777a9a72cbf19ddc9d917b3e20a4a0153ed5814c2b4c5304212ff370603c9",
+    "remove": [
+      "  maven {\n    // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n    url \"$rootDir/../node_modules/react-native/android\"\n  }\n"
+    ]
+  },
+  "expo-dev-menu@57.0.16": {
+    "path": "android/build.gradle",
+    "sha256": "f3cfc024978d7cfb2b1adcf8359f61245976677b04149fc1eabea9392921e851",
+    "preparedSha256": "3ae5bd3db9f67ed004fe3006946062212a3a2d198f49493311bde0608cc6ddc9",
+    "remove": [
+      "  mavenLocal()\n",
+      "  maven {\n    // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n    url \"$rootDir/../node_modules/react-native/android\"\n  }\n",
+      "  maven {\n    // Android JSC is installed from npm\n    url \"$rootDir/../node_modules/jsc-android/dist\"\n  }\n"
+    ]
+  },
+  "react-native-svg@15.15.4": {
+    "path": "android/build.gradle",
+    "sha256": "323c0f746493030f8382d73eb7d2ede7abdfdbe9c7fc4227516526194432eb75",
+    "preparedSha256": "cf56fb657e7c48e960eb4e54c9f818330df055160abd0061cddefe9994c8fded",
+    "remove": [
+      "    mavenLocal()\n",
+      "    maven {\n        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n        url \"$rootDir/../node_modules/react-native/android\"\n    }\n"
+    ]
+  },
+  "react-native@0.86.0": {
+    "path": "ReactAndroid/publish.gradle",
+    "sha256": "d263ed9139d97bcfeb4e5995455f67c0d602265126acb91bf17e8a356acf6149",
+    "preparedSha256": "b4e16d447c35342c46538ab3ccc0efa23af695b11b94bcdcd7c69a26dc79a10b",
+    "remove": [
+      "        maven {\n            name = \"mavenTempLocal\"\n            url = mavenTempLocalUrl\n        }\n"
+    ]
+  },
+  "@react-native-community/netinfo@12.0.1": {
+    "path": "android/build.gradle",
+    "sha256": "d5f883894b2b1c46dec90199f5193abac04796bff3760ecfd12c730a7581af6b",
+    "preparedSha256": "c2537af1972eeb41a3785560c7be3fa058109ec4fb4cc7a161841646b852faeb",
+    "remove": [
+      "  maven {\n    // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n\n    // Use node resolver to locate react-native package\n    def reactNativePackage = file([\"node\", \"--print\", \"require.resolve('react-native/package.json')\"].execute(null, rootDir).text.trim())\n    if (reactNativePackage.exists()) {\n      url \"$reactNativePackage.parentFile/android\"\n    }\n    // Fallback to react-native package colocated in node_modules\n    else {\n      url \"$rootDir/../node_modules/react-native/android\"\n    }\n  }\n",
+      "  mavenLocal()\n"
+    ]
+  },
+  "react-native-webview@13.16.1": {
+    "path": "android/build.gradle",
+    "sha256": "2452d9996cc54919f3109812db1ffab9cee32fbe53405b459a5dcb3cb4a1dda7",
+    "preparedSha256": "5e9027615ea98386b8bda6449deded5737407811e3a12130b0b7993abf0d5826",
+    "remove": [
+      "    maven {\n        url \"${reactNativePath}/android\"\n    }\n"
+    ]
+  },
+  "expo-dev-launcher@57.0.16": {
+    "path": "android/build.gradle",
+    "sha256": "62839b8c3ec7c3f53101013ea459e539ff115b1c2ed48c81a8adcdee1354ee74",
+    "preparedSha256": "f93f65852afd932965d86b96b9fb63bb5d97ab2bc3ddc55bb2f7c045a4ddf954",
+    "remove": [
+      "  mavenLocal()\n",
+      "  maven {\n    // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm\n    url \"$rootDir/../node_modules/react-native/android\"\n  }\n",
+      "  maven {\n    // Android JSC is installed from npm\n    url \"$rootDir/../node_modules/jsc-android/dist\"\n  }\n"
+    ]
+  }
+}

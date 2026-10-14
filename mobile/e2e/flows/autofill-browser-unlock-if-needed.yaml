@@ -1,0 +1,25 @@
+appId: ${CRYPTEX_APP_ID}
+---
+# A deep link can briefly show the locked view before an existing vault
+# session resumes. Let the destination settle before deciding to type.
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      visible: Enter master password
+    commands:
+      - tapOn: Enter master password
+      # A pending browser handoff can restore the unlocked screen between
+      # focus and typing. Never type the master password after it disappears.
+      - runFlow:
+          when:
+            visible: Enter master password
+          commands:
+            - inputText: CorrectHorseBatteryStaple42
+            - hideKeyboard
+            - runFlow:
+                when:
+                  visible: Unlock vault
+                commands:
+                  - tapOn:
+                      id: unlock-vault

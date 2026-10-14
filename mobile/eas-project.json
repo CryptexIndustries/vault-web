@@ -1,0 +1,17 @@
+{
+  "projectId": "1468ae8c-1717-4e82-a753-29e57f534e7f",
+  "owner": "cryptex-industries",
+  "slug": "cryptex-vault",
+  "profiles": {
+    "production": {
+      "certificate": "config/ota-certificates/production.pem",
+      "keyId": "production",
+      "sha256": null
+    },
+    "preprod": {
+      "certificate": "config/ota-certificates/preprod.pem",
+      "keyId": "preprod",
+      "sha256": null
+    }
+  }
+}

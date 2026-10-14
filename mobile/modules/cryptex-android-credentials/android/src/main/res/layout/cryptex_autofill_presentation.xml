@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minHeight="48dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="8dp">
+
+    <ImageView
+        android:id="@+id/cryptex_autofill_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="10dp"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_cryptex_brand" />
+
+    <TextView
+        android:id="@+id/cryptex_autofill_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="2"
+        android:text="Open Cryptex Vault"
+        android:textAppearance="?android:attr/textAppearanceListItemSmall"
+        android:textColor="?android:attr/textColorPrimary" />
+</LinearLayout>

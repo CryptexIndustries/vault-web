@@ -1,0 +1,14 @@
+// Test-only entry point and application ID. No route or test switch in the app.
+gradle.beforeProject { app ->
+    if (app.path == ':app') {
+        app.plugins.withId('com.android.application') {
+            app.extensions.getByName('androidComponents').finalizeDsl { android ->
+                android.defaultConfig.applicationId = 'com.cryptex.vault.cryptotest'
+            }
+        }
+        app.afterEvaluate {
+            app.extensions.getByName('react').entryFile.set(
+                new File(app.rootProject.projectDir, '../tests/native-crypto-entry.tsx'))
+        }
+    }
+}

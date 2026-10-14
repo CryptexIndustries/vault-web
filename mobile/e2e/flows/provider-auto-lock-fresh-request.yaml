@@ -1,0 +1,16 @@
+appId: com.cryptex.autofillfixture
+name: Credential Manager works after fresh unlock
+---
+- launchApp
+- tapOn: Credential Manager passwords
+- tapOn: Get password credential
+- assertVisible: cm-native@example.test
+- tapOn: cm-native@example.test
+- assertVisible: Choose a login
+- tapOn:
+    text: com.cryptex.autofillfixture, cm-native@example.test, matches destination
+- assertVisible: Review destination
+- tapOn: Fill once
+# The fixture only reports completion when both the username and password match.
+- assertVisible: "Credential Manager get complete: cm-native@example.test"
+- assertNotVisible: Credential Manager returned a different password

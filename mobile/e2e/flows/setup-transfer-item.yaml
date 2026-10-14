@@ -1,0 +1,24 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- tapOn: Add item
+- tapOn: Credential name
+- inputText: E2E Transfer Login
+- tapOn: Credential username
+- inputText: transfer@example.test
+- tapOn:
+    text: Password, Hidden.*
+- inputText: transfer-password-42
+- hideKeyboard
+- tapOn:
+    id: credential-website-url
+- eraseText
+- inputText: https://transfer.example.test/login
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: E2E Transfer Login.*
+- tapOn: Back

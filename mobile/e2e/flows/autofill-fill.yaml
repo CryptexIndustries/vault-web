@@ -1,0 +1,6 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android conventional autofill
+---
+- runFlow: setup-autofill-vault.yaml
+- runFlow: autofill-browser.yaml
+- runFlow: autofill-native.yaml

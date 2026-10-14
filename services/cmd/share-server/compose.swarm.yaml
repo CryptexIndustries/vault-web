@@ -1,0 +1,79 @@
+# Share server stack for Docker Swarm. It shares cryptex-vault-network with
+# the web stack (compose.swarm.yaml in the repository root):
+#   docker stack deploy --with-registry-auth -c services/cmd/share-server/compose.swarm.yaml cryptex-vault-services
+# See docs/swarm-deployment.md.
+services:
+    # One-time share links. Holds only ciphertext and token hashes in SQLite,
+    # so it runs as one replica on one labelled node.
+    share:
+        image: ${SHARE_IMAGE:?SHARE_IMAGE must reference an exact published image tag}
+        environment:
+            # "ticket" for Online Services (subscriber tickets from the API),
+            # "token" for operator-issued creation tokens.
+            SHARE_AUTH: ${SHARE_AUTH:-token}
+            SHARE_CREATION_TOKENS: ${SHARE_CREATION_TOKENS:-}
+            # Or mount a Swarm secret and point this at /run/secrets/<name>.
+            SHARE_CREATION_TOKENS_FILE: ${SHARE_CREATION_TOKENS_FILE:-}
+            # Tickets name the public web origin. It comes from
+            # NEXT_PUBLIC_APP_URL unless SHARE_TICKET_AUDIENCE is set.
+            NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+            SHARE_TICKET_AUDIENCE: ${SHARE_TICKET_AUDIENCE:-}
+            SHARE_TICKET_PUBLIC_KEYS: ${SHARE_TICKET_PUBLIC_KEYS:-}
+            # Header your HTTPS proxy sets to the real client address, and how
+            # many proxies append to it. The web container passes it through.
+            SHARE_CLIENT_IP_HEADER: ${SHARE_CLIENT_IP_HEADER:-X-Forwarded-For}
+            SHARE_TRUSTED_PROXY_HOPS: ${SHARE_TRUSTED_PROXY_HOPS:-1}
+            # Prometheus metrics, reachable only from the networks below.
+            # "off" turns them off.
+            SHARE_METRICS_ADDR: ${SHARE_METRICS_ADDR:-:9090}
+        volumes:
+            - share_data:/data
+        labels:
+            cryptex.logging.app: ${CRYPTEX_LOGGING_APP:-cryptex-vault-web}
+            cryptex.logging.service: share
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+        networks:
+            cryptex-vault-network:
+                # The web stack's default SHARE_SERVER_INTERNAL_URL uses this name.
+                aliases:
+                    - cryptex-vault-share
+            # Metrics only: Alloy scrapes port 9090 here. The share server
+            # never joins the network with the database and Redis.
+            cryptex-vault-metrics: {}
+        deploy:
+            replicas: 1
+            placement:
+                # The SQLite volume is local to one node. Label it with
+                # docker node update --label-add cryptex-vault.share=true <node>
+                constraints:
+                    - node.labels.cryptex-vault.share == true
+            restart_policy:
+                condition: any
+                delay: 5s
+            update_config:
+                parallelism: 1
+                # SQLite has one writer; never run two copies at once.
+                order: stop-first
+                failure_action: rollback
+                monitor: 30s
+            resources:
+                limits:
+                    memory: 128M
+                    cpus: "0.25"
+
+volumes:
+    share_data:
+
+networks:
+    # Shared with the web stack, which declares it the same way.
+    cryptex-vault-network:
+        external: true
+        name: ${STACK_NAME:-cryptex-vault-frontend}_cryptex-vault-network
+    # Created by the Online Services stack next to Alloy.
+    cryptex-vault-metrics:
+        external: true
+        name: ${METRICS_STACK_NAME:-cryptex}_cryptex-vault-metrics

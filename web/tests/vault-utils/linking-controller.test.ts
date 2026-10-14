@@ -116,6 +116,7 @@ describe("encrypted link protocol", () => {
             LinkedDevices: new LinkedDevices(),
             Directories: [],
             Credentials: [],
+            ShareLinks: [],
             OnlineServices: undefined,
         }).finish();
 

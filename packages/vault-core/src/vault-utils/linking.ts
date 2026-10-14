@@ -1,3 +1,7 @@
+import {
+    createIceCandidateDiscovery,
+    type IceCandidateDiscovery,
+} from "./ice-candidate-discovery";
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { err, ok, ResultAsync } from "neverthrow";
@@ -192,6 +196,7 @@ export class LinkingProcessController {
     private readonly signalingServer: Pusher;
     private readonly signalingServerChannel: Channel;
     private readonly webRTCConnection: RTCPeerConnection;
+    private iceCandidateDiscovery: IceCandidateDiscovery | undefined;
     private hasDirectConnection = false;
     private hasTerminalError = false;
     private receiverKeyBundleSent = false;
@@ -311,6 +316,7 @@ export class LinkingProcessController {
                         break;
                     case "unavailable":
                     case "failed":
+                        this.iceCandidateDiscovery?.cancel();
                         this.hasTerminalError = true;
                         this.onStatusChange({
                             Step: LinkingProcessStep.Signaling,
@@ -350,6 +356,7 @@ export class LinkingProcessController {
         );
 
         this.signalingServerChannel.bind("pusher:subscription_error", () => {
+            this.iceCandidateDiscovery?.cancel();
             this.hasTerminalError = true;
             this.onStatusChange({
                 Step: LinkingProcessStep.Signaling,
@@ -429,6 +436,7 @@ export class LinkingProcessController {
     private bindWebRTCConnection(): void {
         const webRTConnection = this.webRTCConnection;
         const cleanup = () => {
+            this.iceCandidateDiscovery?.cancel();
             webRTConnection.close();
             this.disconnectSignalingServer();
 
@@ -444,6 +452,9 @@ export class LinkingProcessController {
         };
 
         webRTConnection.onconnectionstatechange = () => {
+            if (webRTConnection.connectionState === "closed") {
+                this.iceCandidateDiscovery?.cancel();
+            }
             this.onStatusChange({
                 Step: LinkingProcessStep.DirectConnection,
                 State: LinkingProcessState.Active,
@@ -457,6 +468,7 @@ export class LinkingProcessController {
             });
 
             if (webRTConnection.connectionState === "connected") {
+                this.iceCandidateDiscovery?.cancel();
                 this.hasDirectConnection = true;
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnection,
@@ -482,6 +494,7 @@ export class LinkingProcessController {
 
                 this.disconnectSignalingServer();
             } else if (webRTConnection.connectionState === "failed") {
+                this.iceCandidateDiscovery?.cancel();
                 this.hasTerminalError = true;
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnection,
@@ -497,6 +510,7 @@ export class LinkingProcessController {
                     },
                 });
             } else if (webRTConnection.connectionState === "disconnected") {
+                this.iceCandidateDiscovery?.cancel();
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnectionCleanup,
                     State: LinkingProcessState.Completed,
@@ -522,6 +536,12 @@ export class LinkingProcessController {
             });
 
             const receiveChannel = event.channel;
+            if (receiveChannel.readyState === "open") {
+                this.iceCandidateDiscovery?.cancel();
+            }
+            receiveChannel.onopen = () => {
+                this.iceCandidateDiscovery?.cancel();
+            };
             receiveChannel.onmessage = async (event) => {
                 if (!this.receiverKeyBundleSent) {
                     try {
@@ -734,6 +754,7 @@ export class LinkingProcessController {
             };
 
             receiveChannel.onerror = (err) => {
+                this.iceCandidateDiscovery?.cancel();
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Error,
@@ -758,9 +779,31 @@ export class LinkingProcessController {
             };
         };
 
-        let iceCandidatesGenerated = 0;
+        const discovery = createIceCandidateDiscovery(() => {
+            if (
+                this.iceCandidateDiscovery !== discovery ||
+                this.hasTerminalError ||
+                webRTConnection.connectionState === "closed" ||
+                webRTConnection.connectionState === "connected"
+            )
+                return;
+            this.hasTerminalError = true;
+            this.onStatusChange({
+                Step: LinkingProcessStep.DirectConnection,
+                State: LinkingProcessState.Error,
+                LogMessage: {
+                    message:
+                        "Failed to generate ICE candidates. WebRTC failure.",
+                    timestamp: Date.now(),
+                    type: "error",
+                },
+            });
+            cleanup();
+        });
+        this.iceCandidateDiscovery = discovery;
         webRTConnection.onicecandidate = (event) => {
             if (event.candidate) {
+                discovery.candidateReceived();
                 this.onStatusChange({
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Active,
@@ -775,28 +818,14 @@ export class LinkingProcessController {
                     type: "ice-candidate",
                     data: event.candidate,
                 });
-
-                iceCandidatesGenerated++;
-            }
-
-            if (iceCandidatesGenerated === 0 && !event.candidate) {
-                this.onStatusChange({
-                    Step: LinkingProcessStep.DirectConnection,
-                    State: LinkingProcessState.Error,
-                    LogMessage: {
-                        message:
-                            "Failed to generate ICE candidates. WebRTC failure.",
-                        timestamp: Date.now(),
-                        type: "error",
-                    },
-                });
-
-                cleanup();
+            } else {
+                discovery.gatheringCompleted();
             }
         };
     }
 
     public abortWaitingForDevice() {
+        this.iceCandidateDiscovery?.cancel();
         this.signalingServerChannel.unbind();
         this.signalingServer.unsubscribe(
             constructLinkPresenceChannelName(this.linkingPackage.SyncID),

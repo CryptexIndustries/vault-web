@@ -1,0 +1,17 @@
+appId: ${CRYPTEX_APP_ID}
+name: Prepare Credential Manager background timeout
+---
+- runFlow: setup-vault.yaml
+# The isolated test device enables Cryptex as its credential provider.
+# Create the exact password that the fixture verifies on retrieval.
+- runFlow: autofill-provider-password-create.yaml
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- runFlow: autofill-browser-unlock-if-needed.yaml
+- assertVisible: Search your vault
+- tapOn: More
+- tapOn: Security
+- tapOn: Auto-lock
+- tapOn: 1 minute
+- launchApp: com.cryptex.autofillfixture
+- tapOn: Credential Manager passwords
+- assertVisible: Get password credential

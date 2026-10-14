@@ -1,0 +1,70 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android local vault smoke
+---
+- runFlow: setup-vault.yaml
+- tapOn: Manage directories
+- tapOn: Create directory
+- tapOn: Directory name
+- inputText: E2E Directory
+# Maestro hideKeyboard sends Back even when the modal's IME is already hidden,
+# which opens the unsaved-directory discard prompt. Tap its footer directly.
+- assertVisible: Directory name
+- tapOn:
+    text: Create directory
+    below: Directory name
+- assertNotVisible: Directory name
+- assertVisible: E2E Directory.*
+- pressKey: Back
+- assertVisible: Search your vault
+- tapOn: Add item
+- tapOn: Credential name
+- inputText: Example Login
+- tapOn: Credential username
+- inputText: test@example.com
+- tapOn:
+    text: Password, Hidden.*
+- inputText: e2e-password
+- hideKeyboard
+- tapOn:
+    id: credential-website-url
+- eraseText
+- inputText: https://example.test/login
+- assertVisible: https://example.test/login
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: Example Login.*
+- tapOn: Edit item
+- tapOn: Credential name
+- eraseText
+- inputText: Edited Login
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+- tapOn:
+    id: credential-submit
+- assertVisible: Edited Login.*
+- tapOn: Back
+- tapOn: Search your vault
+- inputText: name:Edited
+- assertVisible: Edited Login.*
+- tapOn: Clear search
+- hideKeyboard
+- tapOn: Back
+- tapOn: Lock vault
+- assertVisible: Unlock vault
+- tapOn: Master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- assertVisible: Edited Login.*
+- stopApp
+- launchApp
+- assertVisible: Unlock vault

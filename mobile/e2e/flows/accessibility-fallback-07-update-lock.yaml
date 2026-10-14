@@ -1,0 +1,19 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - update review and locked request
+---
+- assertVisible: Edit item
+- assertVisible: Android hid this password from accessibility.*
+- tapOn:
+    point: "50%,47%"
+- eraseText
+- inputText: fallback-password-two
+- tapOn:
+    id: credential-submit
+- assertVisible: Accessibility registration fixture
+- openLink: ${CRYPTEX_APP_SCHEME}://
+- tapOn: Lock vault
+- assertVisible: Unlock vault
+- clearState: com.cryptex.autofillfixture
+- launchApp: com.cryptex.autofillfixture
+- tapOn: Accessibility login
+- tapOn: Accessibility username

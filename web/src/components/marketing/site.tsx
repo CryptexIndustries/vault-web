@@ -39,6 +39,42 @@ export function Action({
         </Link>
     );
 }
+
+/** The Cryptex Vault wordmark, linking home. */
+export function Brand() {
+    return (
+        <Link
+            href="/"
+            className={`${s.brand} flex items-center gap-[12px]`}
+            aria-label="Cryptex Vault home"
+        >
+            <Image
+                src="/images/cryptex-vault-logo.svg"
+                alt=""
+                width="30"
+                height="30"
+            />
+            <span className="flex gap-[9px]">
+                CRYPTEX
+                <span className="text-[var(--coral)]">VAULT</span>
+            </span>
+        </Link>
+    );
+}
+
+/** The site header with only the wordmark, for focused pages. */
+export function BrandBar() {
+    return (
+        <div className={`dark ${s.site} ${s.headerShell}`}>
+            <header
+                className={`${s.header} relative z-20 flex h-[96px] items-center`}
+            >
+                <Brand />
+            </header>
+        </div>
+    );
+}
+
 function SiteHeader() {
     const [open, setOpen] = useState(false);
     const { pathname } = useRouter();
@@ -74,22 +110,7 @@ function SiteHeader() {
             <header
                 className={`${s.header} relative z-20 flex h-[96px] items-center justify-between`}
             >
-                <Link
-                    href="/"
-                    className={`${s.brand} flex items-center gap-[12px]`}
-                    aria-label="Cryptex Vault home"
-                >
-                    <Image
-                        src="/images/cryptex-vault-logo.svg"
-                        alt=""
-                        width="30"
-                        height="30"
-                    />
-                    <span className="flex gap-[9px]">
-                        CRYPTEX
-                        <span className="text-[var(--coral)]">VAULT</span>
-                    </span>
-                </Link>
+                <Brand />
                 <button
                     ref={toggleRef}
                     className={`${s.menuButton} hidden`}
@@ -659,6 +680,11 @@ const coreFeatures: { title: string; description?: string }[] = [
             "Use your own signaling and relay infrastructure to sync linked vaults while both devices are online.",
     },
     { title: "Self-hosted sync infrastructure" },
+    {
+        title: "One-time share links on your own server",
+        description:
+            "Run the open-source share server and send links from your own domain.",
+    },
 ];
 export function Plans({ detailed = false }: { detailed?: boolean }) {
     const [annual, setAnnual] = useState(false);
@@ -759,6 +785,17 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         <li className={s.featureBenefit}>
                             <Check size={16} />
                             <span>
+                                One-time share links
+                                <small>
+                                    Send a login or secret to anyone, even
+                                    people without Cryptex Vault. It opens once,
+                                    then it&apos;s deleted.
+                                </small>
+                            </span>
+                        </li>
+                        <li className={s.featureBenefit}>
+                            <Check size={16} />
+                            <span>
                                 Online Services device management
                                 <small>
                                     Manage registered devices, view and control
@@ -781,8 +818,8 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     {detailed && (
                         <small>
                             No voluntary subscription refunds. Your statutory
-                            consumer rights and applicable Stripe/Link refund
-                            terms are unaffected.
+                            consumer rights and applicable Stripe/Link or Google
+                            Play refund terms are unaffected.
                         </small>
                     )}
                 </article>

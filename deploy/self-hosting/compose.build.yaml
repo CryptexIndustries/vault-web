@@ -5,3 +5,8 @@ services:
             context: ../..
             dockerfile: web/prod.Dockerfile
         pull_policy: never
+    share:
+        build:
+            context: ../../services
+            dockerfile: cmd/share-server/Dockerfile
+        pull_policy: never

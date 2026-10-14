@@ -1,0 +1,39 @@
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
+
+abstract class CryptexNativeBuild implements BuildService<BuildServiceParameters.None>, AutoCloseable {
+    void close() {}
+}
+
+def nativeBuild = gradle.sharedServices.registerIfAbsent('cryptexNativeBuild', CryptexNativeBuild) {
+    // Each native build uses the full job count. Do not launch N builds of N jobs.
+    maxParallelUsages = 1
+}
+
+gradle.beforeProject { project ->
+    project.tasks.configureEach { task ->
+        if (task.name.startsWith('buildCMake') || task.name.startsWith('externalNativeBuild')) task.usesService(nativeBuild)
+        if (task.name.startsWith('createBundle') && task.name.endsWith('JsAndAssets')) {
+            // Metro reads shared workspace files, assets and public environment
+            // values which React Native's mobile-only source glob does not cover.
+            task.inputs.property('cryptexSourceSnapshot', System.getenv('CRYPTEX_LOCAL_BUILD_SOURCE_HASH'))
+            task.inputs.property('cryptexPublicConfig', System.getenv('CRYPTEX_LOCAL_BUILD_CONFIG_HASH'))
+            task.inputs.property('cryptexSourceRevision', System.getenv('CRYPTEX_SOURCE_REVISION'))
+        }
+        if (task.name.startsWith('create') && task.name.endsWith('UpdatesResources')) {
+            // The SDK task does not declare its fingerprint/manifest source inputs.
+            // Refresh this small task so an old embedded update cannot be packaged.
+            task.outputs.upToDateWhen { false }
+        }
+    }
+    ['com.android.application', 'com.android.library'].each { plugin ->
+        project.plugins.withId(plugin) {
+            project.androidComponents.finalizeDsl { android ->
+                android.defaultConfig.externalNativeBuild.cmake.arguments.addAll([
+                    '-DCRYPTEX_NATIVE_JOBS=' + System.getenv('CRYPTEX_LOCAL_BUILD_JOBS'),
+                    '-DCRYPTEX_OPENSSL_MAKE=' + System.getenv('CRYPTEX_LOCAL_BUILD_MAKE_WRAPPER')
+                ])
+            }
+        }
+    }
+}

@@ -2,6 +2,8 @@
  * @jest-environment node
  */
 import { describe, expect, it } from "@jest/globals";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { validateProductionEnv } from "../src/utils/production-env";
 
 const production = {
@@ -53,4 +55,16 @@ describe("production extension configuration", () => {
             validateProductionEnv({ ...production, [key]: value }),
         ).toThrow(key);
     });
+});
+
+describe("committed release configurations", () => {
+    it.each(["release-config.json", "prerelease-config.json"])(
+        "%s passes the production checks",
+        (file) => {
+            const config = JSON.parse(
+                readFileSync(join(__dirname, "..", file), "utf8"),
+            );
+            expect(() => validateProductionEnv(config)).not.toThrow();
+        },
+    );
 });

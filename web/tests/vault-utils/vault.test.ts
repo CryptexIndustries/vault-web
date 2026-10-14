@@ -703,6 +703,46 @@ describe("vault-utils/vault", () => {
         expect(source.LinkedDevices.Devices).toHaveLength(1);
         expect(source.LinkedDevices.Devices[0]?.Name).toBe("Peer Device");
     });
+
+    it("keeps share links but leaves the share server token behind", () => {
+        const source = new Vault();
+        source.ShareLinks = [
+            {
+                ID: "share-a",
+                ServerOrigin: "https://www.cryptex-vault.com",
+                ManageToken: "manage",
+                CredentialID: "",
+                Label: "Wi-Fi",
+                CreatedAtTimestamp: 1,
+                ExpiresAtTimestamp: 2,
+                Passphrase: false,
+                Status: "active",
+                ViewedAtTimestamp: 0,
+                Hash: "h",
+                Version: 0,
+                DateModifiedTimestamp: 1,
+                Deleted: false,
+            },
+        ];
+        source.ShareSettings = {
+            ServerOrigin: "https://vault.example.com",
+            CreationToken: "operator-token",
+        };
+
+        const packaged = packageForLinking(
+            source,
+            "new-device-id",
+            [],
+            [],
+            ONLINE_SERVICES_SELECTION_ID,
+            "local-sync-public-key",
+            "local-sync-kem-public-key",
+        );
+
+        expect(packaged.ShareLinks).toEqual(source.ShareLinks);
+        expect(packaged.ShareSettings).toBeUndefined();
+        expect(source.ShareSettings?.CreationToken).toBe("operator-token");
+    });
 });
 
 describe("Vault online services binding", () => {

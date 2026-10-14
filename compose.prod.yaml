@@ -24,6 +24,7 @@ x-client-env: &client-env
     NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:-prod_local000000000000}
     NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:-price_local0000000000}
     NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:-price_local0000000001}
+    SHARE_SERVER_INTERNAL_URL: http://share-server:8080
 
 services:
     web:
@@ -69,3 +70,31 @@ services:
                     "CMD-SHELL",
                     "wget --no-verbose --tries=1 --spider http://0.0.0.0:3000 || exit 1",
                 ]
+
+    # One-time share links. Set SHARE_CREATION_TOKENS (32+ characters each)
+    # and enter one in the vault under Shared Links > Share server.
+    share-server:
+        profiles: ["local", "cloud"]
+        container_name: cryptex-vault-client-share-server
+        build:
+            context: ./services
+            dockerfile: cmd/share-server/Dockerfile
+        environment:
+            SHARE_AUTH: ${SHARE_AUTH:-token}
+            SHARE_CREATION_TOKENS: ${SHARE_CREATION_TOKENS:-}
+            # Ticket mode uses the web origin unless SHARE_TICKET_AUDIENCE is set.
+            SHARE_TICKET_AUDIENCE: ${SHARE_TICKET_AUDIENCE:-}
+            NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+            SHARE_TICKET_PUBLIC_KEYS: ${SHARE_TICKET_PUBLIC_KEYS:-}
+            # Without a header every user shares one limit. The web container
+            # passes X-Forwarded-For through unchanged, so for public use put a
+            # proxy in front that sets it. Without that proxy, clients can fake
+            # the header.
+            SHARE_CLIENT_IP_HEADER: X-Forwarded-For
+            SHARE_TRUSTED_PROXY_HOPS: "1"
+        volumes:
+            - cryptex_share_data:/data
+        restart: unless-stopped
+
+volumes:
+    cryptex_share_data:

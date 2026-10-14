@@ -16,7 +16,7 @@ export function validateProductionEnv(env: ExtensionProductionEnv): void {
     ): never => {
         throw new Error(
             `Invalid ${key} for production extension: ${reason}. ` +
-                "Set it in the build environment or extension/.env.production.local.",
+                "Set it in extension/release-config.json, extension/prerelease-config.json or the file passed to --config.",
         );
     };
 

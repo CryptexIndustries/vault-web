@@ -11,7 +11,7 @@ export default function Pricing() {
     return (
         <Site
             title="Pricing"
-            description="Cryptex Vault is free forever. Optional Online Services include managed P2P infrastructure, encrypted backups, and device management."
+            description="Cryptex Vault is free forever. Optional Online Services include managed P2P infrastructure, encrypted backups, one-time share links, and device management."
         >
             <section className={s.pageHero}>
                 <Label>PRICING / A SIMPLE CHOICE</Label>
@@ -92,7 +92,8 @@ export default function Pricing() {
                             statutory consumer rights are unaffected. For
                             purchases through Stripe Managed Payments,
                             Stripe/Link may also issue refunds under its own
-                            terms.
+                            terms. Google Play purchases follow Google Play's
+                            refund policy.
                         </dd>
                     </div>
                     <div>
@@ -130,11 +131,23 @@ export default function Pricing() {
                         </dd>
                     </div>
                     <div>
+                        <dt>Share links</dt>
+                        <dd>
+                            Up to 200 unopened one-time links at a time, 64 KB
+                            each, waiting up to 7 days. The server deletes the
+                            contents when a link is opened, revoked or expires.
+                            Links you already sent keep working until then, even
+                            if your subscription ends.
+                        </dd>
+                    </div>
+                    <div>
                         <dt>Managing cancellation</dt>
                         <dd>
-                            Manage your subscription through Stripe’s billing
-                            portal, accessible from the app. Cancellation takes
-                            effect at the end of the current paid period.
+                            Manage a Stripe subscription through Stripe’s
+                            billing portal, accessible from the app. Manage a
+                            Google Play subscription in Google Play.
+                            Cancellation takes effect at the end of the current
+                            paid period.
                         </dd>
                     </div>
                     <div>
@@ -184,11 +197,11 @@ export default function Pricing() {
                             </summary>
                             <p>
                                 The subscription currently covers managed P2P
-                                infrastructure, managed encrypted backups, and
-                                Online Services device management. You can
-                                manage registered devices, view and control
-                                their linking relationships, and revoke their
-                                access to Online Services.
+                                infrastructure, managed encrypted backups,
+                                one-time share links, and Online Services device
+                                management. You can manage registered devices,
+                                view and control their linking relationships,
+                                and revoke their access to Online Services.
                             </p>
                         </details>
                         <details>

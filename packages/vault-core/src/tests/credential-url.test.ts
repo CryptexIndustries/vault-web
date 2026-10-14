@@ -2,10 +2,12 @@ import { describe, expect, it } from "@jest/globals";
 
 import { CredentialURLMatchMode } from "../proto/vault";
 import {
+    credentialMatchesAndroidApp,
     credentialMatchesPageUrl,
     findCredentialUrlMatch,
     isCredentialUrlRuleValid,
     sanitizeAdditionalCredentialUrls,
+    normalizeAndroidAppUri,
 } from "../credential-url";
 
 const credential = {
@@ -186,5 +188,47 @@ describe("credential URL matching", () => {
                 MatchMode: CredentialURLMatchMode.ExactHost,
             },
         ]);
+    });
+
+    it("keeps Android application associations exact and separate from websites", () => {
+        const appCredential = {
+            URL: "https://example.com",
+            URLMatchMode: CredentialURLMatchMode.Domain,
+            AdditionalURLs: [
+                {
+                    URL: "androidapp://com.example.mobile",
+                    MatchMode: CredentialURLMatchMode.ExactHost,
+                },
+            ],
+        };
+
+        expect(
+            credentialMatchesAndroidApp(appCredential, "com.example.mobile"),
+        ).toBe(true);
+        expect(
+            credentialMatchesAndroidApp(
+                appCredential,
+                "com.example.mobile.fake",
+            ),
+        ).toBe(false);
+        expect(
+            credentialMatchesPageUrl(appCredential, "https://example.com"),
+        ).toBe(true);
+        expect(normalizeAndroidAppUri("androidapp://COM.EXAMPLE.Mobile")).toBe(
+            "androidapp://com.example.mobile",
+        );
+    });
+
+    it("rejects unsafe or fuzzy Android application associations", () => {
+        expect(
+            isCredentialUrlRuleValid({
+                URL: "androidapp://com.example.mobile",
+                MatchMode: CredentialURLMatchMode.Domain,
+            }),
+        ).toBe(false);
+        expect(
+            normalizeAndroidAppUri("androidapp://com.example.mobile/path"),
+        ).toBeNull();
+        expect(normalizeAndroidAppUri("androidapp://singlelabel")).toBeNull();
     });
 });

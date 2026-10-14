@@ -1,0 +1,19 @@
+appId: ${CRYPTEX_APP_ID}
+name: Verify reverse synchronization and persistence on the original sender
+---
+- extendedWaitUntil:
+    visible: returned@example.test
+    timeout: 120000
+- tapOn: Reveal Password
+- assertVisible: receiver-updated-password-43
+- stopApp
+- launchApp
+- tapOn: Master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+    id: unlock-vault
+- tapOn: E2E Updated After Link.*
+- assertVisible: returned@example.test
+- tapOn: Reveal Password
+- assertVisible: receiver-updated-password-43

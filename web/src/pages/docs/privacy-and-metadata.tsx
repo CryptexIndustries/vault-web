@@ -214,6 +214,32 @@ export default function PrivacyAndMetadata() {
                                 </td>
                             </tr>
                             <tr>
+                                <td>Creating a one-time share link</td>
+                                <td>
+                                    The share server receives the encrypted
+                                    contents, hashes of the link&apos;s tokens,
+                                    the expiry, and a pseudonym that counts your
+                                    open links. On the Cryptex Vault server, the
+                                    API first issues a ticket for the request;
+                                    the share server never learns your account
+                                    ID. See{" "}
+                                    <Link href="/docs/sharing#server">
+                                        what the server sees
+                                    </Link>
+                                    .
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Opening a share link</td>
+                                <td>
+                                    The recipient&apos;s browser loads the page
+                                    and fetches the encrypted contents once. The
+                                    key in the link stays in the browser. The
+                                    share server records when the link was
+                                    opened so the sender can see it.
+                                </td>
+                            </tr>
+                            <tr>
                                 <td>Opening a flow with CAPTCHA</td>
                                 <td>
                                     Cloudflare Turnstile receives browser and
@@ -234,6 +260,17 @@ export default function PrivacyAndMetadata() {
                                         Managed Payments
                                     </a>
                                     .
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Buying through Google Play</td>
+                                <td>
+                                    In the Android app from Google Play, Google
+                                    Play handles the purchase and the payment
+                                    details. RevenueCat receives the purchase
+                                    record and the Online Services account
+                                    identifier, and passes the subscription
+                                    status to the service.
                                 </td>
                             </tr>
                         </tbody>

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-14
+
+### Added
+
+- Credential rules now accept exact Android app associations such as `androidapp://com.example.app` in the web app and Chromium extension. App associations remain separate from website matching.
+- Added a billing return page that routes users back to the web vault or the production or pre-production Android app, with a manual return link when automatic navigation is blocked. Payment API contracts now support hosted checkout and fixed return targets for checkout and the billing portal.
+- One-time share links in the web app, Chromium extension and Android app. A link carries the fields you pick from a credential, or any text you type, and opens once. It expires after one hour to seven days and can require a passphrase. The client encrypts the content with AES-256-GCM before upload and keeps the key in the link fragment, so the share server stores only ciphertext.
+- A Shared links list on each client shows whether every link is active, opened, expired, revoked or destroyed. It has search, a status filter and sorting, and it revokes links that haven't been opened. The list syncs between your devices and drops finished links after about 90 days.
+- The open-source share server in `services/cmd/share-server`. Online Services subscribers create links on the managed server with tickets signed by the API, through the new `v1.share.ticket` contract. Self-hosted servers use creation tokens from their operator. The self-hosting Compose stack and the Docker Swarm guide include it, and it serves Prometheus metrics on a separate port that is never published.
+- The share server image is published as `ghcr.io/cryptexindustries/vault-web/share-server` on `share-server-v*` tags, so web releases don't restart it.
+- The web app's account dialog shows Online Services subscriptions billed through Google Play or the App Store and says where to manage them, instead of offering the Stripe billing portal.
+
+### Changed
+
+- Bumped the web app and Chromium extension versions to `1.5.0`, aligning the extension package and manifest versions.
+- The web app's device linking dialogs now call the twelve-word secret "Verification words" instead of "Mnemonic", the same term the documentation, Chromium extension and Android app use. The linking guide no longer mentions a mnemonic field.
+- The terms, privacy policy, pricing page and Online Services documentation now cover buying Online Services through Google Play, with RevenueCat recording the purchases.
+
+### Fixed
+
+- Device linking and synchronization now allow up to five seconds for connection candidates that arrive after an empty discovery completion, instead of failing immediately. Pending failure timers are cancelled when connections end or are replaced.
+- Password-key derivation failures now return handled vault unlock errors instead of escaping the unlock error handler.
+- The Chromium extension locks the vault when the operating system locks the screen, not only after 30 minutes of inactivity.
+- An open full-page extension tab shows the unlock screen when the vault locks elsewhere, for example from the idle lock or another popup.
+
+### Security
+
+- Temporary key-material buffers used by Web Crypto are now cleared after key import and derivation, and redundant key-material copies were removed.
+
+### Chore
+
+- Shared device topology, Recovery Kit generation, and synchronization helpers across clients, with regression coverage for connection discovery, directory synchronization, and billing return links.
+- Added Android workspace and build tooling, native dependency patches, and an F-Droid build workflow. Updated the workspace Node version to `24.20.0` and web builds to support shared workspace packages and dependency patches.
+
 ## [1.4.1] - 2026-09-25
 
 ### Added

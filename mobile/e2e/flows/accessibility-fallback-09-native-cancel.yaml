@@ -1,0 +1,8 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - cancel a native login request
+---
+- assertVisible: Accessibility login complete
+- clearState: com.cryptex.autofillfixture
+- launchApp: com.cryptex.autofillfixture
+- tapOn: Accessibility login
+- tapOn: Accessibility username

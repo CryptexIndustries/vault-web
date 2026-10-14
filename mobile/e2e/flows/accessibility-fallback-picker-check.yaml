@@ -1,0 +1,6 @@
+appId: ${CRYPTEX_APP_ID}
+name: Accessibility fallback - login picker checkpoint
+---
+- assertVisible: Choose a login
+- assertVisible: Autofill Test App
+- assertVisible: Fixture Login

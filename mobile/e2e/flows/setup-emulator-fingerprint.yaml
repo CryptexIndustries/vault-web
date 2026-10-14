@@ -1,0 +1,27 @@
+appId: com.android.settings
+name: Enroll genuine emulator fingerprint
+---
+- runFlow:
+    when:
+      visible: Re-enter your PIN
+    commands:
+      - tapOn:
+          id: com.android.settings:id/password_entry
+      - inputText: ${CRYPTEX_E2E_DEVICE_PIN}
+      - pressKey: Enter
+      - runFlow:
+          when:
+            visible: Save username and password to ${CRYPTEX_APP_NAME}?
+          commands:
+            - tapOn: No thanks
+- assertVisible: Set up Pixel Imprint
+- repeat:
+    while:
+      visible: MORE
+    commands:
+      - tapOn: MORE
+- tapOn: I AGREE
+- extendedWaitUntil:
+    visible: Fingerprint added
+    timeout: 30000
+- tapOn: DONE

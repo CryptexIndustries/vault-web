@@ -1,0 +1,8 @@
+appId: ${CRYPTEX_APP_ID}
+name: Android Credential Manager passkeys
+---
+- runFlow: setup-passkey-vault.yaml
+- runFlow: passkey-create.yaml
+- runFlow: passkey-assert.yaml
+- runFlow: passkey-failures.yaml
+- runFlow: passkey-locked.yaml

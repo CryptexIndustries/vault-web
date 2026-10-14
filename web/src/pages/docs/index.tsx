@@ -9,7 +9,7 @@ const userGuides = [
     [
         "Getting started",
         "/docs/getting-started",
-        "Create a vault, save its recovery code, and add your first login.",
+        "Create a vault, save its recovery code, and find your saved logins.",
     ],
     [
         "Importing passwords",
@@ -25,6 +25,11 @@ const userGuides = [
         "Linking devices",
         "/docs/linking-devices",
         "Connect your vaults using an invitation and run your first sync.",
+    ],
+    [
+        "One-time share links",
+        "/docs/sharing",
+        "Send a login or secret as a link that opens once.",
     ],
     [
         "Backups",

@@ -1,0 +1,78 @@
+name: Browser extension
+
+# extension-* tags build production. Run it by hand to build any branch with
+# either profile. Values come from extension/release-config.json and
+# extension/prerelease-config.json.
+on:
+    push:
+        tags: ["extension-*"]
+    workflow_dispatch:
+        inputs:
+            profile:
+                description: Configuration to build
+                type: choice
+                options: [preprod, production]
+                default: preprod
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.profile || 'production' }}
+    cancel-in-progress: false
+
+jobs:
+    package:
+        name: Chromium extension package
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        env:
+            PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.16.0
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Lint extension
+              run: pnpm lint:ext
+            - name: Type-check extension
+              run: pnpm --filter extension lint-tsc
+            - name: Check release configurations
+              run: |
+                  node --test extension/scripts/release-config.test.mjs
+                  pnpm exec jest extension/tests/production-env.test.ts --runInBand
+            - name: Build extension
+              run: pnpm build:ext -- --profile "$PROFILE"
+            - name: Create extension ZIP
+              id: package
+              working-directory: extension/dist
+              shell: bash
+              run: |
+                  test -f manifest.json
+                  if find . -name '*.map' -print -quit | grep -q .; then
+                    echo "Release extension must not contain source maps" >&2
+                    exit 1
+                  fi
+                  if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+                    label="${GITHUB_REF_NAME}"
+                  else
+                    label="${PROFILE}-${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
+                  fi
+                  name="cryptex-vault-chromium-${label//[^a-zA-Z0-9._-]/-}"
+                  archive="${RUNNER_TEMP}/${name}.zip"
+                  zip -X -q -r "$archive" .
+                  unzip -tq "$archive"
+                  echo "name=${name}" >> "$GITHUB_OUTPUT"
+                  echo "path=${archive}" >> "$GITHUB_OUTPUT"
+            - name: Upload extension ZIP
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ${{ steps.package.outputs.name }}
+                  path: ${{ steps.package.outputs.path }}
+                  if-no-files-found: error
+                  compression-level: 0
+                  retention-days: 30

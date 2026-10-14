@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Cryptex dark theme (matches web app shell) */
+    --background: 224.21 28.36% 13.14%; /* #181d2b */
+    --foreground: 45 72.73% 95.69%; /* #fcf8ec */
+    --card: 224.21 28.36% 13.14%;
+    --card-foreground: 45 72.73% 95.69%;
+    --popover: 224.21 28.36% 13.14%;
+    --popover-foreground: 45 72.73% 95.69%;
+    --primary: 353.61 100% 66.86%; /* #ff5668 */
+    --primary-foreground: 45 72.73% 95.69%;
+    --secondary: 224.21 28.36% 18%;
+    --secondary-foreground: 45 72.73% 95.69%;
+    --muted: 224.21 28.36% 22%;
+    --muted-foreground: 224.21 28.36% 73%;
+    --accent: 353.61 100% 66.86%;
+    --accent-foreground: 45 72.73% 95.69%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 84.2% 70.2%;
+    --border: 224.21 28.36% 22%;
+    --input: 224.21 28.36% 38%;
+    --ring: 353.61 100% 66.86%;
+    --radius: 0.5rem;
+    --success: 148 68% 46%; /* #25c472 */
+  }
+}

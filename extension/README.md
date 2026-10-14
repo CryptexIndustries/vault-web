@@ -41,19 +41,37 @@ than maintaining a separate dashboard entry point.
 
 ### Configuration
 
-Vite loads values from the build environment and per-mode env files. Existing
-environment variables take precedence over files.
+Release builds read one committed public configuration per profile:
 
-- Copy [`extension/.env.development.example`](.env.development.example) to
-  `.env.development.local` for `pnpm dev` and `vite build --mode development`.
-  The example points at `http://localhost:3000`. Optional values include
-  `VITE_ONLINE_SERVICES_API_URL` for a separate cloud tRPC origin and
-  `VITE_CLOUD_ENABLED=false` for a local-only vault.
-- Copy [`extension/.env.production.example`](.env.production.example) to
-  `.env.production.local` for `vite build`, then replace the `REPLACE_ME`
-  values. CI supplies production values directly through its environment.
+| Profile      | Configuration                                                | Name prefix |
+| ------------ | ------------------------------------------------------------ | ----------- |
+| `production` | [`extension/release-config.json`](release-config.json)       | none        |
+| `preprod`    | [`extension/prerelease-config.json`](prerelease-config.json) | `PRE-PROD`  |
 
-Files named `.env.{mode}.local` are gitignored.
+Each file sets every value the build reads, and the build script passes them to
+Vite ahead of any `.env` file or shell variable, so a release build depends only
+on the committed file. The values are public and end up in the extension
+bundle. Never put a Pusher server secret or other credentials in them.
+
+| Value                          | Purpose                                                    |
+| ------------------------------ | ---------------------------------------------------------- |
+| `VITE_APP_URL`                 | HTTPS origin of the app.                                   |
+| `VITE_ONLINE_SERVICES_API_URL` | Separate cloud tRPC origin, or `""` to use the app origin. |
+| `VITE_CLOUD_ENABLED`           | `"false"` disables the Online Services UI.                 |
+| `VITE_PUSHER_APP_ID`           | Public Pusher application ID.                              |
+| `VITE_PUSHER_APP_KEY`          | Public Pusher application key.                             |
+| `VITE_PUSHER_APP_HOST`         | Pusher hostname, without a scheme or port.                 |
+| `VITE_PUSHER_APP_PORT`         | Pusher port.                                               |
+| `VITE_PUSHER_APP_TLS`          | Whether Pusher uses TLS.                                   |
+| `VITE_EXTENSION_NAME_PREFIX`   | Prefix for the extension name and toolbar title, or `""`.  |
+
+Development builds still use env files. Copy
+[`extension/.env.development.example`](.env.development.example) to
+`.env.development.local` for `pnpm dev` and `vite build --mode development`.
+The example points at `http://localhost:3000`. Optional values include
+`VITE_ONLINE_SERVICES_API_URL` for a separate cloud tRPC origin and
+`VITE_CLOUD_ENABLED=false` for a local-only vault. Files named
+`.env.{mode}.local` are gitignored.
 
 The Vite config validates production values before building. The shim at
 [`extension/src/env.ts`](src/env.ts) also validates them when loaded and
@@ -64,9 +82,9 @@ re-exports values under the `NEXT_PUBLIC_*` names that web/ expects:
   origins without credentials, a path, query, or fragment. A trailing `/` is allowed.
 - `VITE_PUSHER_APP_HOST` is a hostname without a scheme, port, or path.
 - `VITE_PUSHER_APP_PORT` is an integer from `1` to `65535`.
-- `VITE_PUSHER_APP_TLS` is explicitly `true` or `false`. CI defaults to `true`;
-  local production builds must supply it. Optional `VITE_CLOUD_ENABLED` also
-  accepts only `true` or `false`. Boolean values are case-insensitive.
+- `VITE_PUSHER_APP_TLS` is explicitly `true` or `false`. Optional
+  `VITE_CLOUD_ENABLED` also accepts only `true` or `false`. Boolean values are
+  case-insensitive.
 
 The Vite config ([`extension/vite.config.ts`](vite.config.ts)) additionally
 rewrites `manifest.json` at build time:
@@ -87,48 +105,41 @@ pnpm --filter extension dev
 
 ### Build & load
 
-- Build: `pnpm --filter extension build`
-- Load unpacked: load `extension/dist` in `chrome://extensions`.
+- Production: `pnpm build:ext`
+- Preproduction: `pnpm build:ext -- --profile preprod`
+- Another configuration: `pnpm build:ext -- --config /path/to/config.json`
+- Load unpacked: load `extension/dist` in `chrome://extensions`. The extension
+  has no fixed ID, so production and preproduction builds can be installed
+  side by side.
 
 ### CI extension packages
 
-Pushing a Git tag beginning with `extension-` runs the `Chromium extension package` job in
-[`CI`](../.github/workflows/ci.yml), after lockfile and extension quality checks
-pass. Other tags, branch pushes, and pull requests skip extension packaging.
+The [`Browser extension`](../.github/workflows/extension.yml) workflow packages
+the extension from the committed configurations. No repository variables or
+environments are involved.
 
-Before the first tag build, add repository variables under **Settings >
-Secrets and variables > Actions > Variables**:
+- Pushing a Git tag that starts with `extension-` builds the production
+  profile.
+- In the Actions tab, **Browser extension** > **Run workflow** builds the branch
+  you pick with the profile you choose. GitHub offers **Run workflow** only once
+  the workflow file is on the default branch.
 
-| Variable                       | Required or CI default | Purpose                                                            |
-| ------------------------------ | ---------------------- | ------------------------------------------------------------------ |
-| `VITE_APP_URL`                 | Required               | Production web app origin, starting with `https://`.               |
-| `VITE_PUSHER_APP_ID`           | Required               | Public Pusher application ID.                                      |
-| `VITE_PUSHER_APP_KEY`          | Required               | Public Pusher application key.                                     |
-| `VITE_PUSHER_APP_HOST`         | Required               | Pusher hostname, without a scheme or port.                         |
-| `VITE_PUSHER_APP_PORT`         | `443`                  | Pusher port.                                                       |
-| `VITE_PUSHER_APP_TLS`          | `true`                 | Whether Pusher uses TLS.                                           |
-| `VITE_ONLINE_SERVICES_API_URL` | Empty                  | Separate cloud tRPC origin, if needed. Defaults to the app origin. |
-| `VITE_CLOUD_ENABLED`           | `true`                 | Set to `false` to disable cloud UI.                                |
-| `VITE_EXTENSION_NAME_PREFIX`   | Empty                  | Optional prefix for the extension name and toolbar title.          |
+Both run the extension lint, type and configuration checks before building.
 
-These values are public and embedded in the extension bundle. Do not supply a
-Pusher server secret or other private credentials. See
-[Vite's environment variable documentation](https://vite.dev/guide/env-and-mode).
-Missing required values and `REPLACE_ME` placeholders fail the build.
-
-For example, after merging the workflow and configuring variables:
+For example:
 
 ```sh
 git tag extension-v1.4.2
 git push origin extension-v1.4.2
 ```
 
-The job builds in production mode and creates
+A tag build creates
 `cryptex-vault-chromium-extension-v1.4.2.zip` with `manifest.json` at the archive
 root and no source maps. The filename uses `cryptex-vault-chromium-{tag}.zip`,
 preserving the full tag and its case. Characters outside letters, digits, `.`,
 `_`, and `-` become `-` in the filename, so tags containing `/` still produce a
-single filename.
+single filename. A manual run names the archive
+`cryptex-vault-chromium-{profile}-{branch}-{short commit}.zip`.
 
 Download `cryptex-vault-chromium-extension-v1.4.2` from the Actions run's
 **Artifacts** section. GitHub wraps the extension ZIP in an artifact download;
@@ -143,13 +154,11 @@ Web Store version.
 
 Before submitting to the Chrome Web Store:
 
-1. Set production build variables through CI or
-   `extension/.env.production.local`, replacing every `REPLACE_ME` value from
-   the [production example](.env.production.example).
+1. Check the values in [`extension/release-config.json`](release-config.json).
 2. Bump `version`, finalize `name` / `description` in
    [`extension/manifest.json`](manifest.json) so the values match the Web
    Store listing.
-3. Run `pnpm --filter extension build` and inspect
+3. Run `pnpm build:ext` and inspect
    `extension/dist/manifest.json`:
     - `host_permissions` should only contain the production API + Pusher
       hosts.

@@ -3,8 +3,8 @@
 | Field                      | Value                                                                   |
 | -------------------------- | ----------------------------------------------------------------------- |
 | Product                    | Cryptex Vault web app                                                   |
-| Document revision          | 1.0                                                                     |
-| Updated                    | September 2026                                                          |
+| Document revision          | 1.1                                                                     |
+| Updated                    | October 2026                                                            |
 | Audience                   | Engineering and security reviewers                                      |
 | Status                     | Internal engineering review                                             |
 | Risk owners and acceptance | Unassigned unless recorded below; acceptance requires an assigned owner |
@@ -21,14 +21,15 @@ This internal review covers the web app and its shared client code. Code referen
 
 ### Scope
 
-| In scope                                                                            | Outside this assessment                                                                    |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Web UI, vault lifecycle, browser memory, and IndexedDB                              | Extension and native mobile internals                                                      |
-| Shared vault crypto and sync/link code used by the web app                          | Hosted Cloud API implementation and operations                                             |
-| Shared UI and API contracts used by the web app                                     | Server-side authentication, revocation, billing, and retention enforcement                 |
-| Web calls to Cloud API, signaling, STUN/TURN, Stripe, Turnstile, and backup storage | Third-party infrastructure internals                                                       |
-| Import, export, clipboard, recovery, and logging                                    | Support operations, social recovery, and other human processes outside this repository     |
-| Client deployment configuration in the Docker Compose files                         | Compromised operating system, browser, browser profile, or malware reading unlocked memory |
+| In scope                                                                            | Outside this assessment                                                                                          |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Web UI, vault lifecycle, browser memory, and IndexedDB                              | Extension and native mobile internals                                                                            |
+| Shared vault crypto and sync/link code used by the web app                          | Hosted Cloud API implementation and operations                                                                   |
+| Shared UI and API contracts used by the web app                                     | Server-side authentication, revocation, billing, and retention enforcement                                       |
+| Web calls to Cloud API, signaling, STUN/TURN, Stripe, Turnstile, and backup storage | Third-party infrastructure internals                                                                             |
+| Import, export, clipboard, recovery, and logging                                    | Support operations, social recovery, and other human processes outside this repository                           |
+| Client deployment configuration in the Docker Compose files                         | Compromised operating system, browser, browser profile, or malware reading unlocked memory                       |
+| One-time share links: share dialog, Shared links list, and the `/s/` recipient page | Share server internals, covered by the [share server threat model](../services/cmd/share-server/threat-model.md) |
 
 Extension and mobile devices can be sync/link peers. Their internal controls are not web-app controls. See the [extension threat model](../extension/docs/threat-model.md) for that client.
 
@@ -39,6 +40,7 @@ Extension and mobile devices can be sync/link peers. Their internal controls are
 3. Authenticate and encrypt sync/link payloads independently of the transport services.
 4. Limit the lifetime of unlocked secrets through explicit lock and idle lock.
 5. Keep cloud recovery authorization separate from vault decryption. Access to backup ciphertext must not itself unlock the vault.
+6. Encrypt one-time shares in the browser. The share server must never receive a share's plaintext or the key in the link.
 
 ### Deployment assumptions and limits
 
@@ -70,6 +72,8 @@ This review does not establish compliance with a regulatory framework or deploym
 | A12 | Managed-backup recovery session token            | Ephemeral browser session                                         | Five-minute list/download access to eligible root ciphertext                                       |
 | A13 | Captcha token                                    | Ephemeral UI and API request                                      | Bot-protection proof exposed or reused                                                             |
 | A14 | Clipboard, exports, and logs                     | OS clipboard, browser downloads, console                          | Secrets or metadata escape the vault's storage controls                                            |
+| A15 | One-time share link and its key                  | Share dialog until copied; wherever the sender sends it           | Anyone holding it can open the share once                                                          |
+| A16 | Share manage tokens and share settings           | Encrypted vault (`ShareLinks`, `ShareSettings`), synced           | Revoke the sender's shares and read their status; creation token use on a self-hosted server       |
 
 | State    | Expected secret handling                                                               | Remaining exposure                                                                             |
 | -------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -95,6 +99,8 @@ flowchart LR
     Relay["STUN/TURN"]
     Peer["Linked device"]
     Providers["Stripe and Turnstile"]
+    Share["Share server (same origin, /share-api)"]
+    Recipient["Share recipient browser"]
 
     User -->|"F1: unlock and vault actions"| App
     App <-->|"F2: encrypted persistence"| IDB
@@ -106,6 +112,8 @@ flowchart LR
     App <-->|"F8: connectivity and relay"| Relay
     App <-->|"F9: encrypted WebRTC sync/link payloads"| Peer
     App <-->|"F10: billing and captcha"| Providers
+    App <-->|"F11: create, status, revoke share ciphertext"| Share
+    Recipient <-->|"F12: /s/ page, peek and one-time reveal"| Share
 ```
 
 The diagram shows logical flows. TURN may relay peer traffic. Signaling and relay services still observe connection metadata even when application payloads are encrypted.
@@ -118,6 +126,7 @@ The diagram shows logical flows. TURN may relay peer traffic. Signaling and rela
 | B2: Web app and external services             | F5, F6, F10 | Optional cloud mode, device challenge signing, client-side backup encryption and transfer checks | Server enforcement is external; JWT theft permits API use; providers see metadata                 |
 | B3: Web app and peer/transport infrastructure | F7, F8, F9  | Authenticated payload encryption, signed sync setup, encrypted mnemonic-protected link package   | Malformed authenticated peer data, leaked mnemonic, service disruption, and metadata disclosure   |
 | B4: Vault and user/OS surfaces                | F1, F4      | Explicit/idle lock, encrypted persistence after import, controlled UI actions                    | Clipboard, screen capture, and exported files remain outside vault control                        |
+| B5: Web app and share server                  | F11, F12    | Browser-side AES-256-GCM; key only in the link fragment; token hashes; ticket audience check     | Link interception opens the share; the recipient page is trusted code from the web origin         |
 
 Relevant attackers include a thief with a copy of IndexedDB or a backup, a script executing in the unlocked app, a malicious browser extension, an observer or disruptor of signaling/relay traffic, an authenticated malicious peer, and an attacker holding a JWT, Recovery Kit, or linking phrase. Their capabilities differ: possession of ciphertext alone is not possession of a decryption key.
 
@@ -165,6 +174,16 @@ The recovery design requires atomic Recovery Kit consumption and recovery-sessio
 
 A stolen Kit and User ID authorize eligible ciphertext retrieval. An attacker who also has the vault password or vault recovery code can decrypt the restored vault and reclaim root control. Backup storage sees ciphertext size and timing.
 
+### One-time share links
+
+- The share dialog builds the payload from the chosen fields (passkeys are never included), encrypts it with a fresh 32-byte link secret, and uploads only ciphertext and SHA-256 token hashes. An optional passphrase adds Argon2id (64 MiB, 3 passes) to the key derivation.
+- The web app always uses the share server on its own origin. Online Services tickets go only to a server whose origin matches the ticket's `aud`.
+- The link carries the key in its fragment, which the browser never sends. The recipient page asks for a click before revealing, removes the fragment from the address bar after reveal, sends no referrer, and runs under a strict CSP.
+- Share records (ID, server, manage token, label, status) live in the encrypted vault and sync between the sender's devices. A removed record stays removed, its server and manage token can't change, and records with a non-HTTPS server (other than localhost) are rejected.
+- Linking a new device doesn't copy the share settings, so a self-hosted creation token stays on the devices where it was entered.
+
+The server side is covered by the [share server threat model](../services/cmd/share-server/threat-model.md).
+
 ### Import, export, clipboard, and logging
 
 - Imported vault data is encrypted when saved. Plaintext imports and downloaded exports remain user-managed files outside the vault boundary.
@@ -177,16 +196,18 @@ A stolen Kit and User ID authorize eligible ciphertext retrieval. An attacker wh
 
 STRIDE categories are spoofing, tampering, repudiation, information disclosure, denial of service, and elevation of privilege. The following scenarios identify affected assets, trust boundaries, controls, and residual risks.
 
-| ID  | STRIDE                                         | Scenario and affected assets                                                                        | Boundary | Existing controls                                                                                 | Residual risk or review need                                                 |
-| --- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| T1  | Information disclosure                         | Attacker steals A2 and guesses the master password                                                  | B1       | Argon2id, encrypted vault, wrapped DEK                                                            | Weak passwords; captured recovery/unlock material                            |
-| T2  | Information disclosure, elevation of privilege | XSS, malicious extension, or local access reads A1/A4/A7/A8 while unlocked                          | B1, B4   | Runtime isolation, explicit lock, idle lock                                                       | Unlocked runtime compromise defeats vault confidentiality                    |
-| T3  | Spoofing, elevation of privilege               | Attacker steals A7 or A8 and authenticates as a device                                              | B2       | Encrypted device key at rest; challenge signing                                                   | Unlocked key exposure; backend expiry/revocation enforcement                 |
-| T4  | Spoofing, tampering                            | Attacker interferes with sync/link traffic or a trusted peer submits invalid data                   | B3       | Signed sync setup, AEAD with context binding, encrypted linking                                   | Peer semantic validation and mnemonic handling require review                |
-| T5  | Information disclosure                         | Signaling, relay, cloud, or backup provider observes metadata                                       | B2, B3   | Payload encryption; optional cloud mode                                                           | Presence, IP addresses, identifiers, size, and timing remain visible         |
-| T6  | Denial of service                              | Signaling or relay service disrupts pairing or synchronization                                      | B3       | Payload crypto preserves confidentiality/integrity during transport                               | External connectivity remains an availability dependency                     |
-| T7  | Information disclosure, elevation of privilege | Kit/session theft permits backup retrieval; vault-secret theft permits decryption and root takeover | B2, B4   | Separate recovery authorization and vault secrets; limited recovery session; Kit replacement flow | Server enforcement is external; combined secret compromise                   |
-| T8  | Information disclosure                         | Clipboard, exports, or development logs expose A1/A5/A10/A11                                        | B4       | Encrypted persistence; limited production tRPC logging                                            | User files and clipboard are outside vault control; verbose development logs |
+| ID  | STRIDE                                         | Scenario and affected assets                                                                        | Boundary | Existing controls                                                                                 | Residual risk or review need                                                                                                  |
+| --- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| T1  | Information disclosure                         | Attacker steals A2 and guesses the master password                                                  | B1       | Argon2id, encrypted vault, wrapped DEK                                                            | Weak passwords; captured recovery/unlock material                                                                             |
+| T2  | Information disclosure, elevation of privilege | XSS, malicious extension, or local access reads A1/A4/A7/A8 while unlocked                          | B1, B4   | Runtime isolation, explicit lock, idle lock                                                       | Unlocked runtime compromise defeats vault confidentiality                                                                     |
+| T3  | Spoofing, elevation of privilege               | Attacker steals A7 or A8 and authenticates as a device                                              | B2       | Encrypted device key at rest; challenge signing                                                   | Unlocked key exposure; backend expiry/revocation enforcement                                                                  |
+| T4  | Spoofing, tampering                            | Attacker interferes with sync/link traffic or a trusted peer submits invalid data                   | B3       | Signed sync setup, AEAD with context binding, encrypted linking                                   | Peer semantic validation and mnemonic handling require review                                                                 |
+| T5  | Information disclosure                         | Signaling, relay, cloud, or backup provider observes metadata                                       | B2, B3   | Payload encryption; optional cloud mode                                                           | Presence, IP addresses, identifiers, size, and timing remain visible                                                          |
+| T6  | Denial of service                              | Signaling or relay service disrupts pairing or synchronization                                      | B3       | Payload crypto preserves confidentiality/integrity during transport                               | External connectivity remains an availability dependency                                                                      |
+| T7  | Information disclosure, elevation of privilege | Kit/session theft permits backup retrieval; vault-secret theft permits decryption and root takeover | B2, B4   | Separate recovery authorization and vault secrets; limited recovery session; Kit replacement flow | Server enforcement is external; combined secret compromise                                                                    |
+| T8  | Information disclosure                         | Clipboard, exports, or development logs expose A1/A5/A10/A11                                        | B4       | Encrypted persistence; limited production tRPC logging                                            | User files and clipboard are outside vault control; verbose development logs                                                  |
+| T9  | Information disclosure                         | Someone intercepts a share link (A15) and opens it before the recipient                             | B5       | One view; optional passphrase; the sender's list shows "Opened"                                   | Detection only; the delivery channel is outside this model                                                                    |
+| T10 | Tampering                                      | A malicious device or replayed sync data alters share records (A16)                                 | B3       | Sticky removal; immutable server and manage token; origin validation                              | A compromised sender device can revoke the sender's shares, or sync records that make other devices contact a server it picks |
 
 Repudiation remains unassessed. This review does not establish an audit-evidence control.
 
@@ -211,6 +232,7 @@ Priorities are qualitative engineering judgments, not CVSS scores. Per-risk like
 | STUN/TURN            | Peer connectivity and relay                                                                                                    | IP/network metadata and relay usage                                                                                                                                             |
 | Stripe               | Checkout and customer portal                                                                                                   | Billing session, customer, and payment metadata                                                                                                                                 |
 | Cloudflare Turnstile | Signup, recovery, and feedback bot protection                                                                                  | Captcha token and browser interaction metadata                                                                                                                                  |
+| Share server         | One-time share links                                                                                                           | Share ciphertext, token hashes, sizes, timing, and an account pseudonym for subscriber tickets                                                                                  |
 
 The client design does not require sending vault plaintext or the master password to these services. Sync/link payload encryption is separate from signaling and relay transport. This repository does not verify provider logs, retention, access controls, or private backend code.
 
@@ -234,3 +256,4 @@ All paths below are relative to this document.
 - [Authentication](docs/authentication.md), [authentication API](docs/authentication-api.md), [web auth session](src/app_lib/auth-session.ts), and [API contract](../packages/api-contract/src/router.ts).
 - [Managed backups](docs/managed-backups.md), [transfer implementation](src/app_lib/managed-backups.ts), and [restore UI](src/components/vault-manager/restore.tsx).
 - [Clipboard helper](src/utils/clipboard.ts) and [tRPC logging](src/utils/trpc.ts).
+- [Share dialog](src/components/share/share-dialog.tsx), [recipient page](src/components/share/share-reveal.tsx), [share links](../packages/vault-core/src/vault-utils/share-link.ts), [share service](../packages/vault-core/src/vault-utils/share-service.ts), and [share records](../packages/vault-core/src/vault-utils/share-records.ts).

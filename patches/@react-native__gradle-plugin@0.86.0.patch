@@ -1,0 +1,84 @@
+diff --git a/settings-plugin/build.gradle.kts b/settings-plugin/build.gradle.kts
+--- a/settings-plugin/build.gradle.kts
++++ b/settings-plugin/build.gradle.kts
+@@ -50,7 +50,7 @@
+ // nice message showing that JDK 11 (or 17) is required first
+ java { targetCompatibility = JavaVersion.VERSION_11 }
+ 
+-kotlin { jvmToolchain(17) }
++kotlin { jvmToolchain(21) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+diff --git a/react-native-gradle-plugin/build.gradle.kts b/react-native-gradle-plugin/build.gradle.kts
+--- a/react-native-gradle-plugin/build.gradle.kts
++++ b/react-native-gradle-plugin/build.gradle.kts
+@@ -60,7 +60,7 @@
+ // nice message showing that JDK 11 (or 17) is required first
+ java { targetCompatibility = JavaVersion.VERSION_11 }
+ 
+-kotlin { jvmToolchain(17) }
++kotlin { jvmToolchain(21) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+diff --git a/shared/build.gradle.kts b/shared/build.gradle.kts
+--- a/shared/build.gradle.kts
++++ b/shared/build.gradle.kts
+@@ -29,7 +29,7 @@
+ 
+ java { targetCompatibility = JavaVersion.VERSION_11 }
+ 
+-kotlin { jvmToolchain(17) }
++kotlin { jvmToolchain(21) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+diff --git a/shared-testutil/build.gradle.kts b/shared-testutil/build.gradle.kts
+--- a/shared-testutil/build.gradle.kts
++++ b/shared-testutil/build.gradle.kts
+@@ -23,7 +23,7 @@
+ 
+ java { targetCompatibility = JavaVersion.VERSION_11 }
+ 
+-kotlin { jvmToolchain(17) }
++kotlin { jvmToolchain(21) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+diff --git a/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt b/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
+--- a/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
++++ b/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
+@@ -14,13 +14,15 @@
+ import org.gradle.api.JavaVersion
+ import org.gradle.api.Project
+ import org.gradle.api.plugins.AppliedPlugin
++import org.jetbrains.kotlin.gradle.dsl.JvmTarget
++import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
+ import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
+ 
+ internal object JdkConfiguratorUtils {
+   /**
+    * Function that takes care of configuring the JDK toolchain for all the projects projects. As we
+    * do decide the JDK version based on the AGP version that RNGP brings over, here we can safely
+-   * configure the toolchain to 17.
++   * configure the toolchain to 21 while retaining Java 17 bytecode.
+    */
+   fun configureJavaToolChains(input: Project) {
+     // Check at the app level if react.internal.disableJavaVersionAlignment is set.
+@@ -54,10 +56,13 @@
+       project.pluginManager.withPlugin("com.android.application", applicationAction)
+       project.pluginManager.withPlugin("com.android.library", libraryAction)
+       project.pluginManager.withPlugin("org.jetbrains.kotlin.android") {
+-        project.kotlinExtension.jvmToolchain(17)
++        project.kotlinExtension.jvmToolchain(21)
++        project.extensions
++            .getByType(KotlinAndroidProjectExtension::class.java)
++            .compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+       }
+       project.pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
+-        project.kotlinExtension.jvmToolchain(17)
++        project.kotlinExtension.jvmToolchain(21)
+       }
+     }
+   }

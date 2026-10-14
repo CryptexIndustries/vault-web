@@ -701,7 +701,7 @@ const getSendLinkStatusMessage = (
 
     return linkMethod === "qr"
         ? "Scan the QR code on the receiving device."
-        : "Import the link file on the receiving device, then enter the mnemonic.";
+        : "Import the link file on the receiving device, then enter the verification words.";
 };
 
 function SendLinkLogToggle({
@@ -874,7 +874,7 @@ function SendLinkActiveLinkingPanel({
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Import it on the receiving device, then enter the
-                            mnemonic below.
+                            verification words below.
                         </p>
                         {linkingPackageBinary ? (
                             <Button
@@ -897,7 +897,9 @@ function SendLinkActiveLinkingPanel({
                     className="flex w-full items-center justify-between gap-3 p-4 text-left"
                     onClick={onToggleMnemonic}
                 >
-                    <span className="text-sm font-medium">Mnemonic</span>
+                    <span className="text-sm font-medium">
+                        Verification words
+                    </span>
                     <ChevronDown
                         className={cn(
                             "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
@@ -1534,7 +1536,7 @@ export function SendLinkRequestDialog({
                 ),
             );
             addToProgressLog(
-                "Waiting for receiver to prove it knows the mnemonic...",
+                "Waiting for receiver to prove it knows the verification words...",
                 "info",
             );
 
@@ -2512,7 +2514,7 @@ const hasReceiveLinkPackage = (
 const RECEIVE_LINK_PACKAGE_PARSE_SUMMARY =
     "This link package could not be read.";
 const RECEIVE_LINK_PACKAGE_UNLOCK_SUMMARY =
-    "The mnemonic does not unlock this link package.";
+    "These verification words do not unlock this link package.";
 
 const receiveLinkErrorDetail = (error: unknown): string => {
     if (error == null) return "";
@@ -2550,7 +2552,7 @@ class ReceiveLinkPackageError extends Error {
 function ReceiveInputStepIndicator({ step }: { step: ReceiveInputStep }) {
     const items: { id: ReceiveInputStep; label: string }[] = [
         { id: "package", label: "Link package" },
-        { id: "mnemonic", label: "Mnemonic" },
+        { id: "mnemonic", label: "Verification words" },
     ];
 
     return (
@@ -3052,7 +3054,7 @@ export function ReceiveLinkRequestDialog({
         setMergeSummary(null);
 
         if (secret.trim().length <= 1) {
-            setFormError("Enter the mnemonic from the sending device.");
+            setFormError("Enter the verification words from the sending device.");
             return;
         }
         if (method === "qr" && !qrCodeData.trim()) {
@@ -3440,7 +3442,7 @@ export function ReceiveLinkRequestDialog({
                                                                 </p>
                                                                 <p className="text-xs text-muted-foreground">
                                                                     {hasLinkPackage
-                                                                        ? "Continue to enter the mnemonic."
+                                                                        ? "Continue to enter the verification words."
                                                                         : "Camera scan fills package data automatically."}
                                                                 </p>
                                                             </div>
@@ -3621,12 +3623,12 @@ export function ReceiveLinkRequestDialog({
                                 ) : (
                                     <div className="space-y-2">
                                         <p className="text-sm text-muted-foreground">
-                                            Enter the mnemonic shown on the
-                                            sending device to unlock the link
-                                            package.
+                                            Enter the verification words shown
+                                            on the sending device to unlock the
+                                            link package.
                                         </p>
                                         <Label htmlFor="receive-link-secret">
-                                            Mnemonic
+                                            Verification words
                                         </Label>
                                         <ControlWithActions
                                             actions={
@@ -3648,8 +3650,8 @@ export function ReceiveLinkRequestDialog({
                                                                     className="h-7 w-7"
                                                                     aria-label={
                                                                         showSecret
-                                                                            ? "Hide mnemonic"
-                                                                            : "Show mnemonic"
+                                                                            ? "Hide verification words"
+                                                                            : "Show verification words"
                                                                     }
                                                                 >
                                                                     {showSecret ? (

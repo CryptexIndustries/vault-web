@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:label="Autofill Test App"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity android:name=".ExportCaptureActivity" android:exported="true" android:label="Capture E2E export">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".AccessibilityRegisterActivity" android:exported="false" />
+        <activity android:name=".CredentialManagerPasswordActivity" android:exported="false" />
+        <activity android:name=".AccessibilityLoginActivity" android:exported="false" />
+        <activity android:name=".WebLoginActivity" android:exported="false" />
+        <activity android:name=".UpdateActivity" android:exported="false" />
+        <activity android:name=".MultiStepRegisterActivity" android:exported="false" />
+        <activity android:name=".RegisterActivity" android:exported="false" />
+        <activity android:name=".LoginActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,9 @@
+appId: ${CRYPTEX_APP_ID}
+name: Confirm the sender is still waiting for the receiver
+---
+# Creating the invitation starts the live transfer; nothing to tap here.
+- scrollUntilVisible:
+    element:
+      text: Waiting for other device.*
+    direction: DOWN
+    timeout: 35000

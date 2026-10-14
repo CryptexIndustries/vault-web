@@ -49,3 +49,12 @@ test("all fixture master-password fields use the shared vault-creation password"
         }
     }
 });
+
+test("shared setup waits out a system 'isn't responding' dialog before checking the first screen", () => {
+    const setup = flows.get("setup-vault.yaml");
+    const launch = setup.indexOf("launchApp");
+    const guard = setup.findIndex(step => step.runFlow?.when?.visible === ".*isn.t responding");
+    const firstCheck = setup.findIndex(step => step.assertVisible === "Create vault");
+    assert.ok(launch !== -1 && launch < guard && guard < firstCheck);
+    assert.deepEqual(setup[guard].runFlow.commands, [{ tapOn: "Wait" }]);
+});

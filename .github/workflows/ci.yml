@@ -50,6 +50,24 @@ jobs:
             - name: Test web client
               run: pnpm exec jest web/tests --runInBand
 
+    services-quality:
+        name: Go services quality
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        container:
+            image: golang:1.26@sha256:d7722066f0b60ceccb6c0643cbed1f5f9e15506ac237146c95333504d7805d89
+        defaults:
+            run:
+                working-directory: services
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Check formatting
+              run: test -z "$(gofmt -l .)"
+            - name: Vet Go services
+              run: go vet ./...
+            - name: Test Go services
+              run: go test -race ./...
+
     extension-quality:
         name: Extension quality
         runs-on: ubuntu-latest
@@ -228,18 +246,20 @@ jobs:
                   repository="${GITHUB_REPOSITORY,,}"
                   image="ghcr.io/${repository}"
 
+                  tag=""
+                  if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+                    tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
+                    tag="${tag:0:128}"
+                    if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
+                      tag="tag-${tag:0:124}"
+                    fi
+                  fi
+
                   {
                     echo "name=${image}"
                     echo "tags<<EOF"
                     echo "${image}:${GITHUB_SHA}"
-                    if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-                      tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
-                      tag="${tag:0:128}"
-                      if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
-                        tag="tag-${tag:0:124}"
-                      fi
-                      echo "${image}:${tag}"
-                    fi
+                    if [[ -n "${tag}" ]]; then echo "${image}:${tag}"; fi
                     echo "EOF"
                   } >> "$GITHUB_OUTPUT"
 
@@ -275,3 +295,70 @@ jobs:
                       org.opencontainers.image.revision=${{ github.sha }}
                   cache-from: type=gha,scope=web-production
                   cache-to: type=gha,mode=max,scope=web-production
+
+    share-server-image:
+        name: Share server container image
+        needs: [services-quality]
+        # Released on its own tags so web releases never restart it.
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'share-server-v')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Derive lowercase GHCR image name and tags
+              id: image
+              shell: bash
+              run: |
+                  repository="${GITHUB_REPOSITORY,,}"
+                  image="ghcr.io/${repository}/share-server"
+
+                  # share-server-v1.2.3 publishes the image tag v1.2.3.
+                  version="${GITHUB_REF_NAME#share-server-}"
+                  if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+                    echo "Release tags look like share-server-v1.2.3 or share-server-v1.2.3-rc1, not ${GITHUB_REF_NAME}" >&2
+                    exit 1
+                  fi
+
+                  {
+                    echo "name=${image}"
+                    echo "tags<<EOF"
+                    echo "${image}:${GITHUB_SHA}"
+                    echo "${image}:${version}"
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Validate Docker Swarm stack
+              env:
+                  SHARE_IMAGE: ${{ steps.image.outputs.name }}:${{ github.sha }}
+              run: |
+                  if env -u SHARE_IMAGE docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null 2>&1; then
+                    echo "services/cmd/share-server/compose.swarm.yaml must reject a missing SHARE_IMAGE" >&2
+                    exit 1
+                  fi
+                  docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and publish share server image
+              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              with:
+                  context: services
+                  file: services/cmd/share-server/Dockerfile
+                  push: true
+                  tags: ${{ steps.image.outputs.tags }}
+                  labels: |
+                      org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                  cache-from: type=gha,scope=share-server-production
+                  cache-to: type=gha,mode=max,scope=share-server-production

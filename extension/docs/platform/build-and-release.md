@@ -30,7 +30,7 @@ Watch dev: parallel `dev:main` + `dev:content`.
 
 On `mode === "production"` in `vite.config.ts`:
 
-- `host_permissions` narrowed to API host (`VITE_APP_URL`) + Pusher host
+- `host_permissions` narrowed to the Online Services API host (`VITE_ONLINE_SERVICES_API_URL`, or `VITE_APP_URL` when that is empty) + Pusher host. The app origin only serves the share API, which allows any origin, so it gets no permission of its own.
 - `VITE_EXTENSION_NAME_PREFIX` prepended to `name` / `action.default_title`
 - Build fails if `VITE_APP_URL` missing, contains `REPLACE_ME`, or is not `https://`
 

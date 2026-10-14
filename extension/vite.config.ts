@@ -97,8 +97,14 @@ export default defineConfig(({ mode }) => {
             }
         };
 
-        add(env.VITE_APP_URL);
-        add(env.VITE_ONLINE_SERVICES_API_URL);
+        // The service worker calls the Online Services API, which needs a host
+        // permission. The app origin only serves the share API, which allows
+        // any origin, so it needs one only when it also hosts the API.
+        if (env.VITE_ONLINE_SERVICES_API_URL) {
+            add(env.VITE_ONLINE_SERVICES_API_URL);
+        } else {
+            add(env.VITE_APP_URL);
+        }
 
         if (env.VITE_PUSHER_APP_HOST) {
             const scheme =

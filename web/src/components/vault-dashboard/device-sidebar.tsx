@@ -16,6 +16,7 @@ import {
     Settings,
     Lock,
     ArrowRightToLine,
+    Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -104,10 +105,11 @@ interface DeviceSidebarProps {
     subscriptionCtaVariant?: SubscriptionCtaVariant;
     onOpenPasswordGenerator?: () => void;
     onOpenSecurityReport: () => void;
+    onOpenSharedLinks?: () => void;
     onOpenBackup: () => void;
     vaultId?: string;
     vaultBlob?: EncryptedBlob;
-    activeView: "credentials" | "security-report";
+    activeView: "credentials" | "security-report" | "shared-links";
     onLockVault?: () => void;
     signalingConfig: VaultSignalingConfig;
     onSaveSignalingConfig: (
@@ -694,6 +696,7 @@ export function DeviceSidebar({
     subscriptionCtaVariant = "signup",
     onOpenPasswordGenerator,
     onOpenSecurityReport,
+    onOpenSharedLinks,
     onOpenBackup,
     vaultId,
     vaultBlob,
@@ -772,6 +775,23 @@ export function DeviceSidebar({
                     <ShieldCheck className="h-3.5 w-3.5" />
                     Security Report
                 </Button>
+                {onOpenSharedLinks ? (
+                    <Button
+                        variant="ghost"
+                        className={cn(
+                            "hover:bg-sidebar-accent/70 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground",
+                            activeView === "shared-links" &&
+                                "bg-sidebar-accent text-foreground",
+                        )}
+                        onClick={() => handleSidebarAction(onOpenSharedLinks)}
+                        aria-current={
+                            activeView === "shared-links" ? "page" : undefined
+                        }
+                    >
+                        <Link2 className="h-3.5 w-3.5" />
+                        Shared Links
+                    </Button>
+                ) : null}
                 <BackupSidebarEntry
                     vaultId={vaultId}
                     vaultBlob={vaultBlob}

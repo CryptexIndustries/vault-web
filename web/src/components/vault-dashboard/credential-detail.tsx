@@ -16,6 +16,7 @@ import {
     Plus,
     Fingerprint,
     Check,
+    Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,8 @@ interface CredentialDetailProps {
     isMobile?: boolean;
     onOpenUrl: (credential: VaultCredential) => void;
     onDeleteCredential: (credential: VaultCredential) => void;
+    /** Opens the one-time share dialog. Hidden when not provided. */
+    onShare?: (credential: VaultCredential) => void;
     directoryName: string;
 }
 
@@ -87,7 +90,7 @@ function CopyableField({
                     {label}
                 </span>
             </div>
-            <div className="group-hover:border-primary/30 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors">
+            <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
                 <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <span
                     className={cn(
@@ -359,6 +362,7 @@ export function CredentialDetail({
     isMobile,
     onOpenUrl,
     onDeleteCredential,
+    onShare,
     directoryName,
 }: CredentialDetailProps) {
     const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -499,6 +503,23 @@ export function CredentialDetail({
                             </Tooltip>
                         </TooltipProvider>
                     )} */}
+                    {onShare && !isPasskeyOnly ? (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        aria-label="Share once"
+                                        onClick={() => onShare(credential)}
+                                    >
+                                        <Link2 className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Share once</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ) : null}
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>

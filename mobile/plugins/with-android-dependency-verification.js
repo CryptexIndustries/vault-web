@@ -1,4 +1,4 @@
-const { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
+const { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
 const {
     withDangerousMod,
@@ -7,12 +7,35 @@ const {
 
 const POLICY = "apply from: new File(rootDir, '../fdroid/dependencies.gradle')";
 const PLAY_POLICY = "apply from: new File(rootDir, '../config/play-dependencies.gradle')";
+const PLAY_RULES_BEGIN = "# Begin Cryptex Play rules";
+const PLAY_RULES_END = "# End Cryptex Play rules";
+// play-dependencies.gradle excludes these optional RevenueCat dependencies, so
+// R8 must not expect them. RevenueCat catches the missing Block Store classes,
+// and it reads the advertising ID only in collectDeviceIdentifiers() and the
+// attribution ID setters, which the app never calls.
+const PLAY_RULES = [
+    "-dontwarn com.google.android.gms.ads.identifier.**",
+    "-dontwarn com.google.android.gms.auth.blockstore.**",
+];
 
 function addDependencyPolicy(contents, distribution = globalThis.process?.env.CRYPTEX_DISTRIBUTION) {
     const policy = distribution === "play" ? PLAY_POLICY : POLICY;
     const withoutPolicies = contents.split("\n")
         .filter(line => ![POLICY, PLAY_POLICY].includes(line.trim())).join("\n");
     return `${withoutPolicies.trimEnd()}\n\n${policy}\n`;
+}
+
+function addPlayProguardRules(contents, distribution = globalThis.process?.env.CRYPTEX_DISTRIBUTION) {
+    const begin = contents.indexOf(PLAY_RULES_BEGIN);
+    const end = contents.indexOf(PLAY_RULES_END);
+    let base = contents;
+    if (begin !== -1 || end !== -1) {
+        if (begin === -1 || end < begin) throw new Error("Invalid Cryptex Play ProGuard rules block");
+        base = `${contents.slice(0, begin).trimEnd()}\n${contents.slice(end + PLAY_RULES_END.length).trimStart()}`;
+        base = base.trim() ? `${base.trimEnd()}\n` : "";
+    }
+    if (distribution !== "play") return base;
+    return `${base.trimEnd() ? `${base.trimEnd()}\n\n` : ""}${[PLAY_RULES_BEGIN, ...PLAY_RULES, PLAY_RULES_END].join("\n")}\n`;
 }
 
 function mergeVerificationMetadata(baseXml, playXml) {
@@ -111,6 +134,13 @@ module.exports = (config) => {
             } else {
                 copyFileSync(baseMetadata, generatedMetadata);
             }
+            const proguardRules = path.join(mod.modRequest.platformProjectRoot, "app/proguard-rules.pro");
+            const currentRules = existsSync(proguardRules) ? readFileSync(proguardRules, "utf8") : "";
+            const rules = addPlayProguardRules(currentRules, distribution);
+            if (rules !== currentRules) {
+                mkdirSync(path.dirname(proguardRules), { recursive: true });
+                writeFileSync(proguardRules, rules);
+            }
             const notices = path.join(
                 mod.modRequest.platformProjectRoot,
                 "app/src/main/assets/licenses",
@@ -151,3 +181,4 @@ module.exports = (config) => {
 
 module.exports.addDependencyPolicy = addDependencyPolicy;
 module.exports.mergeVerificationMetadata = mergeVerificationMetadata;
+module.exports.addPlayProguardRules = addPlayProguardRules;

@@ -9,8 +9,9 @@ const plugin = require("../plugins/with-android-dependency-verification") as {
     (config: { name: string; slug: string }): { mods: { android: { dangerous(mod: object): Promise<object> } } };
     addDependencyPolicy(contents: string, distribution?: string): string;
     mergeVerificationMetadata(baseXml: string, playXml: string): string;
+    addPlayProguardRules(contents: string, distribution?: string): string;
 };
-const { addDependencyPolicy, mergeVerificationMetadata } = plugin;
+const { addDependencyPolicy, mergeVerificationMetadata, addPlayProguardRules } = plugin;
 const projectRoot = resolve(__dirname, "..");
 const baseline = readFileSync(join(projectRoot, "fdroid/verification-metadata.xml"), "utf8");
 const playChecksums = readFileSync(join(projectRoot, "config/play-verification-metadata.xml"), "utf8");
@@ -131,19 +132,37 @@ describe("Android dependency verification", () => {
             .toThrow("duplicate Play dependency component");
     });
 
+    it("adds the Play R8 rules only to Play builds and removes them when switching back", () => {
+        const template = "# Add project specific ProGuard rules here.\n-keep class com.facebook.react.** { *; }\n";
+        const play = addPlayProguardRules(template, "play");
+        expect(play.startsWith(template)).toBe(true);
+        expect(play).toContain("-dontwarn com.google.android.gms.ads.identifier.**");
+        expect(play).toContain("-dontwarn com.google.android.gms.auth.blockstore.**");
+        expect(addPlayProguardRules(play, "play")).toBe(play);
+        for (const distribution of ["fdroid", "standard"]) {
+            expect(addPlayProguardRules(play, distribution)).toBe(template);
+            expect(addPlayProguardRules(template, distribution)).toBe(template);
+        }
+        expect(addPlayProguardRules("", "fdroid")).toBe("");
+        expect(() => addPlayProguardRules("# End Cryptex Play rules\n", "play")).toThrow("Invalid Cryptex Play ProGuard rules block");
+    });
+
     it("generates Play checksums and removes them and the SDK notice when switching to F-Droid or standard", async () => {
         const platformProjectRoot = mkdtempSync(join(tmpdir(), "cryptex-distribution-checksums-"));
         const sdkNotice = join(platformProjectRoot, "app/src/main/assets/licenses/react-native-purchases-MIT.txt");
+        const proguardRules = join(platformProjectRoot, "app/proguard-rules.pro");
         try {
             for (const distribution of ["fdroid", "standard"]) {
                 const play = await generateMetadata("play", platformProjectRoot);
                 expect(new Set(artifactHashes(play))).toEqual(new Set([...artifactHashes(baseline), ...artifactHashes(playChecksums)]));
                 expect(play).toMatch(disallowedFdroidComponents);
                 expect(existsSync(sdkNotice)).toBe(true);
+                expect(readFileSync(proguardRules, "utf8")).toContain("-dontwarn com.google.android.gms.auth.blockstore.**");
                 const clean = await generateMetadata(distribution, platformProjectRoot);
                 expect(clean).toBe(baseline);
                 expect(clean).not.toMatch(disallowedFdroidComponents);
                 expect(existsSync(sdkNotice)).toBe(false);
+                expect(readFileSync(proguardRules, "utf8")).not.toMatch(/gms|Cryptex Play/);
             }
         } finally {
             rmSync(platformProjectRoot, { recursive: true, force: true });

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The web app's account dialog shows what your plan includes. Free accounts see the free vault features next to what Online Services adds, with the price for the selected billing interval and the upgrade button. Subscribers see each included service with its allowance and how many of their linked devices they use.
+- The Android app's membership benefits list one-time share links, matching the web app.
 
 ### Changed
 

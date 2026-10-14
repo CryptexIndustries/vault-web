@@ -39,7 +39,7 @@ The existing profile identity signs the local APK and serves as the AAB upload k
 
 Play version codes are the `app.json` `versionCode` times ten. F-Droid ABI builds use the next four codes, so every distribution gets a distinct code and each release is higher than the last.
 
-Run the manual **Mobile Google Play** GitHub workflow. Production requires the matching `mobile-v<version>` tag; preproduction uses the selected branch. The workflow builds from the selected profile's committed JSON. Configure `Mobile - Google Play Production` or `Mobile - Google Play Preproduction` with the existing secrets `CRYPTEX_KEYSTORE_BASE64`, `CRYPTEX_KEYSTORE_PASSWORD` and `CRYPTEX_KEY_PASSWORD`. The alias comes from the profile's committed signing identity.
+Run the manual **Mobile Google Play** GitHub workflow. Production requires the matching `mobile-v<version>` tag; preproduction uses the selected branch. The workflow builds from the selected profile's committed JSON. It signs with the same `Mobile - Production` or `Mobile - Preproduction` environment as the standard release builds, using their `CRYPTEX_KEYSTORE_BASE64`, `CRYPTEX_KEYSTORE_PASSWORD` and `CRYPTEX_KEY_PASSWORD` secrets, so Play builds need no environment of their own. The alias comes from the profile's committed signing identity.
 
 Download `mobile-google-play-release-<run-id>` for the build artifacts and public configuration. Upload the AAB to Play Console manually.
 

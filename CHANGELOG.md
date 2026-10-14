@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.5.0] - 2026-10-06
+## [1.5.0] - 2026-10-14
 
 ### Added
 
@@ -17,16 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Shared links list on each client shows whether every link is active, opened, expired, revoked or destroyed. It has search, a status filter and sorting, and it revokes links that haven't been opened. The list syncs between your devices and drops finished links after about 90 days.
 - The open-source share server in `services/cmd/share-server`. Online Services subscribers create links on the managed server with tickets signed by the API, through the new `v1.share.ticket` contract. Self-hosted servers use creation tokens from their operator. The self-hosting Compose stack and the Docker Swarm guide include it, and it serves Prometheus metrics on a separate port that is never published.
 - The share server image is published as `ghcr.io/cryptexindustries/vault-web/share-server` on `share-server-v*` tags, so web releases don't restart it.
+- The web app's account dialog shows Online Services subscriptions billed through Google Play or the App Store and says where to manage them, instead of offering the Stripe billing portal.
 
 ### Changed
 
 - Bumped the web app and Chromium extension versions to `1.5.0`, aligning the extension package and manifest versions.
 - The web app's device linking dialogs now call the twelve-word secret "Verification words" instead of "Mnemonic", the same term the documentation, Chromium extension and Android app use. The linking guide no longer mentions a mnemonic field.
+- The terms, privacy policy, pricing page and Online Services documentation now cover buying Online Services through Google Play, with RevenueCat recording the purchases.
 
 ### Fixed
 
 - Device linking and synchronization now allow up to five seconds for connection candidates that arrive after an empty discovery completion, instead of failing immediately. Pending failure timers are cancelled when connections end or are replaced.
 - Password-key derivation failures now return handled vault unlock errors instead of escaping the unlock error handler.
+- The Chromium extension locks the vault when the operating system locks the screen, not only after 30 minutes of inactivity.
+- An open full-page extension tab shows the unlock screen when the vault locks elsewhere, for example from the idle lock or another popup.
 
 ### Security
 

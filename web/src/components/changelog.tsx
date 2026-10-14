@@ -42,7 +42,7 @@ const CHANGE_LABELS: Record<
 export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
         version: "v1.5.0",
-        date: "2026-10-06",
+        date: "2026-10-14",
         changes: [
             {
                 type: "added",
@@ -70,6 +70,11 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
                     "If you self-host, you can run the open-source share server next to your web app and hand out creation tokens to the people who may send links.",
             },
             {
+                type: "added",
+                description:
+                    "If you subscribed through Google Play or the App Store, the account dialog says so and tells you where to manage the subscription.",
+            },
+            {
                 type: "changed",
                 description:
                     "The device linking dialog now says \"Verification words\" instead of \"Mnemonic\", the same term the extension, Android app and documentation use.",
@@ -83,6 +88,16 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
                 type: "fix",
                 description:
                     "Failures while deriving the password key now return a handled vault unlock error.",
+            },
+            {
+                type: "fix",
+                description:
+                    "The extension locks your vault when your computer's screen locks, not only after 30 minutes of inactivity.",
+            },
+            {
+                type: "fix",
+                description:
+                    "An open extension tab shows the unlock screen as soon as the vault locks somewhere else.",
             },
         ],
     },

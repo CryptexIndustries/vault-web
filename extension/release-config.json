@@ -1,0 +1,11 @@
+{
+    "VITE_APP_URL": "https://www.cryptex-vault.com",
+    "VITE_ONLINE_SERVICES_API_URL": "https://api.cryptex-vault.com",
+    "VITE_CLOUD_ENABLED": "true",
+    "VITE_PUSHER_APP_ID": "3252ad7d-21ca-4482-a0ed-0833c9aff678",
+    "VITE_PUSHER_APP_KEY": "7094fcc9-dfc0-496a-b3ea-8f3bde8f0678",
+    "VITE_PUSHER_APP_HOST": "neosignaling.cryptex-vault.com",
+    "VITE_PUSHER_APP_PORT": "443",
+    "VITE_PUSHER_APP_TLS": "true",
+    "VITE_EXTENSION_NAME_PREFIX": ""
+}

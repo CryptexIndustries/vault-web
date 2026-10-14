@@ -263,7 +263,7 @@ export default defineConfig(({ mode }) => {
                                 if (prodHosts.length === 0) {
                                     throw new Error(
                                         "Production manifest would have empty host_permissions; " +
-                                            "check VITE_APP_URL / VITE_PUSHER_APP_HOST in .env.production.",
+                                            "check VITE_APP_URL / VITE_PUSHER_APP_HOST in the release configuration.",
                                     );
                                 }
                                 manifest.host_permissions = prodHosts;

@@ -184,6 +184,15 @@ export enum MessageType {
 
     /** Popup: read the separate managed-backup job spawned by a security change. */
     GetSecurityBackupJob = 51,
+
+    /** Popup: read one-time share link records and the share server settings. */
+    GetShareLinks = 52,
+
+    /** Popup: merge updated share link records into the vault by version. */
+    UpdateShareLinks = 53,
+
+    /** Popup: save which share server this device uses. */
+    SaveShareSettings = 54,
 }
 
 /**

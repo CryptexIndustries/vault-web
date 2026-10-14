@@ -13,6 +13,12 @@ import type {
     VaultSecurityStateResponse,
 } from "./types/sw-messaging";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import { mergeReceivedShareLinks } from "@cryptex-industries/vault-core/vault-utils/share-records";
+import {
+    parseShareLinksPayload,
+    parseShareSettingsPayload,
+} from "./background/share-links";
+import { getSyncVersionVectors } from "@cryptex-industries/vault-core/sync-operations";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
     type VaultWriteKind,
@@ -211,6 +217,9 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.GetBackupContext,
     MessageType.GetVaultSecurity,
     MessageType.ReconfigureVaultSecurity,
+    MessageType.GetShareLinks,
+    MessageType.UpdateShareLinks,
+    MessageType.SaveShareSettings,
     MessageType.RotateVaultRecoveryCode,
     MessageType.GetSecurityBackupJob,
 ]);
@@ -510,6 +519,8 @@ const VAULT_WRITE_MESSAGE_TYPES: Partial<Record<MessageType, VaultWriteKind>> =
         [MessageType.UpdateDirectory]: "directory.rename",
         [MessageType.DeleteDirectory]: "directory.delete",
         [MessageType.SyncUpdateItems]: "synchronization.apply",
+        [MessageType.UpdateShareLinks]: "share.update",
+        [MessageType.SaveShareSettings]: "share.settings",
         [MessageType.ReconfigureVaultSecurity]: "vault.security.reconfigure",
         [MessageType.RotateVaultRecoveryCode]: "vault.recovery.rotate",
     };
@@ -1063,7 +1074,21 @@ async function processMessageUncoordinated(
                 const directories = vault.Directories.filter((directory) =>
                     directoryIDs.has(directory.ID),
                 );
-                return { ok: true, credentials, directories };
+                const shareLinkIDs = new Set(
+                    payload.items
+                        .filter(
+                            (item: VaultUtilTypes.SyncItemReference) =>
+                                item.Type ===
+                                VaultUtilTypes.SyncItemType.ShareLinkItem,
+                        )
+                        .map(
+                            (item: VaultUtilTypes.SyncItemReference) => item.ID,
+                        ),
+                );
+                const shareLinks = (vault.ShareLinks ?? []).filter(
+                    (shareLink) => shareLinkIDs.has(shareLink.ID),
+                );
+                return { ok: true, credentials, directories, shareLinks };
             }
             case MessageType.SyncGetVersionVectors: {
                 const vault = await getVaultFromSessionStorage();
@@ -1072,6 +1097,7 @@ async function processMessageUncoordinated(
                         ok: false,
                         credentialVersionVectors: [],
                         directoryVersionVectors: [],
+                        shareLinkVersionVectors: [],
                         error: "VAULT_NOT_UNLOCKED",
                     };
                 }
@@ -1097,6 +1123,9 @@ async function processMessageUncoordinated(
                     ok: true,
                     credentialVersionVectors,
                     directoryVersionVectors,
+                    shareLinkVersionVectors: getSyncVersionVectors(
+                        vault.ShareLinks ?? [],
+                    ),
                 };
             }
             case MessageType.SyncGetConfiguration: {
@@ -1207,6 +1236,11 @@ async function processMessageUncoordinated(
                         vault.Credentials.push(credential);
                     }
                 }
+
+                vault.ShareLinks = mergeReceivedShareLinks(
+                    vault.ShareLinks ?? [],
+                    payload.shareLinks ?? [],
+                );
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
                 const metadataInstance = Object.assign(
@@ -1509,6 +1543,56 @@ async function processMessageUncoordinated(
                     blobs: backupBlobStore,
                     recordLocalReceipt: request.recordLocalReceipt,
                 });
+            }
+
+            case MessageType.GetShareLinks: {
+                const vault = await getVaultFromSessionStorage();
+                if (!vault) return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                const session = await getOnlineServicesStateSnapshot();
+                return {
+                    ok: true,
+                    shareLinks: vault.ShareLinks ?? [],
+                    settings: vault.ShareSettings ?? null,
+                    hasOnlineServicesSession: session.hasSession,
+                    vaultDbIndex: await getActiveVaultDbIndex(),
+                };
+            }
+
+            case MessageType.UpdateShareLinks:
+            case MessageType.SaveShareSettings: {
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+                if (type === MessageType.UpdateShareLinks) {
+                    const shareLinks = parseShareLinksPayload(payload);
+                    if (!shareLinks) {
+                        return { ok: false, error: "INVALID_SHARE_LINKS" };
+                    }
+                    vault.ShareLinks = mergeReceivedShareLinks(
+                        vault.ShareLinks ?? [],
+                        shareLinks,
+                    );
+                } else {
+                    const settings = parseShareSettingsPayload(payload);
+                    if (!settings) {
+                        return { ok: false, error: "INVALID_SHARE_SETTINGS" };
+                    }
+                    vault.ShareSettings = settings;
+                }
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(vault, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    vault,
+                    metadata.DBIndex!,
+                );
+                return { ok: true, shareLinks: vault.ShareLinks };
             }
 
             case MessageType.GetBackupContext: {

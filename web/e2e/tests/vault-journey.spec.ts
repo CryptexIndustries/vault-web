@@ -293,7 +293,9 @@ test("rotates the web vault DEK only when explicitly selected", async ({
     await expect(deleteHistory).not.toBeChecked();
 
     await security.getByLabel("Current master password").fill(originalPassword);
-    await security.getByLabel("New master password").fill(rotatedPassword);
+    await security
+        .getByLabel("New master password", { exact: true })
+        .fill(rotatedPassword);
     await security.getByLabel("Confirm new password").fill(rotatedPassword);
     await rotateDataKey.check();
     await security

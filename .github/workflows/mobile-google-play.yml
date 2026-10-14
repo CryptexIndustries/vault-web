@@ -1,6 +1,10 @@
 name: Mobile Google Play
 
+# A mobile-v tag builds production. Run it by hand for preprod on any branch,
+# or to rebuild production on a mobile-v tag.
 on:
+  push:
+    tags: ["mobile-v*"]
   workflow_dispatch:
     inputs:
       profile:
@@ -14,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-google-play-${{ github.ref }}-${{ inputs.profile }}
+  group: mobile-google-play-${{ github.ref }}-${{ inputs.profile || 'production' }}
   cancel-in-progress: false
 
 jobs:
@@ -22,7 +26,9 @@ jobs:
     name: Build and sign Google Play APK and AAB
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    environment: ${{ inputs.profile == 'production' && 'Mobile - Production' || 'Mobile - Preproduction' }}
+    environment: ${{ (github.event_name == 'push' || inputs.profile == 'production') && 'Mobile - Production' || 'Mobile - Preproduction' }}
+    env:
+      RELEASE_PROFILE: ${{ github.event_name == 'push' && 'production' || inputs.profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -47,8 +53,6 @@ jobs:
           java-version: '21'
 
       - name: Validate release selection and public Play configuration
-        env:
-          RELEASE_PROFILE: ${{ inputs.profile }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -82,13 +86,10 @@ jobs:
         run: pnpm mobile:check
 
       - name: Build and verify unsigned Play artifacts
-        env:
-          RELEASE_PROFILE: ${{ inputs.profile }}
         run: pnpm mobile:build:play -- --profile "$RELEASE_PROFILE" --config "$RELEASE_CONFIG" --unsigned --clean --jobs 2 --heap 4096
 
       - name: Sign and verify APK and AAB
         env:
-          RELEASE_PROFILE: ${{ inputs.profile }}
           CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
           CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
           CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}

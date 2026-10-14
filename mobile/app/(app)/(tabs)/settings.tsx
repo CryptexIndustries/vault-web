@@ -5,6 +5,7 @@ import {
     CircleHelp,
     FileUp,
     Info,
+    Link2,
     Shield,
     ShieldAlert,
     Smartphone,
@@ -66,6 +67,12 @@ export default function SettingsScreen() {
                 title="Backup Center"
                 subtitle="Backup history and recovery readiness"
                 onPress={() => router.push("/(app)/settings/backup-center")}
+            />
+            <MoreRow
+                icon={Link2}
+                title="Shared links"
+                subtitle="One-time links you sent"
+                onPress={() => router.push("/(app)/share/links")}
             />
             <MoreRow
                 icon={ShieldAlert}

@@ -202,6 +202,13 @@ export function VaultHomeScreen({
     );
 
     const selectionMode = selectedIDs.size > 0;
+    // A share link holds one item, and passkeys are never shared.
+    const shareableSelection = useMemo(() => {
+        if (selectedIDs.size !== 1) return null;
+        const [id] = selectedIDs;
+        const item = activeCredentials.find((entry) => entry.ID === id);
+        return item && item.Type !== ItemType.Passkey ? item : null;
+    }, [activeCredentials, selectedIDs]);
     const selectCredential = useCallback(
         (credential: VaultCredential) => {
             if (selectionMode) return toggleSelected(credential.ID);
@@ -403,6 +410,21 @@ export function VaultHomeScreen({
                     >
                         All
                     </Button>
+                    {shareableSelection ? (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onPress={() => {
+                                setSelectedIDs(new Set());
+                                router.push({
+                                    pathname: "/(app)/share",
+                                    params: { id: shareableSelection.ID },
+                                });
+                            }}
+                        >
+                            Share
+                        </Button>
+                    ) : null}
                     <Button
                         size="sm"
                         variant="ghost"

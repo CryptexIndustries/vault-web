@@ -17,6 +17,7 @@ import {
     Vault,
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { ItemType } from "@cryptex-industries/vault-core/proto";
 import { unlockedVaultAtom, vaultCredentialsAtom } from "@/utils/atoms";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
@@ -27,7 +28,7 @@ import {
     DialogDescription,
     DialogHeader,
 } from "@/components/ui/dialog";
-import { MoreHorizontal } from "lucide-react-native";
+import { Link2, MoreHorizontal } from "lucide-react-native";
 import { colors } from "@/theme";
 
 export default function CredentialDetailScreen() {
@@ -162,6 +163,26 @@ export default function CredentialDetailScreen() {
                             Edit
                         </Text>
                     </Pressable>
+                    {credential.Type !== ItemType.Passkey ? (
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Share once"
+                            onPress={() =>
+                                router.push({
+                                    pathname: "/(app)/share",
+                                    params: { id: credential.ID },
+                                })
+                            }
+                            style={{
+                                width: 44,
+                                height: 48,
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
+                            <Link2 size={21} color={colors.foreground} />
+                        </Pressable>
+                    ) : null}
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="More item actions"
@@ -207,6 +228,20 @@ export default function CredentialDetailScreen() {
                         Choose an action for this item.
                     </DialogDescription>
                 </DialogHeader>
+                {credential.Type !== ItemType.Passkey ? (
+                    <Button
+                        variant="secondary"
+                        onPress={() => {
+                            setMenuOpen(false);
+                            router.push({
+                                pathname: "/(app)/share",
+                                params: { id: credential.ID },
+                            });
+                        }}
+                    >
+                        Share once
+                    </Button>
+                ) : null}
                 <Button
                     variant="secondary"
                     onPress={() => {

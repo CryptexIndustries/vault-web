@@ -21,6 +21,7 @@ export type OnlineServicesData = {
         canLink: boolean;
         canPromoteDevices?: boolean;
         maxLinks: number;
+        passwordSharing?: boolean;
         recoveryTokenCreatedAt: Date | null;
         recoveryGenerationNeeded?: boolean;
     } | null;

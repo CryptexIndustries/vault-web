@@ -19,6 +19,11 @@ services:
             NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:-prod_local000000000000}
             NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:-price_local0000000000}
             NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:-price_local0000000001}
+            # The web container forwards /share-api/* to the share server,
+            # which runs in its own stack
+            # (services/cmd/share-server/compose.swarm.yaml) and joins
+            # cryptex-vault-network under this alias.
+            SHARE_SERVER_INTERNAL_URL: ${SHARE_SERVER_INTERNAL_URL:-http://cryptex-vault-share:8080}
         healthcheck:
             test:
                 [
@@ -42,6 +47,8 @@ services:
               published: 3000
               protocol: tcp
               mode: ingress
+        networks:
+            - cryptex-vault-network
         deploy:
             replicas: ${APP_REPLICAS:-1}
             restart_policy:
@@ -60,3 +67,9 @@ services:
                 limits:
                     memory: 512M
                     cpus: "0.5"
+
+networks:
+    # Shared with the share server stack, which declares it the same way.
+    cryptex-vault-network:
+        external: true
+        name: ${STACK_NAME:-cryptex-vault-frontend}_cryptex-vault-network

@@ -36,6 +36,7 @@ x-dev-env: &dev-env
   NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_PRODUCT_ID:-prod_local000000000000}
   NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID:-price_local0000000000}
   NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: ${NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID:-price_local0000000001}
+  SHARE_SERVER_INTERNAL_URL: http://share-server:8080
 
 x-lan-command: &lan-command
   [
@@ -141,7 +142,32 @@ services:
     command: *lan-command
     restart: unless-stopped
 
+  # One-time share links. Token auth by default; set SHARE_AUTH=ticket plus the
+  # ticket variables to test Online Services tickets against a local API.
+  share-server:
+    profiles: ["local", "cloud", "lan", "lan-cloud"]
+    container_name: cryptex-vault-client-share-server
+    build:
+      context: ./services
+      dockerfile: cmd/share-server/Dockerfile
+    environment:
+      SHARE_AUTH: ${SHARE_AUTH:-token}
+      SHARE_CREATION_TOKENS: ${SHARE_CREATION_TOKENS:-local-dev-share-token-0000000000000}
+      # Ticket mode uses the web origin unless SHARE_TICKET_AUDIENCE is set.
+      SHARE_TICKET_AUDIENCE: ${SHARE_TICKET_AUDIENCE:-}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      SHARE_TICKET_PUBLIC_KEYS: ${SHARE_TICKET_PUBLIC_KEYS:-}
+      # The dev web server can be reached directly (the LAN profiles), so
+      # nothing sets X-Forwarded-For reliably. Limit by socket address.
+      SHARE_CLIENT_IP_HEADER: ""
+    volumes:
+      - cryptex_dev_share_data:/data
+    ports:
+      - "127.0.0.1:${SHARE_SERVER_PORT:-3003}:8080"
+    restart: unless-stopped
+
 volumes:
+  cryptex_dev_share_data:
   cryptex_dev_node_modules:
   cryptex_dev_next_local:
   cryptex_dev_next_cloud:

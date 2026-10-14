@@ -28,6 +28,7 @@ const config: Config = {
         "<rootDir>/../node_modules/.pnpm/(?!(?:@noble\\+hashes|@scure\\+(?:base|bip39))@)",
         "node_modules/(?!.pnpm|@noble/hashes|@scure/(?:base|bip39))",
     ],
+    globalSetup: "<rootDir>/tests/global-setup.cjs",
     setupFiles: ["<rootDir>/tests/setup.ts"],
     clearMocks: true,
 };

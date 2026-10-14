@@ -114,13 +114,15 @@ test("dev forwards Expo options and cannot inherit the E2E bridge", () => {
 
 test("check runs lint, strict types, Jest, CLI tests, and a temporary export", () => {
     const calls = capture(["check"]);
-    assert.deepEqual(calls.slice(0, 3).map(call => call[1]), [
-        ["exec", "oxlint"], ["exec", "tsgo", "--noEmit", "--strict"], ["exec", "jest", "--config", "./jest.config.ts"],
+    assert.deepEqual(calls.slice(0, 4).map(call => call[1]), [
+        ["exec", "oxlint"], ["scripts/build-security-worker.cjs"], ["exec", "tsgo", "--noEmit", "--strict"],
+        ["exec", "jest", "--config", "./jest.config.ts"],
     ]);
-    assert.ok(calls[3][1].includes("scripts/mobile.test.mjs"));
-    assert.ok(calls[3][1].includes("fdroid/prepare-source.test.mjs"));
-    assert.ok(calls[3][1].includes("e2e/fixtures/online-services.test.mjs"));
-    const [, args, options] = calls[4];
+    assert.equal(calls[1][0], process.execPath);
+    assert.ok(calls[4][1].includes("scripts/mobile.test.mjs"));
+    assert.ok(calls[4][1].includes("fdroid/prepare-source.test.mjs"));
+    assert.ok(calls[4][1].includes("e2e/fixtures/online-services.test.mjs"));
+    const [, args, options] = calls[5];
     assert.deepEqual(args.slice(0, -1), ["exec", "expo", "export", "--platform", "android", "--output-dir"]);
     assert.ok(!args.at(-1).startsWith(mobile));
     assert.equal(existsSync(args.at(-1)), false, "temporary export is removed");

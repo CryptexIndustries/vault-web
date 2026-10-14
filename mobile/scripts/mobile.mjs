@@ -218,7 +218,11 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         if (selection !== "unit") rejectArguments();
         for (const check of selection ? [selection] : checks) {
             if (check === "lint") exec(["oxlint"]);
-            if (check === "types") exec(["tsgo", "--noEmit", "--strict"]);
+            if (check === "types") {
+                // The security worker bundle isn't tracked; its import needs the file.
+                execute(process.execPath, ["scripts/build-security-worker.cjs"]);
+                exec(["tsgo", "--noEmit", "--strict"]);
+            }
             if (check === "unit") exec(["jest", "--config", "./jest.config.ts", ...args]);
             if (check === "cli") {
                 const tests = ["scripts", "fdroid", "e2e/fixtures"].flatMap(directory =>

@@ -14,11 +14,14 @@ the shared analyzer or its dependencies, restart Metro or run:
 node scripts/build-security-worker.cjs
 ```
 
-Keep the generated JSON alongside the source so type checks and tests also work
-without starting Metro. The build rejects any remaining external imports. URL
-and text-encoding polyfills are included because isolated Hermes runtimes don't
-inherit React Native's browser globals. Unused crypto and domain-matching imports
-are eliminated; the actual analysis and scoring rules remain shared with web.
+The generated JSON isn't tracked. `pnpm mobile:check` builds it before the type
+check and Jest builds it before tests, so neither needs Metro. If your editor
+can't resolve the import, run the script once.
+
+The build rejects any remaining external imports. URL and text-encoding
+polyfills are included because isolated Hermes runtimes don't inherit React
+Native's browser globals. Unused crypto and domain-matching imports are
+eliminated; the actual analysis and scoring rules remain shared with web.
 
 `security-analysis-worker.test.ts` compares the bundled program in an isolated
 Node worker against the shared analyzer on 320 credentials. This checks bundle

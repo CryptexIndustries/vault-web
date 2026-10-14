@@ -103,6 +103,7 @@ function onlineServicesSessionPort() {
 export interface VaultOperations {
     getCredentialVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getDirectoryVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getShareLinkVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getItems(
         items: VaultUtilTypes.SyncItemReference[],
     ): Promise<VaultUtilTypes.SyncDataResponseMessage>;
@@ -110,6 +111,7 @@ export interface VaultOperations {
     updateItems(
         directories: VaultUtilTypes.Directory[],
         credentials: VaultUtilTypes.Credential[],
+        shareLinks: VaultUtilTypes.ShareLink[],
     ): Promise<void>;
     getSynchronizationConfig(): Promise<VaultUtilTypes.LinkedDevices>;
     getSyncSigningPublicKey(): Promise<string | null>;
@@ -2073,6 +2075,10 @@ class VaultItemSynchronization {
         return this.vaultOps.getDirectoryVersionVectors();
     }
 
+    private getShareLinkVersionVectors() {
+        return this.vaultOps.getShareLinkVersionVectors();
+    }
+
     public async transmitSyncHello(
         deviceID: string,
         dataChannel: RTCDataChannel,
@@ -2081,6 +2087,7 @@ class VaultItemSynchronization {
             await SynchronizationEnvelope.createSyncHelloMessage(
                 await this.getCredentialVersionVectors(),
                 await this.getDirectoryVersionVectors(),
+                await this.getShareLinkVersionVectors(),
             );
 
         const sent = await this.sendEncryptedPlaintextMessage(
@@ -2227,6 +2234,7 @@ class VaultItemSynchronization {
                     await SynchronizationEnvelope.createSyncHelloEchoMessage(
                         await this.getCredentialVersionVectors(),
                         await this.getDirectoryVersionVectors(),
+                        await this.getShareLinkVersionVectors(),
                     );
                 await this.sendEncryptedPlaintextMessage(
                     remoteDeviceID,
@@ -2310,6 +2318,10 @@ class VaultItemSynchronization {
                 ...vector,
                 ID: `directory:${vector.ID}`,
             })),
+            ...message.ShareLinkVersionVectors.map((vector) => ({
+                ...vector,
+                ID: `share:${vector.ID}`,
+            })),
         ];
 
         syncLog.info(`Received a sync hello message from the remote device`, {
@@ -2327,6 +2339,10 @@ class VaultItemSynchronization {
             ...(await this.getDirectoryVersionVectors()).map((vector) => ({
                 ...vector,
                 ID: `directory:${vector.ID}`,
+            })),
+            ...(await this.getShareLinkVersionVectors()).map((vector) => ({
+                ...vector,
+                ID: `share:${vector.ID}`,
             })),
         ];
 
@@ -2483,8 +2499,11 @@ class VaultItemSynchronization {
                             Type:
                                 kind === "directory"
                                     ? VaultUtilTypes.SyncItemType.DirectoryItem
-                                    : VaultUtilTypes.SyncItemType
-                                          .CredentialItem,
+                                    : kind === "share"
+                                      ? VaultUtilTypes.SyncItemType
+                                            .ShareLinkItem
+                                      : VaultUtilTypes.SyncItemType
+                                            .CredentialItem,
                             ID: idParts.join(":"),
                         };
                     }),
@@ -2556,6 +2575,7 @@ class VaultItemSynchronization {
                 envelopeID,
                 response.Credentials,
                 response.Directories,
+                response.ShareLinks,
             );
 
         await this.sendEncryptedPlaintextMessage(
@@ -2604,7 +2624,11 @@ class VaultItemSynchronization {
 
         // Directory state, especially tombstones, must be applied before
         // credential assignments from the same response.
-        await this.vaultOps.updateItems(directories, credentials);
+        await this.vaultOps.updateItems(
+            directories,
+            credentials,
+            message.ShareLinks,
+        );
 
         syncLog.info("Updated credentials in the vault", {
             envelopeId: envelopeID,

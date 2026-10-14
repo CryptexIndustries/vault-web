@@ -25,16 +25,19 @@ export function getSyncVersionVectors(
 }
 
 export function selectSyncItems(
-    vault: Pick<Vault, "Credentials" | "Directories">,
+    vault: Pick<Vault, "Credentials" | "Directories" | "ShareLinks">,
     items: readonly SyncItemReference[],
 ): SyncDataResponseMessage {
     const credentialIDs = new Set<string>();
     const directoryIDs = new Set<string>();
+    const shareLinkIDs = new Set<string>();
     for (const item of items) {
         if (item.Type === SyncItemType.CredentialItem) {
             credentialIDs.add(item.ID);
         } else if (item.Type === SyncItemType.DirectoryItem) {
             directoryIDs.add(item.ID);
+        } else if (item.Type === SyncItemType.ShareLinkItem) {
+            shareLinkIDs.add(item.ID);
         }
     }
     return {
@@ -43,6 +46,9 @@ export function selectSyncItems(
         ),
         Directories: vault.Directories.filter((directory) =>
             directoryIDs.has(directory.ID),
+        ),
+        ShareLinks: (vault.ShareLinks ?? []).filter((shareLink) =>
+            shareLinkIDs.has(shareLink.ID),
         ),
     };
 }

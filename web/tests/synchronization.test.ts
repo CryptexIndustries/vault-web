@@ -125,7 +125,12 @@ function createOps(
     return {
         getCredentialVersionVectors: jest.fn(async () => vectors),
         getDirectoryVersionVectors: jest.fn(async () => []),
-        getItems: jest.fn(async () => ({ Credentials: [], Directories: [] })),
+        getShareLinkVersionVectors: jest.fn(async () => []),
+        getItems: jest.fn(async () => ({
+            Credentials: [],
+            Directories: [],
+            ShareLinks: [],
+        })),
         updateItems: jest.fn(async () => undefined),
         getSynchronizationConfig: jest.fn(async () => own),
         getSyncSigningPublicKey: jest.fn(async () => own.SyncSigningPublicKey),

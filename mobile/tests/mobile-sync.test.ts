@@ -89,7 +89,7 @@ it("refuses to read keys or apply remote records to a different unlock session",
     await expect(operations.getSyncSigningPrivateKey()).rejects.toThrow(
         "no longer unlocked",
     );
-    await expect(operations.updateItems([], [])).rejects.toThrow(
+    await expect(operations.updateItems([], [], [])).rejects.toThrow(
         "no longer unlocked",
     );
 });
@@ -107,7 +107,7 @@ it("awaits directory normalization and does not mutate the previous snapshot", a
         Name: "Work",
         Version: 1,
     });
-    await createVaultOperations().updateItems([incoming], []);
+    await createVaultOperations().updateItems([incoming], [], []);
     const updated = vaultStore.get(unlockedVaultAtom);
     expect(Array.isArray(updated.Directories)).toBe(true);
     expect(updated.Directories.find((d) => d.ID === "b")?.Name).toBe(
@@ -138,6 +138,7 @@ it("retains unchanged credentials and applies newer tombstones", async () => {
                 Deleted: true,
             }),
         ],
+        [],
     );
     const result = vaultStore.get(unlockedVaultAtom).Credentials;
     expect(result.find((c) => c.ID === "keep")).toBe(unchanged);

@@ -14,6 +14,8 @@ export type VaultWriteKind =
     | "directory.rename"
     | "directory.delete"
     | "synchronization.apply"
+    | "share.update"
+    | "share.settings"
     | "link.merge"
     | "vault.configuration"
     | "vault.account"

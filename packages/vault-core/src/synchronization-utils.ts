@@ -256,11 +256,13 @@ export class SynchronizationEnvelope
     public static async createSyncHelloMessage(
         credentialVersionVectors: VaultUtilTypes.VersionVector[],
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloMessage.encode({
             CredentialVersionVectors: credentialVersionVectors,
             DirectoryVersionVectors: directoryVersionVectors,
+            ShareLinkVersionVectors: shareLinkVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -277,11 +279,13 @@ export class SynchronizationEnvelope
     public static async createSyncHelloEchoMessage(
         credentialVersionVectors: VaultUtilTypes.VersionVector[],
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
             CredentialVersionVectors: credentialVersionVectors,
             DirectoryVersionVectors: directoryVersionVectors,
+            ShareLinkVersionVectors: shareLinkVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -319,10 +323,12 @@ export class SynchronizationEnvelope
         envelopeID: string,
         credentials: VaultUtilTypes.Credential[],
         directories: VaultUtilTypes.Directory[] = [],
+        shareLinks: VaultUtilTypes.ShareLink[] = [],
     ) {
         const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
             Credentials: credentials,
             Directories: directories,
+            ShareLinks: shareLinks,
         }).finish();
 
         return SynchronizationEnvelope.encodeEnvelope(

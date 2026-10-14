@@ -74,6 +74,7 @@ export enum SyncWireMessageCommand {
 export enum SyncItemType {
     CredentialItem = 0,
     DirectoryItem = 1,
+    ShareLinkItem = 2,
 }
 
 /** #region Encryption */
@@ -162,6 +163,40 @@ export interface Vault {
     /** Cryptex Vault Online Services - server auth (device signing key material); separate from device sync */
     OnlineServices?: OnlineServices | undefined;
     Directories: Directory[];
+    /** One-time share links this vault created (sender side). Synced. */
+    ShareLinks: ShareLink[];
+    /** Which share server this device uses. Device-local, not synced. */
+    ShareSettings?: ShareSettings | undefined;
+}
+
+/** #region ShareLinks */
+export interface ShareLink {
+    /** Server-assigned share ID (the <id> in /s/<id>) */
+    ID: string;
+    /** Origin serving /s/<id> and /share-api */
+    ServerOrigin: string;
+    /** Base64url token that proves ownership for status and revoke */
+    ManageToken: string;
+    /** Shared vault item, empty for free text */
+    CredentialID: string;
+    Label: string;
+    CreatedAtTimestamp: number;
+    ExpiresAtTimestamp: number;
+    Passphrase: boolean;
+    /** Last status reported by the server ("active", "viewed", ...) */
+    Status: string;
+    ViewedAtTimestamp: number;
+    Hash: string;
+    Version: number;
+    DateModifiedTimestamp: number;
+    Deleted: boolean;
+}
+
+export interface ShareSettings {
+    /** Empty means the Online Services share server */
+    ServerOrigin: string;
+    /** Creation token for a self-hosted share server */
+    CreationToken: string;
 }
 
 /** #region OnlineServices */
@@ -360,11 +395,13 @@ export interface SynchronizationEnvelope {
 export interface SyncHelloMessage {
     CredentialVersionVectors: VersionVector[];
     DirectoryVersionVectors: VersionVector[];
+    ShareLinkVersionVectors: VersionVector[];
 }
 
 export interface SyncHelloEchoMessage {
     CredentialVersionVectors: VersionVector[];
     DirectoryVersionVectors: VersionVector[];
+    ShareLinkVersionVectors: VersionVector[];
 }
 
 export interface SyncItemReference {
@@ -379,6 +416,7 @@ export interface SyncDataRequestMessage {
 export interface SyncDataResponseMessage {
     Credentials: Credential[];
     Directories: Directory[];
+    ShareLinks: ShareLink[];
 }
 
 /** #region Linking */
@@ -1315,6 +1353,7 @@ function createBaseVault(): Vault {
         LinkedDevices: undefined,
         Credentials: [],
         Directories: [],
+        ShareLinks: [],
     };
 }
 
@@ -1346,6 +1385,15 @@ export const Vault: MessageFns<Vault> = {
         }
         for (const v of message.Directories) {
             Directory.encode(v!, writer.uint32(82).fork()).join();
+        }
+        for (const v of message.ShareLinks) {
+            ShareLink.encode(v!, writer.uint32(90).fork()).join();
+        }
+        if (message.ShareSettings !== undefined) {
+            ShareSettings.encode(
+                message.ShareSettings,
+                writer.uint32(98).fork(),
+            ).join();
         }
         return writer;
     },
@@ -1416,6 +1464,27 @@ export const Vault: MessageFns<Vault> = {
                     );
                     continue;
                 }
+                case 11: {
+                    if (tag !== 90) {
+                        break;
+                    }
+
+                    message.ShareLinks.push(
+                        ShareLink.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 12: {
+                    if (tag !== 98) {
+                        break;
+                    }
+
+                    message.ShareSettings = ShareSettings.decode(
+                        reader,
+                        reader.uint32(),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -1445,6 +1514,303 @@ export const Vault: MessageFns<Vault> = {
                 : undefined;
         message.Directories =
             object.Directories?.map((e) => Directory.fromPartial(e)) || [];
+        message.ShareLinks =
+            object.ShareLinks?.map((e) => ShareLink.fromPartial(e)) || [];
+        message.ShareSettings =
+            object.ShareSettings !== undefined && object.ShareSettings !== null
+                ? ShareSettings.fromPartial(object.ShareSettings)
+                : undefined;
+        return message;
+    },
+};
+
+function createBaseShareLink(): ShareLink {
+    return {
+        ID: "",
+        ServerOrigin: "",
+        ManageToken: "",
+        CredentialID: "",
+        Label: "",
+        CreatedAtTimestamp: 0,
+        ExpiresAtTimestamp: 0,
+        Passphrase: false,
+        Status: "",
+        ViewedAtTimestamp: 0,
+        Hash: "",
+        Version: 0,
+        DateModifiedTimestamp: 0,
+        Deleted: false,
+    };
+}
+
+export const ShareLink: MessageFns<ShareLink> = {
+    encode(
+        message: ShareLink,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.ServerOrigin !== "") {
+            writer.uint32(18).string(message.ServerOrigin);
+        }
+        if (message.ManageToken !== "") {
+            writer.uint32(26).string(message.ManageToken);
+        }
+        if (message.CredentialID !== "") {
+            writer.uint32(34).string(message.CredentialID);
+        }
+        if (message.Label !== "") {
+            writer.uint32(42).string(message.Label);
+        }
+        if (message.CreatedAtTimestamp !== 0) {
+            writer.uint32(48).int64(message.CreatedAtTimestamp);
+        }
+        if (message.ExpiresAtTimestamp !== 0) {
+            writer.uint32(56).int64(message.ExpiresAtTimestamp);
+        }
+        if (message.Passphrase !== false) {
+            writer.uint32(64).bool(message.Passphrase);
+        }
+        if (message.Status !== "") {
+            writer.uint32(74).string(message.Status);
+        }
+        if (message.ViewedAtTimestamp !== 0) {
+            writer.uint32(80).int64(message.ViewedAtTimestamp);
+        }
+        if (message.Hash !== "") {
+            writer.uint32(90).string(message.Hash);
+        }
+        if (message.Version !== 0) {
+            writer.uint32(96).int32(message.Version);
+        }
+        if (message.DateModifiedTimestamp !== 0) {
+            writer.uint32(104).int64(message.DateModifiedTimestamp);
+        }
+        if (message.Deleted !== false) {
+            writer.uint32(112).bool(message.Deleted);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): ShareLink {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseShareLink();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.ServerOrigin = reader.string();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.ManageToken = reader.string();
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.CredentialID = reader.string();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.Label = reader.string();
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 48) {
+                        break;
+                    }
+
+                    message.CreatedAtTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 7: {
+                    if (tag !== 56) {
+                        break;
+                    }
+
+                    message.ExpiresAtTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 8: {
+                    if (tag !== 64) {
+                        break;
+                    }
+
+                    message.Passphrase = reader.bool();
+                    continue;
+                }
+                case 9: {
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    message.Status = reader.string();
+                    continue;
+                }
+                case 10: {
+                    if (tag !== 80) {
+                        break;
+                    }
+
+                    message.ViewedAtTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 11: {
+                    if (tag !== 90) {
+                        break;
+                    }
+
+                    message.Hash = reader.string();
+                    continue;
+                }
+                case 12: {
+                    if (tag !== 96) {
+                        break;
+                    }
+
+                    message.Version = reader.int32();
+                    continue;
+                }
+                case 13: {
+                    if (tag !== 104) {
+                        break;
+                    }
+
+                    message.DateModifiedTimestamp = longToNumber(
+                        reader.int64(),
+                    );
+                    continue;
+                }
+                case 14: {
+                    if (tag !== 112) {
+                        break;
+                    }
+
+                    message.Deleted = reader.bool();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<ShareLink>, I>>(base?: I): ShareLink {
+        return ShareLink.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<ShareLink>, I>>(
+        object: I,
+    ): ShareLink {
+        const message = createBaseShareLink();
+        message.ID = object.ID ?? "";
+        message.ServerOrigin = object.ServerOrigin ?? "";
+        message.ManageToken = object.ManageToken ?? "";
+        message.CredentialID = object.CredentialID ?? "";
+        message.Label = object.Label ?? "";
+        message.CreatedAtTimestamp = object.CreatedAtTimestamp ?? 0;
+        message.ExpiresAtTimestamp = object.ExpiresAtTimestamp ?? 0;
+        message.Passphrase = object.Passphrase ?? false;
+        message.Status = object.Status ?? "";
+        message.ViewedAtTimestamp = object.ViewedAtTimestamp ?? 0;
+        message.Hash = object.Hash ?? "";
+        message.Version = object.Version ?? 0;
+        message.DateModifiedTimestamp = object.DateModifiedTimestamp ?? 0;
+        message.Deleted = object.Deleted ?? false;
+        return message;
+    },
+};
+
+function createBaseShareSettings(): ShareSettings {
+    return { ServerOrigin: "", CreationToken: "" };
+}
+
+export const ShareSettings: MessageFns<ShareSettings> = {
+    encode(
+        message: ShareSettings,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.ServerOrigin !== "") {
+            writer.uint32(10).string(message.ServerOrigin);
+        }
+        if (message.CreationToken !== "") {
+            writer.uint32(18).string(message.CreationToken);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): ShareSettings {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseShareSettings();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ServerOrigin = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.CreationToken = reader.string();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<ShareSettings>, I>>(
+        base?: I,
+    ): ShareSettings {
+        return ShareSettings.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<ShareSettings>, I>>(
+        object: I,
+    ): ShareSettings {
+        const message = createBaseShareSettings();
+        message.ServerOrigin = object.ServerOrigin ?? "";
+        message.CreationToken = object.CreationToken ?? "";
         return message;
     },
 };
@@ -3569,7 +3935,11 @@ export const SynchronizationEnvelope: MessageFns<SynchronizationEnvelope> = {
 };
 
 function createBaseSyncHelloMessage(): SyncHelloMessage {
-    return { CredentialVersionVectors: [], DirectoryVersionVectors: [] };
+    return {
+        CredentialVersionVectors: [],
+        DirectoryVersionVectors: [],
+        ShareLinkVersionVectors: [],
+    };
 }
 
 export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
@@ -3582,6 +3952,9 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
         }
         for (const v of message.DirectoryVersionVectors) {
             VersionVector.encode(v!, writer.uint32(18).fork()).join();
+        }
+        for (const v of message.ShareLinkVersionVectors) {
+            VersionVector.encode(v!, writer.uint32(26).fork()).join();
         }
         return writer;
     },
@@ -3613,6 +3986,16 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
                     }
 
                     message.DirectoryVersionVectors.push(
+                        VersionVector.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.ShareLinkVersionVectors.push(
                         VersionVector.decode(reader, reader.uint32()),
                     );
                     continue;
@@ -3643,12 +4026,20 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
             object.DirectoryVersionVectors?.map((e) =>
                 VersionVector.fromPartial(e),
             ) || [];
+        message.ShareLinkVersionVectors =
+            object.ShareLinkVersionVectors?.map((e) =>
+                VersionVector.fromPartial(e),
+            ) || [];
         return message;
     },
 };
 
 function createBaseSyncHelloEchoMessage(): SyncHelloEchoMessage {
-    return { CredentialVersionVectors: [], DirectoryVersionVectors: [] };
+    return {
+        CredentialVersionVectors: [],
+        DirectoryVersionVectors: [],
+        ShareLinkVersionVectors: [],
+    };
 }
 
 export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
@@ -3661,6 +4052,9 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
         }
         for (const v of message.DirectoryVersionVectors) {
             VersionVector.encode(v!, writer.uint32(18).fork()).join();
+        }
+        for (const v of message.ShareLinkVersionVectors) {
+            VersionVector.encode(v!, writer.uint32(26).fork()).join();
         }
         return writer;
     },
@@ -3696,6 +4090,16 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
                     );
                     continue;
                 }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.ShareLinkVersionVectors.push(
+                        VersionVector.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -3720,6 +4124,10 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
             ) || [];
         message.DirectoryVersionVectors =
             object.DirectoryVersionVectors?.map((e) =>
+                VersionVector.fromPartial(e),
+            ) || [];
+        message.ShareLinkVersionVectors =
+            object.ShareLinkVersionVectors?.map((e) =>
                 VersionVector.fromPartial(e),
             ) || [];
         return message;
@@ -3856,7 +4264,7 @@ export const SyncDataRequestMessage: MessageFns<SyncDataRequestMessage> = {
 };
 
 function createBaseSyncDataResponseMessage(): SyncDataResponseMessage {
-    return { Credentials: [], Directories: [] };
+    return { Credentials: [], Directories: [], ShareLinks: [] };
 }
 
 export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
@@ -3869,6 +4277,9 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
         }
         for (const v of message.Directories) {
             Directory.encode(v!, writer.uint32(18).fork()).join();
+        }
+        for (const v of message.ShareLinks) {
+            ShareLink.encode(v!, writer.uint32(26).fork()).join();
         }
         return writer;
     },
@@ -3904,6 +4315,16 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
                     );
                     continue;
                 }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.ShareLinks.push(
+                        ShareLink.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -3926,6 +4347,8 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
             object.Credentials?.map((e) => Credential.fromPartial(e)) || [];
         message.Directories =
             object.Directories?.map((e) => Directory.fromPartial(e)) || [];
+        message.ShareLinks =
+            object.ShareLinks?.map((e) => ShareLink.fromPartial(e)) || [];
         return message;
     },
 };

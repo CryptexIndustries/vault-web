@@ -9,6 +9,7 @@ import {
     shouldAcceptVersionedRecord,
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { mergeReceivedShareLinks } from "@cryptex-industries/vault-core/vault-utils/share-records";
 import {
     applyReceivedSyncDirectories,
     getSyncVersionVectors,
@@ -42,11 +43,14 @@ export const createVaultOperations = (): VaultOperations => {
             getSyncVersionVectors(getVault().Credentials),
         getDirectoryVersionVectors: async () =>
             getSyncVersionVectors(getVault().Directories),
+        getShareLinkVersionVectors: async () =>
+            getSyncVersionVectors(getVault().ShareLinks ?? []),
         getItems: async (items: VaultUtilTypes.SyncItemReference[]) =>
             selectSyncItems(getVault(), items),
         updateItems: async (
             directories: VaultUtilTypes.Directory[],
             credentials: VaultUtilTypes.Credential[],
+            shareLinks: VaultUtilTypes.ShareLink[],
         ) => {
             const mutationResult = await persistVaultMutation(
                 "synchronization.apply",
@@ -93,6 +97,10 @@ export const createVaultOperations = (): VaultOperations => {
                                 ),
                         );
                     updatedVault.Credentials = [...credentialsMap.values()];
+                    updatedVault.ShareLinks = mergeReceivedShareLinks(
+                        currentVault.ShareLinks ?? [],
+                        shareLinks,
+                    );
                     return { vault: updatedVault, result: undefined };
                 },
             );

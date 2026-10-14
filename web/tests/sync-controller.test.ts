@@ -101,6 +101,9 @@ type VaultOps = {
     getDirectoryVersionVectors: jest.MockedFunction<
         () => Promise<VaultUtilTypes.VersionVector[]>
     >;
+    getShareLinkVersionVectors: jest.MockedFunction<
+        () => Promise<VaultUtilTypes.VersionVector[]>
+    >;
     getItems: jest.MockedFunction<
         (
             items: VaultUtilTypes.SyncItemReference[],
@@ -131,7 +134,12 @@ function buildVaultOps(): VaultOps {
     return {
         getCredentialVersionVectors: jest.fn(async () => []),
         getDirectoryVersionVectors: jest.fn(async () => []),
-        getItems: jest.fn(async () => ({ Credentials: [], Directories: [] })),
+        getShareLinkVersionVectors: jest.fn(async () => []),
+        getItems: jest.fn(async () => ({
+            Credentials: [],
+            Directories: [],
+            ShareLinks: [],
+        })),
         updateItems: jest.fn(async () => undefined),
         getSyncSigningPublicKey: jest.fn(async () => null),
         getSyncSigningPrivateKey: jest.fn(async () => null),

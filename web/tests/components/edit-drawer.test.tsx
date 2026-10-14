@@ -157,7 +157,11 @@ describe("EditDrawer", () => {
         expect(saveButton).toBeDefined();
         await act(async () => {
             saveButton!.click();
-            await new Promise((resolve) => setTimeout(resolve, 250));
+            // Saving is async; a fixed delay was too short on busy machines.
+            const deadline = Date.now() + 5_000;
+            while (onSave.mock.calls.length === 0 && Date.now() < deadline) {
+                await new Promise((resolve) => setTimeout(resolve, 10));
+            }
         });
 
         expect(onSave).toHaveBeenCalledWith(

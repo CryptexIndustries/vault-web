@@ -166,6 +166,18 @@
     border-color: var(--ink);
     background: rgba(252, 248, 236, 0.04);
 }
+.heroAndroid {
+    font-size: 14px !important;
+    margin: -12px 0 0;
+}
+.heroAndroid a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.heroAndroid a:hover {
+    color: var(--coral);
+}
 .heroBusiness {
     font-size: 12px !important;
     max-width: 455px;
@@ -728,6 +740,14 @@
 }
 .roadmapGrid p {
     font-size: 14px;
+}
+.roadmapGrid p a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.roadmapGrid p a:hover {
+    color: var(--coral);
 }
 .roadmapGrid ul {
     list-style: none;

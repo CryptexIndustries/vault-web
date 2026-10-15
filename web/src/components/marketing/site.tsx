@@ -136,6 +136,7 @@ function SiteHeader() {
                         ["/pricing", "Pricing"],
                         ["/docs", "Docs"],
                         ["/roadmap", "Roadmap"],
+                        ["/download", "Download"],
                     ].map(([href, label]) => (
                         <Link
                             key={href}
@@ -222,6 +223,7 @@ export function Site({
                         <a href={BROWSER_EXTENSION} className="mt-3">
                             Chromium Extension
                         </a>
+                        <Link href="/download/android">Android app</Link>
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
                         <span>RESOURCES</span>
@@ -379,6 +381,9 @@ export function FinalCTA() {
                     <Action />
                     <Action href={BROWSER_EXTENSION} secondary>
                         Install browser extension
+                    </Action>
+                    <Action href="/download/android" secondary>
+                        Get the Android app
                     </Action>
                 </div>
             </div>
@@ -666,7 +671,7 @@ export function Network({
 }
 const coreFeatures: { title: string; description?: string }[] = [
     { title: "Local encrypted vault" },
-    { title: "Web app & Chromium Extension" },
+    { title: "Web app, Android & Chromium Extension" },
     { title: "Browser autofill" },
     { title: "Passkey support" },
     {

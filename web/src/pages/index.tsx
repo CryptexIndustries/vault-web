@@ -292,6 +292,10 @@ export default function Home() {
                             Inspect the code
                         </Action>
                     </div>
+                    <p className={s.heroAndroid}>
+                        Also on Android.{" "}
+                        <Link href="/download/android">Get the app</Link>
+                    </p>
                     <p className={s.heroBusiness}>
                         Use it on your own, self-host the sync infrastructure,
                         or choose Online Services for managed P2P infrastructure
@@ -541,18 +545,19 @@ export default function Home() {
                         <Label>AVAILABLE NOW</Label>
                         <h3>Your daily vault.</h3>
                         <p>
-                            Web app, Chromium Extension, autofill, imports and
-                            exports, P2P sync, manual backups, one-time share
-                            links and optional managed services.
+                            Web app,{" "}
+                            <Link href="/download/android">Android app</Link>,
+                            Chromium Extension, autofill, imports and exports,
+                            P2P sync, manual backups, one-time share links and
+                            optional managed services.
                         </p>
                     </article>
                     <article>
                         <Label>IN DEVELOPMENT</Label>
-                        <h3>Android and an SSH agent.</h3>
+                        <h3>An SSH agent.</h3>
                         <p>
-                            An Android app is in development, and so is an SSH
-                            agent for Linux that keeps your keys in the vault
-                            instead of on the machine.
+                            For Linux. It keeps your keys in the vault instead
+                            of on the machine.
                         </p>
                     </article>
                     <article>

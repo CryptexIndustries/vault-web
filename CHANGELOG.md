@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The web app's account dialog shows what your plan includes. Free accounts see the free vault features next to what Online Services adds, with the price for the selected billing interval and the upgrade button. Subscribers see each included service with its allowance and how many of their linked devices they use.
 - The Android app's membership benefits list one-time share links, matching the web app.
+- A download page lists the web app, the Chromium Extension, the Android app and the upcoming SSH agent. The header links to it as Download.
+- An Android page explains how to install the app from our F-Droid repository at `https://cryptexindustries.com/fdroid/repo`, with an add-repository link, a QR code, the signing key fingerprint and setup steps. It also links to the APKs on GitHub and lists Google Play and the main F-Droid repository as in review. The homepage, footer and plan feature lists now mention the Android app.
 
 ### Changed
 

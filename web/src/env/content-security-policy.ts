@@ -44,7 +44,7 @@ export const createContentSecurityPolicy = (env: ContentSecurityPolicyEnv) => {
         "img-src 'self' data: blob:",
         "font-src 'self' data:",
         connectSrc,
-        "frame-src https://challenges.cloudflare.com https://js.stripe.com",
+        "frame-src https://challenges.cloudflare.com https://js.stripe.com https://www.youtube-nocookie.com",
         "frame-ancestors 'none'",
         "form-action 'self'",
     ].join("; ");

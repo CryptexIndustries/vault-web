@@ -150,7 +150,7 @@ export const WarningDialog: React.FC<{
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
-                    <Alert className="min-w-0 border-amber-500/40 bg-amber-50 text-amber-900">
+                    <Alert className="min-w-0 border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
                         <ExclamationTriangleIcon className="h-4 w-4" />
                         <AlertTitle>Action required</AlertTitle>
                         <AlertDescription className="min-w-0 [overflow-wrap:anywhere]">

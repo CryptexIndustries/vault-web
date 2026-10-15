@@ -2,7 +2,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, ArrowLeft, ArrowDown, Expand, X } from "lucide-react";
+import {
+    ArrowRight,
+    ArrowLeft,
+    ArrowDown,
+    Expand,
+    Play,
+    X,
+} from "lucide-react";
 import {
     Site,
     Label,
@@ -14,6 +21,7 @@ import {
     REPO,
     s,
 } from "@/components/marketing/site";
+import { DemoVideo, DEMO_DURATION } from "@/components/marketing/demo-video";
 
 const steps = [
     [
@@ -47,7 +55,13 @@ const steps = [
         "create",
     ],
 ];
-function Walkthrough() {
+function Walkthrough({
+    video,
+    setVideo,
+}: {
+    video: boolean;
+    setVideo: (value: boolean) => void;
+}) {
     const [step, setStep] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [expanded, setExpanded] = useState(false);
@@ -61,16 +75,34 @@ function Walkthrough() {
     }, [playing]);
     const current = steps[step]!;
     return (
-        <div className={s.walkthrough}>
+        <div id="demo" className={s.walkthrough}>
             <div className={s.walkthroughControls}>
                 <span>INSIDE THE APP</span>
-                <button
-                    onClick={() => setPlaying(!playing)}
-                    aria-pressed={playing}
-                >
-                    {playing ? "Pause walkthrough" : "Play walkthrough"}{" "}
-                    <span aria-hidden="true">{playing ? "Ⅱ" : "▷"}</span>
-                </button>
+                <div className="flex gap-7">
+                    <button
+                        className="aria-pressed:text-[var(--coral)]"
+                        onClick={() => {
+                            setPlaying(false);
+                            setVideo(true);
+                        }}
+                        aria-pressed={video}
+                    >
+                        Demo video{" "}
+                        <b className="font-normal text-[var(--soft)]">
+                            {DEMO_DURATION}
+                        </b>
+                    </button>
+                    <button
+                        onClick={() => {
+                            setVideo(false);
+                            setPlaying(!playing);
+                        }}
+                        aria-pressed={playing}
+                    >
+                        {playing ? "Pause walkthrough" : "Play walkthrough"}{" "}
+                        <span aria-hidden="true">{playing ? "Ⅱ" : "▷"}</span>
+                    </button>
+                </div>
             </div>
             <Dialog.Root
                 open={expanded}
@@ -87,38 +119,46 @@ function Walkthrough() {
                             <i />
                         </span>
                         <span>
-                            {current[2] === "extension"
-                                ? "CRYPTEX VAULT / CHROMIUM EXTENSION"
-                                : "CRYPTEX VAULT / WEB APPLICATION"}
+                            {video
+                                ? "CRYPTEX VAULT / WEB AND ANDROID"
+                                : current[2] === "extension"
+                                  ? "CRYPTEX VAULT / CHROMIUM EXTENSION"
+                                  : "CRYPTEX VAULT / WEB APPLICATION"}
                         </span>
-                        <span>DEMO VAULT</span>
+                        <span>{video ? "DEMO VIDEO" : "DEMO VAULT"}</span>
                     </div>
-                    <Dialog.Trigger asChild>
-                        <button
-                            className={s.previewButton}
-                            aria-label={`Expand screenshot: ${current[0]}`}
-                        >
-                            <span
-                                className={s.previewCrop}
-                                data-screen={current[2]}
+                    {video ? (
+                        <DemoVideo />
+                    ) : (
+                        <Dialog.Trigger asChild>
+                            <button
+                                className={s.previewButton}
+                                aria-label={`Expand screenshot: ${current[0]}`}
                             >
-                                <Image
-                                    src={`/images/walkthrough/${current[2]}.png`}
-                                    alt={`Actual Cryptex Vault interface: ${current[0]}. Demo credentials only.`}
-                                    unoptimized
-                                    width={
-                                        current[2] === "extension" ? 1440 : 2880
-                                    }
-                                    height={1800}
-                                    sizes="(max-width: 720px) 1100px, 80vw"
-                                />
-                            </span>
-                            <span className={s.expandHint}>
-                                <Expand size={15} aria-hidden="true" />
-                                Expand screenshot
-                            </span>
-                        </button>
-                    </Dialog.Trigger>
+                                <span
+                                    className={s.previewCrop}
+                                    data-screen={current[2]}
+                                >
+                                    <Image
+                                        src={`/images/walkthrough/${current[2]}.png`}
+                                        alt={`Actual Cryptex Vault interface: ${current[0]}. Demo credentials only.`}
+                                        unoptimized
+                                        width={
+                                            current[2] === "extension"
+                                                ? 1440
+                                                : 2880
+                                        }
+                                        height={1800}
+                                        sizes="(max-width: 720px) 1100px, 80vw"
+                                    />
+                                </span>
+                                <span className={s.expandHint}>
+                                    <Expand size={15} aria-hidden="true" />
+                                    Expand screenshot
+                                </span>
+                            </button>
+                        </Dialog.Trigger>
+                    )}
                 </div>
                 <Dialog.Portal>
                     <Dialog.Overlay className={s.viewerOverlay} />
@@ -203,9 +243,10 @@ function Walkthrough() {
                 {steps.map(([title, description], index) => (
                     <button
                         key={title}
-                        aria-pressed={step === index}
+                        aria-pressed={!video && step === index}
                         onClick={() => {
                             setPlaying(false);
+                            setVideo(false);
                             setStep(index);
                         }}
                     >
@@ -219,7 +260,9 @@ function Walkthrough() {
                 className={s.activeStepDescription}
                 aria-live={playing ? "off" : "polite"}
             >
-                {current[1]}
+                {video
+                    ? "The web app and the Android app working together."
+                    : current[1]}
             </p>
         </div>
     );
@@ -267,6 +310,7 @@ const faqs = [
     ],
 ];
 export default function Home() {
+    const [video, setVideo] = useState(true);
     return (
         <Site
             title="Cryptex Vault"
@@ -292,6 +336,18 @@ export default function Home() {
                             Inspect the code
                         </Action>
                     </div>
+                    <p className={s.heroAndroid}>
+                        Also on Android.{" "}
+                        <Link href="/download/android">Get the app</Link>
+                    </p>
+                    <a
+                        className="mt-3.5 inline-flex items-center gap-2 text-sm text-[var(--ink)] hover:text-[var(--coral)] [&>svg]:text-[var(--coral)]"
+                        href="#demo"
+                        onClick={() => setVideo(true)}
+                    >
+                        <Play size={14} aria-hidden="true" />
+                        Watch the demo ({DEMO_DURATION})
+                    </a>
                     <p className={s.heroBusiness}>
                         Use it on your own, self-host the sync infrastructure,
                         or choose Online Services for managed P2P infrastructure
@@ -358,7 +414,7 @@ export default function Home() {
                         your browser. Take them with you whenever you leave.
                     </p>
                 </div>
-                <Walkthrough />
+                <Walkthrough video={video} setVideo={setVideo} />
                 <div className={s.featureRow}>
                     {[
                         [
@@ -541,18 +597,19 @@ export default function Home() {
                         <Label>AVAILABLE NOW</Label>
                         <h3>Your daily vault.</h3>
                         <p>
-                            Web app, Chromium Extension, autofill, imports and
-                            exports, P2P sync, manual backups, one-time share
-                            links and optional managed services.
+                            Web app,{" "}
+                            <Link href="/download/android">Android app</Link>,
+                            Chromium Extension, autofill, imports and exports,
+                            P2P sync, manual backups, one-time share links and
+                            optional managed services.
                         </p>
                     </article>
                     <article>
                         <Label>IN DEVELOPMENT</Label>
-                        <h3>Android and an SSH agent.</h3>
+                        <h3>An SSH agent.</h3>
                         <p>
-                            An Android app is in development, and so is an SSH
-                            agent for Linux that keeps your keys in the vault
-                            instead of on the machine.
+                            For Linux. It keeps your keys in the vault instead
+                            of on the machine.
                         </p>
                     </article>
                     <article>

@@ -9,6 +9,7 @@ export type MembershipAccess = {
     maxLinks?: number;
     canPromoteDevices?: boolean;
     managedEncryptedBackups?: boolean;
+    passwordSharing?: boolean;
 };
 
 const vaultBenefits = [
@@ -42,6 +43,12 @@ export function MembershipBenefits({
             description:
                 "150 MB of encrypted backup storage, with version history and Recovery Kit access.",
             included: upgrading || access?.managedEncryptedBackups === true,
+        },
+        {
+            title: "One-time share links",
+            description:
+                "Send a secret to anyone, even people without Cryptex Vault. It opens once, then it's deleted.",
+            included: upgrading || access?.passwordSharing === true,
         },
         {
             title: "Online Services device management",

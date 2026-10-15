@@ -32,24 +32,24 @@ const levelColors: Record<
     { row: string; badge: string; text: string }
 > = {
     [LogLevel.Debug]: {
-        row: "bg-slate-50",
+        row: "bg-slate-500/5",
         badge: "bg-slate-200 text-slate-700",
-        text: "text-slate-700",
+        text: "text-slate-700 dark:text-slate-300",
     },
     [LogLevel.Info]: {
-        row: "bg-blue-50",
+        row: "bg-blue-500/10",
         badge: "bg-blue-200 text-blue-800",
-        text: "text-blue-700",
+        text: "text-blue-700 dark:text-blue-300",
     },
     [LogLevel.Warn]: {
-        row: "bg-amber-50",
+        row: "bg-amber-500/10",
         badge: "bg-amber-200 text-amber-800",
-        text: "text-amber-700",
+        text: "text-amber-700 dark:text-amber-300",
     },
     [LogLevel.Error]: {
-        row: "bg-red-50",
+        row: "bg-red-500/10",
         badge: "bg-red-200 text-red-800",
-        text: "text-red-700",
+        text: "text-red-700 dark:text-red-300",
     },
 };
 

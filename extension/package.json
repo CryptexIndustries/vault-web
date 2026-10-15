@@ -1,6 +1,6 @@
 {
     "name": "extension",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "private": true,
     "license": "AGPL-3.0-only",
     "packageManager": "pnpm@11.25.0",
@@ -12,7 +12,7 @@
         "dev:passkey": "NODE_ENV=development vite build --mode development --watch --config vite.config.passkey.ts",
         "dev": "pnpm run clean && pnpm run --parallel \"/^dev:.*/\"",
         "build": "node scripts/build.mjs",
-        "build:e2e": "pnpm run clean && CRYPTEX_E2E=1 vite build --mode development --config vite.config.ts && CRYPTEX_E2E=1 vite build --mode development --config vite.config.content.ts && vite build --mode development --config vite.config.passkey.ts",
+        "build:e2e": "pnpm run clean && CRYPTEX_E2E=1 VITE_APP_URL=http://localhost:3000 VITE_ONLINE_SERVICES_API_URL= VITE_CLOUD_ENABLED=true vite build --mode development --config vite.config.ts && CRYPTEX_E2E=1 vite build --mode development --config vite.config.content.ts && vite build --mode development --config vite.config.passkey.ts",
         "preview": "vite preview",
         "lint": "oxlint",
         "lint-tsc": "tsgo --noEmit --strict",

@@ -1,0 +1,221 @@
+.back {
+    display: inline-block;
+    margin-bottom: 40px;
+    font-size: 13px;
+    color: var(--soft);
+    text-decoration: underline !important;
+    text-underline-offset: 3px;
+}
+
+.back:hover {
+    color: var(--ink);
+}
+
+.repoGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    gap: 72px;
+    align-items: start;
+}
+
+.repoCard {
+    background: #202534;
+    padding: 32px;
+}
+
+.qr {
+    display: flex;
+    justify-content: center;
+    width: max-content;
+    margin: 0 auto;
+    padding: 14px;
+    background: var(--ink);
+}
+
+.qrHint {
+    margin: 18px 0 8px;
+    font-size: 13px !important;
+    text-align: center;
+}
+
+.field {
+    padding-top: 20px;
+}
+
+.field span {
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--soft);
+}
+
+.field button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--ink);
+}
+
+.field button:hover {
+    border-color: var(--ink);
+}
+
+.field code {
+    display: block;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink);
+    word-break: break-all;
+}
+
+.steps {
+    list-style: none;
+    counter-reset: step;
+    margin: 0;
+    padding: 0;
+}
+
+.steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 56px;
+    margin-bottom: 36px;
+}
+
+.steps li:last-child {
+    margin-bottom: 0;
+}
+
+.steps li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 2px;
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--coral);
+}
+
+.steps h3 {
+    margin: 0 0 10px;
+}
+
+.steps p {
+    margin: 0;
+    font-size: 15px;
+}
+
+.steps a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.steps a:hover {
+    color: var(--coral);
+}
+
+.steps b {
+    font-weight: 400;
+    color: var(--ink);
+}
+
+.sources,
+.platforms {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px;
+}
+
+.platforms {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.sources article,
+.platforms article {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.sources h3,
+.platforms h3 {
+    margin: 0 0 14px;
+}
+
+.sources p,
+.platforms p {
+    margin: 0 0 24px;
+    font-size: 14px;
+}
+
+.platforms article > a,
+.platforms .status {
+    margin-top: auto;
+}
+
+.soon h3,
+.soon p {
+    opacity: 0.6;
+}
+
+.status {
+    font-family: monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--soft);
+}
+
+.planned {
+    margin: 64px 0 0;
+    font-size: 14px !important;
+}
+
+.planned a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.planned a:hover {
+    color: var(--coral);
+}
+
+@media (max-width: 1100px) {
+    .repoGrid {
+        grid-template-columns: 1fr;
+        gap: 48px;
+    }
+
+    .repoCard {
+        max-width: 480px;
+    }
+
+    .sources {
+        grid-template-columns: 1fr;
+    }
+
+    .platforms {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .platforms {
+        grid-template-columns: 1fr;
+    }
+
+    .repoCard {
+        padding: 24px;
+    }
+
+    .steps li {
+        padding-left: 40px;
+    }
+}

@@ -141,10 +141,9 @@ preserving the full tag and its case. Characters outside letters, digits, `.`,
 single filename. A manual run names the archive
 `cryptex-vault-chromium-{profile}-{branch}-{short commit}.zip`.
 
-Download `cryptex-vault-chromium-extension-v1.4.2` from the Actions run's
-**Artifacts** section. GitHub wraps the extension ZIP in an artifact download;
-extract that download to obtain the extension ZIP. Artifacts expire after 30
-days. This workflow does not create a GitHub Release or submit to the Web Store.
+Download `cryptex-vault-chromium-extension-v1.4.2.zip` from the Actions run's
+**Artifacts** section. The download is the extension ZIP itself, ready to
+upload. Artifacts expire after 30 days. This workflow does not create a GitHub Release or submit to the Web Store.
 
 The tag names the archive. The extension version still comes from
 [`extension/manifest.json`](manifest.json); update it before tagging a new

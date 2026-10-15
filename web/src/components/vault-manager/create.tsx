@@ -138,7 +138,7 @@ const CreateVaultTab: React.FC<{
                         {...register("Name")}
                     />
                     {errors.Name && (
-                        <p className="text-destructive-foreground">
+                        <p className="text-destructive">
                             {errors.Name.message}
                         </p>
                     )}
@@ -152,7 +152,7 @@ const CreateVaultTab: React.FC<{
                         {...register("Description")}
                     />
                     {errors.Description && (
-                        <p className="text-destructive-foreground">
+                        <p className="text-destructive">
                             {errors.Description.message}
                         </p>
                     )}
@@ -177,7 +177,7 @@ const CreateVaultTab: React.FC<{
                         }}
                     />
                     {errors.Secret && (
-                        <p className="text-destructive-foreground">
+                        <p className="text-destructive">
                             {errors.Secret.message}
                         </p>
                     )}
@@ -315,7 +315,7 @@ const CreateVaultTab: React.FC<{
                                     }
                                 />
                                 {errors.EncryptionConfig && (
-                                    <p className="text-destructive-foreground">
+                                    <p className="text-destructive">
                                         {errors.EncryptionConfig.message}
                                     </p>
                                 )}

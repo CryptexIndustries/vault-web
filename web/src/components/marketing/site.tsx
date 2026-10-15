@@ -15,7 +15,11 @@ import {
 } from "lucide-react";
 import HTMLHeader from "@/components/html-header";
 import s from "@/styles/Marketing.module.css";
-import { currentPriceList, currentPriceListUrl } from "@/lib/price-lists";
+import {
+    currentPriceList,
+    currentPriceListUrl,
+    yearlySaving,
+} from "@/lib/price-lists";
 
 export const REPO = "https://github.com/CryptexIndustries/vault-web";
 export const BROWSER_EXTENSION =
@@ -132,6 +136,7 @@ function SiteHeader() {
                         ["/pricing", "Pricing"],
                         ["/docs", "Docs"],
                         ["/roadmap", "Roadmap"],
+                        ["/download", "Download"],
                     ].map(([href, label]) => (
                         <Link
                             key={href}
@@ -218,6 +223,7 @@ export function Site({
                         <a href={BROWSER_EXTENSION} className="mt-3">
                             Chromium Extension
                         </a>
+                        <Link href="/download/android">Android app</Link>
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
                         <span>RESOURCES</span>
@@ -375,6 +381,9 @@ export function FinalCTA() {
                     <Action />
                     <Action href={BROWSER_EXTENSION} secondary>
                         Install browser extension
+                    </Action>
+                    <Action href="/download/android" secondary>
+                        Get the Android app
                     </Action>
                 </div>
             </div>
@@ -662,7 +671,7 @@ export function Network({
 }
 const coreFeatures: { title: string; description?: string }[] = [
     { title: "Local encrypted vault" },
-    { title: "Web app & Chromium Extension" },
+    { title: "Web app, Android & Chromium Extension" },
     { title: "Browser autofill" },
     { title: "Passkey support" },
     {
@@ -700,7 +709,7 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     Monthly
                 </button>
                 <button aria-pressed={annual} onClick={() => setAnnual(true)}>
-                    Annually <span>Save €9.88</span>
+                    Annually <span>Save €{yearlySaving(currentPriceList)}</span>
                 </button>
             </div>
             <div className={`${s.plans} grid grid-cols-[1fr_1fr] gap-[24px]`}>

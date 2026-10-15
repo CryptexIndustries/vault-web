@@ -73,6 +73,12 @@ const roadmap = [
         available: true,
         items: [
             {
+                title: "Android application",
+                target: null,
+                description:
+                    "Use Cryptex Vault on Android. Install it from our F-Droid repository or download the APK from GitHub. Google Play and the main F-Droid repository are reviewing it.",
+            },
+            {
                 title: "One-time share links",
                 target: null,
                 description:

@@ -41,6 +41,27 @@ const CHANGE_LABELS: Record<
 
 export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.6.0",
+        date: "2026-10-15",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "The account dialog shows what your plan includes. On the free plan you see what Online Services adds and what it costs, instead of an empty billing card. Subscribers see each service with its allowance and how many linked devices they use.",
+            },
+            {
+                type: "added",
+                description:
+                    "A new download page lists every way to get Cryptex Vault. The Android page explains how to install the app from our F-Droid repository.",
+            },
+            {
+                type: "changed",
+                description:
+                    "Dialogs, menus and dropdowns in the web vault now use the dark theme, and Delete account and other destructive buttons are readable in it again.",
+            },
+        ],
+    },
+    {
         version: "v1.5.0",
         date: "2026-10-14",
         changes: [

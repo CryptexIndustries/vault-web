@@ -7,19 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-15
+
 ### Added
 
 - The web app's account dialog shows what your plan includes. Free accounts see the free vault features next to what Online Services adds, with the price for the selected billing interval and the upgrade button. Subscribers see each included service with its allowance and how many of their linked devices they use.
 - The Android app's membership benefits list one-time share links, matching the web app.
 - A download page lists the web app, the Chromium Extension, the Android app and the upcoming SSH agent. The header links to it as Download.
 - An Android page explains how to install the app from our F-Droid repository at `https://cryptexindustries.com/fdroid/repo`, with an add-repository link, a QR code, the signing key fingerprint and setup steps. It also links to the APKs on GitHub and lists Google Play and the main F-Droid repository as in review. The homepage, footer and plan feature lists now mention the Android app.
+- The homepage walkthrough has a 1:46 demo video. The page shows a self-hosted poster and makes no requests to YouTube until you press play. The player loads from `youtube-nocookie.com`.
 
 ### Changed
 
+- Bumped the web app and Chromium extension versions to `1.6.0`. The extension is released separately later.
 - Dialogs, menus and dropdowns in the web vault use the dark theme like the rest of the app. They used to open in the light theme because they render outside the themed page.
 - Dialogs and menus in the Chromium extension use the dark theme too.
 - Free accounts no longer see an empty billing card or a disabled Manage billing button in the account dialog.
 - The pricing page calculates the yearly saving from the published price list instead of using a fixed amount.
+- The roadmap lists the Android app as available. Android v1.0.0 stays in progress.
 
 ### Fixed
 
@@ -28,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Updated Next.js to `16.3.8` and sharp to `0.35.5`. Patched versions of shell-quote, tar, joi, compression, ajv, diff and uuid replace the vulnerable ones pulled in by the Android build tools.
+- The Content Security Policy allows frames from `https://www.youtube-nocookie.com` for the demo video.
+
+### Chore
+
+- The extension release workflow runs the end-to-end tests before packaging and uploads the extension ZIP on its own instead of inside another ZIP. The disabled end-to-end job in the main CI workflow is gone.
 
 ## [1.5.0] - 2026-10-14
 

@@ -5,7 +5,6 @@ import { Archive, Download, FileJson } from "lucide-react-native";
 import { useAtomValue } from "jotai";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 
 import { vaultToJSONString } from "@cryptex-industries/vault-core/vault-utils/import-export";
 import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
@@ -19,11 +18,9 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { serializeVault } from "@/app_lib/vault-utils/storage";
 import { unlockedVaultAtom, unlockedVaultMetadataAtom } from "@/utils/atoms";
-import {
-    getVaultDEKFromSession,
-    getVaultSessionGeneration,
-    isSameActiveVaultSession,
-} from "@/utils/vault-session";
+import { getVaultDEKFromSession } from "@/utils/vault-session";
+import { useSecretRelease } from "@/utils/secret-release";
+import { shareSecretFile } from "@/utils/secret-share";
 import { BACKUP_FILE_EXTENSION } from "@cryptex-industries/vault-core/consts";
 import {
     UnlockedDialogTitle as DialogTitle,
@@ -41,16 +38,9 @@ import { ImportWizard } from "@/components/vault-import/import-wizard";
 import { isProtectionPhraseKind } from "@/components/vault-security/additional-key-protection-options";
 import { uint8ToBase64 } from "@cryptex-industries/vault-core/encoding";
 import { readPickedImportFile } from "@/utils/mobile-import-picker";
-import { deleteAppOwnedTempFile, ensureSecretTempFilesReady, writeSecretTempFile } from "@/utils/secret-temp-files";
+import { ensureSecretTempFilesReady, writeSecretTempFile } from "@/utils/secret-temp-files";
 
-async function deleteQuietly(uri: string | undefined) {
-    if (!uri) return;
-    try {
-        await deleteAppOwnedTempFile(uri);
-    } catch {
-        // best-effort cleanup
-    }
-}
+const SESSION_ENDED = "Vault session expired. Unlock and try again.";
 
 export function ImportExportScreen({
     view = "root",
@@ -87,11 +77,14 @@ export function ImportExportScreen({
         return readPickedImportFile(picked.assets[0]);
     };
 
+    // An export on its way to the share sheet; a lock, leaving this screen or
+    // starting another export stops it.
+    const startExport = useSecretRelease();
+
     const handleEncryptedExport = async () => {
-        const sessionGeneration = getVaultSessionGeneration();
+        const release = startExport();
         setBusy(true);
         setStatus("");
-        let path: string | undefined;
         try {
             if (!metadata?.Blob) {
                 setStatus("Vault metadata missing.");
@@ -107,36 +100,33 @@ export function ImportExportScreen({
                 metadata.Blob,
                 dekRes.value,
             );
-            if (!isSameActiveVaultSession(sessionGeneration)) {
-                setStatus("Vault session expired. Unlock and try again.");
+            if (!release.current()) {
+                setStatus(SESSION_ENDED);
                 return;
             }
-            path = await writeSecretTempFile(
-                BACKUP_FILE_EXTENSION,
-                uint8ToBase64(raw),
-                FileSystem.EncodingType.Base64,
-            );
-            if (!isSameActiveVaultSession(sessionGeneration)) {
-                setStatus("Vault session expired. Unlock and try again.");
-                return;
-            }
-            if (await Sharing.isAvailableAsync()) {
-                if (!isSameActiveVaultSession(sessionGeneration)) {
-                    setStatus("Vault session expired. Unlock and try again.");
-                    return;
-                }
-                await Sharing.shareAsync(path, {
+            const shared = await shareSecretFile(
+                () =>
+                    writeSecretTempFile(
+                        BACKUP_FILE_EXTENSION,
+                        uint8ToBase64(raw),
+                        FileSystem.EncodingType.Base64,
+                    ),
+                {
+                    isCurrent: release.current,
                     mimeType: "application/octet-stream",
                     dialogTitle: "Export encrypted vault backup",
-                });
-                setStatus("Encrypted export ready.");
-            } else {
-                setStatus("Sharing is unavailable on this device.");
-            }
+                },
+            );
+            setStatus(
+                shared === "shared"
+                    ? "Encrypted export ready."
+                    : shared === "unavailable"
+                      ? "Sharing is unavailable on this device."
+                      : SESSION_ENDED,
+            );
         } catch (e) {
             setStatus(e instanceof Error ? e.message : "Export failed.");
         } finally {
-            await deleteQuietly(path);
             setBusy(false);
         }
     };
@@ -149,7 +139,6 @@ export function ImportExportScreen({
     };
 
     const handleCleartextExport = async () => {
-        const sessionGeneration = getVaultSessionGeneration();
         if (!metadata?.Blob) {
             setCleartextError("Vault metadata missing.");
             return;
@@ -169,10 +158,9 @@ export function ImportExportScreen({
             return;
         }
 
+        const release = startExport();
         setBusy(true);
         setCleartextError("");
-        let path: string | undefined;
-        let json: string | undefined;
         try {
             // Reauthenticate with the master password and protection phrase. Do not log secrets.
             const verify = await metadata.decryptVault(
@@ -205,44 +193,38 @@ export function ImportExportScreen({
                 return;
             }
 
-            if (!isSameActiveVaultSession(sessionGeneration)) {
-                setCleartextError("Vault session expired. Unlock and try again.");
+            if (!release.current()) {
+                setCleartextError(SESSION_ENDED);
                 return;
             }
 
-            json = vaultToJSONString(vault);
-            path = await writeSecretTempFile(
-                "json",
-                json,
-                FileSystem.EncodingType.UTF8,
-            );
-            json = undefined;
-
-            if (!isSameActiveVaultSession(sessionGeneration)) {
-                setCleartextError("Vault session expired. Unlock and try again.");
-                return;
-            }
-
-            if (await Sharing.isAvailableAsync()) {
-                if (!isSameActiveVaultSession(sessionGeneration)) {
-                    setCleartextError("Vault session expired. Unlock and try again.");
-                    return;
-                }
-                await Sharing.shareAsync(path, {
+            const shared = await shareSecretFile(
+                () =>
+                    writeSecretTempFile(
+                        "json",
+                        vaultToJSONString(vault),
+                        FileSystem.EncodingType.UTF8,
+                    ),
+                {
+                    isCurrent: release.current,
                     mimeType: "application/json",
                     dialogTitle: "Export cleartext vault JSON",
-                });
-                setStatus("Cleartext export ready. Delete it after use.");
-            } else {
-                setStatus("Sharing is unavailable on this device.");
+                },
+            );
+            if (shared === "cancelled") {
+                setCleartextError(SESSION_ENDED);
+                return;
             }
+            setStatus(
+                shared === "shared"
+                    ? "Cleartext export ready. Delete it after use."
+                    : "Sharing is unavailable on this device.",
+            );
             setCleartextOpen(false);
             resetCleartextForm();
         } catch {
             setCleartextError("Cleartext export failed.");
         } finally {
-            json = undefined;
-            await deleteQuietly(path);
             setBusy(false);
         }
     };

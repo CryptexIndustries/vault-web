@@ -6,8 +6,9 @@ import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
-import { deleteAppOwnedTempFile, writeSecretTempFile } from "@/utils/secret-temp-files";
+import { writeSecretTempFile } from "@/utils/secret-temp-files";
+import { useSecretRelease } from "@/utils/secret-release";
+import { shareSecretFile } from "@/utils/secret-share";
 import { Check, Copy, Download, ListFilter, RotateCw } from "lucide-react-native";
 
 import { vaultLogger, type MobileLogEntry } from "@/utils/logging";
@@ -109,22 +110,28 @@ export default function DiagnosticsScreen() {
         setCopyMessage(copied ? "Copied. The clipboard will clear after 30 seconds." : "Could not copy diagnostics.");
     };
 
+    // The export on its way to the share sheet; a lock or leaving stops it.
+    const startExportRelease = useSecretRelease();
+
     const exportLogs = async () => {
         if (!exportSnapshot || exporting) return;
+        const release = startExportRelease();
         setExporting(true);
         setExportError("");
-        let path: string | undefined;
         try {
-            path = await writeSecretTempFile(
-                "json",
-                exportSnapshot,
-                FileSystem.EncodingType.UTF8,
+            const shared = await shareSecretFile(
+                () =>
+                    writeSecretTempFile(
+                        "json",
+                        exportSnapshot,
+                        FileSystem.EncodingType.UTF8,
+                    ),
+                { isCurrent: release.current, mimeType: "application/json" },
             );
-            await Sharing.shareAsync(path, { mimeType: "application/json" });
+            if (shared === "unavailable") setExportError("Sharing is unavailable on this device.");
         } catch (error) {
             setExportError(error instanceof Error ? error.message : "Could not export diagnostics.");
         } finally {
-            if (path) await deleteAppOwnedTempFile(path).catch(() => {});
             setExporting(false);
         }
     };

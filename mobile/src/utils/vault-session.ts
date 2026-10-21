@@ -7,6 +7,7 @@ import {
     stopVaultTimeoutSession,
 } from "@/utils/session-timeout";
 import { androidCredentials } from "@/utils/android-credentials";
+import { getVaultLockEpoch } from "@/utils/vault-lock-epoch";
 
 export const MISSING_VAULT_SECRET_ERROR =
     "Vault data encryption key is missing. Please unlock your vault again.";
@@ -20,6 +21,24 @@ export const getVaultSessionGeneration = () => sessionGeneration;
 
 export const isSameActiveVaultSession = (generation: number): boolean =>
     generation === sessionGeneration && getVaultDEKFromSession().isOk();
+
+/**
+ * Secret work that crosses an await (sharing a private key file, say)
+ * captures this first and checks isVaultSessionCurrent() after each await.
+ */
+export type VaultSessionToken = {
+    readonly generation: number;
+    readonly lockEpoch: number;
+};
+
+export const captureVaultSession = (): VaultSessionToken => ({
+    generation: sessionGeneration,
+    lockEpoch: getVaultLockEpoch(),
+});
+
+/** False once a lock has started or the session changed, even if it was unlocked again. */
+export const isVaultSessionCurrent = (token: VaultSessionToken): boolean =>
+    token.lockEpoch === getVaultLockEpoch() && isSameActiveVaultSession(token.generation);
 
 const isSessionVaultDEK = (dek: unknown): dek is CryptoKey =>
     typeof dek === "object" &&

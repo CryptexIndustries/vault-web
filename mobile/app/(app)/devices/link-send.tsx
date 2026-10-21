@@ -14,8 +14,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
 import * as FileSystem from "expo-file-system/legacy";
-import { deleteAppOwnedTempFile, writeSecretTempFile } from "@/utils/secret-temp-files";
-import * as Sharing from "expo-sharing";
+import { writeSecretTempFile } from "@/utils/secret-temp-files";
+import { useSecretRelease } from "@/utils/secret-release";
+import { shareSecretFile } from "@/utils/secret-share";
 import QRCode from "react-native-qrcode-svg";
 import { ulid } from "ulidx";
 import { Maximize2, Settings2, X } from "lucide-react-native";
@@ -1289,9 +1290,13 @@ export default function LinkSendScreen() {
         }
     };
 
+    // The package file on its way to the share sheet; a lock or leaving stops it.
+    const startPackageRelease = useSecretRelease();
+
     const sharePackageFile = async () => {
-        const sessionGeneration = getVaultSessionGeneration();
-        if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") {
+        const release = startPackageRelease();
+        const isCurrent = () => release.current() && AppState.currentState === "active";
+        if (!isCurrent()) {
             notify("Vault session expired. Unlock and try again.");
             return;
         }
@@ -1301,24 +1306,26 @@ export default function LinkSendScreen() {
             notify("Invalid package data.");
             return;
         }
-        let path: string | undefined;
         try {
-            path = await writeSecretTempFile(
-                LINK_FILE_EXTENSION,
-                uint8ToBase64(parsed.value.toBinary()),
-                FileSystem.EncodingType.Base64,
+            const shared = await shareSecretFile(
+                () =>
+                    writeSecretTempFile(
+                        LINK_FILE_EXTENSION,
+                        uint8ToBase64(parsed.value.toBinary()),
+                        FileSystem.EncodingType.Base64,
+                    ),
+                {
+                    isCurrent,
+                    // The share sheet takes the app out of the foreground; that
+                    // trip must not count as leaving the transfer.
+                    beforeShare: () => {
+                        externalHandoffRef.current = true;
+                    },
+                    mimeType: "application/octet-stream",
+                    dialogTitle: "Share Cryptex link package",
+                },
             );
-            if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
-            if (!(await Sharing.isAvailableAsync())) {
-                notify("Sharing is not available on this device.");
-                return;
-            }
-            if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") return;
-            externalHandoffRef.current = true;
-            await Sharing.shareAsync(path, {
-                mimeType: "application/octet-stream",
-                dialogTitle: "Share Cryptex link package",
-            });
+            if (shared === "unavailable") notify("Sharing is not available on this device.");
         } catch {
             notify("Could not share the link package.");
         } finally {
@@ -1326,7 +1333,6 @@ export default function LinkSendScreen() {
             // exemption around for an unrelated trip to the background.
             if (AppState.currentState === "active")
                 externalHandoffRef.current = false;
-            if (path) await deleteAppOwnedTempFile(path).catch(() => undefined);
         }
     };
 

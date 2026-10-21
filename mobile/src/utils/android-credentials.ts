@@ -73,6 +73,7 @@ type AndroidCredentialsModule = {
         timeoutMinutes: number,
     ): void;
     clearProviderCredentials(): void;
+    revokeProviderSession(): void;
     refreshProviderSession(timeoutMinutes: number): void;
     backgroundProviderSession(timeoutMinutes: number): void;
     resumeProviderSession(timeoutMinutes: number): void;
@@ -146,6 +147,8 @@ export const androidCredentials = {
         if (!isAutoLockDue()) native?.setProviderCredentials(credentials, timeoutMinutes);
     },
     clearProviderCredentials: () => native?.clearProviderCredentials(),
+    /** Lock started: no fill or passkey answer from here on, until a fresh unlock. */
+    revokeProviderSession: () => native?.revokeProviderSession(),
     refreshProviderSession: (timeoutMinutes: number) =>
         !isAutoLockDue() && native?.refreshProviderSession(timeoutMinutes),
     backgroundProviderSession: (timeoutMinutes: number) =>

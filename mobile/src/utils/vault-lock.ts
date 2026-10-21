@@ -15,6 +15,7 @@ import {
     saveVaultWithSessionDEK,
     type VaultSessionError,
 } from "@/utils/vault-session";
+import { markVaultLockStarted } from "@/utils/vault-lock-epoch";
 import { clearPendingSecretFromClipboard } from "@/utils/clipboard";
 import {
     flushManagedBackupBeforeLock,
@@ -45,12 +46,28 @@ export type LockUnlockedVaultOptions = {
     syncConnectionController?: SyncConnectionController;
 };
 
+/**
+ * Synchronous, first in every lock path: from here on nothing leaves the
+ * process. Exports and copies in flight see the new lock count, and the
+ * Android credential provider refuses fills and passkey answers even while
+ * the save runs. Never throws.
+ */
+function stopSecretReleases() {
+    markVaultLockStarted();
+    try {
+        androidCredentials.revokeProviderSession();
+    } catch (error) {
+        vaultLog.error("Failed to revoke the Android credential provider session", { error });
+    }
+}
+
 export async function lockUnlockedVault({
     unlockedVaultMetadata,
     setUnlockedVault,
     setUnlockedVaultMetadata,
     syncConnectionController,
 }: LockUnlockedVaultOptions): Promise<Result<void, VaultLockError>> {
+    stopSecretReleases();
     if (vaultStore.get(vaultLockStateAtom) === "locking")
         return err("VAULT_LOCK_FAILED");
     vaultStore.set(vaultLockStateAtom, "locking");
@@ -112,6 +129,7 @@ export async function lockVaultWithoutSaving(
     if (vaultStore.get(vaultLockStateAtom) !== "failed")
         return err("VAULT_LOCK_FAILED");
 
+    stopSecretReleases();
     vaultStore.set(vaultLockStateAtom, "locking");
     try {
         // Revoke secret access before any cleanup that can wait on native code.

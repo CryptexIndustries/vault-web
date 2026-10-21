@@ -142,6 +142,9 @@ jest.mock("@/utils/vault-session", () => ({
     getVaultSessionGeneration: () => mockVaultGeneration,
     isSameActiveVaultSession: (generation: number) =>
         generation === mockVaultGeneration,
+    captureVaultSession: () => ({ generation: mockVaultGeneration, lockEpoch: 0 }),
+    isVaultSessionCurrent: (session: { generation: number }) =>
+        session.generation === mockVaultGeneration,
     MISSING_VAULT_SECRET_ERROR: "Unlock the vault again.",
 }));
 jest.mock("@/utils/logging", () => ({

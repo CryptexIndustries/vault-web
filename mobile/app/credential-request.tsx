@@ -40,7 +40,8 @@ import { loadAutoCopyTotp } from "@/utils/autofill-settings";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { passkeyLog } from "@/utils/logging";
 import { persistVaultMutation } from "@/utils/vault-mutations";
-import { getVaultSessionGeneration } from "@/utils/vault-session";
+import { captureVaultSession, isVaultSessionCurrent, type VaultSessionToken } from "@/utils/vault-session";
+import { startSecretRelease, type SecretRelease } from "@/utils/secret-release";
 import type { VaultMutationError } from "@/utils/vault-mutations";
 import { isAutoLockDue, useAutoLock } from "@/hooks/use-auto-lock";
 import { CredentialForm } from "@/components/vault/credential-form";
@@ -116,14 +117,18 @@ export default function CredentialRequestScreen() {
     const [saveFailureCode, setSaveFailureCode] = useState<VaultMutationError>("VAULT_MUTATION_FAILED");
     const retrySaveRef = useRef<(() => void) | null>(null);
     const requestIdRef = useRef<string | null>(null);
-    const requestSessionGenerationRef = useRef<number | null>(null);
+    // The unlocked session (with its lock count) this request may be answered in.
+    const requestSessionRef = useRef<VaultSessionToken | null>(null);
+    // Fills and passkey operations under way. Each is tied to the session it started in, so one
+    // begun before a lock never completes, not even after the next unlock; leaving cancels them.
+    const operationsRef = useRef(new Set<SecretRelease>());
     const requestHadUnlockedSessionRef = useRef(false);
 
     const loadPendingRequest = useCallback(() => {
         const pending = androidCredentials.getPendingRequest();
         if (pending?.id === requestIdRef.current) return;
         requestIdRef.current = pending?.id ?? null;
-        requestSessionGenerationRef.current = pending ? getVaultSessionGeneration() : null;
+        requestSessionRef.current = pending ? captureVaultSession() : null;
         requestHadUnlockedSessionRef.current = pending ? vaultStore.get(isVaultUnlockedAtom) : false;
         setRequest(pending);
         setRequestLoaded(true);
@@ -164,13 +169,13 @@ export default function CredentialRequestScreen() {
         if (unlocked) {
             if (!requestHadUnlockedSessionRef.current) {
                 requestHadUnlockedSessionRef.current = true;
-                requestSessionGenerationRef.current = getVaultSessionGeneration();
+                requestSessionRef.current = captureVaultSession();
             }
             return;
         }
         // A background auto-lock may finish just after Android opens this screen.
         // Keep the short-lived request, but require a new unlocked session before fill.
-        requestSessionGenerationRef.current = null;
+        requestSessionRef.current = null;
         requestHadUnlockedSessionRef.current = false;
     }, [request, unlocked]);
 
@@ -179,11 +184,30 @@ export default function CredentialRequestScreen() {
             !request ||
             isAutoLockDue() ||
             !vaultStore.get(isVaultUnlockedAtom) ||
-            requestSessionGenerationRef.current !== getVaultSessionGeneration()
+            !requestSessionRef.current ||
+            !isVaultSessionCurrent(requestSessionRef.current)
         ) return REQUEST_EXPIRED;
         const current = androidCredentials.getPendingRequest();
         return current?.id === request.id && current.kind === request.kind ? null : REQUEST_EXPIRED;
     }, [request]);
+    useEffect(() => {
+        const operations = operationsRef.current;
+        return () => {
+            for (const operation of operations) operation.cancel();
+            operations.clear();
+        };
+    }, []);
+    const startOperation = useCallback(() => {
+        const operation = startSecretRelease();
+        operationsRef.current.add(operation);
+        return operation;
+    }, []);
+    /** requestGuard, plus: the operation's own session is still the current one. */
+    const operationGuard = useCallback(
+        (operation: SecretRelease): string | null =>
+            requestGuard() ?? (operation.current() ? null : REQUEST_EXPIRED),
+        [requestGuard],
+    );
     const returnToVault = () => router.replace("/(app)/(tabs)/vault");
     const cancelRequest = () => {
         androidCredentials.dismissRequest(request?.id);
@@ -268,8 +292,8 @@ export default function CredentialRequestScreen() {
     );
 
     const completeLogin = useCallback(
-        async (credential: VaultCredential) => {
-            if (!request || requestGuard()) {
+        async (credential: VaultCredential, operation: SecretRelease = startOperation()) => {
+            if (!request || operationGuard(operation)) {
                 setRequestError(REQUEST_EXPIRED);
                 setView("picker");
                 return false;
@@ -282,7 +306,7 @@ export default function CredentialRequestScreen() {
                 totp = "";
             }
             const copyTotp = !!totp && (await loadAutoCopyTotp());
-            if (requestGuard()) {
+            if (operationGuard(operation)) {
                 setRequestError(REQUEST_EXPIRED);
                 setView("picker");
                 return false;
@@ -303,7 +327,7 @@ export default function CredentialRequestScreen() {
                         autofillEmail(credential),
                         credential.Password,
                     );
-            if (completed && copyTotp) await copySecretToClipboard(totp);
+            if (completed && copyTotp && operation.current()) await copySecretToClipboard(totp);
             if (!completed) {
                 setRequestError(REQUEST_EXPIRED);
                 setView("picker");
@@ -311,7 +335,7 @@ export default function CredentialRequestScreen() {
             else returnToVault();
             return completed;
         },
-        [onInteraction, request, requestGuard],
+        [onInteraction, operationGuard, request, startOperation],
     );
 
     const beginFill = (credential: VaultCredential) => {
@@ -328,7 +352,8 @@ export default function CredentialRequestScreen() {
     const persistAssociationAndFill = async () => {
         const association = target?.pageUrl ?? target?.appUri;
         if (!selected || !target || !association || !canAssociateAutofillTarget(target)) return;
-        const gate = requestGuard();
+        const operation = startOperation();
+        const gate = operationGuard(operation);
         if (gate) {
             setAssociationError(gate);
             return;
@@ -337,7 +362,7 @@ export default function CredentialRequestScreen() {
         setAssociationError("");
         let serializedGate: string | null = null;
         const result = await persistVaultMutation("credential.upsert", async (current) => {
-            serializedGate = requestGuard();
+            serializedGate = operationGuard(operation);
             if (serializedGate) throw new Error("REQUEST_INVALID");
             const currentCredential = current.Credentials.find(
                 (credential) => credential.ID === selected.ID && !credential.Deleted,
@@ -360,11 +385,11 @@ export default function CredentialRequestScreen() {
             );
             return;
         }
-        if (requestGuard()) {
+        if (operationGuard(operation)) {
             setAssociationError("The association was saved, but the request expired before Cryptex Vault could fill the login.");
             return;
         }
-        await completeLogin(result.value);
+        await completeLogin(result.value, operation);
     };
 
     const passkeyRequest = useMemo(() => {
@@ -401,7 +426,8 @@ export default function CredentialRequestScreen() {
 
     const completePasskeyGet = useCallback(
         async (credentialId: string) => {
-            if (!request?.requestJson || !passkeyRequest?.rpId || requestGuard()) {
+            const operation = startOperation();
+            if (!request?.requestJson || !passkeyRequest?.rpId || operationGuard(operation)) {
                 setRequestError(request?.requestJson ? REQUEST_EXPIRED : "This passkey request is malformed.");
                 return;
             }
@@ -416,7 +442,7 @@ export default function CredentialRequestScreen() {
                 if (!resolution.origin) throw new Error(resolution.errorCode ?? "PASSKEY_ORIGIN_REJECTED");
                 stage = "user_verification";
                 await verifyPasskeyUser("Use", passkeyRequest.rpId);
-                if (requestGuard()) throw new Error("PASSKEY_REQUEST_EXPIRED");
+                if (operationGuard(operation)) throw new Error("PASSKEY_REQUEST_EXPIRED");
                 onInteraction();
                 stage = "generate_assertion";
                 const response = await assertAndroidPasskey(
@@ -428,7 +454,7 @@ export default function CredentialRequestScreen() {
                         : undefined,
                 );
                 stage = "complete_android_request";
-                if (requestGuard()) throw new Error("PASSKEY_REQUEST_EXPIRED");
+                if (operationGuard(operation)) throw new Error("PASSKEY_REQUEST_EXPIRED");
                 if (!androidCredentials.completeProviderPasskeyGet(request.id, response)) {
                     throw new Error("PASSKEY_REQUEST_EXPIRED");
                 }
@@ -449,7 +475,7 @@ export default function CredentialRequestScreen() {
                 setBusy(false);
             }
         },
-        [credentials, onInteraction, passkeyRequest?.rpId, request, requestGuard],
+        [credentials, onInteraction, operationGuard, passkeyRequest?.rpId, request, startOperation],
     );
 
     useEffect(() => {
@@ -467,7 +493,8 @@ export default function CredentialRequestScreen() {
 
     const completePasskeyCreate = async () => {
         const rpId = passkeyRequest?.rp?.id;
-        if (!request?.requestJson || !rpId || requestGuard()) {
+        const operation = startOperation();
+        if (!request?.requestJson || !rpId || operationGuard(operation)) {
             setRequestError(request?.requestJson ? REQUEST_EXPIRED : "This passkey request is malformed.");
             return;
         }
@@ -487,7 +514,7 @@ export default function CredentialRequestScreen() {
             if (!resolution.origin) throw new Error(resolution.errorCode ?? "PASSKEY_ORIGIN_REJECTED");
             stage = "user_verification";
             await verifyPasskeyUser("Create", passkeyRequest.rp?.name ?? rpId);
-            if (requestGuard()) throw new Error("PASSKEY_REQUEST_EXPIRED");
+            if (operationGuard(operation)) throw new Error("PASSKEY_REQUEST_EXPIRED");
             onInteraction();
             stage = "generate_credential";
             const registration = await createAndroidPasskey(
@@ -501,7 +528,7 @@ export default function CredentialRequestScreen() {
             stage = "persist_vault";
             let serializedGate: string | null = null;
             const result = await persistVaultMutation("credential.upsert", async (current) => {
-                serializedGate = requestGuard();
+                serializedGate = operationGuard(operation);
                 if (serializedGate) throw new Error("REQUEST_INVALID");
                 const saved = await createCredential({
                     ID: null,
@@ -525,7 +552,7 @@ export default function CredentialRequestScreen() {
             });
             if (result.isErr()) throw new Error(serializedGate ?? "PASSKEY_SAVE_FAILED");
             stage = "complete_android_request";
-            if (requestGuard() || !androidCredentials.completeProviderPasskeyCreate(request.id, registration.responseJson)) {
+            if (operationGuard(operation) || !androidCredentials.completeProviderPasskeyCreate(request.id, registration.responseJson)) {
                 await persistVaultMutation("credential.upsert", (current) => {
                     const next = Object.assign(new Vault(), current);
                     next.Credentials = current.Credentials.filter((credential) => credential.ID !== result.value.ID);

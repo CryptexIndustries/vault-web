@@ -347,6 +347,7 @@ function LinkReceiveContent({
         useState<OnlineServices | null>(null);
     const [linkProgress, setLinkProgress] = useState(INITIAL_PROGRESS);
     const [linkActivity, setLinkActivity] = useState<LinkActivityEntry[]>([]);
+    const [linkDeadline, setLinkDeadline] = useState<number | null>(null);
     const [linkFailure, setLinkFailure] = useState<LinkFailure | null>(null);
 
     const controllerRef = useRef<LinkingProcessController | null>(null);
@@ -962,6 +963,7 @@ function LinkReceiveContent({
         let wrongWords = false;
         setStatusMessage("Checking verification words…");
         linkStartedAtRef.current = Date.now();
+        setLinkDeadline(null);
         linkActivityIdRef.current = 0;
         setLinkActivity([]);
         setLinkFailure(null);
@@ -1078,6 +1080,8 @@ function LinkReceiveContent({
             const onStatusChange = async (status: LinkingProcessStatus) => {
                 if (attempt !== linkAttemptRef.current || failedRef.current)
                     return;
+                if (status.Deadline !== undefined)
+                    setLinkDeadline(status.Deadline);
                 if (status.LogMessage?.message) {
                     setStatusMessage(status.LogMessage.message);
                     appendLinkActivity(
@@ -1875,6 +1879,7 @@ function LinkReceiveContent({
                     <LinkingProgress
                         items={progressItems}
                         status={statusMessage || "Linking in progress…"}
+                        deadline={stage === "linking" ? linkDeadline : null}
                         activity={linkActivity}
                         failure={linkFailure}
                         onCancel={abortWaiting}

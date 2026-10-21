@@ -47,6 +47,8 @@ openssl rand -hex 32
 # Copy this output into SOKETI_APP_SECRET in .env
 openssl rand -hex 32
 # Copy this output after your username in turnserver.conf
+openssl rand -hex 32
+# Copy this output into RELAY_ACCESS_TOKEN in .env
 openssl rand -hex 32`;
 
 export default function SelfHosting() {
@@ -59,7 +61,7 @@ export default function SelfHosting() {
     return (
         <DocArticle
             title="Self-hosting"
-            description="Set up the web application, signaling, and STUN/TURN services on your own server."
+            description="Set up the web application, signaling, STUN/TURN, and the SSH agent relay on your own server."
             eyebrow="TECHNICAL GUIDE"
             toc={[
                 { href: "#scope", label: "Before you start" },
@@ -70,11 +72,13 @@ export default function SelfHosting() {
                 { href: "#sync", label: "Configure Cryptex Vault" },
                 { href: "#verify", label: "Test synchronization and TURN" },
                 { href: "#share-server", label: "One-time share links" },
+                { href: "#agent-relay", label: "SSH agent relay" },
                 { href: "#operations", label: "Updates and troubleshooting" },
             ]}
             related={[
                 { href: "/docs/linking-devices", title: "Linking devices" },
                 { href: "/docs/backups", title: "Backups" },
+                { href: "/docs/ssh-agent", title: "SSH agent" },
             ]}
         >
             <DocSection id="scope" title="1. Before you start">
@@ -107,9 +111,11 @@ export default function SelfHosting() {
                 </p>
                 <p>
                     Deploy the web application with Caddy for HTTPS, Soketi for
-                    signaling, and coturn for STUN/TURN. You do not need an
-                    Online Services subscription. Use manual vault backups with
-                    this setup; it does not include managed backups.
+                    signaling, and coturn for STUN/TURN. The stack also runs the
+                    share server for one-time links and the relay for the SSH
+                    agent. You do not need an Online Services subscription. Use
+                    manual vault backups with this setup; it does not include
+                    managed backups.
                 </p>
                 <h3>Prepare your server and domain</h3>
                 <ul className={d.requirements}>
@@ -184,17 +190,18 @@ export default function SelfHosting() {
                         </p>
                     )}
                     <p>
-                        Prepare your local settings and generate three separate
+                        Prepare your local settings and generate four separate
                         credentials:
                     </p>
                     <DocCode>{prepare}</DocCode>
                 </div>
                 <p>
-                    Use the three generated values for the Soketi key, Soketi
-                    secret, and TURN password respectively. Do not reuse the
-                    example placeholders. The real <code>.env</code> and{" "}
-                    <code>turnserver.conf</code> files contain credentials and
-                    must remain outside the web application's public directory.
+                    Use the four generated values for the Soketi key, Soketi
+                    secret, TURN password, and SSH agent relay access token
+                    respectively. Do not reuse the example placeholders. The
+                    real <code>.env</code> and <code>turnserver.conf</code>{" "}
+                    files contain credentials and must remain outside the web
+                    application's public directory.
                 </p>
             </DocSection>
             <DocSection
@@ -337,6 +344,10 @@ export default function SelfHosting() {
                             <code>
                                 SHARE_IMAGE=cryptex-vault-share-server:initial
                             </code>
+                            , and{" "}
+                            <code>
+                                RELAY_IMAGE=cryptex-vault-relay-server:initial
+                            </code>
                             , and uncomment{" "}
                             <code>
                                 COMPOSE_FILE=compose.yaml:compose.build.yaml
@@ -353,9 +364,14 @@ export default function SelfHosting() {
                             <code>
                                 ghcr.io/cryptexindustries/vault-web/share-server@sha256:YOUR_VERIFIED_DIGEST
                             </code>
-                            . The share server has its own releases, tagged{" "}
-                            <code>share-server-v*</code>. Resolve both digests
-                            from the{" "}
+                            , and <code>RELAY_IMAGE</code> to{" "}
+                            <code>
+                                ghcr.io/cryptexindustries/vault-web/relay-server@sha256:YOUR_VERIFIED_DIGEST
+                            </code>
+                            . The share server and the relay have their own
+                            releases, tagged <code>share-server-v*</code> and{" "}
+                            <code>relay-server-v*</code>. Resolve all three
+                            digests from the{" "}
                             <a href="https://github.com/CryptexIndustries/vault-web/pkgs/container/vault-web">
                                 published images
                             </a>
@@ -376,7 +392,10 @@ docker buildx imagetools inspect ghcr.io/cryptexindustries/vault-web:YOUR_PUBLIS
 # VAULT_IMAGE=ghcr.io/cryptexindustries/vault-web@sha256:YOUR_VERIFIED_DIGEST
 # Same for the share server release you chose
 docker buildx imagetools inspect ghcr.io/cryptexindustries/vault-web/share-server:YOUR_SHARE_SERVER_TAG
-# SHARE_IMAGE=ghcr.io/cryptexindustries/vault-web/share-server@sha256:YOUR_VERIFIED_DIGEST`}</DocCode>
+# SHARE_IMAGE=ghcr.io/cryptexindustries/vault-web/share-server@sha256:YOUR_VERIFIED_DIGEST
+# Same for the relay release you chose
+docker buildx imagetools inspect ghcr.io/cryptexindustries/vault-web/relay-server:YOUR_RELAY_SERVER_TAG
+# RELAY_IMAGE=ghcr.io/cryptexindustries/vault-web/relay-server@sha256:YOUR_VERIFIED_DIGEST`}</DocCode>
                         <p>
                             Use the top-level manifest digest. This pins the
                             image contents even if its tag changes. It does not
@@ -501,7 +520,7 @@ sudo install -d -m 0755 /var/lib/cryptex-acme
 sudo install -d -o root -g "$(id -g)" -m 0750 /etc/cryptex-turn/tls
 # Validate settings without printing credentials
 docker compose config --quiet
-${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web share" : "docker compose pull"}
+${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web share relay" : "docker compose pull"}
 # Start HTTPS and signaling; coturn starts after certificate installation
 docker compose up -d --no-build web soketi caddy`}</DocCode>
                             </div>
@@ -566,9 +585,9 @@ openssl s_client -connect turn.example.com:5349 \\
                                 .
                             </p>
                             <p>
-                                Check that all four containers stay running and
-                                the web service reports <code>healthy</code>.
-                                Open your web application:
+                                Check that all containers stay running and the
+                                web service reports <code>healthy</code>. Open
+                                your web application:
                             </p>
                             <DocCode>{`curl -I https://vault.example.com/app`}</DocCode>
                         </>
@@ -603,17 +622,17 @@ sudo install -d -m 0755 /var/lib/cryptex-acme
 sudo install -d -o root -g "$(id -g)" -m 0750 /etc/cryptex-turn/tls
 # Validate settings and prepare the images
 docker compose config --quiet
-${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web share" : "docker compose pull"}
-# Start all four services
+${fromSource ? "docker compose pull caddy soketi coturn\ndocker compose build web share relay" : "docker compose pull"}
+# Start all services
 docker compose up -d --no-build
 docker compose ps
 docker compose logs --tail=100 coturn
 # Replace the hostname with yours
 curl -I https://vault.example.com/app`}</DocCode>
                             <p>
-                                All four containers should stay running and the
-                                web service should report <code>healthy</code>.
-                                If you changed an existing coturn configuration,
+                                All containers should stay running and the web
+                                service should report <code>healthy</code>. If
+                                you changed an existing coturn configuration,
                                 run <code>docker compose restart coturn</code>{" "}
                                 to apply it.
                             </p>
@@ -962,7 +981,98 @@ curl -I https://vault.example.com/app`}</DocCode>
                     <code>SHARE_METRICS_ADDR=off</code> to turn them off.
                 </p>
             </DocSection>
-            <DocSection id="operations" title="9. Maintain the deployment">
+            <DocSection id="agent-relay" title="9. Run the SSH agent relay">
+                <p>
+                    The stack includes the relay for the{" "}
+                    <Link href="/docs/ssh-agent">SSH agent</Link>. It carries
+                    encrypted signing requests between{" "}
+                    <code>cryptex-agent</code> on a Linux machine and the device
+                    that approves them. Caddy sends <code>/v1/connect</code>,{" "}
+                    <code>/v1/pair</code> and <code>/v1/revoke</code> on your
+                    vault domain to the relay, so its URL is{" "}
+                    <code>https://vault.example.com</code> and it needs no extra
+                    domain or firewall rule. The relay can&apos;t read requests
+                    or sign anything. It keeps the public keys of paired agents
+                    and devices in a SQLite file in the <code>relay_data</code>{" "}
+                    volume.
+                </p>
+                <ol>
+                    <li>
+                        On the Linux machine, pair with your relay instead of
+                        the hosted one:{" "}
+                        <code>
+                            cryptex-agent pair --relay https://vault.example.com
+                        </code>
+                        . Use exactly <code>https://</code> and your{" "}
+                        <code>VAULT_DOMAIN</code>: sign-ins are checked against
+                        that address. The agent and the apps accept a relay only
+                        over <code>https://</code>, which Caddy already
+                        provides. Plain <code>http://</code> works only for a
+                        relay on the same machine.
+                    </li>
+                    <li>
+                        When the Android app or the web app reads the code, it
+                        asks for the relay&apos;s access token. Enter your{" "}
+                        <code>RELAY_ACCESS_TOKEN</code>. Each device saves it in
+                        the vault for that device only, under{" "}
+                        <strong>Agent relays</strong>.
+                    </li>
+                </ol>
+                <p>
+                    Anyone with the token can pair agents with this relay, up to{" "}
+                    <code>RELAY_MAX_AGENTS</code> agents on the whole relay, 25
+                    by default. Give it only to people you trust. To change it,
+                    edit <code>RELAY_ACCESS_TOKEN</code> in <code>.env</code>,
+                    run <code>docker compose up -d --force-recreate relay</code>
+                    , update the token under <strong>Agent relays</strong> on
+                    each approving device, and pair every agent again with{" "}
+                    <code>cryptex-agent pair --force</code>. Agents keep the
+                    token they were paired with.
+                </p>
+                <p>
+                    Back up <code>relay_data</code> with Caddy&apos;s volume. If
+                    it is lost, every agent has to pair again. To revoke an
+                    agent on this relay, use the device that approves it or run{" "}
+                    <code>cryptex-agent unpair</code> on the machine.
+                </p>
+                <DocCallout title="Behind Cloudflare or another proxy">
+                    This guide&apos;s DNS records skip CDN proxies. If you put
+                    the vault domain behind Cloudflare&apos;s proxy anyway, it
+                    closes WebSockets that stay idle for 100 seconds. Set{" "}
+                    <code>RELAY_KEEPALIVE_SECONDS=90</code> in <code>.env</code>{" "}
+                    so clients ping before that. The relay rate-limits per
+                    client address like the share server, so set{" "}
+                    <code>RELAY_TRUSTED_PROXY_HOPS</code> to the number of
+                    proxies, Caddy included, as described for{" "}
+                    <code>SHARE_TRUSTED_PROXY_HOPS</code> above.
+                </DocCallout>
+                <p>
+                    The relay serves Prometheus metrics on port{" "}
+                    <code>9090</code>, which isn&apos;t published. Set{" "}
+                    <code>RELAY_METRICS_ADDR=off</code> to turn them off.{" "}
+                    {fromSource ? (
+                        <>
+                            To update it, check out a newer release, run{" "}
+                            <code>docker compose build relay</code>
+                        </>
+                    ) : (
+                        <>
+                            To update it, pin the digest of a newer{" "}
+                            <code>relay-server-v*</code> release in{" "}
+                            <code>RELAY_IMAGE</code>, run{" "}
+                            <code>docker compose pull relay</code>
+                        </>
+                    )}{" "}
+                    and <code>docker compose up -d --no-build relay</code>. The{" "}
+                    <a
+                        href={`${REPO}/blob/master/services/cmd/relay-server/threat-model.md`}
+                    >
+                        relay threat model
+                    </a>{" "}
+                    describes what it stores and checks.
+                </p>
+            </DocSection>
+            <DocSection id="operations" title="10. Maintain the deployment">
                 <h3>Update and roll back</h3>
                 <div id="deployment-update">
                     {fromSource ? (

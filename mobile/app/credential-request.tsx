@@ -327,6 +327,8 @@ export default function CredentialRequestScreen() {
                         autofillEmail(credential),
                         credential.Password,
                     );
+            // Nothing awaited since the check above; copySecretToClipboard itself
+            // drops the copy if a lock starts during the native write.
             if (completed && copyTotp && operation.current()) await copySecretToClipboard(totp);
             if (!completed) {
                 setRequestError(REQUEST_EXPIRED);

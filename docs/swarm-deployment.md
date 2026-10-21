@@ -60,6 +60,7 @@ Security Policy.
 | `NEXT_PUBLIC_CLOUD_ENABLED`                   | Enables the online-services UI; defaults to `false` |
 | `NEXT_PUBLIC_ONLINE_SERVICES_API_URL`         | API origin; falls back to the app URL when empty    |
 | `NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN`           | Origin used for direct backup transfers             |
+| `NEXT_PUBLIC_RELAY_URL`                       | Hosted SSH agent relay; empty uses the default      |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`              | Cloudflare Turnstile site key                       |
 | `NEXT_PUBLIC_PUSHER_APP_ID`                   | Pusher application ID                               |
 | `NEXT_PUBLIC_PUSHER_APP_KEY`                  | Pusher public application key                       |

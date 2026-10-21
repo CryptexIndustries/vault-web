@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-21
+
+### Added
+
+- SSH key items in the web app, Chromium Extension and Android app. Generate an Ed25519 key, or import an existing Ed25519, ECDSA or RSA key in OpenSSH, PEM or PKCS#8 format, including passphrase-protected keys. Items show the key type and fingerprint, copy or save the public key, and save the private key as an OpenSSH file. A new SSH keys filter lists them, autofill never offers them, and the security report flags RSA keys shorter than 3072 bits.
+- `cryptex-agent`, a keyless SSH agent for Linux. It holds no private keys: when `ssh`, `git` or `ssh-keygen` asks it to sign, it sends the request to the device it was paired with, and only the signature comes back. It pairs with a QR code in the terminal, runs as a systemd user service and ships as tarballs for amd64 and arm64.
+- The Android app and the web app approve SSH agent requests. Each request shows the server, verified from the server's own signature, the program and the key. You can remember an approval until the vault locks, pause an agent, and see its recent requests, change its keys or revoke it from any linked device.
+- The agent relay, an open-source Go service that carries end-to-end encrypted requests between agents and the devices that approve them. The hosted relay comes with Online Services; self-hosters run the same container with an access token, and the self-hosting stack includes it.
+- SSH keys and SSH agent guides in the documentation.
+
+### Changed
+
+- Bumped the web app and Chromium extension versions to `1.7.0`.
+- The roadmap lists the SSH agent as available.
+- Bitwarden and 1Password SSH key items now import as SSH key items. Cryptex Vault JSON imports check SSH key data. Keys that can't be read are kept as hidden fields with an import notice.
+- The web vault can be open in only one browser tab at a time. Another tab offers Use here, which locks the first tab after saving. Leaving the vault for another page of the site also locks it after saving.
+- In the web app and the Chromium Extension, copying a value that isn't secret, such as a username, website or public key, shows a plain "Copied" message. Passwords, codes, private keys and hidden fields keep the reminder to clear the clipboard.
+
+### Fixed
+
+- On Android, a vault export, Recovery Kit share, autofill fill or TOTP copy now stops if the vault starts locking mid-way, so nothing reaches the share sheet or the app asking to fill.
+- On Android, a secret copied just as the vault locked could stay on the clipboard. It is now cleared.
+- The self-hosted Caddy config answered every request on the signaling domain with 404, so devices couldn't connect through self-hosted signaling.
+
+### Chore
+
+- CI verifies Go module checksums and runs `govulncheck` on every push and once a week.
+- `relay-server-v*` tags build the relay container image, and `cryptex-agent-v*` tags build the agent tarballs and a draft GitHub release.
+
 ## [1.6.0] - 2026-10-15
 
 ### Added

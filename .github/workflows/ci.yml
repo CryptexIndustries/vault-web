@@ -47,6 +47,8 @@ jobs:
               run: pnpm lint:web
             - name: Type-check web client
               run: pnpm lint-tsc:web
+            - name: Type-check shared packages
+              run: pnpm lint-tsc:packages
             - name: Test web client
               run: pnpm exec jest web/tests --runInBand
 

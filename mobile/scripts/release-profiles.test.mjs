@@ -25,7 +25,7 @@ const temporary = run => {
 };
 
 test("release endpoints reject canonical loopback URLs while allowing private HTTPS hosts", () => {
-    for (const name of ["EXPO_PUBLIC_APP_URL", "EXPO_PUBLIC_ONLINE_SERVICES_API_URL"]) {
+    for (const name of ["EXPO_PUBLIC_APP_URL", "EXPO_PUBLIC_ONLINE_SERVICES_API_URL", "EXPO_PUBLIC_RELAY_URL"]) {
         for (const endpoint of ["https://[::1]", "https://[0:0:0:0:0:0:0:1]", "https://localhost.", "https://LOCALHOST", "https://127.0.0.2", "https://127.254.10.1", "https://2130706433", "https://0x7f000001"])
             assert.throws(() => validateReleaseConfig({ ...config, [name]: endpoint }), /loopback/);
         assert.equal(validateReleaseConfig({ ...config, [name]: "https://10.0.0.1" })[name], "https://10.0.0.1");

@@ -12,7 +12,10 @@ function validateReleaseConfig(config) {
     assert.equal(config.EXPO_PUBLIC_CLOUD_ENABLED, "true", "Published configuration must enable Online Services by default");
     assert.ok(config.EXPO_PUBLIC_OTA_SIGNING_ENABLED === undefined || ["true", "false"].includes(config.EXPO_PUBLIC_OTA_SIGNING_ENABLED), "EXPO_PUBLIC_OTA_SIGNING_ENABLED must be true or false.");
     assert.ok(typeof config.EXPO_PUBLIC_PUSHER_APP_HOST === "string" && config.EXPO_PUBLIC_PUSHER_APP_HOST.trim(), "EXPO_PUBLIC_PUSHER_APP_HOST must be a non-empty string.");
-    for (const name of ["EXPO_PUBLIC_APP_URL", "EXPO_PUBLIC_ONLINE_SERVICES_API_URL"]) {
+    // The relay URL may be left out: the app then uses the hosted relay.
+    const endpoints = ["EXPO_PUBLIC_APP_URL", "EXPO_PUBLIC_ONLINE_SERVICES_API_URL"];
+    if (config.EXPO_PUBLIC_RELAY_URL !== undefined) endpoints.push("EXPO_PUBLIC_RELAY_URL");
+    for (const name of endpoints) {
         const url = new URL(config[name]);
         assert.equal(url.protocol, "https:", `${name} must use HTTPS`);
         assert.ok(!url.username && !url.password && !url.search && !url.hash, `${name} must be a public HTTPS URL`);

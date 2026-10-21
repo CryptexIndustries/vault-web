@@ -8,9 +8,15 @@
 
 {$SIGNAL_DOMAIN} {
 	# Only the WebSocket endpoint is public, not Soketi's publishing API.
+	# respond runs before reverse_proxy in Caddy's directive order, so both
+	# go in handle blocks to keep them in the order written.
 	@websocket path /app/*
-	reverse_proxy @websocket soketi:6001
-	respond 404
+	handle @websocket {
+		reverse_proxy soketi:6001
+	}
+	handle {
+		respond 404
+	}
 }
 
 # Certbot HTTP-01 validation only. TURN TLS terminates in coturn on 5349.

@@ -61,6 +61,7 @@ import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-u
 import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { LINK_FILE_EXTENSION } from "@/utils/consts";
+import { formatSecondsLeft, useSecondsLeft } from "@/utils/use-seconds-left";
 import {
     clearOnlineServicesSessionViaSW,
     establishOnlineServicesSessionViaSW,
@@ -348,6 +349,10 @@ export type PopupReceiveLinkProps = {
 
 const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
+    const [waitDeadline, setWaitDeadline] = useState<number | null>(null);
+    const secondsLeft = useSecondsLeft(
+        stage === "linking" ? waitDeadline : null,
+    );
     const [method, setMethod] = useState<ReceiveLinkMethod>("qr");
     const [mnemonic, setMnemonic] = useState("");
     const [showMnemonic, setShowMnemonic] = useState(false);
@@ -505,6 +510,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         if (failedRef.current && status.State !== LinkingProcessState.Error) {
             return;
         }
+        if (status.Deadline !== undefined) setWaitDeadline(status.Deadline);
 
         setSteps((current) =>
             current.map((step) =>
@@ -653,6 +659,7 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
 
         setFormError("");
         setStage("linking");
+        setWaitDeadline(null);
         setSteps(createSteps());
         setProgress([]);
         progressRef.current = [];
@@ -1268,6 +1275,9 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
                             {stage === "done"
                                 ? "Unlock the vault with the passphrase you just created."
                                 : "Keep this page open until linking completes."}
+                            {secondsLeft !== null
+                                ? ` ${formatSecondsLeft(secondsLeft)}`
+                                : null}
                         </AlertDescription>
                     </Alert>
                     <StepList steps={steps} />

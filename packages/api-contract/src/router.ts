@@ -52,6 +52,7 @@ import {
     backupRouterRecoveryList,
 } from "./routes/v1/backup-recovery.router";
 import { shareRouterTicket } from "./routes/v1/share.router";
+import { relayRouterPass } from "./routes/v1/relay.router";
 
 const _versionedRouter = router({
     v1: router({
@@ -103,6 +104,9 @@ const _versionedRouter = router({
         }),
         share: router({
             ticket: shareRouterTicket,
+        }),
+        relay: router({
+            pass: relayRouterPass,
         }),
     }),
 });

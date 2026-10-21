@@ -9,12 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/netip"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/CryptexIndustries/vault-web/services/internal/serverkit"
 )
 
 const (
@@ -59,7 +59,7 @@ type Config struct {
 type Server struct {
 	cfg     Config
 	store   *Store
-	limiter *rateLimiter
+	limiter *serverkit.RateLimiter
 	mux     *http.ServeMux
 }
 
@@ -67,7 +67,7 @@ func NewServer(cfg Config, store *Store) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	s := &Server{cfg: cfg, store: store, limiter: newRateLimiter(time.Minute), mux: http.NewServeMux()}
+	s := &Server{cfg: cfg, store: store, limiter: serverkit.NewRateLimiter(time.Minute, nil), mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -127,7 +127,7 @@ func (s *Server) RunSweeper(ctx context.Context, every, tombstone time.Duration)
 				s.cfg.Logger.Error("sweep failed", "error", err)
 			}
 		}
-		s.limiter.prune()
+		s.limiter.Prune()
 		select {
 		case <-ctx.Done():
 			return
@@ -190,31 +190,12 @@ func tokenHash(value string) ([]byte, bool) {
 }
 
 func (s *Server) clientIP(r *http.Request) string {
-	if s.cfg.ClientIPHeader != "" {
-		var entries []string
-		for _, value := range r.Header.Values(s.cfg.ClientIPHeader) {
-			entries = append(entries, strings.Split(value, ",")...)
-		}
-		hops := max(s.cfg.TrustedProxyHops, 1)
-		if len(entries) >= hops {
-			// Only a real address counts; anything else falls back to the
-			// socket so junk values can't mint new rate-limit buckets.
-			entry := strings.TrimSpace(entries[len(entries)-hops])
-			if addr, err := netip.ParseAddr(entry); err == nil {
-				return addr.Unmap().String()
-			}
-		}
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return serverkit.ClientIP(r, s.cfg.ClientIPHeader, s.cfg.TrustedProxyHops)
 }
 
 func (s *Server) limit(bucket string, perMinute int, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.limiter.allow(bucket+"|"+s.clientIP(r), perMinute) {
+		if !s.limiter.Allow(bucket+"|"+s.clientIP(r), perMinute) {
 			s.cfg.Metrics.rateLimitHit(bucket)
 			writeError(w, http.StatusTooManyRequests, "rate_limited")
 			return

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+
+	"github.com/CryptexIndustries/vault-web/services/internal/serverkit"
 )
 
 const testCreationToken = "self-hosted-token-0123456789abcdef"
@@ -54,7 +56,7 @@ func newHarness(t *testing.T, mutate func(*Config)) *harness {
 		mutate(&cfg)
 	}
 	server := NewServer(cfg, store)
-	server.limiter.now = c.now
+	server.limiter = serverkit.NewRateLimiter(time.Minute, c.now)
 	return &harness{t: t, server: server, clock: c}
 }
 
@@ -434,25 +436,5 @@ func TestClientIPComesFromTrustedHops(t *testing.T) {
 		if got := h.server.clientIP(req); got != c.want {
 			t.Errorf("hops %d, header %q: got %q, want %q", c.hops, c.header, got, c.want)
 		}
-	}
-}
-
-func TestRateLimiterIsBounded(t *testing.T) {
-	l := newRateLimiter(time.Minute)
-	l.maxKeys = 3
-	for i := range 3 {
-		if !l.allow(fmt.Sprintf("client-%d", i), 1) {
-			t.Fatalf("client %d refused", i)
-		}
-	}
-	// New clients now share one overflow bucket.
-	if !l.allow("client-new-1", 1) {
-		t.Fatal("first overflow request refused")
-	}
-	if l.allow("client-new-2", 1) {
-		t.Fatal("overflow bucket not shared")
-	}
-	if len(l.windows) > 4 {
-		t.Fatalf("limiter grew to %d keys", len(l.windows))
 	}
 }

@@ -10,23 +10,22 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/CryptexIndustries/vault-web/services/internal/serverkit"
 	"github.com/CryptexIndustries/vault-web/services/internal/share"
 )
 
 func main() {
 	// The runtime image has no shell or wget, so the binary checks itself.
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		os.Exit(healthcheck())
+		os.Exit(serverkit.Healthcheck(serverkit.Env("SHARE_LISTEN_ADDR", ":8080")))
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
@@ -35,69 +34,21 @@ func main() {
 	}
 }
 
-func healthcheck() int {
-	_, port, err := net.SplitHostPort(env("SHARE_LISTEN_ADDR", ":8080"))
-	if err != nil {
-		return 1
-	}
-	client := http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("http://127.0.0.1:" + port + "/healthz")
-	if err != nil {
-		return 1
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		return 1
-	}
-	return 0
-}
-
-func env(name, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// envOrFile reads NAME, or the file named by NAME_FILE (Docker secrets).
-func envOrFile(name string) (string, error) {
-	if path := env(name+"_FILE", ""); path != "" {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return "", fmt.Errorf("%s_FILE: %w", name, err)
-		}
-		return strings.TrimSpace(string(raw)), nil
-	}
-	return env(name, ""), nil
-}
-
-func envInt(name string, fallback int) (int, error) {
-	raw := env(name, "")
-	if raw == "" {
-		return fallback, nil
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v <= 0 {
-		return 0, fmt.Errorf("%s must be a positive integer", name)
-	}
-	return v, nil
-}
-
 func loadConfig(logger *slog.Logger) (share.Config, error) {
 	cfg := share.Config{
-		Auth:           env("SHARE_AUTH", share.AuthToken),
-		ClientIPHeader: env("SHARE_CLIENT_IP_HEADER", ""),
+		Auth:           serverkit.Env("SHARE_AUTH", share.AuthToken),
+		ClientIPHeader: serverkit.Env("SHARE_CLIENT_IP_HEADER", ""),
 		Logger:         logger,
 	}
-	maxBytes, err := envInt("SHARE_MAX_BYTES", 64<<10)
+	maxBytes, err := serverkit.EnvInt("SHARE_MAX_BYTES", 64<<10)
 	if err != nil {
 		return cfg, err
 	}
-	maxTTL, err := envInt("SHARE_MAX_TTL_SECONDS", 7*24*3600)
+	maxTTL, err := serverkit.EnvInt("SHARE_MAX_TTL_SECONDS", 7*24*3600)
 	if err != nil {
 		return cfg, err
 	}
-	maxActive, err := envInt("SHARE_MAX_ACTIVE", 200)
+	maxActive, err := serverkit.EnvInt("SHARE_MAX_ACTIVE", 200)
 	if err != nil {
 		return cfg, err
 	}
@@ -105,7 +56,7 @@ func loadConfig(logger *slog.Logger) (share.Config, error) {
 	if cfg.MaxTTL < share.MinTTL {
 		return cfg, fmt.Errorf("SHARE_MAX_TTL_SECONDS must be at least %d", int(share.MinTTL/time.Second))
 	}
-	hops, err := envInt("SHARE_TRUSTED_PROXY_HOPS", 1)
+	hops, err := serverkit.EnvInt("SHARE_TRUSTED_PROXY_HOPS", 1)
 	if err != nil {
 		return cfg, err
 	}
@@ -115,21 +66,21 @@ func loadConfig(logger *slog.Logger) (share.Config, error) {
 	case share.AuthTicket:
 		// Tickets carry the public web origin; the web app's own setting is
 		// the usual source.
-		raw := env("SHARE_TICKET_AUDIENCE", env("NEXT_PUBLIC_APP_URL", ""))
+		raw := serverkit.Env("SHARE_TICKET_AUDIENCE", serverkit.Env("NEXT_PUBLIC_APP_URL", ""))
 		if raw == "" {
 			return cfg, errors.New("SHARE_TICKET_AUDIENCE or NEXT_PUBLIC_APP_URL is required with SHARE_AUTH=ticket")
 		}
-		audience, err := share.NormalizeOrigin(raw)
+		audience, err := serverkit.NormalizeOrigin(raw)
 		if err != nil {
 			return cfg, fmt.Errorf("ticket audience: %w", err)
 		}
-		keys, err := share.ParseTicketKeys(env("SHARE_TICKET_PUBLIC_KEYS", ""))
+		keys, err := share.ParseTicketKeys(serverkit.Env("SHARE_TICKET_PUBLIC_KEYS", ""))
 		if err != nil {
 			return cfg, fmt.Errorf("SHARE_TICKET_PUBLIC_KEYS: %w", err)
 		}
 		cfg.Tickets = share.NewTicketVerifier(keys, audience)
 	case share.AuthToken:
-		tokens, err := envOrFile("SHARE_CREATION_TOKENS")
+		tokens, err := serverkit.EnvOrFile("SHARE_CREATION_TOKENS")
 		if err != nil {
 			return cfg, err
 		}
@@ -158,11 +109,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	tombstoneDays, err := envInt("SHARE_TOMBSTONE_DAYS", 30)
+	tombstoneDays, err := serverkit.EnvInt("SHARE_TOMBSTONE_DAYS", 30)
 	if err != nil {
 		return err
 	}
-	store, err := share.OpenStore(env("SHARE_DB_PATH", "/data/share.db"))
+	store, err := share.OpenStore(serverkit.Env("SHARE_DB_PATH", "/data/share.db"))
 	if err != nil {
 		return err
 	}
@@ -174,7 +125,7 @@ func run(logger *slog.Logger) error {
 	// Metrics get their own listener so they are never reachable through the
 	// web proxy. "off" disables them.
 	var metricsServer *http.Server
-	if addr := env("SHARE_METRICS_ADDR", ":9090"); addr != "off" {
+	if addr := serverkit.Env("SHARE_METRICS_ADDR", ":9090"); addr != "off" {
 		metrics := share.NewMetrics(store, logger)
 		cfg.Metrics = metrics
 		metricsServer = &http.Server{
@@ -192,7 +143,7 @@ func run(logger *slog.Logger) error {
 	go server.RunSweeper(ctx, time.Minute, time.Duration(tombstoneDays)*24*time.Hour)
 
 	httpServer := &http.Server{
-		Addr:              env("SHARE_LISTEN_ADDR", ":8080"),
+		Addr:              serverkit.Env("SHARE_LISTEN_ADDR", ":8080"),
 		Handler:           server,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

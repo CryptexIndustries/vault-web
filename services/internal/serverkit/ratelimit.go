@@ -1,13 +1,13 @@
-package share
+package serverkit
 
 import (
 	"sync"
 	"time"
 )
 
-// rateLimiter is a fixed-window counter per key. It is in-memory, so each
+// RateLimiter is a fixed-window counter per key. It is in memory, so each
 // replica limits on its own; that's fine for one SQLite-backed instance.
-type rateLimiter struct {
+type RateLimiter struct {
 	mu      sync.Mutex
 	window  time.Duration
 	maxKeys int
@@ -24,11 +24,16 @@ type rateWindow struct {
 	count int
 }
 
-func newRateLimiter(window time.Duration) *rateLimiter {
-	return &rateLimiter{window: window, maxKeys: 100_000, now: time.Now, windows: map[string]*rateWindow{}}
+// NewRateLimiter counts per window. now may be nil for the real clock.
+func NewRateLimiter(window time.Duration, now func() time.Time) *RateLimiter {
+	if now == nil {
+		now = time.Now
+	}
+	return &RateLimiter{window: window, maxKeys: 100_000, now: now, windows: map[string]*rateWindow{}}
 }
 
-func (l *rateLimiter) allow(key string, limit int) bool {
+// Allow counts one event for key and reports whether it stays within limit.
+func (l *RateLimiter) Allow(key string, limit int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
@@ -51,13 +56,14 @@ func (l *rateLimiter) allow(key string, limit int) bool {
 	return true
 }
 
-func (l *rateLimiter) prune() {
+// Prune forgets finished windows.
+func (l *RateLimiter) Prune() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.pruneLocked(l.now())
 }
 
-func (l *rateLimiter) pruneLocked(now time.Time) {
+func (l *RateLimiter) pruneLocked(now time.Time) {
 	for key, w := range l.windows {
 		if now.Sub(w.start) >= l.window {
 			delete(l.windows, key)

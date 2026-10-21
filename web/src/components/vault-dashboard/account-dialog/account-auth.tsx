@@ -127,6 +127,7 @@ export function AccountAuth({
                 <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
                         Restore access with your User ID and recovery phrase.
+                        Recovering removes every other device from the account.
                     </p>
                     <div className="space-y-2">
                         <Label htmlFor="recover-user">User ID</Label>

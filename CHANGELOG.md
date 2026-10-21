@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Android, a vault export, Recovery Kit share, autofill fill or TOTP copy now stops if the vault starts locking mid-way, so nothing reaches the share sheet or the app asking to fill.
 - On Android, a secret copied just as the vault locked could stay on the clipboard. It is now cleared.
 - The self-hosted Caddy config answered every request on the signaling domain with 404, so devices couldn't connect through self-hosted signaling.
+- Recovering an Online Services account removed its other devices and used up the Recovery Kit without warning, and left the account without a Kit. The web app and the Android app now warn first and then offer a new Kit.
 
 ### Chore
 

@@ -140,14 +140,15 @@ export default function Recovery() {
                     dialog, select <strong>Recover account</strong>. Enter the
                     User ID and Recovery Kit phrase, complete human
                     verification, and submit. Recovery binds the current vault
-                    as a new Online Services device.
+                    as a new Online Services device. It also removes every
+                    other device from the account and signs them out.
                 </p>
                 <p>
                     Successful account recovery uses up the Recovery Kit you
-                    entered. The app then requests a new Kit and shows it when
-                    ready. Save your User ID with the new phrase before relying
-                    on recovery again. If no new Kit appears, open{" "}
-                    <strong>Account</strong> and generate one from its{" "}
+                    entered. The app then offers to create a new Kit. Save your
+                    User ID with the new phrase before relying on recovery
+                    again. If you choose <strong>Later</strong>, open{" "}
+                    <strong>Account</strong> and create one from its{" "}
                     <strong>Security</strong> tab.
                 </p>
                 <p>

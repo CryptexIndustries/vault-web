@@ -694,6 +694,11 @@ const coreFeatures: { title: string; description?: string }[] = [
         description:
             "Run the open-source share server and send links from your own domain.",
     },
+    {
+        title: "SSH keys and the SSH agent on your own relay",
+        description:
+            "Keep SSH keys in your vault and approve logins from your phone or the web app, through an agent relay you run.",
+    },
 ];
 export function Plans({ detailed = false }: { detailed?: boolean }) {
     const [annual, setAnnual] = useState(false);
@@ -799,6 +804,16 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                                     Send a login or secret to anyone, even
                                     people without Cryptex Vault. It opens once,
                                     then it&apos;s deleted.
+                                </small>
+                            </span>
+                        </li>
+                        <li className={s.featureBenefit}>
+                            <Check size={16} />
+                            <span>
+                                Hosted SSH agent relay
+                                <small>
+                                    Approve SSH logins on up to 25 Linux
+                                    machines without running your own relay.
                                 </small>
                             </span>
                         </li>

@@ -55,13 +55,15 @@ export default function Downloads() {
                             Get the Android app
                         </Action>
                     </article>
-                    <article className={d.soon}>
+                    <article>
                         <h3>SSH agent for Linux</h3>
                         <p>
                             Keeps your SSH keys in the vault. Your phone or the
                             web app approves each signature.
                         </p>
-                        <span className={d.status}>In development</span>
+                        <Action href="/docs/ssh-agent">
+                            Set up the SSH agent
+                        </Action>
                     </article>
                 </div>
                 <p className={d.planned}>

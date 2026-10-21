@@ -11,7 +11,7 @@ export default function Pricing() {
     return (
         <Site
             title="Pricing"
-            description="Cryptex Vault is free forever. Optional Online Services include managed P2P infrastructure, encrypted backups, one-time share links, and device management."
+            description="Cryptex Vault is free forever. Optional Online Services include managed P2P infrastructure, encrypted backups, one-time share links, a hosted SSH agent relay, and device management."
         >
             <section className={s.pageHero}>
                 <Label>PRICING / A SIMPLE CHOICE</Label>
@@ -141,6 +141,17 @@ export default function Pricing() {
                         </dd>
                     </div>
                     <div>
+                        <dt>SSH agent relay</dt>
+                        <dd>
+                            Up to 25 connected agents per account. The relay
+                            carries only encrypted requests and answers. When
+                            your subscription ends, agents on the hosted relay
+                            stop working within 7 days, once your devices&apos;
+                            relay passes expire. Pair them with your own relay
+                            to keep using them.
+                        </dd>
+                    </div>
+                    <div>
                         <dt>Managing cancellation</dt>
                         <dd>
                             Manage a Stripe subscription through Stripe’s
@@ -183,11 +194,11 @@ export default function Pricing() {
                             </summary>
                             <p>
                                 Yes. Run the signaling, STUN and TURN
-                                infrastructure yourself. The synchronization
-                                model is unchanged: sync can start automatically
-                                after connecting or manually, and it remains
-                                end-to-end encrypted. Both vaults must be open
-                                and unlocked.
+                                infrastructure yourself, and the SSH agent relay
+                                too. The synchronization model is unchanged:
+                                sync can start automatically after connecting or
+                                manually, and it remains end-to-end encrypted.
+                                Both vaults must be open and unlocked.
                             </p>
                         </details>
                         <details>
@@ -198,10 +209,11 @@ export default function Pricing() {
                             <p>
                                 The subscription currently covers managed P2P
                                 infrastructure, managed encrypted backups,
-                                one-time share links, and Online Services device
-                                management. You can manage registered devices,
-                                view and control their linking relationships,
-                                and revoke their access to Online Services.
+                                one-time share links, the hosted SSH agent
+                                relay, and Online Services device management.
+                                You can manage registered devices, view and
+                                control their linking relationships, and revoke
+                                their access to Online Services.
                             </p>
                         </details>
                         <details>

@@ -18,7 +18,7 @@ import {
     Trash2,
     Unlock,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Err, Ok } from "neverthrow";
 import type { VaultUnlockFlowResult } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
@@ -88,6 +88,9 @@ function useUnlockController({
 }: UnlockTabProps) {
     const [selectedVault, _setSelectedVault] = useState("");
     const [isDecrypting, setIsDecrypting] = useState(false);
+    // Set at once, unlike the state: Enter pressed again before the next
+    // render (or while the button is disabled) mustn't start a second unlock.
+    const decrypting = useRef(false);
     const [selectedVaultDisplayName, setSelectedVaultDisplayName] =
         useState("");
     const [isVaultDeleting, setIsVaultDeleting] = useState(false);
@@ -180,21 +183,27 @@ function useUnlockController({
 
     const tryUnlock = async (formData: EncryptionFormGroupSchemaType) => {
         const data = findVault(selectedVault);
-        if (!data) return;
+        if (!data || decrypting.current) return;
 
+        decrypting.current = true;
         setIsDecrypting(true);
-        // Give the UI breathing room to paint the loading state since unlock is heavy on the main thread.
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        let decryptRes: Awaited<ReturnType<typeof executeCallback>>;
+        try {
+            // Give the UI breathing room to paint the loading state since unlock is heavy on the main thread.
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const decryptRes = await executeCallback(data, formData, {
-            useRecovery,
-            recoveryCode: useRecovery ? recoveryCode.trim() : undefined,
-            protectionPhrase:
-                !useRecovery && protectionPhrase.trim().length > 0
-                    ? protectionPhrase.trim()
-                    : undefined,
-        });
-        setIsDecrypting(false);
+            decryptRes = await executeCallback(data, formData, {
+                useRecovery,
+                recoveryCode: useRecovery ? recoveryCode.trim() : undefined,
+                protectionPhrase:
+                    !useRecovery && protectionPhrase.trim().length > 0
+                        ? protectionPhrase.trim()
+                        : undefined,
+            });
+        } finally {
+            decrypting.current = false;
+            setIsDecrypting(false);
+        }
 
         if (decryptRes.isErr()) {
             console.error("Decryption failed:", decryptRes.error);

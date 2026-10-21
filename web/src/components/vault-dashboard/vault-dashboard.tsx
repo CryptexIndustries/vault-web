@@ -58,6 +58,7 @@ import {
     vaultAutoLockTimeoutAtom,
 } from "@/utils/vault-auto-lock";
 import { lockUnlockedVault } from "@/utils/vault-lock";
+import { unlockedTab } from "@/app_lib/unlocked-tab";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { useAtomValue, useSetAtom } from "jotai/react";
 import { Menu } from "lucide-react";
@@ -1326,6 +1327,16 @@ export function VaultDashboard({
     }, [lockVault]);
 
     useVaultAutoLock(lockVault, { idleMs: vaultAutoLockTimeoutMs });
+
+    // "Use here" in another tab: lock through the normal path, which saves.
+    useEffect(
+        () =>
+            unlockedTab()?.setReleaseHandler(() => {
+                toast.info("Your vault was opened in another tab.");
+                void lockVault();
+            }),
+        [lockVault],
+    );
 
     const showWarningDialog = useCallback(
         (...args: Parameters<WarningDialogShowFn>) => {

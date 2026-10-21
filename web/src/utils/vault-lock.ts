@@ -34,7 +34,36 @@ export type LockUnlockedVaultOptions = {
     syncConnectionController?: SyncConnectionController;
 };
 
-export async function lockUnlockedVault({
+/** The lock running for a session, shared by everyone asking to lock it. */
+let locking: {
+    metadata: VaultMetadata;
+    result: Promise<Result<void, VaultLockError>>;
+} | null = null;
+
+export function lockUnlockedVault(
+    options: LockUnlockedVaultOptions,
+): Promise<Result<void, VaultLockError>> {
+    const metadata = options.unlockedVaultMetadata;
+    // Already locking this session (the Lock button, then leaving the
+    // page): wait for that lock instead of queueing a second one, which
+    // would find the session closed and fail.
+    if (metadata && locking?.metadata === metadata) return locking.result;
+    const result = lockVaultNow(options).catch(
+        (error: unknown): Result<void, VaultLockError> => {
+            vaultLog.error("Failed to lock vault", { error });
+            return err("VAULT_LOCK_FAILED");
+        },
+    );
+    if (!metadata) return result;
+    const current = { metadata, result };
+    locking = current;
+    void result.finally(() => {
+        if (locking === current) locking = null;
+    });
+    return result;
+}
+
+function lockVaultNow({
     unlockedVaultMetadata,
     setUnlockedVault,
     setUnlockedVaultMetadata,
@@ -71,4 +100,27 @@ export async function lockUnlockedVault({
             return err("VAULT_LOCK_FAILED");
         }
     });
+}
+
+/**
+ * Closes a vault without saving it, when this tab doesn't hold the one-tab
+ * claim for it (see vault-tab-owner.ts): saving a copy no claim covered
+ * could overwrite another tab's newer changes.
+ */
+export async function discardUnlockedVault({
+    setUnlockedVault,
+    setUnlockedVaultMetadata,
+}: Pick<
+    LockUnlockedVaultOptions,
+    "setUnlockedVault" | "setUnlockedVaultMetadata"
+>): Promise<void> {
+    clearVaultDEKFromSession();
+    try {
+        await logoutOnlineServicesSession();
+    } catch (error) {
+        vaultLog.error("Failed to sign out of Online Services", { error });
+    }
+    setUnlockedVaultMetadata(null);
+    await setUnlockedVault(async () => new Vault());
+    vaultLogger.clearAll();
 }

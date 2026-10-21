@@ -1,0 +1,29 @@
+[Unit]
+Description=Cryptex Vault SSH agent
+Documentation=https://github.com/CryptexIndustries/vault-web/tree/development/services/cmd/cryptex-agent
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/cryptex-agent run
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+
+# Hardening that works in a user unit without user namespaces (which some
+# distributions restrict). The agent must still read /proc for the calling
+# process of each request, write its data folder and create its socket in
+# $XDG_RUNTIME_DIR, so ProtectProc, ProtectHome and ProtectSystem are left out.
+NoNewPrivileges=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=default.target

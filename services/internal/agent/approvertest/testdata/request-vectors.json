@@ -1,0 +1,469 @@
+{
+  "cases": [
+    {
+      "name": "login, ed25519 host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2dpdAAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrGAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoqCmdpdGh1Yi5jb20qDDE0MC44Mi4xMjEuNDIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "git",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+        "names": [
+          "github.com",
+          "140.82.121.4"
+        ]
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "hostbound login, ecdsa p256 host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSmAIAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAACNwdWJsaWNrZXktaG9zdGJvdW5kLXYwMEBvcGVuc3NoLmNvbQEAAAALc3NoLWVkMjU1MTkAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIDcHKf0YfbZ1/YlrfM30v8FPijnYIgf97mhdor7w34F1AAAAaAAAABNlY2RzYS1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQSw6CKByi16fbTkiN+SAbgQYWeTShsZyzKqn9lQDMP6gP+5IEzKh8Q/dJEoAvvb4+vwppRIJZLH9swgu2pRDUA6KvwBCmgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEsOgigcoten205IjfkgG4EGFnk0obGcsyqp/ZUAzD+oD/uSBMyofEP3SRKAL72+Pr8KaUSCWSx/bMILtqUQ1AOhIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaZQAAABNlY2RzYS1zaGEyLW5pc3RwMjU2AAAASgAAACEArZfWVzyjONy5eByl1dXyznfm4YkGMOWjymrJoQoAuBoAAAAhAP6LtQQmoXZCm6kl2oAR85m6lWkN9Pt/Df5OJzbYelVoKgduYXMubGFuMgxhcmNoLWRlc2t0b3A=",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:FE42xc9VTT6mR8yNpKUQ/4My3MgPMNomBNeP6r2PL+Y",
+        "names": [
+          "nas.lan"
+        ]
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "login, ecdsa p384 host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSq0AgqIAQAAABNlY2RzYS1zaGEyLW5pc3RwMzg0AAAACG5pc3RwMzg0AAAAYQSZ9euBpcFVV/Gx5kmyfBl1OwNSuBcJ6sXySyWlCAM6ctD/7IIWKLGHjbYTnhISWPfzc6k1uGe02dcXONiwTmZqqDi4ZLUQoojJrVGTTj6cQdCtZNbQJZOEZU76yPqwFyMSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGoQBAAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAABpAAAAMQDlGYyFwPE45loJuzZAMgby1GW+dtKlHcXSbwajxA6oiiAotjChvBFNYKV3w3+9uGUAAAAwJTVGJWV4aGbSKUd6V/U1agog/3pdCS9FZWV+gu0Cdba505e2B3xaAdCjJa2TpHmfMgxhcmNoLWRlc2t0b3A=",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:ywG/avW8UjK+Qc0ZFThMJpHcyAIlUdxDwj1VaKBuzAM",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "login, ecdsa p521 host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSr7AgqsAQAAABNlY2RzYS1zaGEyLW5pc3RwNTIxAAAACG5pc3RwNTIxAAAAhQQAFS416mMo88dkzE434wid6bPv+Nn5Xva9pIRDV48H0vq48RmL0tcLJJaHTAhs0Y8UKp7K8ZBW14yJLCvbwbCl3AMBj+FoWOMna+w3BrRa4tOInM45iTnf86TmJfmgSGUdUvjkUU01eQvfgLRt9Pl50FeW3ksfASsucfNQU096LG0F8ggSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGqcBAAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAACMAAAAQgGeyAXCaH/87YDta5byZt5epxxOqy2wSXtjHlfDdkNnOnrJ5OzPvxr4WNFp7G80JCHs0hiSDvcGy9zNBVGyPoSkfAAAAEIBepE7VJGE4z3FHFdqR+ey+EPcrPE2ESEk25YWbz2kG/NUMONHJdMJ9UqvDN0akIks/hhQoMSHv8CHUW1uHUccWO0yDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:Fqoq06s/3cqLE6YTHof20/hNR7VmigJuxFQccgLxJYA",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "login, rsa-sha2-256 host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkwEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAABHJvb3QAAAAOc3NoLWNvbm5lY3Rpb24AAAAJcHVibGlja2V5AQAAAAtzc2gtZWQyNTUxOQAAADMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUq0wQKlwIAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAM0TAAWaNQ7l1wMFtunWyEDmmBnxAWhoVFooUsewTWTJ6fHy2REuwf2ohWU5JGj9O2vWEj+p6hygIjKVkX+GUgN/xubr+ir6VdYuggBOhHCxbOYtMZG2mdbmo2iyHwBpVg2NTnh/KDB2vlOcKYYruYeLjcA2HkLL0B9A0w5YzDCxOfBro1mA6TNuBSBFdiQNmBBMgkkheTO5Sw4cxOCPEJkkv8vAUovd2KrM4ZhhJZ3t0R0k6XzfrJPHA9+mA9MbHfGJpaieKsGY/HuebwdduABnPvMXbUGrmlvFka4OUFc6ERLC6dxWpETp+OotQU37i9klthLNEW0QI+y7gsL+OeESIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGpQCAAAADHJzYS1zaGEyLTI1NgAAAQBeKvpUS8Tx1Qw3pIgkLKPouhGEhMd6Z9CU6rOeikAaaGKd67Z+xOvL4TOcm1TXIIf2zwGRiCfhNQZVIPb06UVOxgRiH61uZp2ZhQ0WEVpCWXHOcF71XY1mxuQvX1Tkx7t7qT7SV98uKJR++DlO4l/6cR3TkAOwbzaeIXoc+EcP8LhI7f3DHLFSEI1T7AlFhf9kem9MHTLwsi2gHqqRMpsF29PB+J+Z5l8CyIlmg7HqkVfEqy9MVg119kbsyH9Y9tBf2Afbm47VNmbnoI67TBEprYImB3UkRpD+SUZo9VlIET4L/TLpchttN502brjsXQfAQruVltamE7KQp31Bc973MgxhcmNoLWRlc2t0b3A=",
+      "invalid": false,
+      "kind": "login",
+      "user": "root",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:sCphjsbWzNr6HTxnohDXsZj0o8c1IXt6W6l9wPi9DDw",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "login, rsa-sha2-512 host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkwEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAABHJvb3QAAAAOc3NoLWNvbm5lY3Rpb24AAAAJcHVibGlja2V5AQAAAAtzc2gtZWQyNTUxOQAAADMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUq0wQKlwIAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAM0TAAWaNQ7l1wMFtunWyEDmmBnxAWhoVFooUsewTWTJ6fHy2REuwf2ohWU5JGj9O2vWEj+p6hygIjKVkX+GUgN/xubr+ir6VdYuggBOhHCxbOYtMZG2mdbmo2iyHwBpVg2NTnh/KDB2vlOcKYYruYeLjcA2HkLL0B9A0w5YzDCxOfBro1mA6TNuBSBFdiQNmBBMgkkheTO5Sw4cxOCPEJkkv8vAUovd2KrM4ZhhJZ3t0R0k6XzfrJPHA9+mA9MbHfGJpaieKsGY/HuebwdduABnPvMXbUGrmlvFka4OUFc6ERLC6dxWpETp+OotQU37i9klthLNEW0QI+y7gsL+OeESIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGpQCAAAADHJzYS1zaGEyLTUxMgAAAQA6mk13RuTiN0AV4p7ItV/V8vAyjendgTrvqLcDX+gV1IXpIlBRls2brh6ln6khJLDrsSEPM8h4RgGbjEr1wiPkNG/LwTabc91VQ3UnrJYpXKIeyadC5uud0awbuddYohA+cvfxOAavdU4YL09pgWJEo9+pLuooq2QKyPguBmtfHW1JdueYOPG4OggEqI4XlnYzwdAXIZzX71AXAbPhrDp4wIcK6jKDFs7S4u0A0E8HRgFxi0Vl7cI4dpvYSJNqko4Cod7jpC1PjNAt1GMSk9Dg5nMLU6gErn/dazZZKF0tOCW+sNofb9o5SkG2AITBtakOKuAC2CIk/MRF5wJMBiMPMgxhcmNoLWRlc2t0b3A=",
+      "invalid": false,
+      "kind": "login",
+      "user": "root",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:sCphjsbWzNr6HTxnohDXsZj0o8c1IXt6W6l9wPi9DDw",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "login, ssh-rsa (SHA-1) host signature",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkwEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAABHJvb3QAAAAOc3NoLWNvbm5lY3Rpb24AAAAJcHVibGlja2V5AQAAAAtzc2gtZWQyNTUxOQAAADMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUqzgQKlwIAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAM0TAAWaNQ7l1wMFtunWyEDmmBnxAWhoVFooUsewTWTJ6fHy2REuwf2ohWU5JGj9O2vWEj+p6hygIjKVkX+GUgN/xubr+ir6VdYuggBOhHCxbOYtMZG2mdbmo2iyHwBpVg2NTnh/KDB2vlOcKYYruYeLjcA2HkLL0B9A0w5YzDCxOfBro1mA6TNuBSBFdiQNmBBMgkkheTO5Sw4cxOCPEJkkv8vAUovd2KrM4ZhhJZ3t0R0k6XzfrJPHA9+mA9MbHfGJpaieKsGY/HuebwdduABnPvMXbUGrmlvFka4OUFc6ERLC6dxWpETp+OotQU37i9klthLNEW0QI+y7gsL+OeESIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGo8CAAAAB3NzaC1yc2EAAAEAlEW4yrcyB/sciT1k8drj5GZKNxuCnddXxc5N3PGrWVwBlZKcFA/FBcJt2vg4wTuNen6D3vP7sWOhZlES1vRBMdCNKs90x8pU2IrirUejUvtMGQB9FSpDJ1Y0H8ZXb8+mtDwWFWuigvNIksWZXe73yHqua0Oxu1pF+US40wJRkUdyFOR43JC7rHSAbPrbpJkjse4ypfu/1t0Ew4ZYmP4jo4AtlEfU697TPXWaWbICRv/9WNgKM8Fkv3sFao1sJs+EMD/2sjewDw+0Xc80O0+BWtWI5nseufzfDuKYm3VHpQBGjpy5MOrAa4h8CDyxd9gfeW3YAzkuAHA/CQ8GDCyZjzIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "root",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:sCphjsbWzNr6HTxnohDXsZj0o8c1IXt6W6l9wPi9DDw",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "rsa signature missing its leading zero",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkwEAAAAgc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3AyAAAABHJvb3QAAAAOc3NoLWNvbm5lY3Rpb24AAAAJcHVibGlja2V5AQAAAAtzc2gtZWQyNTUxOQAAADMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUq0gQKlwIAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAM0TAAWaNQ7l1wMFtunWyEDmmBnxAWhoVFooUsewTWTJ6fHy2REuwf2ohWU5JGj9O2vWEj+p6hygIjKVkX+GUgN/xubr+ir6VdYuggBOhHCxbOYtMZG2mdbmo2iyHwBpVg2NTnh/KDB2vlOcKYYruYeLjcA2HkLL0B9A0w5YzDCxOfBro1mA6TNuBSBFdiQNmBBMgkkheTO5Sw4cxOCPEJkkv8vAUovd2KrM4ZhhJZ3t0R0k6XzfrJPHA9+mA9MbHfGJpaieKsGY/HuebwdduABnPvMXbUGrmlvFka4OUFc6ERLC6dxWpETp+OotQU37i9klthLNEW0QI+y7gsL+OeESIHNzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NwGpMCAAAADHJzYS1zaGEyLTUxMgAAAP/K/dylQWRSkXs8lRjd7kfdcoNteIcKjF8P2HSQ2OkTRkXcxXiqltkOLC00k+kpxhtcZokylDO7tLxq/cF7ntgkEQOLzbcB2T4WIinTC78GQr0vrcczAiDp2N6/qI4cFNYm8yxRRmY5Lggy3krAhGQL/slR+pnhbFvJOxauon4nfIoP46aBEa2KRRCOMWR9NPLtGvTedmMsVfMN+vL7+YpGp8UNmXnuhVxX7YQjU7Uk5eloeNnqEKhS7PoHOYhabMAKqsxK5ZUZp822La1f8o0+KeJEdJNgMFBNGA8YeuZifv0H7bRvTLDE1ADV8DJntzioPsLi0N5oRIcnlebUAxUyDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "login",
+      "user": "root",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:sCphjsbWzNr6HTxnohDXsZj0o8c1IXt6W6l9wPi9DDw",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "rsa signature longer than the key",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkwEAAAAgc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3AyAAAABHJvb3QAAAAOc3NoLWNvbm5lY3Rpb24AAAAJcHVibGlja2V5AQAAAAtzc2gtZWQyNTUxOQAAADMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUq1AQKlwIAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAM0TAAWaNQ7l1wMFtunWyEDmmBnxAWhoVFooUsewTWTJ6fHy2REuwf2ohWU5JGj9O2vWEj+p6hygIjKVkX+GUgN/xubr+ir6VdYuggBOhHCxbOYtMZG2mdbmo2iyHwBpVg2NTnh/KDB2vlOcKYYruYeLjcA2HkLL0B9A0w5YzDCxOfBro1mA6TNuBSBFdiQNmBBMgkkheTO5Sw4cxOCPEJkkv8vAUovd2KrM4ZhhJZ3t0R0k6XzfrJPHA9+mA9MbHfGJpaieKsGY/HuebwdduABnPvMXbUGrmlvFka4OUFc6ERLC6dxWpETp+OotQU37i9klthLNEW0QI+y7gsL+OeESIHNzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NwGpUCAAAADHJzYS1zaGEyLTUxMgAAAQEAAMr93KVBZFKRezyVGN3uR91yg214hwqMXw/YdJDY6RNGRdzFeKqW2Q4sLTST6SnGG1xmiTKUM7u0vGr9wXue2CQRA4vNtwHZPhYiKdMLvwZCvS+txzMCIOnY3r+ojhwU1ibzLFFGZjkuCDLeSsCEZAv+yVH6meFsW8k7Fq6ifid8ig/jpoERrYpFEI4xZH008u0a9N52YyxV8w368vv5ikanxQ2Zee6FXFfthCNTtSTl6Wh42eoQqFLs+gc5iFpswAqqzErllRmnzbYtrV/yjT4p4kR0k2AwUE0YDxh65mJ+/QfttG9MsMTUANXwMme3OKg+wuLQ3mhEhyeV5tQDFTIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "ecdsa signature with the other S",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrzAQpoAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLDoIoHKLXp9tOSI35IBuBBhZ5NKGxnLMqqf2VAMw/qA/7kgTMqHxD90kSgC+9vj6/CmlEglksf2zCC7alENQDoSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGmUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAMcvjg85tgu0JoGAkqBM7QSnKDpfVArj+RxTMKZBNCfEAAAAIQCuAQpd8TDuQNcscYGKGMLusQdPIYczz1+ewCFxTD4PqTIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:FE42xc9VTT6mR8yNpKUQ/4My3MgPMNomBNeP6r2PL+Y",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "ecdsa signature with r = 0",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrSAQpoAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLDoIoHKLXp9tOSI35IBuBBhZ5NKGxnLMqqf2VAMw/qA/7kgTMqHxD90kSgC+9vj6/CmlEglksf2zCC7alENQDoSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGkQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAACkAAAAAAAAAIQCuAQpd8TDuQNcscYGKGMLusQdPIYczz1+ewCFxTD4PqTIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "ed25519 host certificate",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkQEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAAmNpAAAADnNzaC1jb25uZWN0aW9uAAAACXB1YmxpY2tleQEAAAALc3NoLWVkMjU1MTkAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIDcHKf0YfbZ1/YlrfM30v8FPijnYIgf97mhdor7w34F1KucDCtoCAAAAIHNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAIEgAzVBhZ/eXvKHoEfoOi4d+9av2M2TaCuiZtKKuXCs+AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1AAAAAAAAAAAAAAACAAAABGhvc3QAAAAVAAAAEWJ1aWxkLmV4YW1wbGUuY29tAAAAAAAAAAD//////////wAAAAAAAAAXAAAAAWEAAAAAAAAAAWIAAAAFAAAAAXgAAAAAAAAAMwAAAAtzc2gtZWQyNTUxOQAAACDzfoxWRtzVUu7zjBt6Jh3FYA2MDJ6YSIrsQj2JikdxTAAAAFMAAAALc3NoLWVkMjU1MTkAAABAZAjeEPxTDMDINIIlT7ofcfp49ikdswO73ORa4nMPWlKS7gm1enQyz+SK0UOYSGciM1s60B6dVWxTLBXfq0O6AxIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaUwAAAAtzc2gtZWQyNTUxOQAAAEB5aHJbE2IyKQv4XlriUbdbuhYhYn3O7gyCsMpDojoSWNKyYCuwpzn3XgPoR4HHk6Jc0rbCoGw0jtCjf9znGIsKKhFidWlsZC5leGFtcGxlLmNvbTIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "ci",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+        "names": [
+          "build.example.com"
+        ]
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "ecdsa host certificate signed by an rsa ca",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkQEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAAmNpAAAADnNzaC1jb25uZWN0aW9uAAAACXB1YmxpY2tleQEAAAALc3NoLWVkMjU1MTkAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIDcHKf0YfbZ1/YlrfM30v8FPijnYIgf97mhdor7w34F1KpMICtQGAAAAKGVjZHNhLXNoYTItbmlzdHAzODQtY2VydC12MDFAb3BlbnNzaC5jb20AAAAg9i4p92ThAkGrl3w8UHRKzrpx7FvrEaF3TsVGmTSrxKEAAAAIbmlzdHAzODQAAABhBJn164GlwVVX8bHmSbJ8GXU7A1K4FwnqxfJLJaUIAzpy0P/sghYosYeNthOeEhJY9/NzqTW4Z7TZ1xc42LBOZmqoOLhktRCiiMmtUZNOPpxB0K1k1tAlk4RlTvrI+rAXIwAAAAAAAAAAAAAAAgAAAARob3N0AAAAFQAAABFidWlsZC5leGFtcGxlLmNvbQAAAAAAAAAA//////////8AAAAAAAAAFwAAAAFhAAAAAAAAAAFiAAAABQAAAAF4AAAAAAAAARcAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAM0TAAWaNQ7l1wMFtunWyEDmmBnxAWhoVFooUsewTWTJ6fHy2REuwf2ohWU5JGj9O2vWEj+p6hygIjKVkX+GUgN/xubr+ir6VdYuggBOhHCxbOYtMZG2mdbmo2iyHwBpVg2NTnh/KDB2vlOcKYYruYeLjcA2HkLL0B9A0w5YzDCxOfBro1mA6TNuBSBFdiQNmBBMgkkheTO5Sw4cxOCPEJkkv8vAUovd2KrM4ZhhJZ3t0R0k6XzfrJPHA9+mA9MbHfGJpaieKsGY/HuebwdduABnPvMXbUGrmlvFka4OUFc6ERLC6dxWpETp+OotQU37i9klthLNEW0QI+y7gsL+OeEAAAEUAAAADHJzYS1zaGEyLTI1NgAAAQApLmfJ3tLcWss9bZShHZDFHpJmTm6b/L9GAUnTGEt8YmyLFUHyhx/T7q6sGMhb5NyRS8dr69V8wlvoNiq8P4K9384o7dOUyqsd9Rs+wn2Jqol4jTWPBASrGNVdXF+iullx3XYZcmL4lXiqAjVo3PSjim5BYSK2m8PHCvKudIIqeqQd5UGHoGB7fmZ+1WMMn58Pm3SY8THyJTwVZmlJRWA3ZO8nnIkNIVy9hpAlLMUqhWECWYGvM6tJwuWzYE7hzUcDdp/yMCq2yOrhHYcZuxtB558kerk6XUhnct9qGj5K1cGGIXtq844vQ+RO5P2NTsoAvhYJpCEeGvlKJAiFrS7OEiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRqEAQAAABNlY2RzYS1zaGEyLW5pc3RwMzg0AAAAaQAAADEAo9dJfnx6m0uW9NOER2bNw3uwTaQwDkGcTDkcsbqx8w8iiEjIus2jkvXVbNZwyZNoAAAAMHqIIY5bb+M5YnhzdCngaNa7js0CVd1jSFKrSC4u4T71L0XU2K+rijceG6G0t3F33ioRYnVpbGQuZXhhbXBsZS5jb20yDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "login",
+      "user": "ci",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:ywG/avW8UjK+Qc0ZFThMJpHcyAIlUdxDwj1VaKBuzAM",
+        "names": [
+          "build.example.com"
+        ]
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "second hop through a forwarded agent",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSqGAgpoAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLDoIoHKLXp9tOSI35IBuBBhZ5NKGxnLMqqf2VAMw/qA/7kgTMqHxD90kSgC+9vj6/CmlEglksf2zCC7alENQDoSIHNlc3Npb24gaWQgb2YgdGhlIGZpcnN0IGhvcCwgMzJiGmQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgWyC6SWyKT5PY22SD77ZpBnZ4aHdHOijxAEIs3uYYqVsAAAAhAOOxxQDohZU3DJdlOb6AJU5QOMG8Tt9FAMpfk5D36vLdIAEqEGp1bXAuZXhhbXBsZS5jb20qtwEKMwAAAAtzc2gtZWQyNTUxOQAAACD5nhVKCqLoM9bSO5DqcnogX/zxK/dNl2D9jMNGtcrCNRIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaUwAAAAtzc2gtZWQyNTUxOQAAAEB5aHJbE2IyKQv4XlriUbdbuhYhYn3O7gyCsMpDojoSWNKyYCuwpzn3XgPoR4HHk6Jc0rbCoGw0jtCjf9znGIsKKglpbm5lci5sYW4yDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+        "names": [
+          "inner.lan"
+        ]
+      },
+      "forwardedVia": [
+        {
+          "fingerprint": "SHA256:FE42xc9VTT6mR8yNpKUQ/4My3MgPMNomBNeP6r2PL+Y",
+          "names": [
+            "jump.example.com"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "login without a bind",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdTIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": true,
+      "forwardedVia": []
+    },
+    {
+      "name": "last bind forwarding",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrAAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwogASoQanVtcC5leGFtcGxlLmNvbTIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": true,
+      "forwardedVia": [
+        {
+          "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+          "names": [
+            "jump.example.com"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unbound login with another key",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACABcslj0ZnlEFmLG0UFotKkrzGpCaB4s4kkvHIcRCXvKzIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "other session",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgZmlyc3QgaG9wLCAzMmIyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSqsAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "session of an earlier bind",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgZmlyc3QgaG9wLCAzMmIyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSqGAgpoAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLDoIoHKLXp9tOSI35IBuBBhZ5NKGxnLMqqf2VAMw/qA/7kgTMqHxD90kSgC+9vj6/CmlEglksf2zCC7alENQDoSIHNlc3Npb24gaWQgb2YgdGhlIGZpcnN0IGhvcCwgMzJiGmQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgWyC6SWyKT5PY22SD77ZpBnZ4aHdHOijxAEIs3uYYqVsAAAAhAOOxxQDohZU3DJdlOb6AJU5QOMG8Tt9FAMpfk5D36vLdIAEqEGp1bXAuZXhhbXBsZS5jb20qrAEKMwAAAAtzc2gtZWQyNTUxOQAAACD5nhVKCqLoM9bSO5DqcnogX/zxK/dNl2D9jMNGtcrCNRIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaUwAAAAtzc2gtZWQyNTUxOQAAAEB5aHJbE2IyKQv4XlriUbdbuhYhYn3O7gyCsMpDojoSWNKyYCuwpzn3XgPoR4HHk6Jc0rbCoGw0jtCjf9znGIsKMgxhcmNoLWRlc2t0b3A=",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "other key in the data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACABcslj0ZnlEFmLG0UFotKkrzGpCaB4s4kkvHIcRCXvKyqsAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "hostbound to another host",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSxwMAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAACNwdWJsaWNrZXktaG9zdGJvdW5kLXYwMEBvcGVuc3NoLmNvbQEAAAALc3NoLWVkMjU1MTkAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIDcHKf0YfbZ1/YlrfM30v8FPijnYIgf97mhdor7w34F1AAABFwAAAAdzc2gtcnNhAAAAAwEAAQAAAQEAzRMABZo1DuXXAwW26dbIQOaYGfEBaGhUWihSx7BNZMnp8fLZES7B/aiFZTkkaP07a9YSP6nqHKAiMpWRf4ZSA3/G5uv6KvpV1i6CAE6EcLFs5i0xkbaZ1uajaLIfAGlWDY1OeH8oMHa+U5wphiu5h4uNwDYeQsvQH0DTDljMMLE58GujWYDpM24FIEV2JA2YEEyCSSF5M7lLDhzE4I8QmSS/y8BSi93YqszhmGElne3RHSTpfN+sk8cD36YD0xsd8YmlqJ4qwZj8e55vB124AGc+8xdtQauaW8WRrg5QVzoREsLp3FakROn46i1BTfuL2SW2Es0RbRAj7LuCwv454SqsAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "trailing userauth data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkwEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdQAqrAEKMwAAAAtzc2gtZWQyNTUxOQAAACD5nhVKCqLoM9bSO5DqcnogX/zxK/dNl2D9jMNGtcrCNRIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaUwAAAAtzc2gtZWQyNTUxOQAAAEB5aHJbE2IyKQv4XlriUbdbuhYhYn3O7gyCsMpDojoSWNKyYCuwpzn3XgPoR4HHk6Jc0rbCoGw0jtCjf9znGIsKMgxhcmNoLWRlc2t0b3A=",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "userauth cut short",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSPAAAACBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZTIAAAADYW5hAAAADnNzaC1jb25uZWN0aSqsAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "userauth without the signature flag",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkAAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSqsAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "userauth with another method",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSSgAAACBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZTIAAAADYW5hAAAADnNzaC1jb25uZWN0aW9uAAAACHBhc3N3b3JkKqwBCjMAAAALc3NoLWVkMjU1MTkAAAAg+Z4VSgqi6DPW0juQ6nJ6IF/88Sv3TZdg/YzDRrXKwjUSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGlMAAAALc3NoLWVkMjU1MTkAAABAeWhyWxNiMikL+F5a4lG3W7oWIWJ9zu4MgrDKQ6I6EljSsmArsKc5914D6EeBx5OiXNK2wqBsNI7Qo3/c5xiLCjIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "git signature through a forwarded agent",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSX1NTSFNJRwAAAANnaXQAAAAAAAAABnNoYTUxMgAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoYCCmgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEsOgigcoten205IjfkgG4EGFnk0obGcsyqp/ZUAzD+oD/uSBMyofEP3SRKAL72+Pr8KaUSCWSx/bMILtqUQ1AOhIgc2Vzc2lvbiBpZCBvZiB0aGUgZmlyc3QgaG9wLCAzMmIaZAAAABNlY2RzYS1zaGEyLW5pc3RwMjU2AAAASQAAACBbILpJbIpPk9jbZIPvtmkGdnhod0c6KPEAQize5hipWwAAACEA47HFAOiFlTcMl2U5voAlTlA4wbxO30UAyl+TkPfq8t0gASoQanVtcC5leGFtcGxlLmNvbTIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "signature",
+      "namespace": "git",
+      "destinationUnknown": false,
+      "forwardedVia": [
+        {
+          "fingerprint": "SHA256:FE42xc9VTT6mR8yNpKUQ/4My3MgPMNomBNeP6r2PL+Y",
+          "names": [
+            "jump.example.com"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "file signature",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSYFNTSFNJRwAAAARmaWxlAAAAAAAAAAZzaGEyNTYAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "signature",
+      "namespace": "file",
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "sshsig without a namespace",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSXFNTSFNJRwAAAAAAAAAAAAAABnNoYTUxMgAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMgxhcmNoLWRlc2t0b3A=",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "sshsig with an odd hash",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSXFNTSFNJRwAAAANnaXQAAAAAAAAAA21kNQAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMgxhcmNoLWRlc2t0b3A=",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "sshsig with trailing data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSYFNTSFNJRwAAAANnaXQAAAAAAAAABnNoYTUxMgAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "other data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSAXgyDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "other",
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "empty data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUyDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "other",
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "other data with a bind",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSC25vdCBhIGxvZ2luKqwBCjMAAAALc3NoLWVkMjU1MTkAAAAg+Z4VSgqi6DPW0juQ6nJ6IF/88Sv3TZdg/YzDRrXKwjUSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGlMAAAALc3NoLWVkMjU1MTkAAABAeWhyWxNiMikL+F5a4lG3W7oWIWJ9zu4MgrDKQ6I6EljSsmArsKc5914D6EeBx5OiXNK2wqBsNI7Qo3/c5xiLCjIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "other",
+      "destinationUnknown": false,
+      "forwardedVia": [
+        {
+          "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+          "names": []
+        }
+      ]
+    },
+    {
+      "name": "bind signed over another session",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSqsAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHq0Rb7Q8aVsJ36uckdKjnd5krN/yyOdAKHmjQxYzRcsxQ0Ma+smCWtQiVzoVT24QVbLRa54ZxH6OI6mvp/nXwAyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind with another host key",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrhAQpoAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLDoIoHKLXp9tOSI35IBuBBhZ5NKGxnLMqqf2VAMw/qA/7kgTMqHxD90kSgC+9vj6/CmlEglksf2zCC7alENQDoSIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGlMAAAALc3NoLWVkMjU1MTkAAABAeWhyWxNiMikL+F5a4lG3W7oWIWJ9zu4MgrDKQ6I6EljSsmArsKc5914D6EeBx5OiXNK2wqBsNI7Qo3/c5xiLCjIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind signature of another type",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrSBAqXAgAAAAdzc2gtcnNhAAAAAwEAAQAAAQEAzRMABZo1DuXXAwW26dbIQOaYGfEBaGhUWihSx7BNZMnp8fLZES7B/aiFZTkkaP07a9YSP6nqHKAiMpWRf4ZSA3/G5uv6KvpV1i6CAE6EcLFs5i0xkbaZ1uajaLIfAGlWDY1OeH8oMHa+U5wphiu5h4uNwDYeQsvQH0DTDljMMLE58GujWYDpM24FIEV2JA2YEEyCSSF5M7lLDhzE4I8QmSS/y8BSi93YqszhmGElne3RHSTpfN+sk8cD36YD0xsd8YmlqJ4qwZj8e55vB124AGc+8xdtQauaW8WRrg5QVzoREsLp3FakROn46i1BTfuL2SW2Es0RbRAj7LuCwv454RIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUakwIAAAALc3NoLWVkMjU1MTkAAAEAOppNd0bk4jdAFeKeyLVf1fLwMo3p3YE676i3A1/oFdSF6SJQUZbNm64epZ+pISSw67EhDzPIeEYBm4xK9cIj5DRvy8E2m3PdVUN1J6yWKVyiHsmnQubrndGsG7nXWKIQPnL38TgGr3VOGC9PaYFiRKPfqS7qKKtkCsj4LgZrXx1tSXbnmDjxuDoIBKiOF5Z2M8HQFyGc1+9QFwGz4aw6eMCHCuoygxbO0uLtANBPB0YBcYtFZe3COHab2EiTapKOAqHe46QtT4zQLdRjEpPQ4OZzC1OoBK5/3Ws2WShdLTglvrDaH2/aOUpBtgCEwbWpDirgAtgiJPzERecCTAYjDzIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind with a junk signature",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSX1NTSFNJRwAAAANnaXQAAAAAAAAABnNoYTUxMgAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKl0KMwAAAAtzc2gtZWQyNTUxOQAAACD5nhVKCqLoM9bSO5DqcnogX/zxK/dNl2D9jMNGtcrCNRIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaBGp1bmsyDGFyY2gtZGVza3RvcA==",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind host key with trailing data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSAXgqrQEKNAAAAAtzc2gtZWQyNTUxOQAAACD5nhVKCqLoM9bSO5DqcnogX/zxK/dNl2D9jMNGtcrCNQASIHNlc3Npb24gaWQgb2YgdGhlIGxvZ2luLCAzMiBieXRlGlMAAAALc3NoLWVkMjU1MTkAAABAeWhyWxNiMikL+F5a4lG3W7oWIWJ9zu4MgrDKQ6I6EljSsmArsKc5914D6EeBx5OiXNK2wqBsNI7Qo3/c5xiLCjIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind with a compressed ecdsa point",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSrSAQpIAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAAAhArDoIoHKLXp9tOSI35IBuBBhZ5NKGxnLMqqf2VAMw/qAEiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpkAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAABJAAAAICvjjxtjGWlMWMKa5VtnkHh2M/NafQZd0XzCcYcvSyk2AAAAIQDvE/Xq3WNG1AjOYXWjS1OAMytLd9iNLq5aP/9o3IO3gTIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind with no host key",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSoiEiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZTIMYXJjaC1kZXNrdG9w",
+      "invalid": true,
+      "destinationUnknown": false,
+      "forwardedVia": []
+    },
+    {
+      "name": "bind signature with trailing data",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSquAQozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpVAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoJCTIMYXJjaC1kZXNrdG9w",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "control characters in the user",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSmQEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAACmdpdBtbMkrigK4AAAAOc3NoLWNvbm5lY3Rpb24AAAAJcHVibGlja2V5AQAAAAtzc2gtZWQyNTUxOQAAADMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUqrAEKMwAAAAtzc2gtZWQyNTUxOQAAACD5nhVKCqLoM9bSO5DqcnogX/zxK/dNl2D9jMNGtcrCNRIgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUaUwAAAAtzc2gtZWQyNTUxOQAAAEB5aHJbE2IyKQv4XlriUbdbuhYhYn3O7gyCsMpDojoSWNKyYCuwpzn3XgPoR4HHk6Jc0rbCoGw0jtCjf9znGIsKMgxhcmNoLWRlc2t0b3A=",
+      "invalid": false,
+      "kind": "login",
+      "user": "git�[2J�",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+        "names": []
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "unsafe and too many host names",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSkgEAAAAgc2Vzc2lvbiBpZCBvZiB0aGUgbG9naW4sIDMyIGJ5dGUyAAAAA2FuYQAAAA5zc2gtY29ubmVjdGlvbgAAAAlwdWJsaWNrZXkBAAAAC3NzaC1lZDI1NTE5AAAAMwAAAAtzc2gtZWQyNTUxOQAAACA3Byn9GH22df2Ja3zN9L/BT4o52CIH/e5oXaK+8N+BdSr3BAozAAAAC3NzaC1lZDI1NTE5AAAAIPmeFUoKougz1tI7kOpyeiBf/PEr902XYP2Mw0a1ysI1EiBzZXNzaW9uIGlkIG9mIHRoZSBsb2dpbiwgMzIgYnl0ZRpTAAAAC3NzaC1lZDI1NTE5AAAAQHloclsTYjIpC/heWuJRt1u6FiFifc7uDIKwykOiOhJY0rJgK7CnOfdeA+hHgceTolzStsKgbDSO0KN/3OcYiwoqDmV2aWzigK5nbnAuZXhlKqwCYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhKgVob3N0YSoFaG9zdGIqBWhvc3RjKgVob3N0ZCoFaG9zdGUqBWhvc3RmKgVob3N0ZyoFaG9zdGgqBWhvc3RpKgVob3N0aioFaG9zdGsqBWhvc3RsKgVob3N0bSoFaG9zdG4qBWhvc3RvKgVob3N0cCoFaG9zdHEqBWhvc3RyKgVob3N0cyoFaG9zdHQyDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "login",
+      "user": "ana",
+      "destinationUnknown": false,
+      "verifiedHost": {
+        "fingerprint": "SHA256:XgyudLaiUalJAGz9WDwXJuHbkk3TWIciSNFIGqRZi6M",
+        "names": [
+          "evil�gnp.exe",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...",
+          "hosta",
+          "hostb",
+          "hostc",
+          "hostd",
+          "hoste",
+          "hostf",
+          "hostg",
+          "hosth",
+          "hosti",
+          "hostj",
+          "hostk",
+          "hostl",
+          "hostm",
+          "hostn"
+        ]
+      },
+      "forwardedVia": []
+    },
+    {
+      "name": "long namespace",
+      "request": "CjMAAAALc3NoLWVkMjU1MTkAAAAgNwcp/Rh9tnX9iWt8zfS/wU+KOdgiB/3uaF2ivvDfgXUSwAFTU0hTSUcAAABkbm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubgAAAAAAAAAGc2hhNTEyAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAyDGFyY2gtZGVza3RvcA==",
+      "invalid": false,
+      "kind": "signature",
+      "namespace": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn...",
+      "destinationUnknown": false,
+      "forwardedVia": []
+    }
+  ]
+}

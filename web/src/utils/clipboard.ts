@@ -3,9 +3,12 @@ import { toast } from "sonner";
 const SECRET_CLIPBOARD_MESSAGE =
     "Copied to clipboard. Clear it when done to stay on the safe side.";
 
-export async function copySecretToClipboard(
+type CopyOptions = { showToast?: boolean; toastId?: string };
+
+async function writeToClipboard(
     text: string,
-    options: { showToast?: boolean; toastId?: string } = {},
+    options: CopyOptions,
+    showCopied: (id?: string) => void,
 ) {
     const showToast = options.showToast ?? true;
 
@@ -18,12 +21,20 @@ export async function copySecretToClipboard(
         return false;
     }
 
-    if (showToast) {
-        toast.info(SECRET_CLIPBOARD_MESSAGE, {
-            duration: 5000,
-            id: options.toastId,
-        });
-    }
-
+    if (showToast) showCopied(options.toastId);
     return true;
+}
+
+/** Copies a secret (password, code, private key) with a reminder to clear it. */
+export function copySecretToClipboard(text: string, options: CopyOptions = {}) {
+    return writeToClipboard(text, options, (id) =>
+        toast.info(SECRET_CLIPBOARD_MESSAGE, { duration: 5000, id }),
+    );
+}
+
+/** Copies a value that isn't secret, like a username or a public key. */
+export function copyToClipboard(text: string, options: CopyOptions = {}) {
+    return writeToClipboard(text, options, (id) =>
+        toast.info("Copied", { duration: 2000, id }),
+    );
 }

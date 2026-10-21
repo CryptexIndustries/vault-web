@@ -42,7 +42,7 @@ import {
     unlockedVaultWriteOnlyAtom,
     vaultCredentialsAtom,
 } from "@/utils/atoms";
-import { copySecretToClipboard } from "@/utils/clipboard";
+import { copySecretToClipboard, copyToClipboard } from "@/utils/clipboard";
 import { normalizeCredentialUrl } from "@/utils/credential-url";
 import {
     onlineServicesLog,
@@ -964,7 +964,7 @@ export function VaultDashboard({
     }, []);
 
     const handleCopyUsername = useCallback((credential: VaultCredential) => {
-        void copySecretToClipboard(credential.Username);
+        void copyToClipboard(credential.Username);
     }, []);
 
     const handleCopyPassword = useCallback((credential: VaultCredential) => {

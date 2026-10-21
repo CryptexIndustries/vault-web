@@ -38,7 +38,7 @@ import {
 } from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
-import { copySecretToClipboard } from "@/utils/clipboard";
+import { copySecretToClipboard, copyToClipboard } from "@/utils/clipboard";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 
 interface CredentialDetailProps {
@@ -373,8 +373,10 @@ export function CredentialDetail({
     const isPasskeyOnly = credential?.Type === ItemType.Passkey;
     const hasPasskey = Boolean(credential?.Passkey);
 
-    const handleCopy = (field: string, value: string) => {
-        void copySecretToClipboard(value).then((copied) => {
+    // Secrets keep the reminder to clear the clipboard; other values don't.
+    const handleCopy = (field: string, value: string, secret = false) => {
+        const copy = secret ? copySecretToClipboard : copyToClipboard;
+        void copy(value).then((copied) => {
             if (!copied) return;
             setCopiedField(field);
             setTimeout(() => setCopiedField(null), 2000);
@@ -576,7 +578,11 @@ export function CredentialDetail({
                                 showStrengthMeter
                                 isCopied={copiedField === "password"}
                                 onCopy={() =>
-                                    handleCopy("password", credential.Password)
+                                    handleCopy(
+                                        "password",
+                                        credential.Password,
+                                        true,
+                                    )
                                 }
                             />
 
@@ -681,7 +687,12 @@ export function CredentialDetail({
                                         }
                                         isCopied={copiedField === field.ID}
                                         onCopy={() =>
-                                            handleCopy(field.ID, field.Value)
+                                            handleCopy(
+                                                field.ID,
+                                                field.Value,
+                                                field.Type ===
+                                                    CustomFieldType.MaskedText,
+                                            )
                                         }
                                     />
                                 ))}

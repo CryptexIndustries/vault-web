@@ -30,3 +30,13 @@ html.full-page #root {
 .dark > :first-child {
     height: 100%;
 }
+
+/* Dialogs portal outside the .dark root and render light, so their native
+   controls (radios, scrollbars) should too. */
+[role="dialog"] {
+    color-scheme: light;
+}
+
+.dark [role="dialog"] {
+    color-scheme: dark;
+}

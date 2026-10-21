@@ -69,6 +69,8 @@ export function credentialMatchesSearch(
             credential.passkey?.RPID ?? "",
             credential.passkey?.UserName ?? "",
             credential.passkey?.UserDisplayName ?? "",
+            credential.sshKey?.comment ?? "",
+            credential.sshKey?.fingerprint ?? "",
             ...tags,
         ].some((value) => includesCaseInsensitive(value, freeText));
 

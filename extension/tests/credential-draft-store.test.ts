@@ -161,6 +161,19 @@ describe("isCredentialDraft", () => {
     });
 });
 
+describe("isCredentialDraft sshKeySource", () => {
+    it.each([
+        [undefined, true],
+        ["import", true],
+        ["generate", false],
+        [1, false],
+    ])("sshKeySource %p is accepted: %p", (sshKeySource, accepted) => {
+        expect(isCredentialDraft({ ...validDraft(), sshKeySource })).toBe(
+            accepted,
+        );
+    });
+});
+
 describe("getCredentialDraft / setCredentialDraft / clearCredentialDraft", () => {
     it("returns null when nothing is stored", async () => {
         await expect(getCredentialDraft()).resolves.toBeNull();
@@ -356,6 +369,41 @@ describe("validateSaveCredentialDraftRequest", () => {
                     form,
                 }),
             ).toEqual({ ok: false, error: "INVALID_DRAFT_FORM" });
+        }
+    });
+
+    it("keeps the SSH key import source and leaves it out otherwise", () => {
+        const form = {
+            ...validForm(),
+            Type: ItemType.SSHKey,
+            Username: "",
+            Password: "",
+            SSHKey: null,
+        };
+        const res = validateSaveCredentialDraftRequest({
+            mode: "create",
+            form,
+            sshKeySource: "import",
+        });
+        expect(res.ok && res.request.sshKeySource).toBe("import");
+
+        const plain = validateSaveCredentialDraftRequest({
+            mode: "create",
+            form,
+        });
+        expect(plain.ok).toBe(true);
+        expect(plain.ok && "sshKeySource" in plain.request).toBe(false);
+    });
+
+    it("rejects an unknown SSH key source", () => {
+        for (const sshKeySource of ["generate", "", 1, null]) {
+            expect(
+                validateSaveCredentialDraftRequest({
+                    mode: "create",
+                    form: validForm(),
+                    sshKeySource,
+                }),
+            ).toEqual({ ok: false, error: "INVALID_DRAFT_SSH_KEY_SOURCE" });
         }
     });
 

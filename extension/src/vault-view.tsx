@@ -7,6 +7,7 @@ import {
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { credentialMatchesPageUrl } from "@cryptex-industries/vault-core/credential-url";
+import { sshPublicKeyLine } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import { CredentialDetail } from "@/components/vault-dashboard/credential-detail";
 import { CredentialSearch } from "@/components/vault-dashboard/credential-search";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +25,7 @@ import {
     ArchiveRestore,
     Link2,
     Key,
+    FileKey,
     Folder,
     FolderRoot,
     LayoutList,
@@ -123,6 +125,7 @@ import {
     DirectoryPicker,
 } from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialListIcon } from "./components/credential-list-icon";
+import { SSHKeyEditor } from "./components/ssh-key-editor";
 import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
 import { PopupBackupDialog } from "./components/popup-backup-dialog";
 import {
@@ -168,6 +171,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     const [selectedDirectoryID, setSelectedDirectoryID] = useState<
         "all" | string
     >("all");
+    const [showSSHKeysOnly, setShowSSHKeysOnly] = useState(false);
     const [credentialFormMode, setCredentialFormMode] =
         useState<CredentialFormMode>(null);
     const [editingCredential, setEditingCredential] =
@@ -225,6 +229,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [sshKeyEditorBusy, setSSHKeyEditorBusy] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState("");
     const [currentSiteContext, setCurrentSiteContext] =
@@ -284,6 +289,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
             AdditionalURLs: [],
             Passkey: null,
+            SSHKey: null,
             Notes: "",
             CustomFields: [],
         },
@@ -301,7 +307,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const watchedTotp = watch("TOTP");
     const watchedType = watch("Type");
     const watchedPasskey = watch("Passkey");
+    const watchedName = watch("Name");
+    const watchedSSHKey = watch("SSHKey");
     const isPasskeyOnly = watchedType === VaultUtilTypes.ItemType.Passkey;
+    const isSSHKey = watchedType === VaultUtilTypes.ItemType.SSHKey;
 
     // Debounced capture of the in-flight form into the SW draft stash:
     // every form change restarts the timer, so the value lands in session
@@ -375,19 +384,24 @@ const VaultView: React.FC<VaultViewProps> = ({
         (cred) =>
             (selectedDirectoryID === "all" ||
                 cred.directoryId === selectedDirectoryID) &&
+            (!showSSHKeysOnly ||
+                cred.type === VaultUtilTypes.ItemType.SSHKey) &&
             credentialMatchesSearch(cred, searchQuery),
     );
 
+    // SSH keys are never offered for a site.
     const currentSiteCredentials = currentSiteUrl
-        ? credentials.filter((credential) =>
-              credentialMatchesPageUrl(
-                  {
-                      URL: credential.url,
-                      URLMatchMode: credential.urlMatchMode,
-                      AdditionalURLs: credential.additionalUrls,
-                  },
-                  currentSiteUrl,
-              ),
+        ? credentials.filter(
+              (credential) =>
+                  credential.type !== VaultUtilTypes.ItemType.SSHKey &&
+                  credentialMatchesPageUrl(
+                      {
+                          URL: credential.url,
+                          URLMatchMode: credential.urlMatchMode,
+                          AdditionalURLs: credential.additionalUrls,
+                      },
+                      currentSiteUrl,
+                  ),
           )
         : [];
 
@@ -403,21 +417,31 @@ const VaultView: React.FC<VaultViewProps> = ({
         },
         { all: 0, root: 0 },
     );
+    const sshKeyCount = credentials.filter(
+        (credential) => credential.type === VaultUtilTypes.ItemType.SSHKey,
+    ).length;
     const selectedDirectory = directories.find(
         (directory) => directory.ID === selectedDirectoryID,
     );
-    const selectedDirectoryLabel =
-        selectedDirectoryID === "all"
-            ? "All credentials"
-            : selectedDirectoryID === ""
-              ? "Root"
-              : (selectedDirectory?.Name ?? "All credentials");
-    const selectedDirectoryCount =
-        selectedDirectoryID === "all"
-            ? (credentialCounts.all ?? 0)
-            : selectedDirectoryID === ""
-              ? (credentialCounts.root ?? 0)
-              : (credentialCounts[selectedDirectoryID] ?? 0);
+    const selectedDirectoryLabel = showSSHKeysOnly
+        ? "SSH keys"
+        : selectedDirectoryID === "all"
+          ? "All credentials"
+          : selectedDirectoryID === ""
+            ? "Root"
+            : (selectedDirectory?.Name ?? "All credentials");
+    const selectedDirectoryCount = showSSHKeysOnly
+        ? sshKeyCount
+        : selectedDirectoryID === "all"
+          ? (credentialCounts.all ?? 0)
+          : selectedDirectoryID === ""
+            ? (credentialCounts.root ?? 0)
+            : (credentialCounts[selectedDirectoryID] ?? 0);
+
+    const selectDirectoryView = (directoryID: "all" | string) => {
+        setShowSSHKeysOnly(false);
+        setSelectedDirectoryID(directoryID);
+    };
 
     const requestActivePageOrigin = useCallback(async () => {
         // A toolbar click normally exposes Tab.url through activeTab. Keep this
@@ -839,6 +863,39 @@ const VaultView: React.FC<VaultViewProps> = ({
             });
         }
     }, []);
+
+    /**
+     * Chrome can close the popup when a file picker opens, so the popup's file
+     * buttons stash the form and continue in a full-page tab, which reopens it
+     * on "Use an existing key". The draft never holds the pasted key or the
+     * passphrase, so the files are chosen again in the tab.
+     */
+    const handOffSSHKeyImport = async (openFullPage: () => void) => {
+        if (draftSaveTimerRef.current) {
+            clearTimeout(draftSaveTimerRef.current);
+            draftSaveTimerRef.current = null;
+        }
+        const payload: SaveCredentialDraftRequest = {
+            mode: "create",
+            form: { ...getValues(), SSHKey: null },
+            sshKeySource: "import",
+        };
+        const res = await sendEncryptedEnvelopeToSW<
+            { ok: true } | { ok: false; error: string }
+        >(MessageType.SaveCredentialDraft, payload);
+        const error = !res.ok
+            ? res.error
+            : !res.payload.ok && res.payload.error;
+        if (error) {
+            uiLog.warn(
+                "Failed to stash the SSH key form before opening a tab",
+                {
+                    error,
+                },
+            );
+        }
+        openFullPage();
+    };
 
     /** Opens the form pre-filled from a stashed draft (popup re-presentation). */
     const applyDraft = useCallback(
@@ -1382,6 +1439,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             setDirectories((current) => [...current, result.value.directory]);
             await refreshDirectories();
+            setShowSSHKeysOnly(false);
             setSelectedDirectoryID(result.value.directory.ID);
             toast.success("Directory created.");
             return result.value.directory.ID;
@@ -1691,7 +1749,9 @@ const VaultView: React.FC<VaultViewProps> = ({
         return err("UNKNOWN_NON_ENCRYPTED_ENVELOPE");
     };
 
-    const openCreateForm = () => {
+    const openCreateForm = (
+        itemType: VaultUtilTypes.ItemType = VaultUtilTypes.ItemType.Credentials,
+    ) => {
         setRestoredDraft(null);
         setCredentialFormMode("create");
         setEditingCredential(null);
@@ -1700,7 +1760,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         credentialModalVisible[1](true);
         reset({
             ID: null,
-            Type: VaultUtilTypes.ItemType.Credentials,
+            Type: itemType,
             DirectoryID:
                 selectedDirectoryID === "all" ? "" : selectedDirectoryID,
             Name: "",
@@ -1712,6 +1772,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             URLMatchMode: VaultUtilTypes.CredentialURLMatchMode.ExactHost,
             AdditionalURLs: [],
             Passkey: null,
+            SSHKey: null,
             Notes: "",
             CustomFields: [],
         });
@@ -1747,6 +1808,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             URLMatchMode: credential.URLMatchMode,
             AdditionalURLs: credential.AdditionalURLs,
             Passkey: credential.Passkey ?? null,
+            SSHKey: credential.SSHKey ?? null,
             Notes: credential.Notes,
             CustomFields: credential.CustomFields || [],
         });
@@ -2148,6 +2210,19 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
     };
 
+    const handleCopySSHPublicKey = async (id: string) => {
+        const result = await loadFullCredential(id);
+        if (result.isErr() || !result.value.SSHKey) {
+            toast.error("Could not load this SSH key");
+            return;
+        }
+        if (await copyToClipboard(sshPublicKeyLine(result.value.SSHKey))) {
+            toast.success("Public key copied");
+        } else {
+            toast.error("Could not copy to the clipboard");
+        }
+    };
+
     const handleOpenUrl = (cred: VaultCredential) => {
         if (!cred.URL) return;
         const fullUrl = cred.URL.startsWith("http")
@@ -2159,6 +2234,39 @@ const VaultView: React.FC<VaultViewProps> = ({
     const handleDeleteSelected = (cred: VaultCredential) => {
         requestDeleteCredential(cred.ID, cred.Name);
     };
+
+    const nameField = (
+        <div className="space-y-1.5">
+            <Label htmlFor="cred-name" className="text-xs font-medium">
+                Name <span className="text-destructive">*</span>
+            </Label>
+            <div className="relative">
+                {isSSHKey ? (
+                    <FileKey className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                ) : (
+                    <Globe className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                )}
+                <Input
+                    id="cred-name"
+                    placeholder={
+                        isSSHKey
+                            ? "e.g., Work laptop, Deploy key"
+                            : "e.g., GitHub, AWS Console"
+                    }
+                    {...register("Name")}
+                    className={cn(
+                        "h-9 pl-8 text-sm",
+                        errors.Name && "border-destructive",
+                    )}
+                />
+            </div>
+            {errors.Name && (
+                <p className="text-xs text-destructive">
+                    {errors.Name.message}
+                </p>
+            )}
+        </div>
+    );
 
     return (
         <div className="flex h-full flex-col">
@@ -2178,28 +2286,76 @@ const VaultView: React.FC<VaultViewProps> = ({
                             className="[&_input]:h-8 [&_input]:border-border/80 [&_input]:bg-secondary/60 [&_input]:shadow-inner [&_input]:focus:border-primary/60 [&_input]:focus:ring-primary/20"
                         />
                     </div>
-                    <TooltipProvider delayDuration={250}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
+                    {/* Split add button: the main part adds a login, the
+                        arrow picks the item type. */}
+                    <div className="flex shrink-0 items-center rounded-md shadow-sm shadow-primary/20">
+                        <TooltipProvider delayDuration={250}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-r-none"
+                                        onClick={() => openCreateForm()}
+                                        disabled={
+                                            isCreating ||
+                                            isUpdating ||
+                                            isDeleting ||
+                                            isRefreshing
+                                        }
+                                        aria-label="Add credential"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Add credential</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
                                 <Button
                                     type="button"
                                     size="icon"
-                                    className="h-8 w-8 shrink-0 shadow-sm shadow-primary/20"
-                                    onClick={openCreateForm}
+                                    className="h-8 w-5 rounded-l-none border-l border-primary-foreground/25"
                                     disabled={
                                         isCreating ||
                                         isUpdating ||
                                         isDeleting ||
                                         isRefreshing
                                     }
-                                    aria-label="Add credential"
+                                    aria-label="Choose item type"
                                 >
-                                    <Plus className="h-4 w-4" />
+                                    <ChevronDown className="h-3.5 w-3.5" />
                                 </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Add credential</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                                {/* onSelect opens the form on the next frame,
+                                    after the menu releases focus. */}
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        requestAnimationFrame(() =>
+                                            openCreateForm(),
+                                        )
+                                    }
+                                >
+                                    <Globe className="mr-2 h-4 w-4" />
+                                    Login
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        requestAnimationFrame(() =>
+                                            openCreateForm(
+                                                VaultUtilTypes.ItemType.SSHKey,
+                                            ),
+                                        )
+                                    }
+                                >
+                                    <FileKey className="mr-2 h-4 w-4" />
+                                    SSH key
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1 border-l border-border/80 pl-2">
@@ -2434,7 +2590,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     aria-label="Browse directories"
                                 >
                                     <span className="flex min-w-0 items-center gap-2">
-                                        {selectedDirectoryID === "all" ? (
+                                        {showSSHKeysOnly ? (
+                                            <FileKey className="h-4 w-4 shrink-0" />
+                                        ) : selectedDirectoryID === "all" ? (
                                             <LayoutList className="h-4 w-4 shrink-0" />
                                         ) : selectedDirectoryID === "" ? (
                                             <FolderRoot className="h-4 w-4 shrink-0" />
@@ -2463,11 +2621,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 <DropdownMenuItem
                                     className={cn(
                                         selectedDirectoryID === "all" &&
+                                            !showSSHKeysOnly &&
                                             "bg-accent",
                                     )}
-                                    onSelect={() =>
-                                        setSelectedDirectoryID("all")
-                                    }
+                                    onSelect={() => selectDirectoryView("all")}
                                 >
                                     <LayoutList className="mr-2 h-4 w-4" />
                                     <span className="flex-1">
@@ -2479,10 +2636,26 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                     className={cn(
+                                        showSSHKeysOnly && "bg-accent",
+                                    )}
+                                    onSelect={() => {
+                                        setSelectedDirectoryID("all");
+                                        setShowSSHKeysOnly(true);
+                                    }}
+                                >
+                                    <FileKey className="mr-2 h-4 w-4" />
+                                    <span className="flex-1">SSH keys</span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {sshKeyCount}
+                                    </span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className={cn(
                                         selectedDirectoryID === "" &&
+                                            !showSSHKeysOnly &&
                                             "bg-accent",
                                     )}
-                                    onSelect={() => setSelectedDirectoryID("")}
+                                    onSelect={() => selectDirectoryView("")}
                                 >
                                     <FolderRoot className="mr-2 h-4 w-4" />
                                     <span className="flex-1">Root</span>
@@ -2498,10 +2671,12 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         key={directory.ID}
                                         className={cn(
                                             selectedDirectoryID ===
-                                                directory.ID && "bg-accent",
+                                                directory.ID &&
+                                                !showSSHKeysOnly &&
+                                                "bg-accent",
                                         )}
                                         onSelect={() =>
-                                            setSelectedDirectoryID(directory.ID)
+                                            selectDirectoryView(directory.ID)
                                         }
                                     >
                                         <Folder className="mr-2 h-4 w-4" />
@@ -2722,10 +2897,14 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     <Search className="h-6 w-6 text-muted-foreground" />
                                 </div>
                                 <p className="text-sm text-muted-foreground">
-                                    No credentials found
+                                    {showSSHKeysOnly && !searchQuery
+                                        ? "No SSH keys yet"
+                                        : "No credentials found"}
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                    Try a different search term
+                                    {showSSHKeysOnly && !searchQuery
+                                        ? "Add one from the menu next to the add button"
+                                        : "Try a different search term"}
                                 </p>
                             </div>
                         ) : (
@@ -2799,20 +2978,44 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                 </Badge>
                                                             ) : null}
                                                         </div>
-                                                        <div className="truncate text-xs leading-tight text-muted-foreground">
-                                                            {credential.type ===
-                                                            VaultUtilTypes
-                                                                .ItemType
-                                                                .Passkey
-                                                                ? credential
-                                                                      .passkey
-                                                                      ?.UserDisplayName ||
-                                                                  credential
-                                                                      .passkey
-                                                                      ?.UserName ||
-                                                                  "Passkey"
-                                                                : credential.username}
-                                                        </div>
+                                                        {credential.type ===
+                                                        VaultUtilTypes.ItemType
+                                                            .SSHKey ? (
+                                                            <div className="flex min-w-0 items-center gap-2 text-xs leading-tight text-muted-foreground">
+                                                                <span className="shrink-0">
+                                                                    {credential
+                                                                        .sshKey
+                                                                        ?.label ||
+                                                                        "SSH key"}
+                                                                </span>
+                                                                {credential
+                                                                    .sshKey
+                                                                    ?.comment ? (
+                                                                    <span className="min-w-0 truncate text-muted-foreground/70">
+                                                                        {
+                                                                            credential
+                                                                                .sshKey
+                                                                                .comment
+                                                                        }
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="truncate text-xs leading-tight text-muted-foreground">
+                                                                {credential.type ===
+                                                                VaultUtilTypes
+                                                                    .ItemType
+                                                                    .Passkey
+                                                                    ? credential
+                                                                          .passkey
+                                                                          ?.UserDisplayName ||
+                                                                      credential
+                                                                          .passkey
+                                                                          ?.UserName ||
+                                                                      "Passkey"
+                                                                    : credential.username}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <DropdownMenu>
@@ -2835,7 +3038,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent
                                                         align="end"
-                                                        className="w-36"
+                                                        className="w-40"
                                                     >
                                                         <DropdownMenuItem
                                                             onClick={async (
@@ -2874,19 +3077,37 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                 ? "Deleting..."
                                                                 : "Delete"}
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            onClick={async (
-                                                                e: React.MouseEvent,
-                                                            ) => {
-                                                                e.stopPropagation();
-                                                                copyToClipboard(
-                                                                    credential.username,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Copy className="mr-2 h-4 w-4" />
-                                                            Copy username
-                                                        </DropdownMenuItem>
+                                                        {credential.type ===
+                                                        VaultUtilTypes.ItemType
+                                                            .SSHKey ? (
+                                                            <DropdownMenuItem
+                                                                onClick={(
+                                                                    e: React.MouseEvent,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    void handleCopySSHPublicKey(
+                                                                        credential.id,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Copy className="mr-2 h-4 w-4" />
+                                                                Copy public key
+                                                            </DropdownMenuItem>
+                                                        ) : (
+                                                            <DropdownMenuItem
+                                                                onClick={async (
+                                                                    e: React.MouseEvent,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    copyToClipboard(
+                                                                        credential.username,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Copy className="mr-2 h-4 w-4" />
+                                                                Copy username
+                                                            </DropdownMenuItem>
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
@@ -2954,22 +3175,34 @@ const VaultView: React.FC<VaultViewProps> = ({
                 >
                     <DialogHeader className="border-b border-border px-5 py-4">
                         <DialogTitle className="flex items-center gap-2 text-base">
-                            <Shield className="h-4 w-4 text-primary" />
-                            {credentialFormMode === "create"
-                                ? "Add New Credential"
-                                : isPasskeyOnly
-                                  ? "Edit Passkey Details"
-                                  : "Edit Credential"}
+                            {isSSHKey ? (
+                                <FileKey className="h-4 w-4 text-primary" />
+                            ) : (
+                                <Shield className="h-4 w-4 text-primary" />
+                            )}
+                            {isSSHKey
+                                ? credentialFormMode === "create"
+                                    ? "Add SSH key"
+                                    : "Edit SSH key"
+                                : credentialFormMode === "create"
+                                  ? "Add New Credential"
+                                  : isPasskeyOnly
+                                    ? "Edit Passkey Details"
+                                    : "Edit Credential"}
                         </DialogTitle>
                         <DialogDescription
                             id="credential-form-description"
                             className="text-xs"
                         >
-                            {credentialFormMode === "create"
-                                ? "Add a new credential to your secure vault"
-                                : isPasskeyOnly
-                                  ? "Update this passkey's vault metadata"
-                                  : "Update the details of this credential"}
+                            {isSSHKey
+                                ? credentialFormMode === "create"
+                                    ? "Generate a new key or use one you already have"
+                                    : "Update the details of this SSH key"
+                                : credentialFormMode === "create"
+                                  ? "Add a new credential to your secure vault"
+                                  : isPasskeyOnly
+                                    ? "Update this passkey's vault metadata"
+                                    : "Update the details of this credential"}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -3036,36 +3269,48 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         </div>
                                     )}
 
-                                    {/* Name */}
-                                    <div className="space-y-1.5">
-                                        <Label
-                                            htmlFor="cred-name"
-                                            className="text-xs font-medium"
-                                        >
-                                            Name{" "}
-                                            <span className="text-destructive">
-                                                *
-                                            </span>
-                                        </Label>
-                                        <div className="relative">
-                                            <Globe className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                            <Input
-                                                id="cred-name"
-                                                placeholder="e.g., GitHub, AWS Console"
-                                                {...register("Name")}
-                                                className={cn(
-                                                    "h-9 pl-8 text-sm",
-                                                    errors.Name &&
-                                                        "border-destructive",
-                                                )}
-                                            />
-                                        </div>
-                                        {errors.Name && (
-                                            <p className="text-xs text-destructive">
-                                                {errors.Name.message}
-                                            </p>
-                                        )}
-                                    </div>
+                                    {isSSHKey ? (
+                                        <SSHKeyEditor
+                                            mode={
+                                                credentialFormMode === "edit"
+                                                    ? "edit"
+                                                    : "create"
+                                            }
+                                            value={watchedSSHKey ?? null}
+                                            onChange={(value, { dirty }) =>
+                                                setValue("SSHKey", value, {
+                                                    shouldDirty: dirty,
+                                                    shouldValidate: Boolean(
+                                                        errors.SSHKey,
+                                                    ),
+                                                })
+                                            }
+                                            itemName={watchedName ?? ""}
+                                            error={errors.SSHKey?.message}
+                                            nameField={nameField}
+                                            onBusyChange={setSSHKeyEditorBusy}
+                                            initialSource={
+                                                restoredDraft?.sshKeySource
+                                            }
+                                            onChooseFile={
+                                                openFullPageFn &&
+                                                credentialFormMode === "create"
+                                                    ? () =>
+                                                          void handOffSSHKeyImport(
+                                                              openFullPageFn,
+                                                          )
+                                                    : undefined
+                                            }
+                                            fileHint={
+                                                restoredDraft?.sshKeySource ===
+                                                "import"
+                                                    ? "Choose the key file again here, and the .pub file if you use one."
+                                                    : undefined
+                                            }
+                                        />
+                                    ) : (
+                                        nameField
+                                    )}
 
                                     <div className="space-y-1.5">
                                         <Label className="text-xs font-medium">
@@ -3096,7 +3341,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         </Button>
                                     </div>
 
-                                    {!isPasskeyOnly && (
+                                    {!isPasskeyOnly && !isSSHKey && (
                                         <>
                                             {/* Username */}
                                             <div className="space-y-1.5">
@@ -3282,11 +3527,13 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         </>
                                     )}
 
-                                    <CredentialURLRulesEditor
-                                        control={control}
-                                        errors={errors}
-                                        register={register}
-                                    />
+                                    {!isSSHKey && (
+                                        <CredentialURLRulesEditor
+                                            control={control}
+                                            errors={errors}
+                                            register={register}
+                                        />
+                                    )}
 
                                     {/* Tags */}
                                     <div className="space-y-1.5">
@@ -3338,7 +3585,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 </div>
 
                                 {/* TOTP */}
-                                {!isPasskeyOnly && (
+                                {!isPasskeyOnly && !isSSHKey && (
                                     <>
                                         <Separator />
                                         <div className="space-y-3">
@@ -3555,195 +3802,205 @@ const VaultView: React.FC<VaultViewProps> = ({
                                 )}
 
                                 {/* Custom Fields */}
-                                <Separator />
-                                <div>
-                                    <div className="mb-3 flex items-center justify-between">
+                                {!isSSHKey && (
+                                    <>
+                                        <Separator />
                                         <div>
-                                            <Label className="text-xs font-medium">
-                                                Custom Fields
-                                            </Label>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">
-                                                Add additional information
-                                            </p>
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={handleAddCustomField}
-                                            className="h-7 gap-1.5 text-xs"
-                                        >
-                                            <Plus className="h-3 w-3" />
-                                            Add Field
-                                        </Button>
-                                    </div>
+                                            <div className="mb-3 flex items-center justify-between">
+                                                <div>
+                                                    <Label className="text-xs font-medium">
+                                                        Custom Fields
+                                                    </Label>
+                                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                                        Add additional
+                                                        information
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={
+                                                        handleAddCustomField
+                                                    }
+                                                    className="h-7 gap-1.5 text-xs"
+                                                >
+                                                    <Plus className="h-3 w-3" />
+                                                    Add Field
+                                                </Button>
+                                            </div>
 
-                                    {customFields.length > 0 ? (
-                                        <div className="space-y-2">
-                                            {customFields.map(
-                                                (field, index) => {
-                                                    const fieldType = watch(
-                                                        `CustomFields.${index}.Type`,
-                                                    );
-                                                    const isRevealed =
-                                                        !!revealedCustomFieldIds[
-                                                            field.id
-                                                        ];
-                                                    return (
-                                                        <div
-                                                            key={field.id}
-                                                            className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-2.5"
-                                                        >
-                                                            <GripVertical className="mt-2 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                                                            <div className="flex-1 space-y-2">
-                                                                <Input
-                                                                    placeholder="Field name"
-                                                                    {...register(
-                                                                        `CustomFields.${index}.Name`,
-                                                                    )}
-                                                                    className="h-8 text-sm"
-                                                                />
-                                                                <div className="flex items-start gap-2">
-                                                                    <div className="relative min-w-0 flex-1">
-                                                                        <Textarea
-                                                                            placeholder="Value"
-                                                                            rows={
-                                                                                1
-                                                                            }
+                                            {customFields.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {customFields.map(
+                                                        (field, index) => {
+                                                            const fieldType =
+                                                                watch(
+                                                                    `CustomFields.${index}.Type`,
+                                                                );
+                                                            const isRevealed =
+                                                                !!revealedCustomFieldIds[
+                                                                    field.id
+                                                                ];
+                                                            return (
+                                                                <div
+                                                                    key={
+                                                                        field.id
+                                                                    }
+                                                                    className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-2.5"
+                                                                >
+                                                                    <GripVertical className="mt-2 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                                                                    <div className="flex-1 space-y-2">
+                                                                        <Input
+                                                                            placeholder="Field name"
                                                                             {...register(
-                                                                                `CustomFields.${index}.Value`,
+                                                                                `CustomFields.${index}.Name`,
                                                                             )}
-                                                                            className={cn(
-                                                                                "h-8 min-h-8 resize-y py-1 font-mono text-sm",
-                                                                                fieldType ===
+                                                                            className="h-8 text-sm"
+                                                                        />
+                                                                        <div className="flex items-start gap-2">
+                                                                            <div className="relative min-w-0 flex-1">
+                                                                                <Textarea
+                                                                                    placeholder="Value"
+                                                                                    rows={
+                                                                                        1
+                                                                                    }
+                                                                                    {...register(
+                                                                                        `CustomFields.${index}.Value`,
+                                                                                    )}
+                                                                                    className={cn(
+                                                                                        "h-8 min-h-8 resize-y py-1 font-mono text-sm",
+                                                                                        fieldType ===
+                                                                                            VaultUtilTypes
+                                                                                                .CustomFieldType
+                                                                                                .MaskedText &&
+                                                                                            cn(
+                                                                                                "pr-8",
+                                                                                                !isRevealed &&
+                                                                                                    "secret-masked",
+                                                                                            ),
+                                                                                    )}
+                                                                                />
+                                                                                {fieldType ===
                                                                                     VaultUtilTypes
                                                                                         .CustomFieldType
-                                                                                        .MaskedText &&
-                                                                                    cn(
-                                                                                        "pr-8",
-                                                                                        !isRevealed &&
-                                                                                            "secret-masked",
-                                                                                    ),
-                                                                            )}
-                                                                        />
-                                                                        {fieldType ===
-                                                                            VaultUtilTypes
-                                                                                .CustomFieldType
-                                                                                .MaskedText && (
-                                                                            <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                                                                                <TooltipProvider>
-                                                                                    <Tooltip>
-                                                                                        <TooltipTrigger
-                                                                                            asChild
-                                                                                        >
-                                                                                            <Button
-                                                                                                type="button"
-                                                                                                variant="ghost"
-                                                                                                size="icon"
-                                                                                                className="h-7 w-7"
-                                                                                                onClick={() =>
-                                                                                                    toggleCustomFieldReveal(
-                                                                                                        field.id,
-                                                                                                    )
-                                                                                                }
-                                                                                            >
-                                                                                                {isRevealed ? (
-                                                                                                    <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                                                                                ) : (
-                                                                                                    <Eye className="h-3 w-3 text-muted-foreground" />
-                                                                                                )}
-                                                                                            </Button>
-                                                                                        </TooltipTrigger>
-                                                                                        <TooltipContent>
-                                                                                            {isRevealed
-                                                                                                ? "Hide"
-                                                                                                : "Show"}
-                                                                                        </TooltipContent>
-                                                                                    </Tooltip>
-                                                                                </TooltipProvider>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <Controller
-                                                                        control={
-                                                                            control
-                                                                        }
-                                                                        name={`CustomFields.${index}.Type`}
-                                                                        render={({
-                                                                            field: typeField,
-                                                                        }) => (
-                                                                            <Select
-                                                                                value={String(
-                                                                                    typeField.value ??
-                                                                                        VaultUtilTypes
-                                                                                            .CustomFieldType
-                                                                                            .Text,
+                                                                                        .MaskedText && (
+                                                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                                                        <TooltipProvider>
+                                                                                            <Tooltip>
+                                                                                                <TooltipTrigger
+                                                                                                    asChild
+                                                                                                >
+                                                                                                    <Button
+                                                                                                        type="button"
+                                                                                                        variant="ghost"
+                                                                                                        size="icon"
+                                                                                                        className="h-7 w-7"
+                                                                                                        onClick={() =>
+                                                                                                            toggleCustomFieldReveal(
+                                                                                                                field.id,
+                                                                                                            )
+                                                                                                        }
+                                                                                                    >
+                                                                                                        {isRevealed ? (
+                                                                                                            <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                                                                                        ) : (
+                                                                                                            <Eye className="h-3 w-3 text-muted-foreground" />
+                                                                                                        )}
+                                                                                                    </Button>
+                                                                                                </TooltipTrigger>
+                                                                                                <TooltipContent>
+                                                                                                    {isRevealed
+                                                                                                        ? "Hide"
+                                                                                                        : "Show"}
+                                                                                                </TooltipContent>
+                                                                                            </Tooltip>
+                                                                                        </TooltipProvider>
+                                                                                    </div>
                                                                                 )}
-                                                                                onValueChange={(
-                                                                                    value,
-                                                                                ) =>
-                                                                                    typeField.onChange(
-                                                                                        Number(
-                                                                                            value,
-                                                                                        ),
-                                                                                    )
+                                                                            </div>
+                                                                            <Controller
+                                                                                control={
+                                                                                    control
                                                                                 }
-                                                                            >
-                                                                                <SelectTrigger className="h-8 w-24 text-xs">
-                                                                                    <SelectValue />
-                                                                                </SelectTrigger>
-                                                                                <SelectContent>
-                                                                                    <SelectItem
+                                                                                name={`CustomFields.${index}.Type`}
+                                                                                render={({
+                                                                                    field: typeField,
+                                                                                }) => (
+                                                                                    <Select
                                                                                         value={String(
-                                                                                            VaultUtilTypes
-                                                                                                .CustomFieldType
-                                                                                                .Text,
+                                                                                            typeField.value ??
+                                                                                                VaultUtilTypes
+                                                                                                    .CustomFieldType
+                                                                                                    .Text,
                                                                                         )}
+                                                                                        onValueChange={(
+                                                                                            value,
+                                                                                        ) =>
+                                                                                            typeField.onChange(
+                                                                                                Number(
+                                                                                                    value,
+                                                                                                ),
+                                                                                            )
+                                                                                        }
                                                                                     >
-                                                                                        Text
-                                                                                    </SelectItem>
-                                                                                    <SelectItem
-                                                                                        value={String(
-                                                                                            VaultUtilTypes
-                                                                                                .CustomFieldType
-                                                                                                .MaskedText,
-                                                                                        )}
-                                                                                    >
-                                                                                        Hidden
-                                                                                    </SelectItem>
-                                                                                </SelectContent>
-                                                                            </Select>
-                                                                        )}
-                                                                    />
+                                                                                        <SelectTrigger className="h-8 w-24 text-xs">
+                                                                                            <SelectValue />
+                                                                                        </SelectTrigger>
+                                                                                        <SelectContent>
+                                                                                            <SelectItem
+                                                                                                value={String(
+                                                                                                    VaultUtilTypes
+                                                                                                        .CustomFieldType
+                                                                                                        .Text,
+                                                                                                )}
+                                                                                            >
+                                                                                                Text
+                                                                                            </SelectItem>
+                                                                                            <SelectItem
+                                                                                                value={String(
+                                                                                                    VaultUtilTypes
+                                                                                                        .CustomFieldType
+                                                                                                        .MaskedText,
+                                                                                                )}
+                                                                                            >
+                                                                                                Hidden
+                                                                                            </SelectItem>
+                                                                                        </SelectContent>
+                                                                                    </Select>
+                                                                                )}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() =>
+                                                                            removeCustomField(
+                                                                                index,
+                                                                            )
+                                                                        }
+                                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                                    >
+                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                                    </Button>
                                                                 </div>
-                                                            </div>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() =>
-                                                                    removeCustomField(
-                                                                        index,
-                                                                    )
-                                                                }
-                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                            >
-                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </div>
-                                                    );
-                                                },
+                                                            );
+                                                        },
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="rounded-md border border-dashed border-border py-5 text-center">
+                                                    <FileText className="mx-auto mb-1.5 h-6 w-6 text-muted-foreground" />
+                                                    <p className="text-xs text-muted-foreground">
+                                                        No custom fields yet
+                                                    </p>
+                                                </div>
                                             )}
                                         </div>
-                                    ) : (
-                                        <div className="rounded-md border border-dashed border-border py-5 text-center">
-                                            <FileText className="mx-auto mb-1.5 h-6 w-6 text-muted-foreground" />
-                                            <p className="text-xs text-muted-foreground">
-                                                No custom fields yet
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -3764,7 +4021,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     type="submit"
                                     className="h-8 flex-1 text-xs"
                                     disabled={
-                                        isSubmitting || isCreating || isUpdating
+                                        isSubmitting ||
+                                        isCreating ||
+                                        isUpdating ||
+                                        sshKeyEditorBusy
                                     }
                                 >
                                     {(isSubmitting ||
@@ -3779,7 +4039,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                           : isSubmitting
                                             ? "Saving..."
                                             : credentialFormMode === "create"
-                                              ? "Create Credential"
+                                              ? isSSHKey
+                                                  ? "Create SSH key"
+                                                  : "Create Credential"
                                               : "Save Changes"}
                                 </Button>
                             </div>

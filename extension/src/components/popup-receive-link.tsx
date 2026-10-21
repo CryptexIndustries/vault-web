@@ -52,6 +52,7 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/form-schemas";
 import { saveVault, VaultMetadata } from "@/app_lib/vault-utils/storage";
 import {
+    clearDeviceLocalFields,
     LinkedDevices,
     OnlineServices,
     Vault,
@@ -546,7 +547,8 @@ const PopupReceiveLink: React.FC<PopupReceiveLinkProps> = ({ onComplete }) => {
         formData: EncryptionFormGroupSchemaType,
     ) => {
         const raw = VaultUtilTypes.Vault.decode(rawVaultBinary);
-        const vault = Object.assign(new Vault(), raw);
+        // Device-local fields never come from the sender, even a crafted one.
+        const vault = clearDeviceLocalFields(Object.assign(new Vault(), raw));
         vault.LinkedDevices = LinkedDevices.fromGeneric(vault.LinkedDevices);
         if (pendingSyncKeysRef.current) {
             vault.LinkedDevices.SyncSigningPublicKey =

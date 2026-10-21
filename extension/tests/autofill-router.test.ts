@@ -197,3 +197,50 @@ describe("autofill origin matching", () => {
         });
     });
 });
+
+describe("SSH key items", () => {
+    const PUBLIC_KEY =
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEF2g5/uOj8+HSmJi9PIGXGL6oJ/RfOJ/IgWTSo8nLp6";
+    // Even with a URL and password on the item, autofill must skip it.
+    const sshCredential = credential({
+        ID: "ssh_1",
+        Type: ItemType.SSHKey,
+        SSHKey: {
+            PrivateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret-material",
+            PublicKey: PUBLIC_KEY,
+            Comment: "alice@laptop",
+        },
+    });
+
+    it("projects the key label, fingerprint and comment without the private key", () => {
+        const lite = toLiteCredential(sshCredential);
+
+        expect(lite.sshKey).toEqual({
+            label: "Ed25519",
+            fingerprint: expect.stringMatching(/^SHA256:/),
+            comment: "alice@laptop",
+        });
+        expect(JSON.stringify(lite)).not.toContain("secret-material");
+    });
+
+    it("is never offered for a page", () => {
+        const result = matchCredentialsForOrigin(
+            [sshCredential, credential()],
+            { url: "https://login.example.com" },
+        );
+
+        expect(result.map((item) => item.id)).toEqual(["cred_1"]);
+    });
+
+    it("never releases fill material", async () => {
+        const vault = { Credentials: [sshCredential] } as never;
+        const origin = requestOrigin("https://login.example.com");
+
+        await expect(
+            handleGetCredentialSecret({ id: "ssh_1" }, vault, origin),
+        ).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+        await expect(
+            handleGenerateTOTP({ id: "ssh_1" }, vault, origin),
+        ).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+    });
+});

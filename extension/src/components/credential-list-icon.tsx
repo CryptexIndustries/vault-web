@@ -1,4 +1,4 @@
-import { Fingerprint, Globe } from "lucide-react";
+import { FileKey, Fingerprint, Globe } from "lucide-react";
 import { ItemType } from "@cryptex-industries/vault-core/proto";
 
 /**
@@ -19,6 +19,8 @@ export function CredentialListIcon({
         >
             {type === ItemType.Passkey ? (
                 <Fingerprint className="h-5 w-5 text-primary" />
+            ) : type === ItemType.SSHKey ? (
+                <FileKey className="h-5 w-5 text-primary" />
             ) : (
                 <Globe className="h-5 w-5 text-muted-foreground" />
             )}

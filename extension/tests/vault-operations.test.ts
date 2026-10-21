@@ -18,6 +18,7 @@ jest.mock("../src/utils/session-utils", () => ({
 }));
 
 import {
+    createEncryptedEnvelope,
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "../src/utils/session-utils";
@@ -148,7 +149,9 @@ describe("sync save acknowledgement", () => {
             ok: true,
             payload: { ok: false, error: "SAVE_FAILED" },
         });
-        await expect(ops().updateItems([], [])).rejects.toThrow("SAVE_FAILED");
+        await expect(ops().updateItems([], [], [], [])).rejects.toThrow(
+            "SAVE_FAILED",
+        );
         expect(updated).not.toHaveBeenCalled();
     });
 
@@ -157,18 +160,49 @@ describe("sync save acknowledgement", () => {
             ok: false,
             error: err("DECRYPTION_FAILED"),
         });
-        await expect(ops().updateItems([], [])).rejects.toThrow("authenticate");
+        await expect(ops().updateItems([], [], [], [])).rejects.toThrow(
+            "authenticate",
+        );
         expect(updated).not.toHaveBeenCalled();
     });
 
     it("rejects a plaintext response", async () => {
         jest.mocked(isEncryptedEnvelope).mockReturnValueOnce(false);
-        await expect(ops().updateItems([], [])).rejects.toThrow("encrypted");
+        await expect(ops().updateItems([], [], [], [])).rejects.toThrow(
+            "encrypted",
+        );
         expect(updated).not.toHaveBeenCalled();
     });
 
+    it("passes connected agents to and from the worker as JSON-safe strings", async () => {
+        const agent = VaultUtilTypes.ConnectedAgent.create({
+            ID: "agent",
+            AgentSignPublicKey: new Uint8Array(32).fill(7),
+            History: [{ Timestamp: 5, Host: "github.com" }],
+        });
+        await ops().updateItems([], [], [], [agent]);
+        const sent = jest.mocked(createEncryptedEnvelope).mock.calls[0]![1] as {
+            connectedAgents: unknown;
+        };
+        const overJSON = JSON.parse(JSON.stringify(sent.connectedAgents));
+        expect(overJSON).toEqual([expect.any(String)]);
+
+        jest.mocked(decryptResponseEnvelope).mockResolvedValueOnce({
+            ok: true,
+            payload: {
+                ok: true,
+                credentials: [],
+                directories: [],
+                connectedAgents: overJSON,
+            },
+        });
+        const items = await ops().getItems([]);
+        expect(items.ConnectedAgents).toEqual([agent]);
+        expect(items.ShareLinks).toEqual([]);
+    });
+
     it("refreshes credentials after a successful save", async () => {
-        await ops().updateItems([], []);
+        await ops().updateItems([], [], [], []);
         expect(updated).toHaveBeenCalledTimes(1);
     });
 });

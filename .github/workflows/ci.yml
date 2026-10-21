@@ -67,6 +67,13 @@ jobs:
               run: go vet ./...
             - name: Test Go services
               run: go test -race ./...
+            - name: Verify Go module checksums
+              run: go mod verify
+            # Fails on known vulnerabilities in code paths we actually call, in
+            # dependencies and in this Go toolchain's standard library. Release
+            # jobs need this job, so nothing ships past a known vulnerability.
+            - name: Audit Go dependencies
+              run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
     extension-quality:
         name: Extension quality

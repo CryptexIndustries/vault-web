@@ -207,8 +207,8 @@ test("release verification selects the intended application identity and an expl
     const preprod = manifest.replace('package="com.cryptexindustries.vault"', 'package="com.cryptexindustries.vault.preprod"');
     assertProductionManifest(preprod, { profile: "preprod" });
     assert.throws(() => assertProductionManifest(preprod), /profile ID/);
-    const bumped = manifest.replace(`="${appConfig.version}"`, '="0.3.0"').replace(`versionCode(0x0101021b)=${appVersionCode}`, `versionCode(0x0101021b)=${appVersionCode + 1}`);
-    assertProductionManifest(bumped, { version: { name: "0.3.0", code: appVersionCode + 1 } });
+    const bumped = manifest.replace(`="${appConfig.version}"`, '="0.4.0"').replace(`versionCode(0x0101021b)=${appVersionCode}`, `versionCode(0x0101021b)=${appVersionCode + 1}`);
+    assertProductionManifest(bumped, { version: { name: "0.4.0", code: appVersionCode + 1 } });
     assert.throws(() => assertProductionManifest(bumped), /version/);
 });
 

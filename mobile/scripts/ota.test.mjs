@@ -22,7 +22,7 @@ test('both unsigned channels use real EAS identity and fingerprint runtime witho
 test('standard development/test channels are isolated and invalid distribution choices fail',()=>fixture(({project})=>{
  assert.equal(getOtaConfig({profile:'preprod',mode:'e2e',projectFile:project}).updates.requestHeaders['expo-channel-name'],'preprod-e2e');
  assert.equal(getOtaConfig({profile:'production',mode:'development',projectFile:project}).updates.requestHeaders['expo-channel-name'],'production-dev');
- assert.throws(()=>getOtaConfig({profile:'preprod',distribution:'fdroid',projectFile:project}),/production/);
+ assert.equal(getOtaConfig({profile:'preprod',distribution:'fdroid',projectFile:project}).updates.enabled,false);
  assert.throws(()=>getOtaConfig({profile:'production',signingEnabled:'0',projectFile:project}),/true or false/);
 }));
 test('F-Droid disables OTA without a remote URL, channel or signing certificate in every mode',()=>fixture(({project})=>{

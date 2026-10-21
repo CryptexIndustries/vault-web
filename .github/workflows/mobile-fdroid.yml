@@ -2,6 +2,15 @@ name: Mobile F-Droid
 
 on:
   workflow_call:
+    inputs:
+      profile:
+        description: production for releases; preprod builds the same recipe as com.cryptexindustries.vault.preprod
+        type: string
+        default: production
+      abis:
+        description: JSON list of the ABIs to build
+        type: string
+        default: '["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]'
 
 permissions:
   contents: read
@@ -15,11 +24,11 @@ jobs:
     name: Build ${{ matrix.abi }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
-    environment: Mobile - Production
+    environment: ${{ inputs.profile == 'preprod' && 'Mobile - Preproduction' || 'Mobile - Production' }}
     strategy:
       fail-fast: false
       matrix:
-        abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
+        abi: ${{ fromJSON(inputs.abis) }}
     steps:
       - name: Checkout release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -32,6 +41,7 @@ jobs:
       - name: Build and scan the complete F-Droid recipe
         env:
           RELEASE_REF: ${{ github.ref }}
+          CRYPTEX_APP_PROFILE: ${{ inputs.profile }}
           CRYPTEX_BUILD_ARCH: ${{ matrix.abi }}
         run: |
           test -z "$(git status --porcelain)"
@@ -41,6 +51,7 @@ jobs:
             --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
             --env "SOURCE_COMMIT=$(git rev-parse HEAD)" \
             --env RELEASE_REF \
+            --env CRYPTEX_APP_PROFILE \
             --env CRYPTEX_BUILD_ARCH \
             --entrypoint /bin/bash \
             registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \

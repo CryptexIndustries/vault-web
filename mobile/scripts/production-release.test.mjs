@@ -904,7 +904,7 @@ test("reproduction routes profile, custom config and distribution while rejectin
     assert.equal(selected.signed, "/tmp/caller/reference.apk");
     assert.equal(reproductionOptions(["a", "b", "c", "--distribution", "fdroid"]).distribution, "fdroid");
     assert.match(reproductionOptions(["a", "b", "c", "--profile", "preprod"]).configPath, /prerelease-config\.json$/);
-    for (const suffix of [["--unsigned"], ["--unknown"], ["--profile"], ["--config", "--offline-services"], ["--config", "a", "--config", "b"], ["--profile", "preprod", "--distribution", "fdroid"]]) {
+    for (const suffix of [["--unsigned"], ["--unknown"], ["--profile"], ["--config", "--offline-services"], ["--config", "a", "--config", "b"]]) {
         assert.throws(() => reproductionOptions(["a", "b", "c", ...suffix]));
     }
     assert.throws(() => reproductionOptions(["a", "b"]), /three|Specify signed/);

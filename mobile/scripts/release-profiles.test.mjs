@@ -55,7 +55,8 @@ test("release profiles select distinct identities, configuration and artifacts w
     assert.equal(artifactName(preprod), "cryptex-vault-preprod.apk");
     assert.equal(artifactName({ ...prod, distribution: "fdroid", offlineServices: true, unsigned: true }), "cryptex-vault-fdroid-offline-unsigned.apk");
     assert.equal(parseReleaseOptions(["--profile", "preprod"], { allowApk: true }).apk.split("/").at(-1), "cryptex-vault-preprod.apk");
-    for (const args of [["--profile"], ["--profile", "other"], ["--profile", "preprod", "--profile", "production"], ["--profile", "preprod", "--distribution", "fdroid"]]) assert.throws(() => parseReleaseOptions(args));
+    assert.equal(artifactName({ ...preprod, distribution: "fdroid", arch: "x86_64", unsigned: true }), "cryptex-vault-preprod-fdroid-x86_64-unsigned.apk");
+    for (const args of [["--profile"], ["--profile", "other"], ["--profile", "preprod", "--profile", "production"]]) assert.throws(() => parseReleaseOptions(args));
 });
 
 test("profile selection does not relax release mode, offline intent or mandatory E2E stripping", () => {

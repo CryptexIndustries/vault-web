@@ -75,12 +75,20 @@ available. Tag runs use the workflow in the tagged commit.
 
 ```sh
 gh workflow run mobile.yml --ref development -f profile=preprod
+gh workflow run mobile.yml --ref development -f profile=preprod -f distribution=fdroid
 gh workflow run mobile.yml --ref mobile-v0.1.0 -f profile=production
 ```
 
-Production and F-Droid builds read `mobile/release-config.json`; preproduction
-builds read `mobile/prerelease-config.json`. Both public configurations are
-versioned with the source.
+`distribution=fdroid` tests the F-Droid recipe before a release. Instead of the
+standard preproduction APK, it runs the same recipe as
+`com.cryptexindustries.vault.preprod` for `arm64-v8a` and `x86_64` only. The
+preproduction key signs the APKs, the x86_64 APK gets the same emulator launch
+check as a release, and they land in `mobile-fdroid-preprod-release-<run-id>`.
+Production ignores `distribution`.
+
+Production builds read `mobile/release-config.json`; preproduction builds,
+including preproduction F-Droid runs, read `mobile/prerelease-config.json`. Both
+public configurations are versioned with the source.
 
 Separate signing jobs consume the verified unsigned APKs and the exact
 configuration snapshot from the build job. They use environment secrets

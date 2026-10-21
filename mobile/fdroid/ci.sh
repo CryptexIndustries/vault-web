@@ -15,6 +15,13 @@ curl -fL 'https://gitlab.com/fdroid/fdroiddata/-/archive/60211383fefd7e2891a1205
   -o /tmp/fdroiddata-config.tar.gz
 echo 'a4c7ce6b6baca8965eabcb16be6db866118759dd122752dff63dc18b14aa80bd  /tmp/fdroiddata-config.tar.gz' | sha256sum --check --strict
 tar -xzf /tmp/fdroiddata-config.tar.gz --strip-components=1 -C /build/submission
+# Preprod runs build the same recipe under the preprod application ID and config.
+case ${CRYPTEX_APP_PROFILE:=production} in
+production) app_id=com.cryptexindustries.vault artifact_base=cryptex-vault ;;
+preprod) app_id=com.cryptexindustries.vault.preprod artifact_base=cryptex-vault-preprod ;;
+*) echo "CRYPTEX_APP_PROFILE must be production or preprod" >&2; exit 1 ;;
+esac
+export CRYPTEX_APP_PROFILE app_id artifact_base
 version_code=$(python3 - <<'PY'
 import json
 import os
@@ -32,6 +39,7 @@ version, code = app['version'], app['android']['versionCode']
 ref = os.environ['RELEASE_REF'].removeprefix('refs/tags/')
 if ref.startswith('mobile-v'):
     assert ref == f'mobile-v{version}', 'Release tag and application version differ'
+profile, app_id, base = os.environ['CRYPTEX_APP_PROFILE'], os.environ['app_id'], os.environ['artifact_base']
 yaml = YAML()
 metadata = yaml.load(source / 'mobile/fdroid/metadata/com.cryptexindustries.vault.yml')
 abis = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
@@ -42,10 +50,17 @@ for index, build in enumerate(metadata['Builds']):
     assert build['output'] == f'mobile/dist/cryptex-vault-fdroid-{abis[index]}-unsigned.apk', 'Wrong ABI build output'
     build.update({'commit': commit, 'versionName': version, 'versionCode': code * 10 + index + 1})
     build.pop('disable', None)
-config = (source / 'mobile/release-config.json').read_bytes()
+    if profile == 'preprod':
+        build['output'] = f'mobile/dist/{base}-fdroid-{abis[index]}-unsigned.apk'
+        for phase in ('prebuild', 'build'):
+            build[phase].insert(0, 'export CRYPTEX_APP_PROFILE=preprod')
+if profile == 'preprod':
+    metadata['AutoName'] = 'Cryptex Vault Preprod'
+config_file = 'release-config.json' if profile == 'production' else 'prerelease-config.json'
+config = (source / 'mobile' / config_file).read_bytes()
 Path('/build/artifacts/release-config.json').write_bytes(config)
 metadata.update({'CurrentVersion': version, 'CurrentVersionCode': code * 10 + len(abis)})
-yaml.dump(metadata, submission / 'metadata/com.cryptexindustries.vault.yml')
+yaml.dump(metadata, submission / f'metadata/{app_id}.yml')
 for srclib in metadata['Builds'][0]['srclibs']:
     name, revision = srclib.split('@')
     assert re.fullmatch(r'[0-9a-f]{40}', revision), 'Source library needs a full commit'
@@ -70,13 +85,14 @@ CHECKSUMS
 
 cd /build/submission
 fdroid readmeta
-fdroid rewritemeta com.cryptexindustries.vault
+fdroid rewritemeta "$app_id"
 python3 - <<'PY'
+import os
 from pathlib import Path
-path = Path('metadata/com.cryptexindustries.vault.yml')
+path = Path(f'metadata/{os.environ["app_id"]}.yml')
 path.write_text('\n'.join(line.rstrip() for line in path.read_text().splitlines()) + '\n')
 PY
-fdroid lint com.cryptexindustries.vault
+fdroid lint "$app_id"
 cp metadata/*.yml /build/fdroid/metadata/
 cp srclibs/*.yml /build/fdroid/srclibs/
 # Only new definitions belong in the submission merge request.
@@ -86,9 +102,10 @@ mv config /build/fdroid/
 # The reference APK is published after local signing. Keep its URL in the
 # submission; omit it only from this unsigned bootstrap build's temporary copy.
 python3 - <<'PY'
+import os
 from pathlib import Path
 from ruamel.yaml import YAML
-path = Path('/build/fdroid/metadata/com.cryptexindustries.vault.yml')
+path = Path(f'/build/fdroid/metadata/{os.environ["app_id"]}.yml')
 yaml = YAML()
 metadata = yaml.load(path)
 metadata.pop('Binaries')
@@ -100,20 +117,20 @@ PY
 # removes sudo before preparing, scanning and compiling the application.
 sdkmanager --sdk_root="$ANDROID_HOME" 'ndk;27.1.12297006'
 cd /build/fdroid
-fdroid fetchsrclibs "com.cryptexindustries.vault:$version_code"
+fdroid fetchsrclibs "$app_id:$version_code"
 chown -R vagrant:vagrant /build "$fdroid_tools" "$ANDROID_HOME"
 sudo -H --user vagrant --preserve-env=PATH,PYTHONPATH,ANDROID_HOME \
   "$fdroid_tools/fdroid" build --on-server --verbose --scan-binary --no-tarball \
-  "com.cryptexindustries.vault:$version_code" 2>&1 | tee build.log
+  "$app_id:$version_code" 2>&1 | tee build.log
 
-cp "build/com.cryptexindustries.vault/mobile/dist/cryptex-vault-fdroid-$CRYPTEX_BUILD_ARCH-unsigned.apk"{,.json} /build/artifacts/
-cp build/com.cryptexindustries.vault/mobile/dist/fdroid-build/skia/skia-source-build.json \
+cp "build/$app_id/mobile/dist/$artifact_base-fdroid-$CRYPTEX_BUILD_ARCH-unsigned.apk"{,.json} /build/artifacts/
+cp "build/$app_id/mobile/dist/fdroid-build/skia/skia-source-build.json" \
   "/build/artifacts/skia-source-build-$CRYPTEX_BUILD_ARCH.json"
 python3 - <<'PY'
 import json
 import os
 from pathlib import Path
-metadata = json.loads(Path(f'/build/artifacts/cryptex-vault-fdroid-{os.environ["CRYPTEX_BUILD_ARCH"]}-unsigned.apk.json').read_text())
+metadata = json.loads(Path(f'/build/artifacts/{os.environ["artifact_base"]}-fdroid-{os.environ["CRYPTEX_BUILD_ARCH"]}-unsigned.apk.json').read_text())
 assert metadata['sourceRevision'] == {'commit': os.environ['SOURCE_COMMIT'], 'dirty': False}, 'Build must identify the complete clean release source'
 PY
 cd /build/artifacts

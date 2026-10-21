@@ -17,6 +17,8 @@ name: Android local vault smoke
 - pressKey: Back
 - assertVisible: Search your vault
 - tapOn: Add item
+- tapOn:
+      id: add-item-login
 - tapOn: Credential name
 - inputText: Example Login
 - tapOn: Credential username

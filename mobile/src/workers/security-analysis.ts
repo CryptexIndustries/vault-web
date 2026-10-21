@@ -1,5 +1,5 @@
 // Bundled as plain JavaScript for the isolated Hermes worker, not imported by RN.
-import "fast-text-encoding";
+import "./polyfills";
 import { URL } from "whatwg-url-minimum";
 import { iterateCredentialSecurityAnalysis } from "@cryptex-industries/vault-core/vault-utils/security-report";
 

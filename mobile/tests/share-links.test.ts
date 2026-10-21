@@ -2,6 +2,7 @@ import { beforeEach, expect, it, jest } from "@jest/globals";
 import { ok } from "neverthrow";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { createShareLinkRecord } from "@cryptex-industries/vault-core/vault-utils/share-records";
+import { createConnectedAgentRecord } from "@cryptex-industries/vault-core/vault-utils/connected-agents";
 import { createVaultOperations } from "@/components/sync-controller";
 import {
     mobileShareDeps,
@@ -92,7 +93,7 @@ it("saves the share server for this device", async () => {
 
 it("merges share records received from a linked device", async () => {
     const incoming = await record("ZyXwVuTsRqPoNmLkJiHgFe");
-    await createVaultOperations().updateItems([], [], [incoming]);
+    await createVaultOperations().updateItems([], [], [incoming], []);
 
     expect(vaultStore.get(unlockedVaultAtom).ShareLinks).toEqual([incoming]);
     await expect(
@@ -100,6 +101,31 @@ it("merges share records received from a linked device", async () => {
     ).resolves.toEqual([
         expect.objectContaining({ ID: incoming.ID, Version: 0 }),
     ]);
+});
+
+it("merges connected agents received from a linked device", async () => {
+    const agent = await createConnectedAgentRecord({
+        Name: "build box",
+        AgentSignPublicKey: new Uint8Array(32).fill(1),
+        AgentKEMPublicKey: new Uint8Array(1216).fill(2),
+        Hostname: "build",
+        OS: "linux",
+        Arch: "amd64",
+        AgentVersion: "0.1.0",
+        ApproverSignPublicKey: new Uint8Array(32).fill(3),
+        ApproverKEMPublicKey: new Uint8Array(1216).fill(4),
+        ApproverName: "Phone",
+        RevocationSeed: new Uint8Array(32).fill(5),
+        RelayOrigin: "",
+        CredentialIDs: ["key"],
+        KeysRevision: 1,
+    });
+    await createVaultOperations().updateItems([], [], [], [agent]);
+
+    expect(vaultStore.get(unlockedVaultAtom).ConnectedAgents).toEqual([agent]);
+    await expect(
+        createVaultOperations().getConnectedAgentVersionVectors(),
+    ).resolves.toEqual([expect.objectContaining({ ID: agent.ID, Version: 0 })]);
 });
 
 it("only offers tickets with an Online Services session", () => {

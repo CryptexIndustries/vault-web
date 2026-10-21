@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+    ActivityIndicator,
     BackHandler,
     Image,
     KeyboardAvoidingView,
@@ -70,6 +71,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import type { TextProps } from "@/components/ui/text";
+import { SSH_KEYS_FILTER } from "@/utils/ssh-keys";
 import { Checkbox, type CheckboxProps } from "@/components/ui/checkbox";
 import { useOptionalSyncRuntime, useSyncRuntime } from "@/components/sync-controller-provider";
 import {
@@ -86,13 +88,31 @@ export function UnlockedButton({
     textClassName,
     className,
     style,
+    loading,
+    loadingLabel,
+    disabled,
     ...props
-}: ButtonProps) {
+}: ButtonProps & {
+    /** Shown next to the spinner while loading, such as "Saving…". */
+    loadingLabel?: string;
+}) {
+    const labelled = !!loading && !!loadingLabel;
+    const labelClassName = cn(
+        buttonTextVariants({ variant, size }),
+        "font-semibold",
+        (!variant || variant === "default") && "text-[#111520]",
+        textClassName,
+    );
     return (
         <Button
             {...props}
             variant={variant}
             size={size}
+            loading={labelled ? false : loading}
+            disabled={disabled || labelled}
+            accessibilityState={
+                labelled ? { disabled: true, busy: true } : props.accessibilityState
+            }
             className={cn(
                 !size && "h-auto min-h-[54px] px-[18px] py-3",
                 variant === "outline" && "border-border bg-[#111520]",
@@ -104,17 +124,22 @@ export function UnlockedButton({
             ]}
             textClassName={textClassName}
         >
-            {typeof children === "string" || typeof children === "number" ? (
-                <UnlockedText
-                    className={cn(
-                        buttonTextVariants({ variant, size }),
-                        "font-semibold",
-                        (!variant || variant === "default") && "text-[#111520]",
-                        textClassName,
-                    )}
-                >
-                    {children}
-                </UnlockedText>
+            {labelled ? (
+                <>
+                    <ActivityIndicator
+                        size="small"
+                        color={
+                            !variant || variant === "default"
+                                ? "#111520"
+                                : colors.foreground
+                        }
+                    />
+                    <UnlockedText className={labelClassName}>
+                        {loadingLabel}
+                    </UnlockedText>
+                </>
+            ) : typeof children === "string" || typeof children === "number" ? (
+                <UnlockedText className={labelClassName}>{children}</UnlockedText>
             ) : (
                 children
             )}
@@ -190,6 +215,7 @@ export function UnlockedMenuRow({
     destructive = false,
     disabled = false,
     onPress,
+    testID,
 }: {
     icon: LucideIcon;
     title: string;
@@ -198,9 +224,11 @@ export function UnlockedMenuRow({
     destructive?: boolean;
     disabled?: boolean;
     onPress: () => void;
+    testID?: string;
 }) {
     return (
         <Pressable
+            testID={testID}
             accessibilityRole="button"
             accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ""}`}
             accessibilityState={{ disabled }}
@@ -1114,9 +1142,15 @@ type UnlockedTabBarProps = {
         routes: Array<Parameters<typeof getFocusedRouteNameFromRoute>[0]>;
     };
     navigation: { navigate: (name: string) => void };
+    /** Receives the directory of the vault list filter, or "" for none. */
+    onAdd: (directoryId: string) => void;
 };
 
-export function UnlockedTabBar({ state, navigation }: UnlockedTabBarProps) {
+export function UnlockedTabBar({
+    state,
+    navigation,
+    onAdd,
+}: UnlockedTabBarProps) {
     const insets = useSafeAreaInsets();
     const { width } = useWindowDimensions();
     const slotWidth = Math.min(
@@ -1193,20 +1227,16 @@ export function UnlockedTabBar({ state, navigation }: UnlockedTabBarProps) {
                     accessibilityRole="button"
                     accessibilityLabel="Add item"
                     onPress={() =>
-                        router.push({
-                            pathname: "/(app)/(tabs)/vault/new",
-                            params: {
-                                directoryId:
-                                    activeRoute === "vault" &&
-                                    !hidden &&
-                                    params.directoryId
-                                        ? params.directoryId === "root" ||
-                                          params.directoryId === "all"
-                                            ? ""
-                                            : params.directoryId
-                                        : "",
-                            },
-                        })
+                        onAdd(
+                            activeRoute === "vault" &&
+                                !hidden &&
+                                params.directoryId &&
+                                !["root", "all", SSH_KEYS_FILTER].includes(
+                                    params.directoryId,
+                                )
+                                ? params.directoryId
+                                : "",
+                        )
                     }
                     style={{
                         width: 64,

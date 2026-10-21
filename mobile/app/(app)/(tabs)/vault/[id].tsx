@@ -29,6 +29,7 @@ import {
     DialogHeader,
 } from "@/components/ui/dialog";
 import { Link2, MoreHorizontal } from "lucide-react-native";
+import { isSSHKeyItem } from "@/utils/ssh-keys";
 import { colors } from "@/theme";
 
 export default function CredentialDetailScreen() {
@@ -137,7 +138,11 @@ export default function CredentialDetailScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Edit item"
+                        accessibilityLabel={
+                            isSSHKeyItem(credential)
+                                ? "Edit details"
+                                : "Edit item"
+                        }
                         onPress={() =>
                             router.push({
                                 pathname:
@@ -160,7 +165,7 @@ export default function CredentialDetailScreen() {
                                 fontWeight: "600",
                             }}
                         >
-                            Edit
+                            {isSSHKeyItem(credential) ? "Edit details" : "Edit"}
                         </Text>
                     </Pressable>
                     {credential.Type !== ItemType.Passkey ? (

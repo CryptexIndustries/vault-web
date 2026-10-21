@@ -7,7 +7,7 @@ import {
     UnlockedInput as Input,
     UnlockedLabel as Label,
 } from "@/components/unlocked/unlocked-ui";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -61,6 +61,8 @@ import {
     DialogHeader,
 } from "@/components/ui/dialog";
 import { TotpField } from "@/components/vault/totp-field";
+import { SSHKeyForm } from "@/components/vault/ssh-key-form";
+import type { NewItemType } from "@/components/vault/add-item-sheet";
 
 type CustomFieldDraft = {
     ID: string;
@@ -94,6 +96,8 @@ type CredentialFormProps = {
     ) => void;
     notice?: { tone: "info" | "warning"; message: string };
     requirePassword?: boolean;
+    /** New items only; existing items open the editor for their own type. */
+    itemType?: NewItemType;
 };
 
 const FIELD_TYPE_OPTIONS: Array<{
@@ -209,6 +213,20 @@ export function CredentialForm(props: CredentialFormProps) {
         );
     }
 
+    if (
+        existing
+            ? existing.Type === ItemType.SSHKey
+            : props.itemType === "ssh-key"
+    ) {
+        return (
+            <SSHKeyForm
+                key={props.credentialId ?? "new"}
+                existing={existing}
+                initialDirectoryId={props.initialDirectoryId}
+            />
+        );
+    }
+
     return (
         <CredentialFormEditor
             key={props.credentialId ?? "new"}
@@ -321,6 +339,15 @@ function CredentialFormEditor({
         "primary" | string | null
     >(null);
     const [loading, setLoading] = useState(false);
+    const saving = useRef(false);
+    // Set once the screen is gone, so a save that finishes later doesn't navigate.
+    const left = useRef(false);
+    useEffect(
+        () => () => {
+            left.current = true;
+        },
+        [],
+    );
     const [error, setError] = useState("");
     const [dirty, setDirty] = useState(false);
     const [moreDetailsOpen, setMoreDetailsOpen] = useState(
@@ -441,6 +468,7 @@ function CredentialFormEditor({
     };
 
     const handleSave = async () => {
+        if (saving.current) return;
         if (!name.trim()) {
             setError("Name is required.");
             return;
@@ -454,6 +482,7 @@ function CredentialFormEditor({
             setError(initialGateFailure);
             return;
         }
+        saving.current = true;
         setLoading(true);
         setError("");
 
@@ -503,6 +532,7 @@ function CredentialFormEditor({
         });
 
         if (!formResult.success) {
+            saving.current = false;
             setLoading(false);
             setError(
                 formResult.error.issues[0]?.message ?? "Invalid credential.",
@@ -558,6 +588,7 @@ function CredentialFormEditor({
             },
         );
 
+        saving.current = false;
         setLoading(false);
         if (result.isErr()) {
             if (serializedGateFailure) {
@@ -574,6 +605,8 @@ function CredentialFormEditor({
             return;
         }
         setDirty(false);
+        // The item is saved either way; only move on if the user is still here.
+        if (left.current) return;
         if (onSaved) {
             onSaved(result.value);
         } else if (existing) {
@@ -584,6 +617,8 @@ function CredentialFormEditor({
     };
 
     const requestCancel = useCallback(() => {
+        // Leaving now would let the finished save navigate from another screen.
+        if (saving.current) return;
         if (!dirty) {
             if (onCancel) onCancel();
             else router.back();
@@ -595,6 +630,7 @@ function CredentialFormEditor({
             cancelLabel: "Keep editing",
             confirmLabel: "Discard",
             onConfirm: () => {
+                if (saving.current) return;
                 if (onCancel) onCancel();
                 else router.back();
             },
@@ -611,6 +647,7 @@ function CredentialFormEditor({
                     className="h-[54px] min-h-[54px]"
                     textClassName="text-[#111520]"
                     loading={loading}
+                    loadingLabel="Saving…"
                     onPress={() => void handleSave()}
                     testID="credential-submit"
                 >

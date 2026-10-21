@@ -9,12 +9,26 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
-import { AlignLeft, Copy, Search, Tag, Type, X } from "lucide-react-native";
+import {
+    AlignLeft,
+    Copy,
+    FileKey,
+    Search,
+    Tag,
+    Type,
+    X,
+} from "lucide-react-native";
 
 import { ItemType } from "@cryptex-industries/vault-core/proto";
 import { vaultCredentialsAtom } from "@/utils/atoms";
-import { completeSearchField, filterCredentials, searchFieldSuggestions } from "@/utils/credential-search";
-import { copySecretToClipboard } from "@/utils/clipboard";
+import {
+    completeSearchField,
+    filterCredentials,
+    searchFieldSuggestions,
+} from "@/utils/credential-search";
+import { copySecretToClipboard, copyTextToClipboard } from "@/utils/clipboard";
+import { sshPublicKeyLine } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
+import { isSSHKeyItem, sshKeySummary } from "@/utils/ssh-keys";
 import {
     UnlockedTaskHeader,
     UnlockedText,
@@ -258,10 +272,12 @@ const SearchResult = memo(function SearchResult({
 }: {
     item: VaultCredential;
 }) {
-    const secondary =
-        item.Type === ItemType.Passkey && item.Passkey
-            ? `Passkey: ${item.Passkey.UserDisplayName || item.Passkey.UserName}`
-            : item.Username || "No username";
+    const sshKey = isSSHKeyItem(item);
+    const secondary = sshKey
+        ? sshKeySummary(item)
+        : item.Type === ItemType.Passkey && item.Passkey
+          ? `Passkey: ${item.Passkey.UserDisplayName || item.Passkey.UserName}`
+          : item.Username || "No username";
     return (
         <View
             key={item.ID}
@@ -298,14 +314,22 @@ const SearchResult = memo(function SearchResult({
                         backgroundColor: colors.secondary,
                     }}
                 >
-                    <UnlockedText
-                        style={{
-                            fontSize: 13,
-                            fontWeight: "700",
-                        }}
-                    >
-                        {(item.Name || "?").slice(0, 2).toUpperCase()}
-                    </UnlockedText>
+                    {sshKey ? (
+                        <FileKey
+                            size={17}
+                            color={colors.primary}
+                            strokeWidth={1.8}
+                        />
+                    ) : (
+                        <UnlockedText
+                            style={{
+                                fontSize: 13,
+                                fontWeight: "700",
+                            }}
+                        >
+                            {(item.Name || "?").slice(0, 2).toUpperCase()}
+                        </UnlockedText>
+                    )}
                 </View>
                 <View style={{ minWidth: 0, flex: 1 }}>
                     <UnlockedText
@@ -329,7 +353,23 @@ const SearchResult = memo(function SearchResult({
                     </UnlockedText>
                 </View>
             </Pressable>
-            {item.Password ? (
+            {sshKey && item.SSHKey ? (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Copy ${item.Name || "item"} public key`}
+                    onPress={() =>
+                        void copyTextToClipboard(sshPublicKeyLine(item.SSHKey!))
+                    }
+                    style={{
+                        width: 48,
+                        height: 48,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    <Copy size={20} color={colors.muted} strokeWidth={1.7} />
+                </Pressable>
+            ) : item.Password ? (
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Copy ${item.Name || "item"} password`}

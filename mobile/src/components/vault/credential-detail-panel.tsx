@@ -4,6 +4,7 @@ import {
     Copy,
     Fingerprint,
     KeyRound,
+    FileKey,
     Pencil,
     Plus,
     Trash2,
@@ -30,8 +31,11 @@ import { EmptyState } from "@/components/empty-state";
 import { CopyableField } from "@/components/vault/copyable-field";
 import { TotpField } from "@/components/vault/totp-field";
 import { PasswordStrengthMeter } from "@/components/vault/password-strength-meter";
+import { SSHKeyDetails } from "@/components/vault/ssh-key-details";
+import { isSSHKeyItem } from "@/utils/ssh-keys";
 import { parseTags } from "@/utils/credential-search";
-import { copySecretToClipboard } from "@/utils/clipboard";
+import { copySecretToClipboard, copyTextToClipboard } from "@/utils/clipboard";
+import { sshPublicKeyLine } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import { openCredentialUrl } from "@/utils/open-credential-url";
 import { colors } from "@/theme";
 
@@ -105,15 +109,26 @@ export function CredentialDetailPanel({
         credential.DateModifiedTimestamp || credential.DateCreatedTimestamp,
     );
     const passkeyOnly = credential.Type === ItemType.Passkey;
+    const sshKey = isSSHKeyItem(credential);
 
     return (
         <View className={embedded ? "flex-1" : undefined}>
             <View className="mb-4 pb-2">
                 <View className="mb-3 flex-row items-center gap-3.5">
-                    <View className="h-12 w-12 items-center justify-center rounded-xl border border-border bg-secondary">
-                        <Text className="font-semibold text-lg text-primary">
-                            {(credential.Name || "?").slice(0, 2).toUpperCase()}
-                        </Text>
+                    <View className="border-border bg-secondary h-12 w-12 items-center justify-center rounded-xl border">
+                        {sshKey ? (
+                            <FileKey
+                                size={22}
+                                color={colors.primary}
+                                strokeWidth={1.8}
+                            />
+                        ) : (
+                            <Text className="text-primary text-lg font-semibold">
+                                {(credential.Name || "?")
+                                    .slice(0, 2)
+                                    .toUpperCase()}
+                            </Text>
+                        )}
                     </View>
                     <View className="min-w-0 flex-1">
                         <Text
@@ -128,11 +143,13 @@ export function CredentialDetailPanel({
                                 credential.DirectoryID,
                             )}
                             {" / "}
-                            {passkeyOnly
-                                ? "Passkey"
-                                : credential.Notes && !credential.Password
-                                  ? "Secure note"
-                                  : "Login"}
+                            {sshKey
+                                ? "SSH key"
+                                : passkeyOnly
+                                  ? "Passkey"
+                                  : credential.Notes && !credential.Password
+                                    ? "Secure note"
+                                    : "Login"}
                         </Text>
                     </View>
                 </View>
@@ -163,8 +180,8 @@ export function CredentialDetailPanel({
                             onPress={() => onEdit(credential)}
                         >
                             <Pencil size={16} color={colors.foreground} />
-                            <Text className="font-medium text-sm text-primary-foreground">
-                                Edit
+                            <Text className="text-primary-foreground text-sm font-medium">
+                                {sshKey ? "Edit details" : "Edit"}
                             </Text>
                         </Button>
                         <IconButton
@@ -178,6 +195,24 @@ export function CredentialDetailPanel({
 
                 {primaryActions ? (
                     <View className="mt-3 flex-row flex-wrap gap-2">
+                        {sshKey && credential.SSHKey ? (
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="flex-row gap-2"
+                                accessibilityLabel="Copy public key"
+                                onPress={() =>
+                                    void copyTextToClipboard(
+                                        sshPublicKeyLine(credential.SSHKey!),
+                                    )
+                                }
+                            >
+                                <Copy size={14} color={colors.foreground} />
+                                <Text className="text-secondary-foreground text-xs font-medium">
+                                    Public key
+                                </Text>
+                            </Button>
+                        ) : null}
                         {credential.Username ? (
                             <Button
                                 size="sm"
@@ -241,7 +276,8 @@ export function CredentialDetailPanel({
                 ) : null}
             </View>
 
-            {!passkeyOnly ? (
+            {sshKey ? <SSHKeyDetails credential={credential} /> : null}
+            {!passkeyOnly && !sshKey ? (
                 <CopyableField
                     label="Username"
                     value={credential.Username}
@@ -252,7 +288,7 @@ export function CredentialDetailPanel({
                     }
                 />
             ) : null}
-            {!passkeyOnly && credential.Password ? (
+            {!passkeyOnly && !sshKey && credential.Password ? (
                 <View className="mb-3">
                     <CopyableField
                         label="Password"

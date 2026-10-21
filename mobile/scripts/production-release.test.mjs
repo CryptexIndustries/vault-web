@@ -143,6 +143,28 @@ test("release configuration rejects accidental offline defaults and non-HTTPS en
 
 const appConfig = JSON.parse(readFileSync(new URL("../app.json", import.meta.url), "utf8")).expo;
 const appVersionCode = appConfig.android.versionCode;
+// aapt2 xmltree output for the SSH agent approver components, indentation included.
+const agentComponents = `          E: service (line=8)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.cryptex.vault.agent.CryptexAgentForegroundService" (Raw: "com.cryptex.vault.agent.CryptexAgentForegroundService")
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
+            A: http://schemas.android.com/apk/res/android:foregroundServiceType(0x01010599)=0x40000000
+              E: property (line=12)
+                A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" (Raw: "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE")
+                A: http://schemas.android.com/apk/res/android:value(0x01010024)="Keeps a connection to the user's SSH agent relay so the user can approve SSH sign requests from their own computer" (Raw: "Keeps a connection to the user's SSH agent relay so the user can approve SSH sign requests from their own computer")
+          E: service (line=18)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.cryptex.vault.agent.CryptexAgentHeadlessService" (Raw: "com.cryptex.vault.agent.CryptexAgentHeadlessService")
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
+          E: receiver (line=22)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.cryptex.vault.agent.CryptexAgentDenyReceiver" (Raw: "com.cryptex.vault.agent.CryptexAgentDenyReceiver")
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
+          E: receiver (line=27)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.cryptex.vault.agent.CryptexAgentBootReceiver" (Raw: "com.cryptex.vault.agent.CryptexAgentBootReceiver")
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+              E: intent-filter (line=30)
+                  E: action (line=31)
+                    A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.action.BOOT_COMPLETED" (Raw: "android.intent.action.BOOT_COMPLETED")
+                  E: action (line=32)
+                    A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.action.MY_PACKAGE_REPLACED" (Raw: "android.intent.action.MY_PACKAGE_REPLACED")`;
 const manifest = `A: package="com.cryptexindustries.vault"
 A: android:versionName(0x0101021c)="${appConfig.version}"
 A: android:versionCode(0x0101021b)=${appVersionCode}
@@ -168,7 +190,8 @@ A: android:permission(0x01010006)="android.permission.BIND_ACCESSIBILITY_SERVICE
 E: service
 A: android:name(0x01010003)="com.cryptex.vault.credentials.CryptexCredentialProviderService"
 A: android:exported(0x01010010)=true
-A: android:permission(0x01010006)="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"`;
+A: android:permission(0x01010006)="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
+${agentComponents}`;
 
 test("APK policy rejects debuggable, test-only, wrong-package, E2E and native-test artifacts", () => {
     assertProductionManifest(manifest);
@@ -206,6 +229,25 @@ test("nested metadata cannot stand in for a component name or bind permission", 
     const misleadingName = manifest.replace(name,
         'A: android:name(0x01010003)="com.cryptex.vault.credentials.OtherService"\nE: meta-data\n' + name);
     assert.throws(() => assertProductionManifest(misleadingName), /Missing security-sensitive component/);
+});
+
+test("APK policy keeps the SSH agent service private and special-use only", () => {
+    const service = '"com.cryptex.vault.agent.CryptexAgentForegroundService" (Raw: "com.cryptex.vault.agent.CryptexAgentForegroundService")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false';
+    assert.throws(() => assertProductionManifest(manifest.replace(service, service.replace("=false", "=true"))), /SSH agent service must not be exported/);
+    assert.throws(() => assertProductionManifest(manifest.replace("=0x40000000", "=0x40000001")), /specialUse/);
+    assert.throws(() => assertProductionManifest(manifest.replace("PROPERTY_SPECIAL_USE_FGS_SUBTYPE\"", "PROPERTY_OTHER\"")), /subtype property/);
+    // A property moved out of the service element does not count.
+    const property = manifest.match(/^ {14}E: property[^\n]*\n(?: {16}A:[^\n]*\n)+/m)[0];
+    const detached = manifest.replace(property, "").replace("          E: service (line=18)", property.replace(/^ {14}/gm, "          ").replace(/^ {16}/gm, "            ") + "          E: service (line=18)");
+    assert.throws(() => assertProductionManifest(detached), /subtype property/);
+    for (const name of ["CryptexAgentHeadlessService", "CryptexAgentDenyReceiver"]) {
+        const exported = new RegExp(`(${name}" \\(Raw: "[^"]+"\\)\\n {12}A: [^\\n]*:exported\\(0x01010010\\)=)false`);
+        assert.match(manifest, exported);
+        assert.throws(() => assertProductionManifest(manifest.replace(exported, "$1true")), new RegExp(`${name} must not be exported`));
+    }
+    assert.throws(() => assertProductionManifest(manifest.replace("android.intent.action.MY_PACKAGE_REPLACED\"", "android.intent.action.VIEW\"")), /boot and update broadcasts/);
+    assert.throws(() => assertProductionManifest(manifest.replace("CryptexAgentBootReceiver\"", "OtherReceiver\"")), /Missing security-sensitive component/);
+    assert.throws(() => assertProductionManifest(manifest + '\nE: uses-permission\nA: android:name(0x01010003)="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"'), /battery optimization/);
 });
 
 test("APK policy requires the application to use the reviewed network resource", () => {

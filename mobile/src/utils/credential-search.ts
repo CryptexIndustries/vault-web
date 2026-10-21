@@ -1,5 +1,6 @@
 import { CredentialConstants } from "@cryptex-industries/vault-core/consts";
 import type { VaultCredential } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { sshKeyInfo } from "@/utils/ssh-keys";
 
 type ParsedSearchQuery = {
     nameTerms: string[];
@@ -109,6 +110,8 @@ export function filterCredentials(
             credential.Passkey?.RPID ?? "",
             credential.Passkey?.UserName ?? "",
             credential.Passkey?.UserDisplayName ?? "",
+            credential.SSHKey?.Comment ?? "",
+            sshKeyInfo(credential)?.fingerprint ?? "",
             ...tags,
         ];
 

@@ -1,3 +1,2 @@
-// The security worker bundle isn't tracked. Build it before tests import it.
-module.exports = () =>
-    require("../scripts/build-security-worker.cjs").buildSecurityWorker();
+// The worker bundles aren't tracked. Build them before tests import them.
+module.exports = () => require("../scripts/build-workers.cjs").buildWorkers();

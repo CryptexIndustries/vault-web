@@ -67,6 +67,7 @@ import {
     mergeReceivedVaultIntoActive,
     receiverSyncKeyMaterial,
 } from "@/utils/link-merge";
+import { decodeReceivedVault } from "@/utils/received-vault";
 import { onlineServicesLog } from "@/utils/logging";
 import { Screen } from "@/components/screen";
 import {
@@ -720,11 +721,7 @@ function LinkReceiveContent({
         sealInFlightRef.current = true;
         setSaving(true);
         try {
-            const raw = VaultUtilTypes.Vault.decode(rawVaultBinary);
-            const vault = Object.assign(new Vault(), raw);
-            vault.LinkedDevices = LinkedDevices.fromGeneric(
-                vault.LinkedDevices,
-            );
+            const vault = decodeReceivedVault(rawVaultBinary);
 
             if (pendingSyncKeysRef.current) {
                 vault.LinkedDevices.SyncSigningPublicKey =

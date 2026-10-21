@@ -1,5 +1,5 @@
 import * as React from "react";
-import { View, type ViewProps } from "react-native";
+import { Pressable, View, type ViewProps } from "react-native";
 import { AlertCircle, CheckCircle2, Info, LoaderCircle } from "lucide-react-native";
 
 import { Icon } from "@/components/ui/icon";
@@ -15,6 +15,8 @@ type InlineNoticeProps = ViewProps & {
     message: string;
     className?: string;
     autoScroll?: boolean;
+    /** A way to fix the problem in place, shown under the message. */
+    action?: { label: string; onPress: () => void; testID?: string };
 };
 
 const toneStyles: Record<
@@ -58,6 +60,7 @@ function InlineNotice({
     message,
     className,
     autoScroll = false,
+    action,
     ...props
 }: InlineNoticeProps) {
     const style = toneStyles[tone];
@@ -89,9 +92,22 @@ function InlineNotice({
                 className="mt-0.5"
                 accessibilityElementsHidden
             />
-            <Text className={cn("flex-1 text-sm leading-5", style.text)}>
-                {message}
-            </Text>
+            <View className="flex-1">
+                <Text className={cn("text-sm leading-5", style.text)}>{message}</Text>
+                {action ? (
+                    <Pressable
+                        testID={action.testID}
+                        accessibilityRole="button"
+                        onPress={action.onPress}
+                        hitSlop={8}
+                        className="mt-2 self-start"
+                    >
+                        <Text className="text-sm font-semibold text-primary">
+                            {action.label}
+                        </Text>
+                    </Pressable>
+                ) : null}
+            </View>
         </View>
     );
 }

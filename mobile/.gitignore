@@ -8,8 +8,8 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
-# Built by scripts/build-security-worker.cjs
-src/workers/security-analysis.generated.json
+# Built by scripts/build-workers.cjs
+src/workers/*.generated.json
 
 # Native
 .kotlin/

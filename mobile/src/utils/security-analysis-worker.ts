@@ -35,6 +35,7 @@ export function startSecurityAnalysis(
         if (active) onError();
     };
     // Copy only the fields the analyzer needs, never attachments or other secrets.
+    // SSH keys are checked by size, so only their public half crosses over.
     const input = credentials.map(
         ({
             ID,
@@ -45,6 +46,7 @@ export function startSecurityAnalysis(
             URL,
             DatePasswordChangedTimestamp,
             Deleted,
+            SSHKey,
         }) => ({
             ID,
             Type,
@@ -54,6 +56,9 @@ export function startSecurityAnalysis(
             URL,
             DatePasswordChangedTimestamp,
             Deleted,
+            SSHKey: SSHKey
+                ? { PrivateKey: "", PublicKey: SSHKey.PublicKey, Comment: "" }
+                : undefined,
         }),
     );
     scheduleOnRuntime(runtime, () => {

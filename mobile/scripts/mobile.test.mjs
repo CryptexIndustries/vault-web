@@ -115,7 +115,7 @@ test("dev forwards Expo options and cannot inherit the E2E bridge", () => {
 test("check runs lint, strict types, Jest, CLI tests, and a temporary export", () => {
     const calls = capture(["check"]);
     assert.deepEqual(calls.slice(0, 4).map(call => call[1]), [
-        ["exec", "oxlint"], ["scripts/build-security-worker.cjs"], ["exec", "tsgo", "--noEmit", "--strict"],
+        ["exec", "oxlint"], ["scripts/build-workers.cjs"], ["exec", "tsgo", "--noEmit", "--strict"],
         ["exec", "jest", "--config", "./jest.config.ts"],
     ]);
     assert.equal(calls[1][0], process.execPath);
@@ -170,7 +170,7 @@ test("all former Maestro flows retain their mapping and JUnit output", () => {
 });
 
 test("every device suite requires explicit selection before running anything", () => {
-    for (const suite of [...Object.keys(flows), "crypto", "native", "autofill-accessibility", "provider-auto-lock"]) {
+    for (const suite of [...Object.keys(flows), "crypto", "native", "autofill-accessibility", "provider-auto-lock", "ssh-keys", "ssh-agent"]) {
         assert.throws(() => capture(["e2e", suite]), /Select a device/);
     }
 });
@@ -195,7 +195,7 @@ test("fixture and target remain available without a device", () => {
 
 test("protected devices fail before any device command, including either sync role", () => {
     const env = { ANDROID_SERIAL: "protected", CRYPTEX_E2E_PROTECTED_DEVICE: "protected" };
-    for (const suite of [...Object.keys(flows), "crypto", "native", "autofill-accessibility", "provider-auto-lock"]) {
+    for (const suite of [...Object.keys(flows), "crypto", "native", "autofill-accessibility", "provider-auto-lock", "ssh-keys", "ssh-agent"]) {
         assert.throws(() => capture(["e2e", suite], env), /protected device/);
     }
     for (const protectedRole of ["E2E_SYNC_SENDER", "E2E_SYNC_RECEIVER"]) {
@@ -282,6 +282,20 @@ test("provider auto-lock is reachable and keeps explicit device selection", () =
     assert.deepEqual(args, ["e2e/run-provider-auto-lock.sh"]);
     assert.equal(options.env.ANDROID_SERIAL, "emulator-5560");
     assert.throws(() => capture(["e2e", "provider-auto-lock", "extra"], { ANDROID_SERIAL: "emulator-5560" }));
+});
+
+test("SSH keys use their runner, which checks the saved key file", () => {
+    const [[binary, args, options]] = capture(["e2e", "ssh-keys", "--device", "emulator-5560", "--include-tags", "quick"]);
+    assert.equal(binary, "bash");
+    assert.deepEqual(args, ["e2e/run-ssh-keys.sh", "--include-tags", "quick"]);
+    assert.equal(options.env.MAESTRO_DEVICE, "emulator-5560");
+});
+
+test("the SSH agent suite runs the host relay and agent through its runner", () => {
+    const [[binary, args, options]] = capture(["e2e", "ssh-agent", "--device", "emulator-5560", "--include-tags", "quick"]);
+    assert.equal(binary, process.execPath);
+    assert.deepEqual(args, ["e2e/run-ssh-agent.mjs", "--format", "junit", "--output", "e2e/results/ssh-agent.xml", "--include-tags", "quick"]);
+    assert.equal(options.env.MAESTRO_DEVICE, "emulator-5560");
 });
 
 test("unknown commands, suites and unexpected non-Maestro arguments fail", () => {

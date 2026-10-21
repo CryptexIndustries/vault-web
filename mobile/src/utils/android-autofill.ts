@@ -3,7 +3,10 @@ import {
     credentialMatchesPageUrl,
     normalizeAndroidAppUri,
 } from "@cryptex-industries/vault-core/credential-url";
-import { CredentialURLMatchMode } from "@cryptex-industries/vault-core/proto";
+import {
+    CredentialURLMatchMode,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 import type { VaultCredential } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type { PendingAndroidCredentialRequest } from "@/utils/android-credentials";
 
@@ -86,6 +89,15 @@ export function buildAutofillTarget(
     };
 }
 
+/** Logins that can fill a form. SSH keys are never offered, even with a password. */
+export function isAutofillCandidate(credential: VaultCredential): boolean {
+    return (
+        !credential.Deleted &&
+        credential.Type !== ItemType.SSHKey &&
+        !!credential.Password
+    );
+}
+
 export function matchingAutofillCredentials(
     credentials: readonly VaultCredential[],
     target: AutofillTarget,
@@ -93,8 +105,7 @@ export function matchingAutofillCredentials(
     if (target.warningType === "unverified-web-scheme") return [];
     return credentials.filter(
         (credential) =>
-            !credential.Deleted &&
-            !!credential.Password &&
+            isAutofillCandidate(credential) &&
             (target.pageUrl != null
                 ? credentialMatchesPageUrl(credential, target.pageUrl, {
                       ignorePort: true,

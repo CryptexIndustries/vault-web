@@ -26,7 +26,7 @@ async function metroConfig(distribution, defaultResolveRequest, projectRoot = mo
             resolver: { resolveRequest: defaultResolveRequest, assetExts: ["wasm"], sourceExts: ["js"] },
         }) };
         if (name === "nativewind/metro") return { withNativeWind: config => config };
-        if (name === "./scripts/build-security-worker.cjs") return { buildSecurityWorker: async () => {} };
+        if (name === "./scripts/build-workers.cjs") return { buildWorkers: async () => {} };
         return require(name);
     }, { resolve: require.resolve });
     return evaluate("metro.config.js", distribution, loader, projectRoot);

@@ -10,6 +10,8 @@ export type MembershipAccess = {
     canPromoteDevices?: boolean;
     managedEncryptedBackups?: boolean;
     passwordSharing?: boolean;
+    sshAgentRelay?: boolean;
+    maxSshAgents?: number;
 };
 
 const vaultBenefits = [
@@ -22,6 +24,7 @@ const vaultBenefits = [
     "Manual encrypted backups",
     "Peer-to-peer synchronization",
     "Self-hosted sync infrastructure",
+    "SSH keys and the SSH agent on your own relay",
 ];
 
 export function MembershipBenefits({
@@ -49,6 +52,13 @@ export function MembershipBenefits({
             description:
                 "Send a secret to anyone, even people without Cryptex Vault. It opens once, then it's deleted.",
             included: upgrading || access?.passwordSharing === true,
+        },
+        {
+            title: "Hosted SSH agent relay",
+            description: access?.maxSshAgents
+                ? `Approve SSH logins on up to ${access.maxSshAgents} Linux machines without running your own relay.`
+                : "Approve SSH logins on your Linux machines without running your own relay.",
+            included: upgrading || access?.sshAgentRelay === true,
         },
         {
             title: "Online Services device management",

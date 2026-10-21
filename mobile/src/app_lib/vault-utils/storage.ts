@@ -1086,6 +1086,9 @@ export const serializeVault = async (
 ) => {
     const cleanVault = Object.assign(new Vault(), vaultInstance);
     cleanVault.LinkedDevices = new LinkedDevices();
+    // The SSH agent approver identity (field 14) stays on this device; it
+    // never goes into a backup or export file.
+    cleanVault.AgentApprover = undefined;
 
     const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();
 

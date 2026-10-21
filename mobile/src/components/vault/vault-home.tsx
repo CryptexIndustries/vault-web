@@ -23,7 +23,8 @@ import {
     ChevronRight,
     Copy,
     Folder,
-    KeyRound,
+    FileKey,
+    Key,
     Search,
     Settings2,
     ShieldCheck,
@@ -39,7 +40,8 @@ import {
 import { ItemType } from "@cryptex-industries/vault-core/proto";
 import { unlockedVaultAtom, vaultCredentialsAtom } from "@/utils/atoms";
 import { persistVaultMutation } from "@/utils/vault-mutations";
-import { copySecretToClipboard } from "@/utils/clipboard";
+import { copySecretToClipboard, copyTextToClipboard } from "@/utils/clipboard";
+import { sshPublicKeyLine } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import {
     sortCredentials,
     type CredentialSort,
@@ -51,9 +53,12 @@ import {
     DialogHeader,
 } from "@/components/ui/dialog";
 import { CredentialDetailPanel } from "@/components/vault/credential-detail-panel";
+import { AddItemSheet, openNewItem } from "@/components/vault/add-item-sheet";
+import { isSSHKeyItem, SSH_KEYS_FILTER, sshKeySummary } from "@/utils/ssh-keys";
 import { colors } from "@/theme";
 
-type DirectoryFilter = "all" | "root" | string;
+/** A directory ID, or all items, items without a directory, or SSH keys. */
+type DirectoryFilter = "all" | "root" | typeof SSH_KEYS_FILTER | string;
 
 const SORT_OPTIONS: Array<{ value: CredentialSort; label: string }> = [
     { value: "modified-desc", label: "Recently modified" },
@@ -73,6 +78,13 @@ function filterDirectoryId(filter: DirectoryFilter): string {
     return filter === "root" ? "" : filter;
 }
 
+/** The directory a new item starts in when added from this filter. */
+function newItemDirectoryId(filter: DirectoryFilter): string {
+    return filter === "all" || filter === SSH_KEYS_FILTER
+        ? ""
+        : filterDirectoryId(filter);
+}
+
 export function VaultHomeScreen({
     selectedId: selectedIdProp,
 }: { selectedId?: string | null } = {}) {
@@ -85,6 +97,7 @@ export function VaultHomeScreen({
     const [sort, setSort] = useState<CredentialSort>("modified-desc");
     const [filterOpen, setFilterOpen] = useState(false);
     const [sortOpen, setSortOpen] = useState(false);
+    const [addOpen, setAddOpen] = useState(false);
     const [moveIDs, setMoveIDs] = useState<string[]>([]);
     const [selectedIDs, setSelectedIDs] = useState<Set<string>>(new Set());
     const [selectedId, setSelectedId] = useState<string | null>(
@@ -116,6 +129,7 @@ export function VaultHomeScreen({
         if (
             filter !== "all" &&
             filter !== "root" &&
+            filter !== SSH_KEYS_FILTER &&
             !directories.some((entry) => entry.ID === filter)
         ) {
             setFilter("all");
@@ -129,9 +143,13 @@ export function VaultHomeScreen({
                     result.all = (result.all ?? 0) + 1;
                     const key = item.DirectoryID || "root";
                     result[key] = (result[key] ?? 0) + 1;
+                    if (isSSHKeyItem(item)) {
+                        result[SSH_KEYS_FILTER] =
+                            (result[SSH_KEYS_FILTER] ?? 0) + 1;
+                    }
                     return result;
                 },
-                { all: 0, root: 0 },
+                { all: 0, root: 0, [SSH_KEYS_FILTER]: 0 },
             ),
         [activeCredentials],
     );
@@ -139,9 +157,12 @@ export function VaultHomeScreen({
         () =>
             filter === "all"
                 ? activeCredentials
-                : activeCredentials.filter(
-                      (item) => item.DirectoryID === filterDirectoryId(filter),
-                  ),
+                : filter === SSH_KEYS_FILTER
+                  ? activeCredentials.filter(isSSHKeyItem)
+                  : activeCredentials.filter(
+                        (item) =>
+                            item.DirectoryID === filterDirectoryId(filter),
+                    ),
         [activeCredentials, filter],
     );
     const visible = useMemo(
@@ -179,16 +200,16 @@ export function VaultHomeScreen({
             ? "All items"
             : filter === "root"
               ? "No directory"
-              : (directories.find((item) => item.ID === filter)?.Name ??
-                "Directory");
+              : filter === SSH_KEYS_FILTER
+                ? "SSH keys"
+                : (directories.find((item) => item.ID === filter)?.Name ??
+                  "Directory");
+    const sshFilter = filter === SSH_KEYS_FILTER;
 
     const addCredential = () =>
-        router.push({
-            pathname: "/(app)/(tabs)/vault/new",
-            params: {
-                directoryId: filter === "all" ? "" : filterDirectoryId(filter),
-            },
-        });
+        sshFilter
+            ? openNewItem("ssh-key", newItemDirectoryId(filter))
+            : setAddOpen(true);
 
     const toggleSelected = useCallback(
         (id: string) =>
@@ -323,7 +344,7 @@ export function VaultHomeScreen({
             >
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Filter by directory, ${filterLabel}`}
+                    accessibilityLabel={`Filter items, ${filterLabel}`}
                     onPress={() => setFilterOpen(true)}
                     style={{
                         minHeight: 48,
@@ -461,14 +482,17 @@ export function VaultHomeScreen({
                     fontWeight: "500",
                     letterSpacing: -0.8,
                     textAlign: "center",
-                    marginBottom: activeCredentials.length ? 0 : 28,
+                    marginBottom:
+                        activeCredentials.length || sshFilter ? 0 : 28,
                 }}
             >
-                {activeCredentials.length
-                    ? "This directory is empty."
-                    : "Your vault starts here."}
+                {sshFilter
+                    ? "No SSH keys yet."
+                    : activeCredentials.length
+                      ? "This directory is empty."
+                      : "Your vault starts here."}
             </UnlockedText>
-            {activeCredentials.length ? (
+            {activeCredentials.length || sshFilter ? (
                 <UnlockedText
                     style={{
                         color: colors.muted,
@@ -479,7 +503,9 @@ export function VaultHomeScreen({
                         marginBottom: 28,
                     }}
                 >
-                    Add a credential here, or move one from its item menu.
+                    {sshFilter
+                        ? "Generate a new key or add one you already use."
+                        : "Add a credential here, or move one from its item menu."}
                 </UnlockedText>
             ) : null}
             <Button
@@ -487,11 +513,13 @@ export function VaultHomeScreen({
                 textClassName="text-[#111520]"
                 onPress={addCredential}
             >
-                {activeCredentials.length
-                    ? "Add item here"
-                    : "Add your first item"}
+                {sshFilter
+                    ? "Add SSH key"
+                    : activeCredentials.length
+                      ? "Add item here"
+                      : "Add your first item"}
             </Button>
-            {!activeCredentials.length ? (
+            {!activeCredentials.length && !sshFilter ? (
                 <Button
                     variant="ghost"
                     className="mt-2 w-full"
@@ -612,6 +640,11 @@ export function VaultHomeScreen({
                 counts={counts}
                 directories={directories}
             />
+            <AddItemSheet
+                open={addOpen}
+                onOpenChange={setAddOpen}
+                directoryId={newItemDirectoryId(filter)}
+            />
             <SortSheet
                 open={sortOpen}
                 onOpenChange={setSortOpen}
@@ -692,6 +725,11 @@ function DirectoryFilterSheet({
             count: counts.all ?? 0,
         },
         {
+            id: SSH_KEYS_FILTER as DirectoryFilter,
+            name: "SSH keys",
+            count: counts[SSH_KEYS_FILTER] ?? 0,
+        },
+        {
             id: "root" as DirectoryFilter,
             name: "No directory",
             count: counts.root ?? 0,
@@ -705,7 +743,7 @@ function DirectoryFilterSheet({
     return (
         <Dialog open={open} onOpenChange={onOpenChange} placement="bottom">
             <DialogHeader>
-                <DialogTitle>Filter by directory</DialogTitle>
+                <DialogTitle>Filter items</DialogTitle>
             </DialogHeader>
             {options.map((item) => (
                 <Pressable
@@ -727,6 +765,15 @@ function DirectoryFilterSheet({
                 >
                     {item.id === "all" ? (
                         <ShieldCheck
+                            size={20}
+                            color={
+                                filter === item.id
+                                    ? colors.primary
+                                    : colors.muted
+                            }
+                        />
+                    ) : item.id === SSH_KEYS_FILTER ? (
+                        <FileKey
                             size={20}
                             color={
                                 filter === item.id
@@ -860,10 +907,12 @@ const VaultRow = memo(function VaultRow({
     onSelect: (item: VaultCredential) => void;
     onLongPress: (id: string) => void;
 }) {
-    const secondary =
-        item.Type === ItemType.Passkey && item.Passkey
-            ? `Passkey: ${item.Passkey.UserDisplayName || item.Passkey.UserName}`
-            : item.Username || (item.Notes ? "Secure note" : "No username");
+    const sshKey = isSSHKeyItem(item);
+    const secondary = sshKey
+        ? sshKeySummary(item)
+        : item.Type === ItemType.Passkey && item.Passkey
+          ? `Passkey: ${item.Passkey.UserDisplayName || item.Passkey.UserName}`
+          : item.Username || (item.Notes ? "Secure note" : "No username");
     return (
         <View
             style={{
@@ -908,6 +957,12 @@ const VaultRow = memo(function VaultRow({
                 >
                     {selected ? (
                         <Check size={17} color={colors.navigation} />
+                    ) : sshKey ? (
+                        <FileKey
+                            size={17}
+                            color={colors.primary}
+                            strokeWidth={1.8}
+                        />
                     ) : (
                         <UnlockedText
                             style={{
@@ -943,7 +998,7 @@ const VaultRow = memo(function VaultRow({
                             {item.Name || "Untitled"}
                         </UnlockedText>
                         {item.TOTP?.Secret ? (
-                            <KeyRound size={12} color={colors.primary} />
+                            <Key size={12} color={colors.primary} />
                         ) : null}
                     </View>
                     <UnlockedText
@@ -958,7 +1013,24 @@ const VaultRow = memo(function VaultRow({
                     </UnlockedText>
                 </View>
             </Pressable>
-            {item.Password ? (
+            {sshKey && item.SSHKey ? (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Copy ${item.Name || "item"} public key`}
+                    onPress={() =>
+                        void copyTextToClipboard(sshPublicKeyLine(item.SSHKey!))
+                    }
+                    android_ripple={{ color: colors.border }}
+                    style={{
+                        width: 48,
+                        height: 48,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    <Copy size={20} color={colors.muted} strokeWidth={1.7} />
+                </Pressable>
+            ) : item.Password ? (
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Copy ${item.Name || "item"} password`}

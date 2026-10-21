@@ -26,8 +26,12 @@ import {
     RotateCw,
     Search,
     Send,
+    Settings,
+    SquareTerminal,
     X,
 } from "lucide-react-native";
+import { agentRowSubtitle } from "@cryptex-industries/vault-core/agent/agent-format";
+import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
 import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import type { LinkedDevice } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { unlockedVaultAtom } from "@/utils/atoms";
@@ -63,6 +67,11 @@ import {
 import { DeviceNetwork } from "@/components/devices/device-network";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { colors } from "@/theme";
+import { useConnectedAgents } from "@/agent/use-agents";
+import { AgentRow, AgentSectionLabel } from "@/components/agents/agent-rows";
+import { AgentNotificationsNotice } from "@/components/agents/agent-notifications-notice";
+
+const DEVICE_SECTION_HEIGHT = 40;
 
 const ROOT_DESCRIPTION =
     "Root access allows this device to link and remove account devices, manage account recovery, and delete the Online Services account.";
@@ -227,6 +236,18 @@ export default function DevicesScreen() {
         () => filterDeviceNodes(scopedMap, deferredQuery, filter),
         [scopedMap, deferredQuery, filter],
     );
+    const connectedAgents = useConnectedAgents();
+    const visibleAgents = useMemo(() => {
+        if (filter !== "all" || scope !== "all") return [];
+        const text = deferredQuery.trim().toLowerCase();
+        return connectedAgents.agents.filter(
+            (agent) =>
+                !text ||
+                agent.Name.toLowerCase().includes(text) ||
+                agent.Hostname.toLowerCase().includes(text),
+        );
+    }, [connectedAgents.agents, deferredQuery, filter, scope]);
+    const showSections = connectedAgents.agents.length > 0;
     const linkedIds = useMemo(
         () =>
             new Set(
@@ -829,6 +850,109 @@ export default function DevicesScreen() {
                                     void quickConnect(local);
                                 }}
                                 resetKey={`${deferredQuery}:${filter}:${scope}`}
+                                headerHeight={
+                                    showSections ? DEVICE_SECTION_HEIGHT : 0
+                                }
+                                header={
+                                    showSections ? (
+                                        <AgentSectionLabel
+                                            title="Linked devices"
+                                            right={String(results.length)}
+                                            style={{
+                                                marginTop: 0,
+                                                height: DEVICE_SECTION_HEIGHT,
+                                            }}
+                                        />
+                                    ) : undefined
+                                }
+                                footer={
+                                    visibleAgents.length ? (
+                                        <View
+                                            testID="agent-list"
+                                            style={{ paddingBottom: 24 }}
+                                        >
+                                            <AgentSectionLabel
+                                                title="Connected agents"
+                                                right={
+                                                    <View
+                                                        style={{
+                                                            flexDirection: "row",
+                                                            alignItems: "center",
+                                                            gap: 6,
+                                                        }}
+                                                    >
+                                                        <Text
+                                                            style={{
+                                                                fontSize: 11,
+                                                                color: colors.muted,
+                                                            }}
+                                                        >
+                                                            {String(visibleAgents.length)}
+                                                        </Text>
+                                                        <Pressable
+                                                            testID="agent-relay-shortcut"
+                                                            accessibilityRole="button"
+                                                            accessibilityLabel="Agent relay settings"
+                                                            hitSlop={8}
+                                                            onPress={() =>
+                                                                router.push(
+                                                                    "/(app)/devices/connectivity/agent-relay",
+                                                                )
+                                                            }
+                                                            style={{
+                                                                width: 32,
+                                                                height: 32,
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                            }}
+                                                        >
+                                                            <Settings
+                                                                size={16}
+                                                                color={colors.muted}
+                                                                strokeWidth={1.8}
+                                                            />
+                                                        </Pressable>
+                                                    </View>
+                                                }
+                                            />
+                                            {visibleAgents.some(connectedAgents.approvedHere) ? (
+                                                <AgentNotificationsNotice
+                                                    style={{ marginBottom: 8 }}
+                                                />
+                                            ) : null}
+                                            {visibleAgents.map((agent) => (
+                                                <AgentRow
+                                                    key={agent.ID}
+                                                    id={agent.ID}
+                                                    name={sanitizeDisplayText(
+                                                        agent.Name || "Agent",
+                                                    )}
+                                                    subtitle={
+                                                        connectedAgents.statusLabel(
+                                                            agent,
+                                                        ) ??
+                                                        agentRowSubtitle(
+                                                            agent,
+                                                            connectedAgents.approvedHere(
+                                                                agent,
+                                                            ),
+                                                        )
+                                                    }
+                                                    disabled={pending}
+                                                    onPress={() =>
+                                                        router.push({
+                                                            pathname:
+                                                                "/(app)/devices/agents/[id]",
+                                                            params: {
+                                                                id: agent.ID,
+                                                            },
+                                                        })
+                                                    }
+                                                />
+                                            ))}
+                                        </View>
+                                    ) : undefined
+                                }
                             />
                         </Animated.View>
                     ) : null}
@@ -1017,7 +1141,7 @@ export default function DevicesScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle style={{ fontSize: 24 }}>
-                        Link a device
+                        Add
                     </UnlockedDialogTitle>
                 </DialogHeader>
                 <UnlockedMenuRow
@@ -1036,6 +1160,16 @@ export default function DevicesScreen() {
                     onPress={() => {
                         setLinkOpen(false);
                         router.push("/link-receive");
+                    }}
+                />
+                <UnlockedMenuRow
+                    testID="agent-connect"
+                    icon={SquareTerminal}
+                    title="Connect an agent"
+                    subtitle="Scan the code shown by cryptex-agent pair."
+                    onPress={() => {
+                        setLinkOpen(false);
+                        router.push("/(app)/devices/connect-agent");
                     }}
                 />
             </Dialog>

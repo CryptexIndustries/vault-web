@@ -9,6 +9,7 @@ Creating and using a local vault requires no account or subscription. Online Ser
 | Account and managed backup operations | `api.cryptex-vault.com` provides the Online Services API. Encrypted backup storage uses Backblaze B2. |
 | Device synchronization | Configured signaling and STUN/TURN servers connect devices. Connection settings allow custom servers; the vault transfers encrypted data. The default signaling endpoint is `neosignaling.cryptex-vault.com`. |
 | Passkey caller verification | Native Android callers can require a request to the relying-party website's Digital Asset Links file. Browser verification uses a bundled list. See [Android passkeys](../docs/ANDROID_PASSKEYS.md). |
+| SSH agent approval | A relay passes sign requests from the user's own `cryptex-agent` to this phone. The hosted relay `relay.cryptex-vault.com` requires Online Services; a self-hosted `relay-server` needs no account. The app connects only while this device approves at least one connected agent. Requests and answers are end-to-end encrypted; the relay sees connection metadata. |
 
 The public production endpoints and client keys are checked in at [release-config.json](../release-config.json). An unsigned source build needs no private signing key. Source builders can choose `--offline-services` to hide Online Services flows.
 

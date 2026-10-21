@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cryptex_agent_requests_channel">SSH requests</string>
+    <string name="cryptex_agent_service_channel">SSH agent status</string>
+    <string name="cryptex_agent_request_title">SSH request from %1$s</string>
+    <string name="cryptex_agent_request_locked">Unlock your vault to review it</string>
+    <string name="cryptex_agent_request_unlocked">Tap to review it</string>
+    <string name="cryptex_agent_request_public_title">Approval needed</string>
+    <string name="cryptex_agent_request_review">Review</string>
+    <string name="cryptex_agent_request_deny">Deny</string>
+    <string name="cryptex_agent_unknown_agent">an unknown agent</string>
+    <string name="cryptex_agent_service_title">Ready for SSH requests</string>
+    <string name="cryptex_agent_service_text">Connected agents can ask this phone to sign</string>
+</resources>

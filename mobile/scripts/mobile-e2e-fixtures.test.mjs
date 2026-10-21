@@ -11,7 +11,8 @@ const flows = new Map(readdirSync(directory).filter(name => name.endsWith(".yaml
     return [name, steps];
 }));
 const flatten = steps => steps.flatMap(step => [step,
-    ...flatten(step.runFlow?.commands ?? []), ...flatten(step.repeat?.commands ?? [])]);
+    ...flatten(step.runFlow?.commands ?? []), ...flatten(step.repeat?.commands ?? []),
+    ...flatten(step.retry?.commands ?? [])]);
 
 test("every Maestro fixture parses and each shared flow reference exists", () => {
     for (const [name, steps] of flows) {

@@ -25,6 +25,7 @@ import { err, ok, type Result } from "neverthrow";
 import { androidCredentials } from "@/utils/android-credentials";
 import { purgeSecretTempFiles } from "@/utils/secret-temp-files";
 import { teardownActiveSyncControllers } from "@/utils/active-sync-controllers";
+import { stopAgentSigning } from "@/agent/agent-locking";
 
 type SetUnlockedVault = (
     vault: Vault | ((previous: Vault) => Vault | Promise<Vault>),
@@ -61,13 +62,30 @@ function stopSecretReleases() {
     }
 }
 
+/**
+ * Stops SSH agent signing; the runtime forgets remembered approvals with
+ * it. Never throws: a failure here is logged and the lock goes on to save.
+ */
+function stopAgentSigningSafely() {
+    try {
+        stopAgentSigning();
+    } catch (error) {
+        vaultLog.error("Failed to stop SSH agent signing", { error });
+    }
+}
+
 export async function lockUnlockedVault({
     unlockedVaultMetadata,
     setUnlockedVault,
     setUnlockedVaultMetadata,
     syncConnectionController,
 }: LockUnlockedVaultOptions): Promise<Result<void, VaultLockError>> {
+    // First and synchronous: SSH agent signing stops before anything that
+    // can wait (the save, the backup flush) and stays stopped until the next
+    // unlock, whatever happens to the rest of the lock. Secret exports,
+    // copies and credential fills still in flight stop too.
     stopSecretReleases();
+    stopAgentSigningSafely();
     if (vaultStore.get(vaultLockStateAtom) === "locking")
         return err("VAULT_LOCK_FAILED");
     vaultStore.set(vaultLockStateAtom, "locking");
@@ -130,6 +148,7 @@ export async function lockVaultWithoutSaving(
         return err("VAULT_LOCK_FAILED");
 
     stopSecretReleases();
+    stopAgentSigningSafely();
     vaultStore.set(vaultLockStateAtom, "locking");
     try {
         // Revoke secret access before any cleanup that can wait on native code.

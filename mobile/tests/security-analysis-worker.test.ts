@@ -36,6 +36,34 @@ it("matches the shared report on 320 mixed credentials in an isolated background
                 now - (index % 2 ? 500 : 5) * 86400000,
         }),
     );
+    const fixtures = resolve(
+        __dirname,
+        "../../packages/vault-core/src/tests/fixtures/ssh",
+    );
+    for (const [ID, file] of [
+        ["ssh-rsa-2048", "rsa-pkcs8.key.pub"],
+        ["ssh-ed25519", "ed25519.key.pub"],
+    ]) {
+        const [algorithm, blob] = readFileSync(
+            resolve(fixtures, file!),
+            "utf8",
+        ).split(" ");
+        credentials.push({
+            ID: ID!,
+            Type: ItemType.SSHKey,
+            Deleted: false,
+            Name: ID!,
+            Username: "",
+            Password: "",
+            URL: "",
+            DatePasswordChangedTimestamp: 0,
+            SSHKey: {
+                PrivateKey: "",
+                PublicKey: `${algorithm} ${blob}`,
+                Comment: "",
+            },
+        });
+    }
     const worker = new Worker(
         `
         const { parentPort, workerData, threadId } = require('node:worker_threads');
@@ -68,6 +96,13 @@ it("matches the shared report on 320 mixed credentials in an isolated background
         expect(response.result.reuseGroups.length).toBeGreaterThan(0);
         expect(response.result.weakFindings.length).toBeGreaterThan(0);
         expect(response.result.ageFindings.length).toBeGreaterThan(0);
+        expect(response.result.weakSSHKeyFindings).toEqual([
+            expect.objectContaining({
+                credentialId: "ssh-rsa-2048",
+                keyLabel: "RSA 2048",
+                severity: "warning",
+            }),
+        ]);
     } finally {
         await worker.terminate();
     }

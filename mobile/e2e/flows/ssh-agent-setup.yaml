@@ -1,0 +1,24 @@
+appId: ${CRYPTEX_APP_ID}
+name: SSH agent approval setup
+# A vault with one SSH key, for ssh-agent.yaml. run-ssh-agent.mjs runs this
+# before it asks cryptex-agent for a pairing code: the code lasts three
+# minutes, and on a freshly booted emulator this part alone can take most of
+# that.
+---
+- runFlow: setup-vault.yaml
+- tapOn: Add item
+- tapOn:
+    id: add-item-ssh-key
+- extendedWaitUntil:
+    visible:
+      id: ssh-key-generated
+    timeout: 30000
+- tapOn: SSH key name
+- inputText: Agent key
+- hideKeyboard
+- tapOn:
+    id: ssh-key-submit
+- extendedWaitUntil:
+    visible: Item details
+    timeout: 30000
+- tapOn: Back

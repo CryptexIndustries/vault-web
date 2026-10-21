@@ -35,6 +35,7 @@ import { getCachedAutoLockMinutes, loadAutoLockMinutes } from "@/utils/auto-lock
 import { colors } from "@/theme";
 import { ensureSecretTempFilesReady } from "@/utils/secret-temp-files";
 import { bindOnlineServicesQueryCache } from "@/utils/online-services-query-cache";
+import { AgentRuntimeBridge } from "@/agent/agent-runtime-bridge";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
     /* already prevented / unavailable */
@@ -131,6 +132,7 @@ export default function RootLayout() {
                 <JotaiProvider store={vaultStore}>
                     <CredentialRequestWatcher />
                     <CredentialProviderBridge />
+                    <AgentRuntimeBridge />
                     <trpcReact.Provider
                         client={trpcClient}
                         queryClient={queryClient}

@@ -4,7 +4,7 @@
     "private": true,
     "license": "AGPL-3.0-only",
     "packageManager": "pnpm@11.25.0",
-    "main": "expo-router/entry",
+    "main": "index.js",
     "expo": {
         "autolinking": {
             "android": {

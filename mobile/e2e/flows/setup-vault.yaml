@@ -13,20 +13,31 @@ appId: ${CRYPTEX_APP_ID}
     commands:
       - tapOn: Wait
 - assertVisible: Create vault
-- tapOn: Vault name
-- inputText: E2E Vault
-- hideKeyboard
-- tapOn: Master password
-- eraseText: 100
-- inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
-- tapOn:
-    id: confirm-master-password
-- eraseText: 100
-- inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
-- tapOn: Continue
-- assertVisible: Additional key protection
+# Maestro's hideKeyboard always presses Back. Right after a fresh emulator
+# boot the keyboard can come up late; that Back then sends the app to the
+# background, and the form is empty when it comes back. Fill the form again
+# from the start when that happens.
+- retry:
+    maxRetries: 2
+    commands:
+      - launchApp:
+          stopApp: false
+      - assertVisible: Create vault
+      - tapOn: Vault name
+      - eraseText: 100
+      - inputText: E2E Vault
+      - hideKeyboard
+      - tapOn: Master password
+      - eraseText: 100
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn:
+          id: confirm-master-password
+      - eraseText: 100
+      - inputText: CorrectHorseBatteryStaple42
+      - hideKeyboard
+      - tapOn: Continue
+      - assertVisible: Additional key protection
 - tapOn:
     id: create-vault
 - runFlow:

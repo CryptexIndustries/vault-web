@@ -1,0 +1,402 @@
+import { useMemo, useState } from "react";
+import { Pressable, View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useAtomValue } from "jotai";
+import { Clock, GitCommitHorizontal, KeyRound, MoreHorizontal, PenLine } from "lucide-react-native";
+import {
+    revokeAgent,
+    setAgentPaused,
+    updateAgentKeys,
+} from "@cryptex-industries/vault-core/agent/agent-actions";
+import { RELAY_FORGOT_AGENT_TEXT } from "@cryptex-industries/vault-core/agent/runtime";
+import {
+    agentKeyOptions,
+    formatAgo,
+    historyTitle,
+    machineLabel,
+    outcomeLabel,
+    relayLabel,
+} from "@cryptex-industries/vault-core/agent/agent-format";
+import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
+import { sshKeyItems } from "@cryptex-industries/vault-core/agent/vault-agents";
+import { AgentRequestKind, type AgentRequestRecord } from "@cryptex-industries/vault-core/proto";
+
+import { Dialog, DialogDescription, DialogHeader } from "@/components/ui/dialog";
+import { InlineNotice } from "@/components/inline-notice";
+import { Separator } from "@/components/ui/separator";
+import {
+    UnlockedButton as Button,
+    UnlockedDialogTitle as DialogTitle,
+    UnlockedTaskScreen,
+    UnlockedText as Text,
+} from "@/components/unlocked/unlocked-ui";
+import { useUnlockedConfirmation } from "@/components/unlocked/confirmation-sheet";
+import { useUnlockedSnackbar } from "@/components/unlocked/unlocked-snackbar";
+import {
+    AgentGlyph,
+    AgentSectionLabel,
+    InfoCard,
+    KeyPicker,
+    KeyRow,
+} from "@/components/agents/agent-rows";
+import { AgentNotificationsNotice } from "@/components/agents/agent-notifications-notice";
+import { agentRuntime } from "@/agent/agent-app";
+import { changeAgent, revokeAgentInVault } from "@/agent/agent-vault";
+import { useConnectedAgents } from "@/agent/use-agents";
+import { env } from "@/env";
+import { sshKeyInfo } from "@/utils/ssh-keys";
+import { unlockedVaultAtom } from "@/utils/atoms";
+import { colors } from "@/theme";
+import { vaultLog } from "@/utils/logging";
+
+const RECENT_COUNT = 5;
+
+function HistoryRow({ entry }: { entry: AgentRequestRecord }) {
+    const Icon =
+        entry.Kind === AgentRequestKind.AgentRequestSignature
+            ? entry.Namespace === "git"
+                ? GitCommitHorizontal
+                : PenLine
+            : KeyRound;
+    return (
+        <View
+            style={{
+                minHeight: 64,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+            }}
+        >
+            <View
+                style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondary,
+                }}
+            >
+                <Icon size={17} color={colors.muted} strokeWidth={1.8} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontSize: 14 }}>
+                    {historyTitle(entry)}
+                </Text>
+                <Text
+                    numberOfLines={1}
+                    style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}
+                >
+                    {`${outcomeLabel(entry.Outcome)}, ${formatAgo(entry.Timestamp).toLowerCase()}`}
+                </Text>
+            </View>
+        </View>
+    );
+}
+
+export default function AgentScreen() {
+    const { id } = useLocalSearchParams<{ id: string }>();
+    const vault = useAtomValue(unlockedVaultAtom);
+    const { agents, approvedHere } = useConnectedAgents();
+    const confirm = useUnlockedConfirmation();
+    const showSnackbar = useUnlockedSnackbar();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState<string[]>([]);
+    const [saving, setSaving] = useState(false);
+    const [showAll, setShowAll] = useState(false);
+    const [pausing, setPausing] = useState(false);
+    const agent = agents.find((item) => item.ID === id);
+    const keys = useMemo(() => agentKeyOptions(sshKeyItems(vault), sshKeyInfo), [vault]);
+
+    if (!agent) {
+        return (
+            <UnlockedTaskScreen title="Agent">
+                <Text style={{ color: colors.muted }}>
+                    This agent was revoked or isn't in this vault anymore.
+                </Text>
+            </UnlockedTaskScreen>
+        );
+    }
+
+    const here = approvedHere(agent);
+    const name = sanitizeDisplayText(agent.Name || "Agent");
+
+    const saveKeys = async () => {
+        setSaving(true);
+        try {
+            await updateAgentKeys(
+                agent,
+                sshKeyItems(vault).filter((item) => draft.includes(item.ID)),
+                {
+                    sendKeys: (agentId, input) => agentRuntime.sendKeys(agentId, input),
+                    changeAgent,
+                },
+            );
+            setEditing(false);
+            showSnackbar("Keys updated");
+        } catch {
+            showSnackbar("Couldn't update the keys. Check your connection and try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const revoke = async () => {
+        try {
+            const { relayRevoked } = await revokeAgent(agent, {
+                approvedHere: here,
+                unregister: (agentId) => agentRuntime.unregister(agentId),
+                hostedRelayUrl: env.RELAY_URL,
+                fetch: (...args) => fetch(...args),
+                markRevoked: revokeAgentInVault,
+                log: (message, detail) => vaultLog.info(`Agent: ${message}`, { detail }),
+            });
+            showSnackbar(
+                relayRevoked
+                    ? "Agent revoked"
+                    : "Agent revoked. The relay will be told when the approving device syncs.",
+            );
+            router.back();
+        } catch {
+            showSnackbar("Couldn't revoke the agent. Try again.");
+        }
+    };
+
+    const confirmRevoke = () =>
+        confirm({
+            title: `Revoke ${name}?`,
+            description:
+                "The agent can't ask for signatures anymore. To use it again, pair it again with cryptex-agent pair.",
+            confirmLabel: "Revoke agent",
+            cancelLabel: "Cancel",
+            destructive: true,
+            onConfirm: () => void revoke(),
+        });
+
+    const paused = agent.Paused;
+    const relayForgot = here && agentRuntime.relayForgot(agent.ID);
+
+    const togglePaused = async () => {
+        setPausing(true);
+        try {
+            await setAgentPaused(agent.ID, !paused, { changeAgent, runtime: agentRuntime });
+            showSnackbar(paused ? "Agent resumed" : "Agent paused");
+        } catch {
+            showSnackbar(
+                paused ? "Couldn't resume the agent. Try again." : "Couldn't pause the agent. Try again.",
+            );
+        } finally {
+            setPausing(false);
+        }
+    };
+
+    if (editing) {
+        return (
+            <UnlockedTaskScreen
+                title="Edit keys"
+                onBack={() => setEditing(false)}
+                footer={
+                    <Button
+                        testID="agent-keys-save"
+                        loading={saving}
+                        loadingLabel="Saving…"
+                        disabled={!draft.length}
+                        onPress={() => void saveKeys()}
+                    >
+                        Save keys
+                    </Button>
+                }
+            >
+                <View className="w-full max-w-[720px] self-center">
+                    <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
+                        {`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
+                    </Text>
+                    <AgentSectionLabel
+                        title="Keys this agent can use"
+                        right={`${draft.length} of ${keys.length}`}
+                    />
+                    <KeyPicker
+                        keys={keys}
+                        selected={draft}
+                        onChange={setDraft}
+                        disabled={saving}
+                    />
+                </View>
+            </UnlockedTaskScreen>
+        );
+    }
+
+    const history = showAll ? agent.History : agent.History.slice(0, RECENT_COUNT);
+    return (
+        <UnlockedTaskScreen
+            title="Agent"
+            actions={
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {here ? (
+                        <Pressable
+                            testID="agent-edit-keys"
+                            accessibilityRole="button"
+                            accessibilityLabel="Edit keys"
+                            onPress={() => {
+                                setDraft(agent.CredentialIDs);
+                                setEditing(true);
+                            }}
+                            style={{ minHeight: 48, paddingHorizontal: 12, justifyContent: "center" }}
+                        >
+                            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
+                                Edit keys
+                            </Text>
+                        </Pressable>
+                    ) : null}
+                    <Pressable
+                        testID="agent-menu"
+                        accessibilityRole="button"
+                        accessibilityLabel="More agent actions"
+                        onPress={() => setMenuOpen(true)}
+                        style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
+                    >
+                        <MoreHorizontal size={22} color={colors.foreground} />
+                    </Pressable>
+                </View>
+            }
+        >
+            <View className="w-full max-w-[720px] self-center">
+                <View className="mb-4 flex-row items-center gap-3.5">
+                    <AgentGlyph variant="identity" />
+                    <View className="min-w-0 flex-1">
+                        <Text
+                            className="text-2xl font-medium tracking-[-0.7px] text-foreground"
+                            accessibilityRole="header"
+                        >
+                            {name}
+                        </Text>
+                        <Text className="mt-1 text-xs text-muted-foreground">
+                            {agent.AgentVersion
+                                ? `${machineLabel(agent)}, cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
+                                : machineLabel(agent)}
+                        </Text>
+                    </View>
+                </View>
+                {relayForgot ? (
+                    <InlineNotice
+                        testID="agent-relay-forgot"
+                        tone="warning"
+                        className="mb-3"
+                        message={RELAY_FORGOT_AGENT_TEXT}
+                        action={{
+                            label: "Remove agent",
+                            testID: "agent-relay-forgot-remove",
+                            onPress: confirmRevoke,
+                        }}
+                    />
+                ) : null}
+                {paused ? (
+                    <InlineNotice
+                        testID="agent-paused"
+                        tone="info"
+                        className="mb-3"
+                        message="Paused. Requests from this agent are refused without asking."
+                        action={{
+                            label: pausing ? "Resuming…" : "Resume",
+                            testID: "agent-resume",
+                            onPress: () => {
+                                if (!pausing) void togglePaused();
+                            },
+                        }}
+                    />
+                ) : null}
+                {here ? <AgentNotificationsNotice style={{ marginBottom: 12 }} /> : null}
+                <InfoCard
+                    label="Approver"
+                    value={
+                        here
+                            ? `${sanitizeDisplayText(agent.ApproverName || "This device")} (this device)`
+                            : sanitizeDisplayText(agent.ApproverName || "Another device")
+                    }
+                />
+                <InfoCard label="Relay" value={relayLabel(agent.RelayOrigin)} />
+                <AgentSectionLabel title="Keys" right={String(agent.CredentialIDs.length)} />
+                {agent.CredentialIDs.map((credentialId) => {
+                    const key = keys.find((item) => item.id === credentialId);
+                    return (
+                        <KeyRow
+                            key={credentialId}
+                            name={key?.name ?? "Deleted item"}
+                            detail={key?.detail ?? "No longer in the vault"}
+                        />
+                    );
+                })}
+                <AgentSectionLabel
+                    title="Recent requests"
+                    right={
+                        agent.History.length > RECENT_COUNT ? (
+                            <Pressable
+                                accessibilityRole="button"
+                                onPress={() => setShowAll((value) => !value)}
+                                hitSlop={8}
+                            >
+                                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                                    {showAll ? "Show less" : "See all"}
+                                </Text>
+                            </Pressable>
+                        ) : undefined
+                    }
+                />
+                {history.length ? (
+                    history.map((entry, index) => (
+                        <HistoryRow key={`${entry.Timestamp}-${index}`} entry={entry} />
+                    ))
+                ) : (
+                    <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                        No requests yet.
+                    </Text>
+                )}
+                <Separator className="mb-3 mt-6" />
+                <View className="flex-row items-center justify-between pb-4">
+                    <View className="flex-row items-center gap-2">
+                        <Clock size={16} color={colors.muted} />
+                        <Text className="text-sm text-muted-foreground">Paired</Text>
+                    </View>
+                    <Text className="text-sm text-foreground">
+                        {new Date(agent.PairedAtTimestamp).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                        })}
+                    </Text>
+                </View>
+            </View>
+
+            <Dialog open={menuOpen} onOpenChange={setMenuOpen} placement="bottom">
+                <DialogHeader>
+                    <DialogTitle>{name}</DialogTitle>
+                    <DialogDescription>Choose an action for this agent.</DialogDescription>
+                </DialogHeader>
+                <Button
+                    testID={paused ? "agent-menu-resume" : "agent-pause"}
+                    variant="secondary"
+                    disabled={pausing}
+                    onPress={() => {
+                        setMenuOpen(false);
+                        void togglePaused();
+                    }}
+                >
+                    {paused ? "Resume agent" : "Pause agent"}
+                </Button>
+                <Button
+                    testID="agent-revoke"
+                    variant="destructive"
+                    onPress={() => {
+                        setMenuOpen(false);
+                        confirmRevoke();
+                    }}
+                >
+                    Revoke agent
+                </Button>
+            </Dialog>
+        </UnlockedTaskScreen>
+    );
+}

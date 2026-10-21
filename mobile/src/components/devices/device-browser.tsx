@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, type ReactElement } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -384,6 +384,9 @@ export function DeviceList({
     onSelect,
     onConnect,
     resetKey,
+    header,
+    headerHeight = 0,
+    footer,
 }: {
     nodes: DeviceNode[];
     map: DeviceRelationshipMap;
@@ -392,6 +395,11 @@ export function DeviceList({
     onSelect: (selection: DeviceSelection) => void;
     onConnect: (device: LinkedDevice) => void;
     resetKey: string;
+    /** Section label above the rows; headerHeight must match its height. */
+    header?: ReactElement;
+    headerHeight?: number;
+    /** More sections below the devices, such as connected agents. */
+    footer?: ReactElement;
 }) {
     const listRef = useRef<FlatList<DeviceNode>>(null);
     useEffect(() => {
@@ -422,9 +430,11 @@ export function DeviceList({
             showsVerticalScrollIndicator={false}
             getItemLayout={(_, index) => ({
                 length: 84,
-                offset: 84 * index,
+                offset: headerHeight + 84 * index,
                 index,
             })}
+            ListHeaderComponent={header}
+            ListFooterComponent={footer}
             initialNumToRender={8}
             maxToRenderPerBatch={8}
             windowSize={7}

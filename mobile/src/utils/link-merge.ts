@@ -14,6 +14,7 @@ import {
 import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils/post-quantum-kem";
 import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import { persistVaultMutation } from "@/utils/vault-mutations";
+import { decodeReceivedVault } from "@/utils/received-vault";
 import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
 import {
     mergeReceivedVaultContents,
@@ -69,11 +70,7 @@ const cloneCredential = (credential: VaultUtilTypes.Credential) => {
 };
 
 async function parseReceivedVault(data: Uint8Array): Promise<Vault> {
-    const rawVault = VaultUtilTypes.Vault.decode(data);
-    const receivedVault = Object.assign(new Vault(), rawVault);
-    receivedVault.LinkedDevices = LinkedDevices.fromGeneric(
-        receivedVault.LinkedDevices,
-    );
+    const receivedVault = decodeReceivedVault(data);
     receivedVault.Credentials = receivedVault.Credentials.map(cloneCredential);
     receivedVault.Directories = receivedVault.Directories.map((directory) =>
         Object.assign(new Directory(), directory),

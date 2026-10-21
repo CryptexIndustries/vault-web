@@ -1,6 +1,8 @@
 appId: ${CRYPTEX_APP_ID}
 ---
 - tapOn: Add item
+- tapOn:
+      id: add-item-login
 - tapOn: Credential name
 - inputText: E2E Transfer Login
 - tapOn: Credential username

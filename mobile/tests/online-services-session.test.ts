@@ -174,6 +174,8 @@ it("does not overwrite rotated tokens when configuration finishes", async () => 
         canPromoteDevices: true,
         managedEncryptedBackups: true,
         passwordSharing: true,
+        sshAgentRelay: true,
+        maxSshAgents: 25,
         securityReportBasic: true,
         securityReportAdvanced: true,
         recoveryGenerationNeeded: false,

@@ -4,7 +4,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { Redirect, router, useFocusEffect } from "expo-router";
 import { useIsFocused } from "expo-router/react-navigation";
 import { useAtomValue } from "jotai";
-import { KeyRound, Plus } from "lucide-react-native";
+import { Fingerprint, Plus } from "lucide-react-native";
 import { ulid } from "ulidx";
 import { credentialMatchesPageUrl } from "@cryptex-industries/vault-core/credential-url";
 import { CredentialURLMatchMode, CustomFieldType, ItemType } from "@cryptex-industries/vault-core/proto";
@@ -26,6 +26,7 @@ import {
     buildAutofillTarget,
     canAssociateAutofillTarget,
     defaultAutofillCredentialName,
+    isAutofillCandidate,
     isAutofillGetRequest,
     isAutofillSaveRequest,
     matchingAutofillCredentials,
@@ -271,7 +272,7 @@ export default function CredentialRequestScreen() {
         : null;
 
     const eligibleCredentials = useMemo(
-        () => credentials.filter((credential) => !credential.Deleted && !!credential.Password),
+        () => credentials.filter(isAutofillCandidate),
         [credentials],
     );
     const matches = useMemo(() => {
@@ -723,7 +724,7 @@ export default function CredentialRequestScreen() {
                             onPress={() => void completePasskeyGet(credential.Passkey!.CredentialID)}
                             style={{ minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderRadius: 6, backgroundColor: colors.secondary, borderLeftWidth: 2, borderLeftColor: colors.primary }}
                         >
-                            <KeyRound size={22} color={colors.primary} />
+                            <Fingerprint size={22} color={colors.primary} />
                             <View style={{ flex: 1 }}>
                                 <UnlockedText style={{ fontWeight: "600" }}>{credential.Name}</UnlockedText>
                                 <UnlockedText style={{ color: colors.muted, fontSize: 12 }}>

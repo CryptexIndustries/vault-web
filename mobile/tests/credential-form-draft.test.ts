@@ -10,6 +10,7 @@ import { createElement, type ReactNode } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { Provider, createStore } from "jotai";
 import { err, ok } from "neverthrow";
+import { router } from "expo-router";
 import { CustomFieldType } from "@cryptex-industries/vault-core/proto";
 
 import {
@@ -73,6 +74,9 @@ jest.mock("@/components/vault/password-generator", () => ({
     PasswordGeneratorDialog: () => null,
 }));
 jest.mock("@/components/vault/totp-field", () => ({ TotpField: "TotpField" }));
+jest.mock("@/components/vault/ssh-key-form", () => ({
+    SSHKeyForm: "SSHKeyForm",
+}));
 jest.mock("@/lib/utils", () => ({
     cn: (...values: unknown[]) => values.filter(Boolean).join(" "),
 }));
@@ -440,5 +444,33 @@ describe("credential editor drafts", () => {
         expect(store.get(unlockedVaultAtom).Credentials).toHaveLength(1);
         expect(store.get(unlockedVaultAtom).Credentials[0]!.Deleted).toBe(true);
         expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it("ignores a second save and Cancel during a save, and doesn't navigate once the screen is gone", async () => {
+        await mount(credential("first", "Saved name"));
+        await act(async () =>
+            input("Credential name").props.onChangeText("Draft name"),
+        );
+        let finish: () => void = () => undefined;
+        persist.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = () => resolve(ok(new VaultCredential()) as never);
+                }),
+        );
+
+        await save();
+        await save();
+        expect(persist).toHaveBeenCalledTimes(1);
+        await act(async () =>
+            renderer!.root.findByType("TaskScreen" as never).props.onBack(),
+        );
+        expect(router.back).not.toHaveBeenCalled();
+
+        await act(async () => renderer!.unmount());
+        renderer = undefined;
+        await act(async () => finish());
+        expect(router.back).not.toHaveBeenCalled();
+        expect(router.replace).not.toHaveBeenCalled();
     });
 });

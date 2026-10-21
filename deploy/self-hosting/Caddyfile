@@ -3,7 +3,14 @@
 }
 
 {$VAULT_DOMAIN} {
-	reverse_proxy web:3000
+	# SSH agent relay. The web app has no routes under /v1/.
+	@relay path /v1/connect /v1/pair /v1/revoke
+	handle @relay {
+		reverse_proxy relay:8080
+	}
+	handle {
+		reverse_proxy web:3000
+	}
 }
 
 {$SIGNAL_DOMAIN} {

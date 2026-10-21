@@ -63,9 +63,10 @@ export function autofillEmail(
 export function buildAutofillTarget(
     request: PendingAndroidCredentialRequest,
 ): AutofillTarget {
-    // An address bar without a scheme cannot establish HTTPS. Keep a concrete
-    // URL for the picker, but never offer automatic matches for this case.
-    const scheme = request.webScheme === "https" ? "https" : "http";
+    // An address bar without a scheme cannot establish HTTPS, so this case never
+    // gets automatic matches. A login saved from it still defaults to HTTPS,
+    // which never matches an HTTP page later.
+    const scheme = request.webScheme === "http" ? "http" : "https";
     const domain = request.webDomain?.trim().toLowerCase() || null;
     const pageUrl = domain ? `${scheme}://${domain}` : null;
     const warningType = domain && request.webScheme !== "http" && request.webScheme !== "https"

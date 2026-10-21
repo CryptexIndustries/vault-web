@@ -48,6 +48,11 @@ jobs:
                   go vet ./...
                   go test ./...
                   go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+            # actions/checkout only trusts the workspace during its own step, and
+            # this container runs as root over a runner-owned checkout. go build
+            # needs git to stamp the commit into the binary.
+            - name: Trust the checkout
+              run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - name: Build tarball
               run: services/cmd/cryptex-agent/package.sh "${{ steps.version.outputs.version }}" "${{ matrix.arch }}" "${RUNNER_TEMP}/dist"
             - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

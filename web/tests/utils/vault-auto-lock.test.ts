@@ -13,6 +13,7 @@ import { createStore } from "jotai";
 
 import {
     VAULT_IDLE_AUTO_LOCK_MS,
+    isVaultAutoLockDue,
     startVaultAutoLock,
     type VaultAutoLockController,
     vaultAutoLockTimeoutAtom,
@@ -94,6 +95,19 @@ describe("startVaultAutoLock", () => {
         await jest.advanceTimersByTimeAsync(1);
         expect(lock).toHaveBeenCalledTimes(1);
         expect(lock).toHaveBeenCalledWith("idle");
+    });
+
+    it("reports the lock as due when its timer runs late in a hidden tab", async () => {
+        // Hidden tabs fire timers late; agent signing checks the deadline.
+        const lock = jest.fn(async () => undefined);
+        controller = startVaultAutoLock({ lock });
+        expect(isVaultAutoLockDue()).toBe(false);
+        jest.setSystemTime(Date.now() + VAULT_IDLE_AUTO_LOCK_MS);
+        expect(lock).not.toHaveBeenCalled();
+        expect(isVaultAutoLockDue()).toBe(true);
+        controller.stop();
+        controller = null;
+        expect(isVaultAutoLockDue()).toBe(false);
     });
 });
 

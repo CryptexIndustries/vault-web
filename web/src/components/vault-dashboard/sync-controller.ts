@@ -9,6 +9,7 @@ import {
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { mergeReceivedShareLinks } from "@cryptex-industries/vault-core/vault-utils/share-records";
+import { mergeReceivedConnectedAgents } from "@cryptex-industries/vault-core/vault-utils/connected-agents";
 import {
     applyReceivedSyncDirectories,
     getSyncVersionVectors,
@@ -70,12 +71,15 @@ export const createVaultOperations = (): VaultOperations => {
             getSyncVersionVectors(vaultGet().Directories),
         getShareLinkVersionVectors: async () =>
             getSyncVersionVectors(vaultGet().ShareLinks ?? []),
+        getConnectedAgentVersionVectors: async () =>
+            getSyncVersionVectors(vaultGet().ConnectedAgents ?? []),
         getItems: async (items: VaultUtilTypes.SyncItemReference[]) =>
             selectSyncItems(vaultGet(), items),
         updateItems: async (
             directories: VaultUtilTypes.Directory[],
             credentials: VaultUtilTypes.Credential[],
             shareLinks: VaultUtilTypes.ShareLink[],
+            connectedAgents: VaultUtilTypes.ConnectedAgent[],
         ) => {
             const toastId = toast.loading("Updating vault data...");
             const mutationResult = await persistVaultMutation(
@@ -174,6 +178,10 @@ export const createVaultOperations = (): VaultOperations => {
                             ShareLinks: mergeReceivedShareLinks(
                                 currentVault.ShareLinks ?? [],
                                 shareLinks,
+                            ),
+                            ConnectedAgents: mergeReceivedConnectedAgents(
+                                currentVault.ConnectedAgents ?? [],
+                                connectedAgents,
                             ),
                         },
                     );

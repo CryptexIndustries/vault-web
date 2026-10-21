@@ -9,6 +9,7 @@ import {
     Lock,
     MonitorSmartphone,
     RadioTower,
+    SquareTerminal,
     type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,8 @@ export type PlanAccess = {
     canPromoteDevices?: boolean;
     managedEncryptedBackups?: boolean;
     passwordSharing?: boolean;
+    sshAgentRelay?: boolean;
+    maxSshAgents?: number;
 };
 
 type ManagedBenefit = {
@@ -43,6 +46,7 @@ const vaultBenefits = [
     "Basic security reports",
     "Imports, exports & manual encrypted backups",
     "Peer-to-peer sync on your own infrastructure",
+    "SSH keys and the SSH agent on your own relay",
 ];
 
 function buildManagedBenefits(
@@ -50,10 +54,12 @@ function buildManagedBenefits(
     subscribed: boolean,
     linkedDevices: number,
 ): ManagedBenefit[] {
-    // Until the tier config loads, assume the subscription grants everything.
+    // Until the tier config loads, or for a flag an older backend doesn't
+    // send, assume the subscription grants it.
     const has = (flag: boolean | undefined) =>
-        access ? flag === true : subscribed;
+        access && flag !== undefined ? flag === true : subscribed;
     const maxLinks = access?.maxLinks ?? 0;
+    const maxSshAgents = access?.maxSshAgents ?? 0;
 
     return [
         {
@@ -90,6 +96,18 @@ function buildManagedBenefits(
                 "Send a secret to anyone. It opens once, then it's deleted.",
             allowance: "200 open links",
             included: has(access?.passwordSharing),
+        },
+        {
+            key: "agents",
+            icon: SquareTerminal,
+            title: "Hosted SSH agent relay",
+            description:
+                "Approve SSH logins on your Linux machines without running a relay.",
+            allowance:
+                maxSshAgents > 0
+                    ? `Up to ${maxSshAgents} agents`
+                    : "No relay to run",
+            included: has(access?.sshAgentRelay),
         },
         {
             key: "devices",

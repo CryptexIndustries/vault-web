@@ -28,6 +28,11 @@ import {
 } from "@/utils/vault-session";
 import { lockUnlockedVault } from "@/utils/vault-lock";
 import { persistVaultMutation } from "@/utils/vault-mutations";
+import {
+    agentSigningStopped,
+    notifyVaultLockStarted,
+    resumeAgentSigning,
+} from "@/utils/vault-lock-listeners";
 import AppIndex from "@/pages/app";
 
 type UnlockResult = {
@@ -187,6 +192,7 @@ afterEach(async () => {
     vaultStore.set(unlockedVaultAtom, new Vault());
     clearVaultDEKFromSession();
     await mockState.tabs?.releaseClaim();
+    resumeAgentSigning();
     mockState.stored.clear();
     mockState.manager = null;
     strict = false;
@@ -270,6 +276,7 @@ describe("unlocking /app", () => {
         expect(vaultStore.get(isVaultUnlockedAtom)).toBe(true);
         expect(getVaultDEKFromSession().isOk()).toBe(true);
         expect(mockState.tabs!.holds).toBe(true);
+        expect(agentSigningStopped()).toBe(false);
     });
 
     it("drops an unlock that finishes after the page went away, then lets go", async () => {
@@ -400,6 +407,7 @@ describe("unlocking /app", () => {
 
     it("lets go after a failed unlock, and a retry claims again", async () => {
         await mount();
+        notifyVaultLockStarted();
         const a = storedVault();
         const first = await begin(a);
         await act(async () => {
@@ -408,9 +416,11 @@ describe("unlocking /app", () => {
         });
         await settle();
         expect(mockState.tabs!.holds).toBe(false);
+        expect(agentSigningStopped()).toBe(true);
         expect(getVaultDEKFromSession().isOk()).toBe(false);
         const b = storedVault();
         expect((await finish(b, await begin(b))).isOk()).toBe(true);
+        expect(agentSigningStopped()).toBe(false);
         expect(mockState.tabs!.holds).toBe(true);
     });
 
@@ -436,6 +446,7 @@ describe("unlocking /app", () => {
 
     it("creates a vault under the claim and publishes it once acknowledged", async () => {
         await mount();
+        notifyVaultLockStarted();
         const created = {
             metadata: storedVault(),
             vault: new Vault(),
@@ -468,6 +479,7 @@ describe("unlocking /app", () => {
         await settle();
         expect(vaultStore.get(isVaultUnlockedAtom)).toBe(true);
         expect(mockState.tabs!.holds).toBe(true);
+        expect(agentSigningStopped()).toBe(false);
     });
 
     it("locks, lets go, and unlocks again", async () => {
@@ -482,6 +494,7 @@ describe("unlocking /app", () => {
         await settle();
         expect(mockState.tabs!.holds).toBe(false);
         expect(closed()).toBe(true);
+        expect(agentSigningStopped()).toBe(true);
         const again = storedVault();
         expect((await finish(again, await begin(again))).isOk()).toBe(true);
         expect(mockState.tabs!.holds).toBe(true);

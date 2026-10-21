@@ -1,3 +1,5 @@
+// The Connected Agents section pulls in @noble modules, which need TextEncoder.
+import "../helpers/jsdom-encoding";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {

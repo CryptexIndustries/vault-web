@@ -973,6 +973,10 @@ export const serializeVault = async (
     // Clear the LinkedDevices object
     cleanVault.LinkedDevices = new LinkedDevices();
 
+    // This device's agent approver keys stay here; a restored copy must not
+    // answer for agents paired on this device.
+    cleanVault.AgentApprover = undefined;
+
     // Serialize the vault instance
     const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();
 

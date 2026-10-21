@@ -48,6 +48,8 @@ type RemoteConfig = {
     maxLinks?: number;
     managedEncryptedBackups?: boolean;
     passwordSharing?: boolean;
+    sshAgentRelay?: boolean;
+    maxSshAgents?: number;
     recoveryTokenCreatedAt?: Date | string | null;
 };
 

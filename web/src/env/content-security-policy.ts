@@ -3,7 +3,11 @@ type ContentSecurityPolicyEnv = {
     NEXT_PUBLIC_CLOUD_ENABLED: boolean;
     NEXT_PUBLIC_ONLINE_SERVICES_API_URL?: string;
     NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN?: string;
+    NEXT_PUBLIC_RELAY_URL?: string;
 };
+
+/** The hosted SSH agent relay unless the deployment names another. */
+const DEFAULT_RELAY_URL = "https://relay.cryptex-vault.com";
 
 const toOrigin = (value: string | undefined) => {
     if (!value) return null;
@@ -26,11 +30,19 @@ export const createContentSecurityPolicy = (env: ContentSecurityPolicyEnv) => {
     const backupStorageOrigin = env.NEXT_PUBLIC_CLOUD_ENABLED
         ? toOrigin(env.NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN)
         : null;
+    // Any device may revoke an agent paired on a self-hosted relay, so
+    // connect-src allows https: (never http:). ws: and wss: were open to any
+    // host already, so injected script gains no new way out. Listing the
+    // configured relay lets a plain http development relay work.
+    const relayOrigin = env.NEXT_PUBLIC_CLOUD_ENABLED
+        ? toOrigin(env.NEXT_PUBLIC_RELAY_URL || DEFAULT_RELAY_URL)
+        : null;
     const externalApiOrigin = apiOrigin === appOrigin ? null : apiOrigin;
     const connectSrc = [
-        "connect-src 'self' ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
+        "connect-src 'self' https: ws: wss: https://challenges.cloudflare.com https://api.stripe.com",
         externalApiOrigin,
         backupStorageOrigin,
+        relayOrigin,
     ]
         .filter(Boolean)
         .join(" ");

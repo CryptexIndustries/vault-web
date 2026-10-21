@@ -11,6 +11,7 @@ import {
     type VaultSessionError,
 } from "@/utils/vault-session";
 import { err, ok, type Result } from "neverthrow";
+import { notifyVaultLockStarted } from "@/utils/vault-lock-listeners";
 import {
     flushManagedBackupBeforeLock,
     stopManagedBackup,
@@ -43,6 +44,8 @@ let locking: {
 export function lockUnlockedVault(
     options: LockUnlockedVaultOptions,
 ): Promise<Result<void, VaultLockError>> {
+    // First, and it never throws: nothing can stop the save below.
+    notifyVaultLockStarted();
     const metadata = options.unlockedVaultMetadata;
     // Already locking this session (the Lock button, then leaving the
     // page): wait for that lock instead of queueing a second one, which
@@ -114,6 +117,7 @@ export async function discardUnlockedVault({
     LockUnlockedVaultOptions,
     "setUnlockedVault" | "setUnlockedVaultMetadata"
 >): Promise<void> {
+    notifyVaultLockStarted();
     clearVaultDEKFromSession();
     try {
         await logoutOnlineServicesSession();

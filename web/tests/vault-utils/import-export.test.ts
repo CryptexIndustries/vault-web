@@ -2,6 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 import { webcrypto } from "node:crypto";
 import { TextDecoder, TextEncoder } from "node:util";
 import JSZip from "jszip";
+import { sshFixture, sshPublicKey } from "../helpers/ssh-fixtures";
 
 Object.defineProperty(globalThis, "crypto", {
     configurable: true,
@@ -372,8 +373,9 @@ describe("vault import and export", () => {
                             type: 5,
                             name: "SSH",
                             sshKey: {
-                                privateKey: "PRIVATE",
-                                publicKey: "PUBLIC",
+                                privateKey: sshFixture("ed25519.key"),
+                                publicKey: sshFixture("ed25519.key.pub"),
+                                keyFingerprint: "SHA256:ignored",
                             },
                         },
                     ],
@@ -394,9 +396,47 @@ describe("vault import and export", () => {
             expect(
                 customField(result.credentials[1]!, "Identity firstName")?.Type,
             ).toBe(CustomFieldType.MaskedText);
+            expect(result.credentials[2]!.SSHKey).toMatchObject({
+                PublicKey: sshPublicKey("ed25519.key"),
+                Comment: "ed25519@fixtures",
+            });
             expect(
-                customField(result.credentials[2]!, "SSH publicKey")?.Type,
-            ).toBe(CustomFieldType.MaskedText);
+                result.credentials[2]!.CustomFields.filter((field) =>
+                    field.Name.startsWith("SSH"),
+                ),
+            ).toEqual([]);
+        });
+
+        it("keeps unreadable SSH keys as hidden fields", async () => {
+            const result = await parseImportFile(
+                "bitwarden-json",
+                jsonFile({
+                    items: [
+                        {
+                            id: "ssh",
+                            type: 5,
+                            name: "SSH",
+                            sshKey: {
+                                privateKey: "PRIVATE",
+                                publicKey: "PUBLIC",
+                            },
+                        },
+                    ],
+                }),
+            );
+            const [credential] = result.credentials;
+            expect(credential!.Type).toBe(ItemType.Credentials);
+            expect(credential!.SSHKey).toBeUndefined();
+            expect(customField(credential!, "SSH private key")).toMatchObject({
+                Value: "PRIVATE",
+                Type: CustomFieldType.MaskedText,
+            });
+            expect(customField(credential!, "SSH publicKey")?.Type).toBe(
+                CustomFieldType.MaskedText,
+            );
+            expect(result.notices.map((notice) => notice.code)).toContain(
+                "SSH_KEY_UNSUPPORTED",
+            );
         });
 
         it("converts exported ES256 passkeys and gates genuinely unsupported data", async () => {
@@ -1171,9 +1211,15 @@ describe("vault import and export", () => {
                                         title: "Key",
                                         value: {
                                             sshKey: {
-                                                privateKey: "PRIVATE",
+                                                privateKey:
+                                                    sshFixture(
+                                                        "ed25519-pkcs8.key",
+                                                    ),
                                                 metadata: {
-                                                    publicKey: "PUBLIC",
+                                                    publicKey:
+                                                        sshPublicKey(
+                                                            "ed25519-pkcs8.key",
+                                                        ),
                                                 },
                                             },
                                         },
@@ -1215,9 +1261,10 @@ describe("vault import and export", () => {
                     Type: CustomFieldType.MaskedText,
                 },
             );
-            expect(customField(result.credentials[3]!, "Key")).toMatchObject({
-                Type: CustomFieldType.MaskedText,
-            });
+            expect(result.credentials[3]!.SSHKey?.PublicKey).toBe(
+                sshPublicKey("ed25519-pkcs8.key"),
+            );
+            expect(customField(result.credentials[3]!, "Key")).toBeUndefined();
         });
 
         it("maps 1Password Password items to the native password field", async () => {

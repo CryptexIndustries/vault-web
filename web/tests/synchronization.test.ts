@@ -10,6 +10,11 @@ import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils
 import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
 import * as syncCrypto from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
+import { createConnectedAgentRecord } from "@cryptex-industries/vault-core/vault-utils/connected-agents";
+import {
+    getSyncVersionVectors,
+    selectSyncItems,
+} from "@cryptex-industries/vault-core/sync-operations";
 
 if (!globalThis.crypto?.subtle) {
     Object.defineProperty(globalThis, "crypto", {
@@ -126,10 +131,12 @@ function createOps(
         getCredentialVersionVectors: jest.fn(async () => vectors),
         getDirectoryVersionVectors: jest.fn(async () => []),
         getShareLinkVersionVectors: jest.fn(async () => []),
+        getConnectedAgentVersionVectors: jest.fn(async () => []),
         getItems: jest.fn(async () => ({
             Credentials: [],
             Directories: [],
             ShareLinks: [],
+            ConnectedAgents: [],
         })),
         updateItems: jest.fn(async () => undefined),
         getSynchronizationConfig: jest.fn(async () => own),
@@ -213,6 +220,61 @@ function createPair() {
 }
 
 describe("VaultItemSynchronization encrypted transport", () => {
+    it("requests and applies connected agents the remote is missing", async () => {
+        const pair = createPair();
+        const agent = await createConnectedAgentRecord({
+            Name: "build box",
+            AgentSignPublicKey: new Uint8Array(32).fill(1),
+            AgentKEMPublicKey: new Uint8Array(1216).fill(2),
+            Hostname: "build",
+            OS: "linux",
+            Arch: "amd64",
+            AgentVersion: "0.1.0",
+            ApproverSignPublicKey: new Uint8Array(32).fill(3),
+            ApproverKEMPublicKey: new Uint8Array(1216).fill(4),
+            ApproverName: "Laptop",
+            RevocationSeed: new Uint8Array(32).fill(5),
+            RelayOrigin: "",
+            CredentialIDs: [],
+            KeysRevision: 0,
+        });
+        const getItems = jest.fn<VaultOperations["getItems"]>(async (items) =>
+            selectSyncItems(
+                {
+                    Credentials: [],
+                    Directories: [],
+                    ShareLinks: [],
+                    ConnectedAgents: [agent],
+                },
+                items,
+            ),
+        );
+        const updateItems = jest.fn<VaultOperations["updateItems"]>(
+            async () => undefined,
+        );
+        pair.localOps.getConnectedAgentVersionVectors = jest.fn(async () =>
+            getSyncVersionVectors([agent]),
+        );
+        pair.localOps.getItems = getItems;
+        pair.remoteOps.updateItems = updateItems;
+
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+
+        expect(getItems).toHaveBeenCalledWith(
+            expect.arrayContaining([
+                {
+                    Type: VaultUtilTypes.SyncItemType.ConnectedAgentItem,
+                    ID: agent.ID,
+                },
+            ]),
+        );
+        expect(updateItems).toHaveBeenCalledWith([], [], [], [agent]);
+    });
+
     it("does not record completion after a failed save and allows a later retry", async () => {
         const pair = createPair();
         const record = jest.fn(async () => undefined);

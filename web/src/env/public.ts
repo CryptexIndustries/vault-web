@@ -23,6 +23,8 @@ const publicEnvSchema = z
         NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID: z.string().default(""),
         NEXT_PUBLIC_ONLINE_SERVICES_API_URL: z.string().default(""),
         NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: z.string().default(""),
+        // Hosted SSH agent relay (Online Services); empty for the default.
+        NEXT_PUBLIC_RELAY_URL: z.string().default(""),
         NEXT_PUBLIC_CLOUD_ENABLED: z
             .preprocess(
                 (value) =>
@@ -116,6 +118,7 @@ const readServerEnv = () => ({
     NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN: readRuntimeEnv(
         "NEXT_PUBLIC_BACKUP_STORAGE_ORIGIN",
     ),
+    NEXT_PUBLIC_RELAY_URL: readRuntimeEnv("NEXT_PUBLIC_RELAY_URL"),
     NEXT_PUBLIC_CLOUD_ENABLED: readRuntimeEnv("NEXT_PUBLIC_CLOUD_ENABLED"),
 });
 

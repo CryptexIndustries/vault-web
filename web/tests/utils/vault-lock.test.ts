@@ -25,6 +25,7 @@ import {
     setVaultDEKInSession,
 } from "../../src/utils/vault-session";
 import { lockUnlockedVault } from "../../src/utils/vault-lock";
+import { addVaultLockListener } from "../../src/utils/vault-lock-listeners";
 
 jest.mock("../../src/app_lib/auth-session", () => ({
     logoutOnlineServicesSession: jest.fn(async () => {
@@ -108,6 +109,46 @@ describe("lockUnlockedVault", () => {
         expect(nextMetadata).toBeNull();
         expect(nextVault).toBeInstanceOf(Vault);
         expect(nextVault).not.toBe(vault);
+    });
+
+    it("tells listeners at once, before the save, and still saves when one throws", async () => {
+        await openSession();
+        const events: string[] = [];
+        let finish: () => void = () => undefined;
+        const stopBroken = addVaultLockListener({
+            lockStarted: () => {
+                events.push("broken");
+                throw new Error("broken listener");
+            },
+        });
+        const stop = addVaultLockListener({
+            lockStarted: () => events.push("started"),
+        });
+        try {
+            const locking = lockUnlockedVault({
+                unlockedVaultMetadata: {
+                    DBIndex: 1,
+                    // A save that waits on the disk or the network.
+                    save: () => {
+                        events.push("save");
+                        return new Promise<void>((resolve) => {
+                            finish = resolve;
+                        });
+                    },
+                } as never,
+                setUnlockedVault: async () => undefined,
+                setUnlockedVaultMetadata: () => undefined,
+            });
+            expect(events).toEqual(["broken", "started"]);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            finish();
+            expect((await locking).isOk()).toBe(true);
+        } finally {
+            stopBroken();
+            stop();
+            finish();
+        }
+        expect(events).toEqual(["broken", "started", "save"]);
     });
 
     it("does not clear session state when save fails", async () => {

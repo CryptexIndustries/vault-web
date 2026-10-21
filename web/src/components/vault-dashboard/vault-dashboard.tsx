@@ -21,6 +21,8 @@ import {
     updateDirectory,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type { CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { ItemType } from "@cryptex-industries/vault-core/proto";
+import { sshPublicKeyLine } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import { LogInspectorDialog } from "@/components/dialog/log-inspector";
 import {
     WarningDialog,
@@ -74,7 +76,7 @@ import {
 } from "@/components/share/share-dialog";
 import { SharedLinksView } from "@/components/share/shared-links-view";
 import { useWebShareBackend } from "@/app_lib/share-links";
-import { CredentialsList } from "./credentials-list";
+import { CredentialsList, SSH_KEYS_FILTER } from "./credentials-list";
 import {
     DeviceSidebar,
     DeviceConfigurationDialog,
@@ -112,6 +114,11 @@ import {
     WebRTCStatus,
 } from "@cryptex-industries/vault-core/synchronization-utils";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
+import { askForNotificationPermission } from "@/app_lib/agent/browser-agent-host";
+import { AgentHostProvider } from "@/components/agents/agent-host-context";
+import { AgentRelaySettingsDialog } from "@/components/agents/agent-relay-settings-dialog";
+import { AgentView } from "@/components/agents/agent-view";
+import { ConnectAgentDialog } from "@/components/agents/connect-agent-dialog";
 import {
     consumePurchasePlanUrl,
     type PurchasePlan,
@@ -119,7 +126,11 @@ import {
 
 const DESKTOP_BREAKPOINT = 1024; // lg breakpoint
 
-type DashboardView = "credentials" | "security-report" | "shared-links";
+type DashboardView =
+    | "credentials"
+    | "security-report"
+    | "shared-links"
+    | "agent";
 
 function getDeviceLastSyncDate(device: LinkedDevice): Date | null {
     return device.LastSync ? new Date(device.LastSync) : null;
@@ -431,6 +442,21 @@ export function VaultDashboard({
         useState<VaultCredential | null>(null);
     const [dashboardView, setDashboardView] =
         useState<DashboardView>("credentials");
+    const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+    const [isConnectAgentOpen, setIsConnectAgentOpen] = useState(false);
+    const [isAgentRelaySettingsOpen, setIsAgentRelaySettingsOpen] =
+        useState(false);
+    const openAgent = useCallback((agentId: string) => {
+        setSelectedAgentId(agentId);
+        setDashboardView("agent");
+    }, []);
+    const connectAgent = useCallback(() => {
+        // Ask with the first agent, from the click, so it counts as a gesture.
+        if (!unlockedVault.ConnectedAgents?.some((agent) => !agent.Deleted)) {
+            askForNotificationPermission();
+        }
+        setIsConnectAgentOpen(true);
+    }, [unlockedVault.ConnectedAgents]);
     const [shareTarget, setShareTarget] = useState<ShareDialogTarget | null>(
         null,
     );
@@ -438,6 +464,9 @@ export function VaultDashboard({
         useState<string>("all");
     const [editingCredential, setEditingCredential] =
         useState<VaultCredential | null>(null);
+    const [newItemType, setNewItemType] = useState<ItemType>(
+        ItemType.Credentials,
+    );
     const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -504,7 +533,9 @@ export function VaultDashboard({
                 (credential) =>
                     !credential.Deleted &&
                     (selectedDirectoryID === "all" ||
-                        credential.DirectoryID === selectedDirectoryID),
+                        (selectedDirectoryID === SSH_KEYS_FILTER
+                            ? credential.Type === ItemType.SSHKey
+                            : credential.DirectoryID === selectedDirectoryID)),
             ),
         [vaultCredentials, selectedDirectoryID],
     );
@@ -513,9 +544,12 @@ export function VaultDashboard({
             counts.all = (counts.all ?? 0) + 1;
             const key = credential.DirectoryID || "root";
             counts[key] = (counts[key] ?? 0) + 1;
+            if (credential.Type === ItemType.SSHKey) {
+                counts[SSH_KEYS_FILTER] = (counts[SSH_KEYS_FILTER] ?? 0) + 1;
+            }
             return counts;
         },
-        { all: 0, root: 0 },
+        { all: 0, root: 0, [SSH_KEYS_FILTER]: 0 },
     );
     const {
         analysis: securityAnalysis,
@@ -573,10 +607,27 @@ export function VaultDashboard({
         [handleEditCredential, vaultCredentials],
     );
 
-    const handleAddNew = useCallback(() => {
-        setEditingCredential(null);
-        setIsEditDrawerOpen(true);
-    }, []);
+    const handleAddNew = useCallback(
+        (type: ItemType = ItemType.Credentials) => {
+            setNewItemType(type);
+            setEditingCredential(null);
+            setIsEditDrawerOpen(true);
+        },
+        [],
+    );
+
+    const handleViewSecurityFinding = useCallback(
+        (credentialId: string) => {
+            const credential = vaultCredentials.find(
+                (item) => item.ID === credentialId && !item.Deleted,
+            );
+            if (!credential) return;
+            setSelectedDirectoryID("all");
+            setDashboardView("credentials");
+            handleSelectCredential(credential);
+        },
+        [handleSelectCredential, vaultCredentials],
+    );
 
     const handleSaveCredential = useCallback(
         async (form: CredentialFormSchemaType) => {
@@ -966,6 +1017,11 @@ export function VaultDashboard({
 
     const handleCopyUsername = useCallback((credential: VaultCredential) => {
         void copyToClipboard(credential.Username);
+    }, []);
+
+    const handleCopyPublicKey = useCallback((credential: VaultCredential) => {
+        if (!credential.SSHKey) return;
+        void copyToClipboard(sshPublicKeyLine(credential.SSHKey));
     }, []);
 
     const handleCopyPassword = useCallback((credential: VaultCredential) => {
@@ -1556,7 +1612,7 @@ export function VaultDashboard({
         shareTarget,
     ]);
 
-    return (
+    const dashboard = (
         <div className="flex h-svh overflow-hidden bg-background">
             {/* Mobile Header */}
             <div className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between border-b border-border bg-background p-2 sm:p-3 lg:hidden">
@@ -1573,7 +1629,9 @@ export function VaultDashboard({
                         ? "Security Report"
                         : dashboardView === "shared-links"
                           ? "Shared Links"
-                          : unlockedVaultName}
+                          : dashboardView === "agent"
+                            ? "Connected Agent"
+                            : unlockedVaultName}
                 </span>
                 <div className="w-9" /> {/* Spacer for centering */}
             </div>
@@ -1606,6 +1664,12 @@ export function VaultDashboard({
                         vaultId={unlockedVaultMetadata?.Blob?.Envelope?.VaultID}
                         vaultBlob={unlockedVaultMetadata?.Blob}
                         activeView={dashboardView}
+                        activeAgentId={selectedAgentId}
+                        onOpenAgent={openAgent}
+                        onConnectAgent={connectAgent}
+                        onOpenAgentRelaySettings={() =>
+                            setIsAgentRelaySettingsOpen(true)
+                        }
                         onLockVault={lockVaultConfirm}
                         signalingConfig={vaultSignalingConfig}
                         onSaveSignalingConfig={handleSaveSignalingConfig}
@@ -1642,6 +1706,12 @@ export function VaultDashboard({
                     vaultId={unlockedVaultMetadata?.Blob?.Envelope?.VaultID}
                     vaultBlob={unlockedVaultMetadata?.Blob}
                     activeView={dashboardView}
+                    activeAgentId={selectedAgentId}
+                    onOpenAgent={openAgent}
+                    onConnectAgent={connectAgent}
+                    onOpenAgentRelaySettings={() =>
+                        setIsAgentRelaySettingsOpen(true)
+                    }
                     onLockVault={lockVaultConfirm}
                     signalingConfig={vaultSignalingConfig}
                     onSaveSignalingConfig={handleSaveSignalingConfig}
@@ -1661,8 +1731,14 @@ export function VaultDashboard({
                         analyzedAt={securityAnalysisAnalyzedAt}
                         onBack={() => setDashboardView("credentials")}
                         onEditCredential={handleEditSecurityFinding}
+                        onViewCredential={handleViewSecurityFinding}
                         onOpenCredentialUrl={handleOpenSecurityFindingUrl}
                         onRefresh={refreshSecurityAnalysis}
+                    />
+                ) : dashboardView === "agent" && selectedAgentId ? (
+                    <AgentView
+                        agentId={selectedAgentId}
+                        onBack={() => setDashboardView("credentials")}
                     />
                 ) : dashboardView === "shared-links" ? (
                     <SharedLinksView
@@ -1698,6 +1774,7 @@ export function VaultDashboard({
                             onSelect={handleSelectCredential}
                             onAddNew={handleAddNew}
                             onCopyUsername={handleCopyUsername}
+                            onCopyPublicKey={handleCopyPublicKey}
                             onCopyPassword={handleCopyPassword}
                             onCopyTOTP={handleCopyTOTP}
                             onOpenUrl={handleOpenCredentialUrl}
@@ -1774,9 +1851,13 @@ export function VaultDashboard({
                 isOpen={isEditDrawerOpen}
                 onClose={() => setIsEditDrawerOpen(false)}
                 onSave={handleSaveCredential}
+                newItemType={newItemType}
                 directories={unlockedVault.Directories}
                 initialDirectoryID={
-                    selectedDirectoryID === "all" ? "" : selectedDirectoryID
+                    selectedDirectoryID === "all" ||
+                    selectedDirectoryID === SSH_KEYS_FILTER
+                        ? ""
+                        : selectedDirectoryID
                 }
                 onCreateDirectory={handleCreateDirectory}
             />
@@ -1844,6 +1925,17 @@ export function VaultDashboard({
                 open={isKeyboardShortcutsOpen}
                 onOpenChange={setIsKeyboardShortcutsOpen}
             />
+            <ConnectAgentDialog
+                open={isConnectAgentOpen}
+                onOpenChange={setIsConnectAgentOpen}
+                onConnected={openAgent}
+            />
+            <AgentRelaySettingsDialog
+                open={isAgentRelaySettingsOpen}
+                onOpenChange={setIsAgentRelaySettingsOpen}
+            />
         </div>
     );
+
+    return <AgentHostProvider>{dashboard}</AgentHostProvider>;
 }

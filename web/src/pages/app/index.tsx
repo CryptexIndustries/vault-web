@@ -54,6 +54,7 @@ import {
     type VaultOpening,
 } from "@/utils/vault-tab-owner";
 import { discardUnlockedVault, lockUnlockedVault } from "@/utils/vault-lock";
+import { resumeAgentSigning } from "@/utils/vault-lock-listeners";
 
 dayjs.extend(RelativeTime);
 
@@ -138,6 +139,8 @@ const AppIndex: React.FC = () => {
     ) => {
         if (!mounted.current || !opening.active || !vaultTabOwner().holds)
             return false;
+        // An authenticated unlock: the agent may sign again.
+        resumeAgentSigning();
         setVaultDEKInSessionForMetadata(metadata, dek);
         setUnlockedVaultMetadata(metadata);
         setUnlockedVault(vault);

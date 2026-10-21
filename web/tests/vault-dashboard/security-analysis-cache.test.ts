@@ -12,6 +12,7 @@ const result: SecurityAnalysisResult = {
     weakFindings: [],
     reuseGroups: [],
     ageFindings: [],
+    weakSSHKeyFindings: [],
 };
 
 describe("SecurityAnalysisCache", () => {

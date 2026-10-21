@@ -45,6 +45,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+    clearDeviceLocalFields,
     Directory,
     LinkedDevices,
     OnlineServices,
@@ -2427,7 +2428,10 @@ const cloneOnlineServices = (onlineServices: VaultUtilTypes.OnlineServices) =>
 
 async function parseReceivedVault(data: Uint8Array) {
     const rawVault = VaultUtilTypes.Vault.decode(data);
-    const receivedVault = Object.assign(new Vault(), rawVault);
+    // Device-local fields never come from the sender, even a crafted one.
+    const receivedVault = clearDeviceLocalFields(
+        Object.assign(new Vault(), rawVault),
+    );
     receivedVault.LinkedDevices = LinkedDevices.fromGeneric(
         receivedVault.LinkedDevices,
     );
@@ -3054,7 +3058,9 @@ export function ReceiveLinkRequestDialog({
         setMergeSummary(null);
 
         if (secret.trim().length <= 1) {
-            setFormError("Enter the verification words from the sending device.");
+            setFormError(
+                "Enter the verification words from the sending device.",
+            );
             return;
         }
         if (method === "qr" && !qrCodeData.trim()) {

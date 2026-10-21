@@ -65,6 +65,7 @@ html {
         --border: 220 13% 91%;
         --input: 220 13% 91%;
         --ring: 224 71.4% 4.1%;
+        --agent: 216.2 80% 50%; /* connected agent glyphs only */
         --chart-1: 12 76% 61%;
         --chart-2: 173 58% 39%;
         --chart-3: 197 37% 24%;
@@ -95,6 +96,7 @@ html {
         --border: 224.21 28.36% 22%; /* matching muted */
         --input: 224.21 28.36% 38%; /* same as secondary */
         --ring: 353.61 100% 66.86%; /* accent on focus */
+        --agent: 216.2 100% 67.84%; /* #5b9cff, connected agent glyphs only */
         --chart-1: 12 76% 61%;
         --chart-2: 173 58% 39%;
         --chart-3: 197 37% 24%;

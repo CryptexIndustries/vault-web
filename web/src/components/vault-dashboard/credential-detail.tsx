@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Globe,
     User,
@@ -17,6 +17,13 @@ import {
     Fingerprint,
     Check,
     Link2,
+    KeyRound,
+    FileKey,
+    Hash,
+    Download,
+    AlertTriangle,
+    MessageSquare,
+    Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,11 +42,25 @@ import {
 import {
     CustomFieldType,
     ItemType,
+    type SSHKeyData,
 } from "@cryptex-industries/vault-core/proto";
+import {
+    isWeakSSHKey,
+    sshKeyFileName,
+    sshPublicKeyLine,
+    WEAK_RSA_BITS,
+} from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
 import { copySecretToClipboard, copyToClipboard } from "@/utils/clipboard";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
+import { SSHKeyDownloadDialog } from "@/components/vault-dashboard/ssh-key-download-dialog";
+import { toast } from "sonner";
+import {
+    downloadTextFile,
+    getSSHKeyInfo,
+    runSSHKeyTaskInWorker,
+} from "@/utils/ssh-key";
 
 interface CredentialDetailProps {
     credential: VaultCredential | null;
@@ -356,6 +377,280 @@ function PasskeyDetails({
     );
 }
 
+function FieldLabel({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {children}
+            </span>
+        </div>
+    );
+}
+
+function IconAction({
+    label,
+    tooltip,
+    onClick,
+    active = false,
+    disabled = false,
+    children,
+}: {
+    label: string;
+    tooltip: string;
+    onClick: () => void;
+    active?: boolean;
+    disabled?: boolean;
+    children: React.ReactNode;
+}) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onClick}
+                        disabled={disabled}
+                        className={cn("h-7 w-7", active && "text-primary")}
+                        aria-label={label}
+                    >
+                        {children}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>{tooltip}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
+}
+
+/** The private key, hidden until revealed like a password. */
+function SSHPrivateKeyField({
+    sshKey,
+    isCopied,
+    onCopy,
+}: {
+    sshKey: SSHKeyData;
+    isCopied: boolean;
+    onCopy: (value: string) => void;
+}) {
+    const [revealed, setRevealed] = useState<string | null>(null);
+    const [loading, setLoading] = useState<"reveal" | "copy" | null>(null);
+    const abortRef = useRef<AbortController | null>(null);
+
+    useEffect(() => () => abortRef.current?.abort(), []);
+
+    // Reveal and copy use the OpenSSH file with the current comment.
+    const exportKey = async (action: "reveal" | "copy") => {
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+        setLoading(action);
+        const result = await runSSHKeyTaskInWorker(
+            { kind: "export", data: sshKey },
+            { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return null;
+        abortRef.current = null;
+        setLoading(null);
+        if (result.ok && result.kind === "export") return result.text;
+        toast.error(
+            result.ok ? "The private key could not be loaded." : result.message,
+        );
+        return null;
+    };
+
+    const toggleReveal = async () => {
+        if (revealed !== null) {
+            setRevealed(null);
+            return;
+        }
+        const text = await exportKey("reveal");
+        if (text !== null) setRevealed(text);
+    };
+
+    const copy = async () => {
+        const text = revealed ?? (await exportKey("copy"));
+        if (text !== null) onCopy(text);
+    };
+
+    return (
+        <div className="group min-w-0">
+            <FieldLabel>Private key</FieldLabel>
+            <div className="flex min-w-0 items-start gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
+                <Key className="mt-1.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                {revealed === null ? (
+                    <span className="mt-1 block min-w-0 flex-1 font-mono text-sm tracking-[0.25em] text-foreground">
+                        ••••••••••••
+                    </span>
+                ) : (
+                    <pre
+                        className="max-h-48 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-xs leading-relaxed text-foreground"
+                        aria-label="Private key"
+                    >
+                        {revealed}
+                    </pre>
+                )}
+                <div className="flex shrink-0 items-center gap-1">
+                    <IconAction
+                        label={`${revealed === null ? "Show" : "Hide"} private key`}
+                        tooltip={revealed === null ? "Show" : "Hide"}
+                        onClick={() => void toggleReveal()}
+                        disabled={loading !== null}
+                    >
+                        {loading === "reveal" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : revealed === null ? (
+                            <Eye className="h-3.5 w-3.5" />
+                        ) : (
+                            <EyeOff className="h-3.5 w-3.5" />
+                        )}
+                    </IconAction>
+                    <IconAction
+                        label="Copy private key"
+                        tooltip={isCopied ? "Copied!" : "Copy"}
+                        active={isCopied}
+                        onClick={() => void copy()}
+                        disabled={loading !== null}
+                    >
+                        {loading === "copy" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                        )}
+                    </IconAction>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SSHKeyDetails({
+    credential,
+    sshKey,
+    copiedField,
+    onCopy,
+}: {
+    credential: VaultCredential;
+    sshKey: SSHKeyData;
+    copiedField: string | null;
+    onCopy: (field: string, value: string, secret?: boolean) => void;
+}) {
+    const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+    const info = getSSHKeyInfo(sshKey);
+    const publicKeyLine = sshPublicKeyLine(sshKey);
+    const fileName = sshKeyFileName(credential.Name);
+
+    return (
+        <>
+            <div className="group min-w-0">
+                <FieldLabel>Public key</FieldLabel>
+                <div className="flex min-w-0 items-start gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
+                    <KeyRound className="mt-1.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    <p
+                        className="mt-1 line-clamp-4 min-w-0 flex-1 break-all font-mono text-xs leading-relaxed text-foreground"
+                        title={publicKeyLine}
+                    >
+                        {publicKeyLine}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-1">
+                        <IconAction
+                            label="Save public key"
+                            tooltip={`Save ${fileName}.pub`}
+                            onClick={() =>
+                                downloadTextFile(
+                                    `${fileName}.pub`,
+                                    `${publicKeyLine}\n`,
+                                )
+                            }
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                        </IconAction>
+                        <IconAction
+                            label="Copy public key"
+                            tooltip={
+                                copiedField === "ssh-public-key"
+                                    ? "Copied!"
+                                    : "Copy"
+                            }
+                            active={copiedField === "ssh-public-key"}
+                            onClick={() =>
+                                onCopy("ssh-public-key", publicKeyLine)
+                            }
+                        >
+                            <Copy className="h-3.5 w-3.5" />
+                        </IconAction>
+                    </div>
+                </div>
+            </div>
+
+            {info ? (
+                <CopyableField
+                    label="Fingerprint"
+                    value={info.fingerprint}
+                    icon={Hash}
+                    isCopied={copiedField === "ssh-fingerprint"}
+                    onCopy={() => onCopy("ssh-fingerprint", info.fingerprint)}
+                />
+            ) : null}
+
+            <div className="min-w-0">
+                <FieldLabel>Type</FieldLabel>
+                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/50 p-3 text-sm">
+                    <KeyRound className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    <span className="text-foreground">
+                        {info?.label ?? "Unreadable key"}
+                    </span>
+                </div>
+                {info && isWeakSSHKey(info) ? (
+                    <div
+                        className="mt-2 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs"
+                        role="alert"
+                    >
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <p className="text-foreground">
+                            RSA keys under {WEAK_RSA_BITS} bits are weak.
+                            Replace this key with a new Ed25519 key.
+                        </p>
+                    </div>
+                ) : null}
+            </div>
+
+            {sshKey.Comment ? (
+                <CopyableField
+                    label="Comment"
+                    value={sshKey.Comment}
+                    icon={MessageSquare}
+                    isCopied={copiedField === "ssh-comment"}
+                    onCopy={() => onCopy("ssh-comment", sshKey.Comment)}
+                />
+            ) : null}
+
+            <SSHPrivateKeyField
+                key={credential.ID}
+                sshKey={sshKey}
+                isCopied={copiedField === "ssh-private-key"}
+                onCopy={(value) => onCopy("ssh-private-key", value, true)}
+            />
+
+            <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => setIsDownloadOpen(true)}
+            >
+                <Download className="h-4 w-4" />
+                Save private key
+            </Button>
+
+            <SSHKeyDownloadDialog
+                open={isDownloadOpen}
+                onOpenChange={setIsDownloadOpen}
+                name={credential.Name}
+                sshKey={sshKey}
+            />
+        </>
+    );
+}
+
 export function CredentialDetail({
     credential,
     onEdit,
@@ -372,6 +667,7 @@ export function CredentialDetail({
     const hiddenTagCount = Math.max(allTags.length - MAX_VISIBLE_TAGS, 0);
     const isPasskeyOnly = credential?.Type === ItemType.Passkey;
     const hasPasskey = Boolean(credential?.Passkey);
+    const isSSHKey = credential?.Type === ItemType.SSHKey;
 
     // Secrets keep the reminder to clear the clipboard; other values don't.
     const handleCopy = (field: string, value: string, secret = false) => {
@@ -417,6 +713,8 @@ export function CredentialDetail({
                         <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted sm:flex">
                             {isPasskeyOnly ? (
                                 <Fingerprint className="h-6 w-6 text-primary" />
+                            ) : isSSHKey ? (
+                                <FileKey className="h-6 w-6 text-primary" />
                             ) : (
                                 <Globe className="h-6 w-6 text-muted-foreground" />
                             )}
@@ -432,6 +730,12 @@ export function CredentialDetail({
                                 <Badge className="mt-1.5 gap-1 bg-primary/10 text-primary hover:bg-primary/10">
                                     <Fingerprint className="h-3 w-3" />
                                     Passkey
+                                </Badge>
+                            )}
+                            {isSSHKey && (
+                                <Badge className="mt-1.5 gap-1 bg-primary/10 text-primary hover:bg-primary/10">
+                                    <FileKey className="h-3 w-3" />
+                                    SSH key
                                 </Badge>
                             )}
                             <div className="mt-1 flex flex-wrap gap-1.5">
@@ -481,7 +785,7 @@ export function CredentialDetail({
                         className="flex-1 gap-2"
                     >
                         <Edit2 className="h-4 w-4" />
-                        {isPasskeyOnly ? "Edit details" : "Edit"}
+                        {isPasskeyOnly || isSSHKey ? "Edit details" : "Edit"}
                     </Button>
                     {/* {credential.URL && (
                         <TooltipProvider>
@@ -545,7 +849,20 @@ export function CredentialDetail({
             <ScrollArea className="min-h-0 flex-1">
                 <div className="w-0 min-w-full space-y-4 p-4">
                     {/* Core fields */}
-                    {isPasskeyOnly && credential.Passkey ? (
+                    {isSSHKey ? (
+                        credential.SSHKey ? (
+                            <SSHKeyDetails
+                                credential={credential}
+                                sshKey={credential.SSHKey}
+                                copiedField={copiedField}
+                                onCopy={handleCopy}
+                            />
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                This SSH key's data is missing.
+                            </p>
+                        )
+                    ) : isPasskeyOnly && credential.Passkey ? (
                         <PasskeyDetails
                             credential={
                                 credential as VaultCredential & {

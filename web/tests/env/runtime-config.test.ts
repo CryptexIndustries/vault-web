@@ -31,6 +31,28 @@ describe("runtime client configuration", () => {
         expect(policy).toContain("https://objects.example.test");
         expect(policy).not.toContain("/trpc/path");
         expect(policy).not.toContain("/bucket/path");
+        // Agent revokes post to the hosted relay.
+        expect(policy).toContain("https://relay.cryptex-vault.com");
+        expect(
+            createContentSecurityPolicy({
+                ...cloudEnv,
+                NEXT_PUBLIC_RELAY_URL: "https://relay.example.test/base",
+            }),
+        ).toContain("https://relay.example.test");
+    });
+
+    it("lets any device revoke an agent on a self-hosted https relay, never over http", () => {
+        for (const cloud of [true, false]) {
+            const connectSrc = createContentSecurityPolicy({
+                ...cloudEnv,
+                NEXT_PUBLIC_CLOUD_ENABLED: cloud,
+            })
+                .split("; ")
+                .find((directive) => directive.startsWith("connect-src"))!
+                .split(" ");
+            expect(connectSrc).toContain("https:");
+            expect(connectSrc).not.toContain("http:");
+        }
     });
 
     it("does not allow cloud origins when online services are disabled", () => {
@@ -41,6 +63,7 @@ describe("runtime client configuration", () => {
 
         expect(policy).not.toContain("cloud.example.test");
         expect(policy).not.toContain("objects.example.test");
+        expect(policy).not.toContain("relay.cryptex-vault.com");
     });
 
     it("keeps the mobile Turnstile bridge isolated from application APIs", () => {

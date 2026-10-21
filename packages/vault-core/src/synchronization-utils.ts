@@ -257,12 +257,14 @@ export class SynchronizationEnvelope
         credentialVersionVectors: VaultUtilTypes.VersionVector[],
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
         shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        connectedAgentVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloMessage.encode({
             CredentialVersionVectors: credentialVersionVectors,
             DirectoryVersionVectors: directoryVersionVectors,
             ShareLinkVersionVectors: shareLinkVersionVectors,
+            ConnectedAgentVersionVectors: connectedAgentVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -280,12 +282,14 @@ export class SynchronizationEnvelope
         credentialVersionVectors: VaultUtilTypes.VersionVector[],
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
         shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        connectedAgentVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
             CredentialVersionVectors: credentialVersionVectors,
             DirectoryVersionVectors: directoryVersionVectors,
             ShareLinkVersionVectors: shareLinkVersionVectors,
+            ConnectedAgentVersionVectors: connectedAgentVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -324,11 +328,13 @@ export class SynchronizationEnvelope
         credentials: VaultUtilTypes.Credential[],
         directories: VaultUtilTypes.Directory[] = [],
         shareLinks: VaultUtilTypes.ShareLink[] = [],
+        connectedAgents: VaultUtilTypes.ConnectedAgent[] = [],
     ) {
         const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
             Credentials: credentials,
             Directories: directories,
             ShareLinks: shareLinks,
+            ConnectedAgents: connectedAgents,
         }).finish();
 
         return SynchronizationEnvelope.encodeEnvelope(

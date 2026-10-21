@@ -1,0 +1,411 @@
+syntax = "proto3";
+
+// Protocol between cryptex-agent, the agent relay and the approving device.
+// TypeScript: `pnpm protogen` in packages/vault-core. Go: `go generate
+// ./internal/agentpb` in services. Both outputs are committed.
+//
+// Keys:
+// - Every agent and approver has an Ed25519 key (its ID on the relay and the
+//   key that signs its envelopes) and an X-Wing key (MLKEM768-X25519) that
+//   envelopes are encrypted to.
+// - Approvers create a separate Ed25519 revocation key per agent and keep the
+//   private half in the vault, so any linked device can revoke the agent.
+//
+// Signatures cover serialized bytes exactly as sent (EnvelopeHeader inside
+// Envelope.header, PairingOffer inside OpenSlot.offer), never a re-encoding.
+package cryptex.agent.v1;
+
+option go_package = "github.com/CryptexIndustries/vault-web/services/internal/agentpb";
+
+// ---------------------------------------------------------------------------
+// Pairing
+
+// Shown by `cryptex-agent pair` as a QR code and as a pasteable code.
+message PairingCode {
+    uint32 version = 1;
+    // Base URL of the relay, for example "https://relay.cryptex-vault.com".
+    string relay_url = 2;
+    // Assigned by the relay when the agent opened its pairing slot.
+    bytes slot_id = 3;
+    // 32 random bytes. Never sent to the relay. Authenticates the
+    // PairingAccept the approver sends back.
+    bytes secret = 4;
+    // SHA-256 of the serialized PairingOffer stored in the slot.
+    bytes offer_hash = 5;
+}
+
+// Uploaded by the agent to its pairing slot. Public data only.
+message PairingOffer {
+    uint32 protocol_version = 1;
+    // Ed25519, 32 bytes. Also the agent's ID on the relay.
+    bytes sign_public_key = 2;
+    // X-Wing, 1216 bytes.
+    bytes kem_public_key = 3;
+    // Self-reported by the agent machine; shown to the user as unverified.
+    string hostname = 4;
+    string os = 5;
+    string arch = 6;
+    string agent_version = 7;
+}
+
+// An SSH public key the approver lets the agent use.
+message GrantedKey {
+    // SSH wire format, as in the second field of an authorized_keys line.
+    bytes public_key = 1;
+    // Shown by `ssh-add -L`, for example "GitHub (Cryptex Vault)".
+    string comment = 2;
+}
+
+// Sent once, sealed to the agent through the pairing slot.
+message PairingAccept {
+    bytes approver_sign_public_key = 1;
+    bytes approver_kem_public_key = 2;
+    // For example "Pixel 8".
+    string approver_name = 3;
+    // The name the user gave the agent, for example "workstation".
+    string agent_name = 4;
+    repeated GrantedKey keys = 5;
+    uint64 keys_revision = 6;
+    // Set for self-hosted relays in token mode; the agent presents it on
+    // every connection. Empty on the hosted relay.
+    string relay_token = 7;
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end messages (agent <-> approver), always inside an Envelope
+
+message Message {
+    oneof body {
+        SignRequest sign_request = 1;
+        SignResponse sign_response = 2;
+        KeysUpdate keys_update = 3;
+        PairingAccept pairing_accept = 4;
+        PairingConfirm pairing_confirm = 5;
+    }
+}
+
+// Agent to approver. The envelope's message_id is the request ID and its
+// expires_at is the deadline for an answer. After a reconnect the agent
+// resends requests still waiting, with the same message_id: the approver must
+// not ask the user again, but resend the answer it already gave (or answer
+// once when it decides).
+message SignRequest {
+    // SSH wire format; one of the granted keys.
+    bytes public_key = 1;
+    // The bytes ssh, git or ssh-keygen asked to sign.
+    bytes data = 2;
+    // SSH agent sign flags (SSH_AGENT_RSA_SHA2_256 = 2, SSH_AGENT_RSA_SHA2_512 = 4).
+    uint32 flags = 3;
+    // The process that connected to the agent socket first, then its parents.
+    // Read from /proc on the agent machine, so unverified.
+    repeated Process processes = 4;
+    // session-bind@openssh.com records received on this agent connection, in
+    // the order ssh sent them. The approver verifies each signature itself.
+    repeated SessionBind session_binds = 5;
+    // Current hostname of the agent machine, unverified.
+    string hostname = 6;
+}
+
+message Process {
+    int32 pid = 1;
+    uint32 uid = 2;
+    string exe = 3;
+    repeated string args = 4;
+    string cwd = 5;
+}
+
+// The contents of one session-bind@openssh.com extension request.
+message SessionBind {
+    // SSH wire format host key of the server.
+    bytes host_key = 1;
+    bytes session_id = 2;
+    // SSH wire format signature by host_key over session_id.
+    bytes signature = 3;
+    // True when ssh bound this connection for agent forwarding rather than
+    // for its own authentication.
+    bool forwarding = 4;
+    // Names the agent machine's known_hosts files list for host_key, so the
+    // approver can say "github.com". Reported by the machine, so a label
+    // only; host_key is what the approver verifies.
+    repeated string host_names = 5;
+}
+
+// Approver to agent, with in_reply_to set to the request's message_id.
+message SignResponse {
+    oneof result {
+        // SSH wire format signature.
+        bytes signature = 1;
+        RefusalReason refusal = 2;
+    }
+}
+
+enum RefusalReason {
+    REFUSAL_REASON_UNSPECIFIED = 0;
+    // The user tapped Deny.
+    REFUSAL_REASON_DENIED = 1;
+    // The key isn't (or is no longer) granted to this agent.
+    REFUSAL_REASON_KEY_NOT_GRANTED = 2;
+    // The approver can't sign this key type or flag combination.
+    REFUSAL_REASON_UNSUPPORTED = 3;
+    // A session-bind record didn't verify, or the request was malformed.
+    REFUSAL_REASON_INVALID = 4;
+}
+
+// Approver to agent, sent retained so it waits on the relay until the agent
+// connects. The agent replaces its key list when revision is higher than the
+// one it holds.
+message KeysUpdate {
+    repeated GrantedKey keys = 1;
+    uint64 revision = 2;
+    string agent_name = 3;
+}
+
+// Agent to approver, sent retained after the agent saved a PairingAccept and
+// connected for the first time.
+message PairingConfirm {
+    string agent_version = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Envelope
+
+message Envelope {
+    // Serialized EnvelopeHeader. The relay reads it to route the envelope.
+    bytes header = 1;
+    // HPKE encapsulated key, 1120 bytes for X-Wing.
+    bytes encapsulated_key = 2;
+    // HPKE ciphertext of a serialized Message, with header as AAD.
+    bytes ciphertext = 3;
+    // Ed25519 signature by header.sender over the envelope's signing input.
+    bytes signature = 4;
+    // Only on the PairingAccept envelope: HMAC-SHA256 over the signing input
+    // with a key derived from PairingCode.secret.
+    bytes pairing_mac = 5;
+}
+
+message EnvelopeHeader {
+    uint32 version = 1;
+    // Ed25519 public keys of sender and recipient.
+    bytes sender = 2;
+    bytes recipient = 3;
+    // 16 random bytes.
+    bytes message_id = 4;
+    // message_id of the request this answers, if any.
+    bytes in_reply_to = 5;
+    // Unix milliseconds. The relay drops the envelope afterwards, and the
+    // recipient refuses it.
+    int64 expires_at = 6;
+    // Keep until delivered (up to 30 days) instead of 90 seconds. A newer
+    // retained envelope from the same sender to the same recipient replaces
+    // the older one.
+    bool retain = 7;
+}
+
+// ---------------------------------------------------------------------------
+// Relay connection
+//
+// WebSocket, subprotocol "cryptex-agent.v1", one binary frame per
+// ClientFrame or ServerFrame.
+//
+// /v1/connect: agents and approvers. The relay sends Challenge, the client
+// answers with Auth, the relay replies with Ready or Error.
+//
+// /v1/pair: agents that aren't paired yet, no authentication. The relay sends
+// Challenge (for the keep-alive interval only), the agent sends OpenSlot. The
+// socket can do nothing else and closes after SlotAnswer, expiry or an error.
+// The slot is deleted when the socket closes.
+
+message ClientFrame {
+    // Set by the client on frames that expect a Result; echoed in Result.id.
+    uint32 id = 1;
+    oneof frame {
+        Auth auth = 2;
+        Send send = 3;
+        Ack ack = 4;
+        Ping ping = 5;
+        RegisterAgent register_agent = 6;
+        UnregisterAgent unregister_agent = 7;
+        RenewPass renew_pass = 8;
+        OpenSlot open_slot = 9;
+        ClaimSlot claim_slot = 10;
+        AnswerSlot answer_slot = 11;
+    }
+}
+
+message ServerFrame {
+    oneof frame {
+        Challenge challenge = 1;
+        Ready ready = 2;
+        Result result = 3;
+        Deliver deliver = 4;
+        Pong pong = 5;
+        Revoked revoked = 6;
+        SlotOpened slot_opened = 7;
+        SlotClaimed slot_claimed = 8;
+        SlotOffer slot_offer = 9;
+        SlotAnswer slot_answer = 10;
+        Error error = 11;
+    }
+}
+
+message Challenge {
+    uint32 protocol_version = 1;
+    // 32 random bytes to sign in Auth.
+    bytes nonce = 2;
+    // The client sends Ping when it has sent nothing else for this long. The
+    // relay closes connections that stay silent for twice as long.
+    uint32 keepalive_seconds = 3;
+    // Relay clock, Unix milliseconds, so clients can warn about clock drift.
+    int64 server_time = 4;
+}
+
+message Auth {
+    // Ed25519 public key of the agent or approver.
+    bytes public_key = 1;
+    // Ed25519 signature over the relay auth input (relay origin and nonce).
+    bytes signature = 2;
+    // Approvers on the hosted relay: a relay pass from Online Services.
+    string pass = 3;
+    // Self-hosted relays in token mode: the access token (approvers and agents).
+    string token = 4;
+    // What the client is. An agent the relay doesn't know gets an Error
+    // (REVOKED if it was revoked, NOT_FOUND otherwise) instead of being taken
+    // for a new approver.
+    Role role = 5;
+}
+
+enum Role {
+    ROLE_UNSPECIFIED = 0;
+    ROLE_AGENT = 1;
+    ROLE_APPROVER = 2;
+}
+
+message Ready {
+    Role role = 1;
+    // Approvers: when the pass the relay holds expires (Unix milliseconds).
+    // Zero in token mode.
+    int64 pass_expires_at = 2;
+    // Approvers: the agents registered under this approver.
+    repeated bytes agents = 3;
+}
+
+enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_OK = 1;
+    STATUS_BAD_REQUEST = 2;
+    STATUS_UNAUTHORIZED = 3;
+    STATUS_NOT_FOUND = 4;
+    STATUS_LIMIT_REACHED = 5;
+    STATUS_EXPIRED = 6;
+    STATUS_REVOKED = 7;
+    STATUS_TOO_LARGE = 8;
+    STATUS_RATE_LIMITED = 9;
+    STATUS_ALREADY_CLAIMED = 10;
+    STATUS_UNAVAILABLE = 11;
+}
+
+// The answer to a ClientFrame that set an id.
+message Result {
+    uint32 id = 1;
+    Status status = 2;
+    string message = 3;
+}
+
+// Fatal. The relay closes the connection after sending it.
+message Error {
+    Status status = 1;
+    string message = 2;
+}
+
+message Send {
+    Envelope envelope = 1;
+}
+
+// An envelope for this client. Stays queued until the client acks it or it
+// expires.
+message Deliver {
+    Envelope envelope = 1;
+}
+
+message Ack {
+    bytes message_id = 1;
+}
+
+message Ping {}
+
+message Pong {}
+
+// Approver only.
+message RegisterAgent {
+    bytes agent_key = 1;
+    bytes revocation_key = 2;
+}
+
+// Approver (for one of its agents) or agent (agent_key empty, meaning itself).
+message UnregisterAgent {
+    bytes agent_key = 1;
+}
+
+// Approver only, hosted relay.
+message RenewPass {
+    string pass = 1;
+}
+
+// To an agent: its registration is gone and the relay closes the connection.
+// To an approver: one of its agents was revoked.
+message Revoked {
+    bytes agent_key = 1;
+}
+
+// Agent, /v1/pair only. At most 4 KB.
+message OpenSlot {
+    // Serialized PairingOffer.
+    bytes offer = 1;
+}
+
+message SlotOpened {
+    bytes slot_id = 1;
+    // Unix milliseconds; the scan deadline.
+    int64 expires_at = 2;
+}
+
+// To the agent: an approver claimed the slot. The deadline moves to
+// expires_at.
+message SlotClaimed {
+    int64 expires_at = 1;
+}
+
+// Approver only. Answered with SlotOffer, or a Result on failure.
+message ClaimSlot {
+    bytes slot_id = 1;
+}
+
+message SlotOffer {
+    // The id of the ClaimSlot frame.
+    uint32 id = 1;
+    // Serialized PairingOffer, as uploaded.
+    bytes offer = 2;
+    int64 expires_at = 3;
+}
+
+// Approver only, after a successful ClaimSlot and RegisterAgent.
+message AnswerSlot {
+    bytes slot_id = 1;
+    // Envelope carrying Message.pairing_accept.
+    Envelope envelope = 2;
+}
+
+// To the agent on /v1/pair: the approver's answer.
+message SlotAnswer {
+    Envelope envelope = 1;
+}
+
+// Body of POST /v1/revoke. Lets any device holding the vault revoke an agent
+// with the revocation key from the agent record.
+message RevokeRequest {
+    bytes agent_key = 1;
+    // Unix milliseconds; the relay accepts five minutes either way.
+    int64 issued_at = 2;
+    // Ed25519 signature by the revocation key over the revoke input.
+    bytes signature = 3;
+}

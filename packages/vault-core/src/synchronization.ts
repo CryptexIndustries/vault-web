@@ -104,6 +104,7 @@ export interface VaultOperations {
     getCredentialVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getDirectoryVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getShareLinkVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getConnectedAgentVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getItems(
         items: VaultUtilTypes.SyncItemReference[],
     ): Promise<VaultUtilTypes.SyncDataResponseMessage>;
@@ -112,6 +113,7 @@ export interface VaultOperations {
         directories: VaultUtilTypes.Directory[],
         credentials: VaultUtilTypes.Credential[],
         shareLinks: VaultUtilTypes.ShareLink[],
+        connectedAgents: VaultUtilTypes.ConnectedAgent[],
     ): Promise<void>;
     getSynchronizationConfig(): Promise<VaultUtilTypes.LinkedDevices>;
     getSyncSigningPublicKey(): Promise<string | null>;
@@ -2079,6 +2081,10 @@ class VaultItemSynchronization {
         return this.vaultOps.getShareLinkVersionVectors();
     }
 
+    private getConnectedAgentVersionVectors() {
+        return this.vaultOps.getConnectedAgentVersionVectors();
+    }
+
     public async transmitSyncHello(
         deviceID: string,
         dataChannel: RTCDataChannel,
@@ -2088,6 +2094,7 @@ class VaultItemSynchronization {
                 await this.getCredentialVersionVectors(),
                 await this.getDirectoryVersionVectors(),
                 await this.getShareLinkVersionVectors(),
+                await this.getConnectedAgentVersionVectors(),
             );
 
         const sent = await this.sendEncryptedPlaintextMessage(
@@ -2235,6 +2242,7 @@ class VaultItemSynchronization {
                         await this.getCredentialVersionVectors(),
                         await this.getDirectoryVersionVectors(),
                         await this.getShareLinkVersionVectors(),
+                        await this.getConnectedAgentVersionVectors(),
                     );
                 await this.sendEncryptedPlaintextMessage(
                     remoteDeviceID,
@@ -2322,6 +2330,10 @@ class VaultItemSynchronization {
                 ...vector,
                 ID: `share:${vector.ID}`,
             })),
+            ...message.ConnectedAgentVersionVectors.map((vector) => ({
+                ...vector,
+                ID: `agent:${vector.ID}`,
+            })),
         ];
 
         syncLog.info(`Received a sync hello message from the remote device`, {
@@ -2343,6 +2355,10 @@ class VaultItemSynchronization {
             ...(await this.getShareLinkVersionVectors()).map((vector) => ({
                 ...vector,
                 ID: `share:${vector.ID}`,
+            })),
+            ...(await this.getConnectedAgentVersionVectors()).map((vector) => ({
+                ...vector,
+                ID: `agent:${vector.ID}`,
             })),
         ];
 
@@ -2502,8 +2518,11 @@ class VaultItemSynchronization {
                                     : kind === "share"
                                       ? VaultUtilTypes.SyncItemType
                                             .ShareLinkItem
-                                      : VaultUtilTypes.SyncItemType
-                                            .CredentialItem,
+                                      : kind === "agent"
+                                        ? VaultUtilTypes.SyncItemType
+                                              .ConnectedAgentItem
+                                        : VaultUtilTypes.SyncItemType
+                                              .CredentialItem,
                             ID: idParts.join(":"),
                         };
                     }),
@@ -2576,6 +2595,7 @@ class VaultItemSynchronization {
                 response.Credentials,
                 response.Directories,
                 response.ShareLinks,
+                response.ConnectedAgents,
             );
 
         await this.sendEncryptedPlaintextMessage(
@@ -2628,6 +2648,7 @@ class VaultItemSynchronization {
             directories,
             credentials,
             message.ShareLinks,
+            message.ConnectedAgents,
         );
 
         syncLog.info("Updated credentials in the vault", {

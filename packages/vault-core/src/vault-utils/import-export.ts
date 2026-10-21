@@ -23,6 +23,11 @@ import {
     Vault,
     VaultCredential,
 } from "./vault";
+import { parseSSHPublicKey } from "./ssh-key-info";
+
+// The private-key code pulls in elliptic-curve libraries, so it loads only
+// when an import actually contains SSH keys.
+const loadSSHKeyModule = () => import("./ssh-key");
 
 /** Sanitized cleartext JSON for migration export (no download side effects). */
 export const vaultToJSONString = (vaultInstance: Vault): string => {
@@ -348,6 +353,46 @@ const addCustomField = (
     credential.CustomFields.push(field);
 };
 
+/**
+ * Stores an imported private key as a native SSH key. Keys that can't be read
+ * stay on the item as a hidden custom field, and the import shows a notice.
+ */
+const assignImportedSSHKey = async (
+    credential: Credential,
+    privateKey: unknown,
+    publicKey: unknown,
+    sourceLabel: string,
+    notices: ImportNotice[],
+): Promise<boolean> => {
+    if (typeof privateKey !== "string" || !privateKey.trim()) return false;
+    const { importSSHPrivateKey } = await loadSSHKeyModule();
+    const result = await importSSHPrivateKey(privateKey);
+    if (result.isErr()) {
+        addCustomField(
+            credential,
+            "SSH private key",
+            privateKey,
+            CustomFieldType.MaskedText,
+        );
+        addImportNotice(notices, {
+            code: "SSH_KEY_UNSUPPORTED",
+            kind: "saved-differently",
+            title: "Some SSH keys will be saved as hidden fields",
+            detail: `Cryptex Vault couldn't read these ${sourceLabel} keys, so they can't be used as SSH keys. ${result.error.message}`,
+            itemName: credential.Name,
+            requiresConfirmation: true,
+        });
+        return false;
+    }
+    const data = result.value;
+    if (!data.Comment && typeof publicKey === "string") {
+        data.Comment = parseSSHPublicKey(publicKey)?.comment ?? "";
+    }
+    credential.Type = ItemType.SSHKey;
+    credential.SSHKey = data;
+    return true;
+};
+
 const addUnknownScalarFields = (
     credential: Credential,
     source: Record<string, unknown> | undefined,
@@ -456,6 +501,10 @@ const makeCredential = (data: {
 };
 
 const finishCredential = (credential: Credential): Credential => {
+    if (credential.Type === ItemType.SSHKey && !credential.SSHKey) {
+        credential.Type = ItemType.Credentials;
+    }
+    if (credential.Type !== ItemType.SSHKey) credential.SSHKey = undefined;
     credential.CustomFields = credential.CustomFields.map((field) =>
         field.Type === CustomFieldType.Date
             ? { ...field, Type: CustomFieldType.Text }
@@ -995,8 +1044,18 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
                 );
             }
         }
-        if (item.sshKey) {
+        const importedSSHKey = item.sshKey
+            ? await assignImportedSSHKey(
+                  credential,
+                  item.sshKey.privateKey,
+                  item.sshKey.publicKey,
+                  "Bitwarden",
+                  notices,
+              )
+            : false;
+        if (item.sshKey && !importedSSHKey) {
             for (const [key, value] of Object.entries(item.sshKey)) {
+                if (key === "privateKey") continue;
                 addCustomField(
                     credential,
                     `SSH ${key}`,
@@ -2173,6 +2232,22 @@ const onePasswordValue = (
     };
 };
 
+/** 1Password stores SSH keys as { sshKey: { privateKey, metadata } }. */
+const onePasswordSSHKey = (
+    value: unknown,
+): { privateKey: string; publicKey?: string } | null => {
+    if (!isRecord(value) || !isRecord(value.sshKey)) return null;
+    const { privateKey, metadata } = value.sshKey;
+    const fallback = isRecord(metadata) ? metadata.privateKey : undefined;
+    const key = typeof privateKey === "string" ? privateKey : fallback;
+    if (typeof key !== "string") return null;
+    const publicKey = isRecord(metadata) ? metadata.publicKey : undefined;
+    return {
+        privateKey: key,
+        publicKey: typeof publicKey === "string" ? publicKey : undefined,
+    };
+};
+
 const onePasswordItemType = (category: string | undefined): ItemType => {
     switch (category) {
         case "003":
@@ -2554,6 +2629,33 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
                 }
                 for (const section of item.details?.sections ?? []) {
                     for (const field of section.fields ?? []) {
+                        const sshKey = onePasswordSSHKey(field.value);
+                        if (sshKey) {
+                            // Only SSH key items become native keys; other
+                            // items keep the key as a hidden field.
+                            if (
+                                credential.Type === ItemType.SSHKey &&
+                                !credential.SSHKey
+                            ) {
+                                await assignImportedSSHKey(
+                                    credential,
+                                    sshKey.privateKey,
+                                    sshKey.publicKey,
+                                    "1Password",
+                                    notices,
+                                );
+                            } else {
+                                addCustomField(
+                                    credential,
+                                    section.title
+                                        ? `${section.title}: ${field.title || "SSH private key"}`
+                                        : field.title || "SSH private key",
+                                    sshKey.privateKey,
+                                    CustomFieldType.MaskedText,
+                                );
+                            }
+                            continue;
+                        }
                         const parsedValue = onePasswordValue(field.value);
                         const fieldName =
                             field.title || field.id || "1Password field";
@@ -2771,6 +2873,22 @@ const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
         skippedDirectories += 1;
         return false;
     });
+    const validSSHKeys = new Set<unknown>();
+    const sshKeys = parsed.Credentials.flatMap((raw) =>
+        raw?.Type === ItemType.SSHKey &&
+        isRecord(raw.SSHKey) &&
+        typeof raw.SSHKey.PrivateKey === "string" &&
+        typeof raw.SSHKey.PublicKey === "string" &&
+        typeof raw.SSHKey.Comment === "string"
+            ? [raw.SSHKey]
+            : [],
+    );
+    if (sshKeys.length > 0) {
+        const { validateSSHKeyData } = await loadSSHKeyModule();
+        for (const data of sshKeys) {
+            if (validateSSHKeyData(data).isOk()) validSSHKeys.add(data);
+        }
+    }
     const credentials = parsed.Credentials.flatMap((rawCredential) => {
         if (rawCredential.Deleted) {
             skippedItems += 1;
@@ -2800,6 +2918,26 @@ const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
         }
         credential.CustomFields = rawCredential.CustomFields ?? [];
         credential.Deleted = false;
+        if (
+            credential.Type === ItemType.SSHKey &&
+            (!credential.SSHKey || !validSSHKeys.has(credential.SSHKey))
+        ) {
+            addCustomField(
+                credential,
+                "SSH private key",
+                credential.SSHKey?.PrivateKey,
+                CustomFieldType.MaskedText,
+            );
+            credential.SSHKey = undefined;
+            addImportNotice(notices, {
+                code: "CRYPTEX_SSH_KEY_INVALID",
+                kind: "saved-differently",
+                title: "Some SSH keys will be saved as hidden fields",
+                detail: "Their key data is damaged, so they can't be used as SSH keys.",
+                itemName: credential.Name,
+                requiresConfirmation: true,
+            });
+        }
         return [finishCredential(credential)];
     });
     if (skippedItems) {

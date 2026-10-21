@@ -1,6 +1,7 @@
 import { ItemType, type Credential } from "../proto/vault";
 import { normalizeCredentialUrl } from "../credential-url";
 import { PASSWORD_STRENGTH_LABELS, scorePassword } from "./password-strength";
+import { describeSSHKey, isWeakSSHKey } from "./ssh-key-info";
 
 export const PASSWORD_AGE_REVIEW_DAYS = 365;
 
@@ -29,12 +30,22 @@ export type PasswordAgeFinding = SecurityFindingIdentity & {
     passwordAgeDays: number;
 };
 
+/** An RSA SSH key shorter than 3072 bits. */
+export type WeakSSHKeyFinding = SecurityFindingIdentity & {
+    /** "RSA 2048" and so on. */
+    keyLabel: string;
+    bits: number;
+    /** Critical below 2048 bits, a warning from 2048 to 3071. */
+    severity: "critical" | "warning";
+};
+
 export type SecurityAnalysisResult = {
     healthBand: SecurityHealthBand;
     analyzedCount: number;
     weakFindings: WeakPasswordFinding[];
     reuseGroups: ReusedPasswordGroup[];
     ageFindings: PasswordAgeFinding[];
+    weakSSHKeyFindings: WeakSSHKeyFinding[];
 };
 
 export type SecurityAnalysisProgress = {
@@ -52,6 +63,7 @@ export type SecurityReportCredential = Pick<
     | "URL"
     | "DatePasswordChangedTimestamp"
     | "Deleted"
+    | "SSHKey"
 >;
 
 function getCredentialDomain(rawUrl: string): string | undefined {
@@ -93,15 +105,24 @@ export function* iterateCredentialSecurityAnalysis(
     const activeCredentials = credentials.filter(
         (credential) =>
             !credential.Deleted &&
-            credential.Type === ItemType.Credentials &&
+            (credential.Type === ItemType.Credentials ||
+                credential.Type === ItemType.Unspecified) &&
             credential.Password.length > 0,
     );
+    const sshKeys = credentials.filter(
+        (credential) =>
+            !credential.Deleted &&
+            credential.Type === ItemType.SSHKey &&
+            credential.SSHKey,
+    );
+    const total = activeCredentials.length + sshKeys.length;
 
     const passwordGroups = new Map<string, SecurityFindingIdentity[]>();
     const weakFindings: WeakPasswordFinding[] = [];
     const ageFindings: PasswordAgeFinding[] = [];
+    const weakSSHKeyFindings: WeakSSHKeyFinding[] = [];
 
-    yield { processed: 0, total: activeCredentials.length };
+    yield { processed: 0, total };
 
     for (const [index, credential] of activeCredentials.entries()) {
         const identity = toFindingIdentity(credential);
@@ -136,7 +157,23 @@ export function* iterateCredentialSecurityAnalysis(
 
         yield {
             processed: index + 1,
-            total: activeCredentials.length,
+            total,
+        };
+    }
+
+    for (const [index, credential] of sshKeys.entries()) {
+        const info = describeSSHKey(credential.SSHKey!);
+        if (info && isWeakSSHKey(info)) {
+            weakSSHKeyFindings.push({
+                ...toFindingIdentity(credential),
+                keyLabel: info.label,
+                bits: info.bits,
+                severity: info.bits < 2048 ? "critical" : "warning",
+            });
+        }
+        yield {
+            processed: activeCredentials.length + index + 1,
+            total,
         };
     }
 
@@ -148,28 +185,30 @@ export function* iterateCredentialSecurityAnalysis(
 
     weakFindings.sort((a, b) => a.score - b.score);
     ageFindings.sort((a, b) => b.passwordAgeDays - a.passwordAgeDays);
+    weakSSHKeyFindings.sort((a, b) => a.bits - b.bits);
 
-    const hasCriticalWeakPassword = weakFindings.some(
+    const hasCriticalFinding = [...weakFindings, ...weakSSHKeyFindings].some(
         (finding) => finding.severity === "critical",
     );
     const healthBand: SecurityHealthBand =
-        reuseGroups.length > 0 || hasCriticalWeakPassword
+        reuseGroups.length > 0 || hasCriticalFinding
             ? "at-risk"
-            : weakFindings.length > 0
+            : weakFindings.length > 0 || weakSSHKeyFindings.length > 0
               ? "needs-attention"
               : "good";
 
     return {
         healthBand,
-        analyzedCount: activeCredentials.length,
+        analyzedCount: total,
         weakFindings,
         reuseGroups,
         ageFindings,
+        weakSSHKeyFindings,
     };
 }
 
 /**
- * Analyzes credential passwords locally. The returned model deliberately omits
+ * Analyzes credential passwords and SSH key sizes locally. The returned model deliberately omits
  * passwords and password-derived identifiers so it is safe to hand to the UI.
  */
 export function analyzeCredentialSecurity(

@@ -32,11 +32,13 @@ export enum KeySlotKind {
 }
 
 export enum ItemType {
-    SSHKey = 0,
+    /** Unspecified - Missing or unknown types read as ordinary credentials. */
+    Unspecified = 0,
     Credentials = 1,
     Note = 2,
     Identity = 3,
     Passkey = 4,
+    SSHKey = 5,
 }
 
 export enum CustomFieldType {
@@ -44,6 +46,28 @@ export enum CustomFieldType {
     MaskedText = 1,
     Boolean = 2,
     Date = 3,
+}
+
+export enum AgentRequestKind {
+    AgentRequestUnknown = 0,
+    /** AgentRequestLogin - An SSH login (userauth). */
+    AgentRequestLogin = 1,
+    /** AgentRequestSignature - An SSHSIG signature (git commits, ssh-keygen -Y sign); see Namespace. */
+    AgentRequestSignature = 2,
+    /** AgentRequestOther - Anything else. */
+    AgentRequestOther = 3,
+}
+
+export enum AgentRequestOutcome {
+    AgentOutcomeUnknown = 0,
+    AgentOutcomeApproved = 1,
+    /** AgentOutcomeApprovedByRule - Approved by a remembered rule without asking. */
+    AgentOutcomeApprovedByRule = 2,
+    AgentOutcomeDenied = 3,
+    /** AgentOutcomeExpired - Nobody answered before the request expired. */
+    AgentOutcomeExpired = 4,
+    /** AgentOutcomeRefused - Refused by a check (invalid data, key no longer granted). */
+    AgentOutcomeRefused = 5,
 }
 
 export enum CredentialURLMatchMode {
@@ -75,6 +99,7 @@ export enum SyncItemType {
     CredentialItem = 0,
     DirectoryItem = 1,
     ShareLinkItem = 2,
+    ConnectedAgentItem = 3,
 }
 
 /** #region Encryption */
@@ -167,6 +192,147 @@ export interface Vault {
     ShareLinks: ShareLink[];
     /** Which share server this device uses. Device-local, not synced. */
     ShareSettings?: ShareSettings | undefined;
+    /**
+     * Keyless SSH agents (cryptex-agent) paired with one of this vault's
+     * devices. Synced.
+     */
+    ConnectedAgents: ConnectedAgent[];
+    /**
+     * This device's SSH agent approver keys and agent relay settings.
+     * Device-local: stripped wherever the vault leaves this device (linking,
+     * backups, managed backups), never synced or exported.
+     */
+    AgentApprover?: AgentApproverSettings | undefined;
+}
+
+/**
+ * #region ConnectedAgents
+ * A Linux machine running cryptex-agent. It holds no private keys and asks
+ * its approver (the device that paired it) to sign with granted SSH key
+ * items. Synced so every linked device lists the agent and can revoke it;
+ * only the approver answers its requests. See agent.proto for the protocol.
+ */
+export interface ConnectedAgent {
+    /** Unpadded base64url of AgentSignPublicKey. */
+    ID: string;
+    /** Chosen by the user when pairing. */
+    Name: string;
+    /** The agent's Ed25519 relay key and X-Wing encryption key. */
+    AgentSignPublicKey: Uint8Array;
+    AgentKEMPublicKey: Uint8Array;
+    /** From the pairing offer; reported by the machine, so unverified. */
+    Hostname: string;
+    OS: string;
+    Arch: string;
+    AgentVersion: string;
+    /**
+     * The approving device's relay keys and name. A device recognizes
+     * itself as the approver by its own relay key.
+     */
+    ApproverSignPublicKey: Uint8Array;
+    ApproverKEMPublicKey: Uint8Array;
+    ApproverName: string;
+    /**
+     * Ed25519 seed of the key registered for POST /v1/revoke, so any linked
+     * device can revoke the agent.
+     */
+    RevocationSeed: Uint8Array;
+    /**
+     * Relay URL, such as "https://relay.example.com" or, behind a path,
+     * "https://example.com/relay"; empty for the hosted relay (Online
+     * Services). Fixed at pairing: merges keep the first value.
+     */
+    RelayOrigin: string;
+    /** SSH key items (Credential IDs) the agent may use, in the order offered. */
+    CredentialIDs: string[];
+    KeysRevision: number;
+    PairedAtTimestamp: number;
+    LastUsedTimestamp: number;
+    /** Newest first, at most 90 days and 200 entries. */
+    History: AgentRequestRecord[];
+    Hash: string;
+    Version: number;
+    DateModifiedTimestamp: number;
+    Deleted: boolean;
+    /**
+     * Server names the user approved per host key, so the approval screen can
+     * warn when a known host key comes under a new name or a known name with
+     * a new host key. Written only when the user approves a request. Merges
+     * take the union; at most 100, oldest dropped.
+     */
+    KnownHosts: AgentKnownHost[];
+    /**
+     * Paused agents get every request refused without asking. Any device can
+     * pause or resume.
+     */
+    Paused: boolean;
+}
+
+export interface AgentKnownHost {
+    /** SHA256 fingerprint of the verified server host key. */
+    Fingerprint: string;
+    /** The name the machine reported for it (its known_hosts). */
+    Name: string;
+    FirstSeenTimestamp: number;
+}
+
+export interface AgentRequestRecord {
+    Timestamp: number;
+    Kind: AgentRequestKind;
+    Outcome: AgentRequestOutcome;
+    /** SSHSIG namespace, such as "git". */
+    Namespace: string;
+    /** Server name as reported by the machine's known_hosts, if any. */
+    Host: string;
+    /** SHA256 fingerprint of the verified server host key, if any. */
+    HostKeyFingerprint: string;
+    Forwarded: boolean;
+    DestinationUnknown: boolean;
+    /** The SSH key item used. */
+    CredentialID: string;
+    /** The calling program as reported by the machine, such as "git push". */
+    Process: string;
+}
+
+/**
+ * Device-local state of this device's approver (the web dashboard keeps it
+ * in the vault; Android keeps it in secure storage instead).
+ */
+export interface AgentApproverSettings {
+    /**
+     * Seeds of the approver identity: Ed25519 relay key and X-Wing
+     * encryption key, 32 bytes each. Agents pin their public halves.
+     */
+    SignSeed: Uint8Array;
+    KEMSeed: Uint8Array;
+    /** Self-hosted relays (token mode) this device uses. */
+    CustomRelays: AgentRelaySettings[];
+    /** The hosted relay pass last issued for SignSeed's public key. */
+    RelayPass: string;
+    RelayPassExpiresAt: number;
+    /**
+     * Agents this device paired and the keys it last sent each one. The
+     * approver serves only these, and only keys both here and in the synced
+     * record, so a synced record alone can't add an agent or a grant.
+     */
+    ApprovedAgents: AgentLocalApproval[];
+}
+
+export interface AgentLocalApproval {
+    /** ConnectedAgent.ID */
+    AgentID: string;
+    /** SSH wire public keys this device sent the agent. */
+    Keys: Uint8Array[];
+}
+
+export interface AgentRelaySettings {
+    /**
+     * Normalized relay URL, such as "https://relay.example.com" or
+     * "https://example.com/relay".
+     */
+    Origin: string;
+    /** The relay's access token. */
+    Token: string;
 }
 
 /** #region ShareLinks */
@@ -327,6 +493,18 @@ export interface PasskeyData {
     Discoverable: boolean;
 }
 
+/**
+ * SSH key material. The private key is an unencrypted OpenSSH private key; the
+ * vault's own encryption protects it. Algorithm, size and fingerprint are
+ * derived from PublicKey when needed.
+ */
+export interface SSHKeyData {
+    PrivateKey: string;
+    /** "<algorithm> <base64 blob>", without the comment. */
+    PublicKey: string;
+    Comment: string;
+}
+
 export interface Credential {
     ID: string;
     Type: ItemType;
@@ -358,6 +536,7 @@ export interface Credential {
     URLMatchMode: CredentialURLMatchMode;
     AdditionalURLs: CredentialURL[];
     Passkey?: PasskeyData | undefined;
+    SSHKey?: SSHKeyData | undefined;
 }
 
 export interface TOTP {
@@ -396,12 +575,14 @@ export interface SyncHelloMessage {
     CredentialVersionVectors: VersionVector[];
     DirectoryVersionVectors: VersionVector[];
     ShareLinkVersionVectors: VersionVector[];
+    ConnectedAgentVersionVectors: VersionVector[];
 }
 
 export interface SyncHelloEchoMessage {
     CredentialVersionVectors: VersionVector[];
     DirectoryVersionVectors: VersionVector[];
     ShareLinkVersionVectors: VersionVector[];
+    ConnectedAgentVersionVectors: VersionVector[];
 }
 
 export interface SyncItemReference {
@@ -417,6 +598,7 @@ export interface SyncDataResponseMessage {
     Credentials: Credential[];
     Directories: Directory[];
     ShareLinks: ShareLink[];
+    ConnectedAgents: ConnectedAgent[];
 }
 
 /** #region Linking */
@@ -1354,6 +1536,7 @@ function createBaseVault(): Vault {
         Credentials: [],
         Directories: [],
         ShareLinks: [],
+        ConnectedAgents: [],
     };
 }
 
@@ -1393,6 +1576,15 @@ export const Vault: MessageFns<Vault> = {
             ShareSettings.encode(
                 message.ShareSettings,
                 writer.uint32(98).fork(),
+            ).join();
+        }
+        for (const v of message.ConnectedAgents) {
+            ConnectedAgent.encode(v!, writer.uint32(106).fork()).join();
+        }
+        if (message.AgentApprover !== undefined) {
+            AgentApproverSettings.encode(
+                message.AgentApprover,
+                writer.uint32(114).fork(),
             ).join();
         }
         return writer;
@@ -1485,6 +1677,27 @@ export const Vault: MessageFns<Vault> = {
                     );
                     continue;
                 }
+                case 13: {
+                    if (tag !== 106) {
+                        break;
+                    }
+
+                    message.ConnectedAgents.push(
+                        ConnectedAgent.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 14: {
+                    if (tag !== 114) {
+                        break;
+                    }
+
+                    message.AgentApprover = AgentApproverSettings.decode(
+                        reader,
+                        reader.uint32(),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -1520,6 +1733,906 @@ export const Vault: MessageFns<Vault> = {
             object.ShareSettings !== undefined && object.ShareSettings !== null
                 ? ShareSettings.fromPartial(object.ShareSettings)
                 : undefined;
+        message.ConnectedAgents =
+            object.ConnectedAgents?.map((e) => ConnectedAgent.fromPartial(e)) ||
+            [];
+        message.AgentApprover =
+            object.AgentApprover !== undefined && object.AgentApprover !== null
+                ? AgentApproverSettings.fromPartial(object.AgentApprover)
+                : undefined;
+        return message;
+    },
+};
+
+function createBaseConnectedAgent(): ConnectedAgent {
+    return {
+        ID: "",
+        Name: "",
+        AgentSignPublicKey: new Uint8Array(0),
+        AgentKEMPublicKey: new Uint8Array(0),
+        Hostname: "",
+        OS: "",
+        Arch: "",
+        AgentVersion: "",
+        ApproverSignPublicKey: new Uint8Array(0),
+        ApproverKEMPublicKey: new Uint8Array(0),
+        ApproverName: "",
+        RevocationSeed: new Uint8Array(0),
+        RelayOrigin: "",
+        CredentialIDs: [],
+        KeysRevision: 0,
+        PairedAtTimestamp: 0,
+        LastUsedTimestamp: 0,
+        History: [],
+        Hash: "",
+        Version: 0,
+        DateModifiedTimestamp: 0,
+        Deleted: false,
+        KnownHosts: [],
+        Paused: false,
+    };
+}
+
+export const ConnectedAgent: MessageFns<ConnectedAgent> = {
+    encode(
+        message: ConnectedAgent,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.AgentSignPublicKey.length !== 0) {
+            writer.uint32(26).bytes(message.AgentSignPublicKey);
+        }
+        if (message.AgentKEMPublicKey.length !== 0) {
+            writer.uint32(34).bytes(message.AgentKEMPublicKey);
+        }
+        if (message.Hostname !== "") {
+            writer.uint32(42).string(message.Hostname);
+        }
+        if (message.OS !== "") {
+            writer.uint32(50).string(message.OS);
+        }
+        if (message.Arch !== "") {
+            writer.uint32(58).string(message.Arch);
+        }
+        if (message.AgentVersion !== "") {
+            writer.uint32(66).string(message.AgentVersion);
+        }
+        if (message.ApproverSignPublicKey.length !== 0) {
+            writer.uint32(74).bytes(message.ApproverSignPublicKey);
+        }
+        if (message.ApproverKEMPublicKey.length !== 0) {
+            writer.uint32(82).bytes(message.ApproverKEMPublicKey);
+        }
+        if (message.ApproverName !== "") {
+            writer.uint32(90).string(message.ApproverName);
+        }
+        if (message.RevocationSeed.length !== 0) {
+            writer.uint32(98).bytes(message.RevocationSeed);
+        }
+        if (message.RelayOrigin !== "") {
+            writer.uint32(106).string(message.RelayOrigin);
+        }
+        for (const v of message.CredentialIDs) {
+            writer.uint32(114).string(v!);
+        }
+        if (message.KeysRevision !== 0) {
+            writer.uint32(120).uint64(message.KeysRevision);
+        }
+        if (message.PairedAtTimestamp !== 0) {
+            writer.uint32(128).int64(message.PairedAtTimestamp);
+        }
+        if (message.LastUsedTimestamp !== 0) {
+            writer.uint32(136).int64(message.LastUsedTimestamp);
+        }
+        for (const v of message.History) {
+            AgentRequestRecord.encode(v!, writer.uint32(146).fork()).join();
+        }
+        if (message.Hash !== "") {
+            writer.uint32(154).string(message.Hash);
+        }
+        if (message.Version !== 0) {
+            writer.uint32(160).int32(message.Version);
+        }
+        if (message.DateModifiedTimestamp !== 0) {
+            writer.uint32(168).int64(message.DateModifiedTimestamp);
+        }
+        if (message.Deleted !== false) {
+            writer.uint32(176).bool(message.Deleted);
+        }
+        for (const v of message.KnownHosts) {
+            AgentKnownHost.encode(v!, writer.uint32(186).fork()).join();
+        }
+        if (message.Paused !== false) {
+            writer.uint32(192).bool(message.Paused);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): ConnectedAgent {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseConnectedAgent();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.AgentSignPublicKey = reader.bytes();
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.AgentKEMPublicKey = reader.bytes();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.Hostname = reader.string();
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.OS = reader.string();
+                    continue;
+                }
+                case 7: {
+                    if (tag !== 58) {
+                        break;
+                    }
+
+                    message.Arch = reader.string();
+                    continue;
+                }
+                case 8: {
+                    if (tag !== 66) {
+                        break;
+                    }
+
+                    message.AgentVersion = reader.string();
+                    continue;
+                }
+                case 9: {
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    message.ApproverSignPublicKey = reader.bytes();
+                    continue;
+                }
+                case 10: {
+                    if (tag !== 82) {
+                        break;
+                    }
+
+                    message.ApproverKEMPublicKey = reader.bytes();
+                    continue;
+                }
+                case 11: {
+                    if (tag !== 90) {
+                        break;
+                    }
+
+                    message.ApproverName = reader.string();
+                    continue;
+                }
+                case 12: {
+                    if (tag !== 98) {
+                        break;
+                    }
+
+                    message.RevocationSeed = reader.bytes();
+                    continue;
+                }
+                case 13: {
+                    if (tag !== 106) {
+                        break;
+                    }
+
+                    message.RelayOrigin = reader.string();
+                    continue;
+                }
+                case 14: {
+                    if (tag !== 114) {
+                        break;
+                    }
+
+                    message.CredentialIDs.push(reader.string());
+                    continue;
+                }
+                case 15: {
+                    if (tag !== 120) {
+                        break;
+                    }
+
+                    message.KeysRevision = longToNumber(reader.uint64());
+                    continue;
+                }
+                case 16: {
+                    if (tag !== 128) {
+                        break;
+                    }
+
+                    message.PairedAtTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 17: {
+                    if (tag !== 136) {
+                        break;
+                    }
+
+                    message.LastUsedTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 18: {
+                    if (tag !== 146) {
+                        break;
+                    }
+
+                    message.History.push(
+                        AgentRequestRecord.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 19: {
+                    if (tag !== 154) {
+                        break;
+                    }
+
+                    message.Hash = reader.string();
+                    continue;
+                }
+                case 20: {
+                    if (tag !== 160) {
+                        break;
+                    }
+
+                    message.Version = reader.int32();
+                    continue;
+                }
+                case 21: {
+                    if (tag !== 168) {
+                        break;
+                    }
+
+                    message.DateModifiedTimestamp = longToNumber(
+                        reader.int64(),
+                    );
+                    continue;
+                }
+                case 22: {
+                    if (tag !== 176) {
+                        break;
+                    }
+
+                    message.Deleted = reader.bool();
+                    continue;
+                }
+                case 23: {
+                    if (tag !== 186) {
+                        break;
+                    }
+
+                    message.KnownHosts.push(
+                        AgentKnownHost.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 24: {
+                    if (tag !== 192) {
+                        break;
+                    }
+
+                    message.Paused = reader.bool();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<ConnectedAgent>, I>>(
+        base?: I,
+    ): ConnectedAgent {
+        return ConnectedAgent.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<ConnectedAgent>, I>>(
+        object: I,
+    ): ConnectedAgent {
+        const message = createBaseConnectedAgent();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.AgentSignPublicKey =
+            object.AgentSignPublicKey ?? new Uint8Array(0);
+        message.AgentKEMPublicKey =
+            object.AgentKEMPublicKey ?? new Uint8Array(0);
+        message.Hostname = object.Hostname ?? "";
+        message.OS = object.OS ?? "";
+        message.Arch = object.Arch ?? "";
+        message.AgentVersion = object.AgentVersion ?? "";
+        message.ApproverSignPublicKey =
+            object.ApproverSignPublicKey ?? new Uint8Array(0);
+        message.ApproverKEMPublicKey =
+            object.ApproverKEMPublicKey ?? new Uint8Array(0);
+        message.ApproverName = object.ApproverName ?? "";
+        message.RevocationSeed = object.RevocationSeed ?? new Uint8Array(0);
+        message.RelayOrigin = object.RelayOrigin ?? "";
+        message.CredentialIDs = object.CredentialIDs?.map((e) => e) || [];
+        message.KeysRevision = object.KeysRevision ?? 0;
+        message.PairedAtTimestamp = object.PairedAtTimestamp ?? 0;
+        message.LastUsedTimestamp = object.LastUsedTimestamp ?? 0;
+        message.History =
+            object.History?.map((e) => AgentRequestRecord.fromPartial(e)) || [];
+        message.Hash = object.Hash ?? "";
+        message.Version = object.Version ?? 0;
+        message.DateModifiedTimestamp = object.DateModifiedTimestamp ?? 0;
+        message.Deleted = object.Deleted ?? false;
+        message.KnownHosts =
+            object.KnownHosts?.map((e) => AgentKnownHost.fromPartial(e)) || [];
+        message.Paused = object.Paused ?? false;
+        return message;
+    },
+};
+
+function createBaseAgentKnownHost(): AgentKnownHost {
+    return { Fingerprint: "", Name: "", FirstSeenTimestamp: 0 };
+}
+
+export const AgentKnownHost: MessageFns<AgentKnownHost> = {
+    encode(
+        message: AgentKnownHost,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.Fingerprint !== "") {
+            writer.uint32(10).string(message.Fingerprint);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.FirstSeenTimestamp !== 0) {
+            writer.uint32(24).int64(message.FirstSeenTimestamp);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): AgentKnownHost {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseAgentKnownHost();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.Fingerprint = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 24) {
+                        break;
+                    }
+
+                    message.FirstSeenTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<AgentKnownHost>, I>>(
+        base?: I,
+    ): AgentKnownHost {
+        return AgentKnownHost.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<AgentKnownHost>, I>>(
+        object: I,
+    ): AgentKnownHost {
+        const message = createBaseAgentKnownHost();
+        message.Fingerprint = object.Fingerprint ?? "";
+        message.Name = object.Name ?? "";
+        message.FirstSeenTimestamp = object.FirstSeenTimestamp ?? 0;
+        return message;
+    },
+};
+
+function createBaseAgentRequestRecord(): AgentRequestRecord {
+    return {
+        Timestamp: 0,
+        Kind: 0,
+        Outcome: 0,
+        Namespace: "",
+        Host: "",
+        HostKeyFingerprint: "",
+        Forwarded: false,
+        DestinationUnknown: false,
+        CredentialID: "",
+        Process: "",
+    };
+}
+
+export const AgentRequestRecord: MessageFns<AgentRequestRecord> = {
+    encode(
+        message: AgentRequestRecord,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.Timestamp !== 0) {
+            writer.uint32(8).int64(message.Timestamp);
+        }
+        if (message.Kind !== 0) {
+            writer.uint32(16).int32(message.Kind);
+        }
+        if (message.Outcome !== 0) {
+            writer.uint32(24).int32(message.Outcome);
+        }
+        if (message.Namespace !== "") {
+            writer.uint32(34).string(message.Namespace);
+        }
+        if (message.Host !== "") {
+            writer.uint32(42).string(message.Host);
+        }
+        if (message.HostKeyFingerprint !== "") {
+            writer.uint32(50).string(message.HostKeyFingerprint);
+        }
+        if (message.Forwarded !== false) {
+            writer.uint32(56).bool(message.Forwarded);
+        }
+        if (message.DestinationUnknown !== false) {
+            writer.uint32(64).bool(message.DestinationUnknown);
+        }
+        if (message.CredentialID !== "") {
+            writer.uint32(74).string(message.CredentialID);
+        }
+        if (message.Process !== "") {
+            writer.uint32(82).string(message.Process);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): AgentRequestRecord {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseAgentRequestRecord();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 8) {
+                        break;
+                    }
+
+                    message.Timestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 16) {
+                        break;
+                    }
+
+                    message.Kind = reader.int32() as any;
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 24) {
+                        break;
+                    }
+
+                    message.Outcome = reader.int32() as any;
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Namespace = reader.string();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.Host = reader.string();
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.HostKeyFingerprint = reader.string();
+                    continue;
+                }
+                case 7: {
+                    if (tag !== 56) {
+                        break;
+                    }
+
+                    message.Forwarded = reader.bool();
+                    continue;
+                }
+                case 8: {
+                    if (tag !== 64) {
+                        break;
+                    }
+
+                    message.DestinationUnknown = reader.bool();
+                    continue;
+                }
+                case 9: {
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    message.CredentialID = reader.string();
+                    continue;
+                }
+                case 10: {
+                    if (tag !== 82) {
+                        break;
+                    }
+
+                    message.Process = reader.string();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<AgentRequestRecord>, I>>(
+        base?: I,
+    ): AgentRequestRecord {
+        return AgentRequestRecord.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<AgentRequestRecord>, I>>(
+        object: I,
+    ): AgentRequestRecord {
+        const message = createBaseAgentRequestRecord();
+        message.Timestamp = object.Timestamp ?? 0;
+        message.Kind = object.Kind ?? 0;
+        message.Outcome = object.Outcome ?? 0;
+        message.Namespace = object.Namespace ?? "";
+        message.Host = object.Host ?? "";
+        message.HostKeyFingerprint = object.HostKeyFingerprint ?? "";
+        message.Forwarded = object.Forwarded ?? false;
+        message.DestinationUnknown = object.DestinationUnknown ?? false;
+        message.CredentialID = object.CredentialID ?? "";
+        message.Process = object.Process ?? "";
+        return message;
+    },
+};
+
+function createBaseAgentApproverSettings(): AgentApproverSettings {
+    return {
+        SignSeed: new Uint8Array(0),
+        KEMSeed: new Uint8Array(0),
+        CustomRelays: [],
+        RelayPass: "",
+        RelayPassExpiresAt: 0,
+        ApprovedAgents: [],
+    };
+}
+
+export const AgentApproverSettings: MessageFns<AgentApproverSettings> = {
+    encode(
+        message: AgentApproverSettings,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.SignSeed.length !== 0) {
+            writer.uint32(10).bytes(message.SignSeed);
+        }
+        if (message.KEMSeed.length !== 0) {
+            writer.uint32(18).bytes(message.KEMSeed);
+        }
+        for (const v of message.CustomRelays) {
+            AgentRelaySettings.encode(v!, writer.uint32(26).fork()).join();
+        }
+        if (message.RelayPass !== "") {
+            writer.uint32(34).string(message.RelayPass);
+        }
+        if (message.RelayPassExpiresAt !== 0) {
+            writer.uint32(40).int64(message.RelayPassExpiresAt);
+        }
+        for (const v of message.ApprovedAgents) {
+            AgentLocalApproval.encode(v!, writer.uint32(50).fork()).join();
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): AgentApproverSettings {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseAgentApproverSettings();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.SignSeed = reader.bytes();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.KEMSeed = reader.bytes();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.CustomRelays.push(
+                        AgentRelaySettings.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.RelayPass = reader.string();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 40) {
+                        break;
+                    }
+
+                    message.RelayPassExpiresAt = longToNumber(reader.int64());
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.ApprovedAgents.push(
+                        AgentLocalApproval.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<AgentApproverSettings>, I>>(
+        base?: I,
+    ): AgentApproverSettings {
+        return AgentApproverSettings.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<AgentApproverSettings>, I>>(
+        object: I,
+    ): AgentApproverSettings {
+        const message = createBaseAgentApproverSettings();
+        message.SignSeed = object.SignSeed ?? new Uint8Array(0);
+        message.KEMSeed = object.KEMSeed ?? new Uint8Array(0);
+        message.CustomRelays =
+            object.CustomRelays?.map((e) =>
+                AgentRelaySettings.fromPartial(e),
+            ) || [];
+        message.RelayPass = object.RelayPass ?? "";
+        message.RelayPassExpiresAt = object.RelayPassExpiresAt ?? 0;
+        message.ApprovedAgents =
+            object.ApprovedAgents?.map((e) =>
+                AgentLocalApproval.fromPartial(e),
+            ) || [];
+        return message;
+    },
+};
+
+function createBaseAgentLocalApproval(): AgentLocalApproval {
+    return { AgentID: "", Keys: [] };
+}
+
+export const AgentLocalApproval: MessageFns<AgentLocalApproval> = {
+    encode(
+        message: AgentLocalApproval,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.AgentID !== "") {
+            writer.uint32(10).string(message.AgentID);
+        }
+        for (const v of message.Keys) {
+            writer.uint32(18).bytes(v!);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): AgentLocalApproval {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseAgentLocalApproval();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.AgentID = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Keys.push(reader.bytes());
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<AgentLocalApproval>, I>>(
+        base?: I,
+    ): AgentLocalApproval {
+        return AgentLocalApproval.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<AgentLocalApproval>, I>>(
+        object: I,
+    ): AgentLocalApproval {
+        const message = createBaseAgentLocalApproval();
+        message.AgentID = object.AgentID ?? "";
+        message.Keys = object.Keys?.map((e) => e) || [];
+        return message;
+    },
+};
+
+function createBaseAgentRelaySettings(): AgentRelaySettings {
+    return { Origin: "", Token: "" };
+}
+
+export const AgentRelaySettings: MessageFns<AgentRelaySettings> = {
+    encode(
+        message: AgentRelaySettings,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.Origin !== "") {
+            writer.uint32(10).string(message.Origin);
+        }
+        if (message.Token !== "") {
+            writer.uint32(18).string(message.Token);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): AgentRelaySettings {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseAgentRelaySettings();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.Origin = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Token = reader.string();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<AgentRelaySettings>, I>>(
+        base?: I,
+    ): AgentRelaySettings {
+        return AgentRelaySettings.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<AgentRelaySettings>, I>>(
+        object: I,
+    ): AgentRelaySettings {
+        const message = createBaseAgentRelaySettings();
+        message.Origin = object.Origin ?? "";
+        message.Token = object.Token ?? "";
         return message;
     },
 };
@@ -3166,6 +4279,82 @@ export const PasskeyData: MessageFns<PasskeyData> = {
     },
 };
 
+function createBaseSSHKeyData(): SSHKeyData {
+    return { PrivateKey: "", PublicKey: "", Comment: "" };
+}
+
+export const SSHKeyData: MessageFns<SSHKeyData> = {
+    encode(
+        message: SSHKeyData,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.PrivateKey !== "") {
+            writer.uint32(10).string(message.PrivateKey);
+        }
+        if (message.PublicKey !== "") {
+            writer.uint32(18).string(message.PublicKey);
+        }
+        if (message.Comment !== "") {
+            writer.uint32(26).string(message.Comment);
+        }
+        return writer;
+    },
+
+    decode(input: BinaryReader | Uint8Array, length?: number): SSHKeyData {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseSSHKeyData();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.PrivateKey = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.PublicKey = reader.string();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Comment = reader.string();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<SSHKeyData>, I>>(base?: I): SSHKeyData {
+        return SSHKeyData.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<SSHKeyData>, I>>(
+        object: I,
+    ): SSHKeyData {
+        const message = createBaseSSHKeyData();
+        message.PrivateKey = object.PrivateKey ?? "";
+        message.PublicKey = object.PublicKey ?? "";
+        message.Comment = object.Comment ?? "";
+        return message;
+    },
+};
+
 function createBaseCredential(): Credential {
     return {
         ID: "",
@@ -3265,6 +4454,9 @@ export const Credential: MessageFns<Credential> = {
                 message.Passkey,
                 writer.uint32(194).fork(),
             ).join();
+        }
+        if (message.SSHKey !== undefined) {
+            SSHKeyData.encode(message.SSHKey, writer.uint32(202).fork()).join();
         }
         return writer;
     },
@@ -3472,6 +4664,14 @@ export const Credential: MessageFns<Credential> = {
                     );
                     continue;
                 }
+                case 25: {
+                    if (tag !== 202) {
+                        break;
+                    }
+
+                    message.SSHKey = SSHKeyData.decode(reader, reader.uint32());
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -3520,6 +4720,10 @@ export const Credential: MessageFns<Credential> = {
         message.Passkey =
             object.Passkey !== undefined && object.Passkey !== null
                 ? PasskeyData.fromPartial(object.Passkey)
+                : undefined;
+        message.SSHKey =
+            object.SSHKey !== undefined && object.SSHKey !== null
+                ? SSHKeyData.fromPartial(object.SSHKey)
                 : undefined;
         return message;
     },
@@ -3939,6 +5143,7 @@ function createBaseSyncHelloMessage(): SyncHelloMessage {
         CredentialVersionVectors: [],
         DirectoryVersionVectors: [],
         ShareLinkVersionVectors: [],
+        ConnectedAgentVersionVectors: [],
     };
 }
 
@@ -3955,6 +5160,9 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
         }
         for (const v of message.ShareLinkVersionVectors) {
             VersionVector.encode(v!, writer.uint32(26).fork()).join();
+        }
+        for (const v of message.ConnectedAgentVersionVectors) {
+            VersionVector.encode(v!, writer.uint32(34).fork()).join();
         }
         return writer;
     },
@@ -3996,6 +5204,16 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
                     }
 
                     message.ShareLinkVersionVectors.push(
+                        VersionVector.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.ConnectedAgentVersionVectors.push(
                         VersionVector.decode(reader, reader.uint32()),
                     );
                     continue;
@@ -4030,6 +5248,10 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
             object.ShareLinkVersionVectors?.map((e) =>
                 VersionVector.fromPartial(e),
             ) || [];
+        message.ConnectedAgentVersionVectors =
+            object.ConnectedAgentVersionVectors?.map((e) =>
+                VersionVector.fromPartial(e),
+            ) || [];
         return message;
     },
 };
@@ -4039,6 +5261,7 @@ function createBaseSyncHelloEchoMessage(): SyncHelloEchoMessage {
         CredentialVersionVectors: [],
         DirectoryVersionVectors: [],
         ShareLinkVersionVectors: [],
+        ConnectedAgentVersionVectors: [],
     };
 }
 
@@ -4055,6 +5278,9 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
         }
         for (const v of message.ShareLinkVersionVectors) {
             VersionVector.encode(v!, writer.uint32(26).fork()).join();
+        }
+        for (const v of message.ConnectedAgentVersionVectors) {
+            VersionVector.encode(v!, writer.uint32(34).fork()).join();
         }
         return writer;
     },
@@ -4100,6 +5326,16 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
                     );
                     continue;
                 }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.ConnectedAgentVersionVectors.push(
+                        VersionVector.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -4128,6 +5364,10 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
             ) || [];
         message.ShareLinkVersionVectors =
             object.ShareLinkVersionVectors?.map((e) =>
+                VersionVector.fromPartial(e),
+            ) || [];
+        message.ConnectedAgentVersionVectors =
+            object.ConnectedAgentVersionVectors?.map((e) =>
                 VersionVector.fromPartial(e),
             ) || [];
         return message;
@@ -4264,7 +5504,12 @@ export const SyncDataRequestMessage: MessageFns<SyncDataRequestMessage> = {
 };
 
 function createBaseSyncDataResponseMessage(): SyncDataResponseMessage {
-    return { Credentials: [], Directories: [], ShareLinks: [] };
+    return {
+        Credentials: [],
+        Directories: [],
+        ShareLinks: [],
+        ConnectedAgents: [],
+    };
 }
 
 export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
@@ -4280,6 +5525,9 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
         }
         for (const v of message.ShareLinks) {
             ShareLink.encode(v!, writer.uint32(26).fork()).join();
+        }
+        for (const v of message.ConnectedAgents) {
+            ConnectedAgent.encode(v!, writer.uint32(34).fork()).join();
         }
         return writer;
     },
@@ -4325,6 +5573,16 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
                     );
                     continue;
                 }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.ConnectedAgents.push(
+                        ConnectedAgent.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -4349,6 +5607,9 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
             object.Directories?.map((e) => Directory.fromPartial(e)) || [];
         message.ShareLinks =
             object.ShareLinks?.map((e) => ShareLink.fromPartial(e)) || [];
+        message.ConnectedAgents =
+            object.ConnectedAgents?.map((e) => ConnectedAgent.fromPartial(e)) ||
+            [];
         return message;
     },
 };

@@ -174,10 +174,17 @@ export type LogDetails =
     | ConnectionStateDetails
     | VaultErrorDetails;
 
+// How long the receiver waits for the sending device before giving up.
+export const LINK_OFFER_TIMEOUT_MS = 60_000;
+export const LINK_CONNECT_TIMEOUT_MS = 45_000;
+export const LINK_TRANSFER_SILENCE_MS = 60_000;
+
 export interface LinkingProcessStatus {
     Step: LinkingProcessStep;
     State: LinkingProcessState;
     VaultBinaryData?: Uint8Array;
+    /** When the current wait gives up (epoch ms), for a countdown. */
+    Deadline?: number;
     LogMessage?: {
         message: string;
         timestamp: number;
@@ -201,6 +208,7 @@ export class LinkingProcessController {
     private hasTerminalError = false;
     private receiverKeyBundleSent = false;
     private senderKeyBundle: VaultUtilTypes.SyncKeyBundle | null = null;
+    private waitTimer: ReturnType<typeof setTimeout> | undefined;
 
     private constructor(
         linkingBlob: VaultUtilTypes.LinkingPackageBlob,
@@ -225,6 +233,37 @@ export class LinkingProcessController {
     private disconnectSignalingServer(): void {
         this.signalingServer.disconnect();
         this.signalingServer.unbind();
+    }
+
+    /**
+     * Fails the link unless the sending device moves it on within ms, and
+     * returns the deadline for the status that starts the wait.
+     */
+    private giveUpAfter(
+        ms: number,
+        step: LinkingProcessStep,
+        message: string,
+    ): number {
+        this.stopWaiting();
+        this.waitTimer = setTimeout(() => {
+            this.waitTimer = undefined;
+            if (this.hasTerminalError) return;
+            this.hasTerminalError = true;
+            this.iceCandidateDiscovery?.cancel();
+            this.webRTCConnection.close();
+            this.disconnectSignalingServer();
+            this.onStatusChange({
+                Step: step,
+                State: LinkingProcessState.Error,
+                LogMessage: { message, timestamp: Date.now(), type: "error" },
+            });
+        }, ms);
+        return Date.now() + ms;
+    }
+
+    private stopWaiting(): void {
+        clearTimeout(this.waitTimer);
+        this.waitTimer = undefined;
     }
 
     public static create(
@@ -377,6 +416,11 @@ export class LinkingProcessController {
                 this.onStatusChange({
                     Step: LinkingProcessStep.SignalingWaitingOtherDevice,
                     State: LinkingProcessState.Active,
+                    Deadline: this.giveUpAfter(
+                        LINK_OFFER_TIMEOUT_MS,
+                        LinkingProcessStep.SignalingWaitingOtherDevice,
+                        "The sending device didn't respond.",
+                    ),
                     LogMessage: {
                         message: "Waiting for other device to notice us...",
                         timestamp: Date.now(),
@@ -406,6 +450,11 @@ export class LinkingProcessController {
                     this.onStatusChange({
                         Step: LinkingProcessStep.DirectConnection,
                         State: LinkingProcessState.Active,
+                        Deadline: this.giveUpAfter(
+                            LINK_CONNECT_TIMEOUT_MS,
+                            LinkingProcessStep.DirectConnection,
+                            "Couldn't connect to the sending device.",
+                        ),
                         LogMessage: {
                             message:
                                 "Finishing establishing private connection...",
@@ -435,7 +484,14 @@ export class LinkingProcessController {
 
     private bindWebRTCConnection(): void {
         const webRTConnection = this.webRTCConnection;
+        const transferDeadline = () =>
+            this.giveUpAfter(
+                LINK_TRANSFER_SILENCE_MS,
+                LinkingProcessStep.VaultTransfer,
+                "The sending device stopped responding.",
+            );
         const cleanup = () => {
+            this.stopWaiting();
             this.iceCandidateDiscovery?.cancel();
             webRTConnection.close();
             this.disconnectSignalingServer();
@@ -483,6 +539,7 @@ export class LinkingProcessController {
                 this.onStatusChange({
                     Step: LinkingProcessStep.VaultTransfer,
                     State: LinkingProcessState.Active,
+                    Deadline: transferDeadline(),
                     // The receiver has not seen the encrypted vault yet; avoid
                     // logging this as transfer progress until bytes arrive.
                     // LogMessage: {
@@ -527,6 +584,7 @@ export class LinkingProcessController {
             this.onStatusChange({
                 Step: LinkingProcessStep.SyncKeyExchange,
                 State: LinkingProcessState.Active,
+                Deadline: transferDeadline(),
                 LogMessage: {
                     message:
                         "Private channel open. Waiting for sender authentication...",
@@ -609,6 +667,7 @@ export class LinkingProcessController {
                         this.onStatusChange({
                             Step: LinkingProcessStep.SyncKeyExchange,
                             State: LinkingProcessState.Completed,
+                            Deadline: transferDeadline(),
                             LogMessage: {
                                 message:
                                     "Receiver key accepted. Waiting for encrypted vault transfer...",
@@ -639,6 +698,7 @@ export class LinkingProcessController {
                     return;
                 }
 
+                this.stopWaiting();
                 this.onStatusChange({
                     Step: LinkingProcessStep.VaultTransfer,
                     State: LinkingProcessState.Active,
@@ -825,6 +885,7 @@ export class LinkingProcessController {
     }
 
     public abortWaitingForDevice() {
+        this.stopWaiting();
         this.iceCandidateDiscovery?.cancel();
         this.signalingServerChannel.unbind();
         this.signalingServer.unsubscribe(

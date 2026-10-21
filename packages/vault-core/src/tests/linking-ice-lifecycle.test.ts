@@ -8,6 +8,8 @@ import {
     jest,
 } from "@jest/globals";
 import {
+    LINK_OFFER_TIMEOUT_MS,
+    LINK_TRANSFER_SILENCE_MS,
     LinkingProcessController,
     LinkingProcessState,
     type LinkingProcessStatus,
@@ -136,7 +138,8 @@ describe("receiver ICE grace lifecycle", () => {
         peer.onicecandidate!({ candidate: null });
         peer.connectionState = "connected";
         peer.onconnectionstatechange!();
-        expect(jest.getTimerCount()).toBe(0);
+        // Only the transfer deadline is left.
+        expect(jest.getTimerCount()).toBe(1);
         jest.advanceTimersByTime(5_000);
         expect(peer.close).not.toHaveBeenCalled();
         expect(errors(statuses)).toEqual([]);
@@ -160,7 +163,8 @@ describe("receiver ICE grace lifecycle", () => {
             const channel = { readyState, onopen: null as (() => void) | null };
             peer.ondatachannel!({ channel });
             if (readyState === "connecting") channel.onopen!();
-            expect(jest.getTimerCount()).toBe(0);
+            // Only the transfer deadline is left.
+            expect(jest.getTimerCount()).toBe(1);
             jest.advanceTimersByTime(5_000);
             expect(peer.close).not.toHaveBeenCalled();
             expect(errors(statuses)).toEqual([]);
@@ -174,5 +178,34 @@ describe("receiver ICE grace lifecycle", () => {
         jest.advanceTimersByTime(5_000);
         expect(peer.close).not.toHaveBeenCalled();
         expect(errors(statuses)).toEqual([]);
+    });
+
+    it("gives up when the sending device never sends an offer", async () => {
+        const { channel, statuses } = await receiver();
+        const subscribed = channel.bind.mock.calls.find(
+            ([event]) => event === "pusher:subscription_succeeded",
+        )![1] as () => void;
+        subscribed();
+        expect(statuses.at(-1)?.Deadline).toBe(
+            Date.now() + LINK_OFFER_TIMEOUT_MS,
+        );
+        jest.advanceTimersByTime(LINK_OFFER_TIMEOUT_MS - 1);
+        expect(errors(statuses)).toEqual([]);
+        jest.advanceTimersByTime(1);
+        expect(errors(statuses)[0]?.LogMessage?.message).toBe(
+            "The sending device didn't respond.",
+        );
+    });
+
+    it("gives up when a connected sender goes silent", async () => {
+        const { peer, signaling, statuses } = await receiver();
+        peer.connectionState = "connected";
+        peer.onconnectionstatechange!();
+        jest.advanceTimersByTime(LINK_TRANSFER_SILENCE_MS);
+        expect(errors(statuses)[0]?.LogMessage?.message).toBe(
+            "The sending device stopped responding.",
+        );
+        expect(peer.close).toHaveBeenCalled();
+        expect(signaling.disconnect).toHaveBeenCalled();
     });
 });

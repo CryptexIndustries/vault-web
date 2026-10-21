@@ -55,10 +55,12 @@ jobs:
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - name: Build tarball
               run: services/cmd/cryptex-agent/package.sh "${{ steps.version.outputs.version }}" "${{ matrix.arch }}" "${RUNNER_TEMP}/dist"
+            # archive: false keeps GitHub from wrapping the tarball in a ZIP. The
+            # artifact is named after the file.
             - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
-                  name: cryptex-agent-${{ matrix.arch }}
                   path: ${{ runner.temp }}/dist/*.tar.gz
+                  archive: false
                   if-no-files-found: error
 
     draft-release:
@@ -69,7 +71,7 @@ jobs:
         permissions:
             contents: write
         steps:
-            - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: cryptex-agent-*
                   merge-multiple: true

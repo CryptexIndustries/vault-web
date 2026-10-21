@@ -817,7 +817,7 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
             account().setRecoverUserId("recovered-user");
             account().setRecoverPhrase(mockRecoveryPhrase);
         });
-        let result: Promise<boolean> | undefined;
+        let result: Promise<"recovered" | "kit-missing" | false> | undefined;
         await act(async () => {
             result = account().handleRecover();
         });
@@ -917,7 +917,7 @@ it("recovers and deletes the account binding when the originating vault session 
         account().setRecoverPhrase(mockRecoveryPhrase);
     });
     await act(async () => {
-        expect(await account().handleRecover()).toBe(true);
+        expect(await account().handleRecover()).toBe("kit-missing");
     });
     expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
         "recovered-device",

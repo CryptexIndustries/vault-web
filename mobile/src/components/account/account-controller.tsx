@@ -198,7 +198,11 @@ function useCreateAccountController() {
     });
     const refreshAccountConfiguration = async () => {
         await syncOnlineServicesRemoteConfiguration();
-        await Promise.all([refetchConfig(), refetchSubscription()]);
+        const [config] = await Promise.all([
+            refetchConfig(),
+            refetchSubscription(),
+        ]);
+        return config?.data;
     };
 
     const handleRegister = async (): Promise<"recovery-kit" | undefined> => {
@@ -319,8 +323,7 @@ function useCreateAccountController() {
         }
     };
 
-    const handleRecover = async (): Promise<boolean> => {
-        const generation = getVaultSessionGeneration();
+    const checkRecoverForm = (): boolean => {
         if (!cloudOn) {
             setMessage({
                 tone: "error",
@@ -328,27 +331,37 @@ function useCreateAccountController() {
             });
             return false;
         }
-        const userId = recoverUserId.trim();
-        if (!userId || !recoverPhrase.trim()) {
+        if (!recoverUserId.trim() || !recoverPhrase.trim()) {
             setMessage({
                 tone: "error",
                 text: "User ID and recovery phrase are required.",
             });
             return false;
         }
-        const normalizedPhrase = joinRecoveryPhrase(
-            splitRecoveryPhraseIntoSlots(recoverPhrase),
+        const words = countRecoveryPhraseWords(
+            joinRecoveryPhrase(splitRecoveryPhraseIntoSlots(recoverPhrase)),
         );
-        if (
-            countRecoveryPhraseWords(normalizedPhrase) !==
-            RECOVERY_PHRASE_WORD_COUNT
-        ) {
+        if (words !== RECOVERY_PHRASE_WORD_COUNT) {
             setMessage({
                 tone: "error",
                 text: `Recovery phrase must be exactly ${RECOVERY_PHRASE_WORD_COUNT} words.`,
             });
             return false;
         }
+        setMessage(null);
+        return true;
+    };
+
+    // Recovery spends the Kit used; review accounts keep theirs.
+    const handleRecover = async (): Promise<
+        "recovered" | "kit-missing" | false
+    > => {
+        const generation = getVaultSessionGeneration();
+        if (!checkRecoverForm()) return false;
+        const userId = recoverUserId.trim();
+        const normalizedPhrase = joinRecoveryPhrase(
+            splitRecoveryPhraseIntoSlots(recoverPhrase),
+        );
         setBusy(true);
         setMessage(null);
         let captchaToken: string | null = null;
@@ -398,9 +411,11 @@ function useCreateAccountController() {
             });
             await establishOnlineServicesSession({ deviceId, privateKeyJWK });
             assertAccountVaultSession(generation);
-            await refreshAccountConfiguration();
+            const config = await refreshAccountConfiguration();
             assertAccountVaultSession(generation);
-            return true;
+            return config && !config.recoveryTokenCreatedAt
+                ? "kit-missing"
+                : "recovered";
         } catch (error) {
             onlineServicesLog.error("Online Services account recovery failed", {
                 error,
@@ -646,6 +661,7 @@ function useCreateAccountController() {
             setRecoveryKitFromRegistration(false);
         },
         handleRegister,
+        checkRecoverForm,
         handleRecover,
         handleGenerateRecovery,
         handleRefresh,

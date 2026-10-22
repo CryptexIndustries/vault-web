@@ -289,6 +289,7 @@ jest.mock("@/components/unlocked/unlocked-ui", () => ({
     UnlockedInput: "Input",
     UnlockedDialogTitle: "Title",
 }));
+jest.mock("@/components/ui/input", () => ({ Input: "Input" }));
 jest.mock("@/components/ui/dialog", () => ({
     Dialog: ({
         open,

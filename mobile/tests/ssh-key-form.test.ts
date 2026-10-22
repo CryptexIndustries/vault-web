@@ -59,6 +59,7 @@ jest.mock("expo-camera", () => ({
 }));
 jest.mock("lucide-react-native", () => ({
     Check: "Check",
+    ChevronDown: "ChevronDown",
     ChevronRight: "ChevronRight",
     FileKey: "FileKey",
     FileUp: "FileUp",

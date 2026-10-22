@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import type { ClaimedPairing } from "@cryptex-industries/vault-core/agent/approver-types";
 import {
     PairingExpiredError,
+    RelayRefusedError,
     UnknownRelayError,
     unknownRelayText,
 } from "@cryptex-industries/vault-core/agent/approver";
@@ -115,6 +116,8 @@ function ConnectAgentContent({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [relayNeeded, setRelayNeeded] = useState("");
+    /** The relay refused the token saved for it, rather than being unknown. */
+    const [relayRefused, setRelayRefused] = useState(false);
     const [relayToken, setRelayToken] = useState("");
     const [claim, setClaim] = useState<ClaimedPairing | null>(null);
     const [name, setName] = useState("");
@@ -184,8 +187,21 @@ function ConnectAgentContent({
             setStage("offer");
         } catch (caught) {
             if (caught instanceof UnknownRelayError) {
+                setRelayRefused(false);
                 setRelayNeeded(caught.relayUrl);
                 setStage("relay");
+            } else if (
+                caught instanceof RelayRefusedError &&
+                caught.relay.kind === "custom"
+            ) {
+                // One of this browser's relays: its access token changed.
+                setRelayRefused(true);
+                setRelayNeeded(caught.relay.url);
+                setStage("relay");
+            } else if (caught instanceof RelayRefusedError) {
+                setError(
+                    "The Cryptex Vault relay didn't accept this browser. Check that Online Services is active, then try again.",
+                );
             } else {
                 setError(claimError(caught));
             }
@@ -302,7 +318,11 @@ function ConnectAgentContent({
                             , then paste the code it prints under the QR code.
                         </>
                     ) : stage === "relay" ? (
-                        unknownRelayText(relayNeeded, "browser")
+                        relayRefused ? (
+                            "This relay didn't accept the access token saved in this browser. Enter its current access token."
+                        ) : (
+                            unknownRelayText(relayNeeded, "browser")
+                        )
                     ) : stage === "offer" ? (
                         "Choose a name and the keys this machine can ask to use."
                     ) : (
@@ -343,7 +363,7 @@ function ConnectAgentContent({
                             monospace
                             note="Named by the pairing code"
                         />
-                        {otherRelays.length ? (
+                        {relayRefused ? null : otherRelays.length ? (
                             <p
                                 role="alert"
                                 data-testid="agent-relay-other"

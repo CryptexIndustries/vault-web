@@ -25,6 +25,7 @@ import {
     MAX_PENDING_PER_AGENT,
     PairingExpiredError,
     RequestGoneError,
+    RelayRefusedError,
     UnknownRelayError,
 } from "../agent/approver";
 import type {
@@ -413,6 +414,23 @@ describe("Approver pairing", () => {
         await expect(h.approver.claim("cryptex-pair:nonsense")).rejects.toThrow(
             "Invalid pairing code",
         );
+    });
+
+    it("says which relay refused a claim, without its token", async () => {
+        const h = harness();
+        h.approver.start();
+        h.relay.authError = {
+            status: Status.STATUS_UNAUTHORIZED,
+            message: "wrong relay access token",
+        };
+        const refused = await h.approver
+            .claim(offerFor(h).text)
+            .catch((e: unknown) => e);
+        expect(refused).toBeInstanceOf(RelayRefusedError);
+        expect((refused as RelayRefusedError).relay).toEqual({
+            kind: "custom",
+            url: RELAY_URL,
+        });
     });
 
     it("keeps the relay a claim is connecting to when the host refreshes", async () => {

@@ -17,6 +17,7 @@ import {
 import type { ClaimedPairing } from "@cryptex-industries/vault-core/agent/approver-types";
 import {
     PairingExpiredError,
+    RelayRefusedError,
     UnknownRelayError,
 } from "@cryptex-industries/vault-core/agent/approver";
 import { InvalidPairingCodeError } from "@cryptex-industries/vault-core/agent/pairing";
@@ -54,7 +55,11 @@ import {
     saveCustomRelay,
 } from "@/agent/agent-storage";
 import { addAgentToVault } from "@/agent/agent-vault";
-import { unknownRelayMessage } from "@/agent/relay-wording";
+import {
+    HOSTED_RELAY_REFUSED,
+    refusedRelayMessage,
+    unknownRelayMessage,
+} from "@/agent/relay-wording";
 import { requestNotificationPermission } from "@/agent/agent-service";
 import { sshKeyInfo } from "@/utils/ssh-keys";
 import { unlockedVaultAtom } from "@/utils/atoms";
@@ -85,6 +90,10 @@ export default function ConnectAgentScreen() {
     const [pendingCode, setPendingCode] = useState("");
     const [relayNeeded, setRelayNeeded] = useState<string | null>(null);
     const [relayToken, setRelayToken] = useState("");
+    /** The relay refused the token saved for it, rather than being unknown. */
+    const [relayRefused, setRelayRefused] = useState(false);
+    /** A failed claim from the Paste code sheet, shown in the sheet. */
+    const [pasteError, setPasteError] = useState("");
     /** Relays of the user's own already saved here, for the unknown relay warning. */
     const [savedRelays, setSavedRelays] = useState<string[]>([]);
     const [name, setName] = useState("");
@@ -158,24 +167,39 @@ export default function ConnectAgentScreen() {
                 setPasteOpen(false);
                 setStage("offer");
             } catch (error) {
-                if (error instanceof UnknownRelayError) {
+                // An unknown relay, or one of ours whose access token changed:
+                // both ask for a token.
+                const tokenRelay =
+                    error instanceof UnknownRelayError
+                        ? error.relayUrl
+                        : error instanceof RelayRefusedError && error.relay.kind === "custom"
+                          ? error.relay.url
+                          : null;
+                if (tokenRelay) {
                     setPendingCode(text);
                     // Never prefill: a token belongs to the relay it was saved for.
                     setRelayToken("");
                     setSavedRelays(
                         (await loadCustomRelays().catch(() => [])).map((relay) => relay.origin),
                     );
-                    setRelayNeeded(error.relayUrl);
+                    setRelayRefused(!(error instanceof UnknownRelayError));
+                    setRelayNeeded(tokenRelay);
                     setPasteOpen(false);
                 } else {
-                    showSnackbar(claimError(error));
+                    const message =
+                        error instanceof RelayRefusedError
+                            ? HOSTED_RELAY_REFUSED
+                            : claimError(error);
+                    // The Paste code sheet would cover a snackbar.
+                    if (pasteOpen) setPasteError(message);
+                    else showSnackbar(message);
                     scanned.current = false;
                 }
             } finally {
                 setBusy(false);
             }
         },
-        [busy, keys, showSnackbar],
+        [busy, keys, pasteOpen, showSnackbar],
     );
 
     const saveRelayAndRetry = async () => {
@@ -185,8 +209,13 @@ export default function ConnectAgentScreen() {
             return;
         }
         if (!relayToken.trim()) return;
-        await saveCustomRelay({ origin, token: relayToken.trim() });
-        await agentRuntime.reload();
+        try {
+            await saveCustomRelay({ origin, token: relayToken.trim() });
+            await agentRuntime.reload();
+        } catch {
+            showSnackbar("Couldn't save the relay token on this phone.");
+            return;
+        }
         setRelayToken("");
         await submitCode(pendingCode);
     };
@@ -485,9 +514,13 @@ export default function ConnectAgentScreen() {
                 {relayNeeded ? (
                     <View className="gap-3">
                         <InlineNotice
-                            testID="agent-unknown-relay"
+                            testID={relayRefused ? "agent-relay-refused" : "agent-unknown-relay"}
                             tone="warning"
-                            message={unknownRelayMessage(relayNeeded, savedRelays)}
+                            message={
+                                relayRefused
+                                    ? refusedRelayMessage(relayNeeded)
+                                    : unknownRelayMessage(relayNeeded, savedRelays)
+                            }
                         />
                         <Label>Access token</Label>
                         <Input
@@ -513,7 +546,10 @@ export default function ConnectAgentScreen() {
                         testID="agent-paste"
                         variant="outline"
                         disabled={busy}
-                        onPress={() => setPasteOpen(true)}
+                        onPress={() => {
+                            setPasteError("");
+                            setPasteOpen(true);
+                        }}
                     >
                         Paste code
                     </Button>
@@ -541,7 +577,10 @@ export default function ConnectAgentScreen() {
                         testID="agent-paste-input"
                         autoFocus
                         value={pasteDraft}
-                        onChangeText={setPasteDraft}
+                        onChangeText={(text) => {
+                            setPasteDraft(text);
+                            setPasteError("");
+                        }}
                         autoCapitalize="none"
                         autoCorrect={false}
                         placeholder="cryptex-pair:…"
@@ -551,6 +590,13 @@ export default function ConnectAgentScreen() {
                         accessibilityLabel="Pasted pairing code"
                         style={{ height: 110, paddingVertical: 12 }}
                     />
+                    {pasteError ? (
+                        <InlineNotice
+                            testID="agent-paste-error"
+                            tone="error"
+                            message={pasteError}
+                        />
+                    ) : null}
                     <Button
                         testID="agent-paste-submit"
                         disabled={!pasteDraft.trim()}

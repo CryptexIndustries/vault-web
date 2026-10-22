@@ -78,6 +78,17 @@ export class UnknownRelayError extends Error {
 }
 
 /**
+ * claim(): the relay refused this device. On a self-hosted relay the saved
+ * access token is wrong; on the hosted relay, the relay pass. The token is
+ * not kept here.
+ */
+export class RelayRefusedError extends Error {
+    constructor(readonly relay: { kind: RelayTarget["kind"]; url: string }) {
+        super(`The relay at ${relay.url} refused this device`);
+    }
+}
+
+/**
  * Neutral wording for a pairing code that names an unknown relay: the code
  * may be crafted, so nothing suggests the user owes it a token.
  */
@@ -465,7 +476,16 @@ export class Approver {
         this.claiming.add(inFlight);
         let claimed = false;
         try {
-            const conn = await this.connection(relay);
+            const conn = await this.connection(relay).catch(
+                (error: unknown) => {
+                    if (isStatus(error, Status.STATUS_UNAUTHORIZED))
+                        throw new RelayRefusedError({
+                            kind: relay.kind,
+                            url: relay.url,
+                        });
+                    throw error;
+                },
+            );
             const slot = await conn.claimSlot(code.slotId);
             const offer = parsePairingOffer(slot.offer, code.offerHash);
             const agentId = idOf(offer.signPublicKey);

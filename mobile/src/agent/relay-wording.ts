@@ -19,3 +19,16 @@ export function unknownRelayMessage(
     const intro = unknownRelayText(sanitizeDisplayText(relayUrl, 160), "phone");
     return `${intro}${others} Enter an access token only if you run this relay yourself. The token stays on this phone.`;
 }
+
+/**
+ * A relay this phone has a token for refused it: the relay's access token
+ * changed. Only shown for relays the user saved themselves.
+ */
+export function refusedRelayMessage(relayUrl: string): string {
+    const host = /^[a-z]+:\/\/([^/?#]+)/i.exec(relayUrl)?.[1] ?? relayUrl;
+    return `The relay at ${sanitizeDisplayText(host, 160)} didn't accept the access token saved on this phone. Enter its current access token.`;
+}
+
+/** The hosted relay refused this phone's relay pass. */
+export const HOSTED_RELAY_REFUSED =
+    "The Cryptex Vault relay didn't accept this phone. Check that Online Services is active, then try again.";

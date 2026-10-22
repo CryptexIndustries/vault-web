@@ -22,10 +22,19 @@ import (
 	"github.com/CryptexIndustries/vault-web/services/internal/share"
 )
 
+// version is set at build time with -ldflags "-X main.version=1.0.1".
+var version = "dev"
+
 func main() {
-	// The runtime image has no shell or wget, so the binary checks itself.
-	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		os.Exit(serverkit.Healthcheck(serverkit.Env("SHARE_LISTEN_ADDR", ":8080")))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "healthcheck":
+			// The runtime image has no shell or wget, so the binary checks itself.
+			os.Exit(serverkit.Healthcheck(serverkit.Env("SHARE_LISTEN_ADDR", ":8080")))
+		case "version", "--version":
+			fmt.Println("share-server", version)
+			return
+		}
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
@@ -153,7 +162,7 @@ func run(logger *slog.Logger) error {
 	}
 	errCh := make(chan error, 2)
 	go func() {
-		logger.Info("share server listening", "addr", httpServer.Addr, "auth", cfg.Auth)
+		logger.Info("share server listening", "addr", httpServer.Addr, "auth", cfg.Auth, "version", version)
 		errCh <- httpServer.ListenAndServe()
 	}()
 	if metricsServer != nil {

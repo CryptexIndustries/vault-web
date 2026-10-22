@@ -76,7 +76,7 @@ async function delayForSubscriptionPoll(
     throwIfCheckoutFinalizationAborted(signal);
 }
 
-async function waitForPaidSubscription(signal?: AbortSignal): Promise<boolean> {
+async function waitForPaidSubscription(signal?: AbortSignal) {
     for (
         let attempt = 0;
         attempt < SUBSCRIPTION_ACTIVATION_MAX_ATTEMPTS;
@@ -86,7 +86,7 @@ async function waitForPaidSubscription(signal?: AbortSignal): Promise<boolean> {
 
         const subscription = await trpc.v1.payment.subscription.query();
         if (subscription.nonFree) {
-            return true;
+            return subscription;
         }
 
         if (attempt + 1 >= SUBSCRIPTION_ACTIVATION_MAX_ATTEMPTS) {
@@ -96,7 +96,7 @@ async function waitForPaidSubscription(signal?: AbortSignal): Promise<boolean> {
         await delayForSubscriptionPoll(SUBSCRIPTION_ACTIVATION_POLL_MS, signal);
     }
 
-    return false;
+    return null;
 }
 
 async function refreshCheckoutClientState(
@@ -151,7 +151,7 @@ export async function refreshCheckoutTrpcCaches(
 export async function finalizeCheckoutCompletion(
     options?: FinalizeCheckoutCompletionOptions,
 ): Promise<void> {
-    const toastId = toast.loading("Activating subscription...");
+    const toastId = toast.loading("Activating Online Services...");
 
     try {
         throwIfCheckoutFinalizationAborted(options?.signal);
@@ -160,12 +160,17 @@ export async function finalizeCheckoutCompletion(
         await refreshCheckoutClientState(options);
 
         if (activated) {
-            toast.success("Subscription upgraded.", { id: toastId });
+            toast.success(
+                activated.status === "trialing"
+                    ? "Free trial started."
+                    : "Subscription upgraded.",
+                { id: toastId },
+            );
             return;
         }
 
         toast.message(
-            "Payment received. Your plan may take a moment to update.",
+            "Checkout complete. Your plan may take a moment to update.",
             {
                 id: toastId,
             },

@@ -281,6 +281,7 @@ type UpgradeControls = {
     /** False while the subscription loads or checkout is blocked. */
     canUpgrade: boolean;
     checkoutOpen: boolean;
+    trialEligible: boolean;
 };
 
 type PlanBenefitsProps = {
@@ -407,10 +408,22 @@ export function PlanBenefits({
                                 !upgrade.canUpgrade || upgrade.checkoutOpen
                             }
                         >
-                            Upgrade
+                            {upgrade.trialEligible
+                                ? "Start 14-day free trial"
+                                : "Upgrade"}
                         </Button>
                     </div>
-                    {upgrade.canUpgrade ? <SubscriptionLegalNotice /> : null}
+                    {upgrade.trialEligible ? (
+                        <p className="text-xs text-muted-foreground sm:text-right">
+                            Then {price.amount} per {price.period}. Cancel
+                            anytime before the trial ends.
+                        </p>
+                    ) : null}
+                    {upgrade.canUpgrade ? (
+                        <SubscriptionLegalNotice
+                            trialEligible={upgrade.trialEligible}
+                        />
+                    ) : null}
                 </div>
             ) : null}
         </section>

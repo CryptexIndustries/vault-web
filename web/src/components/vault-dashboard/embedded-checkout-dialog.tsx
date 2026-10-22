@@ -22,6 +22,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { SubscriptionLegalNotice } from "@/components/vault-dashboard/subscription-legal-notice";
+import { trpcReact } from "@/utils/trpc";
 
 type EmbeddedCheckoutDialogProps = {
     open: boolean;
@@ -42,6 +43,31 @@ export function EmbeddedCheckoutDialog({
         useState<Promise<Stripe | null> | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [loadingSession, setLoadingSession] = useState(false);
+    // The backend decides trial eligibility when it creates the session, so
+    // re-read it on open instead of trusting a cached subscription.
+    const [trialEligible, setTrialEligible] = useState<boolean>();
+    const trpcUtils = trpcReact.useUtils();
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        let cancelled = false;
+        setTrialEligible(undefined);
+        trpcUtils.v1.payment.subscription
+            .fetch(undefined, { staleTime: 0 })
+            .then((subscription) => {
+                if (!cancelled) {
+                    setTrialEligible(subscription.trialEligible);
+                }
+            })
+            .catch(() => undefined);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, trpcUtils]);
 
     const handleOpenChange = useCallback(
         (nextOpen: boolean) => {
@@ -145,7 +171,10 @@ export function EmbeddedCheckoutDialog({
                         </p>
                     ) : null}
                     {open ? (
-                        <SubscriptionLegalNotice className="mt-4 border-t pt-4" />
+                        <SubscriptionLegalNotice
+                            className="mt-4 border-t pt-4"
+                            trialEligible={trialEligible}
+                        />
                     ) : null}
                 </div>
             </DialogContent>

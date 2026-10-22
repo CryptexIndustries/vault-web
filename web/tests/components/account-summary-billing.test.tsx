@@ -106,6 +106,31 @@ describe("account billing management", () => {
         );
     });
 
+    it("shows the trial end date instead of a renewal", async () => {
+        await renderSummary({
+            nonFree: true,
+            provider: "stripe",
+            status: "trialing",
+            trialEndsAt: "2026-11-05T12:00:00Z",
+            expiresAt: "2026-11-05T12:00:00Z",
+        });
+        expect(container.textContent).toContain("Free trial");
+        expect(container.textContent).toContain("Trial ends");
+        expect(container.textContent).not.toContain("Renews");
+    });
+
+    it("says a cancelled trial ends without a charge", async () => {
+        await renderSummary({
+            nonFree: true,
+            provider: "stripe",
+            status: "trialing",
+            trialEndsAt: "2026-11-05T12:00:00Z",
+            cancelAtPeriodEnd: true,
+        });
+        expect(container.textContent).toContain("Access ends");
+        expect(container.textContent).toContain("You won't be charged.");
+    });
+
     it("hides billing for a free account", async () => {
         await renderSummary({ nonFree: false, provider: null });
         expect(manageBilling()).toBeUndefined();

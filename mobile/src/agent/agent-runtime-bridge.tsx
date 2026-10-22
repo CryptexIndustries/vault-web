@@ -9,7 +9,13 @@ import {
     unlockedVaultAtom,
 } from "@/utils/atoms";
 import { vaultLog } from "@/utils/logging";
-import { agentRuntime, reviewFromNotification, syncAgentCache } from "./agent-app";
+import {
+    agentRuntime,
+    APPROVAL_PUSH_RETRY_MS,
+    reviewFromNotification,
+    showWantedApproval,
+    syncAgentCache,
+} from "./agent-app";
 import { notificationActions } from "./notification-actions";
 import { resumeAgentSigning } from "./agent-locking";
 
@@ -48,14 +54,21 @@ export function AgentRuntimeBridge() {
         // that came in meanwhile run now.
         const stopReviews = notificationActions.setReviewHandler(reviewFromNotification);
         notificationActions.listen();
+        let retry: ReturnType<typeof setTimeout> | undefined;
         const appState = AppState.addEventListener("change", (state) => {
             if (state === "active") notificationActions.drain();
             // Leaving the app turns waiting requests into notifications again.
             agentRuntime.route();
+            if (state === "active") {
+                showWantedApproval();
+                clearTimeout(retry);
+                retry = setTimeout(showWantedApproval, APPROVAL_PUSH_RETRY_MS + 100);
+            }
         });
         return () => {
             stopReviews();
             appState.remove();
+            clearTimeout(retry);
         };
     }, []);
 

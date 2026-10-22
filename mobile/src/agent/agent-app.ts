@@ -168,14 +168,48 @@ export function reviewFromNotification(requestId: string) {
     if (!agentRuntime.review(requestId)) router.navigate("/(locked)/unlock");
 }
 
+/** How long a pushed approval screen gets to appear before it's pushed again. */
+export const APPROVAL_PUSH_RETRY_MS = 2_000;
+
+/** The approval screen asked for, until it shows; pushedAt 0 means not pushed yet. */
+let wantedApproval: { id: string; pushedAt: number } | null = null;
+
+function pushApproval(requestId: string) {
+    wantedApproval = { id: requestId, pushedAt: Date.now() };
+    router.push({
+        pathname: "/(app)/agent-request",
+        params: { id: requestId, token: issueApprovalToken() },
+    });
+}
+
 /**
  * The approval screen; the runtime only asks for it while unlocked. The
  * token tells the screen the app opened it (see approval-screen.ts).
  */
 function openApproval(requestId: string) {
     if (agentRuntime.isShowing(requestId)) return;
-    router.push({
-        pathname: "/(app)/agent-request",
-        params: { id: requestId, token: issueApprovalToken() },
-    });
+    // A Review tap reaches JS before the app is back in the foreground, and
+    // navigating then can be dropped; showWantedApproval pushes it once the
+    // app is active.
+    if (AppState.currentState !== "active") {
+        wantedApproval = { id: requestId, pushedAt: 0 };
+        return;
+    }
+    pushApproval(requestId);
+}
+
+/**
+ * Pushes the approval screen that was asked for but isn't up: once the app
+ * comes to the foreground, and again shortly after in case that push was
+ * dropped, rather than waiting for the runtime's slower retry.
+ */
+export function showWantedApproval() {
+    const wanted = wantedApproval;
+    if (!wanted) return;
+    if (agentRuntime.isShowing(wanted.id) || !agentRuntime.getRequest(wanted.id)) {
+        wantedApproval = null;
+        return;
+    }
+    if (Date.now() - wanted.pushedAt < APPROVAL_PUSH_RETRY_MS) return;
+    pushApproval(wanted.id);
 }

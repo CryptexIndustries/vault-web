@@ -5,6 +5,7 @@ import {
     ArrowLeft,
     GitCommitHorizontal,
     KeyRound,
+    MoreHorizontal,
     Pause,
     PenLine,
     Play,
@@ -48,7 +49,12 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { unlockedVaultAtom } from "@/utils/atoms";
 import { useConnectedAgents } from "./agent-host-context";
 import {
@@ -199,19 +205,70 @@ export function AgentView({
             onBack={onBack}
             scrollerRef={setScroller}
             actions={
-                here ? (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        data-testid="agent-edit-keys"
-                        onClick={() => {
-                            setDraft(agent.CredentialIDs);
-                            setEditing(true);
-                        }}
-                    >
-                        Edit keys
-                    </Button>
-                ) : null
+                <div className="flex items-center gap-2">
+                    {here ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            data-testid="agent-edit-keys"
+                            onClick={() => {
+                                setDraft(agent.CredentialIDs);
+                                setEditing(true);
+                            }}
+                        >
+                            Edit keys
+                        </Button>
+                    ) : null}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label="More agent actions"
+                                data-testid="agent-menu"
+                            >
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                data-testid={
+                                    agent.Paused
+                                        ? "agent-resume-page"
+                                        : "agent-pause-page"
+                                }
+                                disabled={pausing || !host}
+                                onSelect={() => void setPaused(!agent.Paused)}
+                            >
+                                {agent.Paused ? (
+                                    <Play
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                    />
+                                ) : (
+                                    <Pause
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                {agent.Paused ? "Resume agent" : "Pause agent"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                data-testid="agent-revoke"
+                                disabled={revoking}
+                                onSelect={() => setConfirmRevoke(true)}
+                                className="text-destructive"
+                            >
+                                <Trash2
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                />
+                                {relayForgot ? "Remove agent" : "Revoke agent"}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             }
         >
             <div className="flex items-center gap-3.5">
@@ -362,30 +419,6 @@ export function AgentView({
                         No requests yet.
                     </p>
                 )}
-            </div>
-
-            <Separator className="my-6" />
-            <div className="flex flex-wrap gap-2">
-                {agent.Paused ? null : (
-                    <Button
-                        variant="outline"
-                        data-testid="agent-pause-page"
-                        disabled={pausing || !host}
-                        onClick={() => void setPaused(true)}
-                    >
-                        <Pause className="h-4 w-4" aria-hidden="true" />
-                        Pause agent
-                    </Button>
-                )}
-                <Button
-                    variant="destructive"
-                    data-testid="agent-revoke"
-                    disabled={revoking}
-                    onClick={() => setConfirmRevoke(true)}
-                >
-                    <Trash2 className="h-4 w-4" />
-                    {relayForgot ? "Remove agent" : "Revoke agent"}
-                </Button>
             </div>
 
             <AlertDialog

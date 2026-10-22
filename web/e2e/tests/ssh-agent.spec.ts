@@ -428,7 +428,8 @@ test("approves cryptex-agent requests from the dashboard", async ({
             .toBe(1);
 
         // -- Pause: refused without asking, then resume ----------------------
-        await view.getByTestId("agent-pause-page").click();
+        await view.getByTestId("agent-menu").click();
+        await page.getByTestId("agent-pause-page").click();
         await expect(view.getByTestId("agent-paused")).toBeVisible();
         await view.getByTestId("agent-paused").scrollIntoViewIfNeeded();
         await shot(page, "20-agent-paused");
@@ -546,6 +547,7 @@ test("approves cryptex-agent requests from the dashboard", async ({
         await shot(tab2, "22-relay-forgot-agent");
 
         // -- Remove it (the normal revoke) --------------------------------------
+        await tab2.getByTestId("agent-menu").click();
         await tab2.getByTestId("agent-revoke").click();
         await expect(tab2.getByRole("alertdialog")).toBeVisible();
         await shot(tab2, "17-revoke-confirmation");

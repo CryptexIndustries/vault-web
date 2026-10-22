@@ -476,9 +476,9 @@ export default function SSHAgent() {
                     used and syncs to your other devices with the vault.
                 </p>
                 <p>
-                    You can also pause from the agent&apos;s page: with{" "}
-                    <strong>Pause agent</strong> in the web app, or from the
-                    menu at the top on Android. The page then shows{" "}
+                    You can also pause from the agent&apos;s page: open the menu
+                    at the top, next to <strong>Edit keys</strong>, and choose{" "}
+                    <strong>Pause agent</strong>. The page then shows{" "}
                     <strong>Paused</strong> with a <strong>Resume</strong>{" "}
                     button. After you resume, requests ask again.
                 </p>
@@ -601,8 +601,8 @@ export default function SSHAgent() {
                 />
                 <DocScreenshot
                     src="/images/docs/ssh-agent-web-agent-page.png"
-                    alt="Agent page for work-laptop with approver, machine, paired date, relay, two keys, recent requests, and Pause agent and Revoke agent buttons"
-                    caption="Choose the agent under Connected Agents to open its page. Edit keys is at the top, Pause agent and Revoke agent at the bottom."
+                    alt="Agent page for work-laptop with approver, machine, paired date, relay, two keys and recent requests, and the menu next to Edit keys open with Pause agent and Revoke agent"
+                    caption="Choose the agent under Connected Agents to open its page. Edit keys is at the top. The menu button next to it has Pause agent and Revoke agent."
                     width={2880}
                     height={2200}
                 />
@@ -615,11 +615,10 @@ export default function SSHAgent() {
                 </p>
                 <h3>Revoke an agent</h3>
                 <p>
-                    In the web app, open the agent and choose{" "}
-                    <strong>Revoke agent</strong>. On Android, open the agent,
-                    tap the menu button at the top and choose{" "}
-                    <strong>Revoke agent</strong>. Any of your linked devices
-                    can do this. On the machine itself, run:
+                    Open the agent, open the menu at the top and choose{" "}
+                    <strong>Revoke agent</strong>, in the web app or on Android.
+                    Any of your linked devices can do this. On the machine
+                    itself, run:
                 </p>
                 <DocScreenshot
                     src="/images/docs/ssh-agent-android-agent-menu.png"

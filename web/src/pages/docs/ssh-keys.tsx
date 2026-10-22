@@ -176,8 +176,8 @@ export default function SSHKeys() {
             <DocSection id="download" title="Use a key on a computer">
                 <DocScreenshot
                     src="/images/docs/ssh-keys-web-details.png"
-                    alt="SSH key item GitHub showing its public key, fingerprint, type Ed25519, comment, a hidden private key and a Save private key button"
-                    caption="Open the item to copy or save the public key, see its fingerprint, or save the private key."
+                    alt="SSH key item GitHub showing a hidden private key, a Save private key button, then its public key, fingerprint, type Ed25519 and comment"
+                    caption="Open the item to save the private key, copy or save the public key, or see its fingerprint."
                     width={768}
                     height={1640}
                 />

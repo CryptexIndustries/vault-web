@@ -542,6 +542,22 @@ function SSHKeyDetails({
 
     return (
         <>
+            <SSHPrivateKeyField
+                key={credential.ID}
+                sshKey={sshKey}
+                isCopied={copiedField === "ssh-private-key"}
+                onCopy={(value) => onCopy("ssh-private-key", value, true)}
+            />
+
+            <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => setIsDownloadOpen(true)}
+            >
+                <Download className="h-4 w-4" />
+                Save private key
+            </Button>
+
             <div className="group min-w-0">
                 <FieldLabel>Public key</FieldLabel>
                 <div className="flex min-w-0 items-start gap-2 overflow-hidden rounded-lg border border-border bg-muted/50 p-3 transition-colors group-hover:border-primary/30">
@@ -624,22 +640,6 @@ function SSHKeyDetails({
                     onCopy={() => onCopy("ssh-comment", sshKey.Comment)}
                 />
             ) : null}
-
-            <SSHPrivateKeyField
-                key={credential.ID}
-                sshKey={sshKey}
-                isCopied={copiedField === "ssh-private-key"}
-                onCopy={(value) => onCopy("ssh-private-key", value, true)}
-            />
-
-            <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={() => setIsDownloadOpen(true)}
-            >
-                <Download className="h-4 w-4" />
-                Save private key
-            </Button>
 
             <SSHKeyDownloadDialog
                 open={isDownloadOpen}

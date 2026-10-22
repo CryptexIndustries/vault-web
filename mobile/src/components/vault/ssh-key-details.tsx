@@ -91,6 +91,30 @@ export function SSHKeyDetails({ credential }: { credential: VaultCredential }) {
     return (
         <View>
             <CopyableField
+                label="Private key"
+                value={typeof privateKey === "object" ? privateKey.text : ""}
+                secret
+                onCopyFailed={copyFailed}
+                status={
+                    privateKey === "error"
+                        ? {
+                              error: LOAD_FAILED,
+                              onRetry: () => void loadPrivateKey(),
+                          }
+                        : privateKey === "loading"
+                          ? "loading"
+                          : undefined
+                }
+                actions={
+                    <IconButton
+                        icon={Download}
+                        label="Save private key"
+                        color={colors.muted}
+                        onPress={() => setSaveOpen(true)}
+                    />
+                }
+            />
+            <CopyableField
                 label="Public key"
                 value={publicLine}
                 publicValue
@@ -131,30 +155,6 @@ export function SSHKeyDetails({ credential }: { credential: VaultCredential }) {
                 value={data.Comment}
                 publicValue
                 onCopyFailed={copyFailed}
-            />
-            <CopyableField
-                label="Private key"
-                value={typeof privateKey === "object" ? privateKey.text : ""}
-                secret
-                onCopyFailed={copyFailed}
-                status={
-                    privateKey === "error"
-                        ? {
-                              error: LOAD_FAILED,
-                              onRetry: () => void loadPrivateKey(),
-                          }
-                        : privateKey === "loading"
-                          ? "loading"
-                          : undefined
-                }
-                actions={
-                    <IconButton
-                        icon={Download}
-                        label="Save private key"
-                        color={colors.muted}
-                        onPress={() => setSaveOpen(true)}
-                    />
-                }
             />
             <SavePrivateKeyDialog
                 open={saveOpen}

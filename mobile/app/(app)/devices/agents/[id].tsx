@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { FlatList, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
 import {
@@ -250,6 +250,7 @@ export default function AgentScreen() {
     return (
         <UnlockedTaskScreen
             title="Agent"
+            scroll={false}
             actions={
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                     {here ? (
@@ -280,137 +281,154 @@ export default function AgentScreen() {
                 </View>
             }
         >
-            <View className="w-full max-w-[720px] self-center">
-                <View className="mb-4 flex-row items-center gap-3.5">
-                    <AgentGlyph variant="identity" />
-                    <View className="min-w-0 flex-1">
-                        <Text
-                            className="text-2xl font-medium tracking-[-0.7px] text-foreground"
-                            accessibilityRole="header"
-                        >
-                            {name}
-                        </Text>
-                        <Text className="mt-1 text-xs text-muted-foreground">
-                            {agent.AgentVersion
-                                ? `${machineLabel(agent)}, cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
-                                : machineLabel(agent)}
-                        </Text>
-                        <View className="mt-1.5 flex-row items-center gap-1.5">
-                            <Clock size={13} color={colors.muted} />
-                            <Text testID="agent-paired" className="text-xs text-muted-foreground">
-                                {`Paired ${new Date(agent.PairedAtTimestamp).toLocaleDateString(undefined, {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                })}`}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-                {relayForgot ? (
-                    <InlineNotice
-                        testID="agent-relay-forgot"
-                        tone="warning"
-                        className="mb-3"
-                        message={RELAY_FORGOT_AGENT_TEXT}
-                        action={{
-                            label: "Remove agent",
-                            testID: "agent-relay-forgot-remove",
-                            onPress: confirmRevoke,
-                        }}
-                    />
-                ) : null}
-                {paused ? (
-                    <InlineNotice
-                        testID="agent-paused"
-                        tone="info"
-                        className="mb-3"
-                        message="Paused. Requests from this agent are refused without asking."
-                        action={{
-                            label: pausing ? "Resuming…" : "Resume",
-                            testID: "agent-resume",
-                            onPress: () => {
-                                if (!pausing) void togglePaused();
-                            },
-                        }}
-                    />
-                ) : null}
-                {here ? <AgentNotificationsNotice style={{ marginBottom: 12 }} /> : null}
-                <InfoCard
-                    label="Approver"
-                    value={
-                        here
-                            ? `${sanitizeDisplayText(agent.ApproverName || "This device")} (this device)`
-                            : sanitizeDisplayText(agent.ApproverName || "Another device")
-                    }
-                />
-                <InfoCard label="Relay" value={relayLabel(agent.RelayOrigin)} />
-                <Pressable
-                    testID="agent-keys-toggle"
-                    accessibilityRole="button"
-                    accessibilityLabel={`Keys, ${agent.CredentialIDs.length}`}
-                    accessibilityState={{ expanded: keysOpen }}
-                    onPress={() => setKeysOpen((open) => !open)}
-                    hitSlop={8}
-                >
-                    <AgentSectionLabel
-                        title="Keys"
-                        right={
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                <Text style={{ fontSize: 11, color: colors.muted }}>
-                                    {String(agent.CredentialIDs.length)}
+            {/* One scroller: the page scrolls with the request list, and only
+                the rows on screen are drawn. */}
+            <FlatList
+                style={{ flex: 1 }}
+                contentContainerStyle={{
+                    width: "100%",
+                    maxWidth: 720,
+                    alignSelf: "center",
+                    paddingHorizontal: 20,
+                    paddingTop: 24,
+                    paddingBottom: 30,
+                }}
+                data={history}
+                keyExtractor={(entry, index) => `${entry.Timestamp}-${index}`}
+                renderItem={({ item }) => <HistoryRow entry={item} />}
+                initialNumToRender={12}
+                windowSize={7}
+                showsVerticalScrollIndicator={false}
+                ListHeaderComponent={
+                    <View>
+                        <View className="mb-4 flex-row items-center gap-3.5">
+                            <AgentGlyph variant="identity" />
+                            <View className="min-w-0 flex-1">
+                                <Text
+                                    className="text-2xl font-medium tracking-[-0.7px] text-foreground"
+                                    accessibilityRole="header"
+                                >
+                                    {name}
                                 </Text>
-                                {keysOpen ? (
-                                    <ChevronDown size={16} color={colors.muted} />
-                                ) : (
-                                    <ChevronRight size={16} color={colors.muted} />
-                                )}
+                                <Text className="mt-1 text-xs text-muted-foreground">
+                                    {agent.AgentVersion
+                                        ? `${machineLabel(agent)}, cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
+                                        : machineLabel(agent)}
+                                </Text>
+                                <View className="mt-1.5 flex-row items-center gap-1.5">
+                                    <Clock size={13} color={colors.muted} />
+                                    <Text testID="agent-paired" className="text-xs text-muted-foreground">
+                                        {`Paired ${new Date(agent.PairedAtTimestamp).toLocaleDateString(undefined, {
+                                            month: "short",
+                                            day: "numeric",
+                                            year: "numeric",
+                                        })}`}
+                                    </Text>
+                                </View>
                             </View>
-                        }
-                    />
-                </Pressable>
-                {!keysOpen ? null : agent.CredentialIDs.length ? (
-                    agent.CredentialIDs.map((credentialId) => {
-                        const key = keys.find((item) => item.id === credentialId);
-                        return (
-                            <KeyRow
-                                key={credentialId}
-                                name={key?.name ?? "Deleted item"}
-                                detail={key?.detail ?? "No longer in the vault"}
+                        </View>
+                        {relayForgot ? (
+                            <InlineNotice
+                                testID="agent-relay-forgot"
+                                tone="warning"
+                                className="mb-3"
+                                message={RELAY_FORGOT_AGENT_TEXT}
+                                action={{
+                                    label: "Remove agent",
+                                    testID: "agent-relay-forgot-remove",
+                                    onPress: confirmRevoke,
+                                }}
                             />
-                        );
-                    })
-                ) : (
-                    <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
-                        No keys.
-                    </Text>
-                )}
-                <AgentSectionLabel
-                    title="Recent requests"
-                    right={
-                        agent.History.length > RECENT_COUNT ? (
-                            <Pressable
-                                accessibilityRole="button"
-                                onPress={() => setShowAll((value) => !value)}
-                                hitSlop={8}
-                            >
-                                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
-                                    {showAll ? "Show less" : "See all"}
-                                </Text>
-                            </Pressable>
-                        ) : undefined
-                    }
-                />
-                {history.length ? (
-                    history.map((entry, index) => (
-                        <HistoryRow key={`${entry.Timestamp}-${index}`} entry={entry} />
-                    ))
-                ) : (
+                        ) : null}
+                        {paused ? (
+                            <InlineNotice
+                                testID="agent-paused"
+                                tone="info"
+                                className="mb-3"
+                                message="Paused. Requests from this agent are refused without asking."
+                                action={{
+                                    label: pausing ? "Resuming…" : "Resume",
+                                    testID: "agent-resume",
+                                    onPress: () => {
+                                        if (!pausing) void togglePaused();
+                                    },
+                                }}
+                            />
+                        ) : null}
+                        {here ? <AgentNotificationsNotice style={{ marginBottom: 12 }} /> : null}
+                        <InfoCard
+                            label="Approver"
+                            value={
+                                here
+                                    ? `${sanitizeDisplayText(agent.ApproverName || "This device")} (this device)`
+                                    : sanitizeDisplayText(agent.ApproverName || "Another device")
+                            }
+                        />
+                        <InfoCard label="Relay" value={relayLabel(agent.RelayOrigin)} />
+                        <Pressable
+                            testID="agent-keys-toggle"
+                            accessibilityRole="button"
+                            accessibilityLabel={`Keys, ${agent.CredentialIDs.length}`}
+                            accessibilityState={{ expanded: keysOpen }}
+                            onPress={() => setKeysOpen((open) => !open)}
+                            hitSlop={8}
+                        >
+                            <AgentSectionLabel
+                                title="Keys"
+                                right={
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                        <Text style={{ fontSize: 11, color: colors.muted }}>
+                                            {String(agent.CredentialIDs.length)}
+                                        </Text>
+                                        {keysOpen ? (
+                                            <ChevronDown size={16} color={colors.muted} />
+                                        ) : (
+                                            <ChevronRight size={16} color={colors.muted} />
+                                        )}
+                                    </View>
+                                }
+                            />
+                        </Pressable>
+                        {!keysOpen ? null : agent.CredentialIDs.length ? (
+                            agent.CredentialIDs.map((credentialId) => {
+                                const key = keys.find((item) => item.id === credentialId);
+                                return (
+                                    <KeyRow
+                                        key={credentialId}
+                                        name={key?.name ?? "Deleted item"}
+                                        detail={key?.detail ?? "No longer in the vault"}
+                                    />
+                                );
+                            })
+                        ) : (
+                            <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                                No keys.
+                            </Text>
+                        )}
+                        <AgentSectionLabel
+                            title="Recent requests"
+                            right={
+                                agent.History.length > RECENT_COUNT ? (
+                                    <Pressable
+                                        accessibilityRole="button"
+                                        onPress={() => setShowAll((value) => !value)}
+                                        hitSlop={8}
+                                    >
+                                        <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                                            {showAll ? "Show less" : "See all"}
+                                        </Text>
+                                    </Pressable>
+                                ) : undefined
+                            }
+                        />
+                    </View>
+                }
+                ListEmptyComponent={
                     <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
                         No requests yet.
                     </Text>
-                )}
-            </View>
+                }
+            />
 
             <Dialog open={menuOpen} onOpenChange={setMenuOpen} placement="bottom">
                 <DialogHeader>

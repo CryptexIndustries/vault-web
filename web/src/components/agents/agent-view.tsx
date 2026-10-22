@@ -10,6 +10,7 @@ import {
     Play,
     Trash2,
 } from "lucide-react";
+import { Virtuoso } from "react-virtuoso";
 import { toast } from "sonner";
 import {
     revokeAgent,
@@ -108,6 +109,7 @@ export function AgentView({
     const [confirmRevoke, setConfirmRevoke] = useState(false);
     const [revoking, setRevoking] = useState(false);
     const [showAll, setShowAll] = useState(false);
+    const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
     const [pausing, setPausing] = useState(false);
 
     if (!agent) {
@@ -195,6 +197,7 @@ export function AgentView({
     return (
         <AgentPanel
             onBack={onBack}
+            scrollerRef={setScroller}
             actions={
                 here ? (
                     <Button
@@ -321,22 +324,39 @@ export function AgentView({
                 data-testid="agent-history"
             >
                 {history.length ? (
-                    history.map((entry, index) => (
-                        <AgentRow
-                            key={`${entry.Timestamp}-${index}`}
-                            icon={
-                                entry.Kind ===
-                                AgentRequestKind.AgentRequestSignature
-                                    ? entry.Namespace === "git"
-                                        ? GitCommitHorizontal
-                                        : PenLine
-                                    : KeyRound
+                    // Only the rows in view are drawn; the page scrolls them.
+                    scroller && (
+                        <Virtuoso
+                            customScrollParent={scroller}
+                            data={history}
+                            computeItemKey={(index, entry) =>
+                                `${entry.Timestamp}-${index}`
                             }
-                            title={historyTitle(entry)}
-                            detail={`${outcomeLabel(entry.Outcome)}, ${formatAgo(entry.Timestamp).toLowerCase()}`}
-                            monospace={false}
+                            itemContent={(index, entry) => (
+                                <AgentRow
+                                    // Each row is alone in its wrapper, so
+                                    // last: matches every row; set the
+                                    // divider by position instead.
+                                    className={
+                                        index === history.length - 1
+                                            ? "border-b-0"
+                                            : "last:border-b"
+                                    }
+                                    icon={
+                                        entry.Kind ===
+                                        AgentRequestKind.AgentRequestSignature
+                                            ? entry.Namespace === "git"
+                                                ? GitCommitHorizontal
+                                                : PenLine
+                                            : KeyRound
+                                    }
+                                    title={historyTitle(entry)}
+                                    detail={`${outcomeLabel(entry.Outcome)}, ${formatAgo(entry.Timestamp).toLowerCase()}`}
+                                    monospace={false}
+                                />
+                            )}
                         />
-                    ))
+                    )
                 ) : (
                     <p className="px-1 py-3 text-sm text-muted-foreground">
                         No requests yet.
@@ -450,10 +470,12 @@ function AgentPanel({
     onBack,
     actions,
     children,
+    scrollerRef,
 }: {
     onBack: () => void;
     actions?: React.ReactNode;
     children: React.ReactNode;
+    scrollerRef?: React.Ref<HTMLDivElement>;
 }) {
     return (
         <main
@@ -478,7 +500,7 @@ function AgentPanel({
                     {actions}
                 </div>
             </div>
-            <ScrollArea className="min-h-0 flex-1">
+            <ScrollArea className="min-h-0 flex-1" viewportRef={scrollerRef}>
                 <div className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 lg:px-8">
                     {children}
                 </div>

@@ -594,8 +594,8 @@ export default function SSHAgent() {
                 />
                 <DocScreenshot
                     src="/images/docs/ssh-agent-android-agent.png"
-                    alt="Android agent page for work-laptop with the approver, relay, two keys and recent requests, mostly approved and one denied"
-                    caption="The agent page on Android. Edit keys is at the top. The menu button next to it has Pause agent and Revoke agent."
+                    alt="Android agent page for work-laptop with the pairing date under its name, the approver, the relay, a closed Keys section showing 2, and recent git signatures, one of them denied"
+                    caption="The agent page on Android. Edit keys is at the top. The menu button next to it has Pause agent and Revoke agent. Tap Keys to see which keys the agent may use."
                     width={720}
                     height={1404}
                 />

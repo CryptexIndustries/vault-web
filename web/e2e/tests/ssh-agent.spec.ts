@@ -387,12 +387,26 @@ test("approves cryptex-agent requests from the dashboard", async ({
         const view = page.getByTestId("agent-view");
         await expect(view.getByTestId("agent-history")).toContainText("Denied");
         await view.getByRole("button", { name: "See all" }).click();
-        await expect(view.getByTestId("agent-history")).toContainText(
-            "Approved automatically",
-        );
-        await expect(view.getByTestId("agent-history")).toContainText(
-            "Git signature",
-        );
+        // The list draws only the rows in view, so scroll through it.
+        const scroller = view.locator("[data-radix-scroll-area-viewport]");
+        let historyText = "";
+        for (let step = 0; step < 30; step++) {
+            historyText += await view.getByTestId("agent-history").innerText();
+            const atEnd = await scroller.evaluate((el) => {
+                el.scrollBy(0, el.clientHeight / 2);
+                return el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+            });
+            await page.waitForTimeout(100);
+            if (atEnd) {
+                historyText += await view
+                    .getByTestId("agent-history")
+                    .innerText();
+                break;
+            }
+        }
+        expect(historyText).toContain("Approved automatically");
+        expect(historyText).toContain("Git signature");
+        await scroller.evaluate((el) => el.scrollTo(0, 0));
         await shot(page, "10-sidebar-and-agent-page");
 
         await view.getByTestId("agent-edit-keys").click();

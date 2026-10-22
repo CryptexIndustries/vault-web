@@ -213,9 +213,17 @@ function RowBody({
 }
 
 /** A row in the agent page's key and request lists. */
-export function AgentRow(props: Parameters<typeof RowBody>[0]) {
+export function AgentRow({
+    className,
+    ...props
+}: Parameters<typeof RowBody>[0] & { className?: string }) {
     return (
-        <div className="flex items-center gap-3 border-b border-border px-1 py-2.5 last:border-b-0">
+        <div
+            className={cn(
+                "flex items-center gap-3 border-b border-border px-1 py-2.5 last:border-b-0",
+                className,
+            )}
+        >
             <RowBody {...props} />
         </div>
     );

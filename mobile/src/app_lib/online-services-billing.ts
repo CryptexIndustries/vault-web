@@ -7,7 +7,9 @@ export { checkoutReturnTarget } from "./stripe-billing";
 export { refreshSubscriptionAfterExternalBilling } from "./billing-confirmation";
 
 export type CheckoutTier = "premiumMonthly" | "premiumYearly";
-export type StorePlan = { tier: CheckoutTier; price: string };
+export type StorePlan = { tier: CheckoutTier; price: string; trial: boolean };
+/** Whether the account may get a trial, and whether the user was shown one. */
+export type PlanTerms = { trialEligible: boolean; trial: boolean };
 export type BillingResult =
     | { ok: true }
     | {
@@ -17,6 +19,8 @@ export type BillingResult =
           pending?: boolean;
           /** False when trying again cannot change the outcome. */
           retryable?: false;
+          /** The store offer differs from the one shown; nothing was bought. */
+          offerChanged?: { trial: boolean };
       };
 export type BillingConfirmation = {
     generation: number;
@@ -36,12 +40,15 @@ export function isGooglePlayBuild(): boolean {
 
 export async function purchaseMembership(
     tier: CheckoutTier = "premiumMonthly",
+    terms: PlanTerms = { trialEligible: false, trial: false },
 ): Promise<BillingResult> {
     if (isGooglePlayBuild()) {
         return (await import("./google-play-billing")).purchaseGooglePlayPlan(
             tier,
+            terms,
         );
     }
+    // Stripe checkout decides the trial on the server.
     return stripe.openCheckoutExternal(tier);
 }
 type BillingProvider = NonNullable<
@@ -89,8 +96,10 @@ export async function openBillingManagement(
         message: "This subscription cannot be managed from this app.",
     } as const;
 }
-export async function loadStorePlans() {
-    return (await import("./google-play-billing")).loadGooglePlayPlans();
+export async function loadStorePlans(trialEligible: boolean) {
+    return (await import("./google-play-billing")).loadGooglePlayPlans(
+        trialEligible,
+    );
 }
 export async function restoreStorePurchases() {
     return (await import("./google-play-billing")).restoreGooglePlayPurchases();

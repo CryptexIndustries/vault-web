@@ -37,6 +37,7 @@ type Subscription = {
     status?: string | null;
     cancelAtPeriodEnd?: boolean | null;
     expiresAt?: Date | string | null;
+    trialEndsAt?: Date | string | null;
     nonFree?: boolean;
     provider?: "stripe" | "google_play" | "app_store" | null;
     resourceStatus?: { linkedDevices?: number };
@@ -70,7 +71,14 @@ type AccountSummaryProps = {
 function formatAccountDate(value?: Date | string | null) {
     if (!value) return null;
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
+    // Numeric dates read differently across regions.
+    return Number.isNaN(date.getTime())
+        ? null
+        : date.toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+          });
 }
 
 function formatDisplayName(value: string) {
@@ -170,9 +178,14 @@ export function AccountSummary({
                 ? `${linkedDeviceCount} of ${linkedDeviceLimit} linked devices`
                 : `${linkedDeviceCount} linked device${linkedDeviceCount === 1 ? "" : "s"}`
             : "Usage unavailable";
+    const trialing = subscriptionStatus.toLowerCase() === "trialing";
     const billingDateLabel = subscription?.cancelAtPeriodEnd
-        ? "Expires"
-        : "Renews";
+        ? trialing
+            ? "Access ends"
+            : "Expires"
+        : trialing
+          ? "Trial ends"
+          : "Renews";
     const management = billingManagement(subscription?.provider);
     const canManageBilling =
         hasSession && !!subscription?.nonFree && management !== null;
@@ -201,7 +214,11 @@ export function AccountSummary({
               ? "Your subscription has ended."
               : status === "paused"
                 ? "Your subscription is paused."
-                : null;
+                : trialing
+                  ? subscription?.cancelAtPeriodEnd
+                      ? "Free trial canceled. You won't be charged."
+                      : "Free trial. You'll be charged when it ends unless you cancel before then."
+                  : null;
 
     const handleBilling = async (
         operation: "manage" | "restore" = "manage",
@@ -305,7 +322,9 @@ export function AccountSummary({
                 ) : null}
             </View>
         ) : null;
-    const billingDate = formatAccountDate(subscription?.expiresAt);
+    const billingDate = formatAccountDate(
+        (trialing && subscription?.trialEndsAt) || subscription?.expiresAt,
+    );
 
     if (mode === "overview") {
         return (

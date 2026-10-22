@@ -217,10 +217,16 @@ it("defaults to Monthly in the upgrade sheet and sends the selected Yearly tier 
     const options = renderer!.root.findAllByType("Pressable" as never);
     expect(options[0]!.props.accessibilityState.checked).toBe(true);
     await act(async () => button("Continue with monthly").props.onPress());
-    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumMonthly");
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumMonthly", {
+        trialEligible: false,
+        trial: false,
+    });
     await act(async () => options[1]!.props.onPress());
     await act(async () => button("Continue with yearly").props.onPress());
-    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumYearly");
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumYearly", {
+        trialEligible: false,
+        trial: false,
+    });
     expect(summaryProps.onExternalBillingOpened).toHaveBeenCalledTimes(2);
 });
 
@@ -396,7 +402,10 @@ it("prevents duplicate Stripe checkout and retries the current tier", async () =
             .props.onPress(),
     );
     await act(async () => recovery.onPress());
-    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumYearly");
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumYearly", {
+        trialEligible: false,
+        trial: false,
+    });
     await act(async () => renderer!.unmount());
     renderer = undefined;
     await act(async () => recovery.onPress());

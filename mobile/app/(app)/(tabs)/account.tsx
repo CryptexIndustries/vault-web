@@ -16,10 +16,7 @@ import { AccountSummary } from "@/components/account/account-summary";
 import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 import { SubscriptionSignup } from "@/components/account/subscription-signup";
 import { InlineNotice } from "@/components/inline-notice";
-import {
-    Snackbar,
-    useSnackbar,
-} from "@/components/snackbar";
+import { Snackbar, useSnackbar } from "@/components/snackbar";
 import { BillingPendingNotice } from "@/components/account/billing-pending-notice";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import {
@@ -719,6 +716,7 @@ export default function AccountScreen() {
                                 subscription?.nonFree === false &&
                                 !billingPending
                             }
+                            trialEligible={subscription?.trialEligible}
                             pendingConfirmation={billingPending}
                             onPendingChange={recordPendingBilling}
                             refreshing={accountSummaryProps.refreshing}

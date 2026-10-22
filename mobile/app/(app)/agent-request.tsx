@@ -412,7 +412,7 @@ function AgentRequestView() {
                 ) : null}
                 <Button
                     testID="agent-pause-from-request"
-                    variant="ghost"
+                    variant="secondary"
                     className="mt-4"
                     disabled={busy !== null}
                     loading={busy === "pause"}

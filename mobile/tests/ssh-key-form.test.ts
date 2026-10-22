@@ -246,6 +246,11 @@ async function pick(label: string, name: string, file: string) {
 
 async function save() {
     await act(async () => byTestId("ssh-key-submit")!.props.onPress());
+    // The press doesn't return the save, which hashes the item with
+    // crypto.subtle; a busy runner can finish that after act() returns.
+    await act(async () => {
+        await Promise.all(persist.mock.results.map((result) => result.value));
+    });
 }
 
 const savedItems = () =>

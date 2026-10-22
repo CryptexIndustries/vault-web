@@ -47,7 +47,7 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "added",
                 description:
-                    "SSH key items. Generate or import Ed25519, ECDSA and RSA keys, and copy or save the public key.",
+                    "SSH key items. Generate or import Ed25519, ECDSA and RSA keys, copy or save the public key, and share a key through a one-time link.",
             },
             {
                 type: "added",

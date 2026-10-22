@@ -2,7 +2,15 @@ import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
-import { Clock, GitCommitHorizontal, KeyRound, MoreHorizontal, PenLine } from "lucide-react-native";
+import {
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    GitCommitHorizontal,
+    KeyRound,
+    MoreHorizontal,
+    PenLine,
+} from "lucide-react-native";
 import {
     revokeAgent,
     setAgentPaused,
@@ -106,6 +114,7 @@ export default function AgentScreen() {
     const [draft, setDraft] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [showAll, setShowAll] = useState(false);
+    const [keysOpen, setKeysOpen] = useState(false);
     const [pausing, setPausing] = useState(false);
     const agent = agents.find((item) => item.ID === id);
     const keys = useMemo(() => agentKeyOptions(sshKeyItems(vault), sshKeyInfo), [vault]);
@@ -336,8 +345,31 @@ export default function AgentScreen() {
                     }
                 />
                 <InfoCard label="Relay" value={relayLabel(agent.RelayOrigin)} />
-                <AgentSectionLabel title="Keys" right={String(agent.CredentialIDs.length)} />
-                {agent.CredentialIDs.length ? (
+                <Pressable
+                    testID="agent-keys-toggle"
+                    accessibilityRole="button"
+                    accessibilityLabel={`Keys, ${agent.CredentialIDs.length}`}
+                    accessibilityState={{ expanded: keysOpen }}
+                    onPress={() => setKeysOpen((open) => !open)}
+                    hitSlop={8}
+                >
+                    <AgentSectionLabel
+                        title="Keys"
+                        right={
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                <Text style={{ fontSize: 11, color: colors.muted }}>
+                                    {String(agent.CredentialIDs.length)}
+                                </Text>
+                                {keysOpen ? (
+                                    <ChevronDown size={16} color={colors.muted} />
+                                ) : (
+                                    <ChevronRight size={16} color={colors.muted} />
+                                )}
+                            </View>
+                        }
+                    />
+                </Pressable>
+                {!keysOpen ? null : agent.CredentialIDs.length ? (
                     agent.CredentialIDs.map((credentialId) => {
                         const key = keys.find((item) => item.id === credentialId);
                         return (

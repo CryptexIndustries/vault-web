@@ -5,7 +5,7 @@
 # each of those on its own single line.
 
 pkgname=cryptex-agent-bin
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="SSH agent that holds no keys and asks Cryptex Vault on your phone to sign"
 arch=('x86_64' 'aarch64')

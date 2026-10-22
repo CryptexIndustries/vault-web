@@ -2559,7 +2559,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     isDeleting ||
                                     isRefreshing
                                 }
-                                className="items-start py-2 text-destructive focus:text-destructive"
+                                className="items-start py-2 text-destructive"
                             >
                                 <LockKeyhole className="mt-0.5" />
                                 <span className="min-w-0">
@@ -3218,7 +3218,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        className="h-6 gap-1 px-2 text-[10px] text-primary hover:text-primary"
+                                        className="h-6 gap-1 px-2 text-[10px] text-primary hover:bg-primary/10 hover:text-primary"
                                         onClick={() => {
                                             closeCredentialForm();
                                         }}
@@ -3981,7 +3981,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                                 index,
                                                                             )
                                                                         }
-                                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                                        className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                                                     >
                                                                         <Trash2 className="h-3.5 w-3.5" />
                                                                     </Button>

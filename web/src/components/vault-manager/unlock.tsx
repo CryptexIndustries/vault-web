@@ -540,7 +540,7 @@ const UnlockTab: React.FC<UnlockTabProps> = (props) => {
                             size="sm"
                             variant="ghost"
                             disabled={ctrl.isVaultDeleting || ctrl.isDecrypting}
-                            className="h-9 w-9 shrink-0 p-0 text-destructive hover:text-destructive"
+                            className="h-9 w-9 shrink-0 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         >
                             <Trash2 className="h-4 w-4" />
                             <span className="sr-only">

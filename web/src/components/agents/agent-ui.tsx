@@ -159,7 +159,10 @@ function RowBody({
                 />
             </span>
             <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-foreground">
+                <span
+                    className="block truncate text-sm text-foreground"
+                    title={title}
+                >
                     {title}
                 </span>
                 <span

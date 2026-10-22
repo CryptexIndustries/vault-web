@@ -714,7 +714,7 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     Monthly
                 </button>
                 <button aria-pressed={annual} onClick={() => setAnnual(true)}>
-                    Annually <span>Save €{yearlySaving(currentPriceList)}</span>
+                    Yearly <span>Save €{yearlySaving(currentPriceList)}</span>
                 </button>
             </div>
             <div className={`${s.plans} grid grid-cols-[1fr_1fr] gap-[24px]`}>
@@ -762,6 +762,9 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         Price as of {currentPriceList.referenceDate}: €
                         {Number(price.referencePrice)} / {period}
                     </small>
+                    <small className={s.referencePrice}>
+                        14-day free trial on your first subscription
+                    </small>
                     <p>
                         Your vault stays yours. We run the supporting
                         infrastructure.
@@ -770,8 +773,9 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         Continue with {annual ? "yearly" : "monthly"} plan
                     </Action>
                     <small className={s.purchaseNote}>
-                        New to Online Services? Start with monthly billing
-                        before committing to a year.
+                        The trial needs a card, which is charged when the trial
+                        ends unless you cancel first. New to Online Services?
+                        Start with monthly billing before committing to a year.
                     </small>
                     <ul>
                         <li className={s.featureBenefit}>

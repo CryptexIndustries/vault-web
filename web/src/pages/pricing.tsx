@@ -87,6 +87,9 @@ export default function Pricing() {
                     <div>
                         <dt>Price &amp; refunds</dt>
                         <dd>
+                            Your first subscription starts with a 14-day free
+                            trial. Checkout asks for a card, and it is charged
+                            when the trial ends unless you cancel before then.
                             We recommend starting with monthly billing. We do
                             not offer voluntary subscription refunds; your
                             statutory consumer rights are unaffected. For
@@ -158,7 +161,9 @@ export default function Pricing() {
                             billing portal, accessible from the app. Manage a
                             Google Play subscription in Google Play.
                             Cancellation takes effect at the end of the current
-                            paid period.
+                            paid period. If you cancel during the free trial,
+                            you keep access until the trial ends and nothing is
+                            charged.
                         </dd>
                     </div>
                     <div>
@@ -199,6 +204,25 @@ export default function Pricing() {
                                 sync can start automatically after connecting or
                                 manually, and it remains end-to-end encrypted.
                                 Both vaults must be open and unlocked.
+                            </p>
+                        </details>
+                        <details>
+                            <summary>
+                                How does the free trial work?<span>+</span>
+                            </summary>
+                            <p>
+                                Your first Online Services subscription, on the
+                                web or through Google Play, starts with 14 days
+                                free on the monthly or yearly plan. The trial
+                                includes everything a paid subscription does.
+                                You need a card to start it. When the trial
+                                ends, the card is charged and the subscription
+                                renews as usual. Cancel before then and you pay
+                                nothing. Each account gets one trial, and only
+                                if it has never had a subscription. Google Play
+                                also allows one trial per Google account. Link
+                                emails you when a web trial starts and before it
+                                ends, and Google Play sends its own reminder.
                             </p>
                         </details>
                         <details>

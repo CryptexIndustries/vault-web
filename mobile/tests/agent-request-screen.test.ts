@@ -55,6 +55,7 @@ jest.mock("@/components/unlocked/unlocked-ui", () => {
 });
 jest.mock("@/components/unlocked/unlocked-snackbar", () => ({
     useUnlockedSnackbar: () => jest.fn(),
+    useClearUnlockedSnackbar: () => jest.fn(),
 }));
 jest.mock("@/components/agents/agent-rows", () => ({
     AgentSectionLabel: "SectionLabel",

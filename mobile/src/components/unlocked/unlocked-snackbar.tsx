@@ -18,6 +18,12 @@ export function useUnlockedSnackbar() {
     );
 }
 
+/** Clears the notice, for screens it must not cover, like an approval prompt. */
+export function useClearUnlockedSnackbar() {
+    const setSnackbar = useSetAtom(unlockedSnackbarAtom);
+    return useCallback(() => setSnackbar(null), [setSnackbar]);
+}
+
 export function UnlockedSnackbar() {
     const insets = useSafeAreaInsets();
     const [snackbar, setSnackbar] = useAtom(unlockedSnackbarAtom);

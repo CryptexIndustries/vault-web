@@ -34,7 +34,10 @@ import {
     UnlockedTaskScreen,
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
-import { useUnlockedSnackbar } from "@/components/unlocked/unlocked-snackbar";
+import {
+    useClearUnlockedSnackbar,
+    useUnlockedSnackbar,
+} from "@/components/unlocked/unlocked-snackbar";
 import { AgentSectionLabel, InfoCard, RadioRow } from "@/components/agents/agent-rows";
 import { agentRuntime } from "@/agent/agent-app";
 import { useAgentRuntimeVersion } from "@/agent/agent-runtime-bridge";
@@ -106,6 +109,11 @@ function AgentRequestView() {
         agentService.setApprovalScreenProtected(true);
         return () => agentService.setApprovalScreenProtected(false);
     }, []);
+
+    // A notice from the screen underneath, like "Connected", would cover the
+    // Remember choices.
+    const clearSnackbar = useClearUnlockedSnackbar();
+    useEffect(clearSnackbar, [clearSnackbar]);
 
     // Approve turns on a moment after each request appears.
     const requestId = request?.id ?? null;

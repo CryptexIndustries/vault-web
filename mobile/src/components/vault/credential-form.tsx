@@ -15,6 +15,7 @@ import * as Clipboard from "expo-clipboard";
 import { useAtomValue } from "jotai";
 import {
     Check,
+    ChevronDown,
     ChevronRight,
     Plus,
     ScanLine,
@@ -1155,15 +1156,11 @@ function CredentialFormEditor({
                     <Text className="flex-1 text-sm text-foreground">
                         More details
                     </Text>
-                    <ChevronRight
-                        size={18}
-                        color={colors.muted}
-                        style={{
-                            transform: [
-                                { rotate: moreDetailsOpen ? "90deg" : "0deg" },
-                            ],
-                        }}
-                    />
+                    {moreDetailsOpen ? (
+                        <ChevronDown size={18} color={colors.muted} />
+                    ) : (
+                        <ChevronRight size={18} color={colors.muted} />
+                    )}
                 </Pressable>
                 {moreDetailsOpen ? (
                     <View className="gap-4">

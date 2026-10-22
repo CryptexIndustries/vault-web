@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
-import { Check, ChevronRight, FileKey, FileUp, X } from "lucide-react-native";
+import { Check, ChevronDown, ChevronRight, FileKey, FileUp, X } from "lucide-react-native";
 
 import {
     CredentialURLMatchMode,
@@ -263,9 +263,8 @@ export function SSHKeyForm({
     );
     const [notes, setNotes] = useState(existing?.Notes ?? "");
     const [tagsText, setTagsText] = useState(tagsToDisplay(existing?.Tags));
-    const [moreDetailsOpen, setMoreDetailsOpen] = useState(
-        !!existing?.Notes || !!existing?.Tags,
-    );
+    // An SSH key has few fields, so Tags and Notes start open.
+    const [moreDetailsOpen, setMoreDetailsOpen] = useState(true);
     const [directoryPickerOpen, setDirectoryPickerOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const saving = useRef(false);
@@ -936,15 +935,11 @@ export function SSHKeyForm({
                     <Text className="flex-1 text-sm text-foreground">
                         More details
                     </Text>
-                    <ChevronRight
-                        size={18}
-                        color={colors.muted}
-                        style={{
-                            transform: [
-                                { rotate: moreDetailsOpen ? "90deg" : "0deg" },
-                            ],
-                        }}
-                    />
+                    {moreDetailsOpen ? (
+                        <ChevronDown size={18} color={colors.muted} />
+                    ) : (
+                        <ChevronRight size={18} color={colors.muted} />
+                    )}
                 </Pressable>
                 {moreDetailsOpen ? (
                     <View className="gap-4">

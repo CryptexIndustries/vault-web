@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -87,5 +88,28 @@ func TestStateChangesMergeWithPairRewrite(t *testing.T) {
 	update(4)
 	if st, _ := s.store.LoadState(); st != nil {
 		t.Fatalf("unpaired state resurrected: %+v", st)
+	}
+}
+
+func TestReloadKeepsTheServiceOwnSave(t *testing.T) {
+	s := newTestService(t)
+	loadState(t, s, testState(1))
+
+	// A poll starts while the service is busy, which then saves a
+	// revocation. The poll must not put the state from before it back.
+	s.mu.Lock()
+	polled := make(chan error, 1)
+	go func() { polled <- s.reload() }()
+	time.Sleep(50 * time.Millisecond)
+	if err := s.updateLocked(func(st *State) { st.Revoked = true }); err != nil {
+		s.mu.Unlock()
+		t.Fatal(err)
+	}
+	s.mu.Unlock()
+	if err := <-polled; err != nil {
+		t.Fatal(err)
+	}
+	if st := s.Status(); !st.Revoked {
+		t.Errorf("revocation undone by a poll: %+v", st)
 	}
 }

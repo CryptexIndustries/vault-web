@@ -30,14 +30,16 @@ func (s *Service) pollState(ctx context.Context) {
 	}
 }
 
-// reload picks up changes `pair` and `unpair` made to state.json.
+// reload picks up changes `pair` and `unpair` made to state.json. It reads
+// the file under the lock: a read from before one of the service's own saves
+// would put the old state back.
 func (s *Service) reload() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	raw, err := s.store.readState()
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if bytes.Equal(raw, s.raw) && (raw == nil) == (s.raw == nil) && s.gen > 0 {
 		return nil
 	}

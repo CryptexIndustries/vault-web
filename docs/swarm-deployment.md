@@ -212,10 +212,10 @@ docker node update --label-add cryptex-vault.share=true <node>
 ### Image tags
 
 The share server is released separately from the web app. Push a
-`share-server-v*` tag, such as `share-server-v1.0.0`, and CI publishes:
+`share-server-v*` tag, such as `share-server-v1.0.1`, and CI publishes:
 
 ```text
-ghcr.io/cryptexindustries/vault-web/share-server:v1.0.0
+ghcr.io/cryptexindustries/vault-web/share-server:v1.0.1
 ghcr.io/cryptexindustries/vault-web/share-server:<commit-sha>
 ```
 
@@ -285,7 +285,7 @@ client addresses. Set `SHARE_METRICS_ADDR=off` to turn them off.
 ### Deploy and update
 
 ```bash
-export SHARE_IMAGE="ghcr.io/cryptexindustries/vault-web/share-server:v1.0.0"
+export SHARE_IMAGE="ghcr.io/cryptexindustries/vault-web/share-server:v1.0.1"
 docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null
 docker stack deploy --with-registry-auth -c services/cmd/share-server/compose.swarm.yaml cryptex-vault-services
 docker service logs cryptex-vault-services_share

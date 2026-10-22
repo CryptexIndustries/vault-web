@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Android app and the web app approve SSH agent requests. Each request shows the server, verified from the server's own signature, the program and the key. You can remember an approval until the vault locks, pause an agent, and see its recent requests, change its keys or revoke it from any linked device.
 - The agent relay, an open-source Go service that carries end-to-end encrypted requests between agents and the devices that approve them. The hosted relay comes with Online Services; self-hosters run the same container with an access token, and the self-hosting stack includes it.
 - SSH keys and SSH agent guides in the documentation.
+- `share-server version` prints the share server's version, and its startup log includes it. Release images get the version from their `share-server-v*` tag.
 
 ### Changed
 
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recovering an Online Services account removed its other devices and used up the Recovery Kit without warning, and left the account without a Kit. The web app and the Android app now warn first and then offer a new Kit.
 - Linking a device could hang on the receiving device when the sending device went away, and the web app blamed the signaling server for every failure, even a cancel. The receiving device now gives up after a minute without progress and shows a countdown while it waits, and the web app reports the actual cause.
 - In the dark theme, a highlighted menu item showed red or coral text and icons on the coral highlight, such as Revoke in Shared links. Highlighted items now use light text, and red icon buttons get a tinted background on hover.
+- The share server's sweep counters appeared only after the first sweep, so an alert couldn't see the first failed one. They now start at zero.
 
 ### Security
 

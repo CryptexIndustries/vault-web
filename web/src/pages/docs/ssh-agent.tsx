@@ -142,9 +142,10 @@ export default function SSHAgent() {
                             Give the agent a name and pick the keys it may use
                             under <strong>Keys this agent can use</strong>, or
                             none and add them later with{" "}
-                            <strong>Edit keys</strong>. Then tap{" "}
-                            <strong>Connect</strong>. On Android 13 and later,
-                            the phone asks whether Cryptex Vault may send
+                            <strong>Edit keys</strong>. With many keys, search
+                            the list or use <strong>Select all</strong>. Then
+                            tap <strong>Connect</strong>. On Android 13 and
+                            later, the phone asks whether Cryptex Vault may send
                             notifications. Allow it, or requests that arrive
                             while the app is closed or locked can&apos;t reach
                             you.
@@ -192,8 +193,9 @@ export default function SSHAgent() {
                         </p>,
                         <p key="keys">
                             Give the agent a name, pick its keys and choose{" "}
-                            <strong>Connect</strong>. You can also connect with
-                            no keys and add them later with{" "}
+                            <strong>Connect</strong>. With many keys, search the
+                            list or use <strong>Select all</strong>. You can
+                            also connect with no keys and add them later with{" "}
                             <strong>Edit keys</strong>.
                         </p>,
                         <p key="code">
@@ -221,7 +223,7 @@ export default function SSHAgent() {
                     alt="Connect an agent dialog showing the machine work-laptop, Linux amd64, a Name field and two selected SSH keys, GitHub and Deploy"
                     caption="Name the agent and tick the keys it may use, then choose Connect. The machine line is what the machine reports about itself."
                     width={1024}
-                    height={1128}
+                    height={1127}
                 />
                 <DocScreenshot
                     src="/images/docs/ssh-agent-web-connect-confirm.png"

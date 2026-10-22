@@ -27,7 +27,7 @@ jest.mock('@/components/unlocked/unlocked-ui',()=>({UnlockedButton:'Button',Unlo
 jest.mock('@/components/unlocked/unlocked-snackbar',()=>({useUnlockedSnackbar:()=>mockSnackbar}));
 jest.mock('@/components/invitation-header',()=>({InvitationHeader:'InvitationHeader'}));
 jest.mock('@/components/inline-notice',()=>({InlineNotice:'Notice'}));
-jest.mock('@/components/agents/agent-rows',()=>({AgentSectionLabel:'AgentSectionLabel',InfoCard:'InfoCard',KeyPicker:'KeyPicker'}));
+jest.mock('@/components/agents/agent-rows',()=>({AgentSectionLabel:'AgentSectionLabel',InfoCard:'InfoCard',KeyPickerList:({header}:any)=>createElement('KeyPickerList',{},header)}));
 jest.mock('@/components/ui/dialog',()=>({Dialog:({open,children}:{open:boolean,children:ReactNode})=>open?createElement('Dialog',{},children):null,DialogHeader:'DialogHeader',DialogTitle:'DialogTitle'}));
 jest.mock('@/agent/agent-storage',()=>({loadApproverIdentity:async()=>mockIdentity,loadAgentCache:async()=>{await mockStorage.readCache();return mockStorage.cache;},saveAgentCache:async(next:any[])=>{await mockStorage.saveCache(next);mockStorage.cache=next;},loadCustomRelays:async()=>[],saveCustomRelay:async()=>{},loadRelayPass:async()=>null,saveRelayPass:async()=>{},localApprovals:{load:async()=>{await mockStorage.readLocal();return mockStorage.local;},save:async(v:any[])=>{mockStorage.local=v;}}}));
 jest.mock('@cryptex-industries/vault-core/agent/runtime',()=>{const actual=jest.requireActual('@cryptex-industries/vault-core/agent/runtime') as any;return {...actual,AgentRuntime:class extends actual.AgentRuntime{constructor(deps:any){super({...deps,createApprover:()=>mockPort});}}};});

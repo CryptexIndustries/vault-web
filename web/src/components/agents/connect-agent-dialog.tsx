@@ -47,7 +47,6 @@ import { unlockedVaultAtom } from "@/utils/atoms";
 import { useAgentHost } from "./agent-host-context";
 import {
     AgentInfoField,
-    AgentSectionLabel,
     AgentWarning,
     KeyPicker,
     vaultKeyOptions,
@@ -283,7 +282,7 @@ function ConnectAgentContent({
 
     return (
         <DialogContent
-            className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+            className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-lg"
             data-testid="agent-connect-dialog"
             // Typing a code shouldn't be lost to a stray click outside.
             onInteractOutside={(event) => event.preventDefault()}
@@ -312,207 +311,200 @@ function ConnectAgentContent({
                 </DialogDescription>
             </DialogHeader>
 
-            {stage === "paste" ? (
-                <div className="space-y-2">
-                    <Label htmlFor="agent-paste">Pairing code</Label>
-                    <Textarea
-                        id="agent-paste"
-                        data-testid="agent-paste"
-                        value={code}
-                        onChange={(event) => {
-                            setCode(event.target.value);
-                            setError("");
-                        }}
-                        placeholder="cryptex-pair:…"
-                        rows={4}
-                        autoFocus
-                        spellCheck={false}
-                        autoComplete="off"
-                        className="break-all font-mono text-xs"
-                    />
-                </div>
-            ) : null}
-
-            {stage === "relay" ? (
-                <div className="space-y-3">
-                    <AgentInfoField
-                        label="Relay"
-                        testId="agent-relay-needed"
-                        value={relayNeeded}
-                        monospace
-                        note="Named by the pairing code"
-                    />
-                    {otherRelays.length ? (
-                        <p
-                            role="alert"
-                            data-testid="agent-relay-other"
-                            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
-                        >
-                            {`You already use ${otherRelays.length === 1 ? "another relay" : "other relays"}: ${otherRelays.join(", ")}. Add this one only if you run it or trust it.`}
-                        </p>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            Add it only if you run this relay or trust it.
-                        </p>
-                    )}
+            {/* Only the body scrolls; the title and the footer stay put. */}
+            <div className="-mx-6 -my-1 min-h-0 space-y-4 overflow-y-auto px-6 py-1">
+                {stage === "paste" ? (
                     <div className="space-y-2">
-                        <Label htmlFor="agent-relay-token">Access token</Label>
-                        <PasswordInput
-                            id="agent-relay-token"
-                            data-testid="agent-relay-token"
-                            value={relayToken}
-                            secretLabel="access token"
+                        <Label htmlFor="agent-paste">Pairing code</Label>
+                        <Textarea
+                            id="agent-paste"
+                            data-testid="agent-paste"
+                            value={code}
+                            onChange={(event) => {
+                                setCode(event.target.value);
+                                setError("");
+                            }}
+                            placeholder="cryptex-pair:…"
+                            rows={4}
+                            autoFocus
+                            spellCheck={false}
                             autoComplete="off"
-                            onChange={(event) =>
-                                setRelayToken(event.target.value)
-                            }
+                            className="break-all font-mono text-xs"
                         />
-                        <p className="text-xs text-muted-foreground">
-                            The relay&apos;s own token, not one from another
-                            relay. Saved in your vault for this browser only.
-                        </p>
                     </div>
-                </div>
-            ) : null}
+                ) : null}
 
-            {stage === "offer" && claim ? (
-                <div className="space-y-3">
-                    <AgentInfoField
-                        label="Machine"
-                        value={offerMachineLabel(claim.offer)}
-                        note="Reported by the machine"
-                        testId="agent-offer-machine"
-                    />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <AgentInfoField
-                            label="Agent version"
-                            value={`cryptex-agent ${sanitizeDisplayText(claim.offer.agentVersion || "unknown", 32)}`}
-                        />
+                {stage === "relay" ? (
+                    <div className="space-y-3">
                         <AgentInfoField
                             label="Relay"
-                            value={relayLabel(
-                                claim.relay.kind === "hosted"
-                                    ? ""
-                                    : claim.relay.url,
-                            )}
+                            testId="agent-relay-needed"
+                            value={relayNeeded}
+                            monospace
+                            note="Named by the pairing code"
                         />
-                    </div>
-                    <div className="space-y-2 pt-1">
-                        <Label htmlFor="agent-name">Name</Label>
-                        <Input
-                            id="agent-name"
-                            data-testid="agent-name"
-                            value={name}
-                            maxLength={NAME_LENGTH}
-                            autoComplete="off"
-                            spellCheck={false}
-                            onChange={(event) => setName(event.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <AgentSectionLabel
-                            title="Keys this agent can use"
-                            right={
-                                keys.length
-                                    ? `${selected.length} of ${keys.length}`
-                                    : undefined
-                            }
-                            className="mt-4"
-                        />
-                        {keys.length ? (
-                            <>
-                                <KeyPicker
-                                    keys={keys}
-                                    selected={selected}
-                                    disabled={busy}
-                                    onChange={setSelected}
-                                />
-                                {selected.length ? null : (
-                                    <AgentWarning testId="agent-no-keys">
-                                        This agent can&apos;t use any keys yet.
-                                        You can add them later with Edit keys on
-                                        its page.
-                                    </AgentWarning>
-                                )}
-                            </>
+                        {otherRelays.length ? (
+                            <p
+                                role="alert"
+                                data-testid="agent-relay-other"
+                                className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
+                            >
+                                {`You already use ${otherRelays.length === 1 ? "another relay" : "other relays"}: ${otherRelays.join(", ")}. Add this one only if you run it or trust it.`}
+                            </p>
                         ) : (
-                            <AgentWarning testId="agent-no-keys">
-                                Your vault has no SSH keys yet. You can connect
-                                the agent now and add keys later with Edit keys
-                                on its page.
-                            </AgentWarning>
+                            <p className="text-sm text-muted-foreground">
+                                Add it only if you run this relay or trust it.
+                            </p>
                         )}
+                        <div className="space-y-2">
+                            <Label htmlFor="agent-relay-token">
+                                Access token
+                            </Label>
+                            <PasswordInput
+                                id="agent-relay-token"
+                                data-testid="agent-relay-token"
+                                value={relayToken}
+                                secretLabel="access token"
+                                autoComplete="off"
+                                onChange={(event) =>
+                                    setRelayToken(event.target.value)
+                                }
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                The relay&apos;s own token, not one from another
+                                relay. Saved in your vault for this browser
+                                only.
+                            </p>
+                        </div>
                     </div>
-                </div>
-            ) : null}
+                ) : null}
 
-            {stage === "code" ? (
-                <div className="space-y-4">
-                    <div
-                        className="rounded-lg border border-border bg-muted/50 py-6 text-center"
-                        aria-label={`Confirmation code ${confirmation.split("").join(" ")}`}
-                    >
-                        <span
-                            data-testid="agent-code"
-                            className="select-all font-mono text-3xl tracking-[0.2em] text-foreground"
-                        >
-                            {confirmation}
-                        </span>
-                    </div>
-                    <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                        <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden="true"
+                {stage === "offer" && claim ? (
+                    <div className="space-y-3">
+                        <AgentInfoField
+                            label="Machine"
+                            value={offerMachineLabel(claim.offer)}
+                            note="Reported by the machine"
+                            testId="agent-offer-machine"
                         />
-                        {saving
-                            ? "Saving the agent…"
-                            : "Waiting for the agent…"}
-                    </p>
-                </div>
-            ) : null}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <AgentInfoField
+                                label="Agent version"
+                                value={`cryptex-agent ${sanitizeDisplayText(claim.offer.agentVersion || "unknown", 32)}`}
+                            />
+                            <AgentInfoField
+                                label="Relay"
+                                value={relayLabel(
+                                    claim.relay.kind === "hosted"
+                                        ? ""
+                                        : claim.relay.url,
+                                )}
+                            />
+                        </div>
+                        <div className="space-y-2 pt-1">
+                            <Label htmlFor="agent-name">Name</Label>
+                            <Input
+                                id="agent-name"
+                                data-testid="agent-name"
+                                value={name}
+                                maxLength={NAME_LENGTH}
+                                autoComplete="off"
+                                spellCheck={false}
+                                onChange={(event) =>
+                                    setName(event.target.value)
+                                }
+                            />
+                        </div>
+                        <div>
+                            <KeyPicker
+                                keys={keys}
+                                selected={selected}
+                                disabled={busy}
+                                onChange={setSelected}
+                                title="Keys this agent can use"
+                                labelClassName="mt-4"
+                            />
+                        </div>
+                    </div>
+                ) : null}
 
-            {error ? (
-                <p className="text-sm text-destructive" role="alert">
-                    {error}
-                </p>
-            ) : null}
-
-            <DialogFooter className="gap-2 sm:gap-0">
                 {stage === "code" ? (
-                    <Button
-                        variant="outline"
-                        data-testid="agent-cancel"
-                        disabled={saving}
-                        onClick={onClose}
-                    >
-                        {saving ? "Saving…" : "Cancel"}
-                    </Button>
-                ) : stage === "offer" ? (
-                    <Button
-                        data-testid="agent-submit"
-                        disabled={!name.trim() || busy}
-                        onClick={() => void connect()}
-                    >
-                        {busy ? "Connecting…" : "Connect"}
-                    </Button>
-                ) : stage === "relay" ? (
-                    <Button
-                        data-testid="agent-relay-continue"
-                        disabled={!relayToken.trim() || busy}
-                        onClick={() => void saveRelayAndRetry()}
-                    >
-                        {busy ? "Checking…" : "Continue"}
-                    </Button>
-                ) : (
-                    <Button
-                        data-testid="agent-paste-submit"
-                        disabled={!code.trim() || busy || !host}
-                        onClick={() => void submitCode(code)}
-                    >
-                        {busy ? "Checking…" : "Continue"}
-                    </Button>
-                )}
-            </DialogFooter>
+                    <div className="space-y-4">
+                        <div
+                            className="rounded-lg border border-border bg-muted/50 py-6 text-center"
+                            aria-label={`Confirmation code ${confirmation.split("").join(" ")}`}
+                        >
+                            <span
+                                data-testid="agent-code"
+                                className="select-all font-mono text-3xl tracking-[0.2em] text-foreground"
+                            >
+                                {confirmation}
+                            </span>
+                        </div>
+                        <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden="true"
+                            />
+                            {saving
+                                ? "Saving the agent…"
+                                : "Waiting for the agent…"}
+                        </p>
+                    </div>
+                ) : null}
+
+                {error ? (
+                    <p className="text-sm text-destructive" role="alert">
+                        {error}
+                    </p>
+                ) : null}
+            </div>
+
+            <div className="space-y-3">
+                {stage === "offer" && claim && !selected.length ? (
+                    <AgentWarning testId="agent-no-keys">
+                        {keys.length
+                            ? "This agent can't use any keys yet. You can add them later with Edit keys on its page."
+                            : "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."}
+                    </AgentWarning>
+                ) : null}
+                <DialogFooter className="gap-2 sm:gap-0">
+                    {stage === "code" ? (
+                        <Button
+                            variant="outline"
+                            data-testid="agent-cancel"
+                            disabled={saving}
+                            onClick={onClose}
+                        >
+                            {saving ? "Saving…" : "Cancel"}
+                        </Button>
+                    ) : stage === "offer" ? (
+                        <Button
+                            data-testid="agent-submit"
+                            disabled={!name.trim() || busy}
+                            onClick={() => void connect()}
+                        >
+                            {busy ? "Connecting…" : "Connect"}
+                        </Button>
+                    ) : stage === "relay" ? (
+                        <Button
+                            data-testid="agent-relay-continue"
+                            disabled={!relayToken.trim() || busy}
+                            onClick={() => void saveRelayAndRetry()}
+                        >
+                            {busy ? "Checking…" : "Continue"}
+                        </Button>
+                    ) : (
+                        <Button
+                            data-testid="agent-paste-submit"
+                            disabled={!code.trim() || busy || !host}
+                            onClick={() => void submitCode(code)}
+                        >
+                            {busy ? "Checking…" : "Continue"}
+                        </Button>
+                    )}
+                </DialogFooter>
+            </div>
         </DialogContent>
     );
 }

@@ -36,7 +36,7 @@ import {
     AgentGlyph,
     AgentSectionLabel,
     InfoCard,
-    KeyPicker,
+    KeyPickerList,
     KeyRow,
 } from "@/components/agents/agent-rows";
 import { AgentNotificationsNotice } from "@/components/agents/agent-notifications-notice";
@@ -198,40 +198,42 @@ export default function AgentScreen() {
             <UnlockedTaskScreen
                 title="Edit keys"
                 onBack={() => setEditing(false)}
+                scroll={false}
                 footer={
-                    <Button
-                        testID="agent-keys-save"
-                        loading={saving}
-                        loadingLabel="Saving…"
-                        onPress={() => void saveKeys()}
-                    >
-                        Save keys
-                    </Button>
+                    <View style={{ gap: 12 }}>
+                        {draft.length ? null : (
+                            <InlineNotice
+                                tone="warning"
+                                testID="agent-no-keys"
+                                message="With no keys, this agent can't sign anything until you add some again."
+                            />
+                        )}
+                        <Button
+                            testID="agent-keys-save"
+                            loading={saving}
+                            loadingLabel="Saving…"
+                            onPress={() => void saveKeys()}
+                        >
+                            Save keys
+                        </Button>
+                    </View>
                 }
             >
-                <View className="w-full max-w-[720px] self-center">
-                    <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
-                        {`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
-                    </Text>
-                    <AgentSectionLabel
-                        title="Keys this agent can use"
-                        right={`${draft.length} of ${keys.length}`}
-                    />
-                    <KeyPicker
-                        keys={keys}
-                        selected={draft}
-                        onChange={setDraft}
-                        disabled={saving}
-                    />
-                    {draft.length ? null : (
-                        <InlineNotice
-                            tone="warning"
-                            testID="agent-no-keys"
-                            className="mt-3"
-                            message="With no keys, this agent can't sign anything until you add some again."
-                        />
-                    )}
-                </View>
+                <KeyPickerList
+                    keys={keys}
+                    selected={draft}
+                    onChange={setDraft}
+                    disabled={saving}
+                    maxWidth={720}
+                    title="Keys this agent can use"
+                    header={
+                        <>
+                            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
+                                {`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
+                            </Text>
+                        </>
+                    }
+                />
             </UnlockedTaskScreen>
         );
     }

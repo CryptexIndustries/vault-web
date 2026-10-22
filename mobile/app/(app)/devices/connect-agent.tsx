@@ -44,9 +44,8 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import { useUnlockedSnackbar } from "@/components/unlocked/unlocked-snackbar";
 import {
-    AgentSectionLabel,
     InfoCard,
-    KeyPicker,
+    KeyPickerList,
 } from "@/components/agents/agent-rows";
 import { agentRuntime, approverDeviceName, syncAgentCache } from "@/agent/agent-app";
 import {
@@ -377,65 +376,65 @@ export default function ConnectAgentScreen() {
                     setClaim(null);
                     scanned.current = false;
                 }}
+                scroll={false}
                 footer={
-                    <Button
-                        testID="agent-submit"
-                        disabled={!name.trim()}
-                        loading={busy}
-                        loadingLabel="Connecting…"
-                        onPress={() => void connect()}
-                    >
-                        Connect
-                    </Button>
+                    <View style={{ gap: 12 }}>
+                        {selected.length ? null : (
+                            <InlineNotice
+                                tone="warning"
+                                testID="agent-no-keys"
+                                message={
+                                    keys.length
+                                        ? "This agent can't use any keys yet. You can add them later with Edit keys on its page."
+                                        : "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
+                                }
+                            />
+                        )}
+                        <Button
+                            testID="agent-submit"
+                            disabled={!name.trim()}
+                            loading={busy}
+                            loadingLabel="Connecting…"
+                            onPress={() => void connect()}
+                        >
+                            Connect
+                        </Button>
+                    </View>
                 }
             >
-                <View className="w-full max-w-[480px] self-center">
-                    <InfoCard
-                        label="Machine, as reported by the machine"
-                        value={offerMachineLabel(offer)}
-                    />
-                    <InfoCard
-                        label="Agent"
-                        value={`cryptex-agent ${sanitizeDisplayText(offer.agentVersion || "", 32)}, ${relayHost}`}
-                    />
-                    <View style={{ marginTop: 6, gap: 8 }}>
-                        <Label>Name</Label>
-                        <Input
-                            testID="agent-name"
-                            value={name}
-                            onChangeText={setName}
-                            maxLength={NAME_LENGTH}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            accessibilityLabel="Agent name"
-                        />
-                    </View>
-                    <AgentSectionLabel
-                        title="Keys this agent can use"
-                        right={keys.length ? `${selected.length} of ${keys.length}` : undefined}
-                        style={{ marginTop: 22 }}
-                    />
-                    {keys.length ? (
-                        <KeyPicker
-                            keys={keys}
-                            selected={selected}
-                            onChange={setSelected}
-                            disabled={busy}
-                        />
-                    ) : null}
-                    {selected.length ? null : (
-                        <InlineNotice
-                            tone="warning"
-                            testID="agent-no-keys"
-                            className="mt-3"
-                            message={
-                                keys.length
-                                    ? "This agent can't use any keys yet. You can add them later with Edit keys on its page."
-                                    : "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
-                            }
-                        />
-                    )}
-                </View>
+                <KeyPickerList
+                    keys={keys}
+                    selected={selected}
+                    onChange={setSelected}
+                    disabled={busy}
+                    maxWidth={480}
+                    title="Keys this agent can use"
+                    labelStyle={{ marginTop: 22 }}
+                    header={
+                        <>
+                            <InfoCard
+                                label="Machine, as reported by the machine"
+                                value={offerMachineLabel(offer)}
+                            />
+                            <InfoCard
+                                label="Agent"
+                                value={`cryptex-agent ${sanitizeDisplayText(offer.agentVersion || "", 32)}, ${relayHost}`}
+                            />
+                            <View style={{ marginTop: 6, gap: 8 }}>
+                                <Label>Name</Label>
+                                <Input
+                                    testID="agent-name"
+                                    value={name}
+                                    onChangeText={setName}
+                                    maxLength={NAME_LENGTH}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    accessibilityLabel="Agent name"
+                                />
+                            </View>
+                        </>
+                    }
+                />
             </UnlockedTaskScreen>
         );
     }

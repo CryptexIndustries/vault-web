@@ -1,8 +1,21 @@
-import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
-import { Check, ChevronRight, FileKey, SquareTerminal } from "lucide-react-native";
-import type { AgentKeyOption } from "@cryptex-industries/vault-core/agent/agent-format";
+import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
+import { FlatList, Pressable, View } from "react-native";
+import {
+    Check,
+    ChevronRight,
+    FileKey,
+    Search,
+    SquareTerminal,
+    X,
+} from "lucide-react-native";
+import {
+    allKeysSelected,
+    filterAgentKeys,
+    toggleShownKeys,
+    type AgentKeyOption,
+} from "@cryptex-industries/vault-core/agent/agent-format";
 
+import { Input } from "@/components/ui/input";
 import { UnlockedText as Text } from "@/components/unlocked/unlocked-ui";
 import { colors } from "@/theme";
 
@@ -154,69 +167,221 @@ function KeyBody({ name, detail }: { name: string; detail: string }) {
     );
 }
 
+/** Rows below this count need no search box. */
+const KEY_SEARCH_FROM = 6;
+
+/** One key in the picker: a flat row that toggles on tap, with a check circle. */
+const KeyPickRow = memo(function KeyPickRow({
+    option,
+    checked,
+    disabled,
+    onToggle,
+}: {
+    option: AgentKeyOption;
+    checked: boolean;
+    disabled?: boolean;
+    onToggle: (id: string) => void;
+}) {
+    return (
+        <Pressable
+            testID={`agent-key-${option.fingerprint}`}
+            accessibilityRole="checkbox"
+            accessibilityLabel={`${option.name}, ${option.detail}`}
+            accessibilityState={{ checked, disabled }}
+            disabled={disabled}
+            onPress={() => onToggle(option.id)}
+            android_ripple={{ color: colors.border }}
+            style={{
+                minHeight: 68,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+                opacity: disabled ? 0.5 : 1,
+            }}
+        >
+            <KeyBody name={option.name} detail={option.detail} />
+            <View
+                style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    borderWidth: 1.6,
+                    borderColor: checked ? colors.primary : colors.trackOff,
+                    backgroundColor: checked ? colors.primary : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                }}
+            >
+                {checked ? (
+                    <Check size={14} color={colors.navigation} strokeWidth={3} />
+                ) : null}
+            </View>
+        </Pressable>
+    );
+});
+
+/** The search box above long key lists. */
+function KeySearch({ query, onQuery }: { query: string; onQuery: (query: string) => void }) {
+    return (
+        <View
+            style={{
+                height: 48,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                paddingHorizontal: 14,
+                marginBottom: 6,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 4,
+                backgroundColor: colors.secondary,
+            }}
+        >
+            <Search size={19} color={colors.muted} strokeWidth={1.7} />
+            <Input
+                testID="agent-key-search"
+                value={query}
+                onChangeText={onQuery}
+                placeholder="Search keys"
+                accessibilityLabel="Search keys"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                className="min-h-11 flex-1 border-0 bg-transparent px-0"
+                style={{ fontFamily: "sans-serif" }}
+            />
+            {query ? (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                    onPress={() => onQuery("")}
+                    style={{
+                        width: 44,
+                        height: 44,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: -12,
+                    }}
+                >
+                    <X size={18} color={colors.muted} />
+                </Pressable>
+            ) : null}
+        </View>
+    );
+}
+
 /**
- * The keys an agent may use: flat vault-list rows that toggle on tap, each
- * with a trailing check circle. Never a checkbox or switch.
+ * The keys an agent may use, as the screen's only scroller: `header` scrolls
+ * with the list, and only the rows on screen are drawn, so a vault with
+ * hundreds of keys stays fast. Use it in an UnlockedTaskScreen with
+ * scroll={false}.
  */
-export function KeyPicker({
+export function KeyPickerList({
     keys,
     selected,
     onChange,
     disabled,
+    header,
+    title,
+    labelStyle,
+    maxWidth,
 }: {
     keys: readonly AgentKeyOption[];
     selected: readonly string[];
     onChange: (update: (selected: string[]) => string[]) => void;
     disabled?: boolean;
+    header: ReactNode;
+    title: string;
+    labelStyle?: object;
+    maxWidth: number;
 }) {
-    return keys.map((key) => {
-        const checked = selected.includes(key.id);
-        return (
-            <Pressable
-                key={key.id}
-                testID={`agent-key-${key.fingerprint}`}
-                accessibilityRole="checkbox"
-                accessibilityLabel={`${key.name}, ${key.detail}`}
-                accessibilityState={{ checked, disabled }}
-                disabled={disabled}
-                onPress={() =>
-                    onChange((current) =>
-                        current.includes(key.id)
-                            ? current.filter((id) => id !== key.id)
-                            : [...current, key.id],
-                    )
-                }
-                android_ripple={{ color: colors.border }}
-                style={{
-                    minHeight: 68,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                    opacity: disabled ? 0.5 : 1,
-                }}
-            >
-                <KeyBody name={key.name} detail={key.detail} />
-                <View
-                    style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: 11,
-                        borderWidth: 1.6,
-                        borderColor: checked ? colors.primary : colors.trackOff,
-                        backgroundColor: checked ? colors.primary : "transparent",
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    {checked ? (
-                        <Check size={14} color={colors.navigation} strokeWidth={3} />
+    const [query, setQuery] = useState("");
+    const shown = useMemo(() => filterAgentKeys(keys, query), [keys, query]);
+    const all = allKeysSelected(selected, shown);
+    const toggle = useCallback(
+        (id: string) =>
+            onChange((current) =>
+                current.includes(id)
+                    ? current.filter((entry) => entry !== id)
+                    : [...current, id],
+            ),
+        [onChange],
+    );
+    return (
+        <FlatList
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+                width: "100%",
+                maxWidth,
+                alignSelf: "center",
+                paddingHorizontal: 20,
+                paddingTop: 24,
+                paddingBottom: 18,
+            }}
+            data={shown}
+            extraData={selected}
+            keyExtractor={(option) => option.id}
+            renderItem={({ item }) => (
+                <KeyPickRow
+                    option={item}
+                    checked={selected.includes(item.id)}
+                    disabled={disabled}
+                    onToggle={toggle}
+                />
+            )}
+            initialNumToRender={12}
+            windowSize={7}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+                <View>
+                    {header}
+                    <AgentSectionLabel
+                        title={title}
+                        style={labelStyle}
+                        right={
+                            keys.length ? (
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                                    <Text style={{ fontSize: 11, color: colors.muted }}>
+                                        {`${selected.length} of ${keys.length}`}
+                                    </Text>
+                                    {keys.length > 1 ? (
+                                        <Pressable
+                                            testID="agent-keys-all"
+                                            accessibilityRole="button"
+                                            disabled={disabled || !shown.length}
+                                            onPress={() =>
+                                                onChange((current) => toggleShownKeys(current, shown))
+                                            }
+                                            hitSlop={8}
+                                            style={{ opacity: disabled || !shown.length ? 0.5 : 1 }}
+                                        >
+                                            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                                                {all ? "Clear all" : "Select all"}
+                                            </Text>
+                                        </Pressable>
+                                    ) : null}
+                                </View>
+                            ) : undefined
+                        }
+                    />
+                    {keys.length >= KEY_SEARCH_FROM ? (
+                        <KeySearch query={query} onQuery={setQuery} />
                     ) : null}
                 </View>
-            </Pressable>
-        );
-    });
+            }
+            ListEmptyComponent={
+                keys.length ? (
+                    <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                        No keys match.
+                    </Text>
+                ) : null
+            }
+        />
+    );
 }
 
 /** A plain key row for read-only lists (agent page). */

@@ -1,17 +1,23 @@
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
     AlertTriangle,
     Check,
     FileKey,
+    Search,
     ShieldCheck,
     SquareTerminal,
 } from "lucide-react";
+import { Virtuoso } from "react-virtuoso";
 import {
     agentKeyOptions,
+    allKeysSelected,
+    filterAgentKeys,
+    toggleShownKeys,
     type AgentKeyOption,
 } from "@cryptex-industries/vault-core/agent/agent-format";
 import { sshKeyItems } from "@cryptex-industries/vault-core/agent/vault-agents";
 import type { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { getSSHKeyInfo } from "@/utils/ssh-key";
 
@@ -84,7 +90,7 @@ export function AgentWarning({
     return (
         <p
             data-testid={testId}
-            className="mt-2 flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
+            className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
         >
             <AlertTriangle
                 className="mt-0.5 h-4 w-4 shrink-0"
@@ -215,58 +221,151 @@ export function AgentRow(props: Parameters<typeof RowBody>[0]) {
     );
 }
 
+/** A picker row: 56 px, so the list knows its height before measuring. */
+const KEY_ROW_HEIGHT = 56;
+/** The list shows this many rows before it scrolls; the half row hints at more. */
+const KEY_LIST_ROWS = 5.5;
+/** Fewer keys than this need no search box. */
+const KEY_SEARCH_FROM = 6;
+
 /**
  * The key picker: the whole row toggles a key, a filled check circle marks
- * it chosen. Not a checkbox or a switch (the agreed design).
+ * it chosen. Not a checkbox or a switch (the agreed design). Long lists get a
+ * search box and draw only the rows in view.
  */
 export function KeyPicker({
     keys,
     selected,
     disabled,
     onChange,
+    title,
+    labelClassName,
 }: {
     keys: AgentKeyOption[];
     selected: string[];
     disabled: boolean;
     onChange: (selected: string[]) => void;
+    title: string;
+    labelClassName?: string;
 }) {
+    const [query, setQuery] = useState("");
+    const shown = useMemo(() => filterAgentKeys(keys, query), [keys, query]);
+    const all = allKeysSelected(selected, shown);
+
     return (
-        <div className="rounded-lg border border-border px-2">
-            {keys.map((option) => {
-                const chosen = selected.includes(option.id);
-                return (
-                    <button
-                        key={option.id}
-                        type="button"
-                        aria-pressed={chosen}
-                        disabled={disabled}
-                        data-testid={`agent-key-${option.fingerprint}`}
-                        onClick={() =>
-                            onChange(
-                                chosen
-                                    ? selected.filter((id) => id !== option.id)
-                                    : [...selected, option.id],
-                            )
-                        }
-                        className="flex w-full items-center gap-3 border-b border-border px-1 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/40 disabled:opacity-60"
-                    >
-                        <RowBody title={option.name} detail={option.detail} />
-                        <span
-                            aria-hidden="true"
-                            className={cn(
-                                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
-                                chosen
-                                    ? "border-primary bg-primary text-primary-foreground"
-                                    : "border-input",
-                            )}
-                        >
-                            {chosen ? (
-                                <Check className="h-3 w-3" strokeWidth={3} />
+        <div>
+            <AgentSectionLabel
+                title={title}
+                className={labelClassName}
+                right={
+                    keys.length ? (
+                        <span className="flex items-center gap-4">
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                                {`${selected.length} of ${keys.length}`}
+                            </span>
+                            {keys.length > 1 ? (
+                                <button
+                                    type="button"
+                                    data-testid="agent-keys-all"
+                                    disabled={disabled || !shown.length}
+                                    onClick={() =>
+                                        onChange(
+                                            toggleShownKeys(selected, shown),
+                                        )
+                                    }
+                                    className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                                >
+                                    {all ? "Clear all" : "Select all"}
+                                </button>
                             ) : null}
                         </span>
-                    </button>
-                );
-            })}
+                    ) : undefined
+                }
+            />
+            {keys.length >= KEY_SEARCH_FROM ? (
+                <div className="relative mb-2">
+                    <Search
+                        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                        aria-hidden="true"
+                    />
+                    <Input
+                        data-testid="agent-key-search"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search keys"
+                        aria-label="Search keys"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="pl-9"
+                    />
+                </div>
+            ) : null}
+            {shown.length ? (
+                <Virtuoso
+                    className="rounded-lg border border-border"
+                    style={{
+                        height:
+                            Math.min(shown.length, KEY_LIST_ROWS) *
+                                KEY_ROW_HEIGHT +
+                            2,
+                    }}
+                    data={shown}
+                    fixedItemHeight={KEY_ROW_HEIGHT}
+                    computeItemKey={(_, option) => option.id}
+                    itemContent={(index, option) => {
+                        const chosen = selected.includes(option.id);
+                        return (
+                            <div className="px-2">
+                                <button
+                                    type="button"
+                                    aria-pressed={chosen}
+                                    disabled={disabled}
+                                    data-testid={`agent-key-${option.fingerprint}`}
+                                    onClick={() =>
+                                        onChange(
+                                            chosen
+                                                ? selected.filter(
+                                                      (id) => id !== option.id,
+                                                  )
+                                                : [...selected, option.id],
+                                        )
+                                    }
+                                    className={cn(
+                                        "flex h-14 w-full items-center gap-3 px-1 text-left transition-colors hover:bg-muted/40 disabled:opacity-60",
+                                        index < shown.length - 1 &&
+                                            "border-b border-border",
+                                    )}
+                                >
+                                    <RowBody
+                                        title={option.name}
+                                        detail={option.detail}
+                                    />
+                                    <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                                            chosen
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-input",
+                                        )}
+                                    >
+                                        {chosen ? (
+                                            <Check
+                                                className="h-3 w-3"
+                                                strokeWidth={3}
+                                            />
+                                        ) : null}
+                                    </span>
+                                </button>
+                            </div>
+                        );
+                    }}
+                />
+            ) : keys.length ? (
+                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No keys match.
+                </p>
+            ) : null}
         </div>
     );
 }

@@ -405,41 +405,40 @@ export function AgentView({
                 open={editing}
                 onOpenChange={(open) => !saving && setEditing(open)}
             >
-                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                <DialogContent className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>Edit keys</DialogTitle>
                         <DialogDescription>
                             {`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
                         </DialogDescription>
                     </DialogHeader>
-                    <div>
-                        <AgentSectionLabel
-                            title="Keys this agent can use"
-                            right={`${draft.length} of ${keys.length}`}
-                            className="mt-0"
-                        />
+                    <div className="-mx-6 -my-1 min-h-0 overflow-y-auto px-6 py-1">
                         <KeyPicker
                             keys={keys}
                             selected={draft}
                             disabled={saving}
                             onChange={setDraft}
+                            title="Keys this agent can use"
+                            labelClassName="mt-0"
                         />
+                    </div>
+                    <div className="space-y-3">
                         {draft.length ? null : (
                             <AgentWarning testId="agent-no-keys">
                                 With no keys, this agent can&apos;t sign
                                 anything until you add some again.
                             </AgentWarning>
                         )}
+                        <DialogFooter>
+                            <Button
+                                data-testid="agent-keys-save"
+                                disabled={saving}
+                                onClick={() => void saveKeys()}
+                            >
+                                {saving ? "Saving…" : "Save keys"}
+                            </Button>
+                        </DialogFooter>
                     </div>
-                    <DialogFooter>
-                        <Button
-                            data-testid="agent-keys-save"
-                            disabled={saving}
-                            onClick={() => void saveKeys()}
-                        >
-                            {saving ? "Saving…" : "Save keys"}
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </AgentPanel>

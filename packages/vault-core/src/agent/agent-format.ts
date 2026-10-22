@@ -143,6 +143,40 @@ export function agentKeyOptions(
     });
 }
 
+/** The keys whose name, type or fingerprint contains the query. */
+export function filterAgentKeys(
+    keys: readonly AgentKeyOption[],
+    query: string,
+): readonly AgentKeyOption[] {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return keys;
+    return keys.filter((key) =>
+        [key.name, key.detail, key.fingerprint].some((text) =>
+            text.toLowerCase().includes(needle),
+        ),
+    );
+}
+
+/** True when every shown key is selected, so "Select all" becomes "Clear all". */
+export const allKeysSelected = (
+    selected: readonly string[],
+    shown: readonly AgentKeyOption[],
+) => shown.length > 0 && shown.every((key) => selected.includes(key.id));
+
+/**
+ * Select all for the shown keys: adds them all, or removes them all when they
+ * are already selected. Keys hidden by a search keep their state.
+ */
+export function toggleShownKeys(
+    selected: readonly string[],
+    shown: readonly AgentKeyOption[],
+): string[] {
+    const ids = shown.map((key) => key.id);
+    if (allKeysSelected(selected, shown))
+        return selected.filter((id) => !ids.includes(id));
+    return [...selected, ...ids.filter((id) => !selected.includes(id))];
+}
+
 const capitalize = (text: string) =>
     text.charAt(0).toUpperCase() + text.slice(1);
 

@@ -23,7 +23,6 @@ import { AgentRequestKind, type AgentRequestRecord } from "@cryptex-industries/v
 
 import { Dialog, DialogDescription, DialogHeader } from "@/components/ui/dialog";
 import { InlineNotice } from "@/components/inline-notice";
-import { Separator } from "@/components/ui/separator";
 import {
     UnlockedButton as Button,
     UnlockedDialogTitle as DialogTitle,
@@ -287,6 +286,16 @@ export default function AgentScreen() {
                                 ? `${machineLabel(agent)}, cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
                                 : machineLabel(agent)}
                         </Text>
+                        <View className="mt-1.5 flex-row items-center gap-1.5">
+                            <Clock size={13} color={colors.muted} />
+                            <Text testID="agent-paired" className="text-xs text-muted-foreground">
+                                {`Paired ${new Date(agent.PairedAtTimestamp).toLocaleDateString(undefined, {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                })}`}
+                            </Text>
+                        </View>
                     </View>
                 </View>
                 {relayForgot ? (
@@ -369,20 +378,6 @@ export default function AgentScreen() {
                         No requests yet.
                     </Text>
                 )}
-                <Separator className="mb-3 mt-6" />
-                <View className="flex-row items-center justify-between pb-4">
-                    <View className="flex-row items-center gap-2">
-                        <Clock size={16} color={colors.muted} />
-                        <Text className="text-sm text-muted-foreground">Paired</Text>
-                    </View>
-                    <Text className="text-sm text-foreground">
-                        {new Date(agent.PairedAtTimestamp).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                        })}
-                    </Text>
-                </View>
             </View>
 
             <Dialog open={menuOpen} onOpenChange={setMenuOpen} placement="bottom">

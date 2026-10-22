@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The agent relay, an open-source Go service that carries end-to-end encrypted requests between agents and the devices that approve them. The hosted relay comes with Online Services; self-hosters run the same container with an access token, and the self-hosting stack includes it.
 - SSH keys and SSH agent guides in the documentation.
 - `share-server version` prints the share server's version, and its startup log includes it. Release images get the version from their `share-server-v*` tag.
+- A 14-day free trial of Online Services, monthly or yearly, in the web app and the Android app. It needs a card, which is charged when the trial ends unless you cancel first. Each account gets one trial, and only if it never had a subscription. The upgrade button offers the trial when your account can get one, and the account screen shows when the trial ends. The pricing page, terms and Online Services guide describe it.
 
 ### Changed
 

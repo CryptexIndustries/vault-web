@@ -46,6 +46,12 @@ jobs:
         run: |
           test -z "$(git status --porcelain)"
           mkdir "$RUNNER_TEMP/fdroid"
+          # The tag fdroiddata's own "fdroid build" job uses. GitLab deletes
+          # superseded digests, so a digest pin breaks once F-Droid rebuilds
+          # it; the log records which image built this run.
+          image=registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie
+          docker pull --quiet "$image"
+          echo "F-Droid build image: $(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
           docker run --rm \
             --mount "type=bind,source=$GITHUB_WORKSPACE,target=/app,readonly" \
             --mount "type=bind,source=$RUNNER_TEMP/fdroid,target=/build" \
@@ -54,7 +60,7 @@ jobs:
             --env CRYPTEX_APP_PROFILE \
             --env CRYPTEX_BUILD_ARCH \
             --entrypoint /bin/bash \
-            registry.gitlab.com/fdroid/fdroidserver@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8 \
+            "$image" \
             /app/mobile/fdroid/ci.sh
 
       - name: Upload unsigned APK and its configuration

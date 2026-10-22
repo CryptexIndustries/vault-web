@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Linking a device could hang on the receiving device when the sending device went away, and the web app blamed the signaling server for every failure, even a cancel. The receiving device now gives up after a minute without progress and shows a countdown while it waits, and the web app reports the actual cause.
 - In the dark theme, a highlighted menu item showed red or coral text and icons on the coral highlight, such as Revoke in Shared links. Highlighted items now use light text, and red icon buttons get a tinted background on hover.
 
+### Security
+
+- Updated Vite to `8.3.5` in the Chromium extension build. It patches the editor launcher that Vite's dev server uses.
+
 ### Chore
 
 - CI verifies Go module checksums and runs `govulncheck` on every push and once a week.

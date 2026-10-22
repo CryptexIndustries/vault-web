@@ -7,6 +7,7 @@ import {
     AlertTriangle,
     Check,
     Copy,
+    Download,
     ExternalLink,
     Eye,
     EyeOff,
@@ -25,10 +26,12 @@ import {
     parseShareSecret,
     type SharePayload,
 } from "@cryptex-industries/vault-core/vault-utils/share-link";
+import { sshKeyFileName } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/utils";
+import { downloadTextFile } from "@/utils/ssh-key";
 
 type RevealState =
     | { step: "loading" }
@@ -324,7 +327,11 @@ function RevealedPayload({ payload }: { payload: SharePayload }) {
             </div>
             <dl className="space-y-4">
                 {payload.fields.map((field, index) => (
-                    <RevealedField key={index} field={field} />
+                    <RevealedField
+                        key={index}
+                        field={field}
+                        title={payload.title}
+                    />
                 ))}
             </dl>
             <div className="rounded-lg border border-border p-4 text-sm">
@@ -378,9 +385,22 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     );
 }
 
-function RevealedField({ field }: { field: SharePayload["fields"][number] }) {
+const OPENSSH_PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----";
+
+function RevealedField({
+    field,
+    title,
+}: {
+    field: SharePayload["fields"][number];
+    title: string;
+}) {
     const [shown, setShown] = useState(field.kind !== "secret");
     if (field.kind === "totp") return <TotpField field={field} />;
+    const keyFile =
+        field.kind === "secret" &&
+        field.value.trimStart().startsWith(OPENSSH_PRIVATE_KEY)
+            ? sshKeyFileName(title)
+            : null;
     return (
         <div className="space-y-1.5">
             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -390,7 +410,9 @@ function RevealedField({ field }: { field: SharePayload["fields"][number] }) {
                 <div
                     className={cn(
                         "min-w-0 flex-1 break-words rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-sm",
-                        field.kind === "multiline" && "whitespace-pre-wrap",
+                        (field.kind === "multiline" ||
+                            field.kind === "secret") &&
+                            "whitespace-pre-wrap",
                     )}
                 >
                     {shown ? field.value : "•".repeat(12)}
@@ -410,8 +432,37 @@ function RevealedField({ field }: { field: SharePayload["fields"][number] }) {
                         )}
                     </Button>
                 ) : null}
+                {keyFile ? (
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        aria-label={`Save ${field.label} as a file`}
+                        onClick={() =>
+                            downloadTextFile(
+                                keyFile,
+                                field.value.endsWith("\n")
+                                    ? field.value
+                                    : `${field.value}\n`,
+                            )
+                        }
+                    >
+                        <Download className="h-4 w-4" />
+                    </Button>
+                ) : null}
                 <CopyButton value={field.value} label={field.label} />
             </dd>
+            {keyFile ? (
+                <p className="text-xs text-muted-foreground">
+                    Saves as{" "}
+                    <span className="font-mono text-foreground">{keyFile}</span>
+                    . Before using it with ssh, run{" "}
+                    <span className="font-mono text-foreground">
+                        chmod 600 {keyFile}
+                    </span>
+                    .
+                </p>
+            ) : null}
         </div>
     );
 }

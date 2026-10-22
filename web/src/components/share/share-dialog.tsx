@@ -42,6 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { copySecretToClipboard } from "@/utils/clipboard";
+import { runSSHKeyTaskInWorker } from "@/utils/ssh-key";
 import { describeShareError, type ShareBackend } from "./share-backend";
 import { ShareServerSettingsForm } from "./share-server-settings";
 
@@ -60,6 +61,7 @@ export type ShareDialogTarget =
               | "TOTP"
               | "CustomFields"
               | "Passkey"
+              | "SSHKey"
           >;
       }
     | { kind: "text" };
@@ -204,7 +206,7 @@ export function ShareDialog({
         const askedExpiry = expiryLabel;
         try {
             const created = await createShareLink(backend.deps, {
-                payload,
+                payload: await withExportedSSHKey(payload),
                 label: label.trim(),
                 credentialId:
                     target?.kind === "credential" ? target.credential.ID : "",
@@ -224,6 +226,30 @@ export function ShareDialog({
         } finally {
             if (session === sessionRef.current) setCreating(false);
         }
+    };
+
+    // Copy and reveal in the app give the OpenSSH file with the current
+    // comment, so the link carries the same text.
+    const withExportedSSHKey = async (
+        built: SharePayload,
+    ): Promise<SharePayload> => {
+        if (target?.kind !== "credential") return built;
+        const sshKey = target.credential.SSHKey;
+        if (!sshKey || !selection.sshPrivateKey) return built;
+        const result = await runSSHKeyTaskInWorker({
+            kind: "export",
+            data: sshKey,
+        });
+        if (!result.ok || result.kind !== "export") {
+            throw new Error("SSH_KEY_EXPORT_FAILED");
+        }
+        return buildCredentialSharePayload(
+            {
+                ...target.credential,
+                SSHKey: { ...sshKey, PrivateKey: result.text },
+            },
+            selection,
+        );
     };
 
     const copyLink = async () => {
@@ -552,6 +578,22 @@ function CredentialFieldPicker({
             onToggle: () => toggle("name"),
         },
     ];
+    if (credential.SSHKey) {
+        rows.push(
+            {
+                id: "ssh-private-key",
+                label: "Private key",
+                checked: selection.sshPrivateKey,
+                onToggle: () => toggle("sshPrivateKey"),
+            },
+            {
+                id: "ssh-public-key",
+                label: "Public key",
+                checked: selection.sshPublicKey,
+                onToggle: () => toggle("sshPublicKey"),
+            },
+        );
+    }
     if (credential.Username) {
         rows.push({
             id: "username",
@@ -619,6 +661,12 @@ function CredentialFieldPicker({
                     </Label>
                 </div>
             ))}
+            {credential.SSHKey && selection.sshPrivateKey ? (
+                <p className="pt-1 text-xs text-muted-foreground">
+                    Anyone who opens the link can use this key on every server
+                    that accepts it.
+                </p>
+            ) : null}
             {credential.Passkey ? (
                 <p className="pt-1 text-xs text-muted-foreground">
                     The passkey stays in your vault. Passkeys are never shared.

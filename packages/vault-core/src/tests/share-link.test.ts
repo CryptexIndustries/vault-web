@@ -224,6 +224,8 @@ describe("share payloads", () => {
             url: false,
             notes: true,
             totp: true,
+            sshPrivateKey: false,
+            sshPublicKey: false,
             customFieldIds: ["pin"],
         });
 

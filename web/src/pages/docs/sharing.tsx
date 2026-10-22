@@ -38,9 +38,11 @@ export default function Sharing() {
                         </p>,
                         <p key="fields">
                             Pick the fields to include. Name, username, password
-                            and website are on by default. Notes, custom fields
-                            and the one-time code setup stay off until you turn
-                            them on. Passkeys are never shared.
+                            and website are on by default. For an SSH key, the
+                            private and public key are on, and the link also
+                            carries the key type and fingerprint. Notes, custom
+                            fields and the one-time code setup stay off until
+                            you turn them on. Passkeys are never shared.
                         </p>,
                         <p key="expiry">
                             Choose how long the link waits to be opened: 1 hour,

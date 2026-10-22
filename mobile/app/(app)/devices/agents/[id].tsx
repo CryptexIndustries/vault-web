@@ -203,7 +203,6 @@ export default function AgentScreen() {
                         testID="agent-keys-save"
                         loading={saving}
                         loadingLabel="Saving…"
-                        disabled={!draft.length}
                         onPress={() => void saveKeys()}
                     >
                         Save keys
@@ -224,6 +223,14 @@ export default function AgentScreen() {
                         onChange={setDraft}
                         disabled={saving}
                     />
+                    {draft.length ? null : (
+                        <InlineNotice
+                            tone="warning"
+                            testID="agent-no-keys"
+                            className="mt-3"
+                            message="With no keys, this agent can't sign anything until you add some again."
+                        />
+                    )}
                 </View>
             </UnlockedTaskScreen>
         );
@@ -319,16 +326,22 @@ export default function AgentScreen() {
                 />
                 <InfoCard label="Relay" value={relayLabel(agent.RelayOrigin)} />
                 <AgentSectionLabel title="Keys" right={String(agent.CredentialIDs.length)} />
-                {agent.CredentialIDs.map((credentialId) => {
-                    const key = keys.find((item) => item.id === credentialId);
-                    return (
-                        <KeyRow
-                            key={credentialId}
-                            name={key?.name ?? "Deleted item"}
-                            detail={key?.detail ?? "No longer in the vault"}
-                        />
-                    );
-                })}
+                {agent.CredentialIDs.length ? (
+                    agent.CredentialIDs.map((credentialId) => {
+                        const key = keys.find((item) => item.id === credentialId);
+                        return (
+                            <KeyRow
+                                key={credentialId}
+                                name={key?.name ?? "Deleted item"}
+                                detail={key?.detail ?? "No longer in the vault"}
+                            />
+                        );
+                    })
+                ) : (
+                    <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                        No keys.
+                    </Text>
+                )}
                 <AgentSectionLabel
                     title="Recent requests"
                     right={

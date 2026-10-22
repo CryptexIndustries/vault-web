@@ -48,6 +48,7 @@ import { useAgentHost } from "./agent-host-context";
 import {
     AgentInfoField,
     AgentSectionLabel,
+    AgentWarning,
     KeyPicker,
     vaultKeyOptions,
 } from "./agent-ui";
@@ -419,17 +420,27 @@ function ConnectAgentContent({
                             className="mt-4"
                         />
                         {keys.length ? (
-                            <KeyPicker
-                                keys={keys}
-                                selected={selected}
-                                disabled={busy}
-                                onChange={setSelected}
-                            />
+                            <>
+                                <KeyPicker
+                                    keys={keys}
+                                    selected={selected}
+                                    disabled={busy}
+                                    onChange={setSelected}
+                                />
+                                {selected.length ? null : (
+                                    <AgentWarning testId="agent-no-keys">
+                                        This agent can&apos;t use any keys yet.
+                                        You can add them later with Edit keys on
+                                        its page.
+                                    </AgentWarning>
+                                )}
+                            </>
                         ) : (
-                            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                                Your vault has no SSH keys yet. Add one with Add
-                                New, then connect the agent.
-                            </p>
+                            <AgentWarning testId="agent-no-keys">
+                                Your vault has no SSH keys yet. You can connect
+                                the agent now and add keys later with Edit keys
+                                on its page.
+                            </AgentWarning>
                         )}
                     </div>
                 </div>
@@ -479,7 +490,7 @@ function ConnectAgentContent({
                 ) : stage === "offer" ? (
                     <Button
                         data-testid="agent-submit"
-                        disabled={!selected.length || !name.trim() || busy}
+                        disabled={!name.trim() || busy}
                         onClick={() => void connect()}
                     >
                         {busy ? "Connecting…" : "Connect"}

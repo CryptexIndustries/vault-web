@@ -140,9 +140,11 @@ export default function SSHAgent() {
                         </p>,
                         <p key="keys">
                             Give the agent a name and pick the keys it may use
-                            under <strong>Keys this agent can use</strong>. Then
-                            tap <strong>Connect</strong>. On Android 13 and
-                            later, the phone asks whether Cryptex Vault may send
+                            under <strong>Keys this agent can use</strong>, or
+                            none and add them later with{" "}
+                            <strong>Edit keys</strong>. Then tap{" "}
+                            <strong>Connect</strong>. On Android 13 and later,
+                            the phone asks whether Cryptex Vault may send
                             notifications. Allow it, or requests that arrive
                             while the app is closed or locked can&apos;t reach
                             you.
@@ -190,7 +192,9 @@ export default function SSHAgent() {
                         </p>,
                         <p key="keys">
                             Give the agent a name, pick its keys and choose{" "}
-                            <strong>Connect</strong>.
+                            <strong>Connect</strong>. You can also connect with
+                            no keys and add them later with{" "}
+                            <strong>Edit keys</strong>.
                         </p>,
                         <p key="code">
                             Check that the terminal shows the same code as the

@@ -380,7 +380,7 @@ export default function ConnectAgentScreen() {
                 footer={
                     <Button
                         testID="agent-submit"
-                        disabled={!selected.length || !name.trim()}
+                        disabled={!name.trim()}
                         loading={busy}
                         loadingLabel="Connecting…"
                         onPress={() => void connect()}
@@ -422,10 +422,17 @@ export default function ConnectAgentScreen() {
                             onChange={setSelected}
                             disabled={busy}
                         />
-                    ) : (
+                    ) : null}
+                    {selected.length ? null : (
                         <InlineNotice
                             tone="warning"
-                            message="Your vault has no SSH keys yet. Add one from the Vault tab, then connect the agent."
+                            testID="agent-no-keys"
+                            className="mt-3"
+                            message={
+                                keys.length
+                                    ? "This agent can't use any keys yet. You can add them later with Edit keys on its page."
+                                    : "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
+                            }
                         />
                     )}
                 </View>

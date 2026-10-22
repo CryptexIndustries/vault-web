@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import { Check, FileKey, ShieldCheck, SquareTerminal } from "lucide-react";
+import {
+    AlertTriangle,
+    Check,
+    FileKey,
+    ShieldCheck,
+    SquareTerminal,
+} from "lucide-react";
 import {
     agentKeyOptions,
     type AgentKeyOption,
@@ -64,6 +70,28 @@ export function AgentSectionLabel({
                 right
             )}
         </div>
+    );
+}
+
+/** An amber note under a field, for a choice that has consequences. */
+export function AgentWarning({
+    children,
+    testId,
+}: {
+    children: ReactNode;
+    testId?: string;
+}) {
+    return (
+        <p
+            data-testid={testId}
+            className="mt-2 flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
+        >
+            <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0"
+                aria-hidden="true"
+            />
+            <span>{children}</span>
+        </p>
     );
 }
 

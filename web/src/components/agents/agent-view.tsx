@@ -55,6 +55,7 @@ import {
     AgentInfoField,
     AgentRow,
     AgentSectionLabel,
+    AgentWarning,
     KeyPicker,
     vaultKeyOptions,
 } from "./agent-ui";
@@ -423,11 +424,17 @@ export function AgentView({
                             disabled={saving}
                             onChange={setDraft}
                         />
+                        {draft.length ? null : (
+                            <AgentWarning testId="agent-no-keys">
+                                With no keys, this agent can&apos;t sign
+                                anything until you add some again.
+                            </AgentWarning>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button
                             data-testid="agent-keys-save"
-                            disabled={!draft.length || saving}
+                            disabled={saving}
                             onClick={() => void saveKeys()}
                         >
                             {saving ? "Saving…" : "Save keys"}

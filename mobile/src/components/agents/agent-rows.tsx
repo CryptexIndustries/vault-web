@@ -409,12 +409,14 @@ export function InfoCard({
     note,
     badge,
     monospace,
+    selectable = true,
 }: {
     label: string;
     value: string;
     note?: string;
     badge?: ReactNode;
     monospace?: boolean;
+    selectable?: boolean;
 }) {
     return (
         <View className="mb-3 rounded-lg border border-border bg-secondary px-4 py-3">
@@ -431,7 +433,7 @@ export function InfoCard({
                 <Text
                     className={monospace ? "font-mono" : undefined}
                     style={{ fontSize: 14, flexShrink: 1 }}
-                    selectable
+                    selectable={selectable}
                 >
                     {value}
                 </Text>

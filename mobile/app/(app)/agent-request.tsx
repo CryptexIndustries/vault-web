@@ -57,6 +57,16 @@ function leave() {
 /** How long to wait for a request that hasn't arrived yet (after a cold start). */
 const ARRIVAL_WAIT_MS = 15_000;
 
+/**
+ * The prompt's details, not selectable: this screen drops touches while
+ * another window covers it (tapjacking protection), and Android's text
+ * selection handles and Copy toolbar are such windows, so a selection
+ * would block every tap until it is copied.
+ */
+function PromptCard(props: Omit<Parameters<typeof InfoCard>[0], "selectable">) {
+    return <InfoCard {...props} selectable={false} />;
+}
+
 function VerifiedBadge() {
     return (
         <View
@@ -341,17 +351,17 @@ function AgentRequestView() {
                         message={`This request came through agent forwarding on ${via}. A server you're logged in to is asking to use your key.`}
                     />
                 ) : null}
-                <InfoCard label="Agent" value={agentName} />
-                {forwarded ? <InfoCard label="Via" value={via} /> : null}
+                <PromptCard label="Agent" value={agentName} />
+                {forwarded ? <PromptCard label="Via" value={via} /> : null}
                 {check.kind === "login" && check.verifiedHost ? (
                     <>
-                        <InfoCard
+                        <PromptCard
                             label="Server"
                             value={hostCheck?.name ?? serverName(check.verifiedHost)}
                             monospace={hidden}
                             note={hostCheck?.name ? serverNameNote(hostCheck) : undefined}
                         />
-                        <InfoCard
+                        <PromptCard
                             label="Host key"
                             value={shortFingerprint(check.verifiedHost.fingerprint)}
                             badge={<VerifiedBadge />}
@@ -361,27 +371,27 @@ function AgentRequestView() {
                     </>
                 ) : null}
                 {check.user ? (
-                    <InfoCard
+                    <PromptCard
                         label="User"
                         value={sanitizeDisplayText(check.user)}
                         monospace={hidden}
                     />
                 ) : null}
-                <InfoCard label="Key" value={keyLabel} />
+                <PromptCard label="Key" value={keyLabel} />
                 {signature ? (
-                    <InfoCard
+                    <PromptCard
                         label="Namespace"
                         value={sanitizeDisplayText(check.namespace || "none", 32)}
                         monospace
                     />
                 ) : null}
-                <InfoCard
+                <PromptCard
                     label="Process"
                     value={`${processLabel(caller)}${caller ? ` (pid ${caller.pid})` : ""}`}
                     monospace={hidden}
                 />
                 {signature && caller?.cwd ? (
-                    <InfoCard
+                    <PromptCard
                         label="Folder"
                         value={sanitizeDisplayText(caller.cwd, 120)}
                         monospace={hidden}
